@@ -3,5 +3,5 @@ param(
     [string[]] $Args
 )
 
-dotnet run --project "src/RoslynTools/RoslynTools.csproj" -- @Args
+& "$PSScriptRoot\src\RoslynTools\bin\Release\net8.0\win-x64\publish\rt.exe" @Args
 exit $LASTEXITCODE

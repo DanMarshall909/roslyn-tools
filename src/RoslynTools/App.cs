@@ -12,6 +12,9 @@ internal static class App
         root.AddCommand(RenameCommand.Build());
         root.AddCommand(MoveCommand.Build());
         root.AddCommand(FindRefsCommand.Build());
+        root.AddCommand(InspectCommand.Build());
+        root.AddCommand(OutlineCommand.Build());
+        root.AddCommand(FindImplementationsCommand.Build());
 
         return await root.InvokeAsync(args);
     }

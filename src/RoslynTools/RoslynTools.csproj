@@ -6,7 +6,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>rt</AssemblyName>
     <RootNamespace>RoslynTools</RootNamespace>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="RoslynTools.Tests" />
+  </ItemGroup>
   <ItemGroup>
     <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
     <PackageReference Include="Microsoft.Build.Locator" Version="1.7.8" />

@@ -2,4 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/RoslynTools/RoslynTools.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/RoslynTools.Tests/RoslynTools.Tests.csproj" />
+  </Folder>
 </Solution>
