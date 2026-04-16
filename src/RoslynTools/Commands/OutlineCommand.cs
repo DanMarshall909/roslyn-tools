@@ -12,7 +12,7 @@ internal static class OutlineCommand
 
     internal static Command Build()
     {
-        var targetArg   = new Argument<string>("target", "File path or namespace to outline");
+        var targetArg = new Argument<string>("target", "File path or namespace to outline");
         var solutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file");
 
         var cmd = new Command("outline", "List all types and member signatures in a file or namespace (JSON)")

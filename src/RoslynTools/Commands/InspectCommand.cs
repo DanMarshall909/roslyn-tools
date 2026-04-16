@@ -11,9 +11,9 @@ internal static class InspectCommand
 
     internal static Command Build()
     {
-        var symbolArg   = new Argument<string>("symbol", "Fully-qualified symbol name to inspect");
+        var symbolArg = new Argument<string>("symbol", "Fully-qualified symbol name to inspect");
         var solutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file");
-        var kindOpt     = new Option<string?>("--kind", "Symbol kind: type, method, property, field, namespace");
+        var kindOpt = new Option<string?>("--kind", "Symbol kind: type, method, property, field, namespace");
 
         var cmd = new Command("inspect", "Show type shape: members, base types, interfaces, locations (JSON)")
         {

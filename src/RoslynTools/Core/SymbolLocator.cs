@@ -153,20 +153,20 @@ internal static class SymbolLocator
     private static SymbolFilter KindToFilter(string? kind) => kind switch
     {
         "namespace" => SymbolFilter.Namespace,
-        "type"      => SymbolFilter.Type,
-        "method"    => SymbolFilter.Member,
-        "property"  => SymbolFilter.Member,
-        "field"     => SymbolFilter.Member,
-        null        => SymbolFilter.All,
-        _           => SymbolFilter.All
+        "type" => SymbolFilter.Type,
+        "method" => SymbolFilter.Member,
+        "property" => SymbolFilter.Member,
+        "field" => SymbolFilter.Member,
+        null => SymbolFilter.All,
+        _ => SymbolFilter.All
     };
 
     private static IEnumerable<ISymbol> NarrowByKind(IEnumerable<ISymbol> symbols, string? kind) => kind switch
     {
-        "method"   => symbols.OfType<IMethodSymbol>(),
+        "method" => symbols.OfType<IMethodSymbol>(),
         "property" => symbols.OfType<IPropertySymbol>(),
-        "field"    => symbols.OfType<IFieldSymbol>(),
-        _          => symbols
+        "field" => symbols.OfType<IFieldSymbol>(),
+        _ => symbols
     };
 
     private static bool MatchesFqn(ISymbol symbol, string input)

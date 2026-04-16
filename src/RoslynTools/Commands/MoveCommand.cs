@@ -11,12 +11,12 @@ internal static class MoveCommand
 {
     internal static Command Build()
     {
-        var solutionOpt    = new Option<string>("--solution",      "Path to the .sln file") { IsRequired = true };
-        var typeOpt        = new Option<string?>("--type",         "Fully-qualified type name (e.g. ProjectX.Core.Services.BookingService)");
-        var nsFromOpt      = new Option<string?>("--namespace",    "Source namespace — moves ALL types in this namespace (batch mode)");
-        var nsToOpt        = new Option<string>("--to-namespace",  "Target namespace (e.g. ProjectX.Core.Domain.Services)") { IsRequired = true };
-        var dryRunOpt      = new Option<bool>("--dry-run",         "Preview changes without writing to disk");
-        var moveFileOpt    = new Option<bool>("--move-file",       "Move source file(s) to match the target namespace folder structure");
+        var solutionOpt = new Option<string>("--solution", "Path to the .sln file") { IsRequired = true };
+        var typeOpt = new Option<string?>("--type", "Fully-qualified type name (e.g. ProjectX.Core.Services.BookingService)");
+        var nsFromOpt = new Option<string?>("--namespace", "Source namespace — moves ALL types in this namespace (batch mode)");
+        var nsToOpt = new Option<string>("--to-namespace", "Target namespace (e.g. ProjectX.Core.Domain.Services)") { IsRequired = true };
+        var dryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk");
+        var moveFileOpt = new Option<bool>("--move-file", "Move source file(s) to match the target namespace folder structure");
 
         var cmd = new Command("move", "Move a type to a different namespace, updating the declaration and all references")
         {
@@ -250,7 +250,7 @@ internal static class MoveCommand
             foreach (var loc in group)
             {
                 var originalNode = root.FindNode(loc.Location.SourceSpan);
-                var trackedNode  = currentRoot.GetCurrentNode(originalNode);
+                var trackedNode = currentRoot.GetCurrentNode(originalNode);
                 if (trackedNode == null) continue;
 
                 var qualifiedRoot = FindOutermostQualifiedName(trackedNode);

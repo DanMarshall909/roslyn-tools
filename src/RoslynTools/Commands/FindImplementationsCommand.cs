@@ -12,7 +12,7 @@ internal static class FindImplementationsCommand
 
     internal static Command Build()
     {
-        var symbolArg   = new Argument<string>("symbol", "Fully-qualified interface or abstract class name");
+        var symbolArg = new Argument<string>("symbol", "Fully-qualified interface or abstract class name");
         var solutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file");
 
         var cmd = new Command("find-impl", "Find all implementations of an interface or abstract class (JSON)")
