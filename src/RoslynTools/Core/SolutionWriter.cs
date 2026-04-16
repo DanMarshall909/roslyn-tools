@@ -67,7 +67,8 @@ internal static class SolutionWriter
         var oldLines = oldText.Split('\n');
         var newLines = newText.Split('\n');
 
-        // Simple line-by-line diff — finds changed blocks and prints context
+        // Simple line-by-line diff — finds changed blocks and prints them.
+        // Uses || in the inner loop so we always make progress even when one side is exhausted.
         int i = 0, j = 0;
         while (i < oldLines.Length || j < newLines.Length)
         {
@@ -78,12 +79,15 @@ internal static class SolutionWriter
                 continue;
             }
 
-            // Find the extent of the differing block
+            // Advance past the differing block — stop when both sides have a matching line.
             int oldStart = i, newStart = j;
-            while (i < oldLines.Length && j < newLines.Length && oldLines[i] != newLines[j])
+            while (i < oldLines.Length || j < newLines.Length)
             {
-                i++;
-                j++;
+                if (i < oldLines.Length && j < newLines.Length && oldLines[i] == newLines[j])
+                    break;
+
+                if (i < oldLines.Length) i++;
+                if (j < newLines.Length) j++;
             }
 
             Console.WriteLine($"@@ -{oldStart + 1},{i - oldStart} +{newStart + 1},{j - newStart} @@");
