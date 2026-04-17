@@ -11,7 +11,7 @@ internal static class MoveCommand
 {
     internal static Command Build()
     {
-        var solutionOpt = new Option<string>("--solution", "Path to the .sln file") { IsRequired = true };
+        var solutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file");
         var typeOpt = new Option<string?>("--type", "Fully-qualified type name (e.g. ProjectX.Core.Services.BookingService)");
         var nsFromOpt = new Option<string?>("--namespace", "Source namespace — moves ALL types in this namespace (batch mode)");
         var nsToOpt = new Option<string>("--to-namespace", "Target namespace (e.g. ProjectX.Core.Domain.Services)") { IsRequired = true };
