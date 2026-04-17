@@ -1,0 +1,312 @@
+{
+  "project": "roslyn-tools",
+  "branchName": "ralph/cleanup-pass",
+  "description": "Fix 6 verified issues from April 2026 audit before adding new commands. Replace naive PrintDiff with DiffPlex, upgrade SolutionWriter to create new files, extract shared helpers, standardize CLI options, add missing validation, and update stale docs.",
+  "ralph_instructions": "Work through userStories in priority order. For each story where passes=false: follow the TDD phase indicated in the story notes (BASELINE/RED/GREEN/REFACTOR). Verification uses `dotnet build RoslynTools.slnx` and `dotnet test RoslynTools.slnx -v minimal`.\n\n## TDD Discipline (from bound)\n\n### BASELINE: Before ANY code change\n- Run `dotnet test RoslynTools.slnx -v minimal` — all existing tests MUST be GREEN\n- If any test fails: STOP, fix it first, do not proceed\n\n### RED Phase Rules\n- Tests MUST compile and run (no compilation errors)\n- Tests MUST fail for the RIGHT REASON (expected behavior missing, not import errors or typos)\n- Verify the failure message matches the expected missing behavior\n- If target class doesn't exist yet: create an empty stub that compiles (returns default/throws NotImplementedException) so tests fail on assertions, not missing types\n\n### GREEN Phase Rules\n- Write MINIMAL code to make tests pass — no more\n- 100% line coverage on new code (uncovered code = delete it or file follow-up)\n- All existing tests must still pass (no regressions)\n\n### REFACTOR Phase Rules\n- All tests must stay green\n- Coverage must not decrease\n- If coverage changes: investigate why\n- No behavior changes — pure structural improvement\n\n### Per-Story Workflow\n1. BASELINE: verify all tests green\n2. Execute the story's TDD phase\n3. `dotnet build RoslynTools.slnx`\n4. `dotnet test RoslynTools.slnx -v minimal`\n5. `dotnet format RoslynTools.slnx --verify-no-changes`\n6. If green: set passes=true, update progress.txt\n7. If red: fix before moving on — never skip a failing test",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add DiffPlex package",
+      "description": "As a developer, I want the DiffPlex NuGet package available so that PrintDiff can be replaced with a proper Myers diff algorithm.",
+      "acceptanceCriteria": [
+        "BASELINE: `dotnet test RoslynTools.slnx -v minimal` — all existing tests green",
+        "Add `<PackageReference Include=\"DiffPlex\" Version=\"1.7.1\" />` to src/RoslynTools/RoslynTools.csproj",
+        "dotnet build RoslynTools.slnx succeeds",
+        "dotnet test RoslynTools.slnx -v minimal — all tests still green (no regressions)",
+        "dotnet format RoslynTools.slnx --verify-no-changes passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "bead": "",
+      "notes": "Phase: BASELINE only. Zero behavior change — just adds the dependency for US-004."
+    },
+    {
+      "id": "US-002",
+      "title": "Make PrintDiff internal",
+      "description": "As a developer, I want PrintDiff to be internal so that it can be directly unit-tested.",
+      "acceptanceCriteria": [
+        "BASELINE: `dotnet test RoslynTools.slnx -v minimal` — all tests green",
+        "Change `private static void PrintDiff` to `internal static void PrintDiff` in src/RoslynTools/Core/SolutionWriter.cs",
+        "No other changes to the method",
+        "dotnet build RoslynTools.slnx succeeds",
+        "dotnet test RoslynTools.slnx -v minimal — all tests still green"
+      ],
+      "priority": 2,
+      "passes": true,
+      "bead": "",
+      "notes": "Phase: BASELINE only. InternalsVisibleTo already configured in .csproj. Visibility change only — enables testing in US-003."
+    },
+    {
+      "id": "US-003",
+      "title": "Write PrintDiff tests (RED)",
+      "description": "As a developer, I want tests that expose the naive diff algorithm bug so that the fix in US-004 is verified.",
+      "acceptanceCriteria": [
+        "BASELINE: `dotnet test RoslynTools.slnx -v minimal` — all existing tests green",
+        "Create tests/RoslynTools.Tests/SolutionWriterTests.cs — pure string-in/string-out unit tests, no [Collection(\"MSBuild\")]",
+        "Capture console output via Console.SetOut(new StringWriter())",
+        "Test: PrintDiff_SingleLineInsertion_ShowsOnlyInsertedLine — old=a\\nb\\nc, new=a\\nX\\nb\\nc, assert +X and no - lines",
+        "Test: PrintDiff_SingleLineDeletion_ShowsOnlyDeletedLine — old=a\\nX\\nb, new=a\\nb, assert -X and no + lines",
+        "Test: PrintDiff_ModifiedLine_ShowsDeleteAndInsert — one line changed, assert one - and one +",
+        "Test: PrintDiff_IdenticalText_ProducesNoDiffLines — same text, no + or - in output",
+        "Test: PrintDiff_MultipleChanges_ProducesSeparateHunks — two non-adjacent changes, assert two @@ markers",
+        "All tests COMPILE and RUN (no compilation errors)",
+        "Insertion and deletion tests FAIL — verify failure is due to wrong diff output (too many -/+ lines), NOT compilation or setup errors",
+        "dotnet build RoslynTools.slnx succeeds"
+      ],
+      "priority": 3,
+      "passes": true,
+      "bead": "",
+      "notes": "Phase: RED. Tests must fail for the RIGHT REASON — the naive algorithm produces too many lines. Check the failure message shows assertion failure on line counts, not missing types or compilation errors."
+    },
+    {
+      "id": "US-004",
+      "title": "Replace PrintDiff with DiffPlex (GREEN)",
+      "description": "As a developer, I want PrintDiff to use a proper Myers diff algorithm so that --dry-run output is correct and minimal.",
+      "acceptanceCriteria": [
+        "Replace SolutionWriter.PrintDiff implementation with DiffPlex InlineDiffBuilder",
+        "Use DiffPlex.DiffBuilder.InlineDiffBuilder.BuildDiffModel(new Differ(), oldText, newText)",
+        "Track old/new line numbers, group consecutive changes with 3 lines of context",
+        "Emit @@ -old,count +new,count @@ hunk headers in unified diff format",
+        "ALL SolutionWriterTests go GREEN — verify each test passes for the right reason",
+        "ALL existing tests stay green (no regressions)",
+        "dotnet format RoslynTools.slnx --verify-no-changes passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "bead": "",
+      "notes": "Phase: GREEN. Write MINIMAL code to make tests pass. ~40-50 lines for unified diff formatting."
+    },
+    {
+      "id": "US-005",
+      "title": "Write SolutionWriter new-file tests (RED)",
+      "description": "As a developer, I want tests for new file creation in SolutionWriter so that extract-interface and extract-class will work.",
+      "acceptanceCriteria": [
+        "BASELINE: `dotnet test RoslynTools.slnx -v minimal` — all tests green",
+        "Add tests to SolutionWriterTests.cs (these need [Collection(\"MSBuild\")] — split into a second class if needed)",
+        "Test: ApplyChanges_AddedDocument_WritesNewFile — programmatically add document to Solution, call ApplyChangesAsync, assert file exists on disk",
+        "Test: ApplyChanges_AddedDocument_DryRun_DoesNotWriteFile — same with dryRun=true, assert file does NOT exist, output mentions new file",
+        "All tests COMPILE and RUN",
+        "New tests FAIL — verify failure is because added documents are skipped (WARNING printed), NOT because of setup/compilation errors",
+        "All previously-passing tests still pass"
+      ],
+      "priority": 5,
+      "passes": true,
+      "bead": "",
+      "notes": "Phase: RED. Tests must fail because SolutionWriter currently prints WARNING and skips GetAddedDocuments(). Verify the failure message shows file-not-found assertion, not compilation errors."
+    },
+    {
+      "id": "US-006",
+      "title": "Implement new file creation in SolutionWriter (GREEN)",
+      "description": "As a developer, I want SolutionWriter.ApplyChangesAsync to create new files so that commands like extract-interface can write their output.",
+      "acceptanceCriteria": [
+        "Replace SolutionWriter.cs GetAddedDocuments WARNING+skip with actual file writing",
+        "Handle null FilePath gracefully (warn and skip)",
+        "In dry-run mode: print content with +++ (new file) header, do NOT create file",
+        "In normal mode: create parent directory if needed, write file with correct encoding",
+        "Increment fileCount for added documents",
+        "ALL new-file tests go GREEN",
+        "ALL existing tests stay green (no regressions)",
+        "dotnet format RoslynTools.slnx --verify-no-changes passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "bead": "",
+      "notes": "Phase: GREEN. This was PRD US-00A. Write minimal code to make the two new tests pass."
+    },
+    {
+      "id": "US-007",
+      "title": "Write SymbolFormatter tests (RED)",
+      "description": "As a developer, I want tests for the shared SymbolFormatter helpers so that the extraction in US-008 can be verified.",
+      "acceptanceCriteria": [
+        "BASELINE: `dotnet test RoslynTools.slnx -v minimal` — all tests green",
+        "Create tests/RoslynTools.Tests/SymbolFormatterTests.cs with [Collection(\"MSBuild\")]",
+        "Use TestProjectBuilder with a class that extends a base class and implements an interface",
+        "Test: ExtractSourceLocations_ReturnsFileAndLine",
+        "Test: ExtractMembers_IncludesStaticFlag",
+        "Test: ExtractMembers_OmitsStaticFlagWhenDisabled",
+        "Test: AddTypeHierarchyInfo_SetsBaseTypeAndInterfaces",
+        "Test: AddTypeHierarchyInfo_OmitsObjectBase",
+        "Create empty stub: src/RoslynTools/Core/SymbolFormatter.cs with methods that throw NotImplementedException — so tests COMPILE",
+        "All tests COMPILE and RUN",
+        "SymbolFormatter tests FAIL on NotImplementedException — NOT on missing type or compilation error",
+        "All previously-passing tests still pass"
+      ],
+      "priority": 7,
+      "passes": false,
+      "bead": "",
+      "notes": "Phase: RED. Stub the class so tests compile and fail for the RIGHT REASON (NotImplementedException), not because the type doesn't exist."
+    },
+    {
+      "id": "US-008",
+      "title": "Create SymbolFormatter shared helpers (GREEN)",
+      "description": "As a developer, I want shared helpers for location extraction, member listing, and type hierarchy so that duplication across commands is eliminated.",
+      "acceptanceCriteria": [
+        "Implement all methods in src/RoslynTools/Core/SymbolFormatter.cs (replace NotImplementedException stubs)",
+        "DefaultJsonOptions — new JsonSerializerOptions { WriteIndented = true }",
+        "ExtractSourceLocations(ISymbol) — returns List<Dictionary<string, object?>>",
+        "ExtractMembers(INamedTypeSymbol, bool includeStaticFlag = true) — returns member list with name/kind/signature/accessibility and optional isStatic",
+        "AddTypeHierarchyInfo(Dictionary<string, object?>, INamedTypeSymbol) — adds baseType + interfaces keys",
+        "ALL SymbolFormatterTests go GREEN",
+        "ALL existing tests stay green",
+        "dotnet format RoslynTools.slnx --verify-no-changes passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "bead": "",
+      "notes": "Phase: GREEN. Write minimal code to make all 5 SymbolFormatter tests pass."
+    },
+    {
+      "id": "US-009",
+      "title": "Update InspectCommand to use SymbolFormatter (REFACTOR)",
+      "description": "As a developer, I want InspectCommand to use shared helpers so that duplication is removed.",
+      "acceptanceCriteria": [
+        "BASELINE: `dotnet test RoslynTools.slnx -v minimal` — all tests green",
+        "Remove private JsonOpts field from InspectCommand.cs",
+        "Use SymbolFormatter.DefaultJsonOptions for serialization",
+        "Replace location extraction with SymbolFormatter.ExtractSourceLocations",
+        "Replace type hierarchy with SymbolFormatter.AddTypeHierarchyInfo",
+        "Replace member listing with SymbolFormatter.ExtractMembers(type)",
+        "dotnet test --filter FullyQualifiedName~InspectTests — must stay green (same JSON output)",
+        "dotnet test RoslynTools.slnx -v minimal — ALL tests green (no regressions)"
+      ],
+      "priority": 9,
+      "passes": false,
+      "bead": "",
+      "notes": "Phase: REFACTOR. No behavior change — existing InspectTests verify JSON output is unchanged. If any test fails, the refactoring broke something — revert and investigate."
+    },
+    {
+      "id": "US-010",
+      "title": "Update OutlineCommand to use SymbolFormatter (REFACTOR)",
+      "description": "As a developer, I want OutlineCommand to use shared helpers so that duplication is removed.",
+      "acceptanceCriteria": [
+        "BASELINE: `dotnet test RoslynTools.slnx -v minimal` — all tests green",
+        "Remove private JsonOpts field from OutlineCommand.cs",
+        "Use SymbolFormatter.DefaultJsonOptions for serialization",
+        "Replace type hierarchy in BuildTypeOutline with SymbolFormatter.AddTypeHierarchyInfo",
+        "Replace member listing with SymbolFormatter.ExtractMembers(type, includeStaticFlag: false)",
+        "dotnet test --filter FullyQualifiedName~OutlineTests — must stay green",
+        "dotnet test RoslynTools.slnx -v minimal — ALL tests green"
+      ],
+      "priority": 10,
+      "passes": false,
+      "bead": "",
+      "notes": "Phase: REFACTOR. IMPORTANT: OutlineCommand does NOT include isStatic — use includeStaticFlag: false. If OutlineTests fail, the flag is wrong."
+    },
+    {
+      "id": "US-011",
+      "title": "Update FindImplementationsCommand to use SymbolFormatter (REFACTOR)",
+      "description": "As a developer, I want FindImplementationsCommand to use shared location extraction so that duplication is removed.",
+      "acceptanceCriteria": [
+        "BASELINE: `dotnet test RoslynTools.slnx -v minimal` — all tests green",
+        "Remove private JsonOpts field from FindImplementationsCommand.cs",
+        "Use SymbolFormatter.DefaultJsonOptions for serialization",
+        "Replace location extraction in first loop with SymbolFormatter.ExtractSourceLocations",
+        "Replace location extraction in second loop with SymbolFormatter.ExtractSourceLocations",
+        "Do NOT replace directInterfaces — different key name and semantics from AddTypeHierarchyInfo",
+        "dotnet test --filter FullyQualifiedName~FindImplementationsTests — must stay green",
+        "dotnet test RoslynTools.slnx -v minimal — ALL tests green"
+      ],
+      "priority": 11,
+      "passes": false,
+      "bead": "",
+      "notes": "Phase: REFACTOR. Only extract locations. directInterfaces uses a different key name — do NOT apply AddTypeHierarchyInfo here."
+    },
+    {
+      "id": "US-012",
+      "title": "Make --solution optional in FindRefsCommand",
+      "description": "As a developer, I want --solution to be optional in find-refs so that it auto-detects like all other commands.",
+      "acceptanceCriteria": [
+        "BASELINE: `dotnet test RoslynTools.slnx -v minimal` — all tests green",
+        "Change `new Option<string>(\"--solution\", ...) { IsRequired = true }` to `new Option<string?>(\"--solution\", \"Path to the .sln/.slnx file\")`",
+        "dotnet build RoslynTools.slnx succeeds",
+        "dotnet test --filter FullyQualifiedName~FindRefsTests — must stay green"
+      ],
+      "priority": 12,
+      "passes": false,
+      "bead": "",
+      "notes": "Phase: REFACTOR. Handler already passes to WorkspaceLoader.LoadAsync which handles null. Pure signature change."
+    },
+    {
+      "id": "US-013",
+      "title": "Make --solution optional in MoveCommand",
+      "description": "As a developer, I want --solution to be optional in move so that it auto-detects like all other commands.",
+      "acceptanceCriteria": [
+        "BASELINE: `dotnet test RoslynTools.slnx -v minimal` — all tests green",
+        "Change `new Option<string>(\"--solution\", ...) { IsRequired = true }` to `new Option<string?>(\"--solution\", \"Path to the .sln/.slnx file\")`",
+        "dotnet build RoslynTools.slnx succeeds",
+        "dotnet test --filter FullyQualifiedName~MoveTests — must stay green"
+      ],
+      "priority": 13,
+      "passes": false,
+      "bead": "",
+      "notes": "Phase: REFACTOR. Same change as US-012."
+    },
+    {
+      "id": "US-014",
+      "title": "Add line range validation to MethodExtractor (RED+GREEN)",
+      "description": "As a developer, I want clear validation errors when invalid line ranges are passed to extract-method.",
+      "acceptanceCriteria": [
+        "BASELINE: `dotnet test RoslynTools.slnx -v minimal` — all tests green",
+        "RED: Add tests to ExtractMethodTests.cs — Error_StartLineZero_Throws and Error_EndLineBeforeStartLine_Throws",
+        "RED: Tests compile and RUN, fail with wrong exception (InvalidOperationException from 'no statements found' instead of ArgumentOutOfRangeException)",
+        "GREEN: Add validation at top of MethodExtractor.ExtractAsync: startLine >= 1, endLine >= 1, startLine <= endLine — throw ArgumentOutOfRangeException",
+        "ALL ExtractMethodTests pass including new validation tests",
+        "ALL existing tests green",
+        "dotnet format RoslynTools.slnx --verify-no-changes passes"
+      ],
+      "priority": 14,
+      "passes": false,
+      "bead": "",
+      "notes": "Phase: RED+GREEN (combined — tiny scope). Tests must fail because current code throws wrong exception type, then pass after adding validation."
+    },
+    {
+      "id": "US-015",
+      "title": "Add logging to MsBuildBootstrap catch",
+      "description": "As a developer, I want to see a log message when MSBuild registration falls back to manual SDK discovery.",
+      "acceptanceCriteria": [
+        "BASELINE: `dotnet test RoslynTools.slnx -v minimal` — all tests green",
+        "Replace empty catch body in MsBuildBootstrap.cs with Console.Error.WriteLine logging the exception message and fallback",
+        "dotnet build RoslynTools.slnx succeeds",
+        "dotnet test RoslynTools.slnx -v minimal — all tests green"
+      ],
+      "priority": 15,
+      "passes": false,
+      "bead": "",
+      "notes": "One-liner. No test needed — logging only."
+    },
+    {
+      "id": "US-016",
+      "title": "Update stale documentation",
+      "description": "As a developer, I want CLAUDE.md, AGENTS.md, and the PRD to reflect the current state of the project.",
+      "acceptanceCriteria": [
+        "CLAUDE.md: replace 'No test project exists yet' block with actual test commands referencing tests/RoslynTools.Tests/",
+        "CLAUDE.md: mark all 6 known issues as resolved in the Known Issues section",
+        "CLAUDE.md: add DiffPlex 1.7.1 to the Dependencies table",
+        "AGENTS.md: replace 'no dedicated test project' (line 72-73) with actual path",
+        "tasks/prd-refactoring-commands.md: remove US-000 (test project already exists), mark US-00A as completed",
+        "dotnet build RoslynTools.slnx succeeds"
+      ],
+      "priority": 16,
+      "passes": false,
+      "bead": "",
+      "notes": "Documentation only — no code changes."
+    },
+    {
+      "id": "US-017",
+      "title": "Full smoke test — dogfood rt against itself",
+      "description": "As a developer, I want to verify all changes work end-to-end by running rt against the roslyn-tools solution.",
+      "acceptanceCriteria": [
+        "rt inspect RoslynTools.Core.SolutionWriter --solution RoslynTools.slnx exits 0 with JSON output",
+        "rt find-refs --symbol WorkspaceLoader exits 0 (--solution now auto-detected)",
+        "rt outline src/RoslynTools/Core/SymbolFormatter.cs --solution RoslynTools.slnx exits 0 with JSON output",
+        "rt rename RoslynTools.Models.SymbolMatch.DisplayName TestName --solution RoslynTools.slnx --dry-run exits 0 — verify diff output is clean (DiffPlex-based)",
+        "dotnet format RoslynTools.slnx --verify-no-changes passes",
+        "dotnet test RoslynTools.slnx -v minimal — ALL tests green"
+      ],
+      "priority": 17,
+      "passes": false,
+      "bead": "",
+      "notes": "Final gate. Exercises DiffPlex diff, auto-detected --solution, and SymbolFormatter JSON output."
+    }
+  ]
+}

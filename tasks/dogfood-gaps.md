@@ -1,0 +1,1 @@
+- 2026-04-17: Replace Console.Error.WriteLine with ILogger across multiple partial controller files — rt has no general pattern-replace command (only replace-datetime is supported)
