@@ -8,7 +8,7 @@ internal static class FindRefsCommand
 {
     internal static Command Build()
     {
-        var solutionOpt = new Option<string>("--solution", "Path to the .sln file") { IsRequired = true };
+        var solutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file");
         var symbolOpt = new Option<string>("--symbol", "Simple name of the symbol") { IsRequired = true };
         var kindOpt = new Option<string?>("--kind", "Symbol kind: type, method, property, field, namespace");
 
