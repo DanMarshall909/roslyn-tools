@@ -8,8 +8,6 @@ namespace RoslynTools.Commands;
 
 internal static class FindImplementationsCommand
 {
-    private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
-
     internal static Command Build()
     {
         var symbolArg = new Argument<string>("symbol", "Fully-qualified interface or abstract class name");
@@ -44,7 +42,7 @@ internal static class FindImplementationsCommand
                     ["implementations"] = implementations,
                 };
 
-                Console.WriteLine(JsonSerializer.Serialize(result, JsonOpts));
+                Console.WriteLine(JsonSerializer.Serialize(result, SymbolFormatter.DefaultJsonOptions));
             }
         },
         symbolArg, solutionOpt);
@@ -68,18 +66,7 @@ internal static class FindImplementationsCommand
             var fqn = implType.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
             if (!seen.Add(fqn)) continue;
 
-            var locations = implType.Locations
-                .Where(l => l.IsInSource)
-                .Select(l =>
-                {
-                    var span = l.GetLineSpan();
-                    return new Dictionary<string, object?>
-                    {
-                        ["file"] = span.Path,
-                        ["line"] = span.StartLinePosition.Line + 1,
-                    };
-                })
-                .ToList();
+            var locations = SymbolFormatter.ExtractSourceLocations(implType);
 
             var entry = new Dictionary<string, object?>
             {
@@ -114,18 +101,7 @@ internal static class FindImplementationsCommand
                 var fqn = d.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
                 if (!seen.Add(fqn)) continue;
 
-                var locations = d.Locations
-                    .Where(l => l.IsInSource)
-                    .Select(l =>
-                    {
-                        var span = l.GetLineSpan();
-                        return new Dictionary<string, object?>
-                        {
-                            ["file"] = span.Path,
-                            ["line"] = span.StartLinePosition.Line + 1,
-                        };
-                    })
-                    .ToList();
+                var locations = SymbolFormatter.ExtractSourceLocations(d);
 
                 results.Add(new Dictionary<string, object?>
                 {
