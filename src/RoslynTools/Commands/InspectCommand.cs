@@ -7,8 +7,6 @@ namespace RoslynTools.Commands;
 
 internal static class InspectCommand
 {
-    private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
-
     internal static Command Build()
     {
         var symbolArg = new Argument<string>("symbol", "Fully-qualified symbol name to inspect");
@@ -27,7 +25,7 @@ internal static class InspectCommand
             {
                 var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, symbol, kind);
                 var result = BuildInspection(sym, sln);
-                Console.WriteLine(JsonSerializer.Serialize(result, JsonOpts));
+                Console.WriteLine(JsonSerializer.Serialize(result, SymbolFormatter.DefaultJsonOptions));
             }
         },
         symbolArg, solutionOpt, kindOpt);
@@ -49,19 +47,7 @@ internal static class InspectCommand
         };
 
         // Locations
-        var locations = symbol.Locations
-            .Where(l => l.IsInSource)
-            .Select(l =>
-            {
-                var span = l.GetLineSpan();
-                return new Dictionary<string, object?>
-                {
-                    ["file"] = span.Path,
-                    ["line"] = span.StartLinePosition.Line + 1,
-                };
-            })
-            .ToList();
-        result["locations"] = locations;
+        result["locations"] = SymbolFormatter.ExtractSourceLocations(symbol);
 
         // Containing info
         result["namespace"] = symbol.ContainingNamespace?.ToDisplayString();
@@ -71,14 +57,7 @@ internal static class InspectCommand
         {
             result["typeKind"] = type.TypeKind.ToString();
 
-            if (type.BaseType != null && type.BaseType.SpecialType != SpecialType.System_Object)
-                result["baseType"] = type.BaseType.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
-
-            var interfaces = type.Interfaces
-                .Select(i => i.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat))
-                .ToList();
-            if (interfaces.Count > 0)
-                result["interfaces"] = interfaces;
+            SymbolFormatter.AddTypeHierarchyInfo(result, type);
 
             var typeParams = type.TypeParameters
                 .Select(tp => tp.Name)
@@ -86,18 +65,7 @@ internal static class InspectCommand
             if (typeParams.Count > 0)
                 result["typeParameters"] = typeParams;
 
-            var members = type.GetMembers()
-                .Where(m => !m.IsImplicitlyDeclared)
-                .Select(m => new Dictionary<string, object?>
-                {
-                    ["name"] = m.Name,
-                    ["kind"] = m.Kind.ToString(),
-                    ["signature"] = m.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
-                    ["accessibility"] = m.DeclaredAccessibility.ToString(),
-                    ["isStatic"] = m.IsStatic,
-                })
-                .ToList();
-            result["members"] = members;
+            result["members"] = SymbolFormatter.ExtractMembers(type);
 
             var constructors = type.Constructors
                 .Where(c => !c.IsImplicitlyDeclared)
