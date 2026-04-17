@@ -37,9 +37,11 @@ internal static class WorkspaceLoader
             return Path.GetFullPath(solutionPath);
 
         var cwd = Directory.GetCurrentDirectory();
+        // MSBuildWorkspace only supports classic .sln format; .slnx is not supported.
+        // Auto-detect only considers .sln files. If a user explicitly passes --solution
+        // pointing to a .slnx, the error from MSBuild will explain the problem.
         var candidates = Directory
-            .EnumerateFiles(cwd, "*.slnx", SearchOption.TopDirectoryOnly)
-            .Concat(Directory.EnumerateFiles(cwd, "*.sln", SearchOption.TopDirectoryOnly))
+            .EnumerateFiles(cwd, "*.sln", SearchOption.TopDirectoryOnly)
             .ToList();
 
         if (candidates.Count == 1)
@@ -47,10 +49,10 @@ internal static class WorkspaceLoader
 
         if (candidates.Count == 0)
             throw new FileNotFoundException(
-                "No .sln or .slnx file found in current directory. Pass --solution explicitly.");
+                "No .sln file found in current directory. Pass --solution explicitly.");
 
         var names = string.Join(", ", candidates.Select(Path.GetFileName));
         throw new InvalidOperationException(
-            $"Multiple solution files found ({names}). Pass --solution explicitly.");
+            $"Multiple .sln files found ({names}). Pass --solution explicitly.");
     }
 }

@@ -31,7 +31,8 @@ internal static class SymbolLocator
             allDeclarations.AddRange(found);
         }
 
-        // Further narrow by kind when filter covers multiple symbol types
+        // Further narrow by kind when filter covers multiple symbol types.
+        // Deduplicate: same FQN appearing in multiple projects (e.g. main + test) collapses to one.
         var matches = NarrowByKind(allDeclarations, kind)
             .Select(s => new SymbolMatch
             {
@@ -39,6 +40,8 @@ internal static class SymbolLocator
                 DisplayName = s.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
                 ProjectName = s.ContainingAssembly?.Name ?? "?"
             })
+            .GroupBy(m => m.DisplayName)
+            .Select(g => g.First())
             .ToList();
 
         if (matches.Count == 0)
@@ -82,6 +85,9 @@ internal static class SymbolLocator
                 DisplayName = s.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
                 ProjectName = s.ContainingAssembly?.Name ?? "?"
             })
+            // Deduplicate: same FQN appearing in multiple projects (e.g. main + test) collapses to one.
+            .GroupBy(m => m.DisplayName)
+            .Select(g => g.First())
             .ToList();
 
         if (matches.Count == 0)
@@ -110,23 +116,27 @@ internal static class SymbolLocator
             allDeclarations.AddRange(found);
         }
 
-        var matches = allDeclarations
+        // Deduplicate: same FQN appearing in multiple projects (e.g. main + test) collapses to one.
+        var symbolMatches = allDeclarations
             .Where(s => s.ContainingNamespace?.ToDisplayString() == expectedNamespace)
+            .Select(s => new SymbolMatch
+            {
+                Symbol = s,
+                DisplayName = s.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
+                ProjectName = s.ContainingAssembly?.Name ?? "?"
+            })
+            .GroupBy(m => m.DisplayName)
+            .Select(g => g.First())
             .ToList();
+
+        // Re-extract the raw symbols list for the single-match fast path
+        var matches = symbolMatches.Select(m => m.Symbol).ToList();
 
         if (matches.Count == 0)
             throw new InvalidOperationException($"No type with FQN '{fqn}' found in solution.");
 
         if (matches.Count == 1)
             return matches[0];
-
-        // Multiple assemblies may have the same FQN — let user pick
-        var symbolMatches = matches.Select(s => new SymbolMatch
-        {
-            Symbol = s,
-            DisplayName = s.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
-            ProjectName = s.ContainingAssembly?.Name ?? "?"
-        }).ToList();
 
         return Disambiguate(symbolMatches, fqn);
     }
