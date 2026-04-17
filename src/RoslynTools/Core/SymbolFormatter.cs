@@ -16,7 +16,18 @@ internal static class SymbolFormatter
     /// </summary>
     internal static List<Dictionary<string, object?>> ExtractSourceLocations(ISymbol symbol)
     {
-        throw new NotImplementedException("SymbolFormatter.ExtractSourceLocations is not yet implemented.");
+        return symbol.Locations
+            .Where(l => l.IsInSource)
+            .Select(l =>
+            {
+                var span = l.GetLineSpan();
+                return new Dictionary<string, object?>
+                {
+                    ["file"] = span.Path,
+                    ["line"] = span.StartLinePosition.Line + 1,
+                };
+            })
+            .ToList();
     }
 
     /// <summary>
@@ -27,7 +38,22 @@ internal static class SymbolFormatter
         INamedTypeSymbol type,
         bool includeStaticFlag = true)
     {
-        throw new NotImplementedException("SymbolFormatter.ExtractMembers is not yet implemented.");
+        return type.GetMembers()
+            .Where(m => !m.IsImplicitlyDeclared)
+            .Select(m =>
+            {
+                var entry = new Dictionary<string, object?>
+                {
+                    ["name"] = m.Name,
+                    ["kind"] = m.Kind.ToString(),
+                    ["signature"] = m.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+                    ["accessibility"] = m.DeclaredAccessibility.ToString(),
+                };
+                if (includeStaticFlag)
+                    entry["isStatic"] = m.IsStatic;
+                return entry;
+            })
+            .ToList();
     }
 
     /// <summary>
@@ -39,6 +65,13 @@ internal static class SymbolFormatter
         Dictionary<string, object?> result,
         INamedTypeSymbol type)
     {
-        throw new NotImplementedException("SymbolFormatter.AddTypeHierarchyInfo is not yet implemented.");
+        if (type.BaseType != null && type.BaseType.SpecialType != SpecialType.System_Object)
+            result["baseType"] = type.BaseType.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
+
+        var interfaces = type.Interfaces
+            .Select(i => i.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat))
+            .ToList();
+        if (interfaces.Count > 0)
+            result["interfaces"] = interfaces;
     }
 }
