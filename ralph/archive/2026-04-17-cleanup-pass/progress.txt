@@ -1,0 +1,32 @@
+roslyn-tools Cleanup Pass — Ralph Execution Progress
+=====================================================
+Branch: ralph/cleanup-pass
+PRD: prd.json (17 user stories)
+Date Started: 2026-04-16
+Current Status: 17/17 stories complete (100%)
+
+TDD Discipline: bound-style (BASELINE → RED → GREEN → REFACTOR)
+- BASELINE: all tests green before any change
+- RED: tests compile and fail for the RIGHT REASON
+- GREEN: minimal code to pass, 100% coverage on new code
+- REFACTOR: tests stay green, coverage unchanged
+
+COMPLETED STORIES
+=================
+[x] US-001: Add DiffPlex package (BASELINE)
+[x] US-002: Make PrintDiff internal (BASELINE)
+[x] US-003: Write PrintDiff tests (RED)
+[x] US-004: Replace PrintDiff with DiffPlex (GREEN)
+[x] US-005: Write SolutionWriter new-file tests (RED)
+[x] US-006: Implement new file creation in SolutionWriter (GREEN)
+[x] US-007: Write SymbolFormatter tests (RED)
+[x] US-008: Create SymbolFormatter shared helpers (GREEN)
+[x] US-009: Update InspectCommand to use SymbolFormatter (REFACTOR)
+[x] US-010: Update OutlineCommand to use SymbolFormatter (REFACTOR)
+[x] US-011: Update FindImplementationsCommand to use SymbolFormatter (REFACTOR)
+[x] US-012: Make --solution optional in FindRefsCommand (REFACTOR)
+[x] US-013: Make --solution optional in MoveCommand (REFACTOR)
+[x] US-014: Add line range validation to MethodExtractor (RED+GREEN)
+[x] US-015: Add logging to MsBuildBootstrap catch
+[x] US-016: Update stale documentation
+[x] US-017: Full smoke test — dogfood rt against itself
