@@ -69,8 +69,7 @@ Notes:
 - Keep formatting changes limited to touched files unless asked otherwise.
 
 ## Test Commands
-Current snapshot has no dedicated test project.
-When tests are added, use these patterns.
+Test project: `tests/RoslynTools.Tests/RoslynTools.Tests.csproj`
 
 Run all tests in solution:
 ```powershell
@@ -78,15 +77,15 @@ dotnet test "RoslynTools.slnx" -v minimal
 ```
 Run tests for one project:
 ```powershell
-dotnet test "path/to/Some.Tests.csproj" -v minimal
+dotnet test "tests/RoslynTools.Tests/RoslynTools.Tests.csproj" -v minimal
 ```
 Run a single test (recommended first step):
 ```powershell
-dotnet test "path/to/Some.Tests.csproj" -v minimal --filter "FullyQualifiedName=Namespace.TypeName.TestMethod"
+dotnet test "tests/RoslynTools.Tests/RoslynTools.Tests.csproj" -v minimal --filter "FullyQualifiedName=Namespace.TypeName.TestMethod"
 ```
 Run tests by partial name:
 ```powershell
-dotnet test "path/to/Some.Tests.csproj" -v minimal --filter "FullyQualifiedName~TypeName"
+dotnet test "tests/RoslynTools.Tests/RoslynTools.Tests.csproj" -v minimal --filter "FullyQualifiedName~TypeName"
 ```
 Useful filter keys (framework-dependent):
 - `FullyQualifiedName`

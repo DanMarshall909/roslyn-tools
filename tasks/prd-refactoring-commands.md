@@ -23,22 +23,26 @@ All commands follow the established conventions: `Commands/` (CLI definition) ->
 Commands are grouped by complexity and dependency. Complete each phase before starting the next.
 
 **Phase 0 — Prerequisites**
-- US-000: Test project + fixture solution setup
-- US-00A: Upgrade `SolutionWriter` to support new file creation
+
+- US-00A: Upgrade `SolutionWriter` to support new file creation ✓
 
 **Phase 1 — Read-only analysis (no mutation, no file creation)**
+
 - US-007: `find-callers`
 - US-008: `list-smells`
 
 **Phase 2 — Mutation commands that reuse existing core**
+
 - US-001: `extract-interface`
 - US-002: `fix-namespace`
 
 **Phase 3 — Mutation + full-solution scan**
+
 - US-005: `add-dependency`
 - US-003: `find-unused`
 
 **Phase 4 — Most complex / highest risk**
+
 - US-004: `extract-class`
 - US-006: `make-async`
 
@@ -46,27 +50,16 @@ Commands are grouped by complexity and dependency. Complete each phase before st
 
 ## User Stories
 
-### US-000: Test project and fixture solution
-**Description:** As a developer, I need a test project with a minimal fixture solution so all subsequent stories can be built TDD.
+### US-00A: Upgrade `SolutionWriter` to support new file creation ✓
 
-**Acceptance Criteria:**
-- [ ] `RoslynTools.Tests` xUnit project added to `RoslynTools.slnx`
-- [ ] Fixture solution under `tests/fixtures/` containing a minimal `.slnx` with one project, one class, one interface, one service with constructor injection — enough to exercise all planned commands
-- [ ] Fixture uses C# 7.3 `LangVersion` to match ProjectX target
-- [ ] `dotnet test` runs and passes with a single placeholder test
-- [ ] `dotnet build` and `dotnet format --verify-no-changes` pass
-
----
-
-### US-00A: Upgrade `SolutionWriter` to support new file creation
 **Description:** As a developer, I need `SolutionWriter.ApplyChangesAsync` to create new files (not just update existing ones) so that `extract-interface` and `extract-class` can write their output.
 
 **Acceptance Criteria:**
-- [ ] `SolutionWriter.ApplyChangesAsync` handles `GetAddedDocuments()` by writing the new file to disk (respecting `--dry-run`)
-- [ ] Dry-run prints the full content of new files with a clear `+++ (new file)` header
-- [ ] xUnit test: solution with an added document writes the file; dry-run does not
-- [ ] Existing update and diff behaviour unchanged (no regressions)
-- [ ] `dotnet build` and `dotnet format --verify-no-changes` pass
+- [x] `SolutionWriter.ApplyChangesAsync` handles `GetAddedDocuments()` by writing the new file to disk (respecting `--dry-run`)
+- [x] Dry-run prints the full content of new files with a clear `+++ (new file)` header
+- [x] xUnit test: solution with an added document writes the file; dry-run does not
+- [x] Existing update and diff behaviour unchanged (no regressions)
+- [x] `dotnet build` and `dotnet format --verify-no-changes` pass
 
 ---
 

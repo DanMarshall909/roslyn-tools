@@ -24,10 +24,9 @@ dotnet format "RoslynTools.slnx"                                         # fix f
 
 Wrapper scripts `rt.cmd` / `rt.ps1` run the built executable directly.
 
-No test project exists yet. When one is added:
 ```powershell
 dotnet test "RoslynTools.slnx" -v minimal
-dotnet test "path/to/Tests.csproj" -v minimal --filter "FullyQualifiedName~TypeName"
+dotnet test "tests/RoslynTools.Tests/RoslynTools.Tests.csproj" -v minimal --filter "FullyQualifiedName~TypeName"
 ```
 
 ## Verification Checklist
@@ -117,14 +116,14 @@ See `AGENTS.md` for detailed style guidelines. Key points:
 
 ## Known Issues
 
-These are verified issues from the April 2026 audit. Fix before adding new commands.
+All issues from the April 2026 audit have been resolved.
 
-1. **PrintDiff is not LCS-based** (`SolutionWriter.cs`): Naive algorithm advances both pointers in lockstep — single-line insertions produce huge diffs. Replace with real diff or `git diff --no-index`.
-2. **`--solution` inconsistency**: `FindRefsCommand` and `MoveCommand` require `--solution`; all other commands auto-detect. Make all optional.
-3. **SolutionWriter can't create new files**: `GetAddedDocuments()` prints WARNING and skips. Must be upgraded before extract-interface/extract-class.
-4. **MethodExtractor missing input validation**: No `startLine <= endLine` or `>= 1` check.
-5. **MsBuildBootstrap silent catch**: Empty catch for `DllNotFoundException` — should log to stderr.
-6. **Duplication**: `JsonSerializerOptions`, location-to-dictionary mapping, and type outline building are copy-pasted across InspectCommand, OutlineCommand, FindImplementationsCommand. Extract shared helpers before adding more commands.
+1. **PrintDiff is not LCS-based** (`SolutionWriter.cs`) — FIXED: replaced with DiffPlex Myers diff (US-001–004).
+2. **`--solution` inconsistency**: `FindRefsCommand` and `MoveCommand` require `--solution`; all other commands auto-detect — FIXED (US-012, US-013).
+3. **SolutionWriter can't create new files**: `GetAddedDocuments()` prints WARNING and skips — FIXED: `ApplyChangesAsync` now handles added documents (US-005–006).
+4. **MethodExtractor missing input validation**: No `startLine <= endLine` or `>= 1` check — FIXED: `ArgumentOutOfRangeException` guards added (US-014).
+5. **MsBuildBootstrap silent catch**: Empty catch for `DllNotFoundException` — FIXED: now logs to stderr (US-015).
+6. **Duplication**: `JsonSerializerOptions`, location-to-dictionary mapping, and type outline building copy-pasted across commands — FIXED: `SymbolFormatter` helpers extracted (US-007–011).
 
 ## Output format convention
 
@@ -140,3 +139,4 @@ These are verified issues from the April 2026 audit. Fix before adding new comma
 | `Microsoft.Build.Locator` (1.7.8) | Find MSBuild installation |
 | `Microsoft.CodeAnalysis.Workspaces.MSBuild` (4.9.2) | Load solutions |
 | `Microsoft.CodeAnalysis.CSharp.Workspaces` (4.9.2) | C# syntax/semantic analysis |
+| `DiffPlex` (1.7.1) | Unified diff output for --dry-run |
