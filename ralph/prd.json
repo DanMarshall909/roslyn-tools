@@ -132,7 +132,7 @@
         "All previously-passing tests still pass"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "bead": "",
       "notes": "Phase: RED. Stub the class so tests compile and fail for the RIGHT REASON (NotImplementedException), not because the type doesn't exist."
     },
@@ -151,7 +151,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "bead": "",
       "notes": "Phase: GREEN. Write minimal code to make all 5 SymbolFormatter tests pass."
     },
@@ -170,7 +170,7 @@
         "dotnet test RoslynTools.slnx -v minimal — ALL tests green (no regressions)"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "bead": "",
       "notes": "Phase: REFACTOR. No behavior change — existing InspectTests verify JSON output is unchanged. If any test fails, the refactoring broke something — revert and investigate."
     },
@@ -188,7 +188,7 @@
         "dotnet test RoslynTools.slnx -v minimal — ALL tests green"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "bead": "",
       "notes": "Phase: REFACTOR. IMPORTANT: OutlineCommand does NOT include isStatic — use includeStaticFlag: false. If OutlineTests fail, the flag is wrong."
     },
@@ -207,7 +207,7 @@
         "dotnet test RoslynTools.slnx -v minimal — ALL tests green"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "bead": "",
       "notes": "Phase: REFACTOR. Only extract locations. directInterfaces uses a different key name — do NOT apply AddTypeHierarchyInfo here."
     },
@@ -222,7 +222,7 @@
         "dotnet test --filter FullyQualifiedName~FindRefsTests — must stay green"
       ],
       "priority": 12,
-      "passes": false,
+      "passes": true,
       "bead": "",
       "notes": "Phase: REFACTOR. Handler already passes to WorkspaceLoader.LoadAsync which handles null. Pure signature change."
     },
@@ -237,7 +237,7 @@
         "dotnet test --filter FullyQualifiedName~MoveTests — must stay green"
       ],
       "priority": 13,
-      "passes": false,
+      "passes": true,
       "bead": "",
       "notes": "Phase: REFACTOR. Same change as US-012."
     },
@@ -255,7 +255,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 14,
-      "passes": false,
+      "passes": true,
       "bead": "",
       "notes": "Phase: RED+GREEN (combined — tiny scope). Tests must fail because current code throws wrong exception type, then pass after adding validation."
     },
@@ -270,7 +270,7 @@
         "dotnet test RoslynTools.slnx -v minimal — all tests green"
       ],
       "priority": 15,
-      "passes": false,
+      "passes": true,
       "bead": "",
       "notes": "One-liner. No test needed — logging only."
     },
@@ -287,7 +287,7 @@
         "dotnet build RoslynTools.slnx succeeds"
       ],
       "priority": 16,
-      "passes": false,
+      "passes": true,
       "bead": "",
       "notes": "Documentation only — no code changes."
     },
@@ -304,7 +304,7 @@
         "dotnet test RoslynTools.slnx -v minimal — ALL tests green"
       ],
       "priority": 17,
-      "passes": false,
+      "passes": true,
       "bead": "",
       "notes": "Final gate. Exercises DiffPlex diff, auto-detected --solution, and SymbolFormatter JSON output."
     }
