@@ -22,6 +22,7 @@ internal static class App
         root.AddCommand(ExtractInterfaceCommand.Build());
         root.AddCommand(FixNamespaceCommand.Build());
         root.AddCommand(AddDependencyCommand.Build());
+        root.AddCommand(FindUnusedCommand.Build());
 
         return await root.InvokeAsync(args);
     }
