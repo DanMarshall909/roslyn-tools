@@ -1,15 +1,12 @@
 using System.CommandLine;
 using System.Text.Json;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.FindSymbols;
 using RoslynTools.Core;
 
 namespace RoslynTools.Commands;
 
 internal static class OutlineCommand
 {
-    private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
-
     internal static Command Build()
     {
         var targetArg = new Argument<string>("target", "File path or namespace to outline");
@@ -32,7 +29,7 @@ internal static class OutlineCommand
                 else
                     result = await OutlineNamespaceAsync(sln, target);
 
-                Console.WriteLine(JsonSerializer.Serialize(result, JsonOpts));
+                Console.WriteLine(JsonSerializer.Serialize(result, SymbolFormatter.DefaultJsonOptions));
             }
         },
         targetArg, solutionOpt);
@@ -126,26 +123,9 @@ internal static class OutlineCommand
             ["accessibility"] = type.DeclaredAccessibility.ToString(),
         };
 
-        if (type.BaseType != null && type.BaseType.SpecialType != SpecialType.System_Object)
-            outline["baseType"] = type.BaseType.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
+        SymbolFormatter.AddTypeHierarchyInfo(outline, type);
 
-        var interfaces = type.Interfaces
-            .Select(i => i.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat))
-            .ToList();
-        if (interfaces.Count > 0)
-            outline["interfaces"] = interfaces;
-
-        var members = type.GetMembers()
-            .Where(m => !m.IsImplicitlyDeclared)
-            .Select(m => new Dictionary<string, object?>
-            {
-                ["name"] = m.Name,
-                ["kind"] = m.Kind.ToString(),
-                ["signature"] = m.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
-                ["accessibility"] = m.DeclaredAccessibility.ToString(),
-            })
-            .ToList();
-        outline["members"] = members;
+        outline["members"] = SymbolFormatter.ExtractMembers(type, includeStaticFlag: false);
 
         return outline;
     }
