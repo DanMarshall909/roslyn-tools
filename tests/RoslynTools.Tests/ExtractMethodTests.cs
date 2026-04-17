@@ -549,6 +549,70 @@ public class ExtractMethodTests
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    //  Error: invalid line range arguments
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Error_StartLineZero_Throws()
+    {
+        using var project = new TestProjectBuilder();
+        project.AddSource("Calculator.cs", """
+            namespace TestApp;
+
+            public class Calculator
+            {
+                public void Process()
+                {
+                    int a = 1;
+                }
+            }
+            """);
+
+        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        using (workspace)
+        {
+            await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+                MethodExtractor.ExtractAsync(
+                    sln,
+                    FilePath(project, "Calculator.cs"),
+                    "DoWork",
+                    startLine: 0,
+                    endLine: 5));
+        }
+    }
+
+    [Fact]
+    public async Task Error_EndLineBeforeStartLine_Throws()
+    {
+        using var project = new TestProjectBuilder();
+        project.AddSource("Calculator.cs", """
+            namespace TestApp;
+
+            public class Calculator
+            {
+                public void Process()
+                {
+                    int a = 1;
+                }
+            }
+            """);
+
+        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        using (workspace)
+        {
+            await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+                MethodExtractor.ExtractAsync(
+                    sln,
+                    FilePath(project, "Calculator.cs"),
+                    "DoWork",
+                    startLine: 5,
+                    endLine: 3));
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
     //  Helpers
     // ──────────────────────────────────────────────────────────────────────────
 

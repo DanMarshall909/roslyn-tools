@@ -20,6 +20,10 @@ internal static class MethodExtractor
         string? insertAfter = null,
         string? insertBefore = null)
     {
+        if (startLine < 1) throw new ArgumentOutOfRangeException(nameof(startLine));
+        if (endLine < 1) throw new ArgumentOutOfRangeException(nameof(endLine));
+        if (startLine > endLine) throw new ArgumentOutOfRangeException(nameof(endLine));
+
         if (insertAfter != null && insertBefore != null)
             throw new InvalidOperationException("--after and --before are mutually exclusive.");
 
