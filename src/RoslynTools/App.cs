@@ -21,6 +21,7 @@ internal static class App
         root.AddCommand(ListSmellsCommand.Build());
         root.AddCommand(ExtractInterfaceCommand.Build());
         root.AddCommand(FixNamespaceCommand.Build());
+        root.AddCommand(AddDependencyCommand.Build());
 
         return await root.InvokeAsync(args);
     }
