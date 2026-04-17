@@ -23,7 +23,7 @@
         "dotnet build RoslynTools.slnx succeeds"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: RED. Stub handler must compile and throw NotImplementedException so tests fail on assertion, not missing type."
     },
     {
@@ -44,7 +44,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: GREEN. Use SymbolFinder.FindReferencesAsync (same as FindRefsCommand) then filter reference locations to InvocationExpressionSyntax parent nodes."
     },
     {
@@ -66,7 +66,7 @@
         "dotnet build RoslynTools.slnx succeeds"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: RED. Stub must compile. Line-count smell requires counting lines in the syntax tree span, not file lines."
     },
     {
@@ -90,7 +90,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: GREEN. Walk all documents via GetSyntaxRootAsync, find ClassDeclarationSyntax/MethodDeclarationSyntax/ConstructorDeclarationSyntax, compute line spans."
     },
     {
@@ -112,7 +112,7 @@
         "dotnet build RoslynTools.slnx succeeds"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: RED. This command creates a new file — SolutionWriter.ApplyChangesAsync now supports GetAddedDocuments() (US-006 from cleanup pass)."
     },
     {
@@ -135,7 +135,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: GREEN. Use DocumentEditor to modify the class declaration. Build interface text via SyntaxFactory. New file added to solution via project.AddDocument() then SolutionWriter handles the write."
     },
     {
@@ -156,7 +156,7 @@
         "dotnet build RoslynTools.slnx succeeds"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: RED. Target namespace is derived from the file path relative to the project root, substituting path separators with dots and prepending the project's root namespace."
     },
     {
@@ -177,7 +177,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: GREEN. Reuse/adapt the namespace-rewriting CSharpSyntaxRewriter from MoveCommand rather than reimplementing."
     },
     {
@@ -199,7 +199,7 @@
         "dotnet build RoslynTools.slnx succeeds"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: RED. The ConstructorInjector class in ReplaceTypeCommand.cs is the primary reuse target — generalize it."
     },
     {
@@ -224,7 +224,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: GREEN. Extract and generalize ConstructorInjector from ReplaceTypeCommand — parameterize the field name, type name, param name. Reuse EnsureUsing helper too."
     },
     {
@@ -246,7 +246,7 @@
         "dotnet build RoslynTools.slnx succeeds"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: RED. find-unused must load all documents cross-project to count references — similar to FindRefsCommand but inverted (looking for zero-reference symbols)."
     },
     {
@@ -268,7 +268,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 12,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: GREEN. May be slow on large solutions — report project progress to stderr. Use SymbolFinder.FindReferencesAsync per symbol."
     },
     {
@@ -291,7 +291,7 @@
         "dotnet build RoslynTools.slnx succeeds"
       ],
       "priority": 13,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: RED. extract-class is the most structurally complex new command — it creates a new file AND modifies the source class."
     },
     {
@@ -314,7 +314,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 14,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: GREEN. Reuse AddDependencyCommand's constructor injection logic for the non-static path. Use DocumentEditor for removing members from source class."
     },
     {
@@ -337,7 +337,7 @@
         "dotnet build RoslynTools.slnx succeeds"
       ],
       "priority": 15,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: RED. Fixture must use LangVersion 7.3 to verify no C#8+ syntax leaks into generated output. make-async is the most complex command — direct callers only, no transitive walk."
     },
     {
@@ -361,7 +361,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 16,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: GREEN. Use SymbolFinder.FindReferencesAsync to find direct callers. CSharpSyntaxRewriter for AST transforms. Test with LangVersion 7.3 fixture to catch C#8+ leakage."
     }
   ]

@@ -3,28 +3,25 @@ roslyn-tools New Commands — Ralph Execution Progress
 Branch: ralph/new-commands
 PRD: prd.json (16 user stories)
 Date Started: 2026-04-17
-Current Status: 0/16 stories complete (0%)
+Current Status: 16/16 stories complete (100%)
 
 TDD Discipline: bound-style (BASELINE -> RED -> GREEN)
-- BASELINE: all tests green before any change
-- RED: tests compile and fail for the RIGHT REASON
-- GREEN: minimal code to pass, 100% coverage on new code
 
-PENDING STORIES
-===============
-[ ] US-001: Write find-callers tests (RED)
-[ ] US-002: Implement find-callers command (GREEN)
-[ ] US-003: Write list-smells tests (RED)
-[ ] US-004: Implement list-smells command (GREEN)
-[ ] US-005: Write extract-interface tests (RED)
-[ ] US-006: Implement extract-interface command (GREEN)
-[ ] US-007: Write fix-namespace tests (RED)
-[ ] US-008: Implement fix-namespace command (GREEN)
-[ ] US-009: Write add-dependency tests (RED)
-[ ] US-010: Implement add-dependency command (GREEN)
-[ ] US-011: Write find-unused tests (RED)
-[ ] US-012: Implement find-unused command (GREEN)
-[ ] US-013: Write extract-class tests (RED)
-[ ] US-014: Implement extract-class command (GREEN)
-[ ] US-015: Write make-async tests (RED)
-[ ] US-016: Implement make-async command (GREEN)
+COMPLETED STORIES
+=================
+[x] US-001: Write find-callers tests (RED)
+[x] US-002: Implement find-callers command (GREEN)
+[x] US-003: Write list-smells tests (RED)
+[x] US-004: Implement list-smells command (GREEN)
+[x] US-005: Write extract-interface tests (RED)
+[x] US-006: Implement extract-interface command (GREEN)
+[x] US-007: Write fix-namespace tests (RED)
+[x] US-008: Implement fix-namespace command (GREEN)
+[x] US-009: Write add-dependency tests (RED)
+[x] US-010: Implement add-dependency command (GREEN)
+[x] US-011: Write find-unused tests (RED)
+[x] US-012: Implement find-unused command (GREEN)
+[x] US-013: Write extract-class tests (RED)
+[x] US-014: Implement extract-class command (GREEN)
+[x] US-015: Write make-async tests (RED)
+[x] US-016: Implement make-async command (GREEN)
