@@ -18,6 +18,7 @@ internal static class App
         root.AddCommand(ReplaceTypeCommand.Build());
         root.AddCommand(ExtractMethodCommand.Build());
         root.AddCommand(FindCallersCommand.Build());
+        root.AddCommand(ListSmellsCommand.Build());
 
         return await root.InvokeAsync(args);
     }
