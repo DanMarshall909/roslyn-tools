@@ -24,6 +24,7 @@ internal static class App
         root.AddCommand(AddDependencyCommand.Build());
         root.AddCommand(FindUnusedCommand.Build());
         root.AddCommand(ExtractClassCommand.Build());
+        root.AddCommand(MakeAsyncCommand.Build());
 
         return await root.InvokeAsync(args);
     }
