@@ -24,7 +24,7 @@
         "dotnet build RoslynTools.slnx succeeds"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: RED. Scope: expression-bodied methods and block-bodied methods with a single return statement. No early returns, no out params. Stub must compile."
     },
     {
