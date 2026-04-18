@@ -171,8 +171,6 @@ internal static class DependencyGraphCommand
         var nodes = new HashSet<string>(StringComparer.Ordinal);
         var edgeSet = new HashSet<(string, string)>();
         var edges = new List<(string From, string To)>();
-
-        // BFS queue: (symbol, current depth)
         var queue = new Queue<(INamedTypeSymbol Type, int Depth)>();
         var visited = new HashSet<string>(StringComparer.Ordinal);
 
@@ -184,98 +182,113 @@ internal static class DependencyGraphCommand
         while (queue.Count > 0)
         {
             var (current, currentDepth) = queue.Dequeue();
-
             if (maxDepth.HasValue && currentDepth >= maxDepth.Value)
                 continue;
 
-            var fromName = GetDisplayName(current);
-
-            foreach (var dep in GetDependencies(current))
-            {
-                if (!IsSourceType(dep, sourceTypeByName))
-                    continue;
-
-                var toName = GetDisplayName(dep);
-                if (fromName == toName)
-                    continue;
-
-                var edge = (fromName, toName);
-                if (edgeSet.Add(edge))
-                    edges.Add(edge);
-
-                if (nodes.Add(toName))
-                {
-                    if (!visited.Contains(toName))
-                    {
-                        visited.Add(toName);
-                        queue.Enqueue((dep, currentDepth + 1));
-                    }
-                }
-            }
+            ExpandBfsNode(current, currentDepth, sourceTypeByName, nodes, edgeSet, edges, visited, queue);
         }
 
         return (nodes, edges);
+    }
+
+    private static void ExpandBfsNode(
+        INamedTypeSymbol current,
+        int currentDepth,
+        Dictionary<string, INamedTypeSymbol> sourceTypeByName,
+        HashSet<string> nodes,
+        HashSet<(string, string)> edgeSet,
+        List<(string From, string To)> edges,
+        HashSet<string> visited,
+        Queue<(INamedTypeSymbol Type, int Depth)> queue)
+    {
+        var fromName = GetDisplayName(current);
+        foreach (var dep in GetDependencies(current))
+        {
+            if (!IsSourceType(dep, sourceTypeByName))
+                continue;
+
+            var toName = GetDisplayName(dep);
+            if (fromName == toName)
+                continue;
+
+            var edge = (fromName, toName);
+            if (edgeSet.Add(edge))
+                edges.Add(edge);
+
+            if (nodes.Add(toName) && !visited.Contains(toName))
+            {
+                visited.Add(toName);
+                queue.Enqueue((dep, currentDepth + 1));
+            }
+        }
     }
 
     private static IEnumerable<INamedTypeSymbol> GetDependencies(INamedTypeSymbol type)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
 
-        // Base class
+        foreach (var dep in GetInheritanceDependencies(type, seen))
+            yield return dep;
+
+        foreach (var dep in GetFieldDependencies(type, seen))
+            yield return dep;
+
+        foreach (var dep in GetMethodDependencies(type, seen))
+            yield return dep;
+    }
+
+    private static IEnumerable<INamedTypeSymbol> GetInheritanceDependencies(INamedTypeSymbol type, HashSet<string> seen)
+    {
         if (type.BaseType != null && type.BaseType.SpecialType == SpecialType.None)
         {
-            var baseUnwrapped = Unwrap(type.BaseType, seen);
-            if (baseUnwrapped != null)
-                yield return baseUnwrapped;
+            var unwrapped = Unwrap(type.BaseType, seen);
+            if (unwrapped != null)
+                yield return unwrapped;
         }
 
-        // Implemented interfaces
         foreach (var iface in type.Interfaces)
         {
             var unwrapped = Unwrap(iface, seen);
             if (unwrapped != null)
                 yield return unwrapped;
         }
+    }
 
-        // Members
-        foreach (var member in type.GetMembers())
+    private static IEnumerable<INamedTypeSymbol> GetFieldDependencies(INamedTypeSymbol type, HashSet<string> seen)
+    {
+        foreach (var field in type.GetMembers().OfType<IFieldSymbol>())
         {
-            switch (member)
+            var dep = ExtractNamedType(field.Type);
+            if (dep != null)
             {
-                case IFieldSymbol field:
-                    {
-                        var dep = ExtractNamedType(field.Type);
-                        if (dep != null)
-                        {
-                            var unwrapped = Unwrap(dep, seen);
-                            if (unwrapped != null)
-                                yield return unwrapped;
-                        }
-                        break;
-                    }
-                case IMethodSymbol method:
-                    {
-                        // Return type
-                        var retDep = ExtractNamedType(method.ReturnType);
-                        if (retDep != null)
-                        {
-                            var unwrapped = Unwrap(retDep, seen);
-                            if (unwrapped != null)
-                                yield return unwrapped;
-                        }
-                        // Parameter types
-                        foreach (var param in method.Parameters)
-                        {
-                            var paramDep = ExtractNamedType(param.Type);
-                            if (paramDep != null)
-                            {
-                                var unwrapped = Unwrap(paramDep, seen);
-                                if (unwrapped != null)
-                                    yield return unwrapped;
-                            }
-                        }
-                        break;
-                    }
+                var unwrapped = Unwrap(dep, seen);
+                if (unwrapped != null)
+                    yield return unwrapped;
+            }
+        }
+    }
+
+    private static IEnumerable<INamedTypeSymbol> GetMethodDependencies(INamedTypeSymbol type, HashSet<string> seen)
+    {
+        foreach (var method in type.GetMembers().OfType<IMethodSymbol>())
+        {
+            var retDep = ExtractNamedType(method.ReturnType);
+            if (retDep != null)
+            {
+                var unwrapped = Unwrap(retDep, seen);
+                if (unwrapped != null)
+                    yield return unwrapped;
+            }
+
+            foreach (var param in method.Parameters)
+            {
+                var paramDep = ExtractNamedType(param.Type);
+                if (paramDep != null)
+                {
+                    var unwrapped = Unwrap(paramDep, seen);
+                    if (unwrapped != null)
+                        yield return unwrapped;
+                }
             }
         }
     }
