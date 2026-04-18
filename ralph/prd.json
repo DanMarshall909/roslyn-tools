@@ -265,7 +265,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 12,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: GREEN. Change ClassDeclarationSyntax to RecordDeclarationSyntax with SyntaxKind.RecordKeyword. Build ParameterListSyntax from init-only props. Use DocumentEditor to replace the entire class node. The conversion is best done as a single ReplaceNode on the class declaration."
     },
     {
@@ -287,7 +287,7 @@
         "dotnet build RoslynTools.slnx succeeds"
       ],
       "priority": 13,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: RED. Use INamedTypeSymbol.AllInterfaces and ITypeSymbol.FindImplementationForInterfaceMember to discover unimplemented members. Stub body: `throw new NotImplementedException();`."
     },
     {

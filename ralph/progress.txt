@@ -3,7 +3,7 @@ roslyn-tools More Commands — Ralph Execution Progress
 Branch: ralph/more-commands
 PRD: prd.json (20 user stories)
 Date Started: 2026-04-17
-Current Status: 11/20 stories complete (55%)
+Current Status: 13/20 stories complete (65%)
 
 TDD Discipline: bound-style (BASELINE -> RED -> GREEN -> REFACTOR)
 
@@ -20,11 +20,11 @@ COMPLETED STORIES
 [x] US-009: Write make-sealed tests (RED)
 [x] US-010: Implement make-sealed command (GREEN)
 [x] US-011: Write convert-to-record tests (RED)
+[x] US-012: Implement convert-to-record command (GREEN)
+[x] US-013: Write implement-interface tests (RED)
 
 PENDING STORIES
 ===============
-[ ] US-012: Implement convert-to-record command (GREEN)
-[ ] US-013: Write implement-interface tests (RED)
 [ ] US-014: Implement implement-interface command (GREEN)
 [ ] US-015: Write circular-deps tests (RED)
 [ ] US-016: Implement circular-deps command (GREEN)
