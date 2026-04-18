@@ -175,7 +175,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: GREEN. Use DocumentEditor.InsertBefore on the first statement in the method body. Build ExpressionStatementSyntax for ArgumentNullException.ThrowIfNull via SyntaxFactory. Check existing statements with a simple string/syntax search for the param name in a throw/guard pattern."
     },
     {
@@ -197,7 +197,7 @@
         "dotnet build RoslynTools.slnx succeeds"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: RED. Use SymbolFinder.FindDerivedClassesAsync to check for derived types. Abstract+sealed is invalid C#, so skip abstract classes."
     },
     {
