@@ -4,9 +4,30 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Commands;
 
-internal static class FindRefsCommand
+internal sealed class FindRefsCommand : IRtCommand
 {
-    internal static Command Build()
+    private FindRefsCommand() { }
+
+    public static RtCommandInfo Info { get; } = new(
+        Name: "find-refs",
+        Mutates: false,
+        JsonOutput: false,
+        Category: "Navigation",
+        Aliases: null,
+        WhenToUse: "Finding all references to any symbol (type, method, property, field, namespace) across the solution using Roslyn's semantic analysis. Prefer this over grep because it resolves overloads and type inference correctly and skips string literals/comments.",
+        Examples:
+        [
+            "rt find-refs --symbol BookingService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt find-refs --symbol CreateBooking --kind method --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt find-refs --symbol IEmailService --kind type --solution RoslynTools.slnx",
+        ],
+        KnownIssues:
+        [
+            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
+        ]
+    );
+
+    public static Command Build()
     {
         var solutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file");
         var symbolOpt = new Option<string>("--symbol", "Simple name of the symbol") { IsRequired = true };

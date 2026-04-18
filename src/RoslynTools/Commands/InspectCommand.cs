@@ -5,9 +5,30 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Commands;
 
-internal static class InspectCommand
+internal sealed class InspectCommand : IRtCommand
 {
-    internal static Command Build()
+    private InspectCommand() { }
+
+    public static RtCommandInfo Info { get; } = new(
+        Name: "inspect",
+        Mutates: false,
+        JsonOutput: true,
+        Category: "Navigation",
+        Aliases: null,
+        WhenToUse: "Getting a detailed JSON description of a symbol's shape — members, base types, interfaces, constructors, locations — without opening the file. Ideal for agents that need to understand a type's surface area before planning a refactor.",
+        Examples:
+        [
+            "rt inspect BookingService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt inspect ProjectX.Core.Services.IEmailService --kind type --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt inspect IRtCommand --solution RoslynTools.slnx",
+        ],
+        KnownIssues:
+        [
+            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
+        ]
+    );
+
+    public static Command Build()
     {
         var symbolArg = new Argument<string>("symbol", "Fully-qualified symbol name to inspect");
         var solutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file");

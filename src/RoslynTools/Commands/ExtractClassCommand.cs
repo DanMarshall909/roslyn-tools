@@ -8,9 +8,30 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Commands;
 
-internal static class ExtractClassCommand
+internal sealed class ExtractClassCommand : IRtCommand
 {
-    internal static Command Build()
+    private ExtractClassCommand() { }
+
+    public static RtCommandInfo Info { get; } = new(
+        Name: "extract-class",
+        Mutates: true,
+        JsonOutput: false,
+        Category: "Mutation",
+        Aliases: ["ec"],
+        WhenToUse: "Moving a named set of members out of an oversized class into a new dedicated class file. When --static is not set, the command also wires the new class into the source class as a constructor-injected dependency, making it immediately usable without manual plumbing.",
+        Examples:
+        [
+            "rt extract-class --type AdminController --members ExportCsv,ImportCsv --new-type CsvController --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt ec --type ReportService --members BuildReport,FormatReport --new-type ReportFormatter --static --dry-run",
+            "rt extract-class --type ProductService --members ValidateProduct --new-type ProductValidator --solution RoslynTools.slnx --output-dir src/Validators",
+        ],
+        KnownIssues:
+        [
+            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
+        ]
+    );
+
+    public static Command Build()
     {
         var typeOpt = new Option<string>("--type", "Source class name") { IsRequired = true };
         var membersOpt = new Option<string>("--members", "Comma-separated member names to extract") { IsRequired = true };

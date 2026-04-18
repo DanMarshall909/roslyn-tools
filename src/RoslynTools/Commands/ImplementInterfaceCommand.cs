@@ -7,9 +7,30 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Commands;
 
-internal static class ImplementInterfaceCommand
+internal sealed class ImplementInterfaceCommand : IRtCommand
 {
-    internal static Command Build()
+    private ImplementInterfaceCommand() { }
+
+    public static RtCommandInfo Info { get; } = new(
+        Name: "implement-interface",
+        Mutates: true,
+        JsonOutput: false,
+        Category: "Mutation",
+        Aliases: ["ii"],
+        WhenToUse: "Generating throw-stub implementations for all unimplemented interface members in a class. Use after extract-interface or when a class is added to an interface's base list and needs skeleton stubs before real implementations are written.",
+        Examples:
+        [
+            "rt implement-interface --type BookingRepository --interface IBookingRepository --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt ii --type EmailSender --dry-run",
+            "rt implement-interface --type HeroApiClient --solution RoslynTools.slnx",
+        ],
+        KnownIssues:
+        [
+            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
+        ]
+    );
+
+    public static Command Build()
     {
         var typeOpt = new Option<string>("--type", "Class to add interface stubs to") { IsRequired = true };
         var interfaceOpt = new Option<string?>("--interface", "Interface to implement (optional; auto-detected if omitted)");

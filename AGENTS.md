@@ -9,9 +9,12 @@ Guidance for agentic coding tools working in `C:\code\roslyn-tools`.
 - Nullable reference types: enabled.
 - Implicit usings: enabled.
 - Layout:
-  - `src/RoslynTools/Commands`: CLI command builders/handlers.
-  - `src/RoslynTools/Core`: Roslyn workspace/symbol/change logic.
+  - `src/RoslynTools/Commands`: CLI command builders/handlers. Each `*Command.cs` implements `IRtCommand`.
+  - `src/RoslynTools/Core`: Roslyn workspace/symbol/change logic + the `IRtCommand` contract and `RtCommandInfo` metadata record.
   - `src/RoslynTools/Models`: small model types.
+
+## Command reference
+**Full command reference lives in [`docs/COMMANDS.md`](docs/COMMANDS.md)** — auto-generated on every `dotnet build -c Debug` from each command's static `RtCommandInfo Info` property. Do not hand-edit that file. See `CLAUDE.md` → "Command metadata contract" for the workflow when adding or changing a command.
 
 ## Cursor and Copilot Rules
 No repository-specific rule files were found:

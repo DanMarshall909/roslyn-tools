@@ -4,9 +4,30 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Commands;
 
-internal static class ExtractMethodCommand
+internal sealed class ExtractMethodCommand : IRtCommand
 {
-    internal static Command Build()
+    private ExtractMethodCommand() { }
+
+    public static RtCommandInfo Info { get; } = new(
+        Name: "extract-method",
+        Mutates: true,
+        JsonOutput: false,
+        Category: "Mutation",
+        Aliases: ["em"],
+        WhenToUse: "Pulling a consecutive range of statements out of a long method body into a new private method. Specify the line range from the source file; the command infers parameter and return types from context. Use --after/--before to control insertion point.",
+        Examples:
+        [
+            "rt extract-method src/Services/BookingService.cs ValidateBooking --start-line 42 --end-line 58 --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt em src/Controllers/AdminController.cs BuildCsvRow --start-line 110 --end-line 125 --dry-run",
+            "rt extract-method src/RoslynTools/Commands/RenameCommand.cs BuildOptions --start-line 30 --end-line 45 --after Build --solution RoslynTools.slnx",
+        ],
+        KnownIssues:
+        [
+            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
+        ]
+    );
+
+    public static Command Build()
     {
         var fileArg = new Argument<string>("file", "Path to the .cs file containing the method to extract from.");
         var newNameArg = new Argument<string>("new-name", "Name for the extracted method.");

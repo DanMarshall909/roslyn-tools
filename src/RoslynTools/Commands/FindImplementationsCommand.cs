@@ -6,9 +6,30 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Commands;
 
-internal static class FindImplementationsCommand
+internal sealed class FindImplementationsCommand : IRtCommand
 {
-    internal static Command Build()
+    private FindImplementationsCommand() { }
+
+    public static RtCommandInfo Info { get; } = new(
+        Name: "find-impl",
+        Mutates: false,
+        JsonOutput: true,
+        Category: "Navigation",
+        Aliases: ["impls"],
+        WhenToUse: "Discovering all concrete implementations of an interface or derived classes of an abstract base, across the entire solution. Useful before making a breaking change to a contract, or to verify a new interface has been wired up everywhere expected.",
+        Examples:
+        [
+            "rt find-impl IEmailService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt impls ProjectX.Core.Services.IBookingRepository --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt find-impl IRtCommand --solution RoslynTools.slnx",
+        ],
+        KnownIssues:
+        [
+            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
+        ]
+    );
+
+    public static Command Build()
     {
         var symbolArg = new Argument<string>("symbol", "Fully-qualified interface or abstract class name");
         var solutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file");

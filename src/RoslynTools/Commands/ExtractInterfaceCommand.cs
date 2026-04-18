@@ -8,9 +8,30 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Commands;
 
-internal static class ExtractInterfaceCommand
+internal sealed class ExtractInterfaceCommand : IRtCommand
 {
-    internal static Command Build()
+    private ExtractInterfaceCommand() { }
+
+    public static RtCommandInfo Info { get; } = new(
+        Name: "extract-interface",
+        Mutates: true,
+        JsonOutput: false,
+        Category: "Mutation",
+        Aliases: ["ei"],
+        WhenToUse: "Generating an IXxx interface from an existing class's public members and updating the class declaration to implement it. Use this before injecting a service as a dependency, or when introducing a seam for testing.",
+        Examples:
+        [
+            "rt extract-interface --type BookingService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt ei --type EmailSender --output-dir src/Interfaces --dry-run",
+            "rt extract-interface --type HeroApiClient --namespace ProjectX.Core.Abstractions --solution RoslynTools.slnx",
+        ],
+        KnownIssues:
+        [
+            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
+        ]
+    );
+
+    public static Command Build()
     {
         var typeOpt = new Option<string>("--type", "Class to extract interface from") { IsRequired = true };
         var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");

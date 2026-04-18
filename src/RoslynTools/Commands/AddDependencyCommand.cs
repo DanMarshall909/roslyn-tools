@@ -6,9 +6,30 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Commands;
 
-internal static class AddDependencyCommand
+internal sealed class AddDependencyCommand : IRtCommand
 {
-    internal static Command Build()
+    private AddDependencyCommand() { }
+
+    public static RtCommandInfo Info { get; } = new(
+        Name: "add-dependency",
+        Mutates: true,
+        JsonOutput: false,
+        Category: "Mutation",
+        Aliases: ["ad"],
+        WhenToUse: "Injecting a new constructor dependency into a class without manually editing the constructor and field declarations. Prefer this over a manual edit when the class has multiple constructors or when you want to be confident the field naming convention (_camelCase) is applied consistently.",
+        Examples:
+        [
+            "rt add-dependency --type BookingService --dependency IEmailService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt ad --type OrderController --dependency IPaymentGateway --field _payment --dry-run",
+            "rt add-dependency --type ReportGenerator --dependency IRepository --solution RoslynTools.slnx",
+        ],
+        KnownIssues:
+        [
+            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
+        ]
+    );
+
+    public static Command Build()
     {
         var typeOpt = new Option<string>("--type", "Target class name") { IsRequired = true };
         var depOpt = new Option<string>("--dependency", "Dependency type to inject (e.g. IEmailService)") { IsRequired = true };

@@ -5,9 +5,30 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Commands;
 
-internal static class CircularDepsCommand
+internal sealed class CircularDepsCommand : IRtCommand
 {
-    internal static Command Build()
+    private CircularDepsCommand() { }
+
+    public static RtCommandInfo Info { get; } = new(
+        Name: "circular-deps",
+        Mutates: false,
+        JsonOutput: false,
+        Category: "Analysis",
+        Aliases: ["cdeps"],
+        WhenToUse: "Detecting circular namespace dependencies in a solution before a refactor, or after adding new inter-namespace references. Use --scope to limit analysis to your domain namespaces and ignore third-party noise.",
+        Examples:
+        [
+            "rt circular-deps --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt cdeps --scope ProjectX.Core --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt circular-deps --solution RoslynTools.slnx --scope RoslynTools",
+        ],
+        KnownIssues:
+        [
+            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
+        ]
+    );
+
+    public static Command Build()
     {
         var scopeOpt = new Option<string?>("--scope", "Optional namespace prefix to limit analysis");
         var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");

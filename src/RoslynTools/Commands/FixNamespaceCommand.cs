@@ -6,9 +6,30 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Commands;
 
-internal static class FixNamespaceCommand
+internal sealed class FixNamespaceCommand : IRtCommand
 {
-    internal static Command Build()
+    private FixNamespaceCommand() { }
+
+    public static RtCommandInfo Info { get; } = new(
+        Name: "fix-namespace",
+        Mutates: true,
+        JsonOutput: false,
+        Category: "Mutation",
+        Aliases: ["fns"],
+        WhenToUse: "Correcting a file's namespace declaration to match its folder path after moving files, or when a file was created in the wrong location. Also updates any using directives in other files that imported the old namespace.",
+        Examples:
+        [
+            "rt fix-namespace --file src/Services/BookingService.cs --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt fns --file src/RoslynTools/Commands/RenameCommand.cs --dry-run",
+            "rt fix-namespace --file src/Domain/Order.cs --solution RoslynTools.slnx",
+        ],
+        KnownIssues:
+        [
+            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
+        ]
+    );
+
+    public static Command Build()
     {
         var fileOpt = new Option<string>("--file", "Path to the .cs file to fix") { IsRequired = true };
         var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");

@@ -7,9 +7,30 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Commands;
 
-internal static class SafeDeleteCommand
+internal sealed class SafeDeleteCommand : IRtCommand
 {
-    internal static Command Build()
+    private SafeDeleteCommand() { }
+
+    public static RtCommandInfo Info { get; } = new(
+        Name: "safe-delete",
+        Mutates: true,
+        JsonOutput: false,
+        Category: "Mutation",
+        Aliases: ["sd"],
+        WhenToUse: "Deleting a type or member only after verifying it has zero references in the solution. Safer than a manual delete because the command checks references (excluding nameof() and the declaration itself) before touching any file, and exits non-zero if references exist.",
+        Examples:
+        [
+            "rt safe-delete --symbol OrphanedHelper --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt sd --symbol BookingService.LegacyMethod --kind method --dry-run --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt safe-delete --symbol OldDtoType --kind type --solution RoslynTools.slnx",
+        ],
+        KnownIssues:
+        [
+            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
+        ]
+    );
+
+    public static Command Build()
     {
         var symbolOpt = new Option<string>("--symbol", "Type or member FQN or simple name to delete") { IsRequired = true };
         var kindOpt = new Option<string?>("--kind", "Kind of symbol: type, method, or property");

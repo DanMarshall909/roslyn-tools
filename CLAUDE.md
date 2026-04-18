@@ -67,29 +67,49 @@ rt inspect "ProjectX.Service.Services.ServiceController" --solution "C:\code\lib
 rt find-refs --symbol BookingsService --solution "C:\code\libraries\ProjectX.Libraries.sln"
 ```
 
+## Commands
+
+**The authoritative, always-current list of all commands lives in [`docs/COMMANDS.md`](docs/COMMANDS.md).** That file is auto-regenerated on every `dotnet build -c Debug` by the `GenerateCommandsMd` target in `RoslynTools.csproj`, sourced from each command's static `RtCommandInfo Info` property. **Do not hand-edit `docs/COMMANDS.md`** — changes will be overwritten on the next build.
+
+## Command metadata contract (read before changing any command)
+
+Every class in `src/RoslynTools/Commands/` ending with `Command` MUST implement `IRtCommand` (defined in `Core/IRtCommand.cs`). The compiler is strict enough that the registry is reflection-discovered — no hand-maintained list — and a static assertion in `App.cs` throws at startup (and therefore fails the post-build MD generation) if any class drifts from the contract.
+
+When you:
+
+- **Add a command** — create `FooCommand.cs` as `internal sealed class FooCommand : IRtCommand`, supply static `Info` + `Build()`, and you're done. The registry and `docs/COMMANDS.md` pick it up automatically on next build.
+- **Rename a command** — update `Info.Name` to match the `new Command("new-name", ...)` first arg.
+- **Add / remove / rename a flag** — update `Info.Examples` so it reflects real invocations.
+- **Change mutation or output semantics** — update `Info.Mutates` (writes files? true) and `Info.JsonOutput` (stdout is JSON? true) accordingly.
+- **Discover a bug / gap** — log to `tasks/dogfood-gaps.md` and either raise a new row in `tasks/ai-improvements.md` or add a line to the affected command's `Info.KnownIssues`.
+
+After any change:
+
+1. `dotnet build src/RoslynTools/RoslynTools.csproj` — this regenerates `docs/COMMANDS.md`.
+2. `git diff docs/COMMANDS.md` — verify the diff matches your intent.
+3. Commit both the source change **and** the regenerated MD in the same commit.
+
 ## Architecture
 
 ```
 Program.Main
+  -> [fast path if args[0] == "dump-help"] -> App.RunAsync(args)   # no MSBuild needed
   -> MsBuildBootstrap.Register()     # locate & register MSBuild SDK
   -> App.RunAsync(args)              # build System.CommandLine root, dispatch
 
-Commands/                            # CLI command definitions (options, handler)
-  RenameCommand          (alias: ren)    # rename symbol + all references
-  MoveCommand                            # move type or entire namespace (single + batch)
-  FindRefsCommand                        # find all references to a symbol
-  InspectCommand                         # show type shape: members, bases, interfaces (JSON)
-  OutlineCommand                         # list all types/members in a file or namespace (JSON)
-  FindImplementationsCommand (alias: impls) # find all implementations of interface/abstract class (JSON)
-  ReplaceTypeCommand                     # replace DateTime.UtcNow/Now with TimeProvider injection
-  ExtractMethodCommand   (alias: em)     # extract statements into a new private method
+Commands/                            # CLI commands — each class implements IRtCommand
+                                     # Full list: docs/COMMANDS.md (auto-generated)
+  DumpHelpCommand                    # hidden meta-command; emits docs/COMMANDS.md content
 
-Core/                                # Roslyn workspace/symbol/change logic
+Core/
+  IRtCommand                         # compile-time contract: static RtCommandInfo Info + Command Build()
+  RtCommandInfo                      # metadata record used by DumpHelpCommand
   WorkspaceLoader                    # open .sln/.slnx via MSBuildWorkspace
   SymbolLocator                      # find symbols by name/FQN, interactive disambiguation
   SolutionWriter                     # apply changes or print unified diff (dry-run)
   MethodExtractor                    # extract-method core logic (dataflow, call site, method builder)
-  MsBuildBootstrap                   # locate & register MSBuild SDK (in root, not Core/)
+
+MsBuildBootstrap                     # locate & register MSBuild SDK (top-level, runs before App)
 
 Models/
   SymbolMatch                        # Symbol + DisplayName + ProjectName

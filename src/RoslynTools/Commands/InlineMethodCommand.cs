@@ -8,9 +8,31 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Commands;
 
-internal static class InlineMethodCommand
+internal sealed class InlineMethodCommand : IRtCommand
 {
-    internal static Command Build()
+    private InlineMethodCommand() { }
+
+    public static RtCommandInfo Info { get; } = new(
+        Name: "inline-method",
+        Mutates: true,
+        JsonOutput: false,
+        Category: "Mutation",
+        Aliases: ["im"],
+        WhenToUse: "Inlining a trivial helper method (expression-bodied or single-return block) at every call site and removing the method declaration. Best for one-liner wrappers that add no clarity — over-extracted private methods that obscure intent.",
+        Examples:
+        [
+            "rt inline-method --type MathHelper --method Double --solution RoslynTools.slnx",
+            "rt im --type OrderService --method GetTotal --dry-run --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+        ],
+        KnownIssues:
+        [
+            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
+            "Method removal after inlining matches by identifier text only — removes the wrong method when the same name exists in a different class in the same file. Fix: scope to containing TypeDeclarationSyntax by type name and parameter count. See ai-improvements row #8.",
+            "ParameterSubstitutor does not parenthesise substituted arguments — `Double(a+b)` inlines as `a+b*2` instead of `(a+b)*2`. Fix: wrap non-trivial argument expressions in ParenthesizedExpressionSyntax. See ai-improvements row #9.",
+        ]
+    );
+
+    public static Command Build()
     {
         var typeOpt = new Option<string>("--type", "Class containing the method to inline") { IsRequired = true };
         var methodOpt = new Option<string>("--method", "Method name to inline at all call sites") { IsRequired = true };

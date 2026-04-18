@@ -7,9 +7,30 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Commands;
 
-internal static class MoveCommand
+internal sealed class MoveCommand : IRtCommand
 {
-    internal static Command Build()
+    private MoveCommand() { }
+
+    public static RtCommandInfo Info { get; } = new(
+        Name: "move",
+        Mutates: true,
+        JsonOutput: false,
+        Category: "Mutation",
+        Aliases: null,
+        WhenToUse: "Moving a type to a different namespace — or batch-moving all types in a namespace — while updating the declaration and all reference sites (using directives and fully-qualified names). Use --move-file to also relocate the source file(s) to match the new namespace folder structure.",
+        Examples:
+        [
+            "rt move --type ProjectX.Core.Services.BookingService --to-namespace ProjectX.Domain.Services --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt move --namespace ProjectX.Core.Models --to-namespace ProjectX.Domain.Entities --move-file --dry-run --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt move --type RoslynTools.Commands.RenameCommand --to-namespace RoslynTools.Commands.Rename --solution RoslynTools.slnx",
+        ],
+        KnownIssues:
+        [
+            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
+        ]
+    );
+
+    public static Command Build()
     {
         var solutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file");
         var typeOpt = new Option<string?>("--type", "Fully-qualified type name (e.g. ProjectX.Core.Services.BookingService)");

@@ -5,9 +5,30 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Commands;
 
-internal static class OutlineCommand
+internal sealed class OutlineCommand : IRtCommand
 {
-    internal static Command Build()
+    private OutlineCommand() { }
+
+    public static RtCommandInfo Info { get; } = new(
+        Name: "outline",
+        Mutates: false,
+        JsonOutput: true,
+        Category: "Navigation",
+        Aliases: null,
+        WhenToUse: "Getting a JSON summary of all types and member signatures in a file or namespace without reading the raw source. Useful for agents to orient themselves in an unfamiliar module before planning a refactor, or to diff the public surface area across branches.",
+        Examples:
+        [
+            "rt outline src/backend/TourStore.Api/Controllers/Admin/AdminController.cs --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt outline ProjectX.Core.Services --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt outline RoslynTools.Commands --solution RoslynTools.slnx",
+        ],
+        KnownIssues:
+        [
+            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
+        ]
+    );
+
+    public static Command Build()
     {
         var targetArg = new Argument<string>("target", "File path or namespace to outline");
         var solutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file");

@@ -4,9 +4,30 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Commands;
 
-internal static class RenameCommand
+internal sealed class RenameCommand : IRtCommand
 {
-    internal static Command Build()
+    private RenameCommand() { }
+
+    public static RtCommandInfo Info { get; } = new(
+        Name: "rename",
+        Mutates: true,
+        JsonOutput: false,
+        Category: "Mutation",
+        Aliases: ["ren"],
+        WhenToUse: "Renaming a C# symbol (type, method, property, field, namespace) and updating every reference across the solution. Prefer over grep+sed: rt uses Roslyn semantic rename so references that only bind by type inference are also updated, and string literals/comments are not accidentally rewritten.",
+        Examples:
+        [
+            "rt rename OldTypeName NewTypeName --solution MySolution.sln",
+            "rt rename MyNs.MyType.OldProp NewProp --kind property --dry-run",
+            "rt ren FooService BarService              # short alias, auto-detect solution",
+        ],
+        KnownIssues:
+        [
+            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
+        ]
+    );
+
+    public static Command Build()
     {
         var symbolArg = new Argument<string>("symbol", "Fully-qualified symbol name to rename.");
         var newNameArg = new Argument<string>("new-name", "New name for the symbol.");

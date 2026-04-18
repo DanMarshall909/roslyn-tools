@@ -3,9 +3,30 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Commands;
 
-internal static class ListSmellsCommand
+internal sealed class ListSmellsCommand : IRtCommand
 {
-    internal static Command Build()
+    private ListSmellsCommand() { }
+
+    public static RtCommandInfo Info { get; } = new(
+        Name: "list-smells",
+        Mutates: false,
+        JsonOutput: false,
+        Category: "Analysis",
+        Aliases: ["smells"],
+        WhenToUse: "Getting a prioritised list of code smells — oversized classes, long methods, and constructors with too many parameters — to guide a refactor session. Use --scope to focus on your domain code and skip generated or test noise.",
+        Examples:
+        [
+            "rt list-smells --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt smells --scope ProjectX.Core --max-class-lines 200 --max-method-lines 30 --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt list-smells --solution RoslynTools.slnx --max-params 5",
+        ],
+        KnownIssues:
+        [
+            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
+        ]
+    );
+
+    public static Command Build()
     {
         var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
         var maxClassOpt = new Option<int>("--max-class-lines", () => 300, "Max lines per class");

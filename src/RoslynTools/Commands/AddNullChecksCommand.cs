@@ -6,9 +6,30 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Commands;
 
-internal static class AddNullChecksCommand
+internal sealed class AddNullChecksCommand : IRtCommand
 {
-    internal static Command Build()
+    private AddNullChecksCommand() { }
+
+    public static RtCommandInfo Info { get; } = new(
+        Name: "add-null-checks",
+        Mutates: true,
+        JsonOutput: false,
+        Category: "Mutation",
+        Aliases: ["anc"],
+        WhenToUse: "Retrofitting ArgumentNullException.ThrowIfNull guards onto reference-type parameters in an existing method. Prefer this over a manual edit when a method has several parameters and you want to skip any that are already guarded or are nullable (annotated with ?).",
+        Examples:
+        [
+            "rt add-null-checks --type BookingService --method CreateBooking --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt anc --type OrderProcessor --method Process --dry-run",
+            "rt add-null-checks --type ReportController --method Generate --solution RoslynTools.slnx",
+        ],
+        KnownIssues:
+        [
+            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
+        ]
+    );
+
+    public static Command Build()
     {
         var typeOpt = new Option<string>("--type", "Class containing the method") { IsRequired = true };
         var methodOpt = new Option<string>("--method", "Method name to add null checks to") { IsRequired = true };

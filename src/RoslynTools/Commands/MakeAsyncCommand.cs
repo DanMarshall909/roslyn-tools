@@ -8,9 +8,30 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Commands;
 
-internal static class MakeAsyncCommand
+internal sealed class MakeAsyncCommand : IRtCommand
 {
-    internal static Command Build()
+    private MakeAsyncCommand() { }
+
+    public static RtCommandInfo Info { get; } = new(
+        Name: "make-async",
+        Mutates: true,
+        JsonOutput: false,
+        Category: "Mutation",
+        Aliases: ["ma"],
+        WhenToUse: "Converting a synchronous method to async Task<T> and updating its direct call sites with await, without manually hunting every invocation. Use --no-rename to skip the Async suffix when the call sites already have naming that makes async clear.",
+        Examples:
+        [
+            "rt make-async --type BookingService --method Save --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt ma --type EmailSender --method Send --no-rename --dry-run",
+            "rt make-async --type HeroApiClient --method FetchAvailability --solution RoslynTools.slnx",
+        ],
+        KnownIssues:
+        [
+            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
+        ]
+    );
+
+    public static Command Build()
     {
         var typeOpt = new Option<string>("--type", "Class containing the method") { IsRequired = true };
         var methodOpt = new Option<string>("--method", "Method name to make async") { IsRequired = true };

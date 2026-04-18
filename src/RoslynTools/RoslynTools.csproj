@@ -30,4 +30,25 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.9.2" />
     <PackageReference Include="DiffPlex" Version="1.7.1" />
   </ItemGroup>
+  <!--
+    Auto-regenerate docs/COMMANDS.md on every local Debug build from the command registry's
+    `RtCommandInfo.Info` metadata. The `rt dump-help` subcommand is in-process only (does not
+    load an MSBuild workspace), so it works even when the workspace-load crash tracked as
+    ai-improvements row #13 is active.
+
+    Escape hatch for CI or release-only builds: `-p:GenerateCommandsMd=false`.
+    Only runs on Debug to keep release publishes fast; devs regenerate locally, commit the MD.
+  -->
+  <Target Name="GenerateCommandsMd"
+          AfterTargets="Build"
+          Condition="'$(Configuration)' == 'Debug' AND '$(GenerateCommandsMd)' != 'false' AND '$(RuntimeIdentifier)' == ''">
+    <PropertyGroup>
+      <RtExecutable>$(OutputPath)rt.dll</RtExecutable>
+      <CommandsMdPath>$(MSBuildProjectDirectory)\..\..\docs\COMMANDS.md</CommandsMdPath>
+    </PropertyGroup>
+    <Exec Command="dotnet &quot;$(RtExecutable)&quot; dump-help &gt; &quot;$(CommandsMdPath)&quot;"
+          EchoOff="true"
+          ContinueOnError="false" />
+    <Message Importance="high" Text="Regenerated $(CommandsMdPath) from command registry." />
+  </Target>
 </Project>

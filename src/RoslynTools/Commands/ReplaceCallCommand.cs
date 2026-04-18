@@ -7,9 +7,30 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Commands;
 
-internal static class ReplaceCallCommand
+internal sealed class ReplaceCallCommand : IRtCommand
 {
-    internal static Command Build()
+    private ReplaceCallCommand() { }
+
+    public static RtCommandInfo Info { get; } = new(
+        Name: "replace-call",
+        Mutates: true,
+        JsonOutput: false,
+        Category: "Mutation",
+        Aliases: ["rc"],
+        WhenToUse: "Replacing all invocations of a static method with a different method name across the solution. Use when renaming a utility method that isn't captured by a semantic rename (e.g. because callers use it via a static import or the old name needs to stay as an overload).",
+        Examples:
+        [
+            "rt replace-call --from Logger.Log --to LogInfo --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt rc --from DateHelper.UtcNow --to TimeProvider.GetUtcNow --dry-run --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt replace-call --from Console.WriteLine --to Logger.Info --solution RoslynTools.slnx",
+        ],
+        KnownIssues:
+        [
+            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
+        ]
+    );
+
+    public static Command Build()
     {
         var fromOpt = new Option<string>("--from", "Full method reference to replace, e.g. Logger.Log") { IsRequired = true };
         var toOpt = new Option<string>("--to", "New method name, e.g. LogInfo") { IsRequired = true };

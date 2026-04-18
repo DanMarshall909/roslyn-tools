@@ -6,9 +6,31 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Commands;
 
-internal static class DependencyGraphCommand
+internal sealed class DependencyGraphCommand : IRtCommand
 {
-    internal static Command Build()
+    private DependencyGraphCommand() { }
+
+    public static RtCommandInfo Info { get; } = new(
+        Name: "dependency-graph",
+        Mutates: false,
+        JsonOutput: true,
+        Category: "Analysis",
+        Aliases: ["depgraph"],
+        WhenToUse: "Visualising the type-level dependency graph for a solution or a specific root type, to understand coupling before a large refactor. Use --format dot to pipe into Graphviz, or --format json for programmatic consumption. Use --type + --depth to focus on a single type's fan-out.",
+        Examples:
+        [
+            "rt dependency-graph --solution C:\\code\\libraries\\ProjectX.Libraries.sln --scope ProjectX.Core",
+            "rt depgraph --type BookingService --depth 2 --solution RoslynTools.slnx",
+            "rt dependency-graph --format dot --solution RoslynTools.slnx | dot -Tsvg -o deps.svg",
+        ],
+        KnownIssues:
+        [
+            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
+            "Graph edges are built from fields, method parameters/returns, base types, and interfaces only — local variable type usages inside method bodies are missed. Static command classes with no fields appear as isolated nodes even when they reference WorkspaceLoader/SolutionWriter internally. See ai-improvements row #12.",
+        ]
+    );
+
+    public static Command Build()
     {
         var typeOpt = new Option<string?>("--type", "Root type to start graph from (optional)");
         var depthOpt = new Option<int?>("--depth", "Maximum traversal depth (optional)");

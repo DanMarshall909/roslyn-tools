@@ -3,9 +3,30 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Commands;
 
-internal static class FindUnusedCommand
+internal sealed class FindUnusedCommand : IRtCommand
 {
-    internal static Command Build()
+    private FindUnusedCommand() { }
+
+    public static RtCommandInfo Info { get; } = new(
+        Name: "find-unused",
+        Mutates: false,
+        JsonOutput: false,
+        Category: "Navigation",
+        Aliases: ["unused"],
+        WhenToUse: "Identifying dead code — types and methods with zero references in the solution — before a safe-delete pass or ahead of a major refactor. Use --scope to focus on a specific namespace and filter noise from generated or test code.",
+        Examples:
+        [
+            "rt find-unused --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt unused --scope ProjectX.Core --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt find-unused --scope types --solution RoslynTools.slnx",
+        ],
+        KnownIssues:
+        [
+            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
+        ]
+    );
+
+    public static Command Build()
     {
         var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
         var scopeOpt = new Option<string?>("--scope", "Filter: types, methods, or all (default: all)");

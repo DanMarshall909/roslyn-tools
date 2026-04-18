@@ -6,9 +6,30 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Commands;
 
-internal static class ConvertToRecordCommand
+internal sealed class ConvertToRecordCommand : IRtCommand
 {
-    internal static Command Build()
+    private ConvertToRecordCommand() { }
+
+    public static RtCommandInfo Info { get; } = new(
+        Name: "convert-to-record",
+        Mutates: true,
+        JsonOutput: false,
+        Category: "Mutation",
+        Aliases: ["ctr"],
+        WhenToUse: "Converting a class with init-only properties to a positional record, automatically removing redundant Equals/GetHashCode overrides and == operators that the record synthesises. Best suited to immutable DTOs and value objects.",
+        Examples:
+        [
+            "rt convert-to-record --type BookingRequest --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt ctr --type Money --dry-run",
+            "rt convert-to-record --type ProductDto --solution RoslynTools.slnx",
+        ],
+        KnownIssues:
+        [
+            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
+        ]
+    );
+
+    public static Command Build()
     {
         var typeOpt = new Option<string>("--type", "Class to convert to a record") { IsRequired = true };
         var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
