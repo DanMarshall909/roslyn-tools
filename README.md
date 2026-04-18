@@ -1,157 +1,155 @@
 # roslyn-tools
 
-A CLI for solution-wide C# refactoring powered by Roslyn. Rename symbols, move namespaces, find references and implementations — all resolved semantically across an entire `.sln`.
+A CLI for solution-wide C# refactoring and analysis powered by Roslyn. Rename symbols, extract interfaces, inject dependencies, find dead code — all resolved semantically across an entire `.sln`.
 
-## Getting Started
+## Install
 
-### Prerequisites
+```sh
+dotnet tool install -g roslyn-tools-rt
+```
 
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) or later
+Requires .NET 8 SDK or later. After install, `rt` is on your PATH.
 
-### Build
+## Build from source
 
 ```sh
 dotnet build RoslynTools.slnx
-```
 
-### Run
-
-```sh
-# Via dotnet run
+# Run without installing
 dotnet run --project src/RoslynTools/RoslynTools.csproj -- <command> [options]
 
-# Via wrapper scripts (after building)
-rt.cmd <command> [options]        # CMD
-.\rt.ps1 <command> [options]      # PowerShell
-```
-
-### Publish as single exe
-
-```sh
-dotnet publish src/RoslynTools/RoslynTools.csproj -c Release
-# Output: src/RoslynTools/bin/Release/net8.0/win-x64/publish/rt.exe
+# Publish as single exe (Windows)
+dotnet publish src/RoslynTools/RoslynTools.csproj -c Release -r win-x64
 ```
 
 ## Commands
 
-### rename
+### Navigation & inspection
 
-Rename a symbol and update all references across the solution.
+| Command | Alias | Description |
+|---------|-------|-------------|
+| `find-refs` | | Find all references to a symbol |
+| `find-impl` | `impls` | Find all implementations of an interface or abstract class |
+| `find-callers` | `callers` | Find all invocation sites for a method (not type refs, not `nameof`) |
+| `find-unused` | `unused` | Report types and methods with zero references |
+| `inspect` | | Show type shape as JSON — members, bases, interfaces, locations |
+| `outline` | | List all types/members in a file or namespace as JSON |
+| `list-smells` | `smells` | Report large classes, long methods, over-injected constructors |
 
-```sh
-rt rename <symbol> <new-name> [--solution <path>] [--kind <kind>] [--dry-run]
-```
+### Mutation — symbol & namespace
 
-```sh
-# Rename a class
-rt rename "MyApp.Services.UserService" "AccountService"
+| Command | Alias | Description |
+|---------|-------|-------------|
+| `rename` | `ren` | Rename a symbol and update all references |
+| `move` | | Move a type or namespace, updating declarations and references |
+| `fix-namespace` | `fns` | Align a file's namespace declaration to its folder path |
 
-# Rename a method
-rt rename "MyApp.Helpers.StringUtil.Sanitize" "Clean" --kind method
+### Mutation — structure
 
-# Preview without writing
-rt rename "MyApp.Models.Order" "PurchaseOrder" --dry-run
-```
+| Command | Alias | Description |
+|---------|-------|-------------|
+| `extract-interface` | `ei` | Generate `IXxx` from a class's public members |
+| `extract-method` | `em` | Extract statements into a new private method |
+| `extract-class` | `ec` | Move named members into a new class file |
+| `add-dependency` | `ad` | Inject a constructor dependency (field + param + assignment) |
+| `replace-datetime` | | Replace `DateTime.UtcNow/Now` with injected `TimeProvider` |
+| `make-async` | `ma` | Convert a method to `async Task<T>` and update direct callers |
 
-### move
+---
 
-Move a type or entire namespace, updating declarations and all references.
+## Examples
 
-```sh
-# Single type
-rt move --solution ./MySolution.sln --type "MyApp.Old.Customer" --to-namespace "MyApp.New" [--move-file] [--dry-run]
-
-# Batch — all types in a namespace
-rt move --solution ./MySolution.sln --namespace "MyApp.Old" --to-namespace "MyApp.New" [--move-file] [--dry-run]
-```
-
-`--move-file` relocates source files to match the new namespace folder structure.
-
-### find-refs
-
-Find all references to a symbol.
-
-```sh
-rt find-refs --solution ./MySolution.sln --symbol "BookingService" [--kind type]
-```
-
-Output:
-
-```
-C:\code\src\Services\BookingHandler.cs(14): var svc = new BookingService();
-C:\code\src\Controllers\BookingController.cs(8): private readonly BookingService _svc;
-
-Found 2 reference(s) to 'BookingService'.
-```
-
-### inspect
-
-Show a type's full shape as JSON — members, signatures, base types, interfaces, locations. Designed for LLM agents to replace multiple file reads with a single call.
+### find-callers
 
 ```sh
-rt inspect "MyApp.Services.BookingService" [--solution <path>] [--kind <kind>]
+rt find-callers --symbol "AgentService.GetAgent" --solution MySolution.sln
+# src/Services/AgentService.cs:42: GetAll: var result = _repo.GetAgent(id);
 ```
 
-```json
-{
-  "name": "BookingService",
-  "kind": "NamedType",
-  "fqn": "MyApp.Services.BookingService",
-  "accessibility": "Public",
-  "baseType": "BaseService",
-  "interfaces": ["IBookingService"],
-  "members": [
-    { "name": "CreateAsync", "kind": "Method", "signature": "Task<HeroResult> CreateAsync(BookingDto dto)" },
-    { "name": "CancelAsync", "kind": "Method", "signature": "Task<HeroResult> CancelAsync(int id)" }
-  ],
-  "locations": [{ "file": "C:\\code\\src\\Services\\BookingService.cs", "line": 12 }]
-}
-```
-
-### outline
-
-List all types and member signatures in a file or namespace as JSON.
+### list-smells
 
 ```sh
-# By file
-rt outline "src/Models/Customer.cs" [--solution <path>]
-
-# By namespace
-rt outline "MyApp.Models" [--solution <path>]
+rt list-smells --solution MySolution.sln --max-method-lines 30
+# LargeClass          AdminController   src/Controllers/AdminController.cs:1  (524 lines)
+# LongMethod          GetAll            src/Controllers/AdminController.cs:44  (67 lines)
+# TooManyDependencies AdminController   src/Controllers/AdminController.cs:1  ctor (9 params)
 ```
 
-### find-impl
-
-Find all implementations of an interface or derived classes of an abstract type. Output is JSON.
+### extract-interface
 
 ```sh
-rt find-impl "MyApp.Interfaces.IRepository" [--solution <path>]
+rt extract-interface --type AgentService --solution MySolution.sln [--dry-run]
+# Creates IAgentService.cs alongside AgentService.cs
+# Updates AgentService to implement IAgentService
 ```
 
-```json
-{
-  "symbol": "MyApp.Interfaces.IRepository",
-  "symbolKind": "Interface",
-  "implementationCount": 2,
-  "implementations": [
-    { "name": "SqlRepository", "fqn": "MyApp.Data.SqlRepository", "locations": [{ "file": "...", "line": 5 }] },
-    { "name": "InMemoryRepository", "fqn": "MyApp.Data.InMemoryRepository", "locations": [{ "file": "...", "line": 3 }] }
-  ]
-}
+### add-dependency
+
+```sh
+rt add-dependency --type AgentService --dependency IEmailService --solution MySolution.sln
+# Adds: private readonly IEmailService _emailService;
+# Adds: IEmailService emailService parameter to constructor
+# Adds: _emailService = emailService; assignment
 ```
+
+### find-unused
+
+```sh
+rt find-unused --solution MySolution.sln --scope methods
+# method     OldHelper.Calculate   src/Helpers/OldHelper.cs:14
+```
+
+### extract-class
+
+```sh
+rt extract-class --type BigService --members "LogInfo,LogError" --new-type LogHelper --solution MySolution.sln [--dry-run]
+# Creates LogHelper.cs alongside BigService.cs
+# Removes LogInfo, LogError from BigService
+# Injects LogHelper into BigService constructor
+```
+
+### make-async
+
+```sh
+rt make-async --type AgentService --method GetAgent --solution MySolution.sln [--dry-run]
+# Renames GetAgent -> GetAgentAsync
+# Wraps return type: string -> Task<string>
+# Updates direct callers with await
+```
+
+### fix-namespace
+
+```sh
+rt fix-namespace --file src/Services/Agents/AgentService.cs --solution MySolution.sln
+# Updates namespace declaration to MyApp.Services.Agents
+# Updates using statements in referencing files
+```
+
+### rename / move / find-refs / inspect / outline / find-impl
+
+```sh
+rt rename "MyApp.Services.UserService" "AccountService" --dry-run
+rt move --type "MyApp.Old.Customer" --to-namespace "MyApp.New" --move-file
+rt find-refs --symbol "BookingService"
+rt inspect "MyApp.Services.BookingService"
+rt outline "src/Models/Customer.cs"
+rt find-impl "MyApp.Interfaces.IRepository"
+```
+
+---
 
 ## Common options
 
 | Option | Description |
-|---|---|
-| `--solution <path>` | Path to `.sln` file. Auto-detected if there's exactly one in the current directory. |
+|--------|-------------|
+| `--solution <path>` | Path to `.sln` file. Auto-detected if exactly one exists in the current directory. |
+| `--dry-run` | Preview changes as a unified diff without writing to disk |
 | `--kind <kind>` | Filter by symbol kind: `type`, `method`, `property`, `field`, `namespace` |
-| `--dry-run` | Preview changes without writing to disk |
 
 ## Tests
 
 ```sh
-dotnet test RoslynTools.slnx -v minimal
+dotnet test RoslynTools.sln -v minimal
 ```
 
-Each test generates a temporary C# project, builds it, runs Roslyn operations against it, and cleans up automatically.
+Each test generates a throwaway C# project, builds it, runs Roslyn operations against it, and cleans up automatically. 80 tests total.
