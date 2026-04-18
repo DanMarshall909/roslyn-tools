@@ -90,7 +90,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: GREEN. Reuse FindUnusedCore.AnalyzeAsync reference-counting logic. DocumentEditor.RemoveNode handles the deletion cleanly."
     },
     {
@@ -111,7 +111,7 @@
         "dotnet build RoslynTools.slnx succeeds"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: RED. replace-call is structurally similar to find-callers + rename the invoked method name at each call site. Simpler than inline-method since arguments are preserved verbatim."
     },
     {
