@@ -38,18 +38,16 @@ internal static class SmellAnalyzer
 
                 foreach (var typeDecl in typeDeclarations)
                 {
-                    var typeName = typeDecl.Identifier.Text;
-
-                    if (!MatchesScope(typeName, scope))
+                    if (!MatchesScope(typeDecl.Identifier.Text, scope))
                         continue;
 
-                    var largeClass = CheckLargeClass(typeDecl, filePath, scope, maxClassLines);
+                    var largeClass = LargeClassRule.Check(typeDecl, filePath, maxClassLines);
                     if (largeClass is not null)
                         results.Add(largeClass);
 
-                    results.AddRange(CheckLongMethods(typeDecl, filePath, scope, maxMethodLines));
+                    results.AddRange(LongMethodRule.Check(typeDecl, filePath, maxMethodLines));
 
-                    var tooManyDeps = CheckTooManyDependencies(typeDecl, filePath, scope, maxParams);
+                    var tooManyDeps = TooManyDependenciesRule.Check(typeDecl, filePath, maxParams);
                     if (tooManyDeps is not null)
                         results.Add(tooManyDeps);
                 }
@@ -59,88 +57,7 @@ internal static class SmellAnalyzer
         return results;
     }
 
-    private static SmellResult? CheckLargeClass(
-        TypeDeclarationSyntax typeDecl,
-        string? filePath,
-        string? scope,
-        int maxClassLines)
-    {
-        var typeName = typeDecl.Identifier.Text;
-        var lineSpan = typeDecl.GetLocation().GetLineSpan();
-        var startLine = lineSpan.StartLinePosition.Line;
-        var lineCount = lineSpan.EndLinePosition.Line - startLine + 1;
-
-        if (lineCount <= maxClassLines)
-            return null;
-
-        return new SmellResult(
-            SmellType: "LargeClass",
-            TypeName: typeName,
-            MemberName: null,
-            FilePath: filePath,
-            Line: startLine + 1,
-            Detail: $"({lineCount} lines)");
-    }
-
-    private static IEnumerable<SmellResult> CheckLongMethods(
-        TypeDeclarationSyntax typeDecl,
-        string? filePath,
-        string? scope,
-        int maxMethodLines)
-    {
-        var typeName = typeDecl.Identifier.Text;
-
-        foreach (var method in typeDecl.DescendantNodes().OfType<MethodDeclarationSyntax>())
-        {
-            var lineSpan = method.GetLocation().GetLineSpan();
-            var startLine = lineSpan.StartLinePosition.Line;
-            var lineCount = lineSpan.EndLinePosition.Line - startLine + 1;
-
-            if (lineCount > maxMethodLines)
-            {
-                yield return new SmellResult(
-                    SmellType: "LongMethod",
-                    TypeName: typeName,
-                    MemberName: method.Identifier.Text,
-                    FilePath: filePath,
-                    Line: startLine + 1,
-                    Detail: $"({lineCount} lines)");
-            }
-        }
-    }
-
-    private static SmellResult? CheckTooManyDependencies(
-        TypeDeclarationSyntax typeDecl,
-        string? filePath,
-        string? scope,
-        int maxDeps)
-    {
-        var typeName = typeDecl.Identifier.Text;
-
-        var ctor = typeDecl.DescendantNodes()
-            .OfType<ConstructorDeclarationSyntax>()
-            .FirstOrDefault();
-
-        if (ctor is null)
-            return null;
-
-        var paramCount = ctor.ParameterList.Parameters.Count;
-        if (paramCount <= maxDeps)
-            return null;
-
-        var lineSpan = ctor.GetLocation().GetLineSpan();
-        var startLine = lineSpan.StartLinePosition.Line;
-
-        return new SmellResult(
-            SmellType: "TooManyDependencies",
-            TypeName: typeName,
-            MemberName: null,
-            FilePath: filePath,
-            Line: startLine + 1,
-            Detail: $"ctor ({paramCount} params)");
-    }
-
-    private static bool MatchesScope(string typeName, string? scope)
+    internal static bool MatchesScope(string typeName, string? scope)
     {
         if (scope is null)
             return true;
