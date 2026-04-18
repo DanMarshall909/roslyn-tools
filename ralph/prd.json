@@ -400,7 +400,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 18,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: GREEN. Walk INamedTypeSymbol members: fields (IFieldSymbol.Type), methods (IMethodSymbol params + return), bases (INamedTypeSymbol.BaseType), interfaces (INamedTypeSymbol.Interfaces). BFS from root type if --type + --depth specified. Filter non-solution types by checking if symbol.ContainingAssembly is in the solution's project assemblies."
     },
     {
@@ -424,7 +424,7 @@
         "dotnet build RoslynTools.slnx succeeds"
       ],
       "priority": 19,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: RED. add-test works on existing C# source files (test class files), not solution-wide symbol search. It appends member declarations to an existing class. TestProjectBuilder must add xunit package reference for [Fact] to compile."
     },
     {

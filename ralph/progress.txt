@@ -3,7 +3,7 @@ roslyn-tools More Commands — Ralph Execution Progress
 Branch: ralph/more-commands
 PRD: prd.json (20 user stories)
 Date Started: 2026-04-17
-Current Status: 17/20 stories complete (85%)
+Current Status: 19/20 stories complete (95%)
 
 TDD Discipline: bound-style (BASELINE -> RED -> GREEN -> REFACTOR)
 
@@ -26,9 +26,9 @@ COMPLETED STORIES
 [x] US-015: Write circular-deps tests (RED)
 [x] US-016: Implement circular-deps command (GREEN)
 [x] US-017: Write dependency-graph tests (RED)
+[x] US-018: Implement dependency-graph command (GREEN)
+[x] US-019: Write add-test tests (RED)
 
 PENDING STORIES
 ===============
-[ ] US-018: Implement dependency-graph command (GREEN)
-[ ] US-019: Write add-test tests (RED)
 [ ] US-020: Implement add-test command (GREEN)
