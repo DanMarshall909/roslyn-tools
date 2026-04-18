@@ -38,157 +38,42 @@ internal static class ImplementInterfaceCommand
         {
             var originalSolution = sln;
 
-            // Find the class symbol
-            INamedTypeSymbol? classSymbol = null;
-            DocumentId? docId = null;
+            var classSymbol = await FindClassSymbolAsync(sln, typeName)
+                ?? throw new InvalidOperationException($"Class '{typeName}' not found in solution.");
 
-            foreach (var project in sln.Projects)
-            {
-                var compilation = await project.GetCompilationAsync();
-                if (compilation == null) continue;
-
-                foreach (var symbol in compilation.GetSymbolsWithName(typeName, SymbolFilter.Type))
-                {
-                    if (symbol is INamedTypeSymbol namedType &&
-                        namedType.TypeKind == TypeKind.Class &&
-                        namedType.Name == typeName)
-                    {
-                        classSymbol = namedType;
-                        break;
-                    }
-                }
-
-                if (classSymbol != null) break;
-            }
-
-            if (classSymbol == null)
-                throw new InvalidOperationException($"Class '{typeName}' not found in solution.");
-
-            // Collect interfaces to implement
-            var interfacesToImplement = new List<INamedTypeSymbol>();
-            if (!string.IsNullOrWhiteSpace(interfaceName))
-            {
-                // Find the specified interface by name
-                INamedTypeSymbol? targetInterface = null;
-                foreach (var project in sln.Projects)
-                {
-                    var compilation = await project.GetCompilationAsync();
-                    if (compilation == null) continue;
-
-                    foreach (var symbol in compilation.GetSymbolsWithName(interfaceName, SymbolFilter.Type))
-                    {
-                        if (symbol is INamedTypeSymbol namedType &&
-                            namedType.TypeKind == TypeKind.Interface &&
-                            namedType.Name == interfaceName)
-                        {
-                            targetInterface = namedType;
-                            break;
-                        }
-                    }
-
-                    if (targetInterface != null) break;
-                }
-
-                if (targetInterface == null)
-                    throw new InvalidOperationException($"Interface '{interfaceName}' not found in solution.");
-
-                interfacesToImplement.Add(targetInterface);
-            }
-            else
-            {
-                // Use all directly declared interfaces
-                interfacesToImplement.AddRange(classSymbol.Interfaces);
-            }
-
+            var interfacesToImplement = await CollectInterfacesToImplementAsync(sln, classSymbol, interfaceName);
             if (interfacesToImplement.Count == 0)
             {
                 Console.WriteLine($"'{typeName}' does not implement any interfaces.");
                 return;
             }
 
-            // Locate the source document for the class
-            var location = classSymbol.Locations.FirstOrDefault(l => l.IsInSource);
-            if (location == null)
-                throw new InvalidOperationException($"No source location found for '{typeName}'.");
+            var docId = await FindDocumentIdAsync(sln, classSymbol)
+                ?? throw new InvalidOperationException("Cannot locate source document for the target class.");
 
-            foreach (var project in sln.Projects)
-            {
-                foreach (var doc in project.Documents)
-                {
-                    if (doc.FilePath != null &&
-                        string.Equals(doc.FilePath, location.SourceTree?.FilePath, StringComparison.OrdinalIgnoreCase))
-                    {
-                        docId = doc.Id;
-                        break;
-                    }
-                }
-
-                if (docId != null) break;
-            }
-
-            if (docId == null)
-                throw new InvalidOperationException("Cannot locate source document for the target class.");
-
-            // Collect all unimplemented members across specified interfaces
-            var unimplementedMembers = new List<ISymbol>();
-            foreach (var iface in interfacesToImplement)
-            {
-                foreach (var member in iface.GetMembers())
-                {
-                    // Skip constructors, events, indexers for now
-                    if (member is not IMethodSymbol and not IPropertySymbol)
-                        continue;
-                    if (member is IMethodSymbol ms && ms.MethodKind != MethodKind.Ordinary)
-                        continue;
-
-                    // First try Roslyn's interface implementation lookup
-                    var implementation = classSymbol.FindImplementationForInterfaceMember(member);
-                    if (implementation != null)
-                        continue;
-
-                    // If the class doesn't formally declare the interface, also check by
-                    // matching name + compatible signature so we don't duplicate existing members.
-                    if (ClassAlreadyHasMember(classSymbol, member))
-                        continue;
-
-                    unimplementedMembers.Add(member);
-                }
-            }
-
+            var unimplementedMembers = CollectUnimplementedMembers(classSymbol, interfacesToImplement);
             if (unimplementedMembers.Count == 0)
             {
                 Console.WriteLine($"'{typeName}' already implements all interface members.");
                 return;
             }
 
-            // Build stub text for each unimplemented member
-            var stubs = new List<MemberDeclarationSyntax>();
-            foreach (var member in unimplementedMembers)
-            {
-                var stub = BuildStub(member);
-                if (stub != null)
-                    stubs.Add(stub);
-            }
-
+            var stubs = unimplementedMembers.Select(BuildStub).OfType<MemberDeclarationSyntax>().ToList();
             if (stubs.Count == 0)
             {
                 Console.WriteLine("No stubs to generate.");
                 return;
             }
 
-            // Modify the document
             var document = sln.GetDocument(docId)!;
             var root = (CompilationUnitSyntax)(await document.GetSyntaxRootAsync())!;
 
-            // Find the class declaration syntax
-            var syntaxRef = classSymbol.DeclaringSyntaxReferences.FirstOrDefault();
-            if (syntaxRef == null)
-                throw new InvalidOperationException($"No source declaration found for '{typeName}'.");
+            var syntaxRef = classSymbol.DeclaringSyntaxReferences.FirstOrDefault()
+                ?? throw new InvalidOperationException($"No source declaration found for '{typeName}'.");
 
             var classDecl = root.FindNode(syntaxRef.Span) as ClassDeclarationSyntax
                 ?? throw new InvalidOperationException($"Class declaration '{typeName}' not found in syntax tree.");
 
-            // Insert all stubs into the class body (append before closing brace)
             var newMembers = classDecl.Members;
             foreach (var stub in stubs)
             {
@@ -200,15 +85,120 @@ internal static class ImplementInterfaceCommand
 
             var newClassDecl = classDecl.WithMembers(newMembers);
             root = root.ReplaceNode(classDecl, newClassDecl);
-
-            // Ensure `using System;` is present for NotImplementedException
             root = EnsureUsing(root, "System");
-
             sln = sln.WithDocumentSyntaxRoot(docId, root);
 
             Console.Error.WriteLine($"Adding {stubs.Count} stub(s) to '{typeName}'...");
             await SolutionWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
         }
+    }
+
+    private static async Task<INamedTypeSymbol?> FindClassSymbolAsync(Solution sln, string typeName)
+    {
+        foreach (var project in sln.Projects)
+        {
+            var compilation = await project.GetCompilationAsync();
+            if (compilation == null) continue;
+
+            foreach (var symbol in compilation.GetSymbolsWithName(typeName, SymbolFilter.Type))
+            {
+                if (symbol is INamedTypeSymbol namedType &&
+                    namedType.TypeKind == TypeKind.Class &&
+                    namedType.Name == typeName)
+                {
+                    return namedType;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static async Task<List<INamedTypeSymbol>> CollectInterfacesToImplementAsync(
+        Solution sln, INamedTypeSymbol classSymbol, string? interfaceName)
+    {
+        var result = new List<INamedTypeSymbol>();
+
+        if (!string.IsNullOrWhiteSpace(interfaceName))
+        {
+            INamedTypeSymbol? targetInterface = null;
+            foreach (var project in sln.Projects)
+            {
+                var compilation = await project.GetCompilationAsync();
+                if (compilation == null) continue;
+
+                foreach (var symbol in compilation.GetSymbolsWithName(interfaceName, SymbolFilter.Type))
+                {
+                    if (symbol is INamedTypeSymbol namedType &&
+                        namedType.TypeKind == TypeKind.Interface &&
+                        namedType.Name == interfaceName)
+                    {
+                        targetInterface = namedType;
+                        break;
+                    }
+                }
+
+                if (targetInterface != null) break;
+            }
+
+            if (targetInterface == null)
+                throw new InvalidOperationException($"Interface '{interfaceName}' not found in solution.");
+
+            result.Add(targetInterface);
+        }
+        else
+        {
+            result.AddRange(classSymbol.Interfaces);
+        }
+
+        return result;
+    }
+
+    private static async Task<DocumentId?> FindDocumentIdAsync(Solution sln, INamedTypeSymbol classSymbol)
+    {
+        var location = classSymbol.Locations.FirstOrDefault(l => l.IsInSource)
+            ?? throw new InvalidOperationException($"No source location found for '{classSymbol.Name}'.");
+
+        foreach (var project in sln.Projects)
+        {
+            foreach (var doc in project.Documents)
+            {
+                if (doc.FilePath != null &&
+                    string.Equals(doc.FilePath, location.SourceTree?.FilePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    return doc.Id;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static List<ISymbol> CollectUnimplementedMembers(
+        INamedTypeSymbol classSymbol, List<INamedTypeSymbol> interfacesToImplement)
+    {
+        var unimplemented = new List<ISymbol>();
+        foreach (var iface in interfacesToImplement)
+        {
+            foreach (var member in iface.GetMembers())
+            {
+                if (member is not IMethodSymbol and not IPropertySymbol)
+                    continue;
+                if (member is IMethodSymbol ms && ms.MethodKind != MethodKind.Ordinary)
+                    continue;
+
+                var implementation = classSymbol.FindImplementationForInterfaceMember(member);
+                if (implementation != null)
+                    continue;
+
+                if (ClassAlreadyHasMember(classSymbol, member))
+                    continue;
+
+                unimplemented.Add(member);
+            }
+        }
+
+        return unimplemented;
     }
 
     /// <summary>
