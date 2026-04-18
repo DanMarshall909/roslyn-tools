@@ -20,34 +20,9 @@ internal static class MoveCore
         bool dryRun)
     {
         var originalSolution = workspace.CurrentSolution;
-        var declarationFiles = new List<string>();
-        string? projectDir = null;
-        string? rootNamespace = null;
-        int changedFiles = 0;
 
-        foreach (var project in solution.Projects)
-        {
-            foreach (var doc in project.Documents)
-            {
-                if (doc.FilePath == null) continue;
-
-                var result = await RewriteDocumentNamespaceAsync(
-                    solution, doc, sourceNamespace, targetNamespace);
-
-                if (result.Changed)
-                {
-                    solution = result.Solution;
-                    changedFiles++;
-
-                    if (result.IsDeclarationFile)
-                    {
-                        declarationFiles.Add(doc.FilePath);
-                        if (projectDir == null)
-                            (projectDir, rootNamespace) = result.ProjectMeta ?? (null, null);
-                    }
-                }
-            }
-        }
+        var (updated, declarationFiles, projectDir, rootNamespace, changedFiles) =
+            await ScanSolutionForNamespaceAsync(solution, sourceNamespace, targetNamespace);
 
         if (changedFiles == 0)
         {
@@ -59,7 +34,7 @@ internal static class MoveCore
             $"Rewriting '{sourceNamespace}' -> '{targetNamespace}': " +
             $"{declarationFiles.Count} declaration file(s), {changedFiles} total file(s) changed.");
 
-        await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
+        await SolutionWriter.ApplyChangesAsync(originalSolution, updated, dryRun);
 
         ApplyFileMoveOrNote(declarationFiles, projectDir, rootNamespace, sourceNamespace, targetNamespace, moveFile, dryRun);
     }
@@ -98,6 +73,38 @@ internal static class MoveCore
     //  Namespace-move helpers
     // ──────────────────────────────────────────────────────────────
 
+    private static async Task<(Solution Solution, List<string> DeclarationFiles, string? ProjectDir, string? RootNamespace, int ChangedFiles)>
+        ScanSolutionForNamespaceAsync(Solution solution, string sourceNamespace, string targetNamespace)
+    {
+        var declarationFiles = new List<string>();
+        string? projectDir = null;
+        string? rootNamespace = null;
+        int changedFiles = 0;
+
+        foreach (var project in solution.Projects)
+        {
+            foreach (var doc in project.Documents)
+            {
+                if (doc.FilePath == null) continue;
+
+                var result = await RewriteDocumentNamespaceAsync(solution, doc, sourceNamespace, targetNamespace);
+                if (!result.Changed) continue;
+
+                solution = result.Solution;
+                changedFiles++;
+
+                if (result.IsDeclarationFile)
+                {
+                    declarationFiles.Add(doc.FilePath);
+                    if (projectDir == null)
+                        (projectDir, rootNamespace) = result.ProjectMeta ?? (null, null);
+                }
+            }
+        }
+
+        return (solution, declarationFiles, projectDir, rootNamespace, changedFiles);
+    }
+
     private record DocumentRewriteResult(
         bool Changed,
         Solution Solution,
@@ -120,8 +127,8 @@ internal static class MoveCore
 
         solution = solution.WithDocumentSyntaxRoot(doc.Id, newRoot);
 
-        var projectMeta = rewriter.IsDeclarationFile ? ResolveProjectMeta(doc.Project) : ((string?, string?)?)null;
-        return new DocumentRewriteResult(true, solution, rewriter.IsDeclarationFile, projectMeta);
+        var meta = rewriter.IsDeclarationFile ? ResolveProjectMeta(doc.Project) : ((string?, string?)?)null;
+        return new DocumentRewriteResult(true, solution, rewriter.IsDeclarationFile, meta);
     }
 
     private static (string? ProjectDir, string? RootNamespace) ResolveProjectMeta(Project project)
@@ -375,6 +382,7 @@ internal static class MoveCore
 
         public override SyntaxNode? VisitNamespaceDeclaration(NamespaceDeclarationSyntax node)
         {
+            // Check BEFORE visiting children (the name hasn't been rewritten yet)
             if (node.Name.ToString() == _oldNs)
                 IsDeclarationFile = true;
 
@@ -391,6 +399,7 @@ internal static class MoveCore
 
         public override SyntaxNode? VisitQualifiedName(QualifiedNameSyntax node)
         {
+            // Visit children first so inner names are rewritten bottom-up
             var visited = (QualifiedNameSyntax)base.VisitQualifiedName(node)!;
             var text = visited.ToString();
 
@@ -412,6 +421,7 @@ internal static class MoveCore
 
         public override SyntaxNode? VisitMemberAccessExpression(MemberAccessExpressionSyntax node)
         {
+            // Handle FQ references in expression context (e.g. new TourStore.Models.User { })
             var visited = (MemberAccessExpressionSyntax)base.VisitMemberAccessExpression(node)!;
             var text = visited.ToString();
 
