@@ -448,7 +448,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 20,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: GREEN. Use DocumentEditor to append members to the class. AC->identifier: Regex.Replace(ac, \"[^a-zA-Z0-9 ]\", \"\"), split on whitespace, TextInfo.ToTitleCase each word, join with '_'. For nested class: build ClassDeclarationSyntax containing the generated [Fact] methods, then append that to the outer test class."
     }
   ]
