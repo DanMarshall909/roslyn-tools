@@ -20,9 +20,9 @@ internal static class MethodExtractor
         string? insertAfter = null,
         string? insertBefore = null)
     {
-        if (startLine < 1) throw new ArgumentOutOfRangeException(nameof(startLine));
-        if (endLine < 1) throw new ArgumentOutOfRangeException(nameof(endLine));
-        if (startLine > endLine) throw new ArgumentOutOfRangeException(nameof(endLine));
+        ArgumentOutOfRangeException.ThrowIfLessThan(startLine, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(endLine, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(startLine, endLine, nameof(startLine));
 
         if (insertAfter != null && insertBefore != null)
             throw new InvalidOperationException("--after and --before are mutually exclusive.");
@@ -202,7 +202,7 @@ internal static class MethodExtractor
     private static MethodDeclarationSyntax BuildNewMethod(
         string name,
         IReadOnlyList<ISymbol> parameters,
-        IReadOnlyList<ISymbol> returnVars,
+        List<ISymbol> returnVars,
         IReadOnlyList<StatementSyntax> bodyStatements,
         SemanticModel model,
         bool isStatic)
@@ -221,21 +221,21 @@ internal static class MethodExtractor
         else if (returnVars.Count == 1)
         {
             returnTypeStr = GetTypeName(returnVars[0]);
-            returnStmtStr = "\n" + IndentOf(bodyStatements.Last()) + $"return {returnVars[0].Name};";
+            returnStmtStr = "\n" + IndentOf(bodyStatements[^1]) + $"return {returnVars[0].Name};";
         }
         else
         {
             var tupleTypes = string.Join(", ", returnVars.Select(v => $"{GetTypeName(v)} {v.Name}"));
             returnTypeStr = $"({tupleTypes})";
             var tupleValues = string.Join(", ", returnVars.Select(v => v.Name));
-            returnStmtStr = "\n" + IndentOf(bodyStatements.Last()) + $"return ({tupleValues});";
+            returnStmtStr = "\n" + IndentOf(bodyStatements[^1]) + $"return ({tupleValues});";
         }
 
         // Reconstruct body text from original statements to preserve indentation
         var bodyText = string.Join("", bodyStatements.Select(s => s.ToFullString()));
 
         // The method text is parsed at the file root level; leading indent is applied after parsing.
-        var memberIndent = MemberIndentOf(bodyStatements.First());
+        var memberIndent = MemberIndentOf(bodyStatements[0]);
         var methodText = $"{modifiers} {returnTypeStr} {name}({paramStr})\n{memberIndent}{{\n{bodyText}{returnStmtStr}\n{memberIndent}}}";
 
         var method = (MethodDeclarationSyntax)(SyntaxFactory.ParseMemberDeclaration(methodText)
@@ -254,7 +254,7 @@ internal static class MethodExtractor
     private static StatementSyntax BuildCallSite(
         string methodName,
         IReadOnlyList<ISymbol> parameters,
-        IReadOnlyList<ISymbol> returnVars,
+        List<ISymbol> returnVars,
         StatementSyntax firstExtracted)
     {
         var argStr = string.Join(", ", parameters.Select(p => p.Name));

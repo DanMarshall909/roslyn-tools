@@ -52,7 +52,7 @@ internal static class MakeAsyncCommand
             var newMethodName = noRename ? methodName : methodName + "Async";
 
             // Find the document containing the target method
-            var targetDocId = await FindDocumentIdContainingMethodAsync(sln, methodSymbol);
+            var targetDocId = FindDocumentIdContainingMethod(sln, methodSymbol);
             if (targetDocId == null)
                 throw new InvalidOperationException("Cannot locate source document for the target method.");
 
@@ -258,7 +258,7 @@ internal static class MakeAsyncCommand
         return null;
     }
 
-    private static async Task<DocumentId?> FindDocumentIdContainingMethodAsync(Solution sln, IMethodSymbol method)
+    private static DocumentId? FindDocumentIdContainingMethod(Solution sln, IMethodSymbol method)
     {
         var location = method.Locations.FirstOrDefault(l => l.IsInSource);
         if (location == null) return null;
