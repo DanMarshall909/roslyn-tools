@@ -95,13 +95,34 @@ internal static class SolutionWriter
 
         var diffBuilder = new InlineDiffBuilder(new Differ());
         var diff = diffBuilder.BuildDiffModel(oldText, newText);
-
-        // Track line numbers for old and new sides
-        int oldLine = 1, newLine = 1;
         const int contextSize = 3;
 
-        // Collect all lines with their metadata
+        var entries = CollectDiffEntries(diff);
+
+        int i = 0;
+        while (i < entries.Count)
+        {
+            if (entries[i].Type == ChangeType.Unchanged)
+            {
+                i++;
+                continue;
+            }
+
+            int hunkStart = Math.Max(0, i - contextSize);
+            int hunkEnd = ExtendHunkEnd(entries, i, contextSize);
+
+            EmitHunk(entries, hunkStart, hunkEnd);
+
+            i = hunkEnd;
+        }
+    }
+
+    private static List<(ChangeType Type, string Text, int OldLine, int NewLine)> CollectDiffEntries(
+        DiffPaneModel diff)
+    {
         var entries = new List<(ChangeType Type, string Text, int OldLine, int NewLine)>();
+        int oldLine = 1, newLine = 1;
+
         foreach (var line in diff.Lines)
         {
             entries.Add((line.Type, line.Text, oldLine, newLine));
@@ -121,83 +142,80 @@ internal static class SolutionWriter
             }
         }
 
-        // Find changed regions and emit hunks with context
-        int i = 0;
-        while (i < entries.Count)
+        return entries;
+    }
+
+    private static int ExtendHunkEnd(
+        List<(ChangeType Type, string Text, int OldLine, int NewLine)> entries,
+        int changeStart,
+        int contextSize)
+    {
+        int hunkEnd = changeStart;
+
+        while (hunkEnd < entries.Count)
         {
-            if (entries[i].Type == ChangeType.Unchanged)
+            // Skip past the current change block
+            while (hunkEnd < entries.Count && entries[hunkEnd].Type != ChangeType.Unchanged)
+                hunkEnd++;
+
+            // Count consecutive unchanged lines ahead
+            int unchangedRun = 0;
+            int peek = hunkEnd;
+            while (peek < entries.Count && entries[peek].Type == ChangeType.Unchanged)
             {
-                i++;
-                continue;
+                unchangedRun++;
+                peek++;
             }
 
-            // Found a change — expand to include context and adjacent changes
-            int hunkStart = Math.Max(0, i - contextSize);
-            int hunkEnd = i;
-
-            // Walk forward through changes and gaps smaller than 2*context
-            while (hunkEnd < entries.Count)
+            // Merge when the gap is short enough and another change follows
+            if (unchangedRun <= contextSize * 2 && peek < entries.Count && entries[peek].Type != ChangeType.Unchanged)
             {
-                // Skip past the current change block
-                while (hunkEnd < entries.Count && entries[hunkEnd].Type != ChangeType.Unchanged)
-                    hunkEnd++;
+                hunkEnd = peek;
+            }
+            else
+            {
+                hunkEnd = Math.Min(hunkEnd + contextSize, entries.Count);
+                break;
+            }
+        }
 
-                // Count consecutive unchanged lines
-                int unchangedRun = 0;
-                int peek = hunkEnd;
-                while (peek < entries.Count && entries[peek].Type == ChangeType.Unchanged)
-                {
-                    unchangedRun++;
-                    peek++;
-                }
+        return hunkEnd;
+    }
 
-                // If the gap is small enough and there's another change after, merge
-                if (unchangedRun <= contextSize * 2 && peek < entries.Count && entries[peek].Type != ChangeType.Unchanged)
-                {
-                    hunkEnd = peek;
-                }
-                else
-                {
-                    hunkEnd = Math.Min(hunkEnd + contextSize, entries.Count);
+    private static void EmitHunk(
+        List<(ChangeType Type, string Text, int OldLine, int NewLine)> entries,
+        int hunkStart,
+        int hunkEnd)
+    {
+        int oldCount = 0, newCount = 0;
+        for (int k = hunkStart; k < hunkEnd; k++)
+        {
+            switch (entries[k].Type)
+            {
+                case ChangeType.Unchanged:
+                    oldCount++;
+                    newCount++;
                     break;
-                }
+                case ChangeType.Deleted:
+                    oldCount++;
+                    break;
+                case ChangeType.Inserted:
+                    newCount++;
+                    break;
             }
+        }
 
-            // Compute hunk header line numbers
-            int oldStart = entries[hunkStart].OldLine;
-            int newStart = entries[hunkStart].NewLine;
-            int oldCount = 0, newCount = 0;
-            for (int k = hunkStart; k < hunkEnd; k++)
+        Console.WriteLine($"@@ -{entries[hunkStart].OldLine},{oldCount} +{entries[hunkStart].NewLine},{newCount} @@");
+
+        for (int k = hunkStart; k < hunkEnd; k++)
+        {
+            var prefix = entries[k].Type switch
             {
-                switch (entries[k].Type)
-                {
-                    case ChangeType.Unchanged:
-                        oldCount++;
-                        newCount++;
-                        break;
-                    case ChangeType.Deleted:
-                        oldCount++;
-                        break;
-                    case ChangeType.Inserted:
-                        newCount++;
-                        break;
-                }
-            }
-
-            Console.WriteLine($"@@ -{oldStart},{oldCount} +{newStart},{newCount} @@");
-
-            for (int k = hunkStart; k < hunkEnd; k++)
-            {
-                var prefix = entries[k].Type switch
-                {
-                    ChangeType.Inserted => "+",
-                    ChangeType.Deleted => "-",
-                    _ => " "
-                };
-                Console.WriteLine($"{prefix}{entries[k].Text}");
-            }
-
-            i = hunkEnd;
+                ChangeType.Inserted => "+",
+                ChangeType.Deleted => "-",
+                _ => " "
+            };
+            Console.WriteLine($"{prefix}{entries[k].Text}");
         }
     }
 }
