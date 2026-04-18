@@ -34,6 +34,7 @@ internal static class App
         root.AddCommand(ImplementInterfaceCommand.Build());
         root.AddCommand(CircularDepsCommand.Build());
         root.AddCommand(DependencyGraphCommand.Build());
+        root.AddCommand(AddTestCommand.Build());
 
         return await root.InvokeAsync(args);
     }
