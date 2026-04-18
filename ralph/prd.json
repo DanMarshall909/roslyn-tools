@@ -19,7 +19,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "File: src/RoslynTools/Core/MethodExtractor.cs. Method starts at line 14, is 183 lines. Already in Core — no Command-layer change. Steps are already labeled with comments (// ── 1. through // ── 10.)."
     },
     {
@@ -36,7 +36,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Source: src/RoslynTools/Commands/ImplementInterfaceCommand.cs (ExecuteAsync line 34, 179 lines)."
     },
     {
@@ -53,7 +53,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Source: src/RoslynTools/Commands/ConvertToRecordCommand.cs (ExecuteAsync line 31, 135 lines). Logical sections: find class symbol, collect init-only props, warn on mutable props, build record declaration, remove obsolete members (Equals/GetHashCode/operators), apply changes."
     },
     {
@@ -70,7 +70,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Source: src/RoslynTools/Commands/MakeSealedCommand.cs (ExecuteAsync line 32, 127 lines). Logical sections: find class symbol, find document id, check derived types, add sealed modifier, apply changes."
     },
     {
@@ -87,7 +87,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Source: src/RoslynTools/Commands/ReplaceCallCommand.cs (ExecuteAsync line 34, 114 lines)."
     },
     {
@@ -107,7 +107,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "Primary file: src/RoslynTools/Core/SmellAnalyzer.cs (AnalyzeAsync line 16, 114 lines). SRP applies: prefer one class per smell rule under src/RoslynTools/Core/, rather than private helper methods."
     },
     {
@@ -122,7 +122,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "File: src/RoslynTools/Core/SolutionWriter.cs (PrintDiff line 91, 112 lines). Already in Core — no Command-layer change. Uses DiffPlex; logical sections: collect diff blocks, format hunk header, emit context/added/removed lines."
     },
     {
@@ -141,7 +141,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "Source: src/RoslynTools/Commands/DependencyGraphCommand.cs (LargeClass, 372 lines). GetDependencies at line 220 (62L), BuildBfsGraph at line 165 (54L), BuildGraphAsync at line 43 (51L)."
     },
     {
@@ -161,7 +161,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "Source: src/RoslynTools/Commands/MoveCommand.cs (LargeClass, 439 lines). ExecuteNamespaceMoveAsync at line 57, UpdateReferenceUsingsAsync at line 224. Largest single-command refactor in the PRD."
     },
     {
@@ -178,7 +178,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "Source: src/RoslynTools/Commands/AddTestCommand.cs (ExecuteAsync line 34, 107 lines). Logical sections: find class document, single-test mode (append one [Fact]), AC-batch mode (split ACs, generate nested class or flat methods), apply changes. AcToMethodName and BuildFactMethod already exist as private static helpers — keep them."
     },
     {
@@ -201,7 +201,7 @@
         "Update README.md command table and add an example invocation"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": "Mirrors the Command+Core pattern from ExtractMethodCommand + MethodExtractor. Use TestProjectBuilder for test fixtures."
     },
     {
@@ -242,7 +242,7 @@
         "README updated with example"
       ],
       "priority": 13,
-      "passes": false,
+      "passes": true,
       "notes": "Use SymbolFinder.FindReferencesAsync to locate call sites."
     },
     {
@@ -264,7 +264,7 @@
         "README updated with example"
       ],
       "priority": 14,
-      "passes": false,
+      "passes": true,
       "notes": "Harder than make-static because instance-reachability analysis is non-trivial. Prefer conservatism: warn on ambiguous cases."
     },
     {
@@ -288,7 +288,7 @@
         "README updated with example"
       ],
       "priority": 15,
-      "passes": false,
+      "passes": true,
       "notes": "The key differentiator. US-016 will consume PatternMatcher.FindMatchesAsync as a library. Prefer a clean public API on PatternMatcher; the Command is just a JSON-emitting wrapper."
     },
     {
