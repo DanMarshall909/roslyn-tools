@@ -29,6 +29,7 @@ internal static class App
         root.AddCommand(SafeDeleteCommand.Build());
         root.AddCommand(ReplaceCallCommand.Build());
         root.AddCommand(AddNullChecksCommand.Build());
+        root.AddCommand(MakeSealedCommand.Build());
 
         return await root.InvokeAsync(args);
     }
