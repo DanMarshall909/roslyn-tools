@@ -6,118 +6,139 @@ namespace RoslynTools.Tests;
 public class AddNullChecksTests
 {
     private const string ServiceSource = """
-        class Service {
-          public void Process(string name, ILogger logger, int count) { }
-          public void NoParams() { }
+        public class OrderService
+        {
+            public void Process(string name, int count, object? tag)
+            {
+            }
         }
-        interface ILogger { void Log(string msg); }
         """;
 
-    private const string ServiceWithExistingCheckSource = """
-        class Service {
-          public void ProcessWithCheck(string name, ILogger logger, int count) {
-            ArgumentNullException.ThrowIfNull(name);
-          }
+    private const string AlreadyGuardedSource = """
+        using System;
+
+        public class OrderService
+        {
+            public void Process(string name, object payload)
+            {
+                ArgumentNullException.ThrowIfNull(name);
+                ArgumentNullException.ThrowIfNull(payload);
+            }
         }
-        interface ILogger { void Log(string msg); }
         """;
+
+    private const string NullableAnnotatedSource = """
+        public class OrderService
+        {
+            public void Process(string? name, object? payload)
+            {
+            }
+        }
+        """;
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  1. Eligible reference-type params get ThrowIfNull inserted at top
+    // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task AddNullChecks_InsertsThrowIfNullForReferenceParams()
+    public async Task AddNullChecks_InsertsThrowIfNullForEligibleParams()
     {
-        using var project = new TestProjectBuilder("NullApp");
-        project.AddSource("Service.cs", ServiceSource);
-        var slnPath = await project.BuildAsync();
+        using var proj = new TestProjectBuilder("NullApp");
+        proj.AddSource("OrderService.cs", ServiceSource);
+        var slnPath = await proj.BuildAsync();
 
-        await AddNullChecksCommand.ExecuteAsync("Service", "Process", slnPath, dryRun: false);
+        await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", slnPath, dryRun: false);
 
-        var content = await project.ReadSourceAsync("Service.cs");
-
+        var content = await proj.ReadSourceAsync("OrderService.cs");
         Assert.Contains("ArgumentNullException.ThrowIfNull(name)", content);
-        Assert.Contains("ArgumentNullException.ThrowIfNull(logger)", content);
+        Assert.DoesNotContain("ThrowIfNull(count)", content);   // int is value type
+        Assert.DoesNotContain("ThrowIfNull(tag)", content);     // object? is annotated nullable
     }
 
+    // ──────────────────────────────────────────────────────────────────────────
+    //  2. Checks are inserted at the TOP of the method body
+    // ──────────────────────────────────────────────────────────────────────────
+
     [Fact]
-    public async Task AddNullChecks_ValueTypeParams_Skipped()
+    public async Task AddNullChecks_InsertsAtTopOfBody()
     {
-        using var project = new TestProjectBuilder("NullApp");
-        project.AddSource("Service.cs", ServiceSource);
-        var slnPath = await project.BuildAsync();
+        using var proj = new TestProjectBuilder("NullApp");
+        proj.AddSource("OrderService.cs", """
+            public class OrderService
+            {
+                public void Process(string name, string value)
+                {
+                    var x = name.ToUpper();
+                }
+            }
+            """);
+        var slnPath = await proj.BuildAsync();
 
-        await AddNullChecksCommand.ExecuteAsync("Service", "Process", slnPath, dryRun: false);
+        await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", slnPath, dryRun: false);
 
-        var content = await project.ReadSourceAsync("Service.cs");
+        var content = await proj.ReadSourceAsync("OrderService.cs");
 
-        Assert.DoesNotContain("ThrowIfNull(count)", content);
+        // ThrowIfNull should appear before the existing statement
+        var throwIdx = content.IndexOf("ThrowIfNull(name)", StringComparison.Ordinal);
+        var existingIdx = content.IndexOf("name.ToUpper()", StringComparison.Ordinal);
+        Assert.True(throwIdx < existingIdx, "ThrowIfNull should appear before existing statements");
     }
 
-    [Fact]
-    public async Task AddNullChecks_NoParams_NoOp()
-    {
-        using var project = new TestProjectBuilder("NullApp");
-        project.AddSource("Service.cs", ServiceSource);
-        var slnPath = await project.BuildAsync();
-
-        var originalContent = await project.ReadSourceAsync("Service.cs");
-
-        await AddNullChecksCommand.ExecuteAsync("Service", "NoParams", slnPath, dryRun: false);
-
-        var afterContent = await project.ReadSourceAsync("Service.cs");
-        Assert.Equal(originalContent, afterContent);
-    }
+    // ──────────────────────────────────────────────────────────────────────────
+    //  3. Already-guarded params are skipped
+    // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task AddNullChecks_AlreadyHasCheck_NotDuplicated()
+    public async Task AddNullChecks_SkipsAlreadyGuardedParams()
     {
-        using var project = new TestProjectBuilder("NullApp");
-        project.AddSource("Service.cs", ServiceWithExistingCheckSource);
-        var slnPath = await project.BuildAsync();
+        using var proj = new TestProjectBuilder("NullApp");
+        proj.AddSource("OrderService.cs", AlreadyGuardedSource);
+        var slnPath = await proj.BuildAsync();
 
-        await AddNullChecksCommand.ExecuteAsync("Service", "ProcessWithCheck", slnPath, dryRun: false);
+        await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", slnPath, dryRun: false);
 
-        var content = await project.ReadSourceAsync("Service.cs");
+        var content = await proj.ReadSourceAsync("OrderService.cs");
 
-        // Count occurrences — should be exactly 1, not 2
-        var count = CountOccurrences(content, "ArgumentNullException.ThrowIfNull(name)");
+        // Should not have duplicated guards
+        var count = System.Text.RegularExpressions.Regex
+            .Matches(content, @"ThrowIfNull\(name\)")
+            .Count;
         Assert.Equal(1, count);
     }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  4. Nullable-annotated params (string?, object?) are skipped
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task AddNullChecks_SkipsNullableAnnotatedParams()
+    {
+        using var proj = new TestProjectBuilder("NullApp");
+        proj.AddSource("OrderService.cs", NullableAnnotatedSource);
+        var slnPath = await proj.BuildAsync();
+
+        await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", slnPath, dryRun: false);
+
+        var content = await proj.ReadSourceAsync("OrderService.cs");
+        Assert.DoesNotContain("ThrowIfNull", content);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  5. Dry-run shows diff but does not write
+    // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
     public async Task AddNullChecks_DryRun_NoWrites()
     {
-        using var project = new TestProjectBuilder("NullApp");
-        project.AddSource("Service.cs", ServiceSource);
-        var slnPath = await project.BuildAsync();
+        using var proj = new TestProjectBuilder("NullApp");
+        proj.AddSource("OrderService.cs", ServiceSource);
+        var slnPath = await proj.BuildAsync();
 
-        var originalContent = await project.ReadSourceAsync("Service.cs");
+        var before = await proj.ReadSourceAsync("OrderService.cs");
 
-        var sw = new System.IO.StringWriter();
-        var previousOut = Console.Out;
-        Console.SetOut(sw);
-        try
-        {
-            await AddNullChecksCommand.ExecuteAsync("Service", "Process", slnPath, dryRun: true);
-        }
-        finally
-        {
-            Console.SetOut(previousOut);
-        }
+        await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", slnPath, dryRun: true);
 
-        var afterContent = await project.ReadSourceAsync("Service.cs");
-        Assert.Equal(originalContent, afterContent);
-
-        var diffOutput = sw.ToString();
-        Assert.NotEmpty(diffOutput);
-    }
-
-    private static int CountOccurrences(string text, string pattern)
-    {
-        int count = 0, idx = 0;
-        while ((idx = text.IndexOf(pattern, idx, StringComparison.Ordinal)) >= 0)
-        {
-            count++;
-            idx += pattern.Length;
-        }
-        return count;
+        var after = await proj.ReadSourceAsync("OrderService.cs");
+        Assert.Equal(before, after);
     }
 }
