@@ -8,3 +8,4 @@
 
 - Method removal after inlining scopes by identifier text only — will remove wrong method if same name appears in different class in same file. Fix: scope to containing TypeDeclarationSyntax by type name + param count.
 - ParameterSubstitutor does not parenthesize substituted arguments — `Double(a+b)` inlines as `a+b*2` not `(a+b)*2`. Fix: wrap non-trivial argument expressions in ParenthesizedExpressionSyntax.
+- 2026-04-18: outline TourStore.Auth namespace with --solution flag — System.ArgumentNullException at BuildHostProcessManager.CreateDotNetCoreBuildHostStartInfo; rt needs DOTNET_SDK or MSBuild path set when invoked outside solution directory context
