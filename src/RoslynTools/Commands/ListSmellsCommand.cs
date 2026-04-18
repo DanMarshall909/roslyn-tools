@@ -32,11 +32,7 @@ internal sealed class ListSmellsCommand : IRtCommand
 
         var cmd = new Command("list-smells", "Report code smells: large classes, long methods, over-injected constructors");
         cmd.AddAlias("smells");
-        cmd.Add(solutionOpt);
-        cmd.Add(maxClassOpt);
-        cmd.Add(maxMethodOpt);
-        cmd.Add(maxParamsOpt);
-        cmd.Add(scopeOpt);
+        cmd.AddAll(solutionOpt, maxClassOpt, maxMethodOpt, maxParamsOpt, scopeOpt);
 
         cmd.SetHandler(async (solution, maxClass, maxMethod, maxParams, scope) =>
         {

@@ -37,7 +37,7 @@ internal sealed class MakeAsyncCommand : IRtCommand
 
         var cmd = new Command("make-async", "Convert a synchronous method to async Task<T> and update direct callers");
         cmd.AddAlias("ma");
-        cmd.Add(typeOpt); cmd.Add(methodOpt); cmd.Add(noRenameOpt); cmd.Add(solutionOpt); cmd.Add(dryRunOpt);
+        cmd.AddAll(typeOpt, methodOpt, noRenameOpt, solutionOpt, dryRunOpt);
 
         cmd.SetHandler(async (type, method, noRename, solution, dryRun) =>
         {

@@ -39,13 +39,7 @@ internal sealed class ExtractClassCommand : IRtCommand
 
         var cmd = new Command("extract-class", "Move named members from a class into a new class file");
         cmd.AddAlias("ec");
-        cmd.Add(typeOpt);
-        cmd.Add(membersOpt);
-        cmd.Add(newTypeOpt);
-        cmd.Add(staticOpt);
-        cmd.Add(solutionOpt);
-        cmd.Add(outputDirOpt);
-        cmd.Add(dryRunOpt);
+        cmd.AddAll(typeOpt, membersOpt, newTypeOpt, staticOpt, solutionOpt, outputDirOpt, dryRunOpt);
 
         cmd.SetHandler(async (type, members, newType, isStatic, solution, outputDir, dryRun) =>
         {

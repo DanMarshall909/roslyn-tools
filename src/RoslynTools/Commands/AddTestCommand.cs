@@ -34,8 +34,7 @@ internal sealed class AddTestCommand : IRtCommand
 
         var cmd = new Command("add-test", "Append xUnit test stubs to an existing test class");
         cmd.AddAlias("at");
-        cmd.Add(classOpt); cmd.Add(nameOpt); cmd.Add(acsOpt); cmd.Add(nestedClassOpt);
-        cmd.Add(fileOpt); cmd.Add(solutionOpt); cmd.Add(dryRunOpt);
+        cmd.AddAll(classOpt, nameOpt, acsOpt, nestedClassOpt, fileOpt, solutionOpt, dryRunOpt);
 
         cmd.SetHandler(async (className, name, acs, nestedClass, file, solution, dryRun) =>
         {

@@ -32,11 +32,7 @@ internal sealed class FindPatternCommand : IRtCommand
 
         var cmd = new Command("find-pattern", "Find all solution locations structurally matching a given statement range.");
         cmd.AddAlias("fp");
-        cmd.Add(fileOpt);
-        cmd.Add(startLineOpt);
-        cmd.Add(endLineOpt);
-        cmd.Add(solutionOpt);
-        cmd.Add(scopeOpt);
+        cmd.AddAll(fileOpt, startLineOpt, endLineOpt, solutionOpt, scopeOpt);
 
         cmd.SetHandler(async (file, startLine, endLine, solution, scope) =>
         {

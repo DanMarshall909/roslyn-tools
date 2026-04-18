@@ -37,11 +37,7 @@ internal sealed class DependencyGraphCommand : IRtCommand
 
         var cmd = new Command("dependency-graph", "Build a type-level dependency graph for the solution");
         cmd.AddAlias("depgraph");
-        cmd.Add(typeOpt);
-        cmd.Add(depthOpt);
-        cmd.Add(formatOpt);
-        cmd.Add(scopeOpt);
-        cmd.Add(solutionOpt);
+        cmd.AddAll(typeOpt, depthOpt, formatOpt, scopeOpt, solutionOpt);
 
         cmd.SetHandler(async (typeName, depth, format, scope, solution) =>
         {

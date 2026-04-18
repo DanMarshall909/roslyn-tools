@@ -35,11 +35,7 @@ internal sealed class AddDependencyCommand : IRtCommand
 
         var cmd = new Command("add-dependency", "Inject a constructor dependency into a class");
         cmd.AddAlias("ad");
-        cmd.Add(typeOpt);
-        cmd.Add(depOpt);
-        cmd.Add(fieldOpt);
-        cmd.Add(solutionOpt);
-        cmd.Add(dryRunOpt);
+        cmd.AddAll(typeOpt, depOpt, fieldOpt, solutionOpt, dryRunOpt);
 
         cmd.SetHandler(async (type, dep, field, solution, dryRun) =>
         {

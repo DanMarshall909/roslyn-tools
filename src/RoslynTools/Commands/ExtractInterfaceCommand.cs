@@ -37,11 +37,7 @@ internal sealed class ExtractInterfaceCommand : IRtCommand
 
         var cmd = new Command("extract-interface", "Generate IXxx interface from a class's public members");
         cmd.AddAlias("ei");
-        cmd.Add(typeOpt);
-        cmd.Add(solutionOpt);
-        cmd.Add(outputDirOpt);
-        cmd.Add(namespaceOpt);
-        cmd.Add(dryRunOpt);
+        cmd.AddAll(typeOpt, solutionOpt, outputDirOpt, namespaceOpt, dryRunOpt);
 
         cmd.SetHandler(async (type, solution, outputDir, ns, dryRun) =>
         {
