@@ -61,6 +61,7 @@ dotnet publish src/RoslynTools/RoslynTools.csproj -c Release -r win-x64
 | `replace-datetime` | | Replace `DateTime.UtcNow/Now` with injected `TimeProvider` |
 | `make-async` | `ma` | Convert a method to `async Task<T>` and update direct callers |
 | `make-sealed` | `ms` | Add `sealed` to a class if no derived types exist |
+| `make-static` | `mst` | Convert an instance method to static when it has no instance-state dependencies |
 | `convert-to-record` | `ctr` | Convert a data class to a C# record |
 | `implement-interface` | `ii` | Add stub implementations for unimplemented interface members |
 
@@ -123,6 +124,15 @@ rt add-null-checks --type OrderService --method Process --solution MySolution.sl
 ```sh
 rt make-sealed --type PaymentProcessor --solution MySolution.sln [--dry-run]
 # Adds 'sealed' if no derived types found; lists them and exits 1 if any exist
+```
+
+### make-static
+
+```sh
+rt make-static --method MathHelper.Clamp --solution MySolution.sln [--dry-run]
+# Validates: no 'this', no instance field/property access, not virtual/override/abstract
+# Adds 'static' modifier; rewrites instance.Clamp(...) call sites to MathHelper.Clamp(...)
+# Exits 1 with a clear message if any blocking usage is found
 ```
 
 ### convert-to-record
