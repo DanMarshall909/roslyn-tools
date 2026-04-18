@@ -311,7 +311,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 14,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: GREEN. IMethodSymbol -> MethodDeclarationSyntax via SyntaxFactory. Copy parameter names and types from IParameterSymbol. Return type from IMethodSymbol.ReturnType.ToDisplayString()."
     },
     {
@@ -332,7 +332,7 @@
         "dotnet build RoslynTools.slnx succeeds"
       ],
       "priority": 15,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: RED. Namespace-level cycle detection: build a directed graph from using directives (which namespace contains the file -> which namespaces it uses). Run DFS cycle detection (Tarjan's or simple coloring). Report cycle as list of namespace strings."
     },
     {
