@@ -220,7 +220,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: GREEN. SymbolFinder.FindDerivedClassesAsync is the correct API (not FindReferencesAsync). Insert sealed before class keyword, after access modifiers."
     },
     {
@@ -242,7 +242,7 @@
         "dotnet build RoslynTools.slnx succeeds"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: RED. records require C# 9+ (net5+). Positional record: `record Point(int X, int Y)` — properties become constructor params. Only init-only auto-props map cleanly to positional params; mutable setters get a warning."
     },
     {
