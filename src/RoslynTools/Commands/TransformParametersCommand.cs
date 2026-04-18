@@ -1,0 +1,58 @@
+using System.CommandLine;
+using RoslynTools.Core;
+
+namespace RoslynTools.Commands;
+
+internal sealed class TransformParametersCommand : IRtCommand
+{
+    private TransformParametersCommand() { }
+
+    public static RtCommandInfo Info { get; } = new(
+        Name: "transform-parameters",
+        Mutates: true,
+        JsonOutput: false,
+        Category: "Mutation — symbol & namespace",
+        Aliases: ["tp"],
+        WhenToUse: "Introduce a Parameter Object: extract a method's parameters into a new record and update all call sites. Useful when a method has 3+ parameters that logically belong together.",
+        Examples:
+        [
+            "rt transform-parameters --method OrderService.PlaceOrder --new-type PlaceOrderArgs --solution MySolution.sln",
+            "rt tp --method BookingService.Create --new-type CreateBookingArgs --dry-run",
+            "rt transform-parameters --method Calculator.Add --new-type AddArgs --solution RoslynTools.slnx --dry-run",
+        ]
+    );
+
+    public static Command Build()
+    {
+        var methodOpt = new Option<string>("--method", "Dot-separated TypeName.MethodName, e.g. OrderService.PlaceOrder") { IsRequired = true };
+        var newTypeOpt = new Option<string>("--new-type", "Name of the record to generate, e.g. PlaceOrderArgs") { IsRequired = true };
+        var solutionOpt = new Option<string?>("--solution", "Path to the .sln file. Auto-detected if omitted.");
+        var dryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk.");
+
+        var cmd = new Command("transform-parameters", "Extract method parameters into a new record and update all call sites.")
+        {
+            methodOpt, newTypeOpt, solutionOpt, dryRunOpt
+        };
+        cmd.AddAlias("tp");
+
+        cmd.SetHandler(async (method, newType, solution, dryRun) =>
+        {
+            var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
+            using (workspace)
+            {
+                Console.Error.WriteLine($"Transforming parameters of '{method}' → record '{newType}'...");
+                try
+                {
+                    await TransformParametersCore.RunAsync(sln, method, newType, dryRun);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    Console.Error.WriteLine($"Error: {ex.Message}");
+                    Environment.ExitCode = 1;
+                }
+            }
+        }, methodOpt, newTypeOpt, solutionOpt, dryRunOpt);
+
+        return cmd;
+    }
+}

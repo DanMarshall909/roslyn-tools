@@ -253,38 +253,48 @@ internal static class TransformParametersCore
     {
         var references = await SymbolFinder.FindReferencesAsync(method, sln);
 
-        // Group rewrite tasks by document to batch changes per file
-        var locationsByDoc = references
-            .SelectMany(r => r.Locations)
-            .Where(loc => loc.Location.IsInSource)
-            .GroupBy(loc => sln.GetDocument(loc.Location.SourceTree!));
-
-        foreach (var group in locationsByDoc)
+        // Collect all source locations and group by document ID
+        var locationsByDocId = new Dictionary<DocumentId, List<Location>>();
+        foreach (var refSymbol in references)
         {
-            var doc = group.Key;
+            foreach (var loc in refSymbol.Locations)
+            {
+                if (!loc.Location.IsInSource) continue;
+                var docId = loc.Document.Id;
+                if (!locationsByDocId.TryGetValue(docId, out var locs))
+                {
+                    locs = new List<Location>();
+                    locationsByDocId[docId] = locs;
+                }
+
+                locs.Add(loc.Location);
+            }
+        }
+
+        foreach (var (docId, locations) in locationsByDocId)
+        {
+            var doc = sln.GetDocument(docId);
             if (doc == null) continue;
 
             var root = await doc.GetSyntaxRootAsync();
             if (root == null) continue;
 
-            // Collect all invocation nodes that match our reference locations
-            var invocations = group
-                .Select(loc =>
-                {
-                    var node = root.FindNode(loc.Location.SourceSpan);
-                    // Walk up to find the InvocationExpressionSyntax
-                    return node.AncestorsAndSelf().OfType<InvocationExpressionSyntax>().FirstOrDefault();
-                })
-                .Where(inv => inv != null)
-                .Cast<InvocationExpressionSyntax>()
-                .ToList();
+            var invocations = new List<InvocationExpressionSyntax>();
+            foreach (var loc in locations)
+            {
+                var node = root.FindNode(loc.SourceSpan);
+                var inv = node.AncestorsAndSelf().OfType<InvocationExpressionSyntax>().FirstOrDefault();
+                if (inv != null)
+                    invocations.Add(inv);
+            }
 
-            // Replace all in one pass via ReplaceNodes to avoid stale span issues
+            if (invocations.Count == 0) continue;
+
             var newRoot = root.ReplaceNodes(
                 invocations,
                 (original, _) => RewriteInvocation(original, newTypeName));
 
-            sln = sln.WithDocumentSyntaxRoot(doc.Id, newRoot);
+            sln = sln.WithDocumentSyntaxRoot(docId, newRoot);
         }
 
         return sln;
@@ -296,9 +306,13 @@ internal static class TransformParametersCore
     {
         // Build: new ParamObj(arg1, arg2, arg3)
         var args = original.ArgumentList.Arguments;
+        var newKeyword = SyntaxFactory.Token(SyntaxKind.NewKeyword)
+            .WithTrailingTrivia(SyntaxFactory.Space);
         var newObjectCreation = SyntaxFactory.ObjectCreationExpression(
-                SyntaxFactory.IdentifierName(newTypeName))
-            .WithArgumentList(SyntaxFactory.ArgumentList(args));
+                newKeyword,
+                SyntaxFactory.IdentifierName(newTypeName),
+                SyntaxFactory.ArgumentList(args),
+                null);
 
         var newArgs = SyntaxFactory.ArgumentList(
             SyntaxFactory.SingletonSeparatedList(

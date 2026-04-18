@@ -48,6 +48,7 @@ dotnet publish src/RoslynTools/RoslynTools.csproj -c Release -r win-x64
 | `fix-namespace` | `fns` | Align a file's namespace declaration to its folder path |
 | `replace-call` | `rc` | Replace all invocations of one method with another |
 | `safe-delete` | `sd` | Delete a type or member only if it has zero references |
+| `transform-parameters` | `tp` | Extract method parameters into a new record and update all call sites |
 
 ### Mutation — structure
 
@@ -126,6 +127,19 @@ rt add-null-checks --type OrderService --method Process --solution MySolution.sl
 ```sh
 rt make-sealed --type PaymentProcessor --solution MySolution.sln [--dry-run]
 # Adds 'sealed' if no derived types found; lists them and exits 1 if any exist
+```
+
+### transform-parameters
+
+```sh
+rt transform-parameters --method OrderService.PlaceOrder --new-type PlaceOrderArgs --solution MySolution.sln [--dry-run]
+# Generates:  internal sealed record PlaceOrderArgs(string CustomerId, string ProductId, int Quantity);
+# Rewrites:   PlaceOrder(string customerId, ...) → PlaceOrder(PlaceOrderArgs args)
+# Updates:    svc.PlaceOrder("c1", "p1", 3) → svc.PlaceOrder(new PlaceOrderArgs("c1", "p1", 3))
+
+# With default value preservation:
+rt tp --method Greeter.Greet --new-type GreetArgs --solution MySolution.sln
+# Generates:  internal sealed record GreetArgs(string Name, int Times = 1);
 ```
 
 ### make-static
