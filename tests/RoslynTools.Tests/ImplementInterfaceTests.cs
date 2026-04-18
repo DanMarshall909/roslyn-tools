@@ -73,8 +73,9 @@ public class ImplementInterfaceTests
         Assert.Contains("Delete", content);
         Assert.Contains("Name", content);
         // GetAsync is already fully implemented — should not be duplicated
+        // (count = 2: once in IRepository definition, once in PartialRepo body; not 3)
         var getAsyncCount = content.Split("GetAsync").Length - 1;
-        Assert.Equal(1, getAsyncCount);
+        Assert.Equal(2, getAsyncCount);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
