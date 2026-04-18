@@ -32,6 +32,7 @@ internal static class App
         root.AddCommand(MakeSealedCommand.Build());
         root.AddCommand(ConvertToRecordCommand.Build());
         root.AddCommand(ImplementInterfaceCommand.Build());
+        root.AddCommand(CircularDepsCommand.Build());
 
         return await root.InvokeAsync(args);
     }
