@@ -18,7 +18,8 @@ internal static class MethodExtractor
         int startLine,
         int endLine,
         string? insertAfter = null,
-        string? insertBefore = null)
+        string? insertBefore = null,
+        bool replaceDuplicates = false)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(startLine, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(endLine, 1);
@@ -45,7 +46,64 @@ internal static class MethodExtractor
         var finalType = InsertNewMethod(containingType, containingMethod, newContainingMethod, newMethod, insertAfter, insertBefore);
         var newRoot = root.ReplaceNode(containingType, finalType);
 
-        return solution.WithDocumentSyntaxRoot(doc.Id, newRoot);
+        var extractedSln = solution.WithDocumentSyntaxRoot(doc.Id, newRoot);
+
+        if (!replaceDuplicates)
+            return extractedSln;
+
+        // ── 11. Find and replace structural duplicates ────────────────────────
+        var (bodyStartLine, bodyEndLine) = await FindNewMethodBodyRange(extractedSln, filePath, newMethodName);
+        return await MethodExtractorDuplicates.ReplaceDuplicatesAsync(
+            extractedSln,
+            filePath,
+            bodyStartLine,
+            bodyEndLine,
+            newMethodName,
+            orderedParams);
+    }
+
+    /// <summary>
+    /// Locates the body statements of the newly-extracted method in the updated document
+    /// and returns the 1-based line range of those statements.
+    /// </summary>
+    private static async Task<(int startLine, int endLine)> FindNewMethodBodyRange(
+        Solution solution,
+        string filePath,
+        string newMethodName)
+    {
+        var absPath = Path.GetFullPath(filePath);
+        var doc = solution.Projects
+            .SelectMany(p => p.Documents)
+            .FirstOrDefault(d => string.Equals(d.FilePath, absPath, StringComparison.OrdinalIgnoreCase))
+            ?? throw new InvalidOperationException($"File not found in solution after extraction: {absPath}");
+
+        var root = await doc.GetSyntaxRootAsync()
+            ?? throw new InvalidOperationException("Failed to get syntax root after extraction.");
+
+        var newMethodDecl = root.DescendantNodes()
+            .OfType<MethodDeclarationSyntax>()
+            .FirstOrDefault(m => m.Identifier.Text == newMethodName)
+            ?? throw new InvalidOperationException($"Could not locate newly-extracted method '{newMethodName}' in {absPath}.");
+
+        var bodyStatements = newMethodDecl.Body?.Statements ?? [];
+        // Filter out any trailing return statement that was generated (not part of the original body)
+        var statements = bodyStatements
+            .Where(s => s is not ReturnStatementSyntax)
+            .ToList();
+
+        if (statements.Count == 0)
+        {
+            // Fall back to all statements if body only has a return
+            statements = bodyStatements.ToList();
+        }
+
+        if (statements.Count == 0)
+            throw new InvalidOperationException($"Extracted method '{newMethodName}' has no body statements.");
+
+        var firstSpan = statements[0].GetLocation().GetLineSpan();
+        var lastSpan = statements[^1].GetLocation().GetLineSpan();
+
+        return (firstSpan.StartLinePosition.Line + 1, lastSpan.EndLinePosition.Line + 1);
     }
 
     // ────────────────────────────────────────────────────────────────────────────

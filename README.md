@@ -256,6 +256,30 @@ rt add-test --class OrderServiceTests \
 #   }
 ```
 
+### extract-method
+
+Extract a consecutive range of statements into a new private method. Uses Roslyn data-flow analysis to infer parameters and return type automatically.
+
+```sh
+# Basic extraction
+rt extract-method src/Services/OrderService.cs ValidateOrder --start-line 55 --end-line 68 --solution MySolution.sln
+
+# Preview without writing
+rt em src/Controllers/AdminController.cs BuildCsvRow --start-line 110 --end-line 125 --dry-run
+
+# Extract and replace all structural duplicates across the solution in one operation
+rt extract-method src/Services/BookingService.cs ApplyDiscount --start-line 42 --end-line 50 \
+  --replace-duplicates --solution MySolution.sln
+# Extracts ApplyDiscount, then scans the solution for structurally-matching code.
+# Each match is rewritten to a call to ApplyDiscount(arg1, arg2, ...).
+# Emits a warning and skips any match where an argument can't be cleanly mapped.
+# Prints a summary: matches found: N, replaced: M, skipped: K
+
+# Dry-run with --replace-duplicates: shows all proposed replacements as a unified diff
+rt em src/Services/BookingService.cs ApplyDiscount --start-line 42 --end-line 50 \
+  --replace-duplicates --dry-run --solution MySolution.sln
+```
+
 ### extract-interface / add-dependency / find-unused / extract-class / make-async / fix-namespace
 
 ```sh
