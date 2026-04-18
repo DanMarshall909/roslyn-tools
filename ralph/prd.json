@@ -1,18 +1,18 @@
 {
   "project": "roslyn-tools",
   "branchName": "ralph/reduce-smells",
-  "description": "Extract private helper methods from the 10 long methods identified by rt list-smells. Pure refactoring — no behaviour changes. Each story touches exactly one file.",
-  "ralph_instructions": "These are REFACTOR stories — no new functionality, no new tests needed. For each story: read the target method, identify logical sections, extract 2-4 well-named private static helpers, ensure all existing tests still pass. Verification: `dotnet build RoslynTools.slnx` and `dotnet test RoslynTools.sln -v minimal` and `dotnet format RoslynTools.slnx --verify-no-changes`. Do NOT skip the format check.",
+  "description": "Three goals: (1) reduce long-method smells in 10 production methods; (2) enforce Commands-as-thin-shells architecture — all Roslyn logic moves to src/RoslynTools/Core/<Name>Core.cs; (3) add 6 new differentiating refactoring commands (transform-parameters with new/existing class, make-static, make-instance, find-pattern, extract-method --replace-duplicates).",
+  "ralph_instructions": "Architectural rule: every Command class is a thin shell — its ExecuteAsync must only load the workspace and delegate to <Name>Core.RunAsync(...). All Roslyn logic lives in src/RoslynTools/Core/<Name>Core.cs. Existing examples: MethodExtractor (called by ExtractMethodCommand), FindUnusedCore (called by FindUnusedCommand). For refactor stories: move the logic to Core first, then decompose into private helpers there. For new-command stories: ship Command + Core from the start. Verification (every story, non-negotiable): `dotnet build RoslynTools.slnx`, `dotnet test RoslynTools.sln -v minimal`, `dotnet format RoslynTools.slnx --verify-no-changes`. Do NOT skip the format check.",
   "userStories": [
     {
       "id": "US-001",
       "title": "Refactor MethodExtractor.ExtractAsync — extract private helpers",
       "description": "As a maintainer, I want ExtractAsync broken into focused private helpers so each section is independently readable.",
       "acceptanceCriteria": [
-        "Extract FindDocumentAndStatements(solution, filePath, startLine, endLine) covering steps 1–3: locate document, get syntax root + semantic model, find and validate statements in line range",
-        "Extract ValidateDataFlow(model, selected, flow, declaredInRange) covering step 4: compute unsafeOut, throw if any exist",
-        "Extract OrderParameters(flow, selected, model) covering step 5: produce orderedParams list",
-        "Extract FindContainingContext(selected) covering step 6: return containingMethod, containingType, isStatic",
+        "Extract FindDocumentAndStatements(solution, filePath, startLine, endLine) covering steps 1–3",
+        "Extract ValidateDataFlow(model, selected, flow, declaredInRange) covering step 4",
+        "Extract OrderParameters(flow, selected, model) covering step 5",
+        "Extract FindContainingContext(selected) covering step 6",
         "ExtractAsync body is ≤ 50 lines after extraction",
         "All existing extract-method tests pass",
         "dotnet build RoslynTools.slnx succeeds",
@@ -20,87 +20,95 @@
       ],
       "priority": 1,
       "passes": false,
-      "notes": "File: src/RoslynTools/Core/MethodExtractor.cs. Method starts at line 14, is 183 lines. Steps are already labeled with comments (// ── 1. through // ── 10.) — use those as extraction boundaries."
+      "notes": "File: src/RoslynTools/Core/MethodExtractor.cs. Method starts at line 14, is 183 lines. Already in Core — no Command-layer change. Steps are already labeled with comments (// ── 1. through // ── 10.)."
     },
     {
       "id": "US-002",
-      "title": "Refactor ImplementInterfaceCommand.ExecuteAsync — extract private helpers",
-      "description": "As a maintainer, I want ExecuteAsync broken into focused private helpers so the orchestration is clear.",
+      "title": "Extract ImplementInterfaceCommand logic to Core and decompose",
+      "description": "As a maintainer, I want the 179-line ExecuteAsync body moved to ImplementInterfaceCore and broken into focused helpers, so the Command class is a thin CLI shell.",
       "acceptanceCriteria": [
-        "Extract FindClassSymbolAsync(sln, typeName) returning INamedTypeSymbol? — lines 42–65",
-        "Extract CollectInterfacesToImplementAsync(sln, classSymbol, interfaceName) returning List<INamedTypeSymbol> — lines 68–101",
-        "Extract FindDocumentIdAsync(sln, classSymbol) returning DocumentId? — lines 109–130",
-        "Extract CollectUnimplementedMembers(classSymbol, interfacesToImplement) returning List<ISymbol> — lines 132–161",
-        "ExecuteAsync body is ≤ 40 lines after extraction",
+        "Create src/RoslynTools/Core/ImplementInterfaceCore.cs with an internal static class ImplementInterfaceCore and a RunAsync entry point taking (Solution sln, string typeName, string? interfaceName, bool dryRun)",
+        "ImplementInterfaceCommand.ExecuteAsync is ≤ 20 lines: load workspace, call ImplementInterfaceCore.RunAsync, nothing else",
+        "ImplementInterfaceCore.RunAsync is ≤ 40 lines and delegates to private static helpers: FindClassSymbolAsync, CollectInterfacesToImplementAsync, FindDocumentIdAsync, CollectUnimplementedMembers",
+        "ImplementInterfaceCommand.ExecuteAsync signature unchanged (internal static Task ExecuteAsync(string typeName, string? interfaceName, string? solutionPath, bool dryRun))",
         "All existing implement-interface tests pass",
         "dotnet build RoslynTools.slnx succeeds",
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 2,
       "passes": false,
-      "notes": "File: src/RoslynTools/Commands/ImplementInterfaceCommand.cs. ExecuteAsync starts at line 34, is 179 lines."
+      "notes": "Source: src/RoslynTools/Commands/ImplementInterfaceCommand.cs (ExecuteAsync line 34, 179 lines)."
     },
     {
       "id": "US-003",
-      "title": "Refactor ConvertToRecordCommand.ExecuteAsync — extract private helpers",
-      "description": "As a maintainer, I want ExecuteAsync broken into focused private helpers.",
+      "title": "Extract ConvertToRecordCommand logic to Core and decompose",
+      "description": "As a maintainer, I want the 135-line ExecuteAsync body moved to ConvertToRecordCore and broken into focused helpers.",
       "acceptanceCriteria": [
-        "Extract at least 2 private static helpers from the 135-line ExecuteAsync body",
-        "ExecuteAsync body is ≤ 40 lines after extraction",
+        "Create src/RoslynTools/Core/ConvertToRecordCore.cs with an internal static class ConvertToRecordCore and a RunAsync entry point",
+        "ConvertToRecordCommand.ExecuteAsync is ≤ 20 lines (load workspace + delegate)",
+        "ConvertToRecordCore.RunAsync is ≤ 40 lines and delegates to at least 3 private static helpers (e.g. find class + doc, build record decl, remove obsolete members, apply changes)",
+        "ConvertToRecordCommand.ExecuteAsync signature unchanged",
         "All existing convert-to-record tests pass",
         "dotnet build RoslynTools.slnx succeeds",
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 3,
       "passes": false,
-      "notes": "File: src/RoslynTools/Commands/ConvertToRecordCommand.cs. ExecuteAsync starts at line 31, is 135 lines. Logical sections: find class symbol, collect init-only props, warn on mutable props, build record declaration, remove obsolete members (Equals/GetHashCode/operators), apply changes."
+      "notes": "Source: src/RoslynTools/Commands/ConvertToRecordCommand.cs (ExecuteAsync line 31, 135 lines). Logical sections: find class symbol, collect init-only props, warn on mutable props, build record declaration, remove obsolete members (Equals/GetHashCode/operators), apply changes."
     },
     {
       "id": "US-004",
-      "title": "Refactor MakeSealedCommand.ExecuteAsync — extract private helpers",
-      "description": "As a maintainer, I want ExecuteAsync broken into focused private helpers.",
+      "title": "Extract MakeSealedCommand logic to Core and decompose",
+      "description": "As a maintainer, I want the 127-line ExecuteAsync body moved to MakeSealedCore and broken into focused helpers.",
       "acceptanceCriteria": [
-        "Extract at least 2 private static helpers from the 127-line ExecuteAsync body",
-        "ExecuteAsync body is ≤ 40 lines after extraction",
+        "Create src/RoslynTools/Core/MakeSealedCore.cs with an internal static class MakeSealedCore and a RunAsync entry point",
+        "MakeSealedCommand.ExecuteAsync is ≤ 20 lines (load workspace + delegate)",
+        "MakeSealedCore.RunAsync is ≤ 40 lines and delegates to at least 2 private static helpers (e.g. FindClassAndDocument, CheckDerivedTypes, AddSealedModifier)",
+        "MakeSealedCommand.ExecuteAsync signature unchanged",
         "All existing make-sealed tests pass",
         "dotnet build RoslynTools.slnx succeeds",
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 4,
       "passes": false,
-      "notes": "File: src/RoslynTools/Commands/MakeSealedCommand.cs. ExecuteAsync starts at line 32, is 127 lines. Logical sections: find class symbol, find document id, check derived types, add sealed modifier, apply changes."
+      "notes": "Source: src/RoslynTools/Commands/MakeSealedCommand.cs (ExecuteAsync line 32, 127 lines). Logical sections: find class symbol, find document id, check derived types, add sealed modifier, apply changes."
     },
     {
       "id": "US-005",
-      "title": "Refactor ReplaceCallCommand.ExecuteAsync — extract private helpers",
-      "description": "As a maintainer, I want ExecuteAsync broken into focused private helpers.",
+      "title": "Extract ReplaceCallCommand logic to Core and decompose",
+      "description": "As a maintainer, I want the 114-line ExecuteAsync body moved to ReplaceCallCore and broken into focused helpers.",
       "acceptanceCriteria": [
-        "Extract at least 2 private static helpers from the 114-line ExecuteAsync body",
-        "ExecuteAsync body is ≤ 40 lines after extraction",
+        "Create src/RoslynTools/Core/ReplaceCallCore.cs with an internal static class ReplaceCallCore and a RunAsync entry point",
+        "ReplaceCallCommand.ExecuteAsync is ≤ 20 lines (load workspace + delegate)",
+        "ReplaceCallCore.RunAsync is ≤ 40 lines and delegates to at least 2 private static helpers (e.g. ParseSymbolSpec, FindInvocationSites, RewriteMemberAccess)",
+        "ReplaceCallCommand.ExecuteAsync signature unchanged",
         "All existing replace-call tests pass",
         "dotnet build RoslynTools.slnx succeeds",
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 5,
       "passes": false,
-      "notes": "File: src/RoslynTools/Commands/ReplaceCallCommand.cs. ExecuteAsync starts at line 34, is 114 lines. Logical sections: parse from/to into type+method names, find all invocation sites via SymbolFinder, replace MemberAccessExpressionSyntax.Name per document."
+      "notes": "Source: src/RoslynTools/Commands/ReplaceCallCommand.cs (ExecuteAsync line 34, 114 lines)."
     },
     {
       "id": "US-006",
-      "title": "Refactor SmellAnalyzer.AnalyzeAsync — extract per-smell helpers",
-      "description": "As a maintainer, I want AnalyzeAsync broken into one helper per smell type.",
+      "title": "Refactor SmellAnalyzer.AnalyzeAsync — split per-smell logic into separate classes",
+      "description": "As a maintainer, I want AnalyzeAsync to delegate smell-specific logic to separate classes so each smell rule has a single responsibility.",
       "acceptanceCriteria": [
-        "Extract CheckLargeClass(typeSymbol, typeDecl, scope) returning SmellResult?",
-        "Extract CheckLongMethods(typeSymbol, typeDecl, scope, maxMethodLines) returning IEnumerable<SmellResult>",
-        "Extract CheckTooManyDependencies(typeSymbol, typeDecl, scope, maxDeps) returning SmellResult?",
+        "Create src/RoslynTools/Core/LargeClassRule.cs with a focused API for detecting large classes",
+        "Create src/RoslynTools/Core/LongMethodRule.cs with a focused API for detecting long methods",
+        "Create src/RoslynTools/Core/TooManyDependenciesRule.cs with a focused API for detecting over-injected constructors",
+        "Each rule class takes a TypeDeclarationSyntax + its config knob and returns SmellResult values (single or enumerable as appropriate)",
+        "SmellAnalyzer.AnalyzeAsync orchestrates the three rule classes — does not own the smell-specific logic",
         "AnalyzeAsync body is ≤ 40 lines after extraction",
+        "SmellAnalyzer.AnalyzeAsync signature unchanged (Solution, int maxClassLines, int maxMethodLines, int maxParams, string? scope)",
         "All existing list-smells tests pass",
         "dotnet build RoslynTools.slnx succeeds",
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 6,
       "passes": false,
-      "notes": "File: src/RoslynTools/Core/SmellAnalyzer.cs. AnalyzeAsync starts at line 16, is 114 lines."
+      "notes": "Primary file: src/RoslynTools/Core/SmellAnalyzer.cs (AnalyzeAsync line 16, 114 lines). SRP applies: prefer one class per smell rule under src/RoslynTools/Core/, rather than private helper methods."
     },
     {
       "id": "US-007",
@@ -115,57 +123,193 @@
       ],
       "priority": 7,
       "passes": false,
-      "notes": "File: src/RoslynTools/Core/SolutionWriter.cs. PrintDiff starts at line 91, is 112 lines. Uses DiffPlex; logical sections: collect diff blocks, format hunk header, emit context/added/removed lines."
+      "notes": "File: src/RoslynTools/Core/SolutionWriter.cs (PrintDiff line 91, 112 lines). Already in Core — no Command-layer change. Uses DiffPlex; logical sections: collect diff blocks, format hunk header, emit context/added/removed lines."
     },
     {
       "id": "US-008",
-      "title": "Refactor DependencyGraphCommand — extract helpers from GetDependencies and BuildBfsGraph",
-      "description": "As a maintainer, I want GetDependencies and BuildBfsGraph broken into focused helpers.",
+      "title": "Extract DependencyGraphCommand logic to Core and decompose",
+      "description": "As a maintainer, I want the DependencyGraphCommand logic moved to DependencyGraphCore and its long methods broken into focused helpers.",
       "acceptanceCriteria": [
-        "Extract GetFieldDependencies(typeSymbol) returning IEnumerable<INamedTypeSymbol>",
-        "Extract GetMethodDependencies(typeSymbol) returning IEnumerable<INamedTypeSymbol>",
-        "Extract GetInheritanceDependencies(typeSymbol) returning IEnumerable<INamedTypeSymbol>",
+        "Create src/RoslynTools/Core/DependencyGraphCore.cs with an internal static class DependencyGraphCore and a BuildGraphAsync entry point",
+        "DependencyGraphCommand.ExecuteAsync is ≤ 20 lines (load workspace + delegate + format output)",
+        "Extract GetFieldDependencies(typeSymbol), GetMethodDependencies(typeSymbol), GetInheritanceDependencies(typeSymbol) as private static helpers in DependencyGraphCore",
         "GetDependencies body delegates to these three helpers and is ≤ 20 lines",
         "BuildBfsGraph body is ≤ 35 lines after extraction",
+        "DependencyGraphCommand.ExecuteAsync signature unchanged",
         "All existing dependency-graph tests pass",
         "dotnet build RoslynTools.slnx succeeds",
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 8,
       "passes": false,
-      "notes": "File: src/RoslynTools/Commands/DependencyGraphCommand.cs. GetDependencies is at line 220 (62 lines), BuildBfsGraph at line 165 (54 lines)."
+      "notes": "Source: src/RoslynTools/Commands/DependencyGraphCommand.cs (LargeClass, 372 lines). GetDependencies at line 220 (62L), BuildBfsGraph at line 165 (54L), BuildGraphAsync at line 43 (51L)."
     },
     {
       "id": "US-009",
-      "title": "Refactor MoveCommand — extract helpers from ExecuteNamespaceMoveAsync and UpdateReferenceUsingsAsync",
-      "description": "As a maintainer, I want the two longest MoveCommand methods broken into focused helpers.",
+      "title": "Extract MoveCommand logic to Core and decompose",
+      "description": "As a maintainer, I want MoveCommand's 439 lines moved to MoveCore, with the two longest methods broken into focused helpers.",
       "acceptanceCriteria": [
-        "Extract at least 2 private static helpers from ExecuteNamespaceMoveAsync (67 lines)",
-        "Extract at least 2 private static helpers from UpdateReferenceUsingsAsync (73 lines)",
+        "Create src/RoslynTools/Core/MoveCore.cs with an internal static class MoveCore and entry points for both namespace and single-type moves",
+        "MoveCommand.ExecuteAsync (and any per-mode handlers the Command holds) are each ≤ 20 lines: parse options, delegate to MoveCore, return",
+        "Extract at least 2 private static helpers from ExecuteNamespaceMoveAsync (67 lines) inside MoveCore",
+        "Extract at least 2 private static helpers from UpdateReferenceUsingsAsync (73 lines) inside MoveCore",
         "ExecuteNamespaceMoveAsync body is ≤ 35 lines after extraction",
         "UpdateReferenceUsingsAsync body is ≤ 35 lines after extraction",
+        "MoveCommand public signatures unchanged",
         "All existing move tests pass",
         "dotnet build RoslynTools.slnx succeeds",
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 9,
       "passes": false,
-      "notes": "File: src/RoslynTools/Commands/MoveCommand.cs. ExecuteNamespaceMoveAsync at line 57 (67 lines), UpdateReferenceUsingsAsync at line 224 (73 lines)."
+      "notes": "Source: src/RoslynTools/Commands/MoveCommand.cs (LargeClass, 439 lines). ExecuteNamespaceMoveAsync at line 57, UpdateReferenceUsingsAsync at line 224. Largest single-command refactor in the PRD."
     },
     {
       "id": "US-010",
-      "title": "Refactor AddTestCommand.ExecuteAsync — extract private helpers",
-      "description": "As a maintainer, I want ExecuteAsync broken into focused private helpers.",
+      "title": "Extract AddTestCommand logic to Core and decompose",
+      "description": "As a maintainer, I want the 107-line ExecuteAsync body moved to AddTestCore and broken into focused helpers.",
       "acceptanceCriteria": [
-        "Extract at least 2 private static helpers from the 107-line ExecuteAsync body",
-        "ExecuteAsync body is ≤ 40 lines after extraction",
+        "Create src/RoslynTools/Core/AddTestCore.cs with an internal static class AddTestCore and a RunAsync entry point",
+        "AddTestCommand.ExecuteAsync is ≤ 20 lines (load workspace + delegate)",
+        "AddTestCore.RunAsync is ≤ 40 lines and delegates to at least 2 private static helpers (e.g. AppendSingleTest, GenerateBatchFromAcs)",
+        "AddTestCommand.ExecuteAsync signature unchanged",
         "All existing add-test tests pass",
         "dotnet build RoslynTools.slnx succeeds",
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 10,
       "passes": false,
-      "notes": "File: src/RoslynTools/Commands/AddTestCommand.cs. ExecuteAsync starts at line 34, is 107 lines. Logical sections: find class document, single-test mode (append one [Fact]), AC-batch mode (split ACs, generate nested class or flat methods), apply changes."
+      "notes": "Source: src/RoslynTools/Commands/AddTestCommand.cs (ExecuteAsync line 34, 107 lines). Logical sections: find class document, single-test mode (append one [Fact]), AC-batch mode (split ACs, generate nested class or flat methods), apply changes. AcToMethodName and BuildFactMethod already exist as private static helpers — keep them."
+    },
+    {
+      "id": "US-011",
+      "title": "New command: transform-parameters (new class)",
+      "description": "As a user, I want to extract a method's parameters into a new record (or class) and have all call sites updated, so large parameter lists become introducible parameter objects.",
+      "acceptanceCriteria": [
+        "Create src/RoslynTools/Commands/TransformParametersCommand.cs (thin shell) — alias `tp`",
+        "Create src/RoslynTools/Core/TransformParametersCore.cs with RunAsync entry point",
+        "TransformParametersCommand.ExecuteAsync is ≤ 20 lines (parse options + delegate)",
+        "CLI: `rt transform-parameters --method <Type>.<Method> --new-type <ParamObj> --solution <path> [--dry-run]`",
+        "Behaviour: generates `record <ParamObj>(...)` in the same file as the target method, rewrites the method signature to take one `<ParamObj>` parameter named `args` (or similar), rewrites every call site from `Foo(a, b, c)` to `Foo(new ParamObj(a, b, c))`",
+        "Skip parameters declared with out/ref/in modifiers (fail with a clear error listing which params were skipped)",
+        "Preserve default values from the original signature in the record parameter list",
+        "Register in App.cs with alias `tp`",
+        "Create tests/RoslynTools.Tests/TransformParametersTests.cs with [Collection(\"MSBuild\")] covering: simple 3-param method, method with default value, method with out param (error), multi-call-site update, dry-run emits diff without writing",
+        "dotnet build RoslynTools.slnx succeeds",
+        "dotnet test RoslynTools.sln -v minimal all green",
+        "dotnet format RoslynTools.slnx --verify-no-changes passes",
+        "Update README.md command table and add an example invocation"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": "Mirrors the Command+Core pattern from ExtractMethodCommand + MethodExtractor. Use TestProjectBuilder for test fixtures."
+    },
+    {
+      "id": "US-012",
+      "title": "transform-parameters — support existing class/record via --existing-type",
+      "description": "As a user, I want to reuse an existing parameters class instead of always creating a new one, since this is the common real-world case (ReSharper/Eclipse cannot do this well).",
+      "acceptanceCriteria": [
+        "Add --existing-type <FQN> option to TransformParametersCommand, mutually exclusive with --new-type",
+        "Validation: the existing type has matching-named properties (for classes) or record-params (for records) for every method parameter. On failure, exit 1 with a message listing the missing properties",
+        "Call-site rewrite for class: `new ExistingType { X = a, Y = b }`; for record: `new ExistingType(a, b)`",
+        "Do NOT generate a new type when --existing-type is used",
+        "Tests added to TransformParametersTests.cs: matching existing record, matching existing class, missing property (error), partial match (error), both flags passed (error)",
+        "dotnet build RoslynTools.slnx succeeds",
+        "dotnet test RoslynTools.sln -v minimal all green",
+        "dotnet format RoslynTools.slnx --verify-no-changes passes",
+        "README updated with an --existing-type example"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": "Depends on US-011 — touches the same Command + Core files. Key differentiator vs commercial tooling."
+    },
+    {
+      "id": "US-013",
+      "title": "New command: make-static",
+      "description": "As a user, I want to convert an instance method to static when it has no instance-state dependencies, and have all call sites updated.",
+      "acceptanceCriteria": [
+        "Create src/RoslynTools/Commands/MakeStaticCommand.cs (thin shell) — alias `mst`",
+        "Create src/RoslynTools/Core/MakeStaticCore.cs with RunAsync entry point",
+        "MakeStaticCommand.ExecuteAsync is ≤ 20 lines",
+        "CLI: `rt make-static --method <Type>.<Method> --solution <path> [--dry-run]`",
+        "Safety check: method body contains no `this`, no instance-field/property access, and method is not `virtual`/`override`/`abstract`. On failure, report which usage blocks the conversion and exit 1",
+        "Add `static` modifier to the declaration",
+        "Rewrite call sites: `instance.Method(...)` → `<Type>.Method(...)`; static-context call sites (same type) unchanged",
+        "Register in App.cs with alias `mst`",
+        "Create tests/RoslynTools.Tests/MakeStaticTests.cs covering: clean method becomes static, `this.` usage rejected, instance-field usage rejected, virtual rejected, call sites updated across files, dry-run",
+        "dotnet build + dotnet test all green",
+        "dotnet format RoslynTools.slnx --verify-no-changes passes",
+        "README updated with example"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": "Use SymbolFinder.FindReferencesAsync to locate call sites."
+    },
+    {
+      "id": "US-014",
+      "title": "New command: make-instance (remove static)",
+      "description": "As a user, I want to convert a static method to an instance method for callers that have an instance in scope.",
+      "acceptanceCriteria": [
+        "Create src/RoslynTools/Commands/MakeInstanceCommand.cs (thin shell) — alias `mns`",
+        "Create src/RoslynTools/Core/MakeInstanceCore.cs with RunAsync entry point",
+        "MakeInstanceCommand.ExecuteAsync is ≤ 20 lines",
+        "CLI: `rt make-instance --method <Type>.<Method> --solution <path> [--dry-run]`",
+        "Remove `static` modifier from the declaration",
+        "Rewrite `<Type>.Method(...)` call sites: if the enclosing method/class has an instance of `<Type>` reachable (local var, field, param), rewrite to `instance.Method(...)`; otherwise emit a warning with file:line and leave the call site unchanged",
+        "Report a summary at the end: total call sites, rewritten, skipped (with reasons)",
+        "Register in App.cs with alias `mns`",
+        "Create tests/RoslynTools.Tests/MakeInstanceTests.cs covering: call sites with local var, call sites with field, call sites with no instance (warn + skip), same-class call site rewritten to `this.Method(...)`, dry-run",
+        "dotnet build + dotnet test all green",
+        "dotnet format RoslynTools.slnx --verify-no-changes passes",
+        "README updated with example"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": "Harder than make-static because instance-reachability analysis is non-trivial. Prefer conservatism: warn on ambiguous cases."
+    },
+    {
+      "id": "US-015",
+      "title": "New command: find-pattern (structural AST match across solution)",
+      "description": "As a user, I want to find all code locations that structurally match a given line range, so I can identify duplicated patterns even when variable/literal names differ.",
+      "acceptanceCriteria": [
+        "Create src/RoslynTools/Commands/FindPatternCommand.cs (thin shell) — alias `fp`",
+        "Create src/RoslynTools/Core/PatternMatcher.cs with public API FindMatchesAsync(Solution sln, string filePath, int startLine, int endLine, string? scope) returning a list of PatternMatch records (file, line, identifierSubstitutions)",
+        "FindPatternCommand.ExecuteAsync is ≤ 20 lines",
+        "CLI: `rt find-pattern --file <path> --start-line N --end-line M --solution <path> [--scope <ns>]`",
+        "Extract the syntax subtree from the given line range (must be a sequence of StatementSyntax inside a BlockSyntax — same constraint as extract-method)",
+        "Walk the solution; find every same-length statement sequence where SyntaxKind shape matches and only identifier/literal values differ",
+        "For each match, record: file path, start line, end line, the substitution map (pattern identifier → match identifier)",
+        "Output JSON: `{ \"matches\": [ { \"file\": ..., \"line\": ..., \"endLine\": ..., \"substitutions\": { ... }, \"preview\": \"...\" } ] }`",
+        "Skip the pattern source itself (don't report the origin as a match)",
+        "Register in App.cs with alias `fp`",
+        "Create tests/RoslynTools.Tests/FindPatternTests.cs covering: exact duplicate found, identifier-only-different match found, structurally-different code not matched, cross-file match, scope filter",
+        "dotnet build + dotnet test all green",
+        "dotnet format RoslynTools.slnx --verify-no-changes passes",
+        "README updated with example"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": "The key differentiator. US-016 will consume PatternMatcher.FindMatchesAsync as a library. Prefer a clean public API on PatternMatcher; the Command is just a JSON-emitting wrapper."
+    },
+    {
+      "id": "US-016",
+      "title": "extract-method --replace-duplicates (uses find-pattern matcher)",
+      "description": "As a user, I want extract-method to optionally find structurally-matching code elsewhere in the solution and replace those occurrences with calls to the newly-extracted method, consolidating duplication in one operation.",
+      "acceptanceCriteria": [
+        "Add --replace-duplicates flag to ExtractMethodCommand",
+        "When flag is set: after extracting the new method, invoke PatternMatcher.FindMatchesAsync (from US-015) with the extracted body as the pattern",
+        "For each match: rewrite the matched statements to a single call to the new method, plugging in the substituted identifiers as arguments in the correct parameter order",
+        "Skip (and warn with file:line) any match where a literal would need to become a variable — i.e. the substitution map maps a parameter to a literal in the match site",
+        "Report a summary at the end: matches found, replaced, skipped (with reasons)",
+        "Existing extract-method tests continue to pass",
+        "Add tests to tests/RoslynTools.Tests/ExtractMethodTests.cs covering: one cross-file duplicate replaced, literal-substitution skipped with warning, no-duplicates case is a no-op (flag still accepted), dry-run shows all replacements in diff",
+        "dotnet build + dotnet test all green",
+        "dotnet format RoslynTools.slnx --verify-no-changes passes",
+        "README updated with example"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": "Touches src/RoslynTools/Commands/ExtractMethodCommand.cs and src/RoslynTools/Core/MethodExtractor.cs. Depends on US-015. Keep MethodExtractor cohesive — add a ReplaceDuplicatesAsync helper rather than inlining the logic."
     }
   ]
 }

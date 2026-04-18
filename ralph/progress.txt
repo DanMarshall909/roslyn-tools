@@ -1,19 +1,25 @@
-roslyn-tools Reduce Smells — Ralph Execution Progress
-======================================================
+roslyn-tools Reduce Smells + Core Extraction + New Commands — Ralph Execution Progress
+========================================================================================
 Branch: ralph/reduce-smells
-PRD: prd.json (10 user stories)
+PRD: prd.json (16 user stories)
 Date Started: 2026-04-18
-Current Status: 0/10 stories complete (0%)
+Current Status: 0/16 stories complete (0%)
 
 PENDING STORIES
 ===============
 [ ] US-001: Refactor MethodExtractor.ExtractAsync — extract private helpers
-[ ] US-002: Refactor ImplementInterfaceCommand.ExecuteAsync — extract private helpers
-[ ] US-003: Refactor ConvertToRecordCommand.ExecuteAsync — extract private helpers
-[ ] US-004: Refactor MakeSealedCommand.ExecuteAsync — extract private helpers
-[ ] US-005: Refactor ReplaceCallCommand.ExecuteAsync — extract private helpers
-[ ] US-006: Refactor SmellAnalyzer.AnalyzeAsync — extract per-smell helpers
+[ ] US-002: Extract ImplementInterfaceCommand logic to Core and decompose
+[ ] US-003: Extract ConvertToRecordCommand logic to Core and decompose
+[ ] US-004: Extract MakeSealedCommand logic to Core and decompose
+[ ] US-005: Extract ReplaceCallCommand logic to Core and decompose
+[ ] US-006: Refactor SmellAnalyzer.AnalyzeAsync — split per-smell logic into separate classes
 [ ] US-007: Refactor SolutionWriter.PrintDiff — extract hunk-building helpers
-[ ] US-008: Refactor DependencyGraphCommand — extract helpers from GetDependencies and BuildBfsGraph
-[ ] US-009: Refactor MoveCommand — extract helpers from ExecuteNamespaceMoveAsync and UpdateReferenceUsingsAsync
-[ ] US-010: Refactor AddTestCommand.ExecuteAsync — extract private helpers
+[ ] US-008: Extract DependencyGraphCommand logic to Core and decompose
+[ ] US-009: Extract MoveCommand logic to Core and decompose
+[ ] US-010: Extract AddTestCommand logic to Core and decompose
+[ ] US-011: New command: transform-parameters (new class)
+[ ] US-012: transform-parameters — support existing class/record via --existing-type
+[ ] US-013: New command: make-static
+[ ] US-014: New command: make-instance (remove static)
+[ ] US-015: New command: find-pattern (structural AST match across solution)
+[ ] US-016: extract-method --replace-duplicates (uses find-pattern matcher)
