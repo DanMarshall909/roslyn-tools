@@ -31,6 +31,7 @@ internal static class App
         root.AddCommand(AddNullChecksCommand.Build());
         root.AddCommand(MakeSealedCommand.Build());
         root.AddCommand(ConvertToRecordCommand.Build());
+        root.AddCommand(ImplementInterfaceCommand.Build());
 
         return await root.InvokeAsync(args);
     }
