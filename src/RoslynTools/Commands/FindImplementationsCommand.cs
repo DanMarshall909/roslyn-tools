@@ -22,10 +22,6 @@ internal sealed class FindImplementationsCommand : IRtCommand
             "rt find-impl IEmailService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt impls ProjectX.Core.Services.IBookingRepository --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt find-impl IRtCommand --solution RoslynTools.slnx",
-        ],
-        KnownIssues:
-        [
-            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
         ]
     );
 

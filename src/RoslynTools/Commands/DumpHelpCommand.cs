@@ -6,9 +6,9 @@ namespace RoslynTools.Commands;
 
 /// <summary>
 /// Emits <c>docs/COMMANDS.md</c> content to stdout by walking the command registry in <see cref="App"/>.
-/// Does NOT call <c>MsBuildBootstrap.Register()</c> — pure in-process enumeration, so it works even
-/// when the MSBuild workspace loader is broken (see <c>tasks/ai-improvements.md</c> row #13).
-/// Hidden from the general <c>rt --help</c> listing; invoked by the post-build MSBuild target.
+/// Does NOT call <c>MsBuildBootstrap.Register()</c> — pure in-process enumeration keeps the
+/// post-build regeneration step fast. Hidden from the general <c>rt --help</c> listing; invoked
+/// by the post-build MSBuild target.
 /// </summary>
 internal static class DumpHelpCommand
 {

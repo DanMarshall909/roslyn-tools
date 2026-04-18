@@ -22,10 +22,6 @@ internal sealed class AddDependencyCommand : IRtCommand
             "rt add-dependency --type BookingService --dependency IEmailService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt ad --type OrderController --dependency IPaymentGateway --field _payment --dry-run",
             "rt add-dependency --type ReportGenerator --dependency IRepository --solution RoslynTools.slnx",
-        ],
-        KnownIssues:
-        [
-            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
         ]
     );
 

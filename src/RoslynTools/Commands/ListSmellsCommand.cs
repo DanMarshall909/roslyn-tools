@@ -19,10 +19,6 @@ internal sealed class ListSmellsCommand : IRtCommand
             "rt list-smells --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt smells --scope ProjectX.Core --max-class-lines 200 --max-method-lines 30 --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt list-smells --solution RoslynTools.slnx --max-params 5",
-        ],
-        KnownIssues:
-        [
-            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
         ]
     );
 

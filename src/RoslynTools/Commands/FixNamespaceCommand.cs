@@ -22,10 +22,6 @@ internal sealed class FixNamespaceCommand : IRtCommand
             "rt fix-namespace --file src/Services/BookingService.cs --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt fns --file src/RoslynTools/Commands/RenameCommand.cs --dry-run",
             "rt fix-namespace --file src/Domain/Order.cs --solution RoslynTools.slnx",
-        ],
-        KnownIssues:
-        [
-            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
         ]
     );
 

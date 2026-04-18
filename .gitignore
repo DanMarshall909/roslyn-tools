@@ -17,7 +17,11 @@ nupkg/
 
 ## Test output
 **/TestOutput/
+**/TestResults/
 coverage/
+
+## Claude Code local state (worktrees, user settings)
+.claude/
 
 ## OS
 Thumbs.db

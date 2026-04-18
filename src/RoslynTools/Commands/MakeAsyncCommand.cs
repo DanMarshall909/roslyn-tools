@@ -24,10 +24,6 @@ internal sealed class MakeAsyncCommand : IRtCommand
             "rt make-async --type BookingService --method Save --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt ma --type EmailSender --method Send --no-rename --dry-run",
             "rt make-async --type HeroApiClient --method FetchAvailability --solution RoslynTools.slnx",
-        ],
-        KnownIssues:
-        [
-            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
         ]
     );
 

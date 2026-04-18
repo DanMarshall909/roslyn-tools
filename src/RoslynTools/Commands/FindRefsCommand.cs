@@ -20,10 +20,6 @@ internal sealed class FindRefsCommand : IRtCommand
             "rt find-refs --symbol BookingService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt find-refs --symbol CreateBooking --kind method --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt find-refs --symbol IEmailService --kind type --solution RoslynTools.slnx",
-        ],
-        KnownIssues:
-        [
-            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
         ]
     );
 

@@ -22,10 +22,6 @@ internal sealed class FindCallersCommand : IRtCommand
             "rt find-callers --symbol SendEmail --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt callers --symbol ProcessPayment --include-tests --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt find-callers --symbol BuildGraphAsync --solution RoslynTools.slnx",
-        ],
-        KnownIssues:
-        [
-            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
         ]
     );
 

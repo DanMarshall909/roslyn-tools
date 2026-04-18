@@ -43,8 +43,7 @@
   <!--
     Auto-regenerate docs/COMMANDS.md on every local Debug build from the command registry's
     `RtCommandInfo.Info` metadata. The `rt dump-help` subcommand is in-process only (does not
-    load an MSBuild workspace), so it works even when the workspace-load crash tracked as
-    ai-improvements row #13 is active.
+    load an MSBuild workspace), so the post-build step stays fast.
 
     Escape hatch for CI or release-only builds: `-p:GenerateCommandsMd=false`.
     Only runs on Debug to keep release publishes fast; devs regenerate locally, commit the MD.

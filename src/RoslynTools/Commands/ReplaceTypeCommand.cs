@@ -22,10 +22,6 @@ internal sealed class ReplaceTypeCommand : IRtCommand
             "rt replace-datetime --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt replace-datetime --dry-run --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt replace-datetime --solution RoslynTools.slnx",
-        ],
-        KnownIssues:
-        [
-            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
         ]
     );
 

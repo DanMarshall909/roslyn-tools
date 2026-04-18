@@ -23,10 +23,6 @@ internal sealed class SafeDeleteCommand : IRtCommand
             "rt safe-delete --symbol OrphanedHelper --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt sd --symbol BookingService.LegacyMethod --kind method --dry-run --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt safe-delete --symbol OldDtoType --kind type --solution RoslynTools.slnx",
-        ],
-        KnownIssues:
-        [
-            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
         ]
     );
 

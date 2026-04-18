@@ -6,8 +6,7 @@ internal static class Program
     {
         // Fast path: `rt dump-help` only enumerates the command registry in-process and emits
         // Markdown — it doesn't load an MSBuild workspace. Skip MSBuild registration so the
-        // post-build target that regenerates docs/COMMANDS.md cannot be blocked by the
-        // workspace-load crash tracked as ai-improvements row #13.
+        // post-build target that regenerates docs/COMMANDS.md stays fast.
         if (args.Length > 0 && args[0] == "dump-help")
         {
             // Force UTF-8 so em-dashes and other Unicode in RtCommandInfo strings survive

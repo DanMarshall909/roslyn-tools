@@ -21,10 +21,6 @@ internal sealed class InspectCommand : IRtCommand
             "rt inspect BookingService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt inspect ProjectX.Core.Services.IEmailService --kind type --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt inspect IRtCommand --solution RoslynTools.slnx",
-        ],
-        KnownIssues:
-        [
-            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
         ]
     );
 

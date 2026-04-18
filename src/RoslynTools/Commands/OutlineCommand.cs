@@ -21,10 +21,6 @@ internal sealed class OutlineCommand : IRtCommand
             "rt outline src/backend/TourStore.Api/Controllers/Admin/AdminController.cs --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt outline ProjectX.Core.Services --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt outline RoslynTools.Commands --solution RoslynTools.slnx",
-        ],
-        KnownIssues:
-        [
-            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
         ]
     );
 

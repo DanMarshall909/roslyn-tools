@@ -21,10 +21,6 @@ internal sealed class CircularDepsCommand : IRtCommand
             "rt circular-deps --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt cdeps --scope ProjectX.Core --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt circular-deps --solution RoslynTools.slnx --scope RoslynTools",
-        ],
-        KnownIssues:
-        [
-            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
         ]
     );
 

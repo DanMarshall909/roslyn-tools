@@ -25,7 +25,6 @@ internal sealed class DependencyGraphCommand : IRtCommand
         ],
         KnownIssues:
         [
-            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
             "Graph edges are built from fields, method parameters/returns, base types, and interfaces only — local variable type usages inside method bodies are missed. Static command classes with no fields appear as isolated nodes even when they reference WorkspaceLoader/SolutionWriter internally. See ai-improvements row #12.",
         ]
     );

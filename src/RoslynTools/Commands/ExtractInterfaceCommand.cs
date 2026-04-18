@@ -24,10 +24,6 @@ internal sealed class ExtractInterfaceCommand : IRtCommand
             "rt extract-interface --type BookingService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt ei --type EmailSender --output-dir src/Interfaces --dry-run",
             "rt extract-interface --type HeroApiClient --namespace ProjectX.Core.Abstractions --solution RoslynTools.slnx",
-        ],
-        KnownIssues:
-        [
-            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
         ]
     );
 

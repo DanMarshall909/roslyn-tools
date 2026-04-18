@@ -22,10 +22,6 @@ internal sealed class AddNullChecksCommand : IRtCommand
             "rt add-null-checks --type BookingService --method CreateBooking --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt anc --type OrderProcessor --method Process --dry-run",
             "rt add-null-checks --type ReportController --method Generate --solution RoslynTools.slnx",
-        ],
-        KnownIssues:
-        [
-            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
         ]
     );
 

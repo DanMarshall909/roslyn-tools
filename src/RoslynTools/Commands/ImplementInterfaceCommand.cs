@@ -23,10 +23,6 @@ internal sealed class ImplementInterfaceCommand : IRtCommand
             "rt implement-interface --type BookingRepository --interface IBookingRepository --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt ii --type EmailSender --dry-run",
             "rt implement-interface --type HeroApiClient --solution RoslynTools.slnx",
-        ],
-        KnownIssues:
-        [
-            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
         ]
     );
 

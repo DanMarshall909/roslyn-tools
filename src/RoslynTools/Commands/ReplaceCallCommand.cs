@@ -23,10 +23,6 @@ internal sealed class ReplaceCallCommand : IRtCommand
             "rt replace-call --from Logger.Log --to LogInfo --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt rc --from DateHelper.UtcNow --to TimeProvider.GetUtcNow --dry-run --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt replace-call --from Console.WriteLine --to Logger.Info --solution RoslynTools.slnx",
-        ],
-        KnownIssues:
-        [
-            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
         ]
     );
 

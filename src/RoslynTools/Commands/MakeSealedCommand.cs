@@ -23,10 +23,6 @@ internal sealed class MakeSealedCommand : IRtCommand
             "rt make-sealed --type BookingValidator --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt ms --type CsvFormatter --dry-run",
             "rt make-sealed --type RtCommandInfo --solution RoslynTools.slnx",
-        ],
-        KnownIssues:
-        [
-            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
         ]
     );
 

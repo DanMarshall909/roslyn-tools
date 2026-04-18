@@ -32,10 +32,6 @@ rt callers --symbol ProcessPayment --include-tests --solution C:\code\libraries\
 rt find-callers --symbol BuildGraphAsync --solution RoslynTools.slnx
 ```
 
-**Known issues:**
-
-- Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.
-
 ---
 
 ### find-impl
@@ -58,10 +54,6 @@ rt impls ProjectX.Core.Services.IBookingRepository --solution C:\code\libraries\
 rt find-impl IRtCommand --solution RoslynTools.slnx
 ```
 
-**Known issues:**
-
-- Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.
-
 ---
 
 ### find-refs
@@ -81,10 +73,6 @@ rt find-refs --symbol BookingService --solution C:\code\libraries\ProjectX.Libra
 rt find-refs --symbol CreateBooking --kind method --solution C:\code\libraries\ProjectX.Libraries.sln
 rt find-refs --symbol IEmailService --kind type --solution RoslynTools.slnx
 ```
-
-**Known issues:**
-
-- Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.
 
 ---
 
@@ -108,10 +96,6 @@ rt unused --scope ProjectX.Core --solution C:\code\libraries\ProjectX.Libraries.
 rt find-unused --scope types --solution RoslynTools.slnx
 ```
 
-**Known issues:**
-
-- Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.
-
 ---
 
 ### inspect
@@ -132,10 +116,6 @@ rt inspect ProjectX.Core.Services.IEmailService --kind type --solution C:\code\l
 rt inspect IRtCommand --solution RoslynTools.slnx
 ```
 
-**Known issues:**
-
-- Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.
-
 ---
 
 ### outline
@@ -155,10 +135,6 @@ rt outline src/backend/TourStore.Api/Controllers/Admin/AdminController.cs --solu
 rt outline ProjectX.Core.Services --solution C:\code\libraries\ProjectX.Libraries.sln
 rt outline RoslynTools.Commands --solution RoslynTools.slnx
 ```
-
-**Known issues:**
-
-- Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.
 
 ---
 
@@ -184,10 +160,6 @@ rt cdeps --scope ProjectX.Core --solution C:\code\libraries\ProjectX.Libraries.s
 rt circular-deps --solution RoslynTools.slnx --scope RoslynTools
 ```
 
-**Known issues:**
-
-- Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.
-
 ---
 
 ### dependency-graph
@@ -212,7 +184,6 @@ rt dependency-graph --format dot --solution RoslynTools.slnx | dot -Tsvg -o deps
 
 **Known issues:**
 
-- Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.
 - Graph edges are built from fields, method parameters/returns, base types, and interfaces only — local variable type usages inside method bodies are missed. Static command classes with no fields appear as isolated nodes even when they reference WorkspaceLoader/SolutionWriter internally. See ai-improvements row #12.
 
 ---
@@ -236,10 +207,6 @@ rt list-smells --solution C:\code\libraries\ProjectX.Libraries.sln
 rt smells --scope ProjectX.Core --max-class-lines 200 --max-method-lines 30 --solution C:\code\libraries\ProjectX.Libraries.sln
 rt list-smells --solution RoslynTools.slnx --max-params 5
 ```
-
-**Known issues:**
-
-- Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.
 
 ---
 
@@ -265,10 +232,6 @@ rt ad --type OrderController --dependency IPaymentGateway --field _payment --dry
 rt add-dependency --type ReportGenerator --dependency IRepository --solution RoslynTools.slnx
 ```
 
-**Known issues:**
-
-- Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.
-
 ---
 
 ### add-null-checks
@@ -290,10 +253,6 @@ rt add-null-checks --type BookingService --method CreateBooking --solution C:\co
 rt anc --type OrderProcessor --method Process --dry-run
 rt add-null-checks --type ReportController --method Generate --solution RoslynTools.slnx
 ```
-
-**Known issues:**
-
-- Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.
 
 ---
 
@@ -317,10 +276,6 @@ rt at --class OrderTests --acs "Returns total;Applies discount;Rejects empty car
 rt add-test --class PaymentTests --acs "Charges card;Sends receipt" --file tests/PaymentTests.cs --dry-run
 ```
 
-**Known issues:**
-
-- Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.
-
 ---
 
 ### convert-to-record
@@ -342,10 +297,6 @@ rt convert-to-record --type BookingRequest --solution C:\code\libraries\ProjectX
 rt ctr --type Money --dry-run
 rt convert-to-record --type ProductDto --solution RoslynTools.slnx
 ```
-
-**Known issues:**
-
-- Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.
 
 ---
 
@@ -369,10 +320,6 @@ rt ec --type ReportService --members BuildReport,FormatReport --new-type ReportF
 rt extract-class --type ProductService --members ValidateProduct --new-type ProductValidator --solution RoslynTools.slnx --output-dir src/Validators
 ```
 
-**Known issues:**
-
-- Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.
-
 ---
 
 ### extract-interface
@@ -394,10 +341,6 @@ rt extract-interface --type BookingService --solution C:\code\libraries\ProjectX
 rt ei --type EmailSender --output-dir src/Interfaces --dry-run
 rt extract-interface --type HeroApiClient --namespace ProjectX.Core.Abstractions --solution RoslynTools.slnx
 ```
-
-**Known issues:**
-
-- Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.
 
 ---
 
@@ -421,10 +364,6 @@ rt em src/Controllers/AdminController.cs BuildCsvRow --start-line 110 --end-line
 rt extract-method src/RoslynTools/Commands/RenameCommand.cs BuildOptions --start-line 30 --end-line 45 --after Build --solution RoslynTools.slnx
 ```
 
-**Known issues:**
-
-- Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.
-
 ---
 
 ### fix-namespace
@@ -447,10 +386,6 @@ rt fns --file src/RoslynTools/Commands/RenameCommand.cs --dry-run
 rt fix-namespace --file src/Domain/Order.cs --solution RoslynTools.slnx
 ```
 
-**Known issues:**
-
-- Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.
-
 ---
 
 ### implement-interface
@@ -472,10 +407,6 @@ rt implement-interface --type BookingRepository --interface IBookingRepository -
 rt ii --type EmailSender --dry-run
 rt implement-interface --type HeroApiClient --solution RoslynTools.slnx
 ```
-
-**Known issues:**
-
-- Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.
 
 ---
 
@@ -500,7 +431,6 @@ rt im --type OrderService --method GetTotal --dry-run --solution C:\code\librari
 
 **Known issues:**
 
-- Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.
 - Method removal after inlining matches by identifier text only — removes the wrong method when the same name exists in a different class in the same file. Fix: scope to containing TypeDeclarationSyntax by type name and parameter count. See ai-improvements row #8.
 - ParameterSubstitutor does not parenthesise substituted arguments — `Double(a+b)` inlines as `a+b*2` instead of `(a+b)*2`. Fix: wrap non-trivial argument expressions in ParenthesizedExpressionSyntax. See ai-improvements row #9.
 
@@ -526,10 +456,6 @@ rt ma --type EmailSender --method Send --no-rename --dry-run
 rt make-async --type HeroApiClient --method FetchAvailability --solution RoslynTools.slnx
 ```
 
-**Known issues:**
-
-- Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.
-
 ---
 
 ### make-sealed
@@ -552,10 +478,6 @@ rt ms --type CsvFormatter --dry-run
 rt make-sealed --type RtCommandInfo --solution RoslynTools.slnx
 ```
 
-**Known issues:**
-
-- Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.
-
 ---
 
 ### move
@@ -575,10 +497,6 @@ rt move --type ProjectX.Core.Services.BookingService --to-namespace ProjectX.Dom
 rt move --namespace ProjectX.Core.Models --to-namespace ProjectX.Domain.Entities --move-file --dry-run --solution C:\code\libraries\ProjectX.Libraries.sln
 rt move --type RoslynTools.Commands.RenameCommand --to-namespace RoslynTools.Commands.Rename --solution RoslynTools.slnx
 ```
-
-**Known issues:**
-
-- Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.
 
 ---
 
@@ -602,10 +520,6 @@ rt rename MyNs.MyType.OldProp NewProp --kind property --dry-run
 rt ren FooService BarService              # short alias, auto-detect solution
 ```
 
-**Known issues:**
-
-- Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.
-
 ---
 
 ### replace-call
@@ -628,10 +542,6 @@ rt rc --from DateHelper.UtcNow --to TimeProvider.GetUtcNow --dry-run --solution 
 rt replace-call --from Console.WriteLine --to Logger.Info --solution RoslynTools.slnx
 ```
 
-**Known issues:**
-
-- Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.
-
 ---
 
 ### replace-datetime
@@ -651,10 +561,6 @@ rt replace-datetime --solution C:\code\libraries\ProjectX.Libraries.sln
 rt replace-datetime --dry-run --solution C:\code\libraries\ProjectX.Libraries.sln
 rt replace-datetime --solution RoslynTools.slnx
 ```
-
-**Known issues:**
-
-- Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.
 
 ---
 
@@ -677,10 +583,6 @@ rt safe-delete --symbol OrphanedHelper --solution C:\code\libraries\ProjectX.Lib
 rt sd --symbol BookingService.LegacyMethod --kind method --dry-run --solution C:\code\libraries\ProjectX.Libraries.sln
 rt safe-delete --symbol OldDtoType --kind type --solution RoslynTools.slnx
 ```
-
-**Known issues:**
-
-- Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.
 
 ---
 

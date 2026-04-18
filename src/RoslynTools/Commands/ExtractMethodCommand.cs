@@ -20,10 +20,6 @@ internal sealed class ExtractMethodCommand : IRtCommand
             "rt extract-method src/Services/BookingService.cs ValidateBooking --start-line 42 --end-line 58 --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt em src/Controllers/AdminController.cs BuildCsvRow --start-line 110 --end-line 125 --dry-run",
             "rt extract-method src/RoslynTools/Commands/RenameCommand.cs BuildOptions --start-line 30 --end-line 45 --after Build --solution RoslynTools.slnx",
-        ],
-        KnownIssues:
-        [
-            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
         ]
     );
 

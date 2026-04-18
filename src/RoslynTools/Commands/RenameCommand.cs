@@ -20,10 +20,6 @@ internal sealed class RenameCommand : IRtCommand
             "rt rename OldTypeName NewTypeName --solution MySolution.sln",
             "rt rename MyNs.MyType.OldProp NewProp --kind property --dry-run",
             "rt ren FooService BarService              # short alias, auto-detect solution",
-        ],
-        KnownIssues:
-        [
-            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
         ]
     );
 

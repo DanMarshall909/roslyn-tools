@@ -24,10 +24,6 @@ internal sealed class ExtractClassCommand : IRtCommand
             "rt extract-class --type AdminController --members ExportCsv,ImportCsv --new-type CsvController --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt ec --type ReportService --members BuildReport,FormatReport --new-type ReportFormatter --static --dry-run",
             "rt extract-class --type ProductService --members ValidateProduct --new-type ProductValidator --solution RoslynTools.slnx --output-dir src/Validators",
-        ],
-        KnownIssues:
-        [
-            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
         ]
     );
 

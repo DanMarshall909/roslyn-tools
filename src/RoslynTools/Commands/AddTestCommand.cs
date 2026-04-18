@@ -22,10 +22,6 @@ internal sealed class AddTestCommand : IRtCommand
             "rt add-test --class BookingServiceTests --name Returns_404_When_Not_Found --solution RoslynTools.slnx",
             "rt at --class OrderTests --acs \"Returns total;Applies discount;Rejects empty cart\" --nested-class WhenCalculatingTotal",
             "rt add-test --class PaymentTests --acs \"Charges card;Sends receipt\" --file tests/PaymentTests.cs --dry-run",
-        ],
-        KnownIssues:
-        [
-            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
         ]
     );
 

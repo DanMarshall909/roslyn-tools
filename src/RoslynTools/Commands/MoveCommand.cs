@@ -23,10 +23,6 @@ internal sealed class MoveCommand : IRtCommand
             "rt move --type ProjectX.Core.Services.BookingService --to-namespace ProjectX.Domain.Services --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt move --namespace ProjectX.Core.Models --to-namespace ProjectX.Domain.Entities --move-file --dry-run --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt move --type RoslynTools.Commands.RenameCommand --to-namespace RoslynTools.Commands.Rename --solution RoslynTools.slnx",
-        ],
-        KnownIssues:
-        [
-            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
         ]
     );
 

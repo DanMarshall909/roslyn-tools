@@ -22,10 +22,6 @@ internal sealed class ConvertToRecordCommand : IRtCommand
             "rt convert-to-record --type BookingRequest --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt ctr --type Money --dry-run",
             "rt convert-to-record --type ProductDto --solution RoslynTools.slnx",
-        ],
-        KnownIssues:
-        [
-            "Invoking via `cmd //c` from bash on Windows crashes during workspace load — see ai-improvements row #13.",
         ]
     );
 
