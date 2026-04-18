@@ -35,6 +35,8 @@ dotnet publish src/RoslynTools/RoslynTools.csproj -c Release -r win-x64
 | `inspect` | | Show type shape as JSON — members, bases, interfaces, locations |
 | `outline` | | List all types/members in a file or namespace as JSON |
 | `list-smells` | `smells` | Report large classes, long methods, over-injected constructors |
+| `circular-deps` | `cdeps` | Detect circular namespace dependencies |
+| `dependency-graph` | `depgraph` | Output a type dependency graph as JSON or DOT |
 
 ### Mutation — symbol & namespace
 
@@ -43,6 +45,8 @@ dotnet publish src/RoslynTools/RoslynTools.csproj -c Release -r win-x64
 | `rename` | `ren` | Rename a symbol and update all references |
 | `move` | | Move a type or namespace, updating declarations and references |
 | `fix-namespace` | `fns` | Align a file's namespace declaration to its folder path |
+| `replace-call` | `rc` | Replace all invocations of one method with another |
+| `safe-delete` | `sd` | Delete a type or member only if it has zero references |
 
 ### Mutation — structure
 
@@ -51,9 +55,20 @@ dotnet publish src/RoslynTools/RoslynTools.csproj -c Release -r win-x64
 | `extract-interface` | `ei` | Generate `IXxx` from a class's public members |
 | `extract-method` | `em` | Extract statements into a new private method |
 | `extract-class` | `ec` | Move named members into a new class file |
+| `inline-method` | `im` | Inline all call sites of a method and delete it |
 | `add-dependency` | `ad` | Inject a constructor dependency (field + param + assignment) |
+| `add-null-checks` | `anc` | Insert `ArgumentNullException.ThrowIfNull` guards for reference params |
 | `replace-datetime` | | Replace `DateTime.UtcNow/Now` with injected `TimeProvider` |
 | `make-async` | `ma` | Convert a method to `async Task<T>` and update direct callers |
+| `make-sealed` | `ms` | Add `sealed` to a class if no derived types exist |
+| `convert-to-record` | `ctr` | Convert a data class to a C# record |
+| `implement-interface` | `ii` | Add stub implementations for unimplemented interface members |
+
+### Testing
+
+| Command | Alias | Description |
+|---------|-------|-------------|
+| `add-test` | `at` | Add xUnit test stubs by name or generate from acceptance criteria |
 
 ---
 
@@ -75,54 +90,99 @@ rt list-smells --solution MySolution.sln --max-method-lines 30
 # TooManyDependencies AdminController   src/Controllers/AdminController.cs:1  ctor (9 params)
 ```
 
-### extract-interface
+### inline-method
+
+```sh
+rt inline-method --type MathHelper --method Double --solution MySolution.sln [--dry-run]
+# Replaces every call to Double(x) with x * 2 and removes the method
+```
+
+### safe-delete
+
+```sh
+rt safe-delete --symbol OldHelper --solution MySolution.sln
+# Deletes OldHelper if zero references; lists callers and exits 1 if referenced
+```
+
+### replace-call
+
+```sh
+rt replace-call --from "Logger.Log" --to "LogInfo" --solution MySolution.sln [--dry-run]
+# All Logger.Log(...) calls become Logger.LogInfo(...)
+```
+
+### add-null-checks
+
+```sh
+rt add-null-checks --type OrderService --method Process --solution MySolution.sln [--dry-run]
+# Inserts ArgumentNullException.ThrowIfNull(name); for each non-nullable reference param
+```
+
+### make-sealed
+
+```sh
+rt make-sealed --type PaymentProcessor --solution MySolution.sln [--dry-run]
+# Adds 'sealed' if no derived types found; lists them and exits 1 if any exist
+```
+
+### convert-to-record
+
+```sh
+rt convert-to-record --type Money --solution MySolution.sln [--dry-run]
+# class Money { public decimal Amount { get; init; } ... }
+# → record Money(decimal Amount, ...)
+```
+
+### implement-interface
+
+```sh
+rt implement-interface --type Repo --interface IRepository --solution MySolution.sln [--dry-run]
+# Adds 'throw new NotImplementedException()' stubs for all unimplemented members
+```
+
+### circular-deps
+
+```sh
+rt circular-deps --scope MyApp --solution MySolution.sln
+# MyApp.Services -> MyApp.Data -> MyApp.Services  (cycle found)
+# No circular namespace dependencies found.
+```
+
+### dependency-graph
+
+```sh
+rt dependency-graph --type OrderService --depth 2 --format dot --solution MySolution.sln
+# digraph { "OrderService" -> "IOrderRepo"; "OrderService" -> "IEmailService"; ... }
+```
+
+### add-test
+
+```sh
+# Single test
+rt add-test --class OrderServiceTests --name "PlaceOrder_Throws_WhenOutOfStock" --solution MySolution.sln
+
+# Generate from ACs
+rt add-test --class OrderServiceTests \
+  --acs "Returns null when id not found; Throws when quantity is negative; Succeeds with valid input" \
+  --nested-class "GivenValidOrder" \
+  --solution MySolution.sln
+# Generates:
+#   public class GivenValidOrder {
+#     [Fact] public void Returns_Null_When_Id_Not_Found() { throw new NotImplementedException(); }
+#     [Fact] public void Throws_When_Quantity_Is_Negative() { throw new NotImplementedException(); }
+#     [Fact] public void Succeeds_With_Valid_Input() { throw new NotImplementedException(); }
+#   }
+```
+
+### extract-interface / add-dependency / find-unused / extract-class / make-async / fix-namespace
 
 ```sh
 rt extract-interface --type AgentService --solution MySolution.sln [--dry-run]
-# Creates IAgentService.cs alongside AgentService.cs
-# Updates AgentService to implement IAgentService
-```
-
-### add-dependency
-
-```sh
 rt add-dependency --type AgentService --dependency IEmailService --solution MySolution.sln
-# Adds: private readonly IEmailService _emailService;
-# Adds: IEmailService emailService parameter to constructor
-# Adds: _emailService = emailService; assignment
-```
-
-### find-unused
-
-```sh
 rt find-unused --solution MySolution.sln --scope methods
-# method     OldHelper.Calculate   src/Helpers/OldHelper.cs:14
-```
-
-### extract-class
-
-```sh
 rt extract-class --type BigService --members "LogInfo,LogError" --new-type LogHelper --solution MySolution.sln [--dry-run]
-# Creates LogHelper.cs alongside BigService.cs
-# Removes LogInfo, LogError from BigService
-# Injects LogHelper into BigService constructor
-```
-
-### make-async
-
-```sh
 rt make-async --type AgentService --method GetAgent --solution MySolution.sln [--dry-run]
-# Renames GetAgent -> GetAgentAsync
-# Wraps return type: string -> Task<string>
-# Updates direct callers with await
-```
-
-### fix-namespace
-
-```sh
 rt fix-namespace --file src/Services/Agents/AgentService.cs --solution MySolution.sln
-# Updates namespace declaration to MyApp.Services.Agents
-# Updates using statements in referencing files
 ```
 
 ### rename / move / find-refs / inspect / outline / find-impl
@@ -152,4 +212,4 @@ rt find-impl "MyApp.Interfaces.IRepository"
 dotnet test RoslynTools.sln -v minimal
 ```
 
-Each test generates a throwaway C# project, builds it, runs Roslyn operations against it, and cleans up automatically. 80 tests total.
+129 tests. Each test generates a throwaway C# project, runs Roslyn operations against it, and cleans up automatically.

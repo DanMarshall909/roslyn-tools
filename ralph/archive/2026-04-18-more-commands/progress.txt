@@ -1,0 +1,31 @@
+roslyn-tools More Commands — Ralph Execution Progress
+======================================================
+Branch: ralph/more-commands
+PRD: prd.json (20 user stories)
+Date Started: 2026-04-17
+Current Status: 20/20 stories complete (100%)
+
+TDD Discipline: bound-style (BASELINE -> RED -> GREEN -> REFACTOR)
+
+COMPLETED STORIES
+=================
+[x] US-001: Write inline-method tests (RED)
+[x] US-002: Implement inline-method command (GREEN)
+[x] US-003: Write safe-delete tests (RED)
+[x] US-004: Implement safe-delete command (GREEN)
+[x] US-005: Write replace-call tests (RED)
+[x] US-006: Implement replace-call command (GREEN)
+[x] US-007: Write add-null-checks tests (RED)
+[x] US-008: Implement add-null-checks command (GREEN)
+[x] US-009: Write make-sealed tests (RED)
+[x] US-010: Implement make-sealed command (GREEN)
+[x] US-011: Write convert-to-record tests (RED)
+[x] US-012: Implement convert-to-record command (GREEN)
+[x] US-013: Write implement-interface tests (RED)
+[x] US-014: Implement implement-interface command (GREEN)
+[x] US-015: Write circular-deps tests (RED)
+[x] US-016: Implement circular-deps command (GREEN)
+[x] US-017: Write dependency-graph tests (RED)
+[x] US-018: Implement dependency-graph command (GREEN)
+[x] US-019: Write add-test tests (RED)
+[x] US-020: Implement add-test command (GREEN)
