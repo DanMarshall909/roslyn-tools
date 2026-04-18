@@ -2,6 +2,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
+using System.Collections.Immutable;
 
 namespace RoslynTools.Core;
 
@@ -10,22 +11,46 @@ namespace RoslynTools.Core;
 /// Generates a new <c>record ParamObj(...)</c> in the same file as the target method,
 /// rewrites the method signature to accept one <c>ParamObj args</c> parameter,
 /// and updates every call site from <c>Foo(a, b, c)</c> to <c>Foo(new ParamObj(a, b, c))</c>.
+/// Also supports reusing an existing type via <c>--existing-type</c>.
 /// </summary>
 internal static class TransformParametersCore
 {
     /// <summary>
     /// Entry point called by <see cref="RoslynTools.Commands.TransformParametersCommand"/>.
+    /// Exactly one of <paramref name="newTypeName"/> or <paramref name="existingTypeFqn"/> must be non-null.
     /// </summary>
-    /// <param name="sln">Loaded solution.</param>
-    /// <param name="methodSpec">Dot-separated <c>TypeName.MethodName</c>.</param>
-    /// <param name="newTypeName">Name of the record to generate.</param>
-    /// <param name="dryRun">When true, print diff without writing files.</param>
     internal static async Task RunAsync(
+        Solution sln,
+        string methodSpec,
+        string? newTypeName,
+        string? existingTypeFqn,
+        bool dryRun)
+    {
+        // Mutual-exclusion guard
+        if (newTypeName is not null && existingTypeFqn is not null)
+            throw new InvalidOperationException(
+                "--new-type and --existing-type are mutually exclusive. Specify only one.");
+        if (newTypeName is null && existingTypeFqn is null)
+            throw new InvalidOperationException(
+                "You must specify either --new-type (to generate a new record) or --existing-type (to reuse an existing type).");
+
+        if (existingTypeFqn is not null)
+            await RunExistingTypeAsync(sln, methodSpec, existingTypeFqn, dryRun);
+        else
+            await RunNewTypeAsync(sln, methodSpec, newTypeName!, dryRun);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  --new-type code path (original behaviour)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private static async Task RunNewTypeAsync(
         Solution sln,
         string methodSpec,
         string newTypeName,
         bool dryRun)
     {
+        Console.Error.WriteLine($"Transforming parameters of '{methodSpec}' → record '{newTypeName}'...");
         var originalSln = sln;
 
         var (methodSymbol, doc) = await FindMethodAsync(sln, methodSpec);
@@ -44,7 +69,7 @@ internal static class TransformParametersCore
                 $"Method '{methodSpec}' has no parameters to transform.");
 
         // Rewrite call sites FIRST while spans are still valid against the original solution.
-        sln = await RewriteCallSitesAsync(sln, methodSymbol, newTypeName);
+        sln = await RewriteCallSitesAsync(sln, methodSymbol, newTypeName, isRecord: true);
 
         // Insert record declaration into the method's file.
         // doc still valid — call-site rewrite only touches call-site documents.
@@ -55,6 +80,109 @@ internal static class TransformParametersCore
         sln = await RewriteMethodSignatureAsync(sln, doc, methodSymbol, newTypeName);
 
         await SolutionWriter.ApplyChangesAsync(originalSln, sln, dryRun);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  --existing-type code path
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private static async Task RunExistingTypeAsync(
+        Solution sln,
+        string methodSpec,
+        string existingTypeFqn,
+        bool dryRun)
+    {
+        Console.Error.WriteLine($"Transforming parameters of '{methodSpec}' → existing type '{existingTypeFqn}'...");
+        var originalSln = sln;
+
+        var (methodSymbol, doc) = await FindMethodAsync(sln, methodSpec);
+
+        var unsafeParams = CollectUnsafeParameters(methodSymbol);
+        if (unsafeParams.Count > 0)
+        {
+            var names = string.Join(", ", unsafeParams);
+            throw new InvalidOperationException(
+                $"Cannot transform: parameter(s) '{names}' use out/ref/in modifiers which are not supported.");
+        }
+
+        if (methodSymbol.Parameters.Length == 0)
+            throw new InvalidOperationException(
+                $"Method '{methodSpec}' has no parameters to transform.");
+
+        var existingType = await FindExistingTypeAsync(sln, existingTypeFqn);
+        ValidateExistingTypeMembers(methodSymbol, existingType);
+
+        var isRecord = existingType.IsRecord;
+        var shortName = existingType.Name;
+
+        sln = await RewriteCallSitesAsync(sln, methodSymbol, shortName, isRecord);
+
+        (methodSymbol, doc) = await FindMethodAsync(sln, methodSpec);
+        sln = await RewriteMethodSignatureAsync(sln, doc, methodSymbol, shortName);
+
+        await SolutionWriter.ApplyChangesAsync(originalSln, sln, dryRun);
+    }
+
+    private static async Task<INamedTypeSymbol> FindExistingTypeAsync(Solution sln, string fqn)
+    {
+        foreach (var project in sln.Projects)
+        {
+            var compilation = await project.GetCompilationAsync();
+            if (compilation == null) continue;
+
+            var symbol = compilation.GetTypeByMetadataName(fqn);
+            if (symbol != null)
+                return symbol;
+        }
+
+        throw new InvalidOperationException(
+            $"Existing type '{fqn}' not found in the solution. " +
+            "Ensure you are using the fully-qualified name (e.g. MyApp.Services.PlaceOrderArgs).");
+    }
+
+    private static void ValidateExistingTypeMembers(IMethodSymbol method, INamedTypeSymbol existingType)
+    {
+        var missing = new List<string>();
+
+        if (existingType.IsRecord)
+        {
+            // For records: match against primary constructor parameters
+            var ctorParams = existingType.InstanceConstructors
+                .Where(c => c.Parameters.Length > 0)
+                .OrderByDescending(c => c.Parameters.Length)
+                .FirstOrDefault()?.Parameters
+                ?? ImmutableArray<IParameterSymbol>.Empty;
+
+            var paramNames = ctorParams.Select(p => p.Name).ToHashSet(StringComparer.Ordinal);
+            foreach (var param in method.Parameters)
+            {
+                var capitalized = Capitalize(param.Name);
+                if (!paramNames.Contains(param.Name) && !paramNames.Contains(capitalized))
+                    missing.Add(param.Name);
+            }
+        }
+        else
+        {
+            // For classes: match against public properties and fields
+            var memberNames = existingType.GetMembers()
+                .Where(m => m.DeclaredAccessibility == Accessibility.Public &&
+                            (m is IPropertySymbol || m is IFieldSymbol))
+                .Select(m => m.Name)
+                .ToHashSet(StringComparer.Ordinal);
+
+            foreach (var param in method.Parameters)
+            {
+                var capitalized = Capitalize(param.Name);
+                if (!memberNames.Contains(param.Name) && !memberNames.Contains(capitalized))
+                    missing.Add(param.Name);
+            }
+        }
+
+        if (missing.Count > 0)
+            throw new InvalidOperationException(
+                $"Existing type '{existingType.Name}' is missing members for parameter(s): " +
+                string.Join(", ", missing) + ". " +
+                "Every method parameter must have a matching named property/field (class) or record parameter.");
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -249,7 +377,8 @@ internal static class TransformParametersCore
     private static async Task<Solution> RewriteCallSitesAsync(
         Solution sln,
         IMethodSymbol method,
-        string newTypeName)
+        string typeName,
+        bool isRecord)
     {
         var references = await SymbolFinder.FindReferencesAsync(method, sln);
 
@@ -270,6 +399,9 @@ internal static class TransformParametersCore
                 locs.Add(loc.Location);
             }
         }
+
+        // Capture method parameters for class-style object initializer
+        var methodParams = method.Parameters;
 
         foreach (var (docId, locations) in locationsByDocId)
         {
@@ -292,7 +424,7 @@ internal static class TransformParametersCore
 
             var newRoot = root.ReplaceNodes(
                 invocations,
-                (original, _) => RewriteInvocation(original, newTypeName));
+                (original, _) => RewriteInvocation(original, typeName, isRecord, methodParams));
 
             sln = sln.WithDocumentSyntaxRoot(docId, newRoot);
         }
@@ -302,17 +434,57 @@ internal static class TransformParametersCore
 
     private static InvocationExpressionSyntax RewriteInvocation(
         InvocationExpressionSyntax original,
-        string newTypeName)
+        string typeName,
+        bool isRecord,
+        ImmutableArray<IParameterSymbol> methodParams)
     {
-        // Build: new ParamObj(arg1, arg2, arg3)
         var args = original.ArgumentList.Arguments;
         var newKeyword = SyntaxFactory.Token(SyntaxKind.NewKeyword)
             .WithTrailingTrivia(SyntaxFactory.Space);
-        var newObjectCreation = SyntaxFactory.ObjectCreationExpression(
+
+        ExpressionSyntax newObjectCreation;
+        if (isRecord)
+        {
+            // Record: new ParamObj(arg1, arg2, arg3)
+            newObjectCreation = SyntaxFactory.ObjectCreationExpression(
                 newKeyword,
-                SyntaxFactory.IdentifierName(newTypeName),
+                SyntaxFactory.IdentifierName(typeName),
                 SyntaxFactory.ArgumentList(args),
                 null);
+        }
+        else
+        {
+            // Class: new ExistingType { PropA = arg1, PropB = arg2 }
+            var initAssignments = args
+                .Select((arg, i) =>
+                {
+                    var propName = i < methodParams.Length
+                        ? Capitalize(methodParams[i].Name)
+                        : $"Arg{i}";
+                    // Build  PropName = value  with spaces around the equals token.
+                    var lhs = SyntaxFactory.IdentifierName(propName)
+                        .WithTrailingTrivia(SyntaxFactory.Space);
+                    var rhs = arg.Expression
+                        .WithLeadingTrivia(SyntaxFactory.Space);
+                    return (ExpressionSyntax)SyntaxFactory.AssignmentExpression(
+                        SyntaxKind.SimpleAssignmentExpression,
+                        lhs,
+                        rhs);
+                })
+                .ToArray();
+
+            var initExpressions = SyntaxFactory.SeparatedList(initAssignments);
+            var initializer = SyntaxFactory.InitializerExpression(
+                SyntaxKind.ObjectInitializerExpression,
+                initExpressions)
+                .WithLeadingTrivia(SyntaxFactory.Space);
+
+            newObjectCreation = SyntaxFactory.ObjectCreationExpression(
+                newKeyword,
+                SyntaxFactory.IdentifierName(typeName),
+                null,
+                initializer);
+        }
 
         var newArgs = SyntaxFactory.ArgumentList(
             SyntaxFactory.SingletonSeparatedList(

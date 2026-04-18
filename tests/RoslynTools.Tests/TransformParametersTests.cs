@@ -44,7 +44,7 @@ public class TransformParametersTests
         var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
         using (workspace)
         {
-            await TransformParametersCore.RunAsync(sln, "OrderService.PlaceOrder", "PlaceOrderArgs", dryRun: false);
+            await TransformParametersCore.RunAsync(sln, "OrderService.PlaceOrder", "PlaceOrderArgs", null, dryRun: false);
         }
 
         var serviceContent = await project.ReadSourceAsync("OrderService.cs");
@@ -90,7 +90,7 @@ public class TransformParametersTests
         var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
         using (workspace)
         {
-            await TransformParametersCore.RunAsync(sln, "Greeter.Greet", "GreetArgs", dryRun: false);
+            await TransformParametersCore.RunAsync(sln, "Greeter.Greet", "GreetArgs", null, dryRun: false);
         }
 
         var content = await project.ReadSourceAsync("Greeter.cs");
@@ -126,7 +126,7 @@ public class TransformParametersTests
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                TransformParametersCore.RunAsync(sln, "Parser.TryParse", "ParseArgs", dryRun: false));
+                TransformParametersCore.RunAsync(sln, "Parser.TryParse", "ParseArgs", null, dryRun: false));
 
             Assert.Contains("result", ex.Message);
             Assert.Contains("out/ref/in", ex.Message);
@@ -154,7 +154,7 @@ public class TransformParametersTests
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                TransformParametersCore.RunAsync(sln, "Modifier.Increment", "IncrementArgs", dryRun: false));
+                TransformParametersCore.RunAsync(sln, "Modifier.Increment", "IncrementArgs", null, dryRun: false));
 
             Assert.Contains("counter", ex.Message);
         }
@@ -206,7 +206,7 @@ public class TransformParametersTests
         var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
         using (workspace)
         {
-            await TransformParametersCore.RunAsync(sln, "Calculator.Add", "AddArgs", dryRun: false);
+            await TransformParametersCore.RunAsync(sln, "Calculator.Add", "AddArgs", null, dryRun: false);
         }
 
         var calcContent = await project.ReadSourceAsync("Calculator.cs");
@@ -250,7 +250,7 @@ public class TransformParametersTests
         var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
         using (workspace)
         {
-            await TransformParametersCore.RunAsync(sln, "Service.Execute", "ExecuteArgs", dryRun: true);
+            await TransformParametersCore.RunAsync(sln, "Service.Execute", "ExecuteArgs", null, dryRun: true);
         }
 
         var afterContent = await project.ReadSourceAsync("Service.cs");
@@ -279,7 +279,7 @@ public class TransformParametersTests
         using (workspace)
         {
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                TransformParametersCore.RunAsync(sln, "Dummy.NonExistentMethod", "Args", dryRun: false));
+                TransformParametersCore.RunAsync(sln, "Dummy.NonExistentMethod", "Args", null, dryRun: false));
         }
     }
 
@@ -305,7 +305,7 @@ public class TransformParametersTests
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                TransformParametersCore.RunAsync(sln, "Empty.Run", "RunArgs", dryRun: false));
+                TransformParametersCore.RunAsync(sln, "Empty.Run", "RunArgs", null, dryRun: false));
 
             Assert.Contains("no parameters", ex.Message);
         }
@@ -330,9 +330,263 @@ public class TransformParametersTests
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                TransformParametersCore.RunAsync(sln, "NoMethodSeparatorHere", "Args", dryRun: false));
+                TransformParametersCore.RunAsync(sln, "NoMethodSeparatorHere", "Args", null, dryRun: false));
 
             Assert.Contains("TypeName.MethodName", ex.Message);
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  US-012: --existing-type with matching record → positional call-site rewrite
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task ExistingRecord_MatchingParams_RewritesCallSitePositionally()
+    {
+        using var project = new TestProjectBuilder();
+        project.AddSource("OrderArgs.cs", """
+            namespace TestApp;
+
+            public record OrderArgs(string CustomerId, string ProductId, int Quantity);
+            """);
+        project.AddSource("OrderService.cs", """
+            namespace TestApp;
+
+            public class OrderService
+            {
+                public void PlaceOrder(string customerId, string productId, int quantity)
+                {
+                    _ = customerId + productId + quantity;
+                }
+            }
+            """);
+        project.AddSource("Caller.cs", """
+            namespace TestApp;
+
+            public class Caller
+            {
+                public void Run()
+                {
+                    var svc = new OrderService();
+                    svc.PlaceOrder("c1", "p1", 3);
+                }
+            }
+            """);
+
+        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        using (workspace)
+        {
+            await TransformParametersCore.RunAsync(sln, "OrderService.PlaceOrder", null, "TestApp.OrderArgs", dryRun: false);
+        }
+
+        var serviceContent = await project.ReadSourceAsync("OrderService.cs");
+        var callerContent = await project.ReadSourceAsync("Caller.cs");
+
+        // Method signature rewritten to use existing type
+        Assert.Contains("PlaceOrder(OrderArgs args)", serviceContent);
+        Assert.DoesNotContain("string customerId", serviceContent);
+
+        // Call site uses positional constructor (record)
+        Assert.Contains("PlaceOrder(new OrderArgs(\"c1\", \"p1\", 3))", callerContent);
+        Assert.DoesNotContain("PlaceOrder(\"c1\", \"p1\", 3)", callerContent);
+
+        // No new record generated in OrderService.cs
+        Assert.DoesNotContain("record OrderArgs", serviceContent);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  US-012: --existing-type with matching class → object-initializer call-site rewrite
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task ExistingClass_MatchingProperties_RewritesCallSiteWithObjectInitializer()
+    {
+        using var project = new TestProjectBuilder();
+        project.AddSource("SearchArgs.cs", """
+            namespace TestApp;
+
+            public class SearchArgs
+            {
+                public string Query { get; set; } = string.Empty;
+                public int MaxResults { get; set; }
+            }
+            """);
+        project.AddSource("SearchService.cs", """
+            namespace TestApp;
+
+            public class SearchService
+            {
+                public void Search(string query, int maxResults)
+                {
+                    _ = query + maxResults;
+                }
+            }
+            """);
+        project.AddSource("SearchCaller.cs", """
+            namespace TestApp;
+
+            public class SearchCaller
+            {
+                public void Run()
+                {
+                    var svc = new SearchService();
+                    svc.Search("hello", 10);
+                }
+            }
+            """);
+
+        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        using (workspace)
+        {
+            await TransformParametersCore.RunAsync(sln, "SearchService.Search", null, "TestApp.SearchArgs", dryRun: false);
+        }
+
+        var serviceContent = await project.ReadSourceAsync("SearchService.cs");
+        var callerContent = await project.ReadSourceAsync("SearchCaller.cs");
+
+        // Method signature rewritten
+        Assert.Contains("Search(SearchArgs args)", serviceContent);
+
+        // Call site uses object initializer (class)
+        Assert.Contains("Search(new SearchArgs", callerContent);
+        Assert.Contains("Query = \"hello\"", callerContent);
+        Assert.Contains("MaxResults = 10", callerContent);
+        Assert.DoesNotContain("Search(\"hello\", 10)", callerContent);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  US-012: Missing property → error listing missing names
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task ExistingType_MissingProperty_ThrowsWithMissingNames()
+    {
+        using var project = new TestProjectBuilder();
+        project.AddSource("IncompleteArgs.cs", """
+            namespace TestApp;
+
+            public class IncompleteArgs
+            {
+                public string Name { get; set; } = string.Empty;
+                // Missing: Age, Email
+            }
+            """);
+        project.AddSource("PersonService.cs", """
+            namespace TestApp;
+
+            public class PersonService
+            {
+                public void Register(string name, int age, string email)
+                {
+                    _ = name + age + email;
+                }
+            }
+            """);
+
+        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        using (workspace)
+        {
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                TransformParametersCore.RunAsync(sln, "PersonService.Register", null, "TestApp.IncompleteArgs", dryRun: false));
+
+            Assert.Contains("age", ex.Message);
+            Assert.Contains("email", ex.Message);
+            Assert.Contains("missing", ex.Message, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  US-012: Partial match → error
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task ExistingType_PartialMatch_ThrowsListingMissingNames()
+    {
+        using var project = new TestProjectBuilder();
+        project.AddSource("PartialArgs.cs", """
+            namespace TestApp;
+
+            public record PartialArgs(string X);
+            """);
+        project.AddSource("MathService.cs", """
+            namespace TestApp;
+
+            public class MathService
+            {
+                public int Add(string x, string y) => x.Length + y.Length;
+            }
+            """);
+
+        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        using (workspace)
+        {
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                TransformParametersCore.RunAsync(sln, "MathService.Add", null, "TestApp.PartialArgs", dryRun: false));
+
+            // 'y' is missing; 'x' is present
+            Assert.Contains("y", ex.Message);
+            Assert.DoesNotContain("\"x\"", ex.Message);
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  US-012: Both --new-type and --existing-type → error
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task BothNewTypeAndExistingType_ThrowsMutualExclusionError()
+    {
+        using var project = new TestProjectBuilder();
+        project.AddSource("BothFlagsService.cs", """
+            namespace TestApp;
+
+            public class BothFlagsService
+            {
+                public void Do(int x, int y) { }
+            }
+            """);
+
+        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        using (workspace)
+        {
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                TransformParametersCore.RunAsync(sln, "BothFlagsService.Do", "NewArgs", "TestApp.ExistingArgs", dryRun: false));
+
+            Assert.Contains("mutually exclusive", ex.Message);
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  US-012: Neither flag → error
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task NeitherNewTypeNorExistingType_ThrowsError()
+    {
+        using var project = new TestProjectBuilder();
+        project.AddSource("NeitherService.cs", """
+            namespace TestApp;
+
+            public class NeitherService
+            {
+                public void Do(int x, int y) { }
+            }
+            """);
+
+        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        using (workspace)
+        {
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                TransformParametersCore.RunAsync(sln, "NeitherService.Do", null, null, dryRun: false));
+
+            Assert.Contains("--new-type", ex.Message);
+            Assert.Contains("--existing-type", ex.Message);
         }
     }
 }

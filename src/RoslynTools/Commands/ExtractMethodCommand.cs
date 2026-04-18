@@ -34,45 +34,55 @@ internal sealed class ExtractMethodCommand : IRtCommand
         var beforeOpt = new Option<string?>("--before", "Insert the new method before this member name.");
         var solutionOpt = new Option<string?>("--solution", "Path to the .sln file. Auto-detected if omitted.");
         var dryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk.");
+        var replaceDuplicatesOpt = new Option<bool>("--replace-duplicates", "After extraction, find structurally-matching code elsewhere in the solution and replace it with calls to the new method.");
 
         var cmd = new Command("extract-method", "Extract a range of statements into a new private method.")
         {
-            fileArg, newNameArg, startLineOpt, endLineOpt, afterOpt, beforeOpt, solutionOpt, dryRunOpt
+            fileArg, newNameArg, startLineOpt, endLineOpt, afterOpt, beforeOpt, solutionOpt, dryRunOpt, replaceDuplicatesOpt
         };
         cmd.AddAlias("em");
 
-        cmd.SetHandler(
-            async (file, newName, startLine, endLine, after, before, solution, dryRun) =>
+        cmd.SetHandler(async ctx =>
+        {
+            var file = ctx.ParseResult.GetValueForArgument(fileArg);
+            var newName = ctx.ParseResult.GetValueForArgument(newNameArg);
+            var startLine = ctx.ParseResult.GetValueForOption(startLineOpt);
+            var endLine = ctx.ParseResult.GetValueForOption(endLineOpt);
+            var after = ctx.ParseResult.GetValueForOption(afterOpt);
+            var before = ctx.ParseResult.GetValueForOption(beforeOpt);
+            var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
+            var dryRun = ctx.ParseResult.GetValueForOption(dryRunOpt);
+            var replaceDuplicates = ctx.ParseResult.GetValueForOption(replaceDuplicatesOpt);
+
+            var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
+            using (workspace)
             {
-                var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
-                using (workspace)
+                Console.Error.WriteLine(
+                    $"Extracting lines {startLine}–{endLine} of '{file}' → '{newName}'...");
+
+                Solution newSln;
+                try
                 {
-                    Console.Error.WriteLine(
-                        $"Extracting lines {startLine}–{endLine} of '{file}' → '{newName}'...");
-
-                    Solution newSln;
-                    try
-                    {
-                        newSln = await MethodExtractor.ExtractAsync(
-                            sln,
-                            file,
-                            newName,
-                            startLine,
-                            endLine,
-                            insertAfter: after,
-                            insertBefore: before);
-                    }
-                    catch (InvalidOperationException ex)
-                    {
-                        Console.Error.WriteLine($"Error: {ex.Message}");
-                        Environment.ExitCode = 1;
-                        return;
-                    }
-
-                    await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun);
+                    newSln = await MethodExtractor.ExtractAsync(
+                        sln,
+                        file,
+                        newName,
+                        startLine,
+                        endLine,
+                        insertAfter: after,
+                        insertBefore: before,
+                        replaceDuplicates: replaceDuplicates);
                 }
-            },
-            fileArg, newNameArg, startLineOpt, endLineOpt, afterOpt, beforeOpt, solutionOpt, dryRunOpt);
+                catch (InvalidOperationException ex)
+                {
+                    Console.Error.WriteLine($"Error: {ex.Message}");
+                    ctx.ExitCode = 1;
+                    return;
+                }
+
+                await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun);
+            }
+        });
 
         return cmd;
     }

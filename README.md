@@ -132,6 +132,7 @@ rt make-sealed --type PaymentProcessor --solution MySolution.sln [--dry-run]
 ### transform-parameters
 
 ```sh
+# Generate a new record
 rt transform-parameters --method OrderService.PlaceOrder --new-type PlaceOrderArgs --solution MySolution.sln [--dry-run]
 # Generates:  internal sealed record PlaceOrderArgs(string CustomerId, string ProductId, int Quantity);
 # Rewrites:   PlaceOrder(string customerId, ...) → PlaceOrder(PlaceOrderArgs args)
@@ -140,6 +141,16 @@ rt transform-parameters --method OrderService.PlaceOrder --new-type PlaceOrderAr
 # With default value preservation:
 rt tp --method Greeter.Greet --new-type GreetArgs --solution MySolution.sln
 # Generates:  internal sealed record GreetArgs(string Name, int Times = 1);
+
+# Reuse an existing record (positional constructor at call sites):
+rt transform-parameters --method OrderService.PlaceOrder --existing-type MyApp.PlaceOrderArgs --solution MySolution.sln [--dry-run]
+# No new type generated. Validates that PlaceOrderArgs has matching record parameters for every method param.
+# Updates:    svc.PlaceOrder("c1", "p1", 3) → svc.PlaceOrder(new PlaceOrderArgs("c1", "p1", 3))
+
+# Reuse an existing class (object initializer at call sites):
+rt tp --method SearchService.Search --existing-type MyApp.SearchArgs --solution MySolution.sln
+# SearchArgs must have public properties Query and MaxResults.
+# Updates:    svc.Search("hello", 10) → svc.Search(new SearchArgs { Query = "hello", MaxResults = 10 })
 ```
 
 ### make-static

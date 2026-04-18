@@ -18,32 +18,32 @@ internal sealed class TransformParametersCommand : IRtCommand
         [
             "rt transform-parameters --method OrderService.PlaceOrder --new-type PlaceOrderArgs --solution MySolution.sln",
             "rt tp --method BookingService.Create --new-type CreateBookingArgs --dry-run",
-            "rt transform-parameters --method Calculator.Add --new-type AddArgs --solution RoslynTools.slnx --dry-run",
+            "rt transform-parameters --method Calculator.Add --existing-type MyApp.AddArgs --solution RoslynTools.slnx --dry-run",
         ]
     );
 
     public static Command Build()
     {
         var methodOpt = new Option<string>("--method", "Dot-separated TypeName.MethodName, e.g. OrderService.PlaceOrder") { IsRequired = true };
-        var newTypeOpt = new Option<string>("--new-type", "Name of the record to generate, e.g. PlaceOrderArgs") { IsRequired = true };
+        var newTypeOpt = new Option<string?>("--new-type", "Name of the record to generate, e.g. PlaceOrderArgs");
+        var existingTypeOpt = new Option<string?>("--existing-type", "Fully-qualified name of an existing type to reuse, e.g. MyApp.PlaceOrderArgs");
         var solutionOpt = new Option<string?>("--solution", "Path to the .sln file. Auto-detected if omitted.");
         var dryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk.");
 
         var cmd = new Command("transform-parameters", "Extract method parameters into a new record and update all call sites.")
         {
-            methodOpt, newTypeOpt, solutionOpt, dryRunOpt
+            methodOpt, newTypeOpt, existingTypeOpt, solutionOpt, dryRunOpt
         };
         cmd.AddAlias("tp");
 
-        cmd.SetHandler(async (method, newType, solution, dryRun) =>
+        cmd.SetHandler(async (method, newType, existingType, solution, dryRun) =>
         {
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
             using (workspace)
             {
-                Console.Error.WriteLine($"Transforming parameters of '{method}' → record '{newType}'...");
                 try
                 {
-                    await TransformParametersCore.RunAsync(sln, method, newType, dryRun);
+                    await TransformParametersCore.RunAsync(sln, method, newType, existingType, dryRun);
                 }
                 catch (InvalidOperationException ex)
                 {
@@ -51,7 +51,7 @@ internal sealed class TransformParametersCommand : IRtCommand
                     Environment.ExitCode = 1;
                 }
             }
-        }, methodOpt, newTypeOpt, solutionOpt, dryRunOpt);
+        }, methodOpt, newTypeOpt, existingTypeOpt, solutionOpt, dryRunOpt);
 
         return cmd;
     }

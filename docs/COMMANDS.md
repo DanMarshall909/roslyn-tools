@@ -676,7 +676,7 @@ Introduce a Parameter Object: extract a method's parameters into a new record an
 ```bash
 rt transform-parameters --method OrderService.PlaceOrder --new-type PlaceOrderArgs --solution MySolution.sln
 rt tp --method BookingService.Create --new-type CreateBookingArgs --dry-run
-rt transform-parameters --method Calculator.Add --new-type AddArgs --solution RoslynTools.slnx --dry-run
+rt transform-parameters --method Calculator.Add --existing-type MyApp.AddArgs --solution RoslynTools.slnx --dry-run
 ```
 
 ---
