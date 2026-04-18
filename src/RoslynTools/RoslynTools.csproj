@@ -15,10 +15,20 @@
     <Authors>Dan Marshall</Authors>
   </PropertyGroup>
   <!-- Single-file self-contained publish profile — use: dotnet publish -c Release -r win-x64 -->
+  <!--
+    Single-file self-contained publish. IncludeAllContentForSelfExtract is required because
+    Roslyn's MSBuildWorkspace (Microsoft.CodeAnalysis.MSBuild.BuildHostProcessManager) locates
+    the BuildHost-netcore/ folder via typeof(BuildHostProcessManager).Assembly.Location. With
+    single-file publish, Assembly.Location is empty for bundled managed assemblies, so the lookup
+    becomes Path.Combine(null, ...) and throws ArgumentNullException during OpenSolutionAsync.
+    IncludeAllContentForSelfExtract=true extracts all bundled files to a temp directory on startup,
+    restoring a meaningful Assembly.Location so the BuildHost process can be located.
+  -->
   <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="RoslynTools.Tests" />
