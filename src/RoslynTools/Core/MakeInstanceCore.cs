@@ -19,197 +19,134 @@ internal static class MakeInstanceCore
         Console.Error.WriteLine($"Found method '{methodSymbol.ToDisplayString()}'. Collecting call sites...");
 
         var refs = await SymbolFinder.FindReferencesAsync(methodSymbol, sln);
-        var callSitesByDoc = GroupCallSitesByDocument(refs);
 
-        int total = callSitesByDoc.Values.Sum(l => l.Count);
+        // Group reference locations by document (from the original solution)
+        var locationsByDoc = refs
+            .SelectMany(r => r.Locations)
+            .GroupBy(loc => loc.Document.Id)
+            .ToDictionary(g => g.Key, g => g.Select(l => l.Location.SourceSpan).ToList());
+
+        int total = locationsByDoc.Values.Sum(l => l.Count);
         Console.Error.WriteLine($"Found {total} call site(s). Analysing reachability...");
 
-        sln = await RemoveStaticModifierAsync(sln, methodSymbol);
+        // Find the document containing the method declaration
+        var declLocation = methodSymbol.Locations.FirstOrDefault(l => l.IsInSource)
+            ?? throw new InvalidOperationException("No source location for method declaration.");
+        var declDocId = FindDocumentIdForLocation(sln, declLocation)
+            ?? throw new InvalidOperationException("Cannot locate source document for method declaration.");
 
-        // Re-resolve the target type in the updated solution's compilation so that
-        // SymbolEqualityComparer comparisons work against the new semantic models.
-        var updatedTargetType = await FindTypeSymbolAsync(sln, typeName)
-            ?? methodSymbol.ContainingType;
+        // Process all documents that have call sites plus the declaration document
+        var allDocIds = new HashSet<DocumentId>(locationsByDoc.Keys) { declDocId };
+        var skipped = new List<(string file, int line, string reason)>();
 
-        var (newSln, skipped) = await RewriteCallSitesAsync(sln, updatedTargetType, typeName, callSitesByDoc);
-        sln = newSln;
+        foreach (var docId in allDocIds)
+        {
+            var doc = sln.GetDocument(docId)!;
+            var root = (await doc.GetSyntaxRootAsync())!;
+            var semanticModel = await doc.GetSemanticModelAsync();
+            if (semanticModel is null) continue;
+
+            locationsByDoc.TryGetValue(docId, out var callSpans);
+            var isDeclarationDoc = docId == declDocId;
+
+            var (newRoot, docSkipped) = TransformDocument(
+                root, semanticModel, methodSymbol, methodSymbol.ContainingType,
+                callSpans ?? [], isDeclarationDoc, doc);
+
+            foreach (var s in docSkipped) skipped.Add(s);
+
+            sln = sln.WithDocumentSyntaxRoot(docId, newRoot);
+        }
 
         await SolutionWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
 
         PrintSummary(total, skipped);
     }
 
-    // ── Parsing ──────────────────────────────────────────────────────────────
+    // ── Document transformation ──────────────────────────────────────────────
 
-    private static (string TypeName, string MethodName) ParseMethodSpec(string spec)
-    {
-        var lastDot = spec.LastIndexOf('.');
-        if (lastDot <= 0 || lastDot == spec.Length - 1)
-            throw new InvalidOperationException(
-                $"--method must be in the form Type.Method, got: '{spec}'");
-
-        return (spec[..lastDot], spec[(lastDot + 1)..]);
-    }
-
-    // ── Symbol finding ───────────────────────────────────────────────────────
-
-    private static async Task<INamedTypeSymbol?> FindTypeSymbolAsync(Solution sln, string typeName)
-    {
-        foreach (var project in sln.Projects)
-        {
-            var compilation = await project.GetCompilationAsync();
-            if (compilation == null) continue;
-
-            foreach (var sym in compilation.GetSymbolsWithName(typeName, SymbolFilter.Type))
-            {
-                if (sym is INamedTypeSymbol namedType && namedType.Name == typeName)
-                    return namedType;
-            }
-        }
-
-        return null;
-    }
-
-    private static async Task<IMethodSymbol?> FindStaticMethodAsync(Solution sln, string typeName, string methodName)
-    {
-        foreach (var project in sln.Projects)
-        {
-            var compilation = await project.GetCompilationAsync();
-            if (compilation == null) continue;
-
-            foreach (var sym in compilation.GetSymbolsWithName(typeName, SymbolFilter.Type))
-            {
-                if (sym is not INamedTypeSymbol typeSymbol) continue;
-
-                var method = typeSymbol.GetMembers(methodName)
-                    .OfType<IMethodSymbol>()
-                    .FirstOrDefault(m => m.IsStatic);
-
-                if (method != null)
-                    return method;
-            }
-        }
-
-        return null;
-    }
-
-    private static Dictionary<DocumentId, List<Location>> GroupCallSitesByDocument(
-        IEnumerable<ReferencedSymbol> refs)
-    {
-        var result = new Dictionary<DocumentId, List<Location>>();
-        foreach (var refSym in refs)
-        {
-            foreach (var loc in refSym.Locations)
-            {
-                if (!result.TryGetValue(loc.Document.Id, out var list))
-                {
-                    list = new List<Location>();
-                    result[loc.Document.Id] = list;
-                }
-
-                list.Add(loc.Location);
-            }
-        }
-
-        return result;
-    }
-
-    // ── Remove static modifier ───────────────────────────────────────────────
-
-    private static async Task<Solution> RemoveStaticModifierAsync(Solution sln, IMethodSymbol methodSymbol)
-    {
-        var location = methodSymbol.Locations.FirstOrDefault(l => l.IsInSource)
-            ?? throw new InvalidOperationException("No source location found for method declaration.");
-
-        var docId = FindDocumentIdForLocation(sln, location)
-            ?? throw new InvalidOperationException("Cannot locate source document for method declaration.");
-
-        var doc = sln.GetDocument(docId)!;
-        var root = (await doc.GetSyntaxRootAsync())!;
-
-        var node = root.FindNode(location.SourceSpan);
-        var methodDecl = node.AncestorsAndSelf().OfType<MethodDeclarationSyntax>().FirstOrDefault()
-            ?? throw new InvalidOperationException("Cannot locate MethodDeclarationSyntax for the target method.");
-
-        // Remove `static` token, fixing up whitespace so the token list stays clean
-        var newModifiers = methodDecl.Modifiers
-            .Where(t => !t.IsKind(SyntaxKind.StaticKeyword))
-            .ToArray();
-
-        var newTokenList = SyntaxFactory.TokenList(newModifiers);
-        var newDecl = methodDecl.WithModifiers(newTokenList);
-
-        root = root.ReplaceNode(methodDecl, newDecl);
-        return sln.WithDocumentSyntaxRoot(docId, root);
-    }
-
-    // ── Call-site rewriting ──────────────────────────────────────────────────
-
-    private static async Task<(Solution newSln, List<(string file, int line, string reason)> skipped)>
-        RewriteCallSitesAsync(
-            Solution sln,
+    /// <summary>
+    /// Transforms one document in a single ReplaceNodes pass:
+    ///   • Removes the `static` modifier from the method declaration (if this is the declaration doc)
+    ///   • Rewrites qualifying call sites from Type.Method(...) to instance.Method(...)
+    ///   • Warns and skips call sites where no instance is reachable
+    /// </summary>
+    private static (SyntaxNode newRoot, List<(string file, int line, string reason)> skipped)
+        TransformDocument(
+            SyntaxNode root,
+            SemanticModel semanticModel,
+            IMethodSymbol methodSymbol,
             INamedTypeSymbol targetType,
-            string typeName,
-            Dictionary<DocumentId, List<Location>> callSitesByDoc)
+            List<Microsoft.CodeAnalysis.Text.TextSpan> callSpans,
+            bool isDeclarationDoc,
+            Document doc)
     {
         var skipped = new List<(string file, int line, string reason)>();
+        var replacements = new Dictionary<SyntaxNode, SyntaxNode>(ReferenceEqualityComparer.Instance);
 
-        foreach (var (docId, locations) in callSitesByDoc)
+        // ── 1. Remove `static` from the declaration ──────────────────────────
+        if (isDeclarationDoc)
         {
-            var doc = sln.GetDocument(docId)!;
-            var root = await doc.GetSyntaxRootAsync();
-            if (root is null) continue;
-
-            var semanticModel = await doc.GetSemanticModelAsync();
-            if (semanticModel is null) continue;
-
-            var replacements = new Dictionary<SyntaxNode, SyntaxNode>(ReferenceEqualityComparer.Instance);
-
-            foreach (var loc in locations)
+            var declLocation = methodSymbol.Locations.FirstOrDefault(l => l.IsInSource);
+            if (declLocation is not null)
             {
-                var refNode = root.FindNode(loc.SourceSpan);
-                var invocation = refNode.AncestorsAndSelf()
-                    .OfType<InvocationExpressionSyntax>()
-                    .FirstOrDefault();
-
-                if (invocation is null) continue;
-
-                // Only handle Type.Method(...) call sites — skip if already an instance call
-                if (invocation.Expression is not MemberAccessExpressionSyntax memberAccess) continue;
-
-                var fileText = await doc.GetTextAsync();
-                var lineNum = fileText.Lines.GetLineFromPosition(loc.SourceSpan.Start).LineNumber + 1;
-                var filePath = doc.FilePath ?? doc.Name;
-
-                var instanceExpr = FindReachableInstance(invocation, semanticModel, targetType);
-
-                if (instanceExpr is null)
+                var declNode = root.FindNode(declLocation.SourceSpan);
+                var methodDecl = declNode.AncestorsAndSelf().OfType<MethodDeclarationSyntax>().FirstOrDefault();
+                if (methodDecl is not null)
                 {
-                    const string reason = "no reachable instance";
-                    Console.Error.WriteLine($"WARNING: {filePath}:{lineNum}: {reason} — skipped");
-                    skipped.Add((filePath, lineNum, reason));
-                    continue;
+                    var newModifiers = methodDecl.Modifiers
+                        .Where(t => !t.IsKind(SyntaxKind.StaticKeyword))
+                        .ToArray();
+                    var newDecl = methodDecl.WithModifiers(SyntaxFactory.TokenList(newModifiers));
+                    replacements[methodDecl] = newDecl;
                 }
-
-                // Rewrite: Type.Method(...) → instance.Method(...)
-                var newMemberAccess = memberAccess
-                    .WithExpression(instanceExpr.WithTriviaFrom(memberAccess.Expression))
-                    .WithTriviaFrom(memberAccess);
-
-                replacements[invocation.Expression] = newMemberAccess;
             }
-
-            if (replacements.Count == 0) continue;
-
-            var newRoot = root.ReplaceNodes(
-                replacements.Keys,
-                (original, _) => replacements[original]);
-
-            sln = sln.WithDocumentSyntaxRoot(docId, newRoot);
         }
 
-        return (sln, skipped);
+        // ── 2. Rewrite call sites ────────────────────────────────────────────
+        var fileText = doc.GetTextAsync().GetAwaiter().GetResult();
+        var filePath = doc.FilePath ?? doc.Name;
+
+        foreach (var span in callSpans)
+        {
+            var refNode = root.FindNode(span);
+            var invocation = refNode.AncestorsAndSelf()
+                .OfType<InvocationExpressionSyntax>()
+                .FirstOrDefault();
+
+            if (invocation is null) continue;
+            if (invocation.Expression is not MemberAccessExpressionSyntax memberAccess) continue;
+
+            var lineNum = fileText.Lines.GetLineFromPosition(span.Start).LineNumber + 1;
+
+            var instanceExpr = FindReachableInstance(invocation, semanticModel, targetType);
+
+            if (instanceExpr is null)
+            {
+                Console.Error.WriteLine($"WARNING: {filePath}:{lineNum}: no reachable instance — skipped");
+                skipped.Add((filePath, lineNum, "no reachable instance"));
+                continue;
+            }
+
+            var newMemberAccess = memberAccess
+                .WithExpression(instanceExpr.WithTriviaFrom(memberAccess.Expression))
+                .WithTriviaFrom(memberAccess);
+
+            if (!replacements.ContainsKey(invocation.Expression))
+                replacements[invocation.Expression] = newMemberAccess;
+        }
+
+        if (replacements.Count == 0)
+            return (root, skipped);
+
+        var newRoot = root.ReplaceNodes(
+            replacements.Keys,
+            (original, _) => replacements[original]);
+
+        return (newRoot, skipped);
     }
+
+    // ── Reachability analysis ────────────────────────────────────────────────
 
     /// <summary>
     /// Finds a reachable instance of <paramref name="targetType"/> at <paramref name="callSite"/>.
@@ -260,8 +197,6 @@ internal static class MakeInstanceCore
         return null;
     }
 
-    // ── Reachability helpers ─────────────────────────────────────────────────
-
     private static INamedTypeSymbol? GetEnclosingTypeSymbol(SyntaxNode memberNode, SemanticModel semanticModel)
     {
         var typeDecl = memberNode.Ancestors().OfType<TypeDeclarationSyntax>().FirstOrDefault();
@@ -284,7 +219,6 @@ internal static class MakeInstanceCore
         SemanticModel semanticModel,
         INamedTypeSymbol targetType)
     {
-        // Walk up to the nearest block that contains the call site
         var block = callSite.Ancestors().OfType<BlockSyntax>().FirstOrDefault();
         if (block is null) return null;
 
@@ -294,7 +228,7 @@ internal static class MakeInstanceCore
         {
             foreach (var variable in decl.Declaration.Variables)
             {
-                // Use the declared symbol to get the resolved type (handles `var` correctly)
+                // GetDeclaredSymbol resolves `var` to the actual type
                 var localSymbol = semanticModel.GetDeclaredSymbol(variable) as ILocalSymbol;
                 if (localSymbol is null) continue;
                 if (SymbolEqualityComparer.Default.Equals(localSymbol.Type, targetType))
@@ -321,7 +255,6 @@ internal static class MakeInstanceCore
 
         foreach (var param in paramList.Parameters)
         {
-            // Use the declared symbol to get the fully resolved parameter type
             var paramSymbol = semanticModel.GetDeclaredSymbol(param) as IParameterSymbol;
             if (paramSymbol is null) continue;
             if (SymbolEqualityComparer.Default.Equals(paramSymbol.Type, targetType))
@@ -350,6 +283,43 @@ internal static class MakeInstanceCore
         }
 
         return null;
+    }
+
+    // ── Symbol finding ───────────────────────────────────────────────────────
+
+    private static async Task<IMethodSymbol?> FindStaticMethodAsync(Solution sln, string typeName, string methodName)
+    {
+        foreach (var project in sln.Projects)
+        {
+            var compilation = await project.GetCompilationAsync();
+            if (compilation == null) continue;
+
+            foreach (var sym in compilation.GetSymbolsWithName(typeName, SymbolFilter.Type))
+            {
+                if (sym is not INamedTypeSymbol typeSymbol) continue;
+
+                var method = typeSymbol.GetMembers(methodName)
+                    .OfType<IMethodSymbol>()
+                    .FirstOrDefault(m => m.IsStatic);
+
+                if (method != null)
+                    return method;
+            }
+        }
+
+        return null;
+    }
+
+    // ── Parsing ──────────────────────────────────────────────────────────────
+
+    private static (string TypeName, string MethodName) ParseMethodSpec(string spec)
+    {
+        var lastDot = spec.LastIndexOf('.');
+        if (lastDot <= 0 || lastDot == spec.Length - 1)
+            throw new InvalidOperationException(
+                $"--method must be in the form Type.Method, got: '{spec}'");
+
+        return (spec[..lastDot], spec[(lastDot + 1)..]);
     }
 
     // ── Document/location utilities ──────────────────────────────────────────

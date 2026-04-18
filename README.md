@@ -137,6 +137,20 @@ rt make-static --method MathHelper.Clamp --solution MySolution.sln [--dry-run]
 # Exits 1 with a clear message if any blocking usage is found
 ```
 
+### make-instance
+
+```sh
+rt make-instance --method OrderService.Validate --solution MySolution.sln [--dry-run]
+# Removes 'static' from the method declaration.
+# Rewrites Type.Method(...) call sites to instance.Method(...) when an instance is reachable:
+#   - local variable of the type → var svc = new OrderService(); ... svc.Validate(...)
+#   - constructor/method parameter of the type → void Handle(OrderService svc) { svc.Validate(...) }
+#   - injected field of the type → _orderService.Validate(...)
+#   - same-class instance context → this.Validate(...)
+# Emits a WARNING with file:line for call sites with no reachable instance and leaves them unchanged.
+# Prints a summary: N call sites found, M rewritten, K skipped.
+```
+
 ### convert-to-record
 
 ```sh
