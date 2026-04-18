@@ -18,6 +18,7 @@ public class SolutionWriterTests : IDisposable
     {
         Console.SetOut(_originalOut);
         _output.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     [Fact]

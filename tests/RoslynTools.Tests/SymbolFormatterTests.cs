@@ -8,7 +8,11 @@ public class SymbolFormatterTests : IDisposable
 {
     private readonly TestProjectBuilder _project = new();
 
-    public void Dispose() => _project.Dispose();
+    public void Dispose()
+    {
+        _project.Dispose();
+        GC.SuppressFinalize(this);
+    }
 
     // Shared source used by most tests: a class that extends a base and implements an interface.
     private const string SharedSource = """
