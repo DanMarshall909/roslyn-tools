@@ -39,57 +39,10 @@ internal static class MethodExtractor
         var callSite = BuildCallSite(newMethodName, orderedParams, returnVars, selected.First());
 
         // ── 9. Splice call site into the original block ───────────────────────
-        var block = (BlockSyntax)selected.First().Parent!;
-        var stmts = block.Statements;
-        int firstIdx = stmts.IndexOf(selected.First());
-        int lastIdx = stmts.IndexOf(selected.Last());
-
-        for (int i = lastIdx; i >= firstIdx; i--)
-            stmts = stmts.RemoveAt(i);
-
-        stmts = stmts.Insert(firstIdx, callSite);
-
-        var newBlock = block.WithStatements(stmts);
-        var newContainingMethod = containingMethod.ReplaceNode(block, newBlock);
+        var newContainingMethod = SpliceCallSite(selected, callSite, containingMethod);
 
         // ── 10. Replace the containing method in the type, then insert the new method ──
-        // Annotate the updated containing method so we can locate it by identity after ReplaceNode,
-        // instead of relying on string/trivia comparisons that may differ across tree rewrites.
-        var methodAnnotation = new SyntaxAnnotation();
-        var annotatedNewContainingMethod = newContainingMethod.WithAdditionalAnnotations(methodAnnotation);
-        var updatedType = containingType.ReplaceNode(containingMethod, annotatedNewContainingMethod);
-
-        // Locate the anchor member in the updated type for placement
-        MemberDeclarationSyntax anchorMember;
-        bool afterAnchor;
-
-        if (insertAfter != null || insertBefore != null)
-        {
-            var name = insertAfter ?? insertBefore!;
-            anchorMember = updatedType.Members
-                .FirstOrDefault(m => GetMemberName(m) == name)
-                ?? throw new InvalidOperationException(
-                    $"Member '{name}' not found in type '{containingType.Identifier.Text}'.");
-            afterAnchor = insertAfter != null;
-        }
-        else
-        {
-            // Default: after the (updated) containing method — found via annotation to avoid trivia mismatches
-            anchorMember = updatedType.Members
-                .FirstOrDefault(m => m.HasAnnotation(methodAnnotation))
-                ?? updatedType.Members.Last();
-            afterAnchor = true;
-        }
-
-        var membersList = updatedType.Members.ToList();
-        int anchorIdx = membersList.IndexOf(anchorMember);
-        if (anchorIdx < 0)
-            throw new InvalidOperationException("Internal error: anchor member not located after tree update.");
-
-        int insertIdx = afterAnchor ? anchorIdx + 1 : anchorIdx;
-        membersList.Insert(insertIdx, newMethod);
-
-        var finalType = updatedType.WithMembers(SyntaxFactory.List(membersList));
+        var finalType = InsertNewMethod(containingType, containingMethod, newContainingMethod, newMethod, insertAfter, insertBefore);
         var newRoot = root.ReplaceNode(containingType, finalType);
 
         return solution.WithDocumentSyntaxRoot(doc.Id, newRoot);
@@ -233,6 +186,80 @@ internal static class MethodExtractor
         bool isStatic = containingMethod.Modifiers.Any(SyntaxKind.StaticKeyword);
 
         return (containingMethod, containingType, isStatic);
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────
+    //  Step 9: replace extracted statements with the call site in the block
+    // ────────────────────────────────────────────────────────────────────────────
+
+    private static MethodDeclarationSyntax SpliceCallSite(
+        List<StatementSyntax> selected,
+        StatementSyntax callSite,
+        MethodDeclarationSyntax containingMethod)
+    {
+        var block = (BlockSyntax)selected.First().Parent!;
+        var stmts = block.Statements;
+        int firstIdx = stmts.IndexOf(selected.First());
+        int lastIdx = stmts.IndexOf(selected.Last());
+
+        for (int i = lastIdx; i >= firstIdx; i--)
+            stmts = stmts.RemoveAt(i);
+
+        stmts = stmts.Insert(firstIdx, callSite);
+
+        var newBlock = block.WithStatements(stmts);
+        return containingMethod.ReplaceNode(block, newBlock);
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────
+    //  Step 10: replace containing method in type and insert the new method
+    // ────────────────────────────────────────────────────────────────────────────
+
+    private static TypeDeclarationSyntax InsertNewMethod(
+        TypeDeclarationSyntax containingType,
+        MethodDeclarationSyntax originalContainingMethod,
+        MethodDeclarationSyntax updatedContainingMethod,
+        MethodDeclarationSyntax newMethod,
+        string? insertAfter,
+        string? insertBefore)
+    {
+        // Annotate the updated containing method so we can locate it by identity after ReplaceNode,
+        // instead of relying on string/trivia comparisons that may differ across tree rewrites.
+        var methodAnnotation = new SyntaxAnnotation();
+        var annotatedNewContainingMethod = updatedContainingMethod.WithAdditionalAnnotations(methodAnnotation);
+        var updatedType = containingType.ReplaceNode(originalContainingMethod, annotatedNewContainingMethod);
+
+        // Locate the anchor member in the updated type for placement
+        MemberDeclarationSyntax anchorMember;
+        bool afterAnchor;
+
+        if (insertAfter != null || insertBefore != null)
+        {
+            var name = insertAfter ?? insertBefore!;
+            anchorMember = updatedType.Members
+                .FirstOrDefault(m => GetMemberName(m) == name)
+                ?? throw new InvalidOperationException(
+                    $"Member '{name}' not found in type '{containingType.Identifier.Text}'.");
+            afterAnchor = insertAfter != null;
+        }
+        else
+        {
+            // Default: after the (updated) containing method — found via annotation to avoid trivia mismatches
+            anchorMember = updatedType.Members
+                .FirstOrDefault(m => m.HasAnnotation(methodAnnotation))
+                ?? updatedType.Members.Last();
+            afterAnchor = true;
+        }
+
+        var membersList = updatedType.Members.ToList();
+        int anchorIdx = membersList.IndexOf(anchorMember);
+        if (anchorIdx < 0)
+            throw new InvalidOperationException("Internal error: anchor member not located after tree update.");
+
+        int insertIdx = afterAnchor ? anchorIdx + 1 : anchorIdx;
+        membersList.Insert(insertIdx, newMethod);
+
+        return updatedType.WithMembers(SyntaxFactory.List(membersList));
     }
 
     // ────────────────────────────────────────────────────────────────────────────
