@@ -3,10 +3,11 @@ roslyn-tools Reduce Smells + Core Extraction + New Commands — Ralph Execution 
 Branch: ralph/reduce-smells
 PRD: prd.json (16 user stories)
 Date Started: 2026-04-18
-Current Status: 14/16 stories complete (87%)
+Date Completed: 2026-04-19
+Current Status: 16/16 stories complete (100%)
 
-COMPLETED STORIES (batch 1)
-===========================
+COMPLETED STORIES
+=================
 [x] US-001: Refactor MethodExtractor.ExtractAsync — extract private helpers
 [x] US-002: Extract ImplementInterfaceCommand logic to Core and decompose
 [x] US-003: Extract ConvertToRecordCommand logic to Core and decompose
@@ -18,11 +19,16 @@ COMPLETED STORIES (batch 1)
 [x] US-009: Extract MoveCommand logic to Core and decompose
 [x] US-010: Extract AddTestCommand logic to Core and decompose
 [x] US-011: New command: transform-parameters (new class)
+[x] US-012: transform-parameters — support existing class/record via --existing-type
 [x] US-013: New command: make-static
 [x] US-014: New command: make-instance (remove static)
 [x] US-015: New command: find-pattern (structural AST match across solution)
+[x] US-016: extract-method --replace-duplicates (uses find-pattern matcher)
 
-PENDING STORIES (batch 2)
-=========================
-[ ] US-012: transform-parameters — support existing class/record via --existing-type (depends on US-011)
-[ ] US-016: extract-method --replace-duplicates (depends on US-015)
+NOTES
+=====
+- All 168 tests pass, build clean, format clean.
+- Two WARNs logged to tasks/dogfood-gaps.md for follow-up:
+  1. extract-method --replace-duplicates multi-match-in-same-file line-drift risk
+  2. ExtractMethodCommand.SetHandler lambda ~40 lines (exceeds thin-shell ≤20 line rule)
+- One bisect hazard logged: commit 0445c01 doesn't build standalone (ExtractMethodCommand changes leaked into US-012's commit from US-016 worktree).

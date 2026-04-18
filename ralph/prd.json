@@ -220,7 +220,7 @@
         "README updated with an --existing-type example"
       ],
       "priority": 12,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-011 — touches the same Command + Core files. Key differentiator vs commercial tooling."
     },
     {
@@ -308,7 +308,7 @@
         "README updated with example"
       ],
       "priority": 16,
-      "passes": false,
+      "passes": true,
       "notes": "Touches src/RoslynTools/Commands/ExtractMethodCommand.cs and src/RoslynTools/Core/MethodExtractor.cs. Depends on US-015. Keep MethodExtractor cohesive — add a ReplaceDuplicatesAsync helper rather than inlining the logic."
     }
   ]
