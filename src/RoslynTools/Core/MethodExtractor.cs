@@ -27,110 +27,10 @@ internal static class MethodExtractor
         if (insertAfter != null && insertBefore != null)
             throw new InvalidOperationException("--after and --before are mutually exclusive.");
 
-        // ── 1. Find document ──────────────────────────────────────────────────
-        var absPath = Path.GetFullPath(filePath);
-        var doc = solution.Projects
-            .SelectMany(p => p.Documents)
-            .FirstOrDefault(d => string.Equals(d.FilePath, absPath, StringComparison.OrdinalIgnoreCase))
-            ?? throw new InvalidOperationException($"File not found in solution: {absPath}");
-
-        // ── 2. Get syntax root and semantic model ─────────────────────────────
-        var root = await doc.GetSyntaxRootAsync()
-            ?? throw new InvalidOperationException("Failed to get syntax root.");
-        var model = await doc.GetSemanticModelAsync()
-            ?? throw new InvalidOperationException("Failed to get semantic model.");
-
-        // ── 3. Find statements in line range (Roslyn lines are 0-based) ───────
-        var selected = root.DescendantNodes()
-            .OfType<StatementSyntax>()
-            .Where(s => s.Parent is BlockSyntax)
-            .Where(s =>
-            {
-                var span = s.GetLocation().GetLineSpan();
-                return span.StartLinePosition.Line >= startLine - 1
-                    && span.EndLinePosition.Line <= endLine - 1;
-            })
-            .ToList();
-
-        if (selected.Count == 0)
-            throw new InvalidOperationException(
-                $"No statements found in lines {startLine}–{endLine}. " +
-                "Verify the line range contains complete statements inside a method body.");
-
-        // All selected statements must share the same block
-        var distinctParents = selected.Select(s => s.Parent).Distinct().ToList();
-        if (distinctParents.Count > 1)
-            throw new InvalidOperationException(
-                "Selected statements span multiple blocks. Extend or narrow the range to a single block.");
-
-        // Bail on embedded returns — the semantics are too complex for a first pass
-        if (selected.Any(s => s.DescendantNodesAndSelf().OfType<ReturnStatementSyntax>().Any()))
-            throw new InvalidOperationException(
-                "Cannot extract statements that contain return statements.");
-
-        // ── 4. DataFlow analysis ──────────────────────────────────────────────
-        var flow = model.AnalyzeDataFlow(selected.First(), selected.Last());
-        if (flow == null || !flow.Succeeded)
-            throw new InvalidOperationException("Roslyn data-flow analysis failed for the selected range.");
-
-        // Compute which symbols are declared within the extracted range (syntax-level check,
-        // avoids relying on DataFlowAnalysis.VariablesDeclaredWithin which is absent in some builds).
-        var declaredInRange = selected
-            .SelectMany(s => s.DescendantNodesAndSelf())
-            .OfType<VariableDeclaratorSyntax>()
-            .Select(v => (ISymbol?)model.GetDeclaredSymbol(v))
-            .Where(s => s != null)
-            .Select(s => s!)
-            .ToHashSet(SymbolEqualityComparer.Default);
-
-        // Variables declared outside the range but written inside and read after are
-        // not safely extractable without out-parameters — reject and guide the user.
-        var unsafeOut = flow.DataFlowsOut
-            .Where(sym => !declaredInRange.Contains(sym))
-            .ToList();
-        if (unsafeOut.Count > 0)
-        {
-            var names = string.Join(", ", unsafeOut.Select(s => s.Name));
-            throw new InvalidOperationException(
-                $"Cannot extract: variable(s) '{names}' are declared before the selection but " +
-                "written inside and read after. Extend the selection to include their declarations.");
-        }
-
-        // ── 5. Sort DataFlowsIn by first reference position ───────────────────
-        var seenParams = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
-        var orderedParams = new List<ISymbol>();
-
-        foreach (var ident in selected
-            .SelectMany(s => s.DescendantNodesAndSelf())
-            .OfType<IdentifierNameSyntax>()
-            .OrderBy(id => id.SpanStart))
-        {
-            var sym = model.GetSymbolInfo(ident).Symbol;
-            if (sym == null) continue;
-            var match = flow.DataFlowsIn.FirstOrDefault(
-                p => SymbolEqualityComparer.Default.Equals(p, sym));
-            if (match != null && seenParams.Add(match))
-                orderedParams.Add(match);
-        }
-
-        var returnVars = flow.DataFlowsOut.ToList();
-
-        // ── 6. Find containing method and type ────────────────────────────────
-        var containingMethod = selected.First()
-            .Ancestors()
-            .OfType<MethodDeclarationSyntax>()
-            .FirstOrDefault()
-            ?? throw new InvalidOperationException(
-                "The selected statements are not inside a method declaration.");
-
-        var containingType = containingMethod
-            .Ancestors()
-            .OfType<TypeDeclarationSyntax>()
-            .FirstOrDefault()
-            ?? throw new InvalidOperationException(
-                "The containing method is not inside a class or struct.");
-
-        bool isStatic = containingMethod.Modifiers.Any(SyntaxKind.StaticKeyword);
+        var (doc, root, model, selected) = await FindDocumentAndStatements(solution, filePath, startLine, endLine);
+        var flow = ValidateDataFlow(model, selected);
+        var (orderedParams, returnVars) = OrderParameters(flow, selected, model);
+        var (containingMethod, containingType, isStatic) = FindContainingContext(selected);
 
         // ── 7. Build new method ───────────────────────────────────────────────
         var newMethod = BuildNewMethod(newMethodName, orderedParams, returnVars, selected, model, isStatic);
@@ -193,6 +93,146 @@ internal static class MethodExtractor
         var newRoot = root.ReplaceNode(containingType, finalType);
 
         return solution.WithDocumentSyntaxRoot(doc.Id, newRoot);
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────
+    //  Steps 1–3: locate document, root, model, and validate selected statements
+    // ────────────────────────────────────────────────────────────────────────────
+
+    private static async Task<(Document doc, SyntaxNode root, SemanticModel model, List<StatementSyntax> selected)>
+        FindDocumentAndStatements(Solution solution, string filePath, int startLine, int endLine)
+    {
+        // ── 1. Find document ──────────────────────────────────────────────────
+        var absPath = Path.GetFullPath(filePath);
+        var doc = solution.Projects
+            .SelectMany(p => p.Documents)
+            .FirstOrDefault(d => string.Equals(d.FilePath, absPath, StringComparison.OrdinalIgnoreCase))
+            ?? throw new InvalidOperationException($"File not found in solution: {absPath}");
+
+        // ── 2. Get syntax root and semantic model ─────────────────────────────
+        var root = await doc.GetSyntaxRootAsync()
+            ?? throw new InvalidOperationException("Failed to get syntax root.");
+        var model = await doc.GetSemanticModelAsync()
+            ?? throw new InvalidOperationException("Failed to get semantic model.");
+
+        // ── 3. Find statements in line range (Roslyn lines are 0-based) ───────
+        var selected = root.DescendantNodes()
+            .OfType<StatementSyntax>()
+            .Where(s => s.Parent is BlockSyntax)
+            .Where(s =>
+            {
+                var span = s.GetLocation().GetLineSpan();
+                return span.StartLinePosition.Line >= startLine - 1
+                    && span.EndLinePosition.Line <= endLine - 1;
+            })
+            .ToList();
+
+        if (selected.Count == 0)
+            throw new InvalidOperationException(
+                $"No statements found in lines {startLine}–{endLine}. " +
+                "Verify the line range contains complete statements inside a method body.");
+
+        // All selected statements must share the same block
+        var distinctParents = selected.Select(s => s.Parent).Distinct().ToList();
+        if (distinctParents.Count > 1)
+            throw new InvalidOperationException(
+                "Selected statements span multiple blocks. Extend or narrow the range to a single block.");
+
+        // Bail on embedded returns — the semantics are too complex for a first pass
+        if (selected.Any(s => s.DescendantNodesAndSelf().OfType<ReturnStatementSyntax>().Any()))
+            throw new InvalidOperationException(
+                "Cannot extract statements that contain return statements.");
+
+        return (doc, root, model, selected);
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────
+    //  Step 4: data-flow analysis — reject variables that would need out-params
+    // ────────────────────────────────────────────────────────────────────────────
+
+    private static DataFlowAnalysis ValidateDataFlow(SemanticModel model, List<StatementSyntax> selected)
+    {
+        var flow = model.AnalyzeDataFlow(selected.First(), selected.Last());
+        if (flow == null || !flow.Succeeded)
+            throw new InvalidOperationException("Roslyn data-flow analysis failed for the selected range.");
+
+        // Compute which symbols are declared within the extracted range (syntax-level check,
+        // avoids relying on DataFlowAnalysis.VariablesDeclaredWithin which is absent in some builds).
+        var declaredInRange = selected
+            .SelectMany(s => s.DescendantNodesAndSelf())
+            .OfType<VariableDeclaratorSyntax>()
+            .Select(v => (ISymbol?)model.GetDeclaredSymbol(v))
+            .Where(s => s != null)
+            .Select(s => s!)
+            .ToHashSet(SymbolEqualityComparer.Default);
+
+        // Variables declared outside the range but written inside and read after are
+        // not safely extractable without out-parameters — reject and guide the user.
+        var unsafeOut = flow.DataFlowsOut
+            .Where(sym => !declaredInRange.Contains(sym))
+            .ToList();
+        if (unsafeOut.Count > 0)
+        {
+            var names = string.Join(", ", unsafeOut.Select(s => s.Name));
+            throw new InvalidOperationException(
+                $"Cannot extract: variable(s) '{names}' are declared before the selection but " +
+                "written inside and read after. Extend the selection to include their declarations.");
+        }
+
+        return flow;
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────
+    //  Step 5: sort DataFlowsIn by first reference position
+    // ────────────────────────────────────────────────────────────────────────────
+
+    private static (List<ISymbol> orderedParams, List<ISymbol> returnVars)
+        OrderParameters(DataFlowAnalysis flow, List<StatementSyntax> selected, SemanticModel model)
+    {
+        var seenParams = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+        var orderedParams = new List<ISymbol>();
+
+        foreach (var ident in selected
+            .SelectMany(s => s.DescendantNodesAndSelf())
+            .OfType<IdentifierNameSyntax>()
+            .OrderBy(id => id.SpanStart))
+        {
+            var sym = model.GetSymbolInfo(ident).Symbol;
+            if (sym == null) continue;
+            var match = flow.DataFlowsIn.FirstOrDefault(
+                p => SymbolEqualityComparer.Default.Equals(p, sym));
+            if (match != null && seenParams.Add(match))
+                orderedParams.Add(match);
+        }
+
+        var returnVars = flow.DataFlowsOut.ToList();
+        return (orderedParams, returnVars);
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────
+    //  Step 6: find containing method, type, and static flag
+    // ────────────────────────────────────────────────────────────────────────────
+
+    private static (MethodDeclarationSyntax containingMethod, TypeDeclarationSyntax containingType, bool isStatic)
+        FindContainingContext(List<StatementSyntax> selected)
+    {
+        var containingMethod = selected.First()
+            .Ancestors()
+            .OfType<MethodDeclarationSyntax>()
+            .FirstOrDefault()
+            ?? throw new InvalidOperationException(
+                "The selected statements are not inside a method declaration.");
+
+        var containingType = containingMethod
+            .Ancestors()
+            .OfType<TypeDeclarationSyntax>()
+            .FirstOrDefault()
+            ?? throw new InvalidOperationException(
+                "The containing method is not inside a class or struct.");
+
+        bool isStatic = containingMethod.Modifiers.Any(SyntaxKind.StaticKeyword);
+
+        return (containingMethod, containingType, isStatic);
     }
 
     // ────────────────────────────────────────────────────────────────────────────
