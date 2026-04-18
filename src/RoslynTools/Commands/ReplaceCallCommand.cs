@@ -33,63 +33,29 @@ internal static class ReplaceCallCommand
 
     internal static async Task ExecuteAsync(string from, string to, string? solutionPath, bool dryRun)
     {
-        // Parse "TypeName.MethodName" — split on last dot
-        var lastDot = from.LastIndexOf('.');
-        var methodName = lastDot >= 0 ? from[(lastDot + 1)..] : from;
+        var methodName = ParseMethodName(from);
 
         var (workspace, solution) = await WorkspaceLoader.LoadAsync(solutionPath);
         using (workspace)
         {
             var originalSolution = solution;
 
-            // Locate the method symbol using the full "TypeName.MethodName" form
             var methodSymbol = await SymbolLocator.FindSymbolByFqnAsync(solution, from, "method");
 
             Console.Error.WriteLine($"Finding invocations of '{methodSymbol.ToDisplayString()}'...");
 
             var referencedSymbols = await SymbolFinder.FindReferencesAsync(methodSymbol, solution);
+            var locationsByDocument = await CollectCallSitesByDocumentAsync(referencedSymbols);
 
-            // Collect all invocation locations grouped by document
-            var locationsByDocument = new Dictionary<DocumentId, List<Microsoft.CodeAnalysis.Location>>();
-            int totalCallSites = 0;
-
-            foreach (var referencedSymbol in referencedSymbols)
-            {
-                foreach (var loc in referencedSymbol.Locations)
-                {
-                    var doc = loc.Document;
-                    var root = await doc.GetSyntaxRootAsync();
-                    if (root is null)
-                        continue;
-
-                    var node = root.FindNode(loc.Location.SourceSpan);
-                    var invocation = node.AncestorsAndSelf()
-                        .OfType<InvocationExpressionSyntax>()
-                        .FirstOrDefault();
-
-                    if (invocation is null)
-                        continue;
-
-                    if (!locationsByDocument.TryGetValue(doc.Id, out var locs))
-                    {
-                        locs = new List<Microsoft.CodeAnalysis.Location>();
-                        locationsByDocument[doc.Id] = locs;
-                    }
-
-                    locs.Add(loc.Location);
-                    totalCallSites++;
-                }
-            }
-
-            if (totalCallSites == 0)
+            if (locationsByDocument.Count == 0)
             {
                 Console.WriteLine($"No calls to {from} found.");
                 return;
             }
 
+            var totalCallSites = locationsByDocument.Values.Sum(l => l.Count);
             Console.Error.WriteLine($"Found {totalCallSites} call site(s). Replacing '{methodName}' → '{to}'...");
 
-            // Apply replacements per document in a single ReplaceNodes pass to avoid stale nodes
             foreach (var (docId, locations) in locationsByDocument)
             {
                 var doc = solution.GetDocument(docId)!;
@@ -97,41 +63,7 @@ internal static class ReplaceCallCommand
                 if (root is null)
                     continue;
 
-                // Collect all nodes to replace: find the Name node in each invocation's expression
-                var replacements = new Dictionary<SyntaxNode, SyntaxNode>();
-
-                foreach (var loc in locations)
-                {
-                    var node = root.FindNode(loc.SourceSpan);
-                    var invocation = node.AncestorsAndSelf()
-                        .OfType<InvocationExpressionSyntax>()
-                        .FirstOrDefault();
-
-                    if (invocation is null)
-                        continue;
-
-                    SyntaxNode? oldName = null;
-                    SyntaxNode? newName = null;
-
-                    if (invocation.Expression is MemberAccessExpressionSyntax memberAccess)
-                    {
-                        oldName = memberAccess.Name;
-                        newName = SyntaxFactory.IdentifierName(to)
-                            .WithTriviaFrom(memberAccess.Name);
-                    }
-                    else if (invocation.Expression is IdentifierNameSyntax simpleName)
-                    {
-                        oldName = simpleName;
-                        newName = SyntaxFactory.IdentifierName(to)
-                            .WithTriviaFrom(simpleName);
-                    }
-
-                    if (oldName is not null && newName is not null && !replacements.ContainsKey(oldName))
-                    {
-                        replacements[oldName] = newName;
-                    }
-                }
-
+                var replacements = BuildReplacementsForDocument(root, locations, to);
                 if (replacements.Count == 0)
                     continue;
 
@@ -144,5 +76,88 @@ internal static class ReplaceCallCommand
 
             await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
         }
+    }
+
+    private static string ParseMethodName(string from)
+    {
+        var lastDot = from.LastIndexOf('.');
+        return lastDot >= 0 ? from[(lastDot + 1)..] : from;
+    }
+
+    private static async Task<Dictionary<DocumentId, List<Location>>> CollectCallSitesByDocumentAsync(
+        IEnumerable<ReferencedSymbol> referencedSymbols)
+    {
+        var locationsByDocument = new Dictionary<DocumentId, List<Location>>();
+
+        foreach (var referencedSymbol in referencedSymbols)
+        {
+            foreach (var loc in referencedSymbol.Locations)
+            {
+                var doc = loc.Document;
+                var root = await doc.GetSyntaxRootAsync();
+                if (root is null)
+                    continue;
+
+                var node = root.FindNode(loc.Location.SourceSpan);
+                var invocation = node.AncestorsAndSelf()
+                    .OfType<InvocationExpressionSyntax>()
+                    .FirstOrDefault();
+
+                if (invocation is null)
+                    continue;
+
+                if (!locationsByDocument.TryGetValue(doc.Id, out var locs))
+                {
+                    locs = new List<Location>();
+                    locationsByDocument[doc.Id] = locs;
+                }
+
+                locs.Add(loc.Location);
+            }
+        }
+
+        return locationsByDocument;
+    }
+
+    private static Dictionary<SyntaxNode, SyntaxNode> BuildReplacementsForDocument(
+        SyntaxNode root,
+        IEnumerable<Location> locations,
+        string to)
+    {
+        var replacements = new Dictionary<SyntaxNode, SyntaxNode>();
+
+        foreach (var loc in locations)
+        {
+            var node = root.FindNode(loc.SourceSpan);
+            var invocation = node.AncestorsAndSelf()
+                .OfType<InvocationExpressionSyntax>()
+                .FirstOrDefault();
+
+            if (invocation is null)
+                continue;
+
+            SyntaxNode? oldName = null;
+            SyntaxNode? newName = null;
+
+            if (invocation.Expression is MemberAccessExpressionSyntax memberAccess)
+            {
+                oldName = memberAccess.Name;
+                newName = SyntaxFactory.IdentifierName(to)
+                    .WithTriviaFrom(memberAccess.Name);
+            }
+            else if (invocation.Expression is IdentifierNameSyntax simpleName)
+            {
+                oldName = simpleName;
+                newName = SyntaxFactory.IdentifierName(to)
+                    .WithTriviaFrom(simpleName);
+            }
+
+            if (oldName is not null && newName is not null && !replacements.ContainsKey(oldName))
+            {
+                replacements[oldName] = newName;
+            }
+        }
+
+        return replacements;
     }
 }
