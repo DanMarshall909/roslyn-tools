@@ -17,6 +17,7 @@ nupkg/
 
 ## Test output
 **/TestOutput/
+coverage/
 
 ## OS
 Thumbs.db
