@@ -5,125 +5,194 @@ namespace RoslynTools.Tests;
 [Collection("MSBuild")]
 public class AddTestTests
 {
-    /// <summary>
-    /// Builds a test project with an empty ServiceTests class.
-    /// Includes a stub Xunit.FactAttribute so the fixture compiles without the real xunit package.
-    /// </summary>
-    private static TestProjectBuilder BuildTestProject()
+    // ──────────────────────────────────────────────────────────────────────────
+    //  1. AcToMethodName pure conversion — no Roslyn needed
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void AcToMethodName_ConvertsAcStringToIdentifier()
     {
-        var proj = new TestProjectBuilder("TestApp");
-        proj.AddSource("ServiceTests.cs", """
-            // Stub [Fact] attribute so test stubs compile without the real xunit package
-            namespace Xunit
+        Assert.Equal("Returns_404_When_Order_Not_Found",
+            AddTestCommand.AcToMethodName("Returns 404 when order not found"));
+    }
+
+    [Fact]
+    public void AcToMethodName_StripsPunctuation()
+    {
+        Assert.Equal("It_Works",
+            AddTestCommand.AcToMethodName("It works!"));
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  2. Single mode: appends [Fact] stub to existing test class
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task SingleMode_AppendsSingleFactMethod()
+    {
+        using var proj = new TestProjectBuilder();
+        // Source has no usings — command must add them
+        proj.AddSource("MyTests.cs", """
+            namespace TestApp;
+
+            public class MyTests
             {
-                [System.AttributeUsage(System.AttributeTargets.Method)]
-                public class FactAttribute : System.Attribute { }
             }
-
-            public class ServiceTests { }
             """);
-        return proj;
+
+        var slnPath = await proj.BuildAsync();
+
+        await AddTestCommand.ExecuteAsync(
+            className: "MyTests",
+            name: "Should_DoSomething",
+            acs: null,
+            nestedClass: null,
+            filePath: null,
+            solutionPath: slnPath,
+            dryRun: false);
+
+        var content = await proj.ReadSourceAsync("MyTests.cs");
+
+        Assert.Contains("[Fact]", content);
+        Assert.Contains("public void Should_DoSomething()", content);
+        Assert.Contains("throw new NotImplementedException();", content);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    //  1. Single mode — appends a [Fact] stub
+    //  3. AC mode: converts ACs to method names and adds stubs
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task AddTest_SingleMode_AppendsFact()
+    public async Task AcMode_GeneratesMethodsFromAcs()
     {
-        using var proj = BuildTestProject();
+        using var proj = new TestProjectBuilder();
+        proj.AddSource("OrderTests.cs", """
+            namespace TestApp;
+
+            public class OrderTests
+            {
+            }
+            """);
+
         var slnPath = await proj.BuildAsync();
 
-        await Assert.ThrowsAsync<NotImplementedException>(() =>
-            AddTestCommand.ExecuteAsync("ServiceTests", "GetById_ReturnsNull", null, null, slnPath, false));
+        await AddTestCommand.ExecuteAsync(
+            className: "OrderTests",
+            name: null,
+            acs: "Returns 404 when not found; Creates order successfully",
+            nestedClass: null,
+            filePath: null,
+            solutionPath: slnPath,
+            dryRun: false);
+
+        var content = await proj.ReadSourceAsync("OrderTests.cs");
+
+        Assert.Contains("public void Returns_404_When_Not_Found()", content);
+        Assert.Contains("public void Creates_Order_Successfully()", content);
+        Assert.Contains("throw new NotImplementedException();", content);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    //  2. Single mode — preserves existing content
+    //  4. AC mode with --nested-class: wraps methods in nested class
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task AddTest_SingleMode_PreservesExistingTests()
+    public async Task AcMode_WithNestedClass_WrapsInNestedClass()
     {
-        using var proj = BuildTestProject();
+        using var proj = new TestProjectBuilder();
+        proj.AddSource("OrderTests.cs", """
+            namespace TestApp;
+
+            public class OrderTests
+            {
+            }
+            """);
+
         var slnPath = await proj.BuildAsync();
 
-        await Assert.ThrowsAsync<NotImplementedException>(() =>
-            AddTestCommand.ExecuteAsync("ServiceTests", "GetById_ReturnsNull", null, null, slnPath, false));
+        await AddTestCommand.ExecuteAsync(
+            className: "OrderTests",
+            name: null,
+            acs: "Returns 404 when not found",
+            nestedClass: "WhenOrderMissing",
+            filePath: null,
+            solutionPath: slnPath,
+            dryRun: false);
+
+        var content = await proj.ReadSourceAsync("OrderTests.cs");
+
+        Assert.Contains("public class WhenOrderMissing", content);
+        Assert.Contains("public void Returns_404_When_Not_Found()", content);
+
+        // Nested class must appear inside outer class
+        var outerIdx = content.IndexOf("public class OrderTests", StringComparison.Ordinal);
+        var nestedIdx = content.IndexOf("public class WhenOrderMissing", StringComparison.Ordinal);
+        Assert.True(outerIdx < nestedIdx, "Nested class must appear inside outer class");
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    //  3. AC mode — generates multiple test stubs
+    //  5. Dry-run: does not write files
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task AddTest_AcMode_GeneratesMultipleTests()
+    public async Task DryRun_DoesNotModifyFile()
     {
-        using var proj = BuildTestProject();
-        var slnPath = await proj.BuildAsync();
+        using var proj = new TestProjectBuilder();
+        proj.AddSource("MyTests.cs", """
+            namespace TestApp;
 
-        await Assert.ThrowsAsync<NotImplementedException>(() =>
-            AddTestCommand.ExecuteAsync(
-                "ServiceTests",
-                null,
-                "Returns null when not found; Throws when id is negative",
-                null,
-                slnPath,
-                false));
+            public class MyTests
+            {
+            }
+            """);
+
+        var slnPath = await proj.BuildAsync();
+        var originalContent = await proj.ReadSourceAsync("MyTests.cs");
+
+        await AddTestCommand.ExecuteAsync(
+            className: "MyTests",
+            name: "Should_DoSomething",
+            acs: null,
+            nestedClass: null,
+            filePath: null,
+            solutionPath: slnPath,
+            dryRun: true);
+
+        var afterContent = await proj.ReadSourceAsync("MyTests.cs");
+        Assert.Equal(originalContent, afterContent);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    //  4. AC mode with nested class
+    //  6. Adds using directives when missing
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task AddTest_AcMode_NestedClass()
+    public async Task SingleMode_AddsUsingDirectivesWhenMissing()
     {
-        using var proj = BuildTestProject();
+        using var proj = new TestProjectBuilder();
+        proj.AddSource("MyTests.cs", """
+            namespace TestApp;
+
+            public class MyTests
+            {
+            }
+            """);
+
         var slnPath = await proj.BuildAsync();
 
-        await Assert.ThrowsAsync<NotImplementedException>(() =>
-            AddTestCommand.ExecuteAsync(
-                "ServiceTests",
-                null,
-                "Returns null when not found",
-                "GivenNegativeId",
-                slnPath,
-                false));
-    }
+        await AddTestCommand.ExecuteAsync(
+            className: "MyTests",
+            name: "Should_DoSomething",
+            acs: null,
+            nestedClass: null,
+            filePath: null,
+            solutionPath: slnPath,
+            dryRun: false);
 
-    // ──────────────────────────────────────────────────────────────────────────
-    //  5. Plain-English AC → snake_case method name
-    // ──────────────────────────────────────────────────────────────────────────
+        var content = await proj.ReadSourceAsync("MyTests.cs");
 
-    [Fact]
-    public async Task AddTest_AcMode_PlainEnglishToSnakeCase()
-    {
-        using var proj = BuildTestProject();
-        var slnPath = await proj.BuildAsync();
-
-        await Assert.ThrowsAsync<NotImplementedException>(() =>
-            AddTestCommand.ExecuteAsync(
-                "ServiceTests",
-                null,
-                "Returns 404 when order not found",
-                null,
-                slnPath,
-                false));
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    //  6. Dry-run — shows diff but does not write
-    // ──────────────────────────────────────────────────────────────────────────
-
-    [Fact]
-    public async Task AddTest_DryRun_NoWrites()
-    {
-        using var proj = BuildTestProject();
-        var slnPath = await proj.BuildAsync();
-
-        await Assert.ThrowsAsync<NotImplementedException>(() =>
-            AddTestCommand.ExecuteAsync("ServiceTests", "SomeTest", null, null, slnPath, dryRun: true));
+        Assert.Contains("using Xunit;", content);
+        Assert.Contains("using System;", content);
+        Assert.Contains("public void Should_DoSomething()", content);
     }
 }
