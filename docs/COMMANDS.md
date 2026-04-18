@@ -2,13 +2,16 @@
 
 Auto-generated on every `dotnet build` from each command's static `RtCommandInfo Info` property. **Do not hand-edit.**
 
-Total commands: **26**
+Total commands: **30**
 
 ## Contents
 
 - **Navigation** — [`find-callers`](#find-callers) (callers), [`find-impl`](#find-impl) (impls), [`find-refs`](#find-refs), [`find-unused`](#find-unused) (unused), [`inspect`](#inspect), [`outline`](#outline)
 - **Analysis** — [`circular-deps`](#circular-deps) (cdeps), [`dependency-graph`](#dependency-graph) (depgraph), [`list-smells`](#list-smells) (smells)
 - **Mutation** — [`add-dependency`](#add-dependency) (ad), [`add-null-checks`](#add-null-checks) (anc), [`add-test`](#add-test) (at), [`convert-to-record`](#convert-to-record) (ctr), [`extract-class`](#extract-class) (ec), [`extract-interface`](#extract-interface) (ei), [`extract-method`](#extract-method) (em), [`fix-namespace`](#fix-namespace) (fns), [`implement-interface`](#implement-interface) (ii), [`inline-method`](#inline-method) (im), [`make-async`](#make-async) (ma), [`make-sealed`](#make-sealed) (ms), [`move`](#move), [`rename`](#rename) (ren), [`replace-call`](#replace-call) (rc), [`replace-datetime`](#replace-datetime), [`safe-delete`](#safe-delete) (sd)
+- **Navigation & inspection** — [`find-pattern`](#find-pattern) (fp)
+- **Mutation — structure** — [`make-instance`](#make-instance) (mns), [`make-static`](#make-static) (mst)
+- **Mutation — symbol & namespace** — [`transform-parameters`](#transform-parameters) (tp)
 
 ## Navigation
 
@@ -582,6 +585,98 @@ Deleting a type or member only after verifying it has zero references in the sol
 rt safe-delete --symbol OrphanedHelper --solution C:\code\libraries\ProjectX.Libraries.sln
 rt sd --symbol BookingService.LegacyMethod --kind method --dry-run --solution C:\code\libraries\ProjectX.Libraries.sln
 rt safe-delete --symbol OldDtoType --kind type --solution RoslynTools.slnx
+```
+
+---
+
+## Navigation & inspection
+
+### find-pattern
+
+_Find all solution locations structurally matching a given statement range._
+
+**Read-only** | JSON output
+
+**Aliases:** `fp`
+
+**When to use:**
+
+Find every location in the solution that structurally matches a given line range — same SyntaxKind tree shape, only identifier and literal values differ. Useful for spotting duplicated logic even when variable names differ.
+
+**Examples:**
+
+```bash
+rt find-pattern --file src/Services/BookingService.cs --start-line 42 --end-line 50 --solution RoslynTools.slnx
+rt fp --file src/Controllers/AdminController.cs --start-line 110 --end-line 125 --scope RoslynTools.Core --solution RoslynTools.slnx
+```
+
+---
+
+## Mutation — structure
+
+### make-instance
+
+_Remove static from a method and rewrite call sites to use an instance_
+
+**Mutation** (writes files) | Plain-text output
+
+**Aliases:** `mns`
+
+**When to use:**
+
+Converting a static method to an instance method. Removes the `static` modifier from the declaration and rewrites `Type.Method(...)` call sites to `instance.Method(...)` where an instance is reachable (local variable, field, or parameter of the correct type). Call sites with no reachable instance are warned and left unchanged.
+
+**Examples:**
+
+```bash
+rt make-instance --method OrderService.Validate --solution C:\code\libraries\ProjectX.Libraries.sln
+rt mns --method MathHelper.Compute --dry-run --solution RoslynTools.slnx
+```
+
+---
+
+### make-static
+
+_Convert an instance method to static when it has no instance-state dependencies_
+
+**Mutation** (writes files) | Plain-text output
+
+**Aliases:** `mst`
+
+**When to use:**
+
+Converting an instance method to static when it has no instance-state dependencies. Validates safety (no 'this', no instance field/property access, not virtual/override/abstract) before modifying and rewrites all call sites from instance.Method() to Type.Method().
+
+**Examples:**
+
+```bash
+rt make-static --method OrderValidator.Validate --solution C:\code\libraries\ProjectX.Libraries.sln
+rt mst --method MathHelper.Clamp --dry-run
+rt make-static --method SymbolLocator.ParseSpec --solution RoslynTools.slnx
+```
+
+---
+
+## Mutation — symbol & namespace
+
+### transform-parameters
+
+_Extract method parameters into a new record and update all call sites._
+
+**Mutation** (writes files) | Plain-text output
+
+**Aliases:** `tp`
+
+**When to use:**
+
+Introduce a Parameter Object: extract a method's parameters into a new record and update all call sites. Useful when a method has 3+ parameters that logically belong together.
+
+**Examples:**
+
+```bash
+rt transform-parameters --method OrderService.PlaceOrder --new-type PlaceOrderArgs --solution MySolution.sln
+rt tp --method BookingService.Create --new-type CreateBookingArgs --dry-run
+rt transform-parameters --method Calculator.Add --new-type AddArgs --solution RoslynTools.slnx --dry-run
 ```
 
 ---
