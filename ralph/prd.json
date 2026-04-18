@@ -132,7 +132,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: GREEN. Use SymbolFinder.FindReferencesAsync filtered to InvocationExpressionSyntax (same as FindCallersCommand). For each matching node replace MemberAccessExpressionSyntax.Name with SyntaxFactory.IdentifierName(toName)."
     },
     {
@@ -154,7 +154,7 @@
         "dotnet build RoslynTools.slnx succeeds"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: RED. ThrowIfNull was added in .NET 6 — use it. Skip value types (ITypeSymbol.IsValueType) and nullable-annotated reference types (NullableAnnotation == Annotated)."
     },
     {

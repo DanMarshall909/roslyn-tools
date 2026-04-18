@@ -3,7 +3,7 @@ roslyn-tools More Commands — Ralph Execution Progress
 Branch: ralph/more-commands
 PRD: prd.json (20 user stories)
 Date Started: 2026-04-17
-Current Status: 5/20 stories complete (25%)
+Current Status: 7/20 stories complete (35%)
 
 TDD Discipline: bound-style (BASELINE -> RED -> GREEN -> REFACTOR)
 
@@ -14,11 +14,11 @@ COMPLETED STORIES
 [x] US-003: Write safe-delete tests (RED)
 [x] US-004: Implement safe-delete command (GREEN)
 [x] US-005: Write replace-call tests (RED)
+[x] US-006: Implement replace-call command (GREEN)
+[x] US-007: Write add-null-checks tests (RED)
 
 PENDING STORIES
 ===============
-[ ] US-006: Implement replace-call command (GREEN)
-[ ] US-007: Write add-null-checks tests (RED)
 [ ] US-008: Implement add-null-checks command (GREEN)
 [ ] US-009: Write make-sealed tests (RED)
 [ ] US-010: Implement make-sealed command (GREEN)
