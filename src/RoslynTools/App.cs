@@ -30,6 +30,7 @@ internal static class App
         root.AddCommand(ReplaceCallCommand.Build());
         root.AddCommand(AddNullChecksCommand.Build());
         root.AddCommand(MakeSealedCommand.Build());
+        root.AddCommand(ConvertToRecordCommand.Build());
 
         return await root.InvokeAsync(args);
     }
