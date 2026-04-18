@@ -355,7 +355,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 16,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: GREEN. Build Dictionary<string, HashSet<string>> adjacency list. Using directives are in CompilationUnitSyntax.Usings and NamespaceDeclarationSyntax.Usings. DFS: white=unvisited, gray=in-stack, black=done. Report first cycle found per strongly-connected component."
     },
     {
@@ -376,7 +376,7 @@
         "dotnet build RoslynTools.slnx succeeds"
       ],
       "priority": 17,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: RED. Dependency graph: edges are type-to-type references (field types, method param types, base types, interface types). JSON format: { nodes: [{ id, namespace }], edges: [{ from, to }] }. DOT format: digraph { \"A\" -> \"B\"; }"
     },
     {
