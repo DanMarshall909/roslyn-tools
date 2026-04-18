@@ -2,6 +2,7 @@
 bin/
 obj/
 artifacts/
+nupkg/
 *.user
 *.suo
 *.cache

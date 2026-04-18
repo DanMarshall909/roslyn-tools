@@ -6,9 +6,18 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>rt</AssemblyName>
     <RootNamespace>RoslynTools</RootNamespace>
+    <!-- dotnet tool packaging -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>rt</ToolCommandName>
+    <PackageId>roslyn-tools-rt</PackageId>
+    <Version>1.0.0</Version>
+    <Description>Roslyn-based C# refactoring CLI (rt) — rename, move, extract, inspect and more.</Description>
+    <Authors>Dan Marshall</Authors>
+  </PropertyGroup>
+  <!-- Single-file self-contained publish profile — use: dotnet publish -c Release -r win-x64 -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
   <ItemGroup>
