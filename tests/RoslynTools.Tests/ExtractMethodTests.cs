@@ -902,6 +902,78 @@ public class ExtractMethodTests
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    //  --replace-duplicates: multiple duplicates in the same file
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task ReplaceDuplicates_TwoDuplicatesInSameFile_BothReplacedCorrectly()
+    {
+        // Regression for the multi-match-in-same-file line-drift bug uncovered when
+        // dogfooding rt extract-method --replace-duplicates against FindPatternCommand.
+        // The naive implementation computes match line numbers once up-front, then applies
+        // them in order — so after the first in-file replacement, later matches have stale
+        // line numbers and SelectStatementsInRange picks up the wrong statements (or nothing).
+        using var project = new TestProjectBuilder();
+        project.AddSource("A.cs", """
+            namespace TestApp;
+
+            public class A
+            {
+                public void Source()
+                {
+                    System.Console.WriteLine("hello");
+                    System.Console.WriteLine("world");
+                }
+
+                public void Dupe1()
+                {
+                    System.Console.WriteLine("hello");
+                    System.Console.WriteLine("world");
+                }
+
+                public void Dupe2()
+                {
+                    System.Console.WriteLine("hello");
+                    System.Console.WriteLine("world");
+                }
+            }
+            """);
+
+        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        using (workspace)
+        {
+            var newSln = await MethodExtractor.ExtractAsync(
+                sln,
+                FilePath(project, "A.cs"),
+                "PrintMessages",
+                startLine: 7,
+                endLine: 8,
+                replaceDuplicates: true);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+        }
+
+        var content = await project.ReadSourceAsync("A.cs");
+
+        // Source method has the extraction call
+        Assert.Contains("PrintMessages();", GetMethodBody(content, "Source"));
+
+        // BOTH Dupe1 and Dupe2 should have the call — this is the bug: with line-drift,
+        // one (or both) duplicates is left with stale or partial content.
+        Assert.Contains("PrintMessages();", GetMethodBody(content, "Dupe1"));
+        Assert.Contains("PrintMessages();", GetMethodBody(content, "Dupe2"));
+
+        // Original statements are gone from both duplicate methods
+        Assert.DoesNotContain("Console.WriteLine(\"hello\")", GetMethodBody(content, "Dupe1"));
+        Assert.DoesNotContain("Console.WriteLine(\"hello\")", GetMethodBody(content, "Dupe2"));
+
+        // The extracted method exists exactly once (not duplicated per match).
+        var extractedCount = System.Text.RegularExpressions.Regex.Matches(
+            content, @"private\s+void\s+PrintMessages\s*\(").Count;
+        Assert.Equal(1, extractedCount);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
     //  Helpers
     // ──────────────────────────────────────────────────────────────────────────
 

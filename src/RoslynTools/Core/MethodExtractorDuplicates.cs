@@ -35,8 +35,30 @@ internal static class MethodExtractorDuplicates
         int skipped = 0;
         var currentSln = extractedSln;
 
-        foreach (var match in matches)
+        // Process matches in an order that keeps line numbers stable as we rewrite.
+        // - Group by file so cross-file matches don't affect each other.
+        // - Within each file, apply replacements bottom-up (largest Line first) so earlier
+        //   line numbers stay correct when later ones shrink. Skip overlapping matches
+        //   within the same file — once a range is replaced, smaller start-line matches
+        //   whose end overlaps the replaced range are already consumed.
+        var orderedMatches = matches
+            .GroupBy(m => Path.GetFullPath(m.File), StringComparer.OrdinalIgnoreCase)
+            .SelectMany(g => g.OrderByDescending(m => m.Line));
+
+        var claimedRanges = new Dictionary<string, List<(int Start, int End)>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var match in orderedMatches)
         {
+            var absPath = Path.GetFullPath(match.File);
+            if (!claimedRanges.TryGetValue(absPath, out var ranges))
+                claimedRanges[absPath] = ranges = new List<(int, int)>();
+
+            if (ranges.Any(r => match.Line <= r.End && match.EndLine >= r.Start))
+            {
+                // Overlaps a range we already replaced in this file — skip silently.
+                continue;
+            }
+
             var (success, updatedSln, skipReason) = await TryReplaceMatchAsync(
                 currentSln,
                 match,
@@ -46,6 +68,7 @@ internal static class MethodExtractorDuplicates
             if (success)
             {
                 replaced++;
+                ranges.Add((match.Line, match.EndLine));
                 if (updatedSln != null)
                     currentSln = updatedSln;
             }
