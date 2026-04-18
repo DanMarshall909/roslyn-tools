@@ -31,6 +31,7 @@ dotnet publish src/RoslynTools/RoslynTools.csproj -c Release -r win-x64
 | `find-refs` | | Find all references to a symbol |
 | `find-impl` | `impls` | Find all implementations of an interface or abstract class |
 | `find-callers` | `callers` | Find all invocation sites for a method (not type refs, not `nameof`) |
+| `find-pattern` | `fp` | Find all locations structurally matching a given statement range (same SyntaxKind shape, identifiers/literals may differ) |
 | `find-unused` | `unused` | Report types and methods with zero references |
 | `inspect` | | Show type shape as JSON — members, bases, interfaces, locations |
 | `outline` | | List all types/members in a file or namespace as JSON |
@@ -62,6 +63,7 @@ dotnet publish src/RoslynTools/RoslynTools.csproj -c Release -r win-x64
 | `make-async` | `ma` | Convert a method to `async Task<T>` and update direct callers |
 | `make-sealed` | `ms` | Add `sealed` to a class if no derived types exist |
 | `make-static` | `mst` | Convert an instance method to static when it has no instance-state dependencies |
+| `make-instance` | `mns` | Remove `static` from a method and rewrite call sites to use a reachable instance |
 | `convert-to-record` | `ctr` | Convert a data class to a C# record |
 | `implement-interface` | `ii` | Add stub implementations for unimplemented interface members |
 
@@ -149,6 +151,37 @@ rt convert-to-record --type Money --solution MySolution.sln [--dry-run]
 rt implement-interface --type Repo --interface IRepository --solution MySolution.sln [--dry-run]
 # Adds 'throw new NotImplementedException()' stubs for all unimplemented members
 ```
+
+### find-pattern
+
+Find every place in the solution that structurally matches a given range of statements. The match is purely structural — same `SyntaxKind` tree shape — so different variable names and literal values are allowed.
+
+```sh
+# Find all code that structurally matches lines 42–50 of BookingService.cs
+rt find-pattern --file src/Services/BookingService.cs --start-line 42 --end-line 50 --solution MySolution.sln
+
+# Narrow to a specific namespace
+rt fp --file src/Services/BookingService.cs --start-line 42 --end-line 50 \
+  --scope MyApp.Services --solution MySolution.sln
+```
+
+Output (JSON to stdout):
+
+```json
+{
+  "matches": [
+    {
+      "file": "src/Services/PaymentService.cs",
+      "line": 88,
+      "endLine": 96,
+      "substitutions": { "booking": "payment", "bookingId": "paymentId" },
+      "preview": "var result = _repo.Get(payment);"
+    }
+  ]
+}
+```
+
+Use `--scope <namespace-prefix>` to restrict results to documents in a specific namespace or project.
 
 ### circular-deps
 
