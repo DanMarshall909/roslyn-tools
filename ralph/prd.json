@@ -45,7 +45,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: GREEN. Build a parameter-to-argument substitution map from the call site. Use CSharpSyntaxRewriter to replace IdentifierNameSyntax nodes matching parameter names within the inlined body. Collect all call-site spans BEFORE rewriting (stale-node pattern from MakeAsyncCommand). Use DocumentEditor to remove method after rewriting call sites."
     },
     {
@@ -67,7 +67,7 @@
         "dotnet build RoslynTools.slnx succeeds"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Phase: RED. safe-delete is the safer counterpart to manual delete — it guards against deleting referenced symbols. Reuses SymbolFinder.FindReferencesAsync from FindUnusedCommand."
     },
     {
