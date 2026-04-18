@@ -35,31 +35,7 @@ internal static class ConvertToRecordCommand
         {
             var originalSolution = sln;
 
-            // Find the class symbol
-            INamedTypeSymbol? classSymbol = null;
-            DocumentId? docId = null;
-
-            foreach (var project in sln.Projects)
-            {
-                var compilation = await project.GetCompilationAsync();
-                if (compilation == null) continue;
-
-                foreach (var symbol in compilation.GetSymbolsWithName(typeName, SymbolFilter.Type))
-                {
-                    if (symbol is INamedTypeSymbol namedType &&
-                        namedType.TypeKind == TypeKind.Class &&
-                        namedType.Name == typeName)
-                    {
-                        classSymbol = namedType;
-                        break;
-                    }
-                }
-
-                if (classSymbol != null) break;
-            }
-
-            if (classSymbol == null)
-                throw new InvalidOperationException($"Class '{typeName}' not found in solution.");
+            var classSymbol = await FindClassSymbolAsync(sln, typeName);
 
             if (classSymbol.IsRecord)
             {
@@ -67,94 +43,23 @@ internal static class ConvertToRecordCommand
                 return;
             }
 
-            // Locate the syntax reference
-            var syntaxRef = classSymbol.DeclaringSyntaxReferences.FirstOrDefault();
-            if (syntaxRef == null)
-                throw new InvalidOperationException($"No source declaration found for '{typeName}'.");
+            var syntaxRef = classSymbol.DeclaringSyntaxReferences.FirstOrDefault()
+                ?? throw new InvalidOperationException($"No source declaration found for '{typeName}'.");
 
             var classSyntax = (ClassDeclarationSyntax)await syntaxRef.GetSyntaxAsync();
 
-            // Find the document
-            var location = classSymbol.Locations.FirstOrDefault(l => l.IsInSource);
-            if (location == null)
-                throw new InvalidOperationException($"No source location found for '{typeName}'.");
+            var docId = FindDocumentId(sln, classSymbol)
+                ?? throw new InvalidOperationException("Cannot locate source document for the target class.");
 
-            foreach (var project in sln.Projects)
-            {
-                foreach (var doc in project.Documents)
-                {
-                    if (doc.FilePath != null &&
-                        string.Equals(doc.FilePath, location.SourceTree?.FilePath, StringComparison.OrdinalIgnoreCase))
-                    {
-                        docId = doc.Id;
-                        break;
-                    }
-                }
-                if (docId != null) break;
-            }
+            var (initProps, remainingMembers) = CollectMembers(typeName, classSyntax);
 
-            if (docId == null)
-                throw new InvalidOperationException("Cannot locate source document for the target class.");
-
-            // Partition members: init-only props (become positional params) vs remaining
-            var allMembers = classSyntax.Members;
-
-            var initProps = allMembers
-                .OfType<PropertyDeclarationSyntax>()
-                .Where(IsInitOnlyAutoProperty)
-                .ToList();
-
-            var mutableProps = allMembers
-                .OfType<PropertyDeclarationSyntax>()
-                .Where(p => !IsInitOnlyAutoProperty(p) && IsMutableAutoProperty(p))
-                .ToList();
-
-            if (mutableProps.Count > 0)
-            {
-                var names = string.Join(", ", mutableProps.Select(p => p.Identifier.Text));
-                Console.Error.WriteLine(
-                    $"WARNING: '{typeName}' has mutable auto-properties ({names}). " +
-                    "They will remain as regular properties in the record body.");
-            }
-
-            // Members to remove: init-only props + Equals/GetHashCode/==/!= overrides
-            var membersToRemove = new HashSet<MemberDeclarationSyntax>(
-                initProps.Cast<MemberDeclarationSyntax>());
-
-            foreach (var member in allMembers)
-            {
-                if (member is MethodDeclarationSyntax method)
-                {
-                    if ((method.Identifier.Text == "Equals" || method.Identifier.Text == "GetHashCode") &&
-                        method.Modifiers.Any(m => m.IsKind(SyntaxKind.OverrideKeyword)))
-                    {
-                        membersToRemove.Add(member);
-                    }
-                }
-                else if (member is OperatorDeclarationSyntax op)
-                {
-                    var kind = op.OperatorToken.Kind();
-                    if (kind == SyntaxKind.EqualsEqualsToken || kind == SyntaxKind.ExclamationEqualsToken)
-                        membersToRemove.Add(member);
-                }
-            }
-
-            var remainingMembers = allMembers
-                .Where(m => !membersToRemove.Contains(m))
-                .ToList();
-
-            // Build positional parameter list from init-only props
             var parameters = BuildParameterList(initProps);
-
-            // Build the record declaration
             var recordDecl = BuildRecordDeclaration(classSyntax, parameters, remainingMembers);
 
-            // Replace the class node in the document root
             var document = sln.GetDocument(docId)!;
             var root = (await document.GetSyntaxRootAsync())!;
-            var oldNode = root.FindNode(syntaxRef.Span) as ClassDeclarationSyntax;
-            if (oldNode == null)
-                throw new InvalidOperationException("Cannot locate class syntax node in document.");
+            var oldNode = root.FindNode(syntaxRef.Span) as ClassDeclarationSyntax
+                ?? throw new InvalidOperationException("Cannot locate class syntax node in document.");
 
             root = root.ReplaceNode(oldNode, recordDecl);
             sln = sln.WithDocumentSyntaxRoot(docId, root);
@@ -162,6 +67,94 @@ internal static class ConvertToRecordCommand
             Console.Error.WriteLine($"Converting '{typeName}' to a positional record...");
             await SolutionWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
         }
+    }
+
+    private static async Task<INamedTypeSymbol> FindClassSymbolAsync(Solution sln, string typeName)
+    {
+        foreach (var project in sln.Projects)
+        {
+            var compilation = await project.GetCompilationAsync();
+            if (compilation == null) continue;
+
+            foreach (var symbol in compilation.GetSymbolsWithName(typeName, SymbolFilter.Type))
+            {
+                if (symbol is INamedTypeSymbol namedType &&
+                    namedType.TypeKind == TypeKind.Class &&
+                    namedType.Name == typeName)
+                {
+                    return namedType;
+                }
+            }
+        }
+
+        throw new InvalidOperationException($"Class '{typeName}' not found in solution.");
+    }
+
+    private static DocumentId? FindDocumentId(Solution sln, INamedTypeSymbol classSymbol)
+    {
+        var location = classSymbol.Locations.FirstOrDefault(l => l.IsInSource);
+        if (location == null) return null;
+
+        foreach (var project in sln.Projects)
+        {
+            foreach (var doc in project.Documents)
+            {
+                if (doc.FilePath != null &&
+                    string.Equals(doc.FilePath, location.SourceTree?.FilePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    return doc.Id;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static (List<PropertyDeclarationSyntax> InitProps, List<MemberDeclarationSyntax> RemainingMembers)
+        CollectMembers(string typeName, ClassDeclarationSyntax classSyntax)
+    {
+        var allMembers = classSyntax.Members;
+
+        var initProps = allMembers
+            .OfType<PropertyDeclarationSyntax>()
+            .Where(IsInitOnlyAutoProperty)
+            .ToList();
+
+        var mutableProps = allMembers
+            .OfType<PropertyDeclarationSyntax>()
+            .Where(p => !IsInitOnlyAutoProperty(p) && IsMutableAutoProperty(p))
+            .ToList();
+
+        if (mutableProps.Count > 0)
+        {
+            var names = string.Join(", ", mutableProps.Select(p => p.Identifier.Text));
+            Console.Error.WriteLine(
+                $"WARNING: '{typeName}' has mutable auto-properties ({names}). " +
+                "They will remain as regular properties in the record body.");
+        }
+
+        var membersToRemove = new HashSet<MemberDeclarationSyntax>(initProps.Cast<MemberDeclarationSyntax>());
+
+        foreach (var member in allMembers)
+        {
+            if (member is MethodDeclarationSyntax method)
+            {
+                if ((method.Identifier.Text == "Equals" || method.Identifier.Text == "GetHashCode") &&
+                    method.Modifiers.Any(m => m.IsKind(SyntaxKind.OverrideKeyword)))
+                {
+                    membersToRemove.Add(member);
+                }
+            }
+            else if (member is OperatorDeclarationSyntax op)
+            {
+                var kind = op.OperatorToken.Kind();
+                if (kind == SyntaxKind.EqualsEqualsToken || kind == SyntaxKind.ExclamationEqualsToken)
+                    membersToRemove.Add(member);
+            }
+        }
+
+        var remainingMembers = allMembers.Where(m => !membersToRemove.Contains(m)).ToList();
+        return (initProps, remainingMembers);
     }
 
     private static bool IsInitOnlyAutoProperty(PropertyDeclarationSyntax prop)
