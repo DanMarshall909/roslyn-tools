@@ -1,27 +1,13 @@
-roslyn-tools New Commands — Ralph Execution Progress
-=====================================================
-Branch: ralph/new-commands
-PRD: prd.json (16 user stories)
+roslyn-tools Lint Fixes — Ralph Execution Progress
+====================================================
+Branch: ralph/lint-fixes
+PRD: prd.json (2 user stories)
 Date Started: 2026-04-17
-Current Status: 16/16 stories complete (100%)
+Current Status: 2/2 stories complete (100%)
 
-TDD Discipline: bound-style (BASELINE -> RED -> GREEN)
+TDD Discipline: bound-style (GREEN — lint fixes, no RED phase)
 
 COMPLETED STORIES
 =================
-[x] US-001: Write find-callers tests (RED)
-[x] US-002: Implement find-callers command (GREEN)
-[x] US-003: Write list-smells tests (RED)
-[x] US-004: Implement list-smells command (GREEN)
-[x] US-005: Write extract-interface tests (RED)
-[x] US-006: Implement extract-interface command (GREEN)
-[x] US-007: Write fix-namespace tests (RED)
-[x] US-008: Implement fix-namespace command (GREEN)
-[x] US-009: Write add-dependency tests (RED)
-[x] US-010: Implement add-dependency command (GREEN)
-[x] US-011: Write find-unused tests (RED)
-[x] US-012: Implement find-unused command (GREEN)
-[x] US-013: Write extract-class tests (RED)
-[x] US-014: Implement extract-class command (GREEN)
-[x] US-015: Write make-async tests (RED)
-[x] US-016: Implement make-async command (GREEN)
+[x] US-001: Fix CS1998, CA1826, CA1859, CA1512 in production code
+[x] US-002: Fix CA1816 GC.SuppressFinalize in test Dispose methods
