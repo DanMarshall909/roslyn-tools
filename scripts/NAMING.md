@@ -30,15 +30,3 @@ Source: [C:\code\ai-rules\skills\refactor-rules.md](../../ai-rules/skills/refact
 | `Generating_a_dependency_graph` | `Depth_limit` | Noun fragment — "Generating a dependency graph depth limit" is not a sentence |
 | `Renaming_a_symbol` | `Apply_changes_added_document_dry_run_does_not_write_file` | Compound predicate that reads as two concatenated sentences |
 | `Adding_a_dependency` | `# REVIEW (long): ...` | Generator flagged for manual rewrite |
-
-## REVIEW markers
-
-`scripts/test-renames.csv` uses two markers to flag rows the mechanical generator
-can't make read as a sentence:
-
-- `# REVIEW (long): ...` — target_name has more than six words; usually a compound
-  predicate that needs splitting or simplifying.
-- `# REVIEW (no-verb): ...` — target_name contains no recognised verb; can't form
-  a predicate.
-
-`scripts/rename-tests.ps1 -Apply` refuses to run while any `# REVIEW` row remains.
