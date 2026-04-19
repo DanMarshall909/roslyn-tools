@@ -2,10 +2,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class TransformParametersTests
 {
-    private static string FilePath(TestProjectBuilder project, string relativePath)
+    private static string FilePath(AdhocProjectBuilder project, string relativePath)
         => Path.Combine(project.ProjectDir, relativePath);
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -15,7 +14,7 @@ public class TransformParametersTests
     [Fact]
     public async Task Simple3ParamMethod_GeneratesRecord_RewritesSignatureAndCallSite()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("OrderService.cs", """
             namespace TestApp;
 
@@ -40,8 +39,7 @@ public class TransformParametersTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             await TransformParametersCore.RunAsync(sln, "OrderService.PlaceOrder", "PlaceOrderArgs", null, dryRun: false);
@@ -72,7 +70,7 @@ public class TransformParametersTests
     [Fact]
     public async Task DefaultValue_PreservedInRecord()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Greeter.cs", """
             namespace TestApp;
 
@@ -86,8 +84,7 @@ public class TransformParametersTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             await TransformParametersCore.RunAsync(sln, "Greeter.Greet", "GreetArgs", null, dryRun: false);
@@ -107,7 +104,7 @@ public class TransformParametersTests
     [Fact]
     public async Task OutParam_ThrowsWithClearMessage()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Parser.cs", """
             namespace TestApp;
 
@@ -121,8 +118,7 @@ public class TransformParametersTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -136,7 +132,7 @@ public class TransformParametersTests
     [Fact]
     public async Task RefParam_ThrowsWithClearMessage()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Modifier.cs", """
             namespace TestApp;
 
@@ -149,8 +145,7 @@ public class TransformParametersTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -167,7 +162,7 @@ public class TransformParametersTests
     [Fact]
     public async Task MultipleCallSites_AllUpdated()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
             namespace TestApp;
 
@@ -202,8 +197,7 @@ public class TransformParametersTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             await TransformParametersCore.RunAsync(sln, "Calculator.Add", "AddArgs", null, dryRun: false);
@@ -231,7 +225,7 @@ public class TransformParametersTests
     [Fact]
     public async Task DryRun_DoesNotModifyFiles()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
             namespace TestApp;
 
@@ -244,10 +238,8 @@ public class TransformParametersTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = project.Build();
         var originalContent = await project.ReadSourceAsync("Service.cs");
-
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
         using (workspace)
         {
             await TransformParametersCore.RunAsync(sln, "Service.Execute", "ExecuteArgs", null, dryRun: true);
@@ -264,7 +256,7 @@ public class TransformParametersTests
     [Fact]
     public async Task MethodNotFound_Throws()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Dummy.cs", """
             namespace TestApp;
 
@@ -274,8 +266,7 @@ public class TransformParametersTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -290,7 +281,7 @@ public class TransformParametersTests
     [Fact]
     public async Task NoParameters_Throws()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Empty.cs", """
             namespace TestApp;
 
@@ -300,8 +291,7 @@ public class TransformParametersTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -318,15 +308,14 @@ public class TransformParametersTests
     [Fact]
     public async Task InvalidMethodSpec_Throws()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Stub.cs", """
             namespace TestApp;
 
             public class Stub { }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -343,7 +332,7 @@ public class TransformParametersTests
     [Fact]
     public async Task ExistingRecord_MatchingParams_RewritesCallSitePositionally()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("OrderArgs.cs", """
             namespace TestApp;
 
@@ -373,8 +362,7 @@ public class TransformParametersTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             await TransformParametersCore.RunAsync(sln, "OrderService.PlaceOrder", null, "TestApp.OrderArgs", dryRun: false);
@@ -402,7 +390,7 @@ public class TransformParametersTests
     [Fact]
     public async Task ExistingClass_MatchingProperties_RewritesCallSiteWithObjectInitializer()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("SearchArgs.cs", """
             namespace TestApp;
 
@@ -436,8 +424,7 @@ public class TransformParametersTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             await TransformParametersCore.RunAsync(sln, "SearchService.Search", null, "TestApp.SearchArgs", dryRun: false);
@@ -463,7 +450,7 @@ public class TransformParametersTests
     [Fact]
     public async Task ExistingType_MissingProperty_ThrowsWithMissingNames()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("IncompleteArgs.cs", """
             namespace TestApp;
 
@@ -485,8 +472,7 @@ public class TransformParametersTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -505,7 +491,7 @@ public class TransformParametersTests
     [Fact]
     public async Task ExistingType_PartialMatch_ThrowsListingMissingNames()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("PartialArgs.cs", """
             namespace TestApp;
 
@@ -520,8 +506,7 @@ public class TransformParametersTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -540,7 +525,7 @@ public class TransformParametersTests
     [Fact]
     public async Task BothNewTypeAndExistingType_ThrowsMutualExclusionError()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("BothFlagsService.cs", """
             namespace TestApp;
 
@@ -550,8 +535,7 @@ public class TransformParametersTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -568,7 +552,7 @@ public class TransformParametersTests
     [Fact]
     public async Task NeitherNewTypeNorExistingType_ThrowsError()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("NeitherService.cs", """
             namespace TestApp;
 
@@ -578,8 +562,7 @@ public class TransformParametersTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>

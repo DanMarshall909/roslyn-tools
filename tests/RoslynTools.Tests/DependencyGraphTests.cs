@@ -4,7 +4,6 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class DependencyGraphTests
 {
     /// <summary>
@@ -13,9 +12,9 @@ public class DependencyGraphTests
     ///   B has no dependencies
     ///   C depends on A and B
     /// </summary>
-    private static TestProjectBuilder BuildGraphProject()
+    private static AdhocProjectBuilder BuildGraphProject()
     {
-        var proj = new TestProjectBuilder("GraphApp");
+        var proj = new AdhocProjectBuilder("GraphApp");
         proj.AddSource("Types.cs", """
             class A { B _b; }
             class B { }
@@ -32,8 +31,7 @@ public class DependencyGraphTests
     public async Task DependencyGraph_JsonOutput_HasNodes()
     {
         using var proj = BuildGraphProject();
-        var slnPath = await proj.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = proj.Build();
         using (workspace)
         {
             var json = await DependencyGraphCommand.BuildGraphAsync(sln, typeName: null, depth: null, format: "json", scope: null);
@@ -58,8 +56,7 @@ public class DependencyGraphTests
     public async Task DependencyGraph_JsonOutput_HasEdges()
     {
         using var proj = BuildGraphProject();
-        var slnPath = await proj.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = proj.Build();
         using (workspace)
         {
             var json = await DependencyGraphCommand.BuildGraphAsync(sln, typeName: null, depth: null, format: "json", scope: null);
@@ -85,8 +82,7 @@ public class DependencyGraphTests
     public async Task DependencyGraph_DotOutput_ValidFormat()
     {
         using var proj = BuildGraphProject();
-        var slnPath = await proj.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = proj.Build();
         using (workspace)
         {
             var dot = await DependencyGraphCommand.BuildGraphAsync(sln, typeName: null, depth: null, format: "dot", scope: null);
@@ -104,8 +100,7 @@ public class DependencyGraphTests
     public async Task DependencyGraph_DepthLimit()
     {
         using var proj = BuildGraphProject();
-        var slnPath = await proj.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = proj.Build();
         using (workspace)
         {
             var json = await DependencyGraphCommand.BuildGraphAsync(sln, typeName: "A", depth: 1, format: "json", scope: null);

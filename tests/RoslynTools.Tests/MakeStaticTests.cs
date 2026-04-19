@@ -1,8 +1,8 @@
 using RoslynTools.Commands;
+using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class MakeStaticTests
 {
     // ──────────────────────────────────────────────────────────────────────────
@@ -12,15 +12,16 @@ public class MakeStaticTests
     [Fact]
     public async Task MakeStatic_CleanMethod_AddsStaticModifier()
     {
-        using var proj = new TestProjectBuilder("StaticApp");
+        using var proj = new AdhocProjectBuilder("StaticApp");
         proj.AddSource("Calc.cs", """
             class Calc {
                 public int Add(int a, int b) { return a + b; }
             }
             """);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
-        await MakeStaticCommand.ExecuteAsync("Calc.Add", slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await MakeStaticCommand.ExecuteAsync("Calc.Add", "ignored", dryRun: false);
 
         var content = await proj.ReadSourceAsync("Calc.cs");
         Assert.Contains("public static int Add", content);
@@ -33,19 +34,20 @@ public class MakeStaticTests
     [Fact]
     public async Task MakeStatic_ThisUsage_Rejected()
     {
-        using var proj = new TestProjectBuilder("StaticApp");
+        using var proj = new AdhocProjectBuilder("StaticApp");
         proj.AddSource("Service.cs", """
             class Service {
                 private int _value = 0;
                 public int GetValue() { return this._value; }
             }
             """);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
         var stderr = new System.IO.StringWriter();
         Console.SetError(stderr);
 
-        await MakeStaticCommand.ExecuteAsync("Service.GetValue", slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await MakeStaticCommand.ExecuteAsync("Service.GetValue", "ignored", dryRun: false);
 
         var output = stderr.ToString();
         Assert.Contains("this", output);
@@ -63,19 +65,20 @@ public class MakeStaticTests
     [Fact]
     public async Task MakeStatic_InstanceFieldUsage_Rejected()
     {
-        using var proj = new TestProjectBuilder("StaticApp");
+        using var proj = new AdhocProjectBuilder("StaticApp");
         proj.AddSource("Repo.cs", """
             class Repo {
                 private int _count;
                 public int GetCount() { return _count; }
             }
             """);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
         var stderr = new System.IO.StringWriter();
         Console.SetError(stderr);
 
-        await MakeStaticCommand.ExecuteAsync("Repo.GetCount", slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await MakeStaticCommand.ExecuteAsync("Repo.GetCount", "ignored", dryRun: false);
 
         var output = stderr.ToString();
         Assert.Contains("instance member", output);
@@ -93,18 +96,19 @@ public class MakeStaticTests
     [Fact]
     public async Task MakeStatic_VirtualMethod_Rejected()
     {
-        using var proj = new TestProjectBuilder("StaticApp");
+        using var proj = new AdhocProjectBuilder("StaticApp");
         proj.AddSource("Base.cs", """
             class Base {
                 public virtual string Describe() { return "base"; }
             }
             """);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
         var stderr = new System.IO.StringWriter();
         Console.SetError(stderr);
 
-        await MakeStaticCommand.ExecuteAsync("Base.Describe", slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await MakeStaticCommand.ExecuteAsync("Base.Describe", "ignored", dryRun: false);
 
         var output = stderr.ToString();
         Assert.Contains("virtual", output);
@@ -121,7 +125,7 @@ public class MakeStaticTests
     [Fact]
     public async Task MakeStatic_CallSites_RewrittenToTypeName()
     {
-        using var proj = new TestProjectBuilder("StaticApp");
+        using var proj = new AdhocProjectBuilder("StaticApp");
         proj.AddSource("Helper.cs", """
             class Helper {
                 public string Format(string s) { return s.Trim(); }
@@ -135,9 +139,10 @@ public class MakeStaticTests
                 }
             }
             """);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
-        await MakeStaticCommand.ExecuteAsync("Helper.Format", slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await MakeStaticCommand.ExecuteAsync("Helper.Format", "ignored", dryRun: false);
 
         var helperContent = await proj.ReadSourceAsync("Helper.cs");
         Assert.Contains("public static string Format", helperContent);
@@ -154,13 +159,13 @@ public class MakeStaticTests
     [Fact]
     public async Task MakeStatic_DryRun_NoWrites()
     {
-        using var proj = new TestProjectBuilder("StaticApp");
+        using var proj = new AdhocProjectBuilder("StaticApp");
         proj.AddSource("Util.cs", """
             class Util {
                 public int Square(int x) { return x * x; }
             }
             """);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
         var before = await proj.ReadSourceAsync("Util.cs");
 
@@ -169,7 +174,7 @@ public class MakeStaticTests
         Console.SetOut(sw);
         try
         {
-            await MakeStaticCommand.ExecuteAsync("Util.Square", slnPath, dryRun: true);
+            using (WorkspaceLoader.UseOverride(workspace, sln)) await MakeStaticCommand.ExecuteAsync("Util.Square", "ignored", dryRun: true);
         }
         finally
         {

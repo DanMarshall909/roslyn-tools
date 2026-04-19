@@ -4,13 +4,12 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class FindRefsTests
 {
     [Fact]
     public async Task Finds_References_To_Type_Across_Files()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Model.cs", """
             namespace TestApp;
 
@@ -44,8 +43,7 @@ public class FindRefsTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.Invoice", "type");
@@ -69,7 +67,7 @@ public class FindRefsTests
     [Fact]
     public async Task Finds_References_To_Method()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("App.cs", """
             namespace TestApp;
 
@@ -89,8 +87,7 @@ public class FindRefsTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.MathHelper.Square", "method");
@@ -104,7 +101,7 @@ public class FindRefsTests
     [Fact]
     public async Task Unreferenced_Symbol_Returns_No_Locations()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Unused.cs", """
             namespace TestApp;
 
@@ -114,8 +111,7 @@ public class FindRefsTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.NeverUsed", "type");

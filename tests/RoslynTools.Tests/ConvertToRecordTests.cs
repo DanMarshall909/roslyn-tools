@@ -1,8 +1,8 @@
 using RoslynTools.Commands;
+using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class ConvertToRecordTests
 {
     private const string RecordAppSource = """
@@ -22,11 +22,12 @@ public class ConvertToRecordTests
     [Fact]
     public async Task ConvertToRecord_ClassBecomesRecord()
     {
-        using var proj = new TestProjectBuilder("RecordApp");
+        using var proj = new AdhocProjectBuilder("RecordApp");
         proj.AddSource("Types.cs", RecordAppSource);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
-        await ConvertToRecordCommand.ExecuteAsync("Point", slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await ConvertToRecordCommand.ExecuteAsync("Point", "ignored", dryRun: false);
 
         var content = await proj.ReadSourceAsync("Types.cs");
         Assert.Contains("record Point", content);
@@ -40,11 +41,12 @@ public class ConvertToRecordTests
     [Fact]
     public async Task ConvertToRecord_InitPropsBecomePrimaryParams()
     {
-        using var proj = new TestProjectBuilder("RecordApp");
+        using var proj = new AdhocProjectBuilder("RecordApp");
         proj.AddSource("Types.cs", RecordAppSource);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
-        await ConvertToRecordCommand.ExecuteAsync("Point", slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await ConvertToRecordCommand.ExecuteAsync("Point", "ignored", dryRun: false);
 
         var content = await proj.ReadSourceAsync("Types.cs");
         // Positional record syntax: record Point(int X, int Y)
@@ -59,11 +61,12 @@ public class ConvertToRecordTests
     [Fact]
     public async Task ConvertToRecord_ExplicitEqualsRemoved()
     {
-        using var proj = new TestProjectBuilder("RecordApp");
+        using var proj = new AdhocProjectBuilder("RecordApp");
         proj.AddSource("Types.cs", RecordAppSource);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
-        await ConvertToRecordCommand.ExecuteAsync("WithEquals", slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await ConvertToRecordCommand.ExecuteAsync("WithEquals", "ignored", dryRun: false);
 
         var content = await proj.ReadSourceAsync("Types.cs");
         Assert.DoesNotContain("override bool Equals", content);
@@ -77,9 +80,9 @@ public class ConvertToRecordTests
     [Fact]
     public async Task ConvertToRecord_MutablePropsWarnButConvert()
     {
-        using var proj = new TestProjectBuilder("RecordApp");
+        using var proj = new AdhocProjectBuilder("RecordApp");
         proj.AddSource("Types.cs", RecordAppSource);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
         // Capture stderr to verify warning
         var originalError = Console.Error;
@@ -87,7 +90,7 @@ public class ConvertToRecordTests
         Console.SetError(errorCapture);
         try
         {
-            await ConvertToRecordCommand.ExecuteAsync("WithMutableProp", slnPath, dryRun: false);
+            using (WorkspaceLoader.UseOverride(workspace, sln)) await ConvertToRecordCommand.ExecuteAsync("WithMutableProp", "ignored", dryRun: false);
         }
         finally
         {
@@ -108,13 +111,14 @@ public class ConvertToRecordTests
     [Fact]
     public async Task ConvertToRecord_DryRun_NoWrites()
     {
-        using var proj = new TestProjectBuilder("RecordApp");
+        using var proj = new AdhocProjectBuilder("RecordApp");
         proj.AddSource("Types.cs", RecordAppSource);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
         var before = await proj.ReadSourceAsync("Types.cs");
 
-        await ConvertToRecordCommand.ExecuteAsync("Point", slnPath, dryRun: true);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await ConvertToRecordCommand.ExecuteAsync("Point", "ignored", dryRun: true);
 
         var after = await proj.ReadSourceAsync("Types.cs");
         Assert.Equal(before, after);

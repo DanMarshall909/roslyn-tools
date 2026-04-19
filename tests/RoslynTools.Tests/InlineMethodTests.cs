@@ -1,8 +1,8 @@
 using RoslynTools.Commands;
+using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class InlineMethodTests
 {
     private const string MathHelperSource = """
@@ -26,11 +26,12 @@ public class InlineMethodTests
     [Fact]
     public async Task InlineMethod_SingleExpressionBody_ReplacedAtCallSite()
     {
-        using var project = new TestProjectBuilder("MathApp");
+        using var project = new AdhocProjectBuilder("MathApp");
         project.AddSource("MathHelper.cs", MathHelperSource);
-        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = project.Build();
 
-        await InlineMethodCommand.ExecuteAsync("MathHelper", "Double", slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await InlineMethodCommand.ExecuteAsync("MathHelper", "Double", "ignored", dryRun: false);
 
         var content = await project.ReadSourceAsync("MathHelper.cs");
         Assert.Contains("var a = 5 * 2;", content);
@@ -40,7 +41,7 @@ public class InlineMethodTests
     [Fact]
     public async Task InlineMethod_BlockBodySingleReturn_InlinedCorrectly()
     {
-        using var project = new TestProjectBuilder("MathApp");
+        using var project = new AdhocProjectBuilder("MathApp");
         project.AddSource("MathHelper.cs", """
             namespace MathApp;
 
@@ -57,9 +58,10 @@ public class InlineMethodTests
                 }
             }
             """);
-        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = project.Build();
 
-        await InlineMethodCommand.ExecuteAsync("MathHelper", "Triple", slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await InlineMethodCommand.ExecuteAsync("MathHelper", "Triple", "ignored", dryRun: false);
 
         var content = await project.ReadSourceAsync("MathHelper.cs");
         Assert.Contains("4 * 3", content);
@@ -68,11 +70,12 @@ public class InlineMethodTests
     [Fact]
     public async Task InlineMethod_MethodDeletedAfterInlining()
     {
-        using var project = new TestProjectBuilder("MathApp");
+        using var project = new AdhocProjectBuilder("MathApp");
         project.AddSource("MathHelper.cs", MathHelperSource);
-        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = project.Build();
 
-        await InlineMethodCommand.ExecuteAsync("MathHelper", "Double", slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await InlineMethodCommand.ExecuteAsync("MathHelper", "Double", "ignored", dryRun: false);
 
         var content = await project.ReadSourceAsync("MathHelper.cs");
         Assert.DoesNotContain("public int Double(", content);
@@ -81,7 +84,7 @@ public class InlineMethodTests
     [Fact]
     public async Task InlineMethod_MultipleCallSites_AllInlined()
     {
-        using var project = new TestProjectBuilder("MathApp");
+        using var project = new AdhocProjectBuilder("MathApp");
         project.AddSource("MathHelper.cs", """
             namespace MathApp;
 
@@ -100,9 +103,10 @@ public class InlineMethodTests
                 }
             }
             """);
-        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = project.Build();
 
-        await InlineMethodCommand.ExecuteAsync("MathHelper", "Square", slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await InlineMethodCommand.ExecuteAsync("MathHelper", "Square", "ignored", dryRun: false);
 
         var content = await project.ReadSourceAsync("MathHelper.cs");
         Assert.Contains("2 * 2", content);
@@ -114,13 +118,14 @@ public class InlineMethodTests
     [Fact]
     public async Task InlineMethod_DryRun_NoWrites()
     {
-        using var project = new TestProjectBuilder("MathApp");
+        using var project = new AdhocProjectBuilder("MathApp");
         project.AddSource("MathHelper.cs", MathHelperSource);
-        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = project.Build();
 
         var originalContent = await project.ReadSourceAsync("MathHelper.cs");
 
-        await InlineMethodCommand.ExecuteAsync("MathHelper", "Double", slnPath, dryRun: true);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await InlineMethodCommand.ExecuteAsync("MathHelper", "Double", "ignored", dryRun: true);
 
         var afterContent = await project.ReadSourceAsync("MathHelper.cs");
         Assert.Equal(originalContent, afterContent);

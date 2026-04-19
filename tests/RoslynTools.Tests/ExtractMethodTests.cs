@@ -2,10 +2,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class ExtractMethodTests
 {
-    private static string FilePath(TestProjectBuilder project, string relativePath)
+    private static string FilePath(AdhocProjectBuilder project, string relativePath)
         => Path.Combine(project.ProjectDir, relativePath);
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -15,7 +14,7 @@ public class ExtractMethodTests
     [Fact]
     public async Task Void_NoVariables_ExtractsStatementsToNewMethod()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
             namespace TestApp;
 
@@ -30,8 +29,7 @@ public class ExtractMethodTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var newSln = await MethodExtractor.ExtractAsync(
@@ -57,7 +55,7 @@ public class ExtractMethodTests
     [Fact]
     public async Task WithParameters_FlowsIn_AddsParamsInFirstUseOrder()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
             namespace TestApp;
 
@@ -71,8 +69,7 @@ public class ExtractMethodTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var newSln = await MethodExtractor.ExtractAsync(
@@ -97,7 +94,7 @@ public class ExtractMethodTests
     [Fact]
     public async Task WithReturnValue_SingleVar_ReturnsCorrectType()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
             namespace TestApp;
 
@@ -112,8 +109,7 @@ public class ExtractMethodTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             // Extract lines 7-8: the two sum statements
@@ -139,7 +135,7 @@ public class ExtractMethodTests
     [Fact]
     public async Task InnerVariable_NotUsedOutside_IsNotReturned()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
             namespace TestApp;
 
@@ -154,8 +150,7 @@ public class ExtractMethodTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             // Extract lines 7-8: temp and result computed; only result used after
@@ -182,7 +177,7 @@ public class ExtractMethodTests
     [Fact]
     public async Task TupleReturn_MultipleFlowsOut_GeneratesTuple()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
             namespace TestApp;
 
@@ -198,8 +193,7 @@ public class ExtractMethodTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             // Extract lines 7-8: a and b computed; both used after
@@ -227,7 +221,7 @@ public class ExtractMethodTests
     [Fact]
     public async Task StaticContainingMethod_ExtractedMethodIsAlsoStatic()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("MathUtil.cs", """
             namespace TestApp;
 
@@ -241,8 +235,7 @@ public class ExtractMethodTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var newSln = await MethodExtractor.ExtractAsync(
@@ -266,7 +259,7 @@ public class ExtractMethodTests
     [Fact]
     public async Task Placement_Default_AppearsAfterContainingMethod()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("MyClass.cs", """
             namespace TestApp;
 
@@ -284,8 +277,7 @@ public class ExtractMethodTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var newSln = await MethodExtractor.ExtractAsync(
@@ -314,7 +306,7 @@ public class ExtractMethodTests
     [Fact]
     public async Task Placement_AfterNamed_AppearsAfterSpecifiedMember()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("MyClass.cs", """
             namespace TestApp;
 
@@ -332,8 +324,7 @@ public class ExtractMethodTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var newSln = await MethodExtractor.ExtractAsync(
@@ -359,7 +350,7 @@ public class ExtractMethodTests
     [Fact]
     public async Task Placement_BeforeNamed_AppearsBeforeSpecifiedMember()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("MyClass.cs", """
             namespace TestApp;
 
@@ -377,8 +368,7 @@ public class ExtractMethodTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var newSln = await MethodExtractor.ExtractAsync(
@@ -404,7 +394,7 @@ public class ExtractMethodTests
     [Fact]
     public async Task DryRun_DoesNotModifyFiles()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
             namespace TestApp;
 
@@ -419,10 +409,8 @@ public class ExtractMethodTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = project.Build();
         var originalContent = await project.ReadSourceAsync("Calculator.cs");
-
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
         using (workspace)
         {
             var newSln = await MethodExtractor.ExtractAsync(
@@ -445,7 +433,7 @@ public class ExtractMethodTests
     [Fact]
     public async Task Error_EmptyRange_Throws()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
             namespace TestApp;
 
@@ -458,8 +446,7 @@ public class ExtractMethodTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -479,7 +466,7 @@ public class ExtractMethodTests
     [Fact]
     public async Task Error_AnchorNotFound_Throws()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
             namespace TestApp;
 
@@ -493,8 +480,7 @@ public class ExtractMethodTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -515,7 +501,7 @@ public class ExtractMethodTests
     [Fact]
     public async Task GeneratedMethod_UsesLF_NotCRLF()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
             namespace TestApp;
 
@@ -530,8 +516,7 @@ public class ExtractMethodTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var newSln = await MethodExtractor.ExtractAsync(
@@ -555,7 +540,7 @@ public class ExtractMethodTests
     [Fact]
     public async Task Error_StartLineZero_Throws()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
             namespace TestApp;
 
@@ -568,8 +553,7 @@ public class ExtractMethodTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
@@ -585,7 +569,7 @@ public class ExtractMethodTests
     [Fact]
     public async Task Error_EndLineBeforeStartLine_Throws()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
             namespace TestApp;
 
@@ -598,8 +582,7 @@ public class ExtractMethodTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
@@ -619,7 +602,7 @@ public class ExtractMethodTests
     [Fact]
     public async Task ReplaceDuplicates_ExactCrossFileDuplicate_FilesBothUpdated()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         // File A: contains the extraction target
         project.AddSource("A.cs", """
             namespace TestApp;
@@ -647,8 +630,7 @@ public class ExtractMethodTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var newSln = await MethodExtractor.ExtractAsync(
@@ -681,7 +663,7 @@ public class ExtractMethodTests
     [Fact]
     public async Task ReplaceDuplicates_IdentifierRenamedDuplicate_ReplacedWithCorrectArgs()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
             namespace TestApp;
 
@@ -708,8 +690,7 @@ public class ExtractMethodTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var newSln = await MethodExtractor.ExtractAsync(
@@ -742,7 +723,7 @@ public class ExtractMethodTests
     [Fact]
     public async Task ReplaceDuplicates_NoDuplicatesFound_ExtractionStillSucceeds()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
             namespace TestApp;
 
@@ -757,8 +738,7 @@ public class ExtractMethodTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             // replaceDuplicates: true but there is only one occurrence of this body
@@ -786,7 +766,7 @@ public class ExtractMethodTests
     [Fact]
     public async Task ReplaceDuplicates_DryRun_NoFilesWritten()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
             namespace TestApp;
 
@@ -812,11 +792,9 @@ public class ExtractMethodTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = project.Build();
         var originalA = await project.ReadSourceAsync("A.cs");
         var originalB = await project.ReadSourceAsync("B.cs");
-
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
         using (workspace)
         {
             var newSln = await MethodExtractor.ExtractAsync(
@@ -848,7 +826,7 @@ public class ExtractMethodTests
         // other site has a literal 42 where `x` was, so the structural kinds differ and
         // PatternMatcher won't report it as a match at all — the replace-duplicates flag
         // becomes a no-op (0 matches), which is the correct safe behaviour.
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
             namespace TestApp;
 
@@ -875,8 +853,7 @@ public class ExtractMethodTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             // Should succeed without exception — B's literal site is not matched
@@ -913,7 +890,7 @@ public class ExtractMethodTests
         // The naive implementation computes match line numbers once up-front, then applies
         // them in order — so after the first in-file replacement, later matches have stale
         // line numbers and SelectStatementsInRange picks up the wrong statements (or nothing).
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
             namespace TestApp;
 
@@ -939,8 +916,7 @@ public class ExtractMethodTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var newSln = await MethodExtractor.ExtractAsync(

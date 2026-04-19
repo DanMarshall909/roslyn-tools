@@ -1,8 +1,8 @@
 using RoslynTools.Commands;
+using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class MakeAsyncTests
 {
     private const string AgentServiceSource = """
@@ -32,11 +32,12 @@ public class MakeAsyncTests
     [Fact]
     public async Task MakeAsync_MethodRenamedWithAsync()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("AgentService.cs", AgentServiceSource);
-        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = project.Build();
 
-        await MakeAsyncCommand.ExecuteAsync("AgentService", "GetAgent", noRename: false, slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await MakeAsyncCommand.ExecuteAsync("AgentService", "GetAgent", noRename: false, "ignored", dryRun: false);
 
         var content = await project.ReadSourceAsync("AgentService.cs");
         Assert.Contains("GetAgentAsync", content);
@@ -46,11 +47,12 @@ public class MakeAsyncTests
     [Fact]
     public async Task MakeAsync_ReturnTypeWrapped()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("AgentService.cs", AgentServiceSource);
-        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = project.Build();
 
-        await MakeAsyncCommand.ExecuteAsync("AgentService", "GetAgent", noRename: false, slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await MakeAsyncCommand.ExecuteAsync("AgentService", "GetAgent", noRename: false, "ignored", dryRun: false);
 
         var content = await project.ReadSourceAsync("AgentService.cs");
         Assert.Contains("Task<string>", content);
@@ -60,11 +62,12 @@ public class MakeAsyncTests
     [Fact]
     public async Task MakeAsync_AsyncKeywordAdded()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("AgentService.cs", AgentServiceSource);
-        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = project.Build();
 
-        await MakeAsyncCommand.ExecuteAsync("AgentService", "GetAgent", noRename: false, slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await MakeAsyncCommand.ExecuteAsync("AgentService", "GetAgent", noRename: false, "ignored", dryRun: false);
 
         var content = await project.ReadSourceAsync("AgentService.cs");
         Assert.Matches(@"async\s+Task<string>\s+GetAgentAsync", content);
@@ -73,11 +76,12 @@ public class MakeAsyncTests
     [Fact]
     public async Task MakeAsync_DirectCallerUpdated()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("AgentService.cs", AgentServiceSource);
-        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = project.Build();
 
-        await MakeAsyncCommand.ExecuteAsync("AgentService", "GetAgent", noRename: false, slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await MakeAsyncCommand.ExecuteAsync("AgentService", "GetAgent", noRename: false, "ignored", dryRun: false);
 
         var content = await project.ReadSourceAsync("AgentService.cs");
         Assert.Contains("await _svc.GetAgentAsync(", content);
@@ -86,13 +90,14 @@ public class MakeAsyncTests
     [Fact]
     public async Task MakeAsync_AlreadyAsync_NoOp()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("AgentService.cs", AgentServiceSource);
-        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = project.Build();
 
         var originalContent = await project.ReadSourceAsync("AgentService.cs");
 
-        await MakeAsyncCommand.ExecuteAsync("AgentService", "AlreadyAsyncMethod", noRename: false, slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await MakeAsyncCommand.ExecuteAsync("AgentService", "AlreadyAsyncMethod", noRename: false, "ignored", dryRun: false);
 
         var afterContent = await project.ReadSourceAsync("AgentService.cs");
         Assert.Equal(originalContent, afterContent);

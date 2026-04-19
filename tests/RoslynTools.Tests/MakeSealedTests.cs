@@ -1,8 +1,8 @@
 using RoslynTools.Commands;
+using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class MakeSealedTests
 {
     private const string SealAppSource = """
@@ -20,11 +20,12 @@ public class MakeSealedTests
     [Fact]
     public async Task MakeSealed_NoDerivedTypes_AddsSealedKeyword()
     {
-        using var proj = new TestProjectBuilder("SealApp");
+        using var proj = new AdhocProjectBuilder("SealApp");
         proj.AddSource("Types.cs", SealAppSource);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
-        await MakeSealedCommand.ExecuteAsync("Standalone", slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await MakeSealedCommand.ExecuteAsync("Standalone", "ignored", dryRun: false);
 
         var content = await proj.ReadSourceAsync("Types.cs");
         Assert.Contains("sealed class Standalone", content);
@@ -37,14 +38,17 @@ public class MakeSealedTests
     [Fact]
     public async Task MakeSealed_HasDerivedType_Rejected()
     {
-        using var proj = new TestProjectBuilder("SealApp");
+        using var proj = new AdhocProjectBuilder("SealApp");
         proj.AddSource("Types.cs", SealAppSource);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => MakeSealedCommand.ExecuteAsync("Animal", slnPath, dryRun: false));
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => MakeSealedCommand.ExecuteAsync("Animal", "ignored", dryRun: false));
 
-        Assert.Contains("Dog", ex.Message);
+            Assert.Contains("Dog", ex.Message);
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -54,14 +58,14 @@ public class MakeSealedTests
     [Fact]
     public async Task MakeSealed_AbstractClass_Skipped()
     {
-        using var proj = new TestProjectBuilder("SealApp");
+        using var proj = new AdhocProjectBuilder("SealApp");
         proj.AddSource("Types.cs", SealAppSource);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
         var before = await proj.ReadSourceAsync("Types.cs");
 
         // Should not throw — just skip
-        await MakeSealedCommand.ExecuteAsync("Shape", slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln)) await MakeSealedCommand.ExecuteAsync("Shape", "ignored", dryRun: false);
 
         var after = await proj.ReadSourceAsync("Types.cs");
         Assert.Equal(before, after);
@@ -74,13 +78,14 @@ public class MakeSealedTests
     [Fact]
     public async Task MakeSealed_AlreadySealed_NoOp()
     {
-        using var proj = new TestProjectBuilder("SealApp");
+        using var proj = new AdhocProjectBuilder("SealApp");
         proj.AddSource("Types.cs", SealAppSource);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
         var before = await proj.ReadSourceAsync("Types.cs");
 
-        await MakeSealedCommand.ExecuteAsync("Circle", slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await MakeSealedCommand.ExecuteAsync("Circle", "ignored", dryRun: false);
 
         var after = await proj.ReadSourceAsync("Types.cs");
         Assert.Equal(before, after);
@@ -93,13 +98,14 @@ public class MakeSealedTests
     [Fact]
     public async Task MakeSealed_DryRun_NoWrites()
     {
-        using var proj = new TestProjectBuilder("SealApp");
+        using var proj = new AdhocProjectBuilder("SealApp");
         proj.AddSource("Types.cs", SealAppSource);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
         var before = await proj.ReadSourceAsync("Types.cs");
 
-        await MakeSealedCommand.ExecuteAsync("Standalone", slnPath, dryRun: true);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await MakeSealedCommand.ExecuteAsync("Standalone", "ignored", dryRun: true);
 
         var after = await proj.ReadSourceAsync("Types.cs");
         Assert.Equal(before, after);

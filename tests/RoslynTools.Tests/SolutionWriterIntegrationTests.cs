@@ -3,13 +3,12 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class SolutionWriterIntegrationTests
 {
     [Fact]
     public async Task ApplyChanges_AddedDocument_WritesNewFile()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
             namespace TestProject;
             public class Calculator
@@ -18,8 +17,7 @@ public class SolutionWriterIntegrationTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var roslynProject = sln.Projects.First();
@@ -42,7 +40,7 @@ public class SolutionWriterIntegrationTests
     [Fact]
     public async Task ApplyChanges_AddedDocument_DryRun_DoesNotWriteFile()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
             namespace TestProject;
             public class Calculator
@@ -51,8 +49,7 @@ public class SolutionWriterIntegrationTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var roslynProject = sln.Projects.First();

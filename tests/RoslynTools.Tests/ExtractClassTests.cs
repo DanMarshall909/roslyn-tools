@@ -1,13 +1,13 @@
 using RoslynTools.Commands;
+using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class ExtractClassTests
 {
-    private static TestProjectBuilder BuildFixture()
+    private static AdhocProjectBuilder BuildFixture()
     {
-        var project = new TestProjectBuilder("MyApp");
+        var project = new AdhocProjectBuilder("MyApp");
         project.AddSource("BigService.cs", """
             namespace MyApp;
 
@@ -32,14 +32,15 @@ public class ExtractClassTests
     public async Task ExtractClass_CreatesNewFile()
     {
         using var project = BuildFixture();
-        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = project.Build();
 
-        await ExtractClassCommand.ExecuteAsync(
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await ExtractClassCommand.ExecuteAsync(
             typeName: "BigService",
             members: "LogInfo",
             newTypeName: "LogHelper",
             isStatic: false,
-            solutionPath: slnPath,
+            solutionPath: "ignored",
             outputDir: null,
             dryRun: false);
 
@@ -51,14 +52,15 @@ public class ExtractClassTests
     public async Task ExtractClass_ExtractedMembersAbsentFromSource()
     {
         using var project = BuildFixture();
-        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = project.Build();
 
-        await ExtractClassCommand.ExecuteAsync(
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await ExtractClassCommand.ExecuteAsync(
             typeName: "BigService",
             members: "LogInfo",
             newTypeName: "LogHelper",
             isStatic: false,
-            solutionPath: slnPath,
+            solutionPath: "ignored",
             outputDir: null,
             dryRun: false);
 
@@ -70,14 +72,15 @@ public class ExtractClassTests
     public async Task ExtractClass_SourceReceivesInjectedField()
     {
         using var project = BuildFixture();
-        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = project.Build();
 
-        await ExtractClassCommand.ExecuteAsync(
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await ExtractClassCommand.ExecuteAsync(
             typeName: "BigService",
             members: "LogInfo",
             newTypeName: "LogHelper",
             isStatic: false,
-            solutionPath: slnPath,
+            solutionPath: "ignored",
             outputDir: null,
             dryRun: false);
 
@@ -89,14 +92,15 @@ public class ExtractClassTests
     public async Task ExtractClass_StaticFlag_NoInjection()
     {
         using var project = BuildFixture();
-        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = project.Build();
 
-        await ExtractClassCommand.ExecuteAsync(
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await ExtractClassCommand.ExecuteAsync(
             typeName: "BigService",
             members: "LogInfo",
             newTypeName: "LogHelper",
             isStatic: true,
-            solutionPath: slnPath,
+            solutionPath: "ignored",
             outputDir: null,
             dryRun: false);
 
@@ -111,14 +115,15 @@ public class ExtractClassTests
     public async Task ExtractClass_DryRun_NoWrites()
     {
         using var project = BuildFixture();
-        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = project.Build();
 
-        await ExtractClassCommand.ExecuteAsync(
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await ExtractClassCommand.ExecuteAsync(
             typeName: "BigService",
             members: "LogInfo",
             newTypeName: "LogHelper",
             isStatic: false,
-            solutionPath: slnPath,
+            solutionPath: "ignored",
             outputDir: null,
             dryRun: true);
 

@@ -5,13 +5,12 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class MoveTests
 {
     [Fact]
     public async Task Move_Single_Type_Updates_Namespace_Declaration()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Model.cs", """
             namespace TestApp.OldNamespace;
 
@@ -31,8 +30,7 @@ public class MoveTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             // Rewrite namespace declaration
@@ -60,7 +58,7 @@ public class MoveTests
     [Fact]
     public async Task Move_Namespace_Batch_Rewrites_All_Types()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("ModelsA.cs", """
             namespace TestApp.Legacy;
 
@@ -90,8 +88,7 @@ public class MoveTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             // Batch rewrite: change all "TestApp.Legacy" -> "TestApp.Domain"
@@ -128,7 +125,7 @@ public class MoveTests
     [Fact]
     public async Task Move_DryRun_Does_Not_Modify_Files()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Target.cs", """
             namespace TestApp.Old;
 
@@ -138,10 +135,8 @@ public class MoveTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = project.Build();
         var original = await project.ReadSourceAsync("Target.cs");
-
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
         using (workspace)
         {
             var sym = await SymbolLocator.FindTypeByFqnAsync(sln, "TestApp.Old.Thing");

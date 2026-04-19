@@ -50,45 +50,50 @@ internal sealed class AddDependencyCommand : IRtCommand
         var (workspace, solution) = await WorkspaceLoader.LoadAsync(solutionPath);
         using (workspace)
         {
-            var originalSolution = solution;
-            var resolvedField = fieldName ?? DeriveFieldName(depType);
-            var paramName = resolvedField.TrimStart('_');
-
-            bool found = false;
-            foreach (var project in solution.Projects)
-            {
-                foreach (var doc in project.Documents)
-                {
-                    if (doc.FilePath == null) continue;
-
-                    var root = await doc.GetSyntaxRootAsync();
-                    if (root == null) continue;
-
-                    var hasTarget = root.DescendantNodes()
-                        .OfType<ClassDeclarationSyntax>()
-                        .Any(c => c.Identifier.Text == typeName);
-
-                    if (!hasTarget) continue;
-
-                    var injector = new DependencyInjector(typeName, depType, resolvedField, paramName);
-                    var newRoot = injector.Visit(root);
-
-                    if (!injector.Applied) continue;
-
-                    solution = solution.WithDocumentSyntaxRoot(doc.Id, newRoot);
-                    found = true;
-                }
-            }
-
-            if (!found)
-            {
-                Console.Error.WriteLine($"Class '{typeName}' not found in solution.");
-                return;
-            }
-
-            await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
-            Console.Error.WriteLine($"Injected {depType} into {typeName}.");
+            await ExecuteCoreAsync(solution, typeName, depType, fieldName, dryRun);
         }
+    }
+
+    internal static async Task ExecuteCoreAsync(Solution solution, string typeName, string depType, string? fieldName, bool dryRun)
+    {
+        var originalSolution = solution;
+        var resolvedField = fieldName ?? DeriveFieldName(depType);
+        var paramName = resolvedField.TrimStart('_');
+
+        bool found = false;
+        foreach (var project in solution.Projects)
+        {
+            foreach (var doc in project.Documents)
+            {
+                if (doc.FilePath == null) continue;
+
+                var root = await doc.GetSyntaxRootAsync();
+                if (root == null) continue;
+
+                var hasTarget = root.DescendantNodes()
+                    .OfType<ClassDeclarationSyntax>()
+                    .Any(c => c.Identifier.Text == typeName);
+
+                if (!hasTarget) continue;
+
+                var injector = new DependencyInjector(typeName, depType, resolvedField, paramName);
+                var newRoot = injector.Visit(root);
+
+                if (!injector.Applied) continue;
+
+                solution = solution.WithDocumentSyntaxRoot(doc.Id, newRoot);
+                found = true;
+            }
+        }
+
+        if (!found)
+        {
+            Console.Error.WriteLine($"Class '{typeName}' not found in solution.");
+            return;
+        }
+
+        await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
+        Console.Error.WriteLine($"Injected {depType} into {typeName}.");
     }
 
     // ──────────────────────────────────────────────────────────────────────────

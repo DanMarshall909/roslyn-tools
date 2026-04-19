@@ -4,13 +4,12 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class FindImplementationsTests
 {
     [Fact]
     public async Task Finds_All_Interface_Implementations()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Contracts.cs", """
             namespace TestApp;
 
@@ -44,8 +43,7 @@ public class FindImplementationsTests
             public class UnrelatedService { }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var iface = await SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.IRepository", "type");
@@ -64,7 +62,7 @@ public class FindImplementationsTests
     [Fact]
     public async Task Finds_Derived_Classes_Of_Abstract_Base()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Types.cs", """
             namespace TestApp;
 
@@ -86,8 +84,7 @@ public class FindImplementationsTests
             public class StandaloneService { }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var baseType = await SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.BaseHandler", "type");
@@ -106,7 +103,7 @@ public class FindImplementationsTests
     [Fact]
     public async Task Interface_With_No_Implementations_Returns_Empty()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Lonely.cs", """
             namespace TestApp;
 
@@ -116,8 +113,7 @@ public class FindImplementationsTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var iface = await SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.IUnimplemented", "type");

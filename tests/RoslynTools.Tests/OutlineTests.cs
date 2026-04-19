@@ -3,13 +3,12 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class OutlineTests
 {
     [Fact]
     public async Task Outline_File_Lists_All_Types()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Domain.cs", """
             namespace TestApp.Domain;
 
@@ -35,8 +34,7 @@ public class OutlineTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var types = await GetTypesInFileAsync(sln, Path.Combine(project.ProjectDir, "Domain.cs"));
@@ -52,7 +50,7 @@ public class OutlineTests
     [Fact]
     public async Task Outline_File_Includes_Members()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
             namespace TestApp;
 
@@ -71,8 +69,7 @@ public class OutlineTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var types = await GetTypesInFileAsync(sln, Path.Combine(project.ProjectDir, "Service.cs"));
@@ -94,7 +91,7 @@ public class OutlineTests
     [Fact]
     public async Task Outline_Namespace_Finds_Types_Across_Files()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("FileA.cs", """
             namespace TestApp.Models;
 
@@ -119,8 +116,7 @@ public class OutlineTests
             public class ProductService { }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var types = await GetTypesInNamespaceAsync(sln, "TestApp.Models");

@@ -6,14 +6,13 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class FindUnusedTests
 {
 
     [Fact]
     public async Task FindUnused_ReportsUnreferencedMethod()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Services.cs", """
             using System;
 
@@ -37,8 +36,7 @@ public class FindUnusedTests
 
             public class UnusedClass { }  // never referenced
             """);
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var results = await FindUnusedCore.AnalyzeAsync(sln, "all");
@@ -50,7 +48,7 @@ public class FindUnusedTests
     [Fact]
     public async Task FindUnused_DoesNotReportReferencedMethod()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Services.cs", """
             using System;
 
@@ -74,8 +72,7 @@ public class FindUnusedTests
 
             public class UnusedClass { }  // never referenced
             """);
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var results = await FindUnusedCore.AnalyzeAsync(sln, "all");
@@ -87,7 +84,7 @@ public class FindUnusedTests
     [Fact]
     public async Task FindUnused_ExcludesSerializationAttributedTypes()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Services.cs", """
             using System;
 
@@ -111,8 +108,7 @@ public class FindUnusedTests
 
             public class UnusedClass { }  // never referenced
             """);
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var results = await FindUnusedCore.AnalyzeAsync(sln, "all");
@@ -124,7 +120,7 @@ public class FindUnusedTests
     [Fact]
     public async Task FindUnused_ScopeMethods_OnlyReportsMethods()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Services.cs", """
             using System;
 
@@ -148,8 +144,7 @@ public class FindUnusedTests
 
             public class UnusedClass { }  // never referenced
             """);
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var results = await FindUnusedCore.AnalyzeAsync(sln, "methods");

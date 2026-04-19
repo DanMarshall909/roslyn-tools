@@ -4,13 +4,12 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class RenameTests
 {
     [Fact]
     public async Task Rename_Type_Updates_Declaration_And_References()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Model.cs", """
             namespace TestApp;
 
@@ -30,8 +29,7 @@ public class RenameTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.Product", "type");
@@ -44,18 +42,15 @@ public class RenameTests
 
             var newSln = await Renamer.RenameSymbolAsync(sln, sym, options, "Item");
 
-            // Apply changes to disk (not dry-run)
             await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
         }
 
-        // Verify files on disk were updated
         var modelContent = await project.ReadSourceAsync("Model.cs");
         Assert.Contains("public class Item", modelContent);
         Assert.DoesNotContain("class Product", modelContent);
 
         var serviceContent = await project.ReadSourceAsync("Service.cs");
         Assert.Contains("Item", serviceContent);
-        // "Product" class was renamed to "Item", but "ProductService" class name stays
         Assert.DoesNotContain("new Product()", serviceContent);
         Assert.Contains("new Item()", serviceContent);
     }
@@ -63,7 +58,7 @@ public class RenameTests
     [Fact]
     public async Task Rename_Method_Updates_All_Call_Sites()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Util.cs", """
             namespace TestApp;
 
@@ -85,8 +80,7 @@ public class RenameTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.StringHelper.Sanitize", "method");
@@ -112,7 +106,7 @@ public class RenameTests
     [Fact]
     public async Task Rename_DryRun_Does_Not_Modify_Files()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Original.cs", """
             namespace TestApp;
 
@@ -122,10 +116,9 @@ public class RenameTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = project.Build();
         var originalContent = await project.ReadSourceAsync("Original.cs");
 
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
         using (workspace)
         {
             var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.Foo", "type");

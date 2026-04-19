@@ -1,4 +1,5 @@
 - 2026-04-17: Replace Console.Error.WriteLine with ILogger across multiple partial controller files — rt has no general pattern-replace command (only replace-datetime is supported)
+- 2026-04-19: `rt find-refs --symbol TestProjectBuilder --solution RoslynTools.slnx` and `rt inspect RoslynTools.Tests.TestProjectBuilder --solution RoslynTools.slnx` — both crashed with `InvalidProjectFileException: No file format header found`. Fallback to `--solution RoslynTools.sln` worked. Gap: `WorkspaceLoader.ResolveSolutionPath` auto-detect skips `.slnx` silently, but when an explicit `--solution foo.slnx` is passed, MSBuildWorkspace throws deep in the stack with a misleading message. Fix: short-circuit in `WorkspaceLoader.LoadAsync` — if path ends in `.slnx`, fail fast with a clear error ("MSBuildWorkspace does not support .slnx; pass the equivalent .sln"). The docs/COMMANDS.md and CLAUDE.md dogfood matrix both show `--solution RoslynTools.slnx` which will now fail for any user following them.
 
 ## dependency-graph gap (2026-04-18)
 

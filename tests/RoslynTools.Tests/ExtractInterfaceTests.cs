@@ -3,13 +3,12 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class ExtractInterfaceTests
 {
     [Fact]
     public async Task ExtractInterface_CreatesInterfaceFile()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("AgentService.cs", """
             namespace MyApp.Services;
 
@@ -20,11 +19,12 @@ public class ExtractInterfaceTests
                 private void Helper() { }
             }
             """);
-        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = project.Build();
 
-        await ExtractInterfaceCommand.ExecuteAsync(
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await ExtractInterfaceCommand.ExecuteAsync(
             typeName: "AgentService",
-            solutionPath: slnPath,
+            solutionPath: "ignored",
             outputDir: null,
             ns: null,
             dryRun: false);
@@ -36,7 +36,7 @@ public class ExtractInterfaceTests
     [Fact]
     public async Task ExtractInterface_InterfaceContainsPublicMembersOnly()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("AgentService.cs", """
             namespace MyApp.Services;
 
@@ -47,11 +47,12 @@ public class ExtractInterfaceTests
                 private void Helper() { }
             }
             """);
-        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = project.Build();
 
-        await ExtractInterfaceCommand.ExecuteAsync(
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await ExtractInterfaceCommand.ExecuteAsync(
             typeName: "AgentService",
-            solutionPath: slnPath,
+            solutionPath: "ignored",
             outputDir: null,
             ns: null,
             dryRun: false);
@@ -65,7 +66,7 @@ public class ExtractInterfaceTests
     [Fact]
     public async Task ExtractInterface_ClassUpdatedToImplementInterface()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("AgentService.cs", """
             namespace MyApp.Services;
 
@@ -76,11 +77,12 @@ public class ExtractInterfaceTests
                 private void Helper() { }
             }
             """);
-        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = project.Build();
 
-        await ExtractInterfaceCommand.ExecuteAsync(
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await ExtractInterfaceCommand.ExecuteAsync(
             typeName: "AgentService",
-            solutionPath: slnPath,
+            solutionPath: "ignored",
             outputDir: null,
             ns: null,
             dryRun: false);
@@ -92,7 +94,7 @@ public class ExtractInterfaceTests
     [Fact]
     public async Task ExtractInterface_DryRun_NoFileWritten()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("AgentService.cs", """
             namespace MyApp.Services;
 
@@ -103,11 +105,12 @@ public class ExtractInterfaceTests
                 private void Helper() { }
             }
             """);
-        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = project.Build();
 
-        await ExtractInterfaceCommand.ExecuteAsync(
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await ExtractInterfaceCommand.ExecuteAsync(
             typeName: "AgentService",
-            solutionPath: slnPath,
+            solutionPath: "ignored",
             outputDir: null,
             ns: null,
             dryRun: true);

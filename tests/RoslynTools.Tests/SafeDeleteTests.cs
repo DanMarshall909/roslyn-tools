@@ -1,8 +1,9 @@
+using Microsoft.CodeAnalysis;
 using RoslynTools.Commands;
+using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class SafeDeleteTests
 {
     private const string SafeAppSource = """
@@ -20,21 +21,22 @@ public class SafeDeleteTests
         }
         """;
 
-    private static async Task<(TestProjectBuilder project, string slnPath)> BuildFixtureAsync()
+    private static (AdhocProjectBuilder Project, Workspace Workspace, Solution Solution) BuildFixture()
     {
-        var project = new TestProjectBuilder("SafeApp");
+        var project = new AdhocProjectBuilder("SafeApp");
         project.AddSource("SafeApp.cs", SafeAppSource);
-        var slnPath = await project.BuildAsync();
-        return (project, slnPath);
+        var (workspace, sln) = project.Build();
+        return (project, workspace, sln);
     }
 
     [Fact]
     public async Task SafeDelete_UnreferencedType_Deleted()
     {
-        var (project, slnPath) = await BuildFixtureAsync();
+        var (project, workspace, sln) = BuildFixture();
         using (project)
+        using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await SafeDeleteCommand.ExecuteAsync("Orphan", kind: null, solutionPath: slnPath, dryRun: false);
+            await SafeDeleteCommand.ExecuteAsync("Orphan", kind: null, solutionPath: "ignored", dryRun: false);
 
             var content = await project.ReadSourceAsync("SafeApp.cs");
             Assert.DoesNotContain("class Orphan", content);
@@ -44,11 +46,12 @@ public class SafeDeleteTests
     [Fact]
     public async Task SafeDelete_ReferencedType_Rejected()
     {
-        var (project, slnPath) = await BuildFixtureAsync();
+        var (project, workspace, sln) = BuildFixture();
         using (project)
+        using (WorkspaceLoader.UseOverride(workspace, sln))
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-                () => SafeDeleteCommand.ExecuteAsync("Used", kind: null, solutionPath: slnPath, dryRun: false));
+                () => SafeDeleteCommand.ExecuteAsync("Used", kind: null, solutionPath: "ignored", dryRun: false));
 
             Assert.Contains("Used", ex.Message);
         }
@@ -57,10 +60,11 @@ public class SafeDeleteTests
     [Fact]
     public async Task SafeDelete_UnreferencedMethod_Deleted()
     {
-        var (project, slnPath) = await BuildFixtureAsync();
+        var (project, workspace, sln) = BuildFixture();
         using (project)
+        using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await SafeDeleteCommand.ExecuteAsync("Svc.Dead", kind: "method", solutionPath: slnPath, dryRun: false);
+            await SafeDeleteCommand.ExecuteAsync("Svc.Dead", kind: "method", solutionPath: "ignored", dryRun: false);
 
             var content = await project.ReadSourceAsync("SafeApp.cs");
             Assert.DoesNotContain("void Dead()", content);
@@ -71,11 +75,12 @@ public class SafeDeleteTests
     [Fact]
     public async Task SafeDelete_ReferencedMethod_Rejected()
     {
-        var (project, slnPath) = await BuildFixtureAsync();
+        var (project, workspace, sln) = BuildFixture();
         using (project)
+        using (WorkspaceLoader.UseOverride(workspace, sln))
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-                () => SafeDeleteCommand.ExecuteAsync("Svc.Live", kind: "method", solutionPath: slnPath, dryRun: false));
+                () => SafeDeleteCommand.ExecuteAsync("Svc.Live", kind: "method", solutionPath: "ignored", dryRun: false));
 
             Assert.Contains("Live", ex.Message);
         }
@@ -84,13 +89,13 @@ public class SafeDeleteTests
     [Fact]
     public async Task SafeDelete_DryRun_NoWrites()
     {
-        var (project, slnPath) = await BuildFixtureAsync();
+        var (project, workspace, sln) = BuildFixture();
         using (project)
+        using (WorkspaceLoader.UseOverride(workspace, sln))
         {
             var originalContent = await project.ReadSourceAsync("SafeApp.cs");
 
-            // Dry-run on an unreferenced type — should not throw, should not write
-            await SafeDeleteCommand.ExecuteAsync("Orphan", kind: null, solutionPath: slnPath, dryRun: true);
+            await SafeDeleteCommand.ExecuteAsync("Orphan", kind: null, solutionPath: "ignored", dryRun: true);
 
             var afterContent = await project.ReadSourceAsync("SafeApp.cs");
             Assert.Equal(originalContent, afterContent);

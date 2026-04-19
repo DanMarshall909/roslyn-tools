@@ -3,10 +3,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class SymbolFormatterTests : IDisposable
 {
-    private readonly TestProjectBuilder _project = new();
+    private readonly AdhocProjectBuilder _project = new();
 
     public void Dispose()
     {
@@ -41,8 +40,7 @@ public class SymbolFormatterTests : IDisposable
     private async Task<INamedTypeSymbol> LoadCircleSymbolAsync()
     {
         _project.AddSource("Shapes.cs", SharedSource);
-        var slnPath = await _project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = _project.Build();
         // Workspace is intentionally not disposed here; caller is responsible via the IDisposable chain.
         // In these tests we rely on GC / test teardown — acceptable for integration tests against throwaway dirs.
         var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.Circle", "type");
@@ -113,8 +111,7 @@ public class SymbolFormatterTests : IDisposable
     {
         // BaseShape extends System.Object directly — baseType should be omitted.
         _project.AddSource("Shapes.cs", SharedSource);
-        var slnPath = await _project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = _project.Build();
         var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.BaseShape", "type");
         var baseShapeType = Assert.IsAssignableFrom<INamedTypeSymbol>(sym);
 

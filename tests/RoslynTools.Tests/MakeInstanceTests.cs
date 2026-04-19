@@ -1,8 +1,8 @@
 using RoslynTools.Commands;
+using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class MakeInstanceTests
 {
     // ── 1. Call site with reachable local variable ────────────────────────────
@@ -28,11 +28,12 @@ public class MakeInstanceTests
             }
             """;
 
-        using var proj = new TestProjectBuilder("App");
+        using var proj = new AdhocProjectBuilder("App");
         proj.AddSource("Calc.cs", source);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
-        await MakeInstanceCommand.ExecuteAsync("Calculator.Add", slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await MakeInstanceCommand.ExecuteAsync("Calculator.Add", "ignored", dryRun: false);
 
         var content = await proj.ReadSourceAsync("Calc.cs");
         // Static modifier removed
@@ -67,11 +68,12 @@ public class MakeInstanceTests
             }
             """;
 
-        using var proj = new TestProjectBuilder("App");
+        using var proj = new AdhocProjectBuilder("App");
         proj.AddSource("Fmt.cs", source);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
-        await MakeInstanceCommand.ExecuteAsync("Formatter.Format", slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await MakeInstanceCommand.ExecuteAsync("Formatter.Format", "ignored", dryRun: false);
 
         var content = await proj.ReadSourceAsync("Fmt.cs");
         Assert.DoesNotContain("public static string Format", content);
@@ -102,13 +104,14 @@ public class MakeInstanceTests
             }
             """;
 
-        using var proj = new TestProjectBuilder("App");
+        using var proj = new AdhocProjectBuilder("App");
         proj.AddSource("Parser.cs", source);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
         var before = await proj.ReadSourceAsync("Parser.cs");
 
-        await MakeInstanceCommand.ExecuteAsync("Parser.Parse", slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await MakeInstanceCommand.ExecuteAsync("Parser.Parse", "ignored", dryRun: false);
 
         var after = await proj.ReadSourceAsync("Parser.cs");
 
@@ -139,11 +142,12 @@ public class MakeInstanceTests
             }
             """;
 
-        using var proj = new TestProjectBuilder("App");
+        using var proj = new AdhocProjectBuilder("App");
         proj.AddSource("Service.cs", source);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
-        await MakeInstanceCommand.ExecuteAsync("Service.Sanitize", slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await MakeInstanceCommand.ExecuteAsync("Service.Sanitize", "ignored", dryRun: false);
 
         var content = await proj.ReadSourceAsync("Service.cs");
         Assert.DoesNotContain("public static string Sanitize", content);
@@ -171,11 +175,12 @@ public class MakeInstanceTests
             }
             """;
 
-        using var proj = new TestProjectBuilder("App");
+        using var proj = new AdhocProjectBuilder("App");
         proj.AddSource("Helper.cs", source);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
-        await MakeInstanceCommand.ExecuteAsync("Helper.Double", slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await MakeInstanceCommand.ExecuteAsync("Helper.Double", "ignored", dryRun: false);
 
         var content = await proj.ReadSourceAsync("Helper.cs");
         // Declaration updated
@@ -208,13 +213,14 @@ public class MakeInstanceTests
             }
             """;
 
-        using var proj = new TestProjectBuilder("App");
+        using var proj = new AdhocProjectBuilder("App");
         proj.AddSource("Greeter.cs", source);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
         var before = await proj.ReadSourceAsync("Greeter.cs");
 
-        await MakeInstanceCommand.ExecuteAsync("Greeter.Hello", slnPath, dryRun: true);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await MakeInstanceCommand.ExecuteAsync("Greeter.Hello", "ignored", dryRun: true);
 
         var after = await proj.ReadSourceAsync("Greeter.cs");
         Assert.Equal(before, after);
@@ -248,12 +254,13 @@ public class MakeInstanceTests
             }
             """;
 
-        using var proj = new TestProjectBuilder("App");
+        using var proj = new AdhocProjectBuilder("App");
         proj.AddSource("MathUtil.cs", helperSource);
         proj.AddSource("Processor.cs", callerSource);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
-        await MakeInstanceCommand.ExecuteAsync("MathUtil.Square", slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await MakeInstanceCommand.ExecuteAsync("MathUtil.Square", "ignored", dryRun: false);
 
         var utilContent = await proj.ReadSourceAsync("MathUtil.cs");
         Assert.DoesNotContain("public static int Square", utilContent);

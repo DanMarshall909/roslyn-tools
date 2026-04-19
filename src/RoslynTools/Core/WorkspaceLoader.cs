@@ -5,8 +5,31 @@ namespace RoslynTools.Core;
 
 internal static class WorkspaceLoader
 {
-    internal static async Task<(MSBuildWorkspace Workspace, Solution Solution)> LoadAsync(string? solutionPath)
+    /// <summary>
+    /// Test hook: if set, <see cref="LoadAsync"/> returns this pair instead of opening MSBuild.
+    /// AsyncLocal so parallel xunit test methods don't clobber each other. Never read or written by production code.
+    /// </summary>
+    internal static AsyncLocal<(Workspace Workspace, Solution Solution)?> Override { get; } = new();
+
+    /// <summary>
+    /// Test-only scope: installs an override for the duration of the returned IDisposable, then clears it.
+    /// </summary>
+    internal static IDisposable UseOverride(Workspace workspace, Solution solution)
     {
+        Override.Value = (workspace, solution);
+        return new OverrideScope();
+    }
+
+    private sealed class OverrideScope : IDisposable
+    {
+        public void Dispose() => Override.Value = null;
+    }
+
+    internal static async Task<(Workspace Workspace, Solution Solution)> LoadAsync(string? solutionPath)
+    {
+        if (Override.Value is { } o)
+            return (o.Workspace, o.Solution);
+
         solutionPath = ResolveSolutionPath(solutionPath);
 
         if (!File.Exists(solutionPath))

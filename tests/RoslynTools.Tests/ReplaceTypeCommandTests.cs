@@ -1,16 +1,13 @@
+using RoslynTools.Core;
+
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class ReplaceTypeCommandTests
 {
-    // ──────────────────────────────────────────────────────────────────────────
-    //  Multi-constructor: all constructors must receive TimeProvider injection
-    // ──────────────────────────────────────────────────────────────────────────
-
     [Fact]
     public async Task MultipleConstructors_AllGetTimeProviderInjected()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("MyService.cs", """
             namespace TestApp;
 
@@ -28,15 +25,14 @@ public class ReplaceTypeCommandTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = project.Build();
 
-        await App.RunAsync(["replace-datetime", "--solution", slnPath]);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await App.RunAsync(["replace-datetime", "--solution", "ignored"]);
 
         var content = await project.ReadSourceAsync("MyService.cs");
 
-        // Both constructors should receive the TimeProvider parameter
         Assert.Equal(2, CountOccurrences(content, "TimeProvider timeProvider"));
-        // Both bodies should assign it
         Assert.Equal(2, CountOccurrences(content, "_timeProvider = timeProvider;"));
     }
 

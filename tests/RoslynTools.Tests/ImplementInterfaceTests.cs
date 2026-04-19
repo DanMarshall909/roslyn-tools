@@ -1,8 +1,8 @@
 using RoslynTools.Commands;
+using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class ImplementInterfaceTests
 {
     // Source that compiles: Repo and PartialRepo don't yet declare IRepository,
@@ -26,11 +26,12 @@ public class ImplementInterfaceTests
     [Fact]
     public async Task ImplementInterface_StubsAddedForUnimplementedMembers()
     {
-        using var proj = new TestProjectBuilder("ImplApp");
+        using var proj = new AdhocProjectBuilder("ImplApp");
         proj.AddSource("Types.cs", ImplAppSource);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
-        await ImplementInterfaceCommand.ExecuteAsync("Repo", "IRepository", slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await ImplementInterfaceCommand.ExecuteAsync("Repo", "IRepository", "ignored", dryRun: false);
 
         var content = await proj.ReadSourceAsync("Types.cs");
         Assert.Contains("GetAsync", content);
@@ -45,11 +46,12 @@ public class ImplementInterfaceTests
     [Fact]
     public async Task ImplementInterface_StubBodyThrowsNotImplementedException()
     {
-        using var proj = new TestProjectBuilder("ImplApp");
+        using var proj = new AdhocProjectBuilder("ImplApp");
         proj.AddSource("Types.cs", ImplAppSource);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
-        await ImplementInterfaceCommand.ExecuteAsync("Repo", "IRepository", slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await ImplementInterfaceCommand.ExecuteAsync("Repo", "IRepository", "ignored", dryRun: false);
 
         var content = await proj.ReadSourceAsync("Types.cs");
         Assert.Contains("throw new NotImplementedException()", content);
@@ -62,11 +64,12 @@ public class ImplementInterfaceTests
     [Fact]
     public async Task ImplementInterface_AlreadyImplemented_Skipped()
     {
-        using var proj = new TestProjectBuilder("ImplApp");
+        using var proj = new AdhocProjectBuilder("ImplApp");
         proj.AddSource("Types.cs", ImplAppSource);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
-        await ImplementInterfaceCommand.ExecuteAsync("PartialRepo", "IRepository", slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await ImplementInterfaceCommand.ExecuteAsync("PartialRepo", "IRepository", "ignored", dryRun: false);
 
         var content = await proj.ReadSourceAsync("Types.cs");
         // Delete and Name should be added as stubs
@@ -85,11 +88,12 @@ public class ImplementInterfaceTests
     [Fact]
     public async Task ImplementInterface_PropertyStub_Generated()
     {
-        using var proj = new TestProjectBuilder("ImplApp");
+        using var proj = new AdhocProjectBuilder("ImplApp");
         proj.AddSource("Types.cs", ImplAppSource);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
-        await ImplementInterfaceCommand.ExecuteAsync("Repo", "IRepository", slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await ImplementInterfaceCommand.ExecuteAsync("Repo", "IRepository", "ignored", dryRun: false);
 
         var content = await proj.ReadSourceAsync("Types.cs");
         Assert.Contains("get =>", content);
@@ -103,13 +107,14 @@ public class ImplementInterfaceTests
     [Fact]
     public async Task ImplementInterface_DryRun_NoWrites()
     {
-        using var proj = new TestProjectBuilder("ImplApp");
+        using var proj = new AdhocProjectBuilder("ImplApp");
         proj.AddSource("Types.cs", ImplAppSource);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
         var before = await proj.ReadSourceAsync("Types.cs");
 
-        await ImplementInterfaceCommand.ExecuteAsync("Repo", "IRepository", slnPath, dryRun: true);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await ImplementInterfaceCommand.ExecuteAsync("Repo", "IRepository", "ignored", dryRun: true);
 
         var after = await proj.ReadSourceAsync("Types.cs");
         Assert.Equal(before, after);

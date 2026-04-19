@@ -1,8 +1,8 @@
 using RoslynTools.Commands;
+using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class AddNullChecksTests
 {
     private const string ServiceSource = """
@@ -43,11 +43,12 @@ public class AddNullChecksTests
     [Fact]
     public async Task AddNullChecks_InsertsThrowIfNullForEligibleParams()
     {
-        using var proj = new TestProjectBuilder("NullApp");
+        using var proj = new AdhocProjectBuilder("NullApp");
         proj.AddSource("OrderService.cs", ServiceSource);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
-        await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", "ignored", dryRun: false);
 
         var content = await proj.ReadSourceAsync("OrderService.cs");
         Assert.Contains("ArgumentNullException.ThrowIfNull(name)", content);
@@ -62,7 +63,7 @@ public class AddNullChecksTests
     [Fact]
     public async Task AddNullChecks_InsertsAtTopOfBody()
     {
-        using var proj = new TestProjectBuilder("NullApp");
+        using var proj = new AdhocProjectBuilder("NullApp");
         proj.AddSource("OrderService.cs", """
             public class OrderService
             {
@@ -72,9 +73,10 @@ public class AddNullChecksTests
                 }
             }
             """);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
-        await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", "ignored", dryRun: false);
 
         var content = await proj.ReadSourceAsync("OrderService.cs");
 
@@ -91,11 +93,12 @@ public class AddNullChecksTests
     [Fact]
     public async Task AddNullChecks_SkipsAlreadyGuardedParams()
     {
-        using var proj = new TestProjectBuilder("NullApp");
+        using var proj = new AdhocProjectBuilder("NullApp");
         proj.AddSource("OrderService.cs", AlreadyGuardedSource);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
-        await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", "ignored", dryRun: false);
 
         var content = await proj.ReadSourceAsync("OrderService.cs");
 
@@ -113,11 +116,12 @@ public class AddNullChecksTests
     [Fact]
     public async Task AddNullChecks_SkipsNullableAnnotatedParams()
     {
-        using var proj = new TestProjectBuilder("NullApp");
+        using var proj = new AdhocProjectBuilder("NullApp");
         proj.AddSource("OrderService.cs", NullableAnnotatedSource);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
-        await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", "ignored", dryRun: false);
 
         var content = await proj.ReadSourceAsync("OrderService.cs");
         Assert.DoesNotContain("ThrowIfNull", content);
@@ -130,13 +134,14 @@ public class AddNullChecksTests
     [Fact]
     public async Task AddNullChecks_DryRun_NoWrites()
     {
-        using var proj = new TestProjectBuilder("NullApp");
+        using var proj = new AdhocProjectBuilder("NullApp");
         proj.AddSource("OrderService.cs", ServiceSource);
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
         var before = await proj.ReadSourceAsync("OrderService.cs");
 
-        await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", slnPath, dryRun: true);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", "ignored", dryRun: true);
 
         var after = await proj.ReadSourceAsync("OrderService.cs");
         Assert.Equal(before, after);

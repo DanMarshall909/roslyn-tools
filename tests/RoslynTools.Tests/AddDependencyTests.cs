@@ -2,7 +2,6 @@ using RoslynTools.Commands;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class AddDependencyTests
 {
     // ──────────────────────────────────────────────────────────────────────────
@@ -12,7 +11,7 @@ public class AddDependencyTests
     [Fact]
     public async Task AddDependency_AddsFieldAndCtorParam()
     {
-        using var proj = new TestProjectBuilder();
+        using var proj = new AdhocProjectBuilder();
         proj.AddSource("AgentService.cs", """
             public interface IEmailService { void Send(); }
 
@@ -30,14 +29,16 @@ public class AddDependencyTests
             public interface ILogService { void Log(string msg); }
             public class NoCtor { }
             """);
-        var slnPath = await proj.BuildAsync();
-
-        await AddDependencyCommand.ExecuteAsync(
-            typeName: "AgentService",
-            depType: "IEmailService",
-            fieldName: null,
-            solutionPath: slnPath,
-            dryRun: false);
+        var (workspace, sln) = proj.Build();
+        using (workspace)
+        {
+            await AddDependencyCommand.ExecuteCoreAsync(
+                sln,
+                typeName: "AgentService",
+                depType: "IEmailService",
+                fieldName: null,
+                dryRun: false);
+        }
 
         var content = await proj.ReadSourceAsync("AgentService.cs");
 
@@ -53,7 +54,7 @@ public class AddDependencyTests
     [Fact]
     public async Task AddDependency_CustomFieldName()
     {
-        using var proj = new TestProjectBuilder();
+        using var proj = new AdhocProjectBuilder();
         proj.AddSource("AgentService.cs", """
             public interface IEmailService { void Send(); }
 
@@ -71,14 +72,16 @@ public class AddDependencyTests
             public interface ILogService { void Log(string msg); }
             public class NoCtor { }
             """);
-        var slnPath = await proj.BuildAsync();
-
-        await AddDependencyCommand.ExecuteAsync(
-            typeName: "AgentService",
-            depType: "IEmailService",
-            fieldName: "_mailer",
-            solutionPath: slnPath,
-            dryRun: false);
+        var (workspace, sln) = proj.Build();
+        using (workspace)
+        {
+            await AddDependencyCommand.ExecuteCoreAsync(
+                sln,
+                typeName: "AgentService",
+                depType: "IEmailService",
+                fieldName: "_mailer",
+                dryRun: false);
+        }
 
         var content = await proj.ReadSourceAsync("AgentService.cs");
 
@@ -95,7 +98,7 @@ public class AddDependencyTests
     [Fact]
     public async Task AddDependency_NoConstructor_GeneratesOne()
     {
-        using var proj = new TestProjectBuilder();
+        using var proj = new AdhocProjectBuilder();
         proj.AddSource("AgentService.cs", """
             public interface IEmailService { void Send(); }
 
@@ -113,14 +116,16 @@ public class AddDependencyTests
             public interface ILogService { void Log(string msg); }
             public class NoCtor { }
             """);
-        var slnPath = await proj.BuildAsync();
-
-        await AddDependencyCommand.ExecuteAsync(
-            typeName: "NoCtor",
-            depType: "ILogService",
-            fieldName: null,
-            solutionPath: slnPath,
-            dryRun: false);
+        var (workspace, sln) = proj.Build();
+        using (workspace)
+        {
+            await AddDependencyCommand.ExecuteCoreAsync(
+                sln,
+                typeName: "NoCtor",
+                depType: "ILogService",
+                fieldName: null,
+                dryRun: false);
+        }
 
         var content = await proj.ReadSourceAsync("NoCtor.cs");
 
@@ -136,7 +141,7 @@ public class AddDependencyTests
     [Fact]
     public async Task AddDependency_DryRun_NoWrites()
     {
-        using var proj = new TestProjectBuilder();
+        using var proj = new AdhocProjectBuilder();
         proj.AddSource("AgentService.cs", """
             public interface IEmailService { void Send(); }
 
@@ -154,16 +159,18 @@ public class AddDependencyTests
             public interface ILogService { void Log(string msg); }
             public class NoCtor { }
             """);
-        var slnPath = await proj.BuildAsync();
-
+        var (workspace, sln) = proj.Build();
         var originalContent = await proj.ReadSourceAsync("AgentService.cs");
 
-        await AddDependencyCommand.ExecuteAsync(
-            typeName: "AgentService",
-            depType: "IEmailService",
-            fieldName: null,
-            solutionPath: slnPath,
-            dryRun: true);
+        using (workspace)
+        {
+            await AddDependencyCommand.ExecuteCoreAsync(
+                sln,
+                typeName: "AgentService",
+                depType: "IEmailService",
+                fieldName: null,
+                dryRun: true);
+        }
 
         var afterContent = await proj.ReadSourceAsync("AgentService.cs");
         Assert.Equal(originalContent, afterContent);

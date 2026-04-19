@@ -3,13 +3,12 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class InspectTests
 {
     [Fact]
     public async Task Inspect_Type_Returns_Members_And_BaseType()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Models.cs", """
             namespace TestApp;
 
@@ -29,8 +28,7 @@ public class InspectTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.Customer", "type");
@@ -56,7 +54,7 @@ public class InspectTests
     [Fact]
     public async Task Inspect_Type_Returns_Interfaces()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Services.cs", """
             namespace TestApp;
 
@@ -77,8 +75,7 @@ public class InspectTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.MyService", "type");
@@ -93,7 +90,7 @@ public class InspectTests
     [Fact]
     public async Task Inspect_Method_Returns_Parameters_And_ReturnType()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
             namespace TestApp;
 
@@ -104,8 +101,7 @@ public class InspectTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.Calculator.Add", "method");
@@ -121,7 +117,7 @@ public class InspectTests
     [Fact]
     public async Task Inspect_Property_Returns_Type_And_Accessors()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Config.cs", """
             namespace TestApp;
 
@@ -133,8 +129,7 @@ public class InspectTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.Config.Name", "property");

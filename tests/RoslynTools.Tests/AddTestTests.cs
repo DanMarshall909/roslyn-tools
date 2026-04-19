@@ -1,8 +1,8 @@
 using RoslynTools.Commands;
+using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class AddTestTests
 {
     // ──────────────────────────────────────────────────────────────────────────
@@ -30,7 +30,7 @@ public class AddTestTests
     [Fact]
     public async Task SingleMode_AppendsSingleFactMethod()
     {
-        using var proj = new TestProjectBuilder();
+        using var proj = new AdhocProjectBuilder();
         // Source has no usings — command must add them
         proj.AddSource("MyTests.cs", """
             namespace TestApp;
@@ -40,15 +40,16 @@ public class AddTestTests
             }
             """);
 
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
-        await AddTestCommand.ExecuteAsync(
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await AddTestCommand.ExecuteAsync(
             className: "MyTests",
             name: "Should_DoSomething",
             acs: null,
             nestedClass: null,
             filePath: null,
-            solutionPath: slnPath,
+            solutionPath: "ignored",
             dryRun: false);
 
         var content = await proj.ReadSourceAsync("MyTests.cs");
@@ -65,7 +66,7 @@ public class AddTestTests
     [Fact]
     public async Task AcMode_GeneratesMethodsFromAcs()
     {
-        using var proj = new TestProjectBuilder();
+        using var proj = new AdhocProjectBuilder();
         proj.AddSource("OrderTests.cs", """
             namespace TestApp;
 
@@ -74,16 +75,17 @@ public class AddTestTests
             }
             """);
 
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
-        await AddTestCommand.ExecuteAsync(
-            className: "OrderTests",
-            name: null,
-            acs: "Returns 404 when not found; Creates order successfully",
-            nestedClass: null,
-            filePath: null,
-            solutionPath: slnPath,
-            dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await AddTestCommand.ExecuteAsync(
+                className: "OrderTests",
+                name: null,
+                acs: "Returns 404 when not found; Creates order successfully",
+                nestedClass: null,
+                filePath: null,
+                solutionPath: "ignored",
+                dryRun: false);
 
         var content = await proj.ReadSourceAsync("OrderTests.cs");
 
@@ -99,7 +101,7 @@ public class AddTestTests
     [Fact]
     public async Task AcMode_WithNestedClass_WrapsInNestedClass()
     {
-        using var proj = new TestProjectBuilder();
+        using var proj = new AdhocProjectBuilder();
         proj.AddSource("OrderTests.cs", """
             namespace TestApp;
 
@@ -108,15 +110,16 @@ public class AddTestTests
             }
             """);
 
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
-        await AddTestCommand.ExecuteAsync(
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await AddTestCommand.ExecuteAsync(
             className: "OrderTests",
             name: null,
             acs: "Returns 404 when not found",
             nestedClass: "WhenOrderMissing",
             filePath: null,
-            solutionPath: slnPath,
+            solutionPath: "ignored",
             dryRun: false);
 
         var content = await proj.ReadSourceAsync("OrderTests.cs");
@@ -137,7 +140,7 @@ public class AddTestTests
     [Fact]
     public async Task DryRun_DoesNotModifyFile()
     {
-        using var proj = new TestProjectBuilder();
+        using var proj = new AdhocProjectBuilder();
         proj.AddSource("MyTests.cs", """
             namespace TestApp;
 
@@ -146,16 +149,17 @@ public class AddTestTests
             }
             """);
 
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
         var originalContent = await proj.ReadSourceAsync("MyTests.cs");
 
-        await AddTestCommand.ExecuteAsync(
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await AddTestCommand.ExecuteAsync(
             className: "MyTests",
             name: "Should_DoSomething",
             acs: null,
             nestedClass: null,
             filePath: null,
-            solutionPath: slnPath,
+            solutionPath: "ignored",
             dryRun: true);
 
         var afterContent = await proj.ReadSourceAsync("MyTests.cs");
@@ -169,7 +173,7 @@ public class AddTestTests
     [Fact]
     public async Task SingleMode_AddsUsingDirectivesWhenMissing()
     {
-        using var proj = new TestProjectBuilder();
+        using var proj = new AdhocProjectBuilder();
         proj.AddSource("MyTests.cs", """
             namespace TestApp;
 
@@ -178,15 +182,16 @@ public class AddTestTests
             }
             """);
 
-        var slnPath = await proj.BuildAsync();
+        var (workspace, sln) = proj.Build();
 
-        await AddTestCommand.ExecuteAsync(
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await AddTestCommand.ExecuteAsync(
             className: "MyTests",
             name: "Should_DoSomething",
             acs: null,
             nestedClass: null,
             filePath: null,
-            solutionPath: slnPath,
+            solutionPath: "ignored",
             dryRun: false);
 
         var content = await proj.ReadSourceAsync("MyTests.cs");

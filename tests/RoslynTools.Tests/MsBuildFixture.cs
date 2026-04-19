@@ -5,25 +5,18 @@ namespace RoslynTools.Tests;
 /// [assembly: TestFramework] or ICollectionFixture to ensure it
 /// runs before any test that loads Roslyn workspace types.
 /// </summary>
-public sealed class MsBuildFixture
+public static class MsBuildFixture
 {
     private static readonly object Lock = new();
     private static bool _registered;
 
-    public MsBuildFixture()
+    public static void Ensure()
     {
         lock (Lock)
         {
-            if (!_registered)
-            {
-                MsBuildBootstrap.Register();
-                _registered = true;
-            }
+            if (_registered) return;
+            MsBuildBootstrap.Register();
+            _registered = true;
         }
     }
-}
-
-[CollectionDefinition("MSBuild")]
-public class MsBuildCollection : ICollectionFixture<MsBuildFixture>
-{
 }

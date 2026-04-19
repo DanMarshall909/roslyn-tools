@@ -3,13 +3,12 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class CircularDepsTests
 {
     // Three namespaces that form a cycle: A -> B -> C -> A
-    private static TestProjectBuilder BuildCycleProject()
+    private static AdhocProjectBuilder BuildCycleProject()
     {
-        var proj = new TestProjectBuilder("CycleApp");
+        var proj = new AdhocProjectBuilder("CycleApp");
         proj.AddSource("FileA.cs", "namespace CycleApp.A { using CycleApp.B; class A { } }");
         proj.AddSource("FileB.cs", "namespace CycleApp.B { using CycleApp.C; class B { } }");
         proj.AddSource("FileC.cs", "namespace CycleApp.C { using CycleApp.A; class C { } }");
@@ -17,9 +16,9 @@ public class CircularDepsTests
     }
 
     // Two namespaces with no cycle: X has no deps, Y depends on X
-    private static TestProjectBuilder BuildCleanProject()
+    private static AdhocProjectBuilder BuildCleanProject()
     {
-        var proj = new TestProjectBuilder("CycleApp");
+        var proj = new AdhocProjectBuilder("CycleApp");
         proj.AddSource("FileX.cs", "namespace CycleApp.X { class X { } }");
         proj.AddSource("FileY.cs", "namespace CycleApp.Y { using CycleApp.X; class Y { } }");
         return proj;
@@ -33,8 +32,7 @@ public class CircularDepsTests
     public async Task CircularDeps_DetectsCycle()
     {
         using var proj = BuildCycleProject();
-        var slnPath = await proj.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = proj.Build();
         using (workspace)
         {
             var result = await CircularDepsCommand.AnalyzeAsync(sln, scope: null);
@@ -53,8 +51,7 @@ public class CircularDepsTests
     public async Task CircularDeps_CyclePathInOutput()
     {
         using var proj = BuildCycleProject();
-        var slnPath = await proj.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = proj.Build();
         using (workspace)
         {
             var result = await CircularDepsCommand.AnalyzeAsync(sln, scope: null);
@@ -71,8 +68,7 @@ public class CircularDepsTests
     public async Task CircularDeps_NoCycle_ReturnsClean()
     {
         using var proj = BuildCleanProject();
-        var slnPath = await proj.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = proj.Build();
         using (workspace)
         {
             var result = await CircularDepsCommand.AnalyzeAsync(sln, scope: null);
@@ -89,8 +85,7 @@ public class CircularDepsTests
     public async Task CircularDeps_OutputToStdout()
     {
         using var proj = BuildCycleProject();
-        var slnPath = await proj.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = proj.Build();
 
         var originalOut = Console.Out;
         using var sw = new System.IO.StringWriter();

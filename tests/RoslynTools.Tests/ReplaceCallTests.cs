@@ -1,8 +1,9 @@
+using Microsoft.CodeAnalysis;
 using RoslynTools.Commands;
+using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class ReplaceCallTests
 {
     private const string LogAppSource = """
@@ -15,21 +16,22 @@ public class ReplaceCallTests
         }
         """;
 
-    private static async Task<(TestProjectBuilder project, string slnPath)> BuildFixtureAsync()
+    private static (AdhocProjectBuilder Project, Workspace Workspace, Solution Solution) BuildFixture()
     {
-        var project = new TestProjectBuilder("LogApp");
+        var project = new AdhocProjectBuilder("LogApp");
         project.AddSource("LogApp.cs", LogAppSource);
-        var slnPath = await project.BuildAsync();
-        return (project, slnPath);
+        var (workspace, sln) = project.Build();
+        return (project, workspace, sln);
     }
 
     [Fact]
     public async Task ReplaceCall_AllInvocationsReplaced()
     {
-        var (project, slnPath) = await BuildFixtureAsync();
+        var (project, workspace, sln) = BuildFixture();
         using (project)
+        using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await ReplaceCallCommand.ExecuteAsync("Logger.Log", "LogInfo", slnPath, dryRun: false);
+            await ReplaceCallCommand.ExecuteAsync("Logger.Log", "LogInfo", "ignored", dryRun: false);
 
             var content = await project.ReadSourceAsync("LogApp.cs");
 
@@ -41,7 +43,7 @@ public class ReplaceCallTests
     [Fact]
     public async Task ReplaceCall_ArgumentsPreserved()
     {
-        using var project = new TestProjectBuilder("LogApp");
+        using var project = new AdhocProjectBuilder("LogApp");
         project.AddSource("LogApp.cs", """
             class Logger {
               public static void Log(string msg) { }
@@ -51,9 +53,10 @@ public class ReplaceCallTests
               void Run() { Logger.Log(string.Format("x={0}", 1)); }
             }
             """);
-        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = project.Build();
 
-        await ReplaceCallCommand.ExecuteAsync("Logger.Log", "LogInfo", slnPath, dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await ReplaceCallCommand.ExecuteAsync("Logger.Log", "LogInfo", "ignored", dryRun: false);
 
         var content = await project.ReadSourceAsync("LogApp.cs");
         Assert.Contains("Logger.LogInfo(string.Format(\"x={0}\", 1))", content);
@@ -62,7 +65,7 @@ public class ReplaceCallTests
     [Fact]
     public async Task ReplaceCall_ZeroCallSites_PrintsMessage()
     {
-        using var project = new TestProjectBuilder("LogApp");
+        using var project = new AdhocProjectBuilder("LogApp");
         project.AddSource("LogApp.cs", """
             class Logger {
               public static void Log(string msg) { }
@@ -72,14 +75,15 @@ public class ReplaceCallTests
               void Run() { }
             }
             """);
-        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = project.Build();
 
         var sw = new System.IO.StringWriter();
         var previousOut = Console.Out;
         Console.SetOut(sw);
         try
         {
-            await ReplaceCallCommand.ExecuteAsync("Logger.Log", "LogInfo", slnPath, dryRun: false);
+            using (WorkspaceLoader.UseOverride(workspace, sln))
+                await ReplaceCallCommand.ExecuteAsync("Logger.Log", "LogInfo", "ignored", dryRun: false);
         }
         finally
         {
@@ -93,8 +97,9 @@ public class ReplaceCallTests
     [Fact]
     public async Task ReplaceCall_DryRun_NoWrites()
     {
-        var (project, slnPath) = await BuildFixtureAsync();
+        var (project, workspace, sln) = BuildFixture();
         using (project)
+        using (WorkspaceLoader.UseOverride(workspace, sln))
         {
             var originalContent = await project.ReadSourceAsync("LogApp.cs");
 
@@ -103,7 +108,7 @@ public class ReplaceCallTests
             Console.SetOut(sw);
             try
             {
-                await ReplaceCallCommand.ExecuteAsync("Logger.Log", "LogInfo", slnPath, dryRun: true);
+                await ReplaceCallCommand.ExecuteAsync("Logger.Log", "LogInfo", "ignored", dryRun: true);
             }
             finally
             {

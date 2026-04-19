@@ -6,13 +6,12 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class FindCallersTests
 {
     [Fact]
     public async Task FindCallers_ReturnsInvocationSites()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Greeter.cs", """
             public class Greeter
             {
@@ -35,8 +34,7 @@ public class FindCallersTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var methodSymbol = await SymbolLocator.FindSymbolAsync(sln, "Greet", "method");
@@ -55,7 +53,7 @@ public class FindCallersTests
     [Fact]
     public async Task FindCallers_ZeroCallers_ReturnsEmpty()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
             public class Service
             {
@@ -63,8 +61,7 @@ public class FindCallersTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var methodSymbol = await SymbolLocator.FindSymbolAsync(sln, "NeverCalled", "method");
@@ -77,7 +74,7 @@ public class FindCallersTests
     [Fact]
     public async Task FindCallers_ExcludesNameofReferences()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("Greeter.cs", """
             public class Greeter
             {
@@ -94,8 +91,7 @@ public class FindCallersTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var methodSymbol = await SymbolLocator.FindSymbolAsync(sln, "Greet", "method");

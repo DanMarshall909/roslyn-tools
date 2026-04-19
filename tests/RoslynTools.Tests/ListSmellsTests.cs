@@ -3,7 +3,6 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class ListSmellsTests
 {
     // ---------------------------------------------------------------------------
@@ -13,7 +12,7 @@ public class ListSmellsTests
     [Fact]
     public async Task ListSmells_LargeClass_Reported()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
 
         var largeClassLines = new System.Text.StringBuilder();
         largeClassLines.AppendLine("public class BigClass {");
@@ -21,8 +20,7 @@ public class ListSmellsTests
         largeClassLines.AppendLine("}");
         project.AddSource("BigClass.cs", largeClassLines.ToString());
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var smells = await SmellAnalyzer.AnalyzeAsync(sln, maxClassLines: 300, maxMethodLines: 40, maxParams: 7, scope: null);
@@ -40,7 +38,7 @@ public class ListSmellsTests
     [Fact]
     public async Task ListSmells_LongMethod_Reported()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
 
         var longMethodLines = new System.Text.StringBuilder();
         longMethodLines.AppendLine("public class MyService {");
@@ -50,8 +48,7 @@ public class ListSmellsTests
         longMethodLines.AppendLine("}");
         project.AddSource("MyService.cs", longMethodLines.ToString());
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var smells = await SmellAnalyzer.AnalyzeAsync(sln, maxClassLines: 300, maxMethodLines: 40, maxParams: 7, scope: null);
@@ -69,7 +66,7 @@ public class ListSmellsTests
     [Fact]
     public async Task ListSmells_TooManyDependencies_Reported()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
 
         project.AddSource("FatService.cs", """
             public interface IA {} public interface IB {} public interface IC {}
@@ -80,8 +77,7 @@ public class ListSmellsTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var smells = await SmellAnalyzer.AnalyzeAsync(sln, maxClassLines: 300, maxMethodLines: 40, maxParams: 7, scope: null);
@@ -99,7 +95,7 @@ public class ListSmellsTests
     [Fact]
     public async Task ListSmells_CleanProject_ReturnsEmpty()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
 
         project.AddSource("SmallClass.cs", """
             public class SmallClass
@@ -115,8 +111,7 @@ public class ListSmellsTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var smells = await SmellAnalyzer.AnalyzeAsync(sln, maxClassLines: 300, maxMethodLines: 40, maxParams: 7, scope: null);
@@ -132,7 +127,7 @@ public class ListSmellsTests
     [Fact]
     public async Task ListSmells_CustomThreshold_Respected()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
 
         // A class of ~55 lines — under default 300 but over custom threshold of 50
         var mediumClassLines = new System.Text.StringBuilder();
@@ -141,8 +136,7 @@ public class ListSmellsTests
         mediumClassLines.AppendLine("}");
         project.AddSource("MediumClass.cs", mediumClassLines.ToString());
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             // Default threshold — should NOT flag

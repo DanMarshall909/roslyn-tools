@@ -1,14 +1,14 @@
 using RoslynTools.Commands;
+using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class FixNamespaceTests
 {
     [Fact]
     public async Task FixNamespace_UpdatesDeclarationToMatchPath()
     {
-        using var project = new TestProjectBuilder("MyApp");
+        using var project = new AdhocProjectBuilder("MyApp");
         project.AddSource("Services/AgentService.cs", """
             namespace WrongNamespace;
             public class AgentService { }
@@ -18,11 +18,12 @@ public class FixNamespaceTests
             public class Program { AgentService s = new(); }
             """);
 
-        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = project.Build();
 
-        await FixNamespaceCommand.ExecuteAsync(
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await FixNamespaceCommand.ExecuteAsync(
             filePath: Path.Combine(project.ProjectDir, "Services", "AgentService.cs"),
-            solutionPath: slnPath,
+            solutionPath: "ignored",
             dryRun: false);
 
         var content = await project.ReadSourceAsync("Services/AgentService.cs");
@@ -33,7 +34,7 @@ public class FixNamespaceTests
     [Fact]
     public async Task FixNamespace_UpdatesReferencingFiles()
     {
-        using var project = new TestProjectBuilder("MyApp");
+        using var project = new AdhocProjectBuilder("MyApp");
         project.AddSource("Services/AgentService.cs", """
             namespace WrongNamespace;
             public class AgentService { }
@@ -43,11 +44,12 @@ public class FixNamespaceTests
             public class Program { AgentService s = new(); }
             """);
 
-        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = project.Build();
 
-        await FixNamespaceCommand.ExecuteAsync(
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await FixNamespaceCommand.ExecuteAsync(
             filePath: Path.Combine(project.ProjectDir, "Services", "AgentService.cs"),
-            solutionPath: slnPath,
+            solutionPath: "ignored",
             dryRun: false);
 
         var programContent = await project.ReadSourceAsync("Program.cs");
@@ -58,7 +60,7 @@ public class FixNamespaceTests
     [Fact]
     public async Task FixNamespace_DryRun_NoWrites()
     {
-        using var project = new TestProjectBuilder("MyApp");
+        using var project = new AdhocProjectBuilder("MyApp");
         project.AddSource("Services/AgentService.cs", """
             namespace WrongNamespace;
             public class AgentService { }
@@ -68,7 +70,7 @@ public class FixNamespaceTests
             public class Program { AgentService s = new(); }
             """);
 
-        var slnPath = await project.BuildAsync();
+        var (workspace, sln) = project.Build();
 
         var originalAgentService = await project.ReadSourceAsync("Services/AgentService.cs");
         var originalProgram = await project.ReadSourceAsync("Program.cs");
@@ -78,9 +80,9 @@ public class FixNamespaceTests
         Console.SetOut(output);
         try
         {
-            await FixNamespaceCommand.ExecuteAsync(
+            using (WorkspaceLoader.UseOverride(workspace, sln)) await FixNamespaceCommand.ExecuteAsync(
                 filePath: Path.Combine(project.ProjectDir, "Services", "AgentService.cs"),
-                solutionPath: slnPath,
+                solutionPath: "ignored",
                 dryRun: true);
         }
         finally

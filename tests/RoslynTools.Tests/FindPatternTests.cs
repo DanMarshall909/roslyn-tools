@@ -2,10 +2,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Tests;
 
-[Collection("MSBuild")]
 public class FindPatternTests
 {
-    private static string FilePath(TestProjectBuilder project, string relativePath)
+    private static string FilePath(AdhocProjectBuilder project, string relativePath)
         => Path.Combine(project.ProjectDir, relativePath);
 
     // ── Exact duplicate found ─────────────────────────────────────────────────────
@@ -13,7 +12,7 @@ public class FindPatternTests
     [Fact]
     public async Task ExactDuplicate_CrossFile_IsFound()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
             namespace TestApp;
 
@@ -41,8 +40,7 @@ public class FindPatternTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var matches = await PatternMatcher.FindMatchesAsync(
@@ -62,7 +60,7 @@ public class FindPatternTests
     [Fact]
     public async Task IdentifierOnlyDifferent_IsFound()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
             namespace TestApp;
 
@@ -90,8 +88,7 @@ public class FindPatternTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var matches = await PatternMatcher.FindMatchesAsync(
@@ -114,7 +111,7 @@ public class FindPatternTests
     [Fact]
     public async Task StructurallyDifferent_IsNotFound()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
             namespace TestApp;
 
@@ -141,8 +138,7 @@ public class FindPatternTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var matches = await PatternMatcher.FindMatchesAsync(
@@ -161,7 +157,7 @@ public class FindPatternTests
     [Fact]
     public async Task PatternOrigin_IsExcludedFromResults()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
             namespace TestApp;
 
@@ -176,8 +172,7 @@ public class FindPatternTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var matches = await PatternMatcher.FindMatchesAsync(
@@ -197,7 +192,7 @@ public class FindPatternTests
     [Fact]
     public async Task ScopeFilter_ExcludesOutOfScopeMatches()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
             namespace TestApp;
 
@@ -225,8 +220,7 @@ public class FindPatternTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             // Use a scope that matches no project or folder — expect no results
@@ -246,7 +240,7 @@ public class FindPatternTests
     [Fact]
     public async Task CrossFileMatch_ReturnsCorrectLineAndPreview()
     {
-        using var project = new TestProjectBuilder();
+        using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
             namespace TestApp;
 
@@ -274,8 +268,7 @@ public class FindPatternTests
             }
             """);
 
-        var slnPath = await project.BuildAsync();
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(slnPath);
+        var (workspace, sln) = project.Build();
         using (workspace)
         {
             var matches = await PatternMatcher.FindMatchesAsync(
