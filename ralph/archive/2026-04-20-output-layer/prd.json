@@ -1,0 +1,192 @@
+{
+  "project": "roslyn-tools",
+  "branchName": "ralph/output-layer",
+  "description": "Generic output layer for rt: global --json/--llm/--markdown flags, typed result objects with [OutputField] schema annotations, reflection-based renderers (Json, Markdown, Llm) written once and shared across commands. Adding a new format requires one new renderer file only.",
+  "ralph_instructions": "Architectural rules: (1) Core/Output/ types are pure C# — no Roslyn deps. (2) Renderers must not import Command namespaces. (3) Each command migration must produce byte-for-byte identical plain-text output to the previous version — snapshot regression tests required. (4) No per-command --json/--llm flags after migration; these are global. (5) Verification every story: `dotnet build RoslynTools.slnx`, `dotnet test tests/RoslynTools.Tests/RoslynTools.Tests.csproj -v minimal`, `dotnet format RoslynTools.slnx --verify-no-changes`.",
+  "userStories": [
+    {
+      "id": "US-208",
+      "title": "Output layer core types and context",
+      "description": "As a command author, I want the core output abstractions (OutputFormat, OutputLevel, OutputFieldAttribute, IRtOutput, RtContext, RtSerializer) so that commands can produce typed results dispatched to a renderer.",
+      "acceptanceCriteria": [
+        "File src/RoslynTools/Core/Output/OutputFormat.cs exists and defines `internal enum OutputFormat { Text, Json, Markdown, Llm }` in namespace RoslynTools.Core.Output.",
+        "File src/RoslynTools/Core/Output/OutputLevel.cs exists and defines `internal enum OutputLevel { Llm = 0, Default = 1, Detailed = 2 }` with explicit integer values.",
+        "File src/RoslynTools/Core/Output/OutputFieldAttribute.cs defines `internal sealed class OutputFieldAttribute : Attribute` with AttributeUsage(AttributeTargets.Property), constructor (OutputLevel level, string description), and read-only Level and Description properties.",
+        "File src/RoslynTools/Core/Output/IRtOutput.cs defines `internal interface IRtOutput { void RenderText(TextWriter writer); }`.",
+        "File src/RoslynTools/Core/Output/RtContext.cs defines `internal static class RtContext` with static mutable Format (default OutputFormat.Text) and Level (default OutputLevel.Default) properties.",
+        "File src/RoslynTools/Core/Output/RtSerializer.cs defines `internal static class RtSerializer` with `Write(IRtOutput result, TextWriter? writer = null)` that defaults writer to Console.Out and dispatches on RtContext.Format to TextRenderer (Text default), JsonRenderer, MarkdownRenderer, LlmRenderer.",
+        "Stub renderer classes (TextRenderer, JsonRenderer, MarkdownRenderer, LlmRenderer) exist in Core/Output/Renderers/ and compile; may throw NotImplementedException — filled in US-209.",
+        "Unit test: RtContext defaults are OutputFormat.Text and OutputLevel.Default at test start.",
+        "Unit test: RtContext.Format and RtContext.Level are settable and readable.",
+        "Unit test: A dummy IRtOutput whose RenderText writes 'HELLO' produces 'HELLO' via RtSerializer.Write when RtContext.Format = Text.",
+        "Unit test: OutputFieldAttribute applied to a property is readable via GetCustomAttribute<OutputFieldAttribute>() and preserves Level + Description.",
+        "No existing command behavior is modified (regression: dotnet test still passes).",
+        "dotnet build RoslynTools.slnx passes.",
+        "dotnet test tests/RoslynTools.Tests/RoslynTools.Tests.csproj -v minimal passes.",
+        "dotnet format RoslynTools.slnx --verify-no-changes passes."
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Pure additive scaffolding. Stub renderers compile but may throw — filled in US-209. No command touches yet."
+    },
+    {
+      "id": "US-209",
+      "title": "Reflection-based Json, Markdown, Llm and Text renderers",
+      "description": "As a command author, I want the four format renderers implemented against [OutputField] metadata so that any IRtOutput can be serialized without per-command code.",
+      "acceptanceCriteria": [
+        "TextRenderer.Render(IRtOutput result, TextWriter writer) calls result.RenderText(writer) and nothing else.",
+        "JsonRenderer reflects [OutputField] properties, includes fields with Level <= Detailed, recursively serializes nested IRtOutput values and IEnumerable<IRtOutput> collections, emits indented JSON using SymbolFormatter.DefaultJsonOptions.",
+        "MarkdownRenderer reflects [OutputField] properties with Level <= Default, renders top-level IRtOutput scalars as bold key-value pairs, renders IEnumerable<IRtOutput> as Markdown tables with column headers from OutputFieldAttribute.Description.",
+        "LlmRenderer emits only Level == Llm fields as compact `key: value` lines per record, with records separated by a blank line.",
+        "Unit test: a FakeResult : IRtOutput with fields at each OutputLevel produces Json that contains Llm+Default+Detailed fields.",
+        "Unit test: same FakeResult produces Markdown that contains Llm+Default fields and omits Detailed fields.",
+        "Unit test: same FakeResult produces Llm output that contains only Llm-level fields.",
+        "Unit test: a FakeResult with IReadOnlyList<FakeChild> (where FakeChild : IRtOutput) renders as a JSON array and as a Markdown table with one row per child.",
+        "Unit test: Text rendering delegates to RenderText exactly once and writes nothing else.",
+        "Unit test: Property without [OutputField] is omitted from Json, Markdown, and Llm output.",
+        "Unit test: Null IRtOutput value renders as JSON null and omitted Llm line.",
+        "dotnet build RoslynTools.slnx passes.",
+        "dotnet test tests/RoslynTools.Tests/RoslynTools.Tests.csproj -v minimal passes.",
+        "dotnet format RoslynTools.slnx --verify-no-changes passes."
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "All renderer tests use local FakeResult fixtures in the test project. No command migration yet."
+    },
+    {
+      "id": "US-210",
+      "title": "Global --json/--llm/--markdown flags via CommandLineBuilder middleware",
+      "description": "As a user, I want `--json`, `--llm`, and `--markdown` to work on every command so that I can choose output format without per-command flags.",
+      "acceptanceCriteria": [
+        "App.cs switches from root.InvokeAsync(args) to a CommandLineBuilder(root).UseDefaults().AddMiddleware(...).Build().InvokeAsync(args) pipeline.",
+        "Three Option<bool> globals added via root.AddGlobalOption: --json, --llm, --markdown, each with a short description.",
+        "Middleware runs at MiddlewareOrder.Configuration and sets RtContext.Format with precedence: --markdown > --json > --llm > Text default.",
+        "Core/IRtCommand.cs adds `public static virtual OutputFormat[] SupportedFormats` with default returning all four formats.",
+        "Core/RtCommandInfo.cs adds optional `OutputFormat[]? SupportedFormats = null` parameter; existing JsonOutput bool is preserved.",
+        "Integration test: invoking any existing command with --json sets RtContext.Format == OutputFormat.Json before handler runs.",
+        "Integration test: invoking with --markdown --json results in OutputFormat.Markdown (precedence).",
+        "Integration test: invoking with no flag leaves RtContext.Format == OutputFormat.Text.",
+        "Regression: every existing command produces identical stdout/stderr output when no format flag is passed.",
+        "Regression: dump-help and reflection-discovered command registry still work; startup assertion fires correctly.",
+        "Regression: docs/COMMANDS.md regenerates without unintended diff.",
+        "dotnet build RoslynTools.slnx passes.",
+        "dotnet test tests/RoslynTools.Tests/RoslynTools.Tests.csproj -v minimal passes.",
+        "dotnet format RoslynTools.slnx --verify-no-changes passes."
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "No command migrated to IRtOutput yet — flags wired but unused. That is intentional."
+    },
+    {
+      "id": "US-211",
+      "title": "Migrate find-duplicates to IRtOutput (pilot)",
+      "description": "As a user of find-duplicates, I want the command to emit via the new output layer so that --json, --markdown, and --llm all work without per-command branching.",
+      "acceptanceCriteria": [
+        "Commands/Results/FindDuplicatesResult.cs defines FindDuplicatesResult, DuplicateGroupResult, OccurrenceResult, and CheckResult records implementing IRtOutput with [OutputField] annotations matching the plan's level assignments.",
+        "FindDuplicatesCommand removes its per-command --json and --llm options; these are now global.",
+        "FindDuplicatesCommand constructs a FindDuplicatesResult and calls RtSerializer.Write(result) exactly once per invocation.",
+        "FindDuplicatesResult.RenderText reproduces the prior PrintGroups plain-text output byte-for-byte (snapshot regression test).",
+        "Integration test: --json produces valid JSON with Groups array containing GroupId, Extractability, Preview, Occurrences, Score, Checks.",
+        "Integration test: --markdown produces Markdown with H1 header, per-group H2 sections, and occurrence table per group.",
+        "Integration test: --llm produces compact output with GroupId, Extractability, Preview, and Location lines only — no Score, no Checks.",
+        "Integration test: no flag produces identical stdout to the previous baseline.",
+        "RtCommandInfo.Info for FindDuplicatesCommand sets SupportedFormats = [Text, Json, Markdown, Llm] and retains JsonOutput = true.",
+        "docs/COMMANDS.md regenerates; examples updated to reflect global flag usage.",
+        "Regression: all existing FindDuplicatesTests pass.",
+        "dotnet build RoslynTools.slnx passes.",
+        "dotnet test tests/RoslynTools.Tests/RoslynTools.Tests.csproj -v minimal passes.",
+        "dotnet format RoslynTools.slnx --verify-no-changes passes."
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "Pilot migration — establishes the pattern. Byte-for-byte text regression required before proceeding."
+    },
+    {
+      "id": "US-212",
+      "title": "Migrate list-smells to IRtOutput",
+      "description": "As a user of list-smells, I want the command to emit via the output layer so that all four formats work without custom code paths.",
+      "acceptanceCriteria": [
+        "Commands/Results/ListSmellsResult.cs defines ListSmellsResult and SmellResult records implementing IRtOutput with [OutputField] annotations.",
+        "ListSmellsCommand produces ListSmellsResult and calls RtSerializer.Write exactly once; legacy format flags removed.",
+        "RenderText preserves prior plain-text output byte-for-byte (snapshot regression).",
+        "Integration test: --json produces valid JSON with all smells and their details.",
+        "Integration test: --markdown produces grouped Markdown output.",
+        "Integration test: --llm produces compact per-smell lines with only Llm-level fields.",
+        "Integration test: no flag produces unchanged legacy text output.",
+        "RtCommandInfo.Info.SupportedFormats = [Text, Json, Markdown, Llm].",
+        "Regression: existing list-smells tests remain green.",
+        "dotnet build RoslynTools.slnx passes.",
+        "dotnet test tests/RoslynTools.Tests/RoslynTools.Tests.csproj -v minimal passes.",
+        "dotnet format RoslynTools.slnx --verify-no-changes passes."
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "Follows the FindDuplicates pilot pattern."
+    },
+    {
+      "id": "US-213",
+      "title": "Migrate find-unused to IRtOutput",
+      "description": "As a user of find-unused, I want the command to emit via the output layer.",
+      "acceptanceCriteria": [
+        "Commands/Results/FindUnusedResult.cs defines FindUnusedResult and a per-symbol result record implementing IRtOutput with [OutputField] metadata.",
+        "FindUnusedCommand produces result and calls RtSerializer.Write; legacy format flags removed.",
+        "RenderText reproduces prior plain-text output byte-for-byte (snapshot regression).",
+        "Integration test: --json, --markdown, --llm each produce correct well-formed output.",
+        "Integration test: no flag produces unchanged legacy text output.",
+        "RtCommandInfo.Info.SupportedFormats = [Text, Json, Markdown, Llm].",
+        "Regression: existing find-unused tests remain green.",
+        "dotnet build RoslynTools.slnx passes.",
+        "dotnet test tests/RoslynTools.Tests/RoslynTools.Tests.csproj -v minimal passes.",
+        "dotnet format RoslynTools.slnx --verify-no-changes passes."
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-214",
+      "title": "Migrate circular-deps to IRtOutput",
+      "description": "As a user of circular-deps, I want the command to emit via the output layer.",
+      "acceptanceCriteria": [
+        "Commands/Results/CircularDepsResult.cs defines CircularDepsResult and cycle records implementing IRtOutput with [OutputField] metadata.",
+        "CircularDepsCommand produces result and calls RtSerializer.Write; legacy format flags removed.",
+        "RenderText reproduces prior plain-text output byte-for-byte (snapshot regression).",
+        "Integration test: --json emits cycles as JSON arrays with ordered node lists.",
+        "Integration test: --markdown emits a Markdown section per cycle with the cycle path rendered readably.",
+        "Integration test: --llm emits compact one-cycle-per-record output.",
+        "Integration test: no flag produces unchanged legacy text output.",
+        "RtCommandInfo.Info.SupportedFormats = [Text, Json, Markdown, Llm].",
+        "Regression: existing circular-deps tests remain green.",
+        "dotnet build RoslynTools.slnx passes.",
+        "dotnet test tests/RoslynTools.Tests/RoslynTools.Tests.csproj -v minimal passes.",
+        "dotnet format RoslynTools.slnx --verify-no-changes passes."
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-215",
+      "title": "Migrate find-callers and find-refs to IRtOutput",
+      "description": "As a user of find-callers and find-refs, I want both commands to emit via the output layer, completing the migration of all planned commands.",
+      "acceptanceCriteria": [
+        "Commands/Results/FindCallersResult.cs and Commands/Results/FindRefsResult.cs define their result records implementing IRtOutput with [OutputField] metadata.",
+        "FindCallersCommand and FindRefsCommand each produce their result record and call RtSerializer.Write exactly once; legacy per-command format flags removed from both.",
+        "Both commands' RenderText reproduces prior plain-text output byte-for-byte (snapshot regressions).",
+        "Integration test: rt find-callers --json, --markdown, --llm each produce correct output.",
+        "Integration test: rt find-refs --json, --markdown, --llm each produce correct output.",
+        "Integration test: no flag produces unchanged legacy text output for both commands.",
+        "RtCommandInfo.Info.SupportedFormats = [Text, Json, Markdown, Llm] for both.",
+        "No command in scope of this backlog still calls Console.WriteLine directly for primary output.",
+        "Regression: all existing find-callers and find-refs tests remain green.",
+        "docs/COMMANDS.md regenerates cleanly; all migrated commands show consistent flag documentation.",
+        "dotnet build RoslynTools.slnx passes.",
+        "dotnet test tests/RoslynTools.Tests/RoslynTools.Tests.csproj -v minimal passes.",
+        "dotnet format RoslynTools.slnx --verify-no-changes passes."
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": "Final migration story. After this, adding a new output format requires only one new renderer file."
+    }
+  ]
+}
