@@ -1,6 +1,8 @@
 using System.CommandLine;
 using Microsoft.CodeAnalysis.FindSymbols;
+using RoslynTools.Commands.Results;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 
 namespace RoslynTools.Commands;
 
@@ -20,7 +22,8 @@ internal sealed class FindRefsCommand : IRtCommand
             "rt find-refs --symbol BookingService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt find-refs --symbol CreateBooking --kind method --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt find-refs --symbol IEmailService --kind type --solution RoslynTools.slnx",
-        ]
+        ],
+        SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );
 
     public static Command Build()
@@ -44,8 +47,8 @@ internal sealed class FindRefsCommand : IRtCommand
                 Console.Error.WriteLine($"Finding references to '{sym.ToDisplayString()}'...");
 
                 var referencedSymbols = await SymbolFinder.FindReferencesAsync(sym, sln);
+                var references = new List<ReferenceResult>();
 
-                int total = 0;
                 foreach (var referencedSymbol in referencedSymbols)
                 {
                     foreach (var loc in referencedSymbol.Locations)
@@ -56,12 +59,22 @@ internal sealed class FindRefsCommand : IRtCommand
                         var lineNumber = linePos.LineNumber + 1;
                         var lineText = linePos.ToString().TrimStart();
 
-                        Console.WriteLine($"{doc.FilePath}({lineNumber}): {lineText}");
-                        total++;
+                        references.Add(new ReferenceResult
+                        {
+                            FilePath = doc.FilePath ?? string.Empty,
+                            Line = lineNumber,
+                            LineText = lineText,
+                        });
                     }
                 }
 
-                Console.WriteLine($"\nFound {total} reference(s) to '{sym.Name}'.");
+                var result = new FindRefsResult
+                {
+                    SymbolName = sym.Name,
+                    References = references,
+                };
+
+                RtSerializer.Write(result);
             }
         },
         solutionOpt, symbolOpt, kindOpt);

@@ -1,7 +1,9 @@
 using System.CommandLine;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using RoslynTools.Commands.Results;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 
 namespace RoslynTools.Commands;
 
@@ -21,7 +23,8 @@ internal sealed class CircularDepsCommand : IRtCommand
             "rt circular-deps --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt cdeps --scope ProjectX.Core --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt circular-deps --solution RoslynTools.slnx --scope RoslynTools",
-        ]
+        ],
+        SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );
 
     public static Command Build()
@@ -39,8 +42,9 @@ internal sealed class CircularDepsCommand : IRtCommand
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
             using (workspace)
             {
-                var result = await AnalyzeAsync(sln, scope);
-                Console.WriteLine(result);
+                var cycles = await AnalyzeCyclesAsync(sln, scope);
+                var result = CircularDepsResult.FromCycles(cycles);
+                RtSerializer.Write(result);
             }
         }, scopeOpt, solutionOpt);
 
@@ -49,9 +53,9 @@ internal sealed class CircularDepsCommand : IRtCommand
 
     /// <summary>
     /// Analyzes the solution for circular namespace dependencies.
-    /// Returns a human-readable string describing any cycles found.
+    /// Returns a structured list of cycles, where each cycle is an ordered list of namespace nodes.
     /// </summary>
-    internal static async Task<string> AnalyzeAsync(Solution sln, string? scope)
+    internal static async Task<IReadOnlyList<IReadOnlyList<string>>> AnalyzeCyclesAsync(Solution sln, string? scope)
     {
         // Build adjacency list: namespace -> set of namespaces it depends on
         var graph = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
@@ -142,7 +146,7 @@ internal sealed class CircularDepsCommand : IRtCommand
         }
 
         // DFS cycle detection using white/gray/black coloring
-        var cycles = new List<string>();
+        var cycleStrings = new List<string>();
         var white = new HashSet<string>(graph.Keys, StringComparer.Ordinal); // unvisited
         var gray = new HashSet<string>(StringComparer.Ordinal);              // in current path
         var black = new HashSet<string>(StringComparer.Ordinal);             // fully processed
@@ -151,25 +155,27 @@ internal sealed class CircularDepsCommand : IRtCommand
         foreach (var node in graph.Keys.OrderBy(n => n))
         {
             if (white.Contains(node))
-                Dfs(node, graph, white, gray, black, stack, cycles);
+                DfsCollectStrings(node, graph, white, gray, black, stack, cycleStrings);
         }
+
+        return cycleStrings.Select(s => (IReadOnlyList<string>)s.Split(" -> ")).ToList();
+    }
+
+    /// <summary>
+    /// Analyzes the solution for circular namespace dependencies.
+    /// Returns a human-readable string describing any cycles found.
+    /// </summary>
+    internal static async Task<string> AnalyzeAsync(Solution sln, string? scope)
+    {
+        var cycles = await AnalyzeCyclesAsync(sln, scope);
 
         if (cycles.Count == 0)
             return "No circular namespace dependencies found.";
 
-        return string.Join(Environment.NewLine, cycles);
+        return string.Join(Environment.NewLine, cycles.Select(nodes => string.Join(" -> ", nodes)));
     }
 
-    private static void AddEdge(Dictionary<string, HashSet<string>> graph, string from, string to)
-    {
-        if (from == to)
-            return;
-        if (!graph.ContainsKey(from))
-            graph[from] = new HashSet<string>(StringComparer.Ordinal);
-        graph[from].Add(to);
-    }
-
-    private static void Dfs(
+    private static void DfsCollectStrings(
         string node,
         Dictionary<string, HashSet<string>> graph,
         HashSet<string> white,
@@ -199,12 +205,21 @@ internal sealed class CircularDepsCommand : IRtCommand
                 }
 
                 if (white.Contains(neighbor))
-                    Dfs(neighbor, graph, white, gray, black, stack, cycles);
+                    DfsCollectStrings(neighbor, graph, white, gray, black, stack, cycles);
             }
         }
 
         stack.Pop();
         gray.Remove(node);
         black.Add(node);
+    }
+
+    private static void AddEdge(Dictionary<string, HashSet<string>> graph, string from, string to)
+    {
+        if (from == to)
+            return;
+        if (!graph.ContainsKey(from))
+            graph[from] = new HashSet<string>(StringComparer.Ordinal);
+        graph[from].Add(to);
     }
 }

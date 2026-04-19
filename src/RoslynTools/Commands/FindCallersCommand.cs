@@ -1,8 +1,9 @@
 using System.CommandLine;
-using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
+using RoslynTools.Commands.Results;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 
 namespace RoslynTools.Commands;
 
@@ -22,7 +23,8 @@ internal sealed class FindCallersCommand : IRtCommand
             "rt find-callers --symbol SendEmail --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt callers --symbol ProcessPayment --include-tests --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt find-callers --symbol BuildGraphAsync --solution RoslynTools.slnx",
-        ]
+        ],
+        SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );
 
     public static Command Build()
@@ -47,7 +49,7 @@ internal sealed class FindCallersCommand : IRtCommand
                 Console.Error.WriteLine($"Finding callers of '{methodSymbol.ToDisplayString()}'...");
 
                 var referencedSymbols = await SymbolFinder.FindReferencesAsync(methodSymbol, sln);
-                int total = 0;
+                var callers = new List<CallerResult>();
 
                 foreach (var referencedSymbol in referencedSymbols)
                 {
@@ -55,11 +57,8 @@ internal sealed class FindCallersCommand : IRtCommand
                     {
                         var doc = loc.Document;
 
-                        if (!includeTests &&
-                            IsTestProject(doc.Project.Name))
-                        {
+                        if (!includeTests && IsTestProject(doc.Project.Name))
                             continue;
-                        }
 
                         var root = await doc.GetSyntaxRootAsync();
                         if (root is null)
@@ -86,12 +85,25 @@ internal sealed class FindCallersCommand : IRtCommand
                         var text = await doc.GetTextAsync();
                         var sourceLine = text.Lines[line - 1].ToString().TrimStart();
 
-                        Console.WriteLine($"{doc.FilePath}:{line}: {containingMethod}: {sourceLine}");
-                        total++;
+                        callers.Add(new CallerResult
+                        {
+                            FilePath = doc.FilePath ?? string.Empty,
+                            Line = line,
+                            ContainingMethod = containingMethod,
+                            SourceLine = sourceLine,
+                        });
                     }
                 }
 
-                Console.Error.WriteLine($"Found {total} caller(s) of '{methodSymbol.Name}'.");
+                var result = new FindCallersResult
+                {
+                    SymbolName = methodSymbol.Name,
+                    Callers = callers,
+                };
+
+                RtSerializer.Write(result);
+
+                Console.Error.WriteLine($"Found {callers.Count} caller(s) of '{methodSymbol.Name}'.");
             }
         }, symbolOpt, solutionOpt, includeTestsOpt);
 
