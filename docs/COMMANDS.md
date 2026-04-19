@@ -2,13 +2,14 @@
 
 Auto-generated on every `dotnet build` from each command's static `RtCommandInfo Info` property. **Do not hand-edit.**
 
-Total commands: **30**
+Total commands: **31**
 
 ## Contents
 
 - **Navigation** — [`find-callers`](#find-callers) (callers), [`find-impl`](#find-impl) (impls), [`find-refs`](#find-refs), [`find-unused`](#find-unused) (unused), [`inspect`](#inspect), [`outline`](#outline)
 - **Analysis** — [`circular-deps`](#circular-deps) (cdeps), [`dependency-graph`](#dependency-graph) (depgraph), [`list-smells`](#list-smells) (smells)
 - **Mutation** — [`add-dependency`](#add-dependency) (ad), [`add-null-checks`](#add-null-checks) (anc), [`add-test`](#add-test) (at), [`convert-to-record`](#convert-to-record) (ctr), [`extract-class`](#extract-class) (ec), [`extract-interface`](#extract-interface) (ei), [`extract-method`](#extract-method) (em), [`fix-namespace`](#fix-namespace) (fns), [`implement-interface`](#implement-interface) (ii), [`inline-method`](#inline-method) (im), [`make-async`](#make-async) (ma), [`make-sealed`](#make-sealed) (ms), [`move`](#move), [`rename`](#rename) (ren), [`replace-call`](#replace-call) (rc), [`replace-datetime`](#replace-datetime), [`safe-delete`](#safe-delete) (sd)
+- **Analysis — duplication** — [`find-duplicates`](#find-duplicates) (fd)
 - **Navigation & inspection** — [`find-pattern`](#find-pattern) (fp)
 - **Mutation — structure** — [`make-instance`](#make-instance) (mns), [`make-static`](#make-static) (mst)
 - **Mutation — symbol & namespace** — [`transform-parameters`](#transform-parameters) (tp)
@@ -586,6 +587,30 @@ Deleting a type or member only after verifying it has zero references in the sol
 rt safe-delete --symbol OrphanedHelper --solution C:\code\libraries\ProjectX.Libraries.sln
 rt sd --symbol BookingService.LegacyMethod --kind method --dry-run --solution C:\code\libraries\ProjectX.Libraries.sln
 rt safe-delete --symbol OldDtoType --kind type --solution RoslynTools.slnx
+```
+
+---
+
+## Analysis — duplication
+
+### find-duplicates
+
+_Report exact-clone code blocks repeated across the solution_
+
+**Read-only** | Plain-text output
+
+**Aliases:** `fd`
+
+**When to use:**
+
+Discovering repeated code blocks (exact clones) across a solution before an extract-method pass. Use --min-statements to tune noise vs. signal and --min-occurrences to target the most-duplicated blocks first.
+
+**Examples:**
+
+```bash
+rt find-duplicates --solution C:\code\libraries\ProjectX.Libraries.sln
+rt fd --min-statements 5 --solution C:\code\libraries\ProjectX.Libraries.sln
+rt find-duplicates --min-statements 4 --min-occurrences 3 --solution RoslynTools.slnx
 ```
 
 ---

@@ -1,34 +1,22 @@
-roslyn-tools Reduce Smells + Core Extraction + New Commands — Ralph Execution Progress
-========================================================================================
-Branch: ralph/reduce-smells
-PRD: prd.json (16 user stories)
-Date Started: 2026-04-18
-Date Completed: 2026-04-19
-Current Status: 16/16 stories complete (100%)
+roslyn-tools Find-Duplicates Backlog — Ralph Execution Progress
+================================================================
+Branch: ralph/find-duplicates
+PRD: prd.json (7 user stories; source: tasks/prd-find-duplicates.md)
+Date Started: 2026-04-19
+Current Status: 2/7 stories complete (29%)
 
-COMPLETED STORIES
-=================
-[x] US-001: Refactor MethodExtractor.ExtractAsync — extract private helpers
-[x] US-002: Extract ImplementInterfaceCommand logic to Core and decompose
-[x] US-003: Extract ConvertToRecordCommand logic to Core and decompose
-[x] US-004: Extract MakeSealedCommand logic to Core and decompose
-[x] US-005: Extract ReplaceCallCommand logic to Core and decompose
-[x] US-006: Refactor SmellAnalyzer.AnalyzeAsync — split per-smell logic into separate classes
-[x] US-007: Refactor SolutionWriter.PrintDiff — extract hunk-building helpers
-[x] US-008: Extract DependencyGraphCommand logic to Core and decompose
-[x] US-009: Extract MoveCommand logic to Core and decompose
-[x] US-010: Extract AddTestCommand logic to Core and decompose
-[x] US-011: New command: transform-parameters (new class)
-[x] US-012: transform-parameters — support existing class/record via --existing-type
-[x] US-013: New command: make-static
-[x] US-014: New command: make-instance (remove static)
-[x] US-015: New command: find-pattern (structural AST match across solution)
-[x] US-016: extract-method --replace-duplicates (uses find-pattern matcher)
+Previous backlog (ralph/reduce-smells, 16/16 complete + US-017 change-signature pending)
+archived to: ralph/archive/2026-04-19-reduce-smells-with-us017/
 
-NOTES
-=====
-- All 168 tests pass, build clean, format clean.
-- Two WARNs logged to tasks/dogfood-gaps.md for follow-up:
-  1. extract-method --replace-duplicates multi-match-in-same-file line-drift risk
-  2. ExtractMethodCommand.SetHandler lambda ~40 lines (exceeds thin-shell ≤20 line rule)
-- One bisect hazard logged: commit 0445c01 doesn't build standalone (ExtractMethodCommand changes leaked into US-012's commit from US-016 worktree).
+NOTE: User intent — finish US-017 change-signature from the archived backlog first,
+then start this find-duplicates backlog.
+
+PENDING STORIES
+===============
+[x] US-201: find-duplicates — structural exact-clone discovery (skeleton)
+[x] US-202: find-duplicates — canonicalise identifiers, literals, and trivia
+[ ] US-203: find-duplicates — overlap suppression and deterministic ranking
+[ ] US-204: find-duplicates — scope and size filters
+[ ] US-205: find-duplicates — JSON output
+[ ] US-206: find-duplicates — semantic mode via pluggable IEmbeddingProvider
+[ ] US-207: find-duplicates — extraction-readiness diagnostics
