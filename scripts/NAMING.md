@@ -4,16 +4,16 @@ Source: [C:\code\ai-rules\skills\refactor-rules.md](../../ai-rules/skills/refact
 
 ## The rule
 
-**`nested_class` + `new_name` read together must form a grammatical English assertion about the system's behaviour.**
+**`scenario` + `target_name` read together must form a grammatical English assertion about the system's behaviour.**
 
-- `nested_class` is the subject/scenario (a gerund phrase with no `When_` prefix)
-- `new_name` is the predicate (what the system does in that scenario)
+- `scenario` is the subject/scenario (a gerund phrase with no `When_` prefix)
+- `target_name` is the predicate (what the system does in that scenario)
 - No `Should_` or `Will_` — state facts
 - No class names, method names, HTTP verbs, or status codes
 
 ## Good
 
-| nested_class | new_name | Combined |
+| scenario | target_name | Combined |
 |---|---|---|
 | `Renaming_a_type` | `Updates_its_declaration_and_references` | Renaming a type updates its declaration and references |
 | `Renaming_a_method` | `Updates_all_call_sites` | Renaming a method updates all call sites |
@@ -24,7 +24,7 @@ Source: [C:\code\ai-rules\skills\refactor-rules.md](../../ai-rules/skills/refact
 
 ## Bad
 
-| nested_class | new_name | Why |
+| scenario | target_name | Why |
 |---|---|---|
 | `Detecting_circular_dependencies` | `Cycle_path_in_output` | No verb — "Detecting circular dependencies cycle path in output" is not a sentence |
 | `Generating_a_dependency_graph` | `Depth_limit` | Noun fragment — "Generating a dependency graph depth limit" is not a sentence |
@@ -36,9 +36,9 @@ Source: [C:\code\ai-rules\skills\refactor-rules.md](../../ai-rules/skills/refact
 `scripts/test-renames.csv` uses two markers to flag rows the mechanical generator
 can't make read as a sentence:
 
-- `# REVIEW (long): ...` — new_name has more than six words; usually a compound
+- `# REVIEW (long): ...` — target_name has more than six words; usually a compound
   predicate that needs splitting or simplifying.
-- `# REVIEW (no-verb): ...` — new_name contains no recognised verb; can't form
+- `# REVIEW (no-verb): ...` — target_name contains no recognised verb; can't form
   a predicate.
 
 `scripts/rename-tests.ps1 -Apply` refuses to run while any `# REVIEW` row remains.

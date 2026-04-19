@@ -165,7 +165,7 @@ public class RenameTests
         var (workspace, sln) = project.Build();
         var csvPath = Path.Combine(project.ProjectDir, "renames.csv");
         await File.WriteAllTextAsync(csvPath, """
-            "old_fqn","new_name"
+            "source_symbol","target_name"
             "TestApp.Product","Item"
             "TestApp.ProductService.GetProduct","FetchItem"
             """);
@@ -210,7 +210,7 @@ public class RenameTests
         var (workspace, sln) = project.Build();
         var csvPath = Path.Combine(project.ProjectDir, "renames-with-review.csv");
         await File.WriteAllTextAsync(csvPath, """
-            "old_fqn","new_name","review"
+            "source_symbol","target_name","review"
             "TestApp.Product","Item","no-verb"
             """);
 

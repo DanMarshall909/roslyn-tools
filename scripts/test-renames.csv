@@ -1,4 +1,4 @@
-﻿"old_fqn","nested_class","new_name","review"
+﻿"source_symbol","scenario","target_name","review"
 "RoslynTools.Tests.Analysis.CircularDepsTests.CircularDeps_DetectsCycle","Detecting_circular_dependencies","Reports_the_types_in_the_cycle",""
 "RoslynTools.Tests.Analysis.CircularDepsTests.CircularDeps_CyclePathInOutput","Detecting_circular_dependencies","Reports_the_cycle_path",""
 "RoslynTools.Tests.Analysis.CircularDepsTests.CircularDeps_NoCycle_ReturnsClean","Detecting_circular_dependencies","Returns_a_clean_result_when_no_cycles_exist",""

@@ -8,13 +8,13 @@
   Scans tests/RoslynTools.Tests/**/*.cs for [Fact]/[Theory] method
   declarations, writes rows of the form:
 
-      old_fqn,nested_class,new_name
+      source_symbol,scenario,target_name
 
-  - old_fqn: fully-qualified method name (RoslynTools.Tests.Foo.Bar.Baz)
-  - nested_class: LEFT BLANK. Hand-fill with `When_<scenario>` grouping
+  - source_symbol: fully-qualified method name (RoslynTools.Tests.Foo.Bar.Baz)
+  - scenario: LEFT BLANK. Hand-fill with `When_<scenario>` grouping
     (e.g. "When_renaming_a_type"). Empty means the method stays at the
     outer class level.
-  - new_name: mechanical sentence-case seed. Rows that end up with
+  - target_name: mechanical sentence-case seed. Rows that end up with
     > 6 underscore-separated words get a `# REVIEW:` prefix so
     awkward compound names are easy to spot.
 
@@ -31,7 +31,7 @@ if ((Test-Path $out) -and -not $Overwrite) {
     throw "$out already exists; pass -Overwrite to regenerate."
 }
 
-# Default nested_class scenario per test class. Rows get this as a seed;
+# Default scenario per test class. Rows get this as a seed;
 # you refine where a file has genuinely distinct sub-scenarios (e.g.
 # ExtractMethod splits "extracting into new method" vs "replacing duplicates").
 $DefaultScenarios = @{
@@ -155,7 +155,7 @@ foreach ($file in $files) {
         if (-not $result) { continue }
 
         # Keep rows even when the mechanical rename is a no-op — they may
-        # still need a nested_class grouping.
+        # still need a scenario grouping.
         $newName = $result.Name
         if ($newName -eq $method) { $newName = '' }   # blank = leave method name as-is
         else {
@@ -170,14 +170,14 @@ foreach ($file in $files) {
         $nested = if ($DefaultScenarios.ContainsKey($className)) { $DefaultScenarios[$className] } else { '' }
 
         $rows += [pscustomobject]@{
-            old_fqn      = "$ns.$className.$method"
-            nested_class = $nested
-            new_name     = $newName
+            source_symbol = "$ns.$className.$method"
+            scenario      = $nested
+            target_name   = $newName
         }
     }
 }
 
 $rows | Export-Csv -Path $out -NoTypeInformation -Encoding UTF8
 Write-Host "Wrote $($rows.Count) row(s) to $out" -ForegroundColor Green
-$reviewCount = ($rows | Where-Object { $_.new_name -like '# REVIEW:*' }).Count
+$reviewCount = ($rows | Where-Object { $_.target_name -like '# REVIEW:*' }).Count
 Write-Host "$reviewCount row(s) marked for REVIEW (> 6 words)" -ForegroundColor Yellow

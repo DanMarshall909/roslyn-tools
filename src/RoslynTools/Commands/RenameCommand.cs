@@ -38,7 +38,7 @@ internal sealed class RenameCommand : IRtCommand
         };
         var solutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file. Defaults to the single solution in current directory.");
         var kindOpt = new Option<string?>("--kind", "Symbol kind: type, method, property, field, namespace");
-        var csvOpt = new Option<string?>("--csv", "Path to a CSV file with old_fqn and new_name columns for batch renames.");
+        var csvOpt = new Option<string?>("--csv", "Path to a CSV file with source_symbol and target_name columns for batch renames.");
         var dryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk");
 
         var cmd = new Command("rename", "Rename a symbol and all its references across the solution")
@@ -150,14 +150,14 @@ internal sealed class RenameCommand : IRtCommand
             .Select((header, index) => (header, index))
             .ToDictionary(x => x.header, x => x.index, StringComparer.OrdinalIgnoreCase);
 
-        if (!map.TryGetValue("old_fqn", out var oldFqnIndex))
+        if (!map.TryGetValue("source_symbol", out var oldFqnIndex))
         {
-            throw new InvalidOperationException("CSV must contain an old_fqn column.");
+            throw new InvalidOperationException("CSV must contain a source_symbol column.");
         }
 
-        if (!map.TryGetValue("new_name", out var newNameIndex))
+        if (!map.TryGetValue("target_name", out var newNameIndex))
         {
-            throw new InvalidOperationException("CSV must contain a new_name column.");
+            throw new InvalidOperationException("CSV must contain a target_name column.");
         }
 
         var hasReviewColumn = map.TryGetValue("review", out var reviewIndex);

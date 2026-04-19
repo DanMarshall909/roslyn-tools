@@ -4,13 +4,13 @@
   Batch-rename test methods via `rt rename`, driven by a CSV mapping.
 
 .DESCRIPTION
-  Reads scripts/test-renames.csv (old_fqn, nested_class, new_name, review),
-  calls `rt rename <old_fqn> <new_name> --solution RoslynTools.sln` for each
+  Reads scripts/test-renames.csv (source_symbol, scenario, target_name, review),
+  calls `rt rename <source_symbol> <target_name> --solution RoslynTools.sln` for each
   row, and logs the outcome. Runs with --dry-run by default; pass -Apply to
   perform real writes.
 
-  Rows where new_name is blank are skipped (the row exists only for the
-  nested_class grouping step that follows).
+  Rows where target_name is blank are skipped (the row exists only for the
+  scenario grouping step that follows).
 
   Refuses to run if any row has a non-empty review column - curate first.
 
@@ -18,7 +18,7 @@
   When set, actually performs the rename. Otherwise runs --dry-run.
 
 .PARAMETER Filter
-  Optional substring filter on old_fqn to limit the batch.
+  Optional substring filter on source_symbol to limit the batch.
 #>
 param(
     [switch]$Apply,
@@ -35,13 +35,13 @@ if (-not (Test-Path $csvPath)) { throw "Missing mapping: $csvPath" }
 if (-not (Test-Path $rtCmd))   { throw "Missing rt.cmd: $rtCmd" }
 
 $rows = @(Import-Csv -Path $csvPath)
-if ($Filter) { $rows = @($rows | Where-Object { $_.old_fqn -like "*$Filter*" }) }
+if ($Filter) { $rows = @($rows | Where-Object { $_.source_symbol -like "*$Filter*" }) }
 
 # Fail fast on any row with a non-empty review column.
 $review = @($rows | Where-Object { $_.review })
 if ($review.Count -gt 0) {
     Write-Host "$($review.Count) row(s) still flagged in review column. Curate first." -ForegroundColor Red
-    $review | ForEach-Object { Write-Host "  $($_.old_fqn) [$($_.review)]" -ForegroundColor DarkYellow }
+    $review | ForEach-Object { Write-Host "  $($_.source_symbol) [$($_.review)]" -ForegroundColor DarkYellow }
     exit 2
 }
 
@@ -53,11 +53,11 @@ Write-Host "[$mode] $total rename(s) queued" -ForegroundColor Cyan
 $index = 0
 foreach ($row in $rows) {
     $index++
-    $old = $row.old_fqn
-    $new = $row.new_name
+    $old = $row.source_symbol
+    $new = $row.target_name
     if (-not $old) { $skip++; continue }
-    # Blank new_name means keep the current method name (the row is present
-    # only for the nested_class grouping step). Skip the rename.
+    # Blank target_name means keep the current method name (the row is present
+    # only for the scenario grouping step). Skip the rename.
     if (-not $new) { $skip++; continue }
 
     Write-Host "[$index/$total] $old  ->  $new" -ForegroundColor DarkGray
@@ -80,5 +80,5 @@ Write-Host ""
 Write-Host "Summary: $ok ok, $skip skipped, $fail failed" -ForegroundColor Cyan
 if ($fail -gt 0) { exit 1 }
 Write-Host ""
-Write-Host "NOTE: nested_class column is NOT applied by this script." -ForegroundColor Cyan
+Write-Host "NOTE: scenario column is NOT applied by this script." -ForegroundColor Cyan
 Write-Host "      Run the nested-class restructure step next." -ForegroundColor Cyan

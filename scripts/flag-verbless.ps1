@@ -1,6 +1,6 @@
 #!/usr/bin/env pwsh
 # One-off: add `# REVIEW (no-verb)` to rows in scripts/test-renames.csv
-# whose new_name has no common verb. Already-flagged rows are untouched.
+# whose target_name has no common verb. Already-flagged rows are untouched.
 $ErrorActionPreference = 'Stop'
 $csv = Join-Path $PSScriptRoot 'test-renames.csv'
 
@@ -35,10 +35,10 @@ function Test-HasVerb([string]$p) {
 $rows = Import-Csv $csv
 $marked = 0
 foreach ($r in $rows) {
-    if (-not $r.new_name) { continue }
-    if ($r.new_name -like '# REVIEW*') { continue }
-    if (-not (Test-HasVerb $r.new_name)) {
-        $r.new_name = "# REVIEW (no-verb): $($r.new_name)"
+    if (-not $r.target_name) { continue }
+    if ($r.target_name -like '# REVIEW*') { continue }
+    if (-not (Test-HasVerb $r.target_name)) {
+        $r.target_name = "# REVIEW (no-verb): $($r.target_name)"
         $marked++
     }
 }
