@@ -3,16 +3,19 @@ roslyn-tools Output Layer Backlog
 Branch: ralph/output-layer
 PRD: prd.json (8 user stories)
 Date Started: 2026-04-19
-Current Status: 0/8 stories complete (0%)
+Current Status: 3/8 stories complete (38%)
 
 Previous backlog (ralph/find-duplicates, 6/6 complete + US-206 dropped)
 archived to: ralph/archive/2026-04-19-find-duplicates/
 
+COMPLETED STORIES
+=================
+[x] US-208: Output layer core types and context
+[x] US-209: Reflection-based Json, Markdown, Llm and Text renderers
+[x] US-210: Global --json/--llm/--markdown flags via CommandLineBuilder middleware
+
 PENDING STORIES
 ===============
-[ ] US-208: Output layer core types and context
-[ ] US-209: Reflection-based Json, Markdown, Llm and Text renderers
-[ ] US-210: Global --json/--llm/--markdown flags via CommandLineBuilder middleware
 [ ] US-211: Migrate find-duplicates to IRtOutput (pilot)
 [ ] US-212: Migrate list-smells to IRtOutput
 [ ] US-213: Migrate find-unused to IRtOutput
