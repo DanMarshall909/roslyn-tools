@@ -36,6 +36,7 @@ internal sealed class FindDuplicatesCommand : IRtCommand
         var includeTestsOpt = new Option<bool>("--include-tests", () => false, "Include test projects (excluded by default)");
         var maxStatementsOpt = new Option<int>("--max-statements", () => 40, "Hard cap on duplicate window size");
         var jsonOpt = new Option<bool>("--json", () => false, "Emit results as JSON to stdout");
+        var llmOpt = new Option<bool>("--llm", () => false, "Emit compact output optimised for LLM consumption");
 
         var cmd = new Command("find-duplicates", "Report exact-clone code blocks repeated across the solution");
         cmd.AddAlias("fd");
@@ -46,8 +47,9 @@ internal sealed class FindDuplicatesCommand : IRtCommand
         cmd.Add(includeTestsOpt);
         cmd.Add(maxStatementsOpt);
         cmd.Add(jsonOpt);
+        cmd.Add(llmOpt);
 
-        cmd.SetHandler(async (solution, minStatements, minOccurrences, scope, includeTests, maxStatements, json) =>
+        cmd.SetHandler(async (solution, minStatements, minOccurrences, scope, includeTests, maxStatements, json, llm) =>
         {
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
             using (workspace)
@@ -62,12 +64,16 @@ internal sealed class FindDuplicatesCommand : IRtCommand
                         : null;
                     PrintJson(groups, solutionDir);
                 }
+                else if (llm)
+                {
+                    PrintLlm(groups);
+                }
                 else
                 {
                     PrintGroups(groups);
                 }
             }
-        }, solutionOpt, minStatementsOpt, minOccurrencesOpt, scopeOpt, includeTestsOpt, maxStatementsOpt, jsonOpt);
+        }, solutionOpt, minStatementsOpt, minOccurrencesOpt, scopeOpt, includeTestsOpt, maxStatementsOpt, jsonOpt, llmOpt);
 
         return cmd;
     }
@@ -121,6 +127,27 @@ internal sealed class FindDuplicatesCommand : IRtCommand
         }
 
         return Path.GetFileName(absolutePath);
+    }
+
+    internal static void PrintLlm(IReadOnlyList<DuplicateGroup> groups)
+    {
+        if (groups.Count == 0)
+        {
+            Console.WriteLine("No duplicate blocks found.");
+            return;
+        }
+
+        foreach (var g in groups)
+        {
+            Console.WriteLine($"{g.GroupId} {g.Extractability}");
+            Console.WriteLine($"  {g.Preview}");
+            foreach (var o in g.Occurrences)
+            {
+                var path = o.FilePath.Replace('\\', '/');
+                Console.WriteLine($"  {path}:{o.StartLine}-{o.EndLine}");
+            }
+            Console.WriteLine();
+        }
     }
 
     private static void PrintGroups(IReadOnlyList<DuplicateGroup> groups)
