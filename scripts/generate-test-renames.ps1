@@ -71,6 +71,41 @@ $DefaultScenarios = @{
     'WorkspaceLoaderSmokeTests'      = 'When_loading_a_real_solution'
 }
 
+# Coarse verb detector. Returns $true if the snake_case phrase contains at
+# least one common English verb as a standalone word. Flags cases like
+# `Cycle_path_in_output` (no verb) so the user rewrites them — e.g. to
+# `Cycle_path_appears_in_output`.
+$CommonVerbs = @(
+    'is','are','was','were','be','being','been',
+    'does','do','did','doesnt','dont','didnt',
+    'has','have','had','hasnt','havent',
+    'returns','returned','throws','threw','fails','failed',
+    'adds','removes','creates','updates','deletes','inserts',
+    'shows','appears','matches','contains','omits','keeps',
+    'writes','reads','produces','generates','receives',
+    'becomes','stays','remains','gets','sets',
+    'detects','reports','finds','locates','yields',
+    'skips','rejects','allows','denies','accepts',
+    'rewrites','replaces','renames','moves','inlines','extracts',
+    'convert','converts','converted',
+    'wraps','strips','trims','splits','joins','maps',
+    'builds','loads','opens','closes','applies','ignores',
+    'triggers','emits','outputs','prints','logs','notifies',
+    'handles','captures','propagates','respects',
+    'preserves','pins','anchors',
+    'makes','seals','flattens',
+    'requires','needs','expects'
+) | ForEach-Object { $_.ToLower() } | Sort-Object -Unique
+$VerbSet = [System.Collections.Generic.HashSet[string]]::new([string[]]$CommonVerbs)
+
+function Test-HasVerb {
+    param([string]$Phrase)
+    foreach ($word in $Phrase.ToLower().Split('_')) {
+        if ($VerbSet.Contains($word)) { return $true }
+    }
+    return $false
+}
+
 function Convert-ToSnakeSentence {
     param([string]$Name, [string]$ClassPrefix)
 
@@ -123,8 +158,13 @@ foreach ($file in $files) {
         # still need a nested_class grouping.
         $newName = $result.Name
         if ($newName -eq $method) { $newName = '' }   # blank = leave method name as-is
-        elseif ($result.WordCount -gt 6) {
-            $newName = "# REVIEW: $newName"
+        else {
+            $issues = @()
+            if ($result.WordCount -gt 6) { $issues += 'long' }
+            if (-not (Test-HasVerb $newName)) { $issues += 'no-verb' }
+            if ($issues.Count -gt 0) {
+                $newName = "# REVIEW ($($issues -join ',')): $newName"
+            }
         }
 
         $nested = if ($DefaultScenarios.ContainsKey($className)) { $DefaultScenarios[$className] } else { '' }
