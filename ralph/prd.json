@@ -68,7 +68,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Suppression is the main noise source in clone-detection tools — spend tests here. Depends on US-202."
     },
     {
@@ -133,8 +133,8 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": "User confirmed: pluggable interface with a local default. No network dependency in v1. Keep all embedding code under src/RoslynTools/Core/Semantic/ subdirectory if file count grows. Depends on US-205."
+      "passes": true,
+      "notes": "DROPPED — user decided semantic mode is not needed. Skipped."
     },
     {
       "id": "US-207",
