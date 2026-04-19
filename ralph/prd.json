@@ -98,7 +98,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes."
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Pilot migration — establishes the pattern. Byte-for-byte text regression required before proceeding."
     },
     {
