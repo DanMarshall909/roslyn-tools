@@ -1597,6 +1597,160 @@ public class FindDuplicatesTests
         }
     }
 
+    // ── Output format: forward-slash paths and line ranges ────────────────────────
+
+    [Fact]
+    public async Task Plain_text_output_uses_forward_slash_paths()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("A.cs", """
+            namespace TestApp;
+
+            public class A
+            {
+                public void First()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+
+                public void Second()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var groups = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions());
+            Assert.NotEmpty(groups);
+
+            var output = CaptureText(groups);
+            var occurrenceLines = output.Split('\n').Where(l => l.TrimStart().StartsWith("1.") || l.TrimStart().StartsWith("2."));
+            Assert.All(occurrenceLines, line => Assert.DoesNotContain('\\', line));
+        }
+    }
+
+    [Fact]
+    public async Task Plain_text_output_shows_line_range()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("A.cs", """
+            namespace TestApp;
+
+            public class A
+            {
+                public void First()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+
+                public void Second()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var groups = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions());
+            Assert.NotEmpty(groups);
+
+            var output = CaptureText(groups);
+            // Each occurrence line should contain a startLine-endLine range like ":7-9"
+            var occurrenceLines = output.Split('\n').Where(l => l.TrimStart().StartsWith("1.") || l.TrimStart().StartsWith("2.")).ToList();
+            Assert.All(occurrenceLines, line => Assert.Matches(@":\d+-\d+", line));
+        }
+    }
+
+    [Fact]
+    public async Task Occurrence_EndLine_is_greater_than_or_equal_to_StartLine()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("A.cs", """
+            namespace TestApp;
+
+            public class A
+            {
+                public void First()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+
+                public void Second()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var groups = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions());
+            Assert.NotEmpty(groups);
+
+            Assert.All(groups.SelectMany(g => g.Occurrences), o => Assert.True(o.EndLine >= o.StartLine));
+        }
+    }
+
+    [Fact]
+    public async Task Json_link_field_uses_forward_slash_path_with_start_line()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("A.cs", """
+            namespace TestApp;
+
+            public class A
+            {
+                public void First()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+
+                public void Second()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var groups = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions());
+            Assert.NotEmpty(groups);
+
+            var json = JsonDocument.Parse(CaptureJson(groups, solutionDir: null));
+            var occurrences = json.RootElement.GetProperty("groups")[0].GetProperty("occurrences");
+            foreach (var occ in occurrences.EnumerateArray())
+            {
+                var link = occ.GetProperty("link").GetString()!;
+                Assert.DoesNotContain('\\', link);
+                Assert.Matches(@":\d+$", link);
+            }
+        }
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────────
 
     private static string CaptureJson(IReadOnlyList<DuplicateGroup> groups, string? solutionDir)
