@@ -15,7 +15,8 @@ internal sealed record DuplicateOccurrence(
     int StartLine,
     int EndLine,
     string ContainingType,
-    string ContainingMember);
+    string ContainingMember,
+    IReadOnlyDictionary<string, string>? SubstitutionMap = null);
 
 internal sealed record DuplicateGroup(
     string GroupHash,
@@ -59,6 +60,7 @@ internal static class FindDuplicatesCore
         public required int StartIdx { get; init; }
         public required string ContainingType { get; init; }
         public required string ContainingMember { get; init; }
+        public required SemanticModel SemanticModel { get; init; }
         public int Length { get; set; } = 1;
 
         public IReadOnlyList<StatementSyntax> Window =>
@@ -87,6 +89,10 @@ internal static class FindDuplicatesCore
 
                 var root = await document.GetSyntaxRootAsync();
                 if (root is null)
+                    continue;
+
+                var semanticModel = await document.GetSemanticModelAsync();
+                if (semanticModel is null)
                     continue;
 
                 var methods = root.DescendantNodes()
@@ -123,6 +129,7 @@ internal static class FindDuplicatesCore
                             StartIdx = i,
                             ContainingType = containingType,
                             ContainingMember = containingMember,
+                            SemanticModel = semanticModel,
                             Length = 1,
                         };
 
@@ -130,7 +137,7 @@ internal static class FindDuplicatesCore
                         if (IsBoilerplateWindow(loc.Window))
                             continue;
 
-                        var hash = ComputeWindowHash(loc.Window);
+                        var hash = ComputeCanonicalHash(loc.Window, semanticModel);
                         if (!seeds.TryGetValue(hash, out var list))
                             seeds[hash] = list = [];
                         list.Add(loc);
@@ -247,7 +254,7 @@ internal static class FindDuplicatesCore
     private static string ComputeExtendedHash(CandidateLoc loc)
     {
         var extWindow = loc.Body.Skip(loc.StartIdx).Take(loc.Length + 1).ToList();
-        return ComputeWindowHash(extWindow);
+        return ComputeCanonicalHash(extWindow, loc.SemanticModel);
     }
 
     private static DuplicateOccurrence BuildOccurrence(CandidateLoc loc)
@@ -255,21 +262,20 @@ internal static class FindDuplicatesCore
         var window = loc.Window;
         var startLine = window[0].GetLocation().GetLineSpan().StartLinePosition.Line + 1;
         var endLine = window[^1].GetLocation().GetLineSpan().EndLinePosition.Line + 1;
+        var (_, subs) = BlockNormalizer.Normalize(window, loc.SemanticModel);
         return new DuplicateOccurrence(
             loc.FilePath,
             startLine,
             endLine,
             loc.ContainingType,
-            loc.ContainingMember);
+            loc.ContainingMember,
+            SubstitutionMap: subs);
     }
 
-    private static string ComputeWindowHash(IReadOnlyList<StatementSyntax> statements)
+    private static string ComputeCanonicalHash(IReadOnlyList<StatementSyntax> statements, SemanticModel semanticModel)
     {
-        var sb = new StringBuilder();
-        foreach (var stmt in statements)
-            sb.Append(stmt.NormalizeWhitespace().ToFullString());
-
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString()));
+        var (canonicalText, _) = BlockNormalizer.Normalize(statements, semanticModel);
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(canonicalText));
         return Convert.ToHexString(bytes);
     }
 
