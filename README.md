@@ -327,6 +327,24 @@ rt find-impl "MyApp.Interfaces.IRepository"
 
 ---
 
+## AI agent skill
+
+`docs/use-rt-skill.md` is a compact reference for all 31 commands — decision guide, flag summary, and output conventions — sized for an agent context window. Every Debug build automatically deploys it to `~/.claude/skills/use-rt/SKILL.md` so Claude Code picks it up as the `/use-rt` skill.
+
+To deploy manually or to a different destination:
+
+```sh
+# Default: ~/.claude/skills/use-rt
+.\scripts\deploy-skill.ps1
+
+# Custom destination (OpenAI plugin dir, etc.)
+.\scripts\deploy-skill.ps1 -DestDir "$env:USERPROFILE\openai-plugins\use-rt"
+```
+
+Skip auto-deploy on build: `dotnet build RoslynTools.slnx -p:DeployRtSkill=false`
+
+---
+
 ## Common options
 
 | Option | Description |

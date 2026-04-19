@@ -48,6 +48,23 @@
     Escape hatch for CI or release-only builds: `-p:GenerateCommandsMd=false`.
     Only runs on Debug to keep release publishes fast; devs regenerate locally, commit the MD.
   -->
+  <!--
+    Deploy docs/use-rt-skill.md to the configured AI skills folder after every local Debug build.
+    Override the destination: -p:RtSkillsDir="C:\path\to\skills\use-rt"
+    Skip entirely:            -p:DeployRtSkill=false
+  -->
+  <Target Name="DeployRtSkill"
+          AfterTargets="Build"
+          Condition="'$(Configuration)' == 'Debug' AND '$(DeployRtSkill)' != 'false' AND '$(RuntimeIdentifier)' == ''">
+    <PropertyGroup>
+      <RtSkillsDir Condition="'$(RtSkillsDir)' == ''">$(USERPROFILE)\.claude\skills\use-rt</RtSkillsDir>
+      <DeploySkillScript>$(MSBuildProjectDirectory)\..\..\scripts\deploy-skill.ps1</DeploySkillScript>
+    </PropertyGroup>
+    <Exec Command="powershell -NoProfile -NonInteractive -File &quot;$(DeploySkillScript)&quot; -DestDir &quot;$(RtSkillsDir)&quot;"
+          EchoOff="true"
+          ContinueOnError="true" />
+  </Target>
+
   <Target Name="GenerateCommandsMd"
           AfterTargets="Build"
           Condition="'$(Configuration)' == 'Debug' AND '$(GenerateCommandsMd)' != 'false' AND '$(RuntimeIdentifier)' == ''">
