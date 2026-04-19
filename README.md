@@ -338,7 +338,7 @@ rt find-impl "MyApp.Interfaces.IRepository"
 ## Tests
 
 ```sh
-dotnet test RoslynTools.sln -v minimal
+dotnet test RoslynTools.slnx -v minimal
 ```
 
 129 tests. Each test generates a throwaway C# project, runs Roslyn operations against it, and cleans up automatically.

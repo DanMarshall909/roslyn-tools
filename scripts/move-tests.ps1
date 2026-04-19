@@ -7,7 +7,7 @@
 .DESCRIPTION
   Reads scripts/test-folders.csv (file, folder). For each row:
     1. git mv tests/RoslynTools.Tests/<file> tests/RoslynTools.Tests/<folder>/<file>
-    2. rt fix-namespace --file <new-path> --solution RoslynTools.sln
+    2. rt fix-namespace --file <new-path> --solution RoslynTools.slnx
 
   Namespace change: `RoslynTools.Tests` → `RoslynTools.Tests.<Folder>`.
   Sibling helpers (AdhocProjectBuilder, MsBuildFixture) stay in the root
@@ -32,7 +32,7 @@ $PSNativeCommandUseErrorActionPreference = $false
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $csvPath  = Join-Path $PSScriptRoot 'test-folders.csv'
 $rtCmd    = Join-Path $repoRoot 'rt.cmd'
-$sln      = Join-Path $repoRoot 'RoslynTools.sln'
+$sln      = Join-Path $repoRoot 'RoslynTools.slnx'
 $testsDir = Join-Path $repoRoot 'tests\RoslynTools.Tests'
 
 if (-not (Test-Path $csvPath)) { throw "Missing mapping: $csvPath" }

@@ -5,7 +5,7 @@
 
 .DESCRIPTION
   Reads scripts/test-renames.csv (source_symbol, scenario, target_name, review),
-  calls `rt rename <source_symbol> <target_name> --solution RoslynTools.sln` for each
+  calls `rt rename <source_symbol> <target_name> --solution RoslynTools.slnx` for each
   row, and logs the outcome. Runs with --dry-run by default; pass -Apply to
   perform real writes.
 
@@ -29,7 +29,7 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $csvPath  = Join-Path $PSScriptRoot 'test-renames.csv'
 $rtCmd    = Join-Path $repoRoot 'rt.cmd'
-$sln      = Join-Path $repoRoot 'RoslynTools.sln'
+$sln      = Join-Path $repoRoot 'RoslynTools.slnx'
 
 if (-not (Test-Path $csvPath)) { throw "Missing mapping: $csvPath" }
 if (-not (Test-Path $rtCmd))   { throw "Missing rt.cmd: $rtCmd" }
