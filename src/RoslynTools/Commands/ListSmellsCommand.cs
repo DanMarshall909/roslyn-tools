@@ -1,5 +1,7 @@
 using System.CommandLine;
+using RoslynTools.Commands.Results;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 
 namespace RoslynTools.Commands;
 
@@ -19,7 +21,8 @@ internal sealed class ListSmellsCommand : IRtCommand
             "rt list-smells --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt smells --scope ProjectX.Core --max-class-lines 200 --max-method-lines 30 --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt list-smells --solution RoslynTools.slnx --max-params 5",
-        ]
+        ],
+        SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );
 
     public static Command Build()
@@ -43,11 +46,20 @@ internal sealed class ListSmellsCommand : IRtCommand
 
                 var smells = await SmellAnalyzer.AnalyzeAsync(sln, maxClass, maxMethod, maxParams, scope);
 
-                foreach (var smell in smells)
+                var result = new ListSmellsResult
                 {
-                    var member = smell.MemberName is not null ? $"  {smell.MemberName}" : "";
-                    Console.WriteLine($"{smell.SmellType,-24}{smell.TypeName,-30}{member,-20}{smell.FilePath}:{smell.Line}  {smell.Detail}");
-                }
+                    Smells = smells.Select(s => new SmellItemResult
+                    {
+                        SmellType = s.SmellType,
+                        TypeName = s.TypeName,
+                        MemberName = s.MemberName,
+                        FilePath = s.FilePath ?? string.Empty,
+                        Line = s.Line,
+                        Detail = s.Detail,
+                    }).ToList(),
+                };
+
+                RtSerializer.Write(result);
 
                 Console.Error.WriteLine($"Found {smells.Count} smell(s).");
             }
