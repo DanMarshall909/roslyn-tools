@@ -49,7 +49,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Use a CSharpSyntaxRewriter driven by a per-window SymbolTable that records first-use order for stable placeholder assignment. Use SemanticModel to distinguish local/parameter/field references. Depends on US-201."
     },
     {
