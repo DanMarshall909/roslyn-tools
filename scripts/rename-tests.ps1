@@ -65,7 +65,10 @@ Write-Host "[$mode] $total rename(s) queued" -ForegroundColor Cyan
 foreach ($row in $rows) {
     $old = $row.old_fqn
     $new = $row.new_name
-    if (-not $old -or -not $new) { $skip++; continue }
+    if (-not $old) { $skip++; continue }
+    # Blank new_name = keep the current method name (row exists only for
+    # the nested_class grouping). Skip the rename call.
+    if (-not $new) { $skip++; continue }
 
     Write-Host "→ $old  →  $new" -ForegroundColor DarkGray
     # Route through cmd /c to avoid PS 5.1 treating rt's stderr progress as errors.

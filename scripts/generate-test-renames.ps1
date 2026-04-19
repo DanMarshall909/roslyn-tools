@@ -31,6 +31,46 @@ if ((Test-Path $out) -and -not $Overwrite) {
     throw "$out already exists; pass -Overwrite to regenerate."
 }
 
+# Default nested_class scenario per test class. Rows get this as a seed;
+# you refine where a file has genuinely distinct sub-scenarios (e.g.
+# ExtractMethod splits "extracting into new method" vs "replacing duplicates").
+$DefaultScenarios = @{
+    'AddDependencyTests'             = 'When_adding_a_constructor_dependency'
+    'AddNullChecksTests'             = 'When_adding_null_checks'
+    'AddTestTests'                   = 'When_adding_a_test_method'
+    'CircularDepsTests'              = 'When_detecting_circular_dependencies'
+    'ConvertToRecordTests'           = 'When_converting_a_class_to_a_record'
+    'DependencyGraphTests'           = 'When_generating_a_dependency_graph'
+    'ExtractClassTests'              = 'When_extracting_a_class'
+    'ExtractInterfaceTests'          = 'When_extracting_an_interface'
+    'ExtractMethodTests'             = 'When_extracting_a_method'
+    'FindCallersTests'               = 'When_finding_callers'
+    'FindImplementationsTests'       = 'When_finding_implementations'
+    'FindPatternTests'               = 'When_finding_a_pattern'
+    'FindRefsTests'                  = 'When_finding_references'
+    'FindUnusedTests'                = 'When_finding_unused_symbols'
+    'FixNamespaceTests'              = 'When_fixing_a_namespace'
+    'ImplementInterfaceTests'        = 'When_implementing_an_interface'
+    'InlineMethodTests'              = 'When_inlining_a_method'
+    'InspectTests'                   = 'When_inspecting_a_symbol'
+    'ListSmellsTests'                = 'When_listing_code_smells'
+    'MakeAsyncTests'                 = 'When_making_a_method_async'
+    'MakeInstanceTests'              = 'When_making_a_method_instance'
+    'MakeSealedTests'                = 'When_sealing_a_type'
+    'MakeStaticTests'                = 'When_making_a_method_static'
+    'MoveTests'                      = 'When_moving_a_type'
+    'OutlineTests'                   = 'When_outlining_a_file'
+    'RenameTests'                    = 'When_renaming_a_symbol'
+    'ReplaceCallTests'               = 'When_replacing_a_method_call'
+    'ReplaceTypeCommandTests'        = 'When_replacing_a_type'
+    'SafeDeleteTests'                = 'When_safely_deleting_a_symbol'
+    'SolutionWriterIntegrationTests' = 'When_applying_solution_changes'
+    'SolutionWriterTests'            = 'When_printing_a_diff'
+    'SymbolFormatterTests'           = 'When_formatting_a_symbol'
+    'TransformParametersTests'       = 'When_transforming_parameters'
+    'WorkspaceLoaderSmokeTests'      = 'When_loading_a_real_solution'
+}
+
 function Convert-ToSnakeSentence {
     param([string]$Name, [string]$ClassPrefix)
 
@@ -78,16 +118,20 @@ foreach ($file in $files) {
 
         $result = Convert-ToSnakeSentence -Name $method -ClassPrefix $prefix
         if (-not $result) { continue }
-        if ($result.Name -eq $method) { continue }
 
+        # Keep rows even when the mechanical rename is a no-op — they may
+        # still need a nested_class grouping.
         $newName = $result.Name
-        if ($result.WordCount -gt 6) {
+        if ($newName -eq $method) { $newName = '' }   # blank = leave method name as-is
+        elseif ($result.WordCount -gt 6) {
             $newName = "# REVIEW: $newName"
         }
 
+        $nested = if ($DefaultScenarios.ContainsKey($className)) { $DefaultScenarios[$className] } else { '' }
+
         $rows += [pscustomobject]@{
             old_fqn      = "$ns.$className.$method"
-            nested_class = ''
+            nested_class = $nested
             new_name     = $newName
         }
     }
