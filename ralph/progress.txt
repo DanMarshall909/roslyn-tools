@@ -1,22 +1,20 @@
-roslyn-tools Find-Duplicates Backlog — Ralph Execution Progress
-================================================================
-Branch: ralph/find-duplicates
-PRD: prd.json (7 user stories; source: tasks/prd-find-duplicates.md)
+roslyn-tools Output Layer Backlog
+==================================
+Branch: ralph/output-layer
+PRD: prd.json (8 user stories)
 Date Started: 2026-04-19
-Current Status: 6/6 stories complete (100%) — US-206 dropped by user
+Current Status: 0/8 stories complete (0%)
 
-Previous backlog (ralph/reduce-smells, 16/16 complete + US-017 change-signature pending)
-archived to: ralph/archive/2026-04-19-reduce-smells-with-us017/
-
-NOTE: User intent — finish US-017 change-signature from the archived backlog first,
-then start this find-duplicates backlog.
+Previous backlog (ralph/find-duplicates, 6/6 complete + US-206 dropped)
+archived to: ralph/archive/2026-04-19-find-duplicates/
 
 PENDING STORIES
 ===============
-[x] US-201: find-duplicates — structural exact-clone discovery (skeleton)
-[x] US-202: find-duplicates — canonicalise identifiers, literals, and trivia
-[x] US-203: find-duplicates — overlap suppression and deterministic ranking
-[x] US-204: find-duplicates — scope and size filters
-[x] US-205: find-duplicates — JSON output
-[~] US-206: find-duplicates — semantic mode via pluggable IEmbeddingProvider (DROPPED)
-[x] US-207: find-duplicates — extraction-readiness diagnostics
+[ ] US-208: Output layer core types and context
+[ ] US-209: Reflection-based Json, Markdown, Llm and Text renderers
+[ ] US-210: Global --json/--llm/--markdown flags via CommandLineBuilder middleware
+[ ] US-211: Migrate find-duplicates to IRtOutput (pilot)
+[ ] US-212: Migrate list-smells to IRtOutput
+[ ] US-213: Migrate find-unused to IRtOutput
+[ ] US-214: Migrate circular-deps to IRtOutput
+[ ] US-215: Migrate find-callers and find-refs to IRtOutput
