@@ -8,6 +8,12 @@ internal static class JsonRenderer
 {
     internal static void Write(IRtOutput result, TextWriter writer)
     {
+        if (result is IRtJsonOutput custom)
+        {
+            custom.RenderJson(writer);
+            return;
+        }
+
         var obj = BuildObject(result, OutputLevel.Detailed);
         var json = JsonSerializer.Serialize(obj, Core.SymbolFormatter.DefaultJsonOptions);
         writer.Write(json);

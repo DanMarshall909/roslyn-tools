@@ -7,6 +7,12 @@ internal static class MarkdownRenderer
 {
     internal static void Write(IRtOutput result, TextWriter writer)
     {
+        if (result is IRtMarkdownOutput md)
+        {
+            md.RenderMarkdown(writer);
+            return;
+        }
+
         var maxLevel = OutputLevel.Default;
         var props = GetAnnotatedProperties(result.GetType(), maxLevel);
 

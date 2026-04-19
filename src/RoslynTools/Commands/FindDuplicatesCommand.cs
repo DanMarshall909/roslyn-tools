@@ -1,6 +1,7 @@
 using System.CommandLine;
-using System.Text.Json;
+using RoslynTools.Commands.Results;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 
 namespace RoslynTools.Commands;
 
@@ -24,7 +25,8 @@ internal sealed class FindDuplicatesCommand : IRtCommand
             "rt find-duplicates --include-tests --solution RoslynTools.slnx",
             "rt find-duplicates --max-statements 20 --solution RoslynTools.slnx",
             "rt find-duplicates --json --solution RoslynTools.slnx",
-        ]
+        ],
+        SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );
 
     public static Command Build()
@@ -35,8 +37,6 @@ internal sealed class FindDuplicatesCommand : IRtCommand
         var scopeOpt = new Option<string?>("--scope", "Project name or namespace prefix to restrict search to");
         var includeTestsOpt = new Option<bool>("--include-tests", () => false, "Include test projects (excluded by default)");
         var maxStatementsOpt = new Option<int>("--max-statements", () => 40, "Hard cap on duplicate window size");
-        var jsonOpt = new Option<bool>("--json", () => false, "Emit results as JSON to stdout");
-        var llmOpt = new Option<bool>("--llm", () => false, "Emit compact output optimised for LLM consumption");
 
         var cmd = new Command("find-duplicates", "Report exact-clone code blocks repeated across the solution");
         cmd.AddAlias("fd");
@@ -46,10 +46,8 @@ internal sealed class FindDuplicatesCommand : IRtCommand
         cmd.Add(scopeOpt);
         cmd.Add(includeTestsOpt);
         cmd.Add(maxStatementsOpt);
-        cmd.Add(jsonOpt);
-        cmd.Add(llmOpt);
 
-        cmd.SetHandler(async (solution, minStatements, minOccurrences, scope, includeTests, maxStatements, json, llm) =>
+        cmd.SetHandler(async (solution, minStatements, minOccurrences, scope, includeTests, maxStatements) =>
         {
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
             using (workspace)
@@ -57,128 +55,15 @@ internal sealed class FindDuplicatesCommand : IRtCommand
                 var options = new FindDuplicatesOptions(minStatements, minOccurrences, scope, includeTests, maxStatements);
                 var groups = await FindDuplicatesCore.RunAsync(sln, options);
 
-                if (json)
-                {
-                    var solutionDir = sln.FilePath is not null
-                        ? Path.GetDirectoryName(sln.FilePath)
-                        : null;
-                    PrintJson(groups, solutionDir);
-                }
-                else if (llm)
-                {
-                    PrintLlm(groups);
-                }
-                else
-                {
-                    PrintGroups(groups);
-                }
+                var solutionDir = sln.FilePath is not null
+                    ? Path.GetDirectoryName(sln.FilePath)
+                    : null;
+
+                var result = FindDuplicatesResult.FromGroups(groups, solutionDir);
+                RtSerializer.Write(result);
             }
-        }, solutionOpt, minStatementsOpt, minOccurrencesOpt, scopeOpt, includeTestsOpt, maxStatementsOpt, jsonOpt, llmOpt);
+        }, solutionOpt, minStatementsOpt, minOccurrencesOpt, scopeOpt, includeTestsOpt, maxStatementsOpt);
 
         return cmd;
-    }
-
-    internal static void PrintJson(IReadOnlyList<DuplicateGroup> groups, string? solutionDir)
-    {
-        var doc = new
-        {
-            mode = "structural",
-            groups = groups.Select(g => new
-            {
-                groupId = g.GroupId,
-                mode = "structural",
-                score = g.Score,
-                occurrenceCount = g.Occurrences.Count,
-                extractability = g.Extractability,
-                preview = g.Preview,
-                occurrences = g.Occurrences.Select(o => new
-                {
-                    file = MakeRelativePath(o.FilePath, solutionDir),
-                    line = o.StartLine,
-                    endLine = o.EndLine,
-                    type = o.ContainingType,
-                    member = o.ContainingMember,
-                    link = o.FilePath.Replace('\\', '/') + ":" + o.StartLine,
-                }).ToArray(),
-                checks = (g.Checks ?? []).Select(c => new
-                {
-                    name = c.Name,
-                    status = c.Status,
-                    detail = c.Detail,
-                }).ToArray(),
-            }).ToArray(),
-        };
-
-        Console.WriteLine(JsonSerializer.Serialize(doc, SymbolFormatter.DefaultJsonOptions));
-    }
-
-    private static string MakeRelativePath(string absolutePath, string? solutionDir)
-    {
-        if (solutionDir is not null)
-        {
-            try
-            {
-                return Path.GetRelativePath(solutionDir, absolutePath);
-            }
-            catch
-            {
-                // Fall through to filename fallback
-            }
-        }
-
-        return Path.GetFileName(absolutePath);
-    }
-
-    internal static void PrintLlm(IReadOnlyList<DuplicateGroup> groups)
-    {
-        if (groups.Count == 0)
-        {
-            Console.WriteLine("No duplicate blocks found.");
-            return;
-        }
-
-        foreach (var g in groups)
-        {
-            Console.WriteLine($"{g.GroupId} {g.Extractability}");
-            Console.WriteLine($"  {g.Preview}");
-            foreach (var o in g.Occurrences)
-            {
-                var path = o.FilePath.Replace('\\', '/');
-                Console.WriteLine($"  {path}:{o.StartLine}-{o.EndLine}");
-            }
-            Console.WriteLine();
-        }
-    }
-
-    private static void PrintGroups(IReadOnlyList<DuplicateGroup> groups)
-    {
-        if (groups.Count == 0)
-        {
-            Console.WriteLine("No duplicate groups found.");
-            return;
-        }
-
-        for (var i = 0; i < groups.Count; i++)
-        {
-            var g = groups[i];
-            var partialTag = g.PartiallyExpandable ? "  [partial]" : "";
-            Console.WriteLine($"Group {i + 1}  id={g.GroupId}  occurrences={g.Occurrences.Count}  score={g.Score:F2}  extractable={g.Extractability}{partialTag}");
-            Console.WriteLine($"preview: {g.Preview}");
-            if (g.Checks is { Count: > 0 })
-            {
-                foreach (var c in g.Checks)
-                {
-                    var detail = c.Detail is not null ? $": {c.Detail}" : "";
-                    Console.WriteLine($"  [{c.Status}] {c.Name}{detail}");
-                }
-            }
-            for (var j = 0; j < g.Occurrences.Count; j++)
-            {
-                var o = g.Occurrences[j];
-                var path = o.FilePath.Replace('\\', '/');
-                Console.WriteLine($"  {j + 1}. {path}:{o.StartLine}-{o.EndLine} in {o.ContainingType}.{o.ContainingMember}");
-            }
-            Console.WriteLine();
-        }
     }
 }

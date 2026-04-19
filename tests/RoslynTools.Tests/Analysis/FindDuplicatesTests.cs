@@ -1,6 +1,7 @@
 using System.Text.Json;
-using RoslynTools.Commands;
+using RoslynTools.Commands.Results;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 
 namespace RoslynTools.Tests.Analysis;
 
@@ -1756,15 +1757,16 @@ public class FindDuplicatesTests
     private static string CaptureJson(IReadOnlyList<DuplicateGroup> groups, string? solutionDir)
     {
         var sw = new System.IO.StringWriter();
-        var original = Console.Out;
-        Console.SetOut(sw);
+        var result = FindDuplicatesResult.FromGroups(groups, solutionDir);
+        var prevFormat = RtContext.Format;
+        RtContext.Format = OutputFormat.Json;
         try
         {
-            FindDuplicatesCommand.PrintJson(groups, solutionDir);
+            RtSerializer.Write(result, sw);
         }
         finally
         {
-            Console.SetOut(original);
+            RtContext.Format = prevFormat;
         }
         return sw.ToString().Trim();
     }
@@ -1772,18 +1774,16 @@ public class FindDuplicatesTests
     private static string CaptureText(IReadOnlyList<DuplicateGroup> groups)
     {
         var sw = new System.IO.StringWriter();
-        var original = Console.Out;
-        Console.SetOut(sw);
+        var result = FindDuplicatesResult.FromGroups(groups, solutionDir: null);
+        var prevFormat = RtContext.Format;
+        RtContext.Format = OutputFormat.Text;
         try
         {
-            // Access via reflection to call private static PrintGroups
-            var method = typeof(FindDuplicatesCommand)
-                .GetMethod("PrintGroups", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
-            method.Invoke(null, [groups]);
+            RtSerializer.Write(result, sw);
         }
         finally
         {
-            Console.SetOut(original);
+            RtContext.Format = prevFormat;
         }
         return sw.ToString();
     }
