@@ -87,7 +87,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-203. Keep filter logic in FindDuplicatesCore; Command is still a thin shell."
     },
     {
