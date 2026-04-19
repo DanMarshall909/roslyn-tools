@@ -1,348 +1,161 @@
 {
   "project": "roslyn-tools",
-  "branchName": "ralph/reduce-smells",
-  "description": "Three goals: (1) reduce long-method smells in 10 production methods; (2) enforce Commands-as-thin-shells architecture — all Roslyn logic moves to src/RoslynTools/Core/<Name>Core.cs; (3) add 6 new differentiating refactoring commands (transform-parameters with new/existing class, make-static, make-instance, find-pattern, extract-method --replace-duplicates).",
-  "ralph_instructions": "Architectural rule: every Command class is a thin shell — its ExecuteAsync must only load the workspace and delegate to <Name>Core.RunAsync(...). All Roslyn logic lives in src/RoslynTools/Core/<Name>Core.cs. Existing examples: MethodExtractor (called by ExtractMethodCommand), FindUnusedCore (called by FindUnusedCommand). For refactor stories: move the logic to Core first, then decompose into private helpers there. For new-command stories: ship Command + Core from the start. Verification (every story, non-negotiable): `dotnet build RoslynTools.slnx`, `dotnet test RoslynTools.sln -v minimal`, `dotnet format RoslynTools.slnx --verify-no-changes`. Do NOT skip the format check.",
+  "branchName": "ralph/find-duplicates",
+  "description": "Add a read-only `find-duplicates` command family to `rt` that discovers repeated statement blocks across a solution without requiring a seed example. Phase 1 ships deterministic structural duplicate detection (exact + normalized-identifier/literal matching). Phase 2 adds overlap suppression, scope/size filters, and JSON output. Phase 3 adds an optional `--mode semantic` backed by a pluggable IEmbeddingProvider (with a bundled local/deterministic provider). Phase 4 surfaces extraction-readiness diagnostics that a future extract workflow can consume. Automatic rewriting is out of scope for v1 — discovery is strictly separate from mutation.",
+  "ralph_instructions": "Architectural rule: every Command class is a thin shell — its ExecuteAsync must only load the workspace and delegate to <Name>Core.RunAsync(...). All Roslyn logic lives in src/RoslynTools/Core/<Name>Core.cs. For find-duplicates, the Core layer owns: candidate-window enumeration, normalization, grouping, ranking, and (in US-206) the IEmbeddingProvider abstraction. Do NOT pull semantic-mode dependencies into the default structural path — FR-3 requires structural mode to work fully offline with no extra packages. Reuse SymbolFinder/SemanticModel/SyntaxTree APIs; do not match via regex over raw text (FR-4). Verification (every story, non-negotiable): `dotnet build RoslynTools.slnx`, `dotnet test RoslynTools.slnx -v minimal`, `dotnet format RoslynTools.slnx --verify-no-changes`. Do NOT skip the format check. Use /tdd (red→green→refactor). Dogfood `rt` for any C# symbol navigation / refactoring during implementation; log gaps to tasks/dogfood-gaps.md.",
   "userStories": [
     {
-      "id": "US-001",
-      "title": "Refactor MethodExtractor.ExtractAsync — extract private helpers",
-      "description": "As a maintainer, I want ExtractAsync broken into focused private helpers so each section is independently readable.",
+      "id": "US-201",
+      "title": "find-duplicates — structural exact-clone discovery (skeleton)",
+      "description": "As a developer, I want to find repeated code blocks across a solution without specifying a sample first so I can identify extraction opportunities quickly.",
       "acceptanceCriteria": [
-        "Extract FindDocumentAndStatements(solution, filePath, startLine, endLine) covering steps 1–3",
-        "Extract ValidateDataFlow(model, selected, flow, declaredInRange) covering step 4",
-        "Extract OrderParameters(flow, selected, model) covering step 5",
-        "Extract FindContainingContext(selected) covering step 6",
-        "ExtractAsync body is ≤ 50 lines after extraction",
-        "All existing extract-method tests pass",
-        "dotnet build RoslynTools.slnx succeeds",
-        "dotnet format RoslynTools.slnx --verify-no-changes passes"
-      ],
-      "priority": 1,
-      "passes": true,
-      "notes": "File: src/RoslynTools/Core/MethodExtractor.cs. Method starts at line 14, is 183 lines. Already in Core — no Command-layer change. Steps are already labeled with comments (// ── 1. through // ── 10.)."
-    },
-    {
-      "id": "US-002",
-      "title": "Extract ImplementInterfaceCommand logic to Core and decompose",
-      "description": "As a maintainer, I want the 179-line ExecuteAsync body moved to ImplementInterfaceCore and broken into focused helpers, so the Command class is a thin CLI shell.",
-      "acceptanceCriteria": [
-        "Create src/RoslynTools/Core/ImplementInterfaceCore.cs with an internal static class ImplementInterfaceCore and a RunAsync entry point taking (Solution sln, string typeName, string? interfaceName, bool dryRun)",
-        "ImplementInterfaceCommand.ExecuteAsync is ≤ 20 lines: load workspace, call ImplementInterfaceCore.RunAsync, nothing else",
-        "ImplementInterfaceCore.RunAsync is ≤ 40 lines and delegates to private static helpers: FindClassSymbolAsync, CollectInterfacesToImplementAsync, FindDocumentIdAsync, CollectUnimplementedMembers",
-        "ImplementInterfaceCommand.ExecuteAsync signature unchanged (internal static Task ExecuteAsync(string typeName, string? interfaceName, string? solutionPath, bool dryRun))",
-        "All existing implement-interface tests pass",
-        "dotnet build RoslynTools.slnx succeeds",
-        "dotnet format RoslynTools.slnx --verify-no-changes passes"
-      ],
-      "priority": 2,
-      "passes": true,
-      "notes": "Source: src/RoslynTools/Commands/ImplementInterfaceCommand.cs (ExecuteAsync line 34, 179 lines)."
-    },
-    {
-      "id": "US-003",
-      "title": "Extract ConvertToRecordCommand logic to Core and decompose",
-      "description": "As a maintainer, I want the 135-line ExecuteAsync body moved to ConvertToRecordCore and broken into focused helpers.",
-      "acceptanceCriteria": [
-        "Create src/RoslynTools/Core/ConvertToRecordCore.cs with an internal static class ConvertToRecordCore and a RunAsync entry point",
-        "ConvertToRecordCommand.ExecuteAsync is ≤ 20 lines (load workspace + delegate)",
-        "ConvertToRecordCore.RunAsync is ≤ 40 lines and delegates to at least 3 private static helpers (e.g. find class + doc, build record decl, remove obsolete members, apply changes)",
-        "ConvertToRecordCommand.ExecuteAsync signature unchanged",
-        "All existing convert-to-record tests pass",
-        "dotnet build RoslynTools.slnx succeeds",
-        "dotnet format RoslynTools.slnx --verify-no-changes passes"
-      ],
-      "priority": 3,
-      "passes": true,
-      "notes": "Source: src/RoslynTools/Commands/ConvertToRecordCommand.cs (ExecuteAsync line 31, 135 lines). Logical sections: find class symbol, collect init-only props, warn on mutable props, build record declaration, remove obsolete members (Equals/GetHashCode/operators), apply changes."
-    },
-    {
-      "id": "US-004",
-      "title": "Extract MakeSealedCommand logic to Core and decompose",
-      "description": "As a maintainer, I want the 127-line ExecuteAsync body moved to MakeSealedCore and broken into focused helpers.",
-      "acceptanceCriteria": [
-        "Create src/RoslynTools/Core/MakeSealedCore.cs with an internal static class MakeSealedCore and a RunAsync entry point",
-        "MakeSealedCommand.ExecuteAsync is ≤ 20 lines (load workspace + delegate)",
-        "MakeSealedCore.RunAsync is ≤ 40 lines and delegates to at least 2 private static helpers (e.g. FindClassAndDocument, CheckDerivedTypes, AddSealedModifier)",
-        "MakeSealedCommand.ExecuteAsync signature unchanged",
-        "All existing make-sealed tests pass",
-        "dotnet build RoslynTools.slnx succeeds",
-        "dotnet format RoslynTools.slnx --verify-no-changes passes"
-      ],
-      "priority": 4,
-      "passes": true,
-      "notes": "Source: src/RoslynTools/Commands/MakeSealedCommand.cs (ExecuteAsync line 32, 127 lines). Logical sections: find class symbol, find document id, check derived types, add sealed modifier, apply changes."
-    },
-    {
-      "id": "US-005",
-      "title": "Extract ReplaceCallCommand logic to Core and decompose",
-      "description": "As a maintainer, I want the 114-line ExecuteAsync body moved to ReplaceCallCore and broken into focused helpers.",
-      "acceptanceCriteria": [
-        "Create src/RoslynTools/Core/ReplaceCallCore.cs with an internal static class ReplaceCallCore and a RunAsync entry point",
-        "ReplaceCallCommand.ExecuteAsync is ≤ 20 lines (load workspace + delegate)",
-        "ReplaceCallCore.RunAsync is ≤ 40 lines and delegates to at least 2 private static helpers (e.g. ParseSymbolSpec, FindInvocationSites, RewriteMemberAccess)",
-        "ReplaceCallCommand.ExecuteAsync signature unchanged",
-        "All existing replace-call tests pass",
-        "dotnet build RoslynTools.slnx succeeds",
-        "dotnet format RoslynTools.slnx --verify-no-changes passes"
-      ],
-      "priority": 5,
-      "passes": true,
-      "notes": "Source: src/RoslynTools/Commands/ReplaceCallCommand.cs (ExecuteAsync line 34, 114 lines)."
-    },
-    {
-      "id": "US-006",
-      "title": "Refactor SmellAnalyzer.AnalyzeAsync — split per-smell logic into separate classes",
-      "description": "As a maintainer, I want AnalyzeAsync to delegate smell-specific logic to separate classes so each smell rule has a single responsibility.",
-      "acceptanceCriteria": [
-        "Create src/RoslynTools/Core/LargeClassRule.cs with a focused API for detecting large classes",
-        "Create src/RoslynTools/Core/LongMethodRule.cs with a focused API for detecting long methods",
-        "Create src/RoslynTools/Core/TooManyDependenciesRule.cs with a focused API for detecting over-injected constructors",
-        "Each rule class takes a TypeDeclarationSyntax + its config knob and returns SmellResult values (single or enumerable as appropriate)",
-        "SmellAnalyzer.AnalyzeAsync orchestrates the three rule classes — does not own the smell-specific logic",
-        "AnalyzeAsync body is ≤ 40 lines after extraction",
-        "SmellAnalyzer.AnalyzeAsync signature unchanged (Solution, int maxClassLines, int maxMethodLines, int maxParams, string? scope)",
-        "All existing list-smells tests pass",
-        "dotnet build RoslynTools.slnx succeeds",
-        "dotnet format RoslynTools.slnx --verify-no-changes passes"
-      ],
-      "priority": 6,
-      "passes": true,
-      "notes": "Primary file: src/RoslynTools/Core/SmellAnalyzer.cs (AnalyzeAsync line 16, 114 lines). SRP applies: prefer one class per smell rule under src/RoslynTools/Core/, rather than private helper methods."
-    },
-    {
-      "id": "US-007",
-      "title": "Refactor SolutionWriter.PrintDiff — extract hunk-building helpers",
-      "description": "As a maintainer, I want PrintDiff broken into focused helpers for hunk formatting.",
-      "acceptanceCriteria": [
-        "Extract at least 2 private static helpers from the 112-line PrintDiff body",
-        "PrintDiff body is ≤ 40 lines after extraction",
-        "All existing solution-writer tests pass",
-        "dotnet build RoslynTools.slnx succeeds",
-        "dotnet format RoslynTools.slnx --verify-no-changes passes"
-      ],
-      "priority": 7,
-      "passes": true,
-      "notes": "File: src/RoslynTools/Core/SolutionWriter.cs (PrintDiff line 91, 112 lines). Already in Core — no Command-layer change. Uses DiffPlex; logical sections: collect diff blocks, format hunk header, emit context/added/removed lines."
-    },
-    {
-      "id": "US-008",
-      "title": "Extract DependencyGraphCommand logic to Core and decompose",
-      "description": "As a maintainer, I want the DependencyGraphCommand logic moved to DependencyGraphCore and its long methods broken into focused helpers.",
-      "acceptanceCriteria": [
-        "Create src/RoslynTools/Core/DependencyGraphCore.cs with an internal static class DependencyGraphCore and a BuildGraphAsync entry point",
-        "DependencyGraphCommand.ExecuteAsync is ≤ 20 lines (load workspace + delegate + format output)",
-        "Extract GetFieldDependencies(typeSymbol), GetMethodDependencies(typeSymbol), GetInheritanceDependencies(typeSymbol) as private static helpers in DependencyGraphCore",
-        "GetDependencies body delegates to these three helpers and is ≤ 20 lines",
-        "BuildBfsGraph body is ≤ 35 lines after extraction",
-        "DependencyGraphCommand.ExecuteAsync signature unchanged",
-        "All existing dependency-graph tests pass",
-        "dotnet build RoslynTools.slnx succeeds",
-        "dotnet format RoslynTools.slnx --verify-no-changes passes"
-      ],
-      "priority": 8,
-      "passes": true,
-      "notes": "Source: src/RoslynTools/Commands/DependencyGraphCommand.cs (LargeClass, 372 lines). GetDependencies at line 220 (62L), BuildBfsGraph at line 165 (54L), BuildGraphAsync at line 43 (51L)."
-    },
-    {
-      "id": "US-009",
-      "title": "Extract MoveCommand logic to Core and decompose",
-      "description": "As a maintainer, I want MoveCommand's 439 lines moved to MoveCore, with the two longest methods broken into focused helpers.",
-      "acceptanceCriteria": [
-        "Create src/RoslynTools/Core/MoveCore.cs with an internal static class MoveCore and entry points for both namespace and single-type moves",
-        "MoveCommand.ExecuteAsync (and any per-mode handlers the Command holds) are each ≤ 20 lines: parse options, delegate to MoveCore, return",
-        "Extract at least 2 private static helpers from ExecuteNamespaceMoveAsync (67 lines) inside MoveCore",
-        "Extract at least 2 private static helpers from UpdateReferenceUsingsAsync (73 lines) inside MoveCore",
-        "ExecuteNamespaceMoveAsync body is ≤ 35 lines after extraction",
-        "UpdateReferenceUsingsAsync body is ≤ 35 lines after extraction",
-        "MoveCommand public signatures unchanged",
-        "All existing move tests pass",
-        "dotnet build RoslynTools.slnx succeeds",
-        "dotnet format RoslynTools.slnx --verify-no-changes passes"
-      ],
-      "priority": 9,
-      "passes": true,
-      "notes": "Source: src/RoslynTools/Commands/MoveCommand.cs (LargeClass, 439 lines). ExecuteNamespaceMoveAsync at line 57, UpdateReferenceUsingsAsync at line 224. Largest single-command refactor in the PRD."
-    },
-    {
-      "id": "US-010",
-      "title": "Extract AddTestCommand logic to Core and decompose",
-      "description": "As a maintainer, I want the 107-line ExecuteAsync body moved to AddTestCore and broken into focused helpers.",
-      "acceptanceCriteria": [
-        "Create src/RoslynTools/Core/AddTestCore.cs with an internal static class AddTestCore and a RunAsync entry point",
-        "AddTestCommand.ExecuteAsync is ≤ 20 lines (load workspace + delegate)",
-        "AddTestCore.RunAsync is ≤ 40 lines and delegates to at least 2 private static helpers (e.g. AppendSingleTest, GenerateBatchFromAcs)",
-        "AddTestCommand.ExecuteAsync signature unchanged",
-        "All existing add-test tests pass",
-        "dotnet build RoslynTools.slnx succeeds",
-        "dotnet format RoslynTools.slnx --verify-no-changes passes"
-      ],
-      "priority": 10,
-      "passes": true,
-      "notes": "Source: src/RoslynTools/Commands/AddTestCommand.cs (ExecuteAsync line 34, 107 lines). Logical sections: find class document, single-test mode (append one [Fact]), AC-batch mode (split ACs, generate nested class or flat methods), apply changes. AcToMethodName and BuildFactMethod already exist as private static helpers — keep them."
-    },
-    {
-      "id": "US-011",
-      "title": "New command: transform-parameters (new class)",
-      "description": "As a user, I want to extract a method's parameters into a new record (or class) and have all call sites updated, so large parameter lists become introducible parameter objects.",
-      "acceptanceCriteria": [
-        "Create src/RoslynTools/Commands/TransformParametersCommand.cs (thin shell) — alias `tp`",
-        "Create src/RoslynTools/Core/TransformParametersCore.cs with RunAsync entry point",
-        "TransformParametersCommand.ExecuteAsync is ≤ 20 lines (parse options + delegate)",
-        "CLI: `rt transform-parameters --method <Type>.<Method> --new-type <ParamObj> --solution <path> [--dry-run]`",
-        "Behaviour: generates `record <ParamObj>(...)` in the same file as the target method, rewrites the method signature to take one `<ParamObj>` parameter named `args` (or similar), rewrites every call site from `Foo(a, b, c)` to `Foo(new ParamObj(a, b, c))`",
-        "Skip parameters declared with out/ref/in modifiers (fail with a clear error listing which params were skipped)",
-        "Preserve default values from the original signature in the record parameter list",
-        "Register in App.cs with alias `tp`",
-        "Create tests/RoslynTools.Tests/TransformParametersTests.cs with [Collection(\"MSBuild\")] covering: simple 3-param method, method with default value, method with out param (error), multi-call-site update, dry-run emits diff without writing",
-        "dotnet build RoslynTools.slnx succeeds",
-        "dotnet test RoslynTools.sln -v minimal all green",
-        "dotnet format RoslynTools.slnx --verify-no-changes passes",
-        "Update README.md command table and add an example invocation"
-      ],
-      "priority": 11,
-      "passes": true,
-      "notes": "Mirrors the Command+Core pattern from ExtractMethodCommand + MethodExtractor. Use TestProjectBuilder for test fixtures."
-    },
-    {
-      "id": "US-012",
-      "title": "transform-parameters — support existing class/record via --existing-type",
-      "description": "As a user, I want to reuse an existing parameters class instead of always creating a new one, since this is the common real-world case (ReSharper/Eclipse cannot do this well).",
-      "acceptanceCriteria": [
-        "Add --existing-type <FQN> option to TransformParametersCommand, mutually exclusive with --new-type",
-        "Validation: the existing type has matching-named properties (for classes) or record-params (for records) for every method parameter. On failure, exit 1 with a message listing the missing properties",
-        "Call-site rewrite for class: `new ExistingType { X = a, Y = b }`; for record: `new ExistingType(a, b)`",
-        "Do NOT generate a new type when --existing-type is used",
-        "Tests added to TransformParametersTests.cs: matching existing record, matching existing class, missing property (error), partial match (error), both flags passed (error)",
-        "dotnet build RoslynTools.slnx succeeds",
-        "dotnet test RoslynTools.sln -v minimal all green",
-        "dotnet format RoslynTools.slnx --verify-no-changes passes",
-        "README updated with an --existing-type example"
-      ],
-      "priority": 12,
-      "passes": true,
-      "notes": "Depends on US-011 — touches the same Command + Core files. Key differentiator vs commercial tooling."
-    },
-    {
-      "id": "US-013",
-      "title": "New command: make-static",
-      "description": "As a user, I want to convert an instance method to static when it has no instance-state dependencies, and have all call sites updated.",
-      "acceptanceCriteria": [
-        "Create src/RoslynTools/Commands/MakeStaticCommand.cs (thin shell) — alias `mst`",
-        "Create src/RoslynTools/Core/MakeStaticCore.cs with RunAsync entry point",
-        "MakeStaticCommand.ExecuteAsync is ≤ 20 lines",
-        "CLI: `rt make-static --method <Type>.<Method> --solution <path> [--dry-run]`",
-        "Safety check: method body contains no `this`, no instance-field/property access, and method is not `virtual`/`override`/`abstract`. On failure, report which usage blocks the conversion and exit 1",
-        "Add `static` modifier to the declaration",
-        "Rewrite call sites: `instance.Method(...)` → `<Type>.Method(...)`; static-context call sites (same type) unchanged",
-        "Register in App.cs with alias `mst`",
-        "Create tests/RoslynTools.Tests/MakeStaticTests.cs covering: clean method becomes static, `this.` usage rejected, instance-field usage rejected, virtual rejected, call sites updated across files, dry-run",
-        "dotnet build + dotnet test all green",
-        "dotnet format RoslynTools.slnx --verify-no-changes passes",
-        "README updated with example"
-      ],
-      "priority": 13,
-      "passes": true,
-      "notes": "Use SymbolFinder.FindReferencesAsync to locate call sites."
-    },
-    {
-      "id": "US-014",
-      "title": "New command: make-instance (remove static)",
-      "description": "As a user, I want to convert a static method to an instance method for callers that have an instance in scope.",
-      "acceptanceCriteria": [
-        "Create src/RoslynTools/Commands/MakeInstanceCommand.cs (thin shell) — alias `mns`",
-        "Create src/RoslynTools/Core/MakeInstanceCore.cs with RunAsync entry point",
-        "MakeInstanceCommand.ExecuteAsync is ≤ 20 lines",
-        "CLI: `rt make-instance --method <Type>.<Method> --solution <path> [--dry-run]`",
-        "Remove `static` modifier from the declaration",
-        "Rewrite `<Type>.Method(...)` call sites: if the enclosing method/class has an instance of `<Type>` reachable (local var, field, param), rewrite to `instance.Method(...)`; otherwise emit a warning with file:line and leave the call site unchanged",
-        "Report a summary at the end: total call sites, rewritten, skipped (with reasons)",
-        "Register in App.cs with alias `mns`",
-        "Create tests/RoslynTools.Tests/MakeInstanceTests.cs covering: call sites with local var, call sites with field, call sites with no instance (warn + skip), same-class call site rewritten to `this.Method(...)`, dry-run",
-        "dotnet build + dotnet test all green",
-        "dotnet format RoslynTools.slnx --verify-no-changes passes",
-        "README updated with example"
-      ],
-      "priority": 14,
-      "passes": true,
-      "notes": "Harder than make-static because instance-reachability analysis is non-trivial. Prefer conservatism: warn on ambiguous cases."
-    },
-    {
-      "id": "US-015",
-      "title": "New command: find-pattern (structural AST match across solution)",
-      "description": "As a user, I want to find all code locations that structurally match a given line range, so I can identify duplicated patterns even when variable/literal names differ.",
-      "acceptanceCriteria": [
-        "Create src/RoslynTools/Commands/FindPatternCommand.cs (thin shell) — alias `fp`",
-        "Create src/RoslynTools/Core/PatternMatcher.cs with public API FindMatchesAsync(Solution sln, string filePath, int startLine, int endLine, string? scope) returning a list of PatternMatch records (file, line, identifierSubstitutions)",
-        "FindPatternCommand.ExecuteAsync is ≤ 20 lines",
-        "CLI: `rt find-pattern --file <path> --start-line N --end-line M --solution <path> [--scope <ns>]`",
-        "Extract the syntax subtree from the given line range (must be a sequence of StatementSyntax inside a BlockSyntax — same constraint as extract-method)",
-        "Walk the solution; find every same-length statement sequence where SyntaxKind shape matches and only identifier/literal values differ",
-        "For each match, record: file path, start line, end line, the substitution map (pattern identifier → match identifier)",
-        "Output JSON: `{ \"matches\": [ { \"file\": ..., \"line\": ..., \"endLine\": ..., \"substitutions\": { ... }, \"preview\": \"...\" } ] }`",
-        "Skip the pattern source itself (don't report the origin as a match)",
-        "Register in App.cs with alias `fp`",
-        "Create tests/RoslynTools.Tests/FindPatternTests.cs covering: exact duplicate found, identifier-only-different match found, structurally-different code not matched, cross-file match, scope filter",
-        "dotnet build + dotnet test all green",
-        "dotnet format RoslynTools.slnx --verify-no-changes passes",
-        "README updated with example"
-      ],
-      "priority": 15,
-      "passes": true,
-      "notes": "The key differentiator. US-016 will consume PatternMatcher.FindMatchesAsync as a library. Prefer a clean public API on PatternMatcher; the Command is just a JSON-emitting wrapper."
-    },
-    {
-      "id": "US-016",
-      "title": "extract-method --replace-duplicates (uses find-pattern matcher)",
-      "description": "As a user, I want extract-method to optionally find structurally-matching code elsewhere in the solution and replace those occurrences with calls to the newly-extracted method, consolidating duplication in one operation.",
-      "acceptanceCriteria": [
-        "Add --replace-duplicates flag to ExtractMethodCommand",
-        "When flag is set: after extracting the new method, invoke PatternMatcher.FindMatchesAsync (from US-015) with the extracted body as the pattern",
-        "For each match: rewrite the matched statements to a single call to the new method, plugging in the substituted identifiers as arguments in the correct parameter order",
-        "Skip (and warn with file:line) any match where a literal would need to become a variable — i.e. the substitution map maps a parameter to a literal in the match site",
-        "Report a summary at the end: matches found, replaced, skipped (with reasons)",
-        "Existing extract-method tests continue to pass",
-        "Add tests to tests/RoslynTools.Tests/ExtractMethodTests.cs covering: one cross-file duplicate replaced, literal-substitution skipped with warning, no-duplicates case is a no-op (flag still accepted), dry-run shows all replacements in diff",
-        "dotnet build + dotnet test all green",
-        "dotnet format RoslynTools.slnx --verify-no-changes passes",
-        "README updated with example"
-      ],
-      "priority": 16,
-      "passes": true,
-      "notes": "Touches src/RoslynTools/Commands/ExtractMethodCommand.cs and src/RoslynTools/Core/MethodExtractor.cs. Depends on US-015. Keep MethodExtractor cohesive — add a ReplaceDuplicatesAsync helper rather than inlining the logic."
-    },
-    {
-      "id": "US-017",
-      "title": "New command: change-signature",
-      "description": "As a user, I want to reorder, remove, add, or rename a method's parameters and have all call sites updated across the solution, so large-scale signature refactors don't require manual grep-and-edit.",
-      "acceptanceCriteria": [
-        "Create src/RoslynTools/Commands/ChangeSignatureCommand.cs (thin shell) — alias `chs`",
-        "Create src/RoslynTools/Core/ChangeSignatureCore.cs with RunAsync entry point",
-        "Create src/RoslynTools/Core/SignatureEdit.cs with record types for parsed edits (ReorderEdit, RemoveEdit, AddEdit, RenameEdit) plus a CLI-string parser",
-        "ChangeSignatureCommand.ExecuteAsync is ≤ 20 lines (parse options + delegate)",
-        "CLI: `rt change-signature --method <Type>.<Method> [--reorder a,b,c] [--remove name]... [--add name:Type=default [--at-index N]]... [--rename old=new]... --solution <path> [--dry-run]`",
-        "Operations apply in fixed order: rename → remove → add → reorder; documented in Info.WhenToUse",
-        "Validation (exit 1 with clear message): reorder must cover every existing param exactly once; removed names must exist; added names must not collide with remaining; rename `old` names must exist",
-        "Declaration rewrite updates MethodDeclarationSyntax parameter list across all partial declarations of the method",
-        "Call-site rewrite updates InvocationExpressionSyntax and ObjectCreationExpressionSyntax argument lists, mapping positional args by original-signature index",
-        "Named-argument handling: rename updates NameColon; remove drops the argument; reorder leaves named args in place",
-        "Add operation inserts the supplied default value as a positional argument at each call site",
-        "Remove safety: if the argument is a literal, identifier, member access, `default`, or `null`, drop silently; otherwise (invocation, object-creation, binary, lambda, etc.) skip that call site, leave the argument in place, and emit `WARN: file:line <context>` to stderr",
-        "Exit 0 on partial success; summary to stderr: total sites, rewritten, skipped-with-reason",
-        "Reject parameters with `out`/`ref`/`in` modifiers on reorder/remove with a clear error (v1 scope)",
-        "Reject the extension-method `this` parameter on reorder/remove with a clear error (v1 scope)",
+        "Create src/RoslynTools/Commands/FindDuplicatesCommand.cs (thin shell) — alias `fd`",
+        "Create src/RoslynTools/Core/FindDuplicatesCore.cs with a RunAsync entry point: (Solution sln, FindDuplicatesOptions options) -> IReadOnlyList<DuplicateGroup>",
+        "FindDuplicatesCommand.ExecuteAsync is ≤ 20 lines (parse options + delegate + format output)",
+        "CLI: `rt find-duplicates --solution <path> [--min-statements N] [--min-occurrences N]` — defaults: min-statements=3, min-occurrences=2",
+        "Enumerate candidate statement windows from every MethodDeclarationSyntax / LocalFunctionStatementSyntax body across the solution; each window is a contiguous sequence of StatementSyntax from a BlockSyntax",
+        "Group windows by a verbatim-syntax hash (trivia stripped only — NO identifier/literal canonicalisation in this story; that is US-202)",
+        "Output plain-text groups to stdout in the shape documented in the PRD (\"Output Shape\" section): `Group <N>  occurrences=<K>  score=<S>` header, `preview:` line, then numbered `file:line in Type.Member` occurrences",
+        "`score` is just the occurrence count × statement count in US-201 (stable placeholder; richer ranking lands in US-203)",
+        "Exclude groups where every occurrence contains only boilerplate (single `return`, single `throw new NotImplementedException()`, or an empty block) — document the exclusion list in FindDuplicatesCore",
+        "Info.Mutates = false, Info.JsonOutput = false (US-205 flips JsonOutput when `--json` is wired), Info.Category = \"Analysis — duplication\", Info.Examples has at least 2 invocations",
         "Register in App.cs via reflection (no manual list edit); command auto-discovered",
-        "Info.Mutates = true, Info.JsonOutput = false, Info.Category = \"Mutation — structure\", Info.Examples has at least 3 invocations covering reorder, remove, and add",
-        "Create tests/RoslynTools.Tests/Mutation/ChangeSignatureTests.cs using AdhocProjectBuilder, covering: reorder 3-param method, reorder with mix of positional + named args, remove with literal arg dropped, remove with side-effecting arg skipped + warned, add with default value inserted at call sites, rename updates named-argument call sites, composition (rename + reorder), multi-file call sites, dry-run produces diff but doesn't write",
+        "Create tests/RoslynTools.Tests/Analysis/FindDuplicatesTests.cs using AdhocProjectBuilder covering: exact duplicates inside one file detected, exact duplicates across files detected, no duplicates returns empty group list, `--min-statements=5` filters out a 3-statement duplicate, `--min-occurrences=3` filters out a 2-occurrence group, boilerplate-only blocks are not reported",
+        "Diagnostics/progress (file-count, method-count, candidate-count) written to stderr; results to stdout (FR-7)",
         "dotnet build RoslynTools.slnx succeeds",
         "dotnet test RoslynTools.slnx -v minimal all green",
         "dotnet format RoslynTools.slnx --verify-no-changes passes",
-        "docs/COMMANDS.md regenerated by the post-build GenerateCommandsMd target and committed alongside source",
+        "docs/COMMANDS.md regenerated by the post-build GenerateCommandsMd target; committed alongside source",
         "README.md command table updated with an entry and one example invocation"
       ],
-      "priority": 17,
+      "priority": 1,
       "passes": false,
-      "notes": "Follow /tdd (red→green→refactor) and dogfood `rt` for any symbol navigation / refactoring needed during implementation (log gaps to tasks/dogfood-gaps.md). Plan file: C:\\Users\\DanMarshall\\.claude\\plans\\can-we-implement-change-modular-kettle.md. Reuse SymbolLocator.FindSymbolByFqnAsync, SymbolFinder.FindReferencesAsync, SolutionWriter.ApplyChangesAsync. Pattern-match MakeInstanceCommand + MakeInstanceCore for the thin-shell structure. Out-of-scope in v1 (log to tasks/dogfood-gaps.md if user hits): override/interface propagation, `params` handling, delegate-typed call sites."
+      "notes": "Pattern-match FindPatternCommand + PatternMatcher for the thin-shell layout. Introduce DuplicateGroup, DuplicateOccurrence records in Core. Keep candidate enumeration streaming (yield return) to avoid holding every window in memory for large solutions."
+    },
+    {
+      "id": "US-202",
+      "title": "find-duplicates — canonicalise identifiers, literals, and trivia",
+      "description": "As a developer, I want structurally identical code with renamed locals or changed literal values to be grouped together so duplicate detection is useful beyond copy-paste clones.",
+      "acceptanceCriteria": [
+        "Add a BlockNormalizer (or equivalent) under src/RoslynTools/Core that rewrites a statement-window syntax tree into a canonical form: local identifiers replaced with sequenced placeholders (`$L0`, `$L1`, …), parameter references replaced with sequenced placeholders (`$P0`, `$P1`, …), literals replaced with type-preserving placeholders (`$I0`, `$S0`, `$B0` for int/string/bool etc.), trivia stripped",
+        "Control-flow shape must be preserved verbatim — `if`/`else`/`while`/`for`/`foreach`/`switch`/`try` nodes stay in place",
+        "Type names and member-access on types are NOT canonicalised (invocation target identity matters for extractability) — document this decision in the normalizer",
+        "FindDuplicatesCore groups by the canonical-form hash instead of the verbatim hash from US-201",
+        "Each DuplicateOccurrence records the substitution map used to reach the canonical form (placeholder → original-identifier/literal) so later stories and users can inspect why a match was grouped",
+        "Add tests to FindDuplicatesTests.cs covering: renamed local variable still groups, renamed parameter still groups, changed integer literal still groups, changed string literal still groups, different control-flow (if vs while with same body) does NOT group, different invocation target (a.Foo() vs a.Bar()) does NOT group, whitespace/comment-only difference groups",
+        "Existing US-201 tests continue to pass unchanged (exact duplicates must still group under the stricter hash)",
+        "dotnet build RoslynTools.slnx succeeds",
+        "dotnet test RoslynTools.slnx -v minimal all green",
+        "dotnet format RoslynTools.slnx --verify-no-changes passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "Use a CSharpSyntaxRewriter driven by a per-window SymbolTable that records first-use order for stable placeholder assignment. Use SemanticModel to distinguish local/parameter/field references. Depends on US-201."
+    },
+    {
+      "id": "US-203",
+      "title": "find-duplicates — overlap suppression and deterministic ranking",
+      "description": "As a developer, I want the command to suppress redundant overlapping matches so the output highlights meaningful duplicate groups instead of hundreds of near-identical windows.",
+      "acceptanceCriteria": [
+        "Add an overlap-suppression pass in FindDuplicatesCore after grouping: when two groups' occurrences overlap in the same method and one group's windows are proper sub-sequences of the other's, the smaller group is suppressed unless it also occurs in a location not covered by the larger",
+        "Ranking score replaces the US-201 placeholder: `score = log(occurrenceCount) × statementCount × extractabilityWeight` where extractabilityWeight is 1.0 in this story (US-207 refines it); document the formula in FindDuplicatesCore",
+        "Groups are emitted in descending score order; ties broken deterministically by (first-occurrence file path, first-occurrence line)",
+        "Output is stable across repeated runs on the same source (deterministic group ids: hash of canonical-form + sorted occurrence file:line set)",
+        "Add tests to FindDuplicatesTests.cs covering: overlapping windows → only the largest useful block is reported, a sub-block that also appears standalone elsewhere is kept, ranking order is stable across two runs, two identical runs produce identical group ids",
+        "Existing US-201 and US-202 tests continue to pass",
+        "dotnet build RoslynTools.slnx succeeds",
+        "dotnet test RoslynTools.slnx -v minimal all green",
+        "dotnet format RoslynTools.slnx --verify-no-changes passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "Suppression is the main noise source in clone-detection tools — spend tests here. Depends on US-202."
+    },
+    {
+      "id": "US-204",
+      "title": "find-duplicates — scope and size filters",
+      "description": "As a developer, I want to narrow duplicate search to a project, namespace, or file set so I can inspect one subsystem at a time.",
+      "acceptanceCriteria": [
+        "Add CLI flags to FindDuplicatesCommand: `--scope <value>` (project name OR namespace prefix — accept both; disambiguate by matching project names first), `--include-tests` (boolean, default false), `--max-statements <N>`, `--min-statements <N>` (already present from US-201 but confirm surface)",
+        "Default test-project detection: a project whose name ends with `.Tests` OR references xunit/NUnit/MSTest is excluded unless `--include-tests` is set; document the rule in Info.WhenToUse",
+        "Scope filter applied during candidate enumeration, not after grouping (avoids wasted work on out-of-scope trees)",
+        "`--max-statements` hard cap on window size; document default (suggest 40) and rationale in Info.WhenToUse",
+        "Add tests to FindDuplicatesTests.cs covering: `--scope MyApp.Services` returns only groups where every occurrence is in that namespace, `--scope MyApp.Tests` returns nothing when include-tests is false, `--include-tests` flips the behaviour, `--max-statements=3` filters out a 5-statement duplicate, project-name scope filter works",
+        "Existing US-201–203 tests continue to pass",
+        "dotnet build RoslynTools.slnx succeeds",
+        "dotnet test RoslynTools.slnx -v minimal all green",
+        "dotnet format RoslynTools.slnx --verify-no-changes passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "Depends on US-203. Keep filter logic in FindDuplicatesCore; Command is still a thin shell."
+    },
+    {
+      "id": "US-205",
+      "title": "find-duplicates — JSON output",
+      "description": "As an AI agent or tooling user, I want duplicate groups in JSON so I can rank, filter, and act on them programmatically.",
+      "acceptanceCriteria": [
+        "Add `--json` flag to FindDuplicatesCommand",
+        "When `--json` is set, emit a single JSON document to stdout matching the PRD \"Output Shape\" schema: top-level object with `mode` (\"structural\" or \"semantic\") and `groups` array; each group has `groupId` (stable, deterministic), `mode`, `score`, `occurrenceCount`, `extractability`, `preview`, `occurrences[]`, `checks[]`",
+        "`occurrences[]` entries contain: `file` (relative path from solution dir), `line` (1-based), `endLine`, `type` (containing type FQN), `member` (containing method name with parameter list)",
+        "`checks[]` is an empty array in this story (US-207 populates it)",
+        "Empty results emit `{\"mode\":\"structural\",\"groups\":[]}` with exit 0",
+        "Update Info.JsonOutput = true when `--json` is set — use the existing JsonSerializerOptions helpers under src/RoslynTools/Core/SymbolFormatter or equivalent to stay consistent with other JSON-emitting commands",
+        "Use SymbolFormatter helpers where applicable; do not re-roll a new JsonSerializerOptions instance",
+        "Add tests to FindDuplicatesTests.cs covering: JSON shape of a 2-group result is valid and deserializes, empty result is `{\"mode\":\"structural\",\"groups\":[]}`, groupId is stable across two runs, relative paths used in occurrences[].file",
+        "Existing plain-text tests continue to pass",
+        "dotnet build RoslynTools.slnx succeeds",
+        "dotnet test RoslynTools.slnx -v minimal all green",
+        "dotnet format RoslynTools.slnx --verify-no-changes passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "Depends on US-204. Read any existing find-pattern/outline JSON helpers under src/RoslynTools/Core to reuse the serializer options and avoid duplication."
+    },
+    {
+      "id": "US-206",
+      "title": "find-duplicates — semantic mode via pluggable IEmbeddingProvider",
+      "description": "As a developer, I want an optional semantic mode that surfaces likely near-duplicate blocks even when they are not exact structural matches.",
+      "acceptanceCriteria": [
+        "Add `--mode <structural|semantic>` flag to FindDuplicatesCommand; default is `structural`; `--top <N>` caps semantic-group output (default 25)",
+        "Create src/RoslynTools/Core/IEmbeddingProvider.cs with a small interface: `ValueTask<ReadOnlyMemory<float>> EmbedAsync(string text, CancellationToken ct)` plus a `string Name { get; }` and `int Dimensions { get; }`",
+        "Ship src/RoslynTools/Core/DeterministicBagOfTokensProvider.cs implementing IEmbeddingProvider — zero external dependencies, bag-of-tokens hashed into a fixed-dimension (default 256) float vector; this is the default local provider and satisfies FR-3 \"works fully offline\"",
+        "Provider is pluggable: the core accepts an IEmbeddingProvider via parameter; registration for real providers (e.g. ONNX-backed) is left as a future story but the interface MUST be stable",
+        "Semantic mode pipeline: reuse US-202 candidate generation + normalization → embed each normalized block via the provider → build nearest-neighbor groups by cosine similarity (threshold configurable via `--similarity <0..1>`, default 0.85) → re-rank by applying the same deterministic structural checks used in structural mode and attach the pass/fail results to each group's `checks[]`",
+        "Semantic results are clearly labelled: plain-text output prefixes semantic group headers with `[semantic]` and includes the similarity score; JSON groups have `mode: \"semantic\"`",
+        "Semantic results are NEVER marked `extractability: extractable` in v1 — force `likely_extractable` or `discovery_only` regardless of checks (FR-9, Principle \"Safe handoff\")",
+        "If an embedding provider throws or is not configured, the command falls back to structural mode with a WARN on stderr and exit code 0 (graceful degradation per FR-8)",
+        "Add tests to FindDuplicatesTests.cs covering: semantic mode with the deterministic stub provider surfaces a near-duplicate pair that structural mode missed, similarity threshold filters out low-similarity pairs, provider-throws fallback to structural with WARN, semantic group never has `extractability: extractable`, `--top 5` caps output",
+        "Existing structural-mode tests continue to pass (default mode unchanged)",
+        "README.md documents the pluggable provider interface with a one-paragraph \"writing your own provider\" example",
+        "dotnet build RoslynTools.slnx succeeds",
+        "dotnet test RoslynTools.slnx -v minimal all green",
+        "dotnet format RoslynTools.slnx --verify-no-changes passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "User confirmed: pluggable interface with a local default. No network dependency in v1. Keep all embedding code under src/RoslynTools/Core/Semantic/ subdirectory if file count grows. Depends on US-205."
+    },
+    {
+      "id": "US-207",
+      "title": "find-duplicates — extraction-readiness diagnostics",
+      "description": "As a developer, I want each duplicate group to indicate whether it looks safely extractable so I can focus on actionable results first.",
+      "acceptanceCriteria": [
+        "Add ExtractabilityAnalyzer under src/RoslynTools/Core that, given a canonical block + its occurrences, emits a list of Check records: `{ name, status, detail }` where status ∈ { pass, warn, fail }",
+        "Checks implemented in v1: `parameterizable-inputs` (placeholders map to identifiers reachable at each occurrence; fails if one site has a literal where another has an expression), `single-output` (block produces ≤1 outward value per data-flow analysis), `no-control-flow-escape` (no `return`/`yield`/`goto`/labelled `break` that would not round-trip through an extracted method), `no-ref-out-params` (no ref/out parameter usage), `consistent-captured-state` (captured fields/props the same at every occurrence)",
+        "DuplicateGroup.extractability is derived: all checks pass → `extractable`; at least one warn, no fails → `likely_extractable`; any fail OR semantic-mode group → `discovery_only`",
+        "Checks[] populated in both plain-text (one line each under the group header) and JSON output",
+        "Ranking score (from US-203) multiplies by extractabilityWeight: extractable=1.0, likely_extractable=0.7, discovery_only=0.3",
+        "Add tests to FindDuplicatesTests.cs covering: a fully extractable group is labelled `extractable`, a group with a literal-where-identifier-needed is labelled `discovery_only` with `parameterizable-inputs: fail`, a group with a `return` inside the block is `discovery_only` with `no-control-flow-escape: fail`, a group with differing captured fields is `likely_extractable` with `consistent-captured-state: warn`, semantic-mode groups cannot be `extractable`",
+        "Existing structural and semantic tests continue to pass",
+        "README.md documents the check list and extractability levels",
+        "dotnet build RoslynTools.slnx succeeds",
+        "dotnet test RoslynTools.slnx -v minimal all green",
+        "dotnet format RoslynTools.slnx --verify-no-changes passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": "Depends on US-206. This is the handoff point for a future `extract-method --from-duplicate-group <id>` flow (out of scope). Look at MethodExtractor for existing data-flow analysis helpers to reuse."
     }
   ]
 }
