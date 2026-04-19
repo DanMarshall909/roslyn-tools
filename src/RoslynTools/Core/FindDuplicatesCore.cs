@@ -89,6 +89,7 @@ internal static class FindDuplicatesCore
         // Phase 1: collect all single-statement seeds from every method body.
         // Group by hash of the length-1 window.
         var seeds = new Dictionary<string, List<CandidateLoc>>(StringComparer.Ordinal);
+        var rtIgnore = RtIgnore.ForSolution(solution);
 
         foreach (var project in solution.Projects)
         {
@@ -111,7 +112,7 @@ internal static class FindDuplicatesCore
 
             foreach (var document in project.Documents)
             {
-                if (document.FilePath is null)
+                if (document.FilePath is null || rtIgnore.IsIgnored(document.FilePath))
                     continue;
 
                 var root = await document.GetSyntaxRootAsync();

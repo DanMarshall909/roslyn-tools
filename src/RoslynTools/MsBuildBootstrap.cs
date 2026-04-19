@@ -6,7 +6,9 @@ internal static class MsBuildBootstrap
 {
     internal static void Register()
     {
-        var sdkInstance = FindPreferredInstance();
+        VisualStudioInstance? sdkInstance = null;
+        try { sdkInstance = FindPreferredInstance(); }
+        catch (DllNotFoundException) { }
 
         if (sdkInstance != null)
         {

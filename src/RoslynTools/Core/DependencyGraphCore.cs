@@ -56,6 +56,8 @@ internal static class DependencyGraphCore
     private static async Task<List<INamedTypeSymbol>> CollectSourceTypesAsync(Solution sln)
     {
         var result = new List<INamedTypeSymbol>();
+        var rtIgnore = RtIgnore.ForSolution(sln);
+
         foreach (var project in sln.Projects)
         {
             var compilation = await project.GetCompilationAsync();
@@ -64,6 +66,9 @@ internal static class DependencyGraphCore
 
             foreach (var document in project.Documents)
             {
+                if (rtIgnore.IsIgnored(document.FilePath))
+                    continue;
+
                 var semanticModel = await document.GetSemanticModelAsync();
                 if (semanticModel == null)
                     continue;

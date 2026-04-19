@@ -21,11 +21,15 @@ internal static class SmellAnalyzer
         string? scope)
     {
         var results = new List<SmellResult>();
+        var rtIgnore = RtIgnore.ForSolution(solution);
 
         foreach (var project in solution.Projects)
         {
             foreach (var document in project.Documents)
             {
+                if (rtIgnore.IsIgnored(document.FilePath))
+                    continue;
+
                 var root = await document.GetSyntaxRootAsync();
                 if (root is null)
                     continue;

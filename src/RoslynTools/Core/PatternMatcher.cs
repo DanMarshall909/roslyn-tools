@@ -36,12 +36,13 @@ public static class PatternMatcher
         var patternStatements = await ExtractPatternStatementsAsync(solution, absPath, startLine, endLine);
 
         var results = new List<PatternMatch>();
+        var rtIgnore = RtIgnore.ForSolution(solution);
 
         foreach (var project in solution.Projects)
         {
             foreach (var document in project.Documents)
             {
-                if (document.FilePath == null)
+                if (document.FilePath == null || rtIgnore.IsIgnored(document.FilePath))
                     continue;
 
                 if (scope != null && !IsInScope(document, project, scope))

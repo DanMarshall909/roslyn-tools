@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
+using RoslynTools.Core;
 
 namespace RoslynTools.Commands;
 
@@ -11,11 +12,15 @@ internal static class FindUnusedCore
     internal static async Task<List<UnusedSymbol>> AnalyzeAsync(Solution solution, string scope = "all")
     {
         var results = new List<UnusedSymbol>();
+        var rtIgnore = RtIgnore.ForSolution(solution);
 
         foreach (var project in solution.Projects)
         {
             foreach (var document in project.Documents)
             {
+                if (rtIgnore.IsIgnored(document.FilePath))
+                    continue;
+
                 var root = await document.GetSyntaxRootAsync();
                 var semanticModel = await document.GetSemanticModelAsync();
                 if (root == null || semanticModel == null)
