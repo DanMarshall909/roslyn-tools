@@ -73,7 +73,13 @@ rt find-refs --symbol BookingsService --solution "C:\code\libraries\ProjectX.Lib
 
 ## Commands
 
-**The authoritative, always-current list of all commands lives in [`docs/COMMANDS.md`](docs/COMMANDS.md).** That file is auto-regenerated on every `dotnet build -c Debug` by the `GenerateCommandsMd` target in `RoslynTools.csproj`, sourced from each command's static `RtCommandInfo Info` property. **Do not hand-edit `docs/COMMANDS.md`** — changes will be overwritten on the next build.
+**The authoritative, always-current command reference is the app itself.** Run:
+```powershell
+rt dump-help
+# or without publishing:
+dotnet run --project src/RoslynTools/RoslynTools.csproj -- dump-help
+```
+The build also writes this output to `docs/COMMANDS.md` locally (gitignored) as a convenience — do not commit it. For an agent-friendly pre-loaded reference, load the `use-rt` skill.
 
 ## Command metadata contract (read before changing any command)
 
@@ -89,9 +95,9 @@ When you:
 
 After any change:
 
-1. `dotnet build src/RoslynTools/RoslynTools.csproj` — this regenerates `docs/COMMANDS.md`.
-2. `git diff docs/COMMANDS.md` — verify the diff matches your intent.
-3. Commit both the source change **and** the regenerated MD in the same commit.
+1. `dotnet build src/RoslynTools/RoslynTools.csproj` — this regenerates the local `docs/COMMANDS.md`.
+2. Run `rt dump-help` — verify the output matches your intent.
+3. Commit the source change only (`docs/COMMANDS.md` is gitignored).
 
 ## Architecture
 
@@ -102,7 +108,7 @@ Program.Main
   -> App.RunAsync(args)              # build System.CommandLine root, dispatch
 
 Commands/                            # CLI commands — each class implements IRtCommand
-                                     # Full list: docs/COMMANDS.md (auto-generated)
+                                     # Full list: rt dump-help
   DumpHelpCommand                    # hidden meta-command; emits docs/COMMANDS.md content
 
 Core/
@@ -151,8 +157,8 @@ All issues from the April 2026 audit have been resolved.
 
 ## Output format convention
 
-- **Read-only inspection commands** (inspect, outline, find-impl): JSON to stdout
-- **Mutation commands** (rename, move, extract-method, replace-datetime): plain text to stdout
+- **Read-only inspection commands**: JSON to stdout
+- **Mutation commands**: plain text to stdout
 - **All commands**: diagnostics/progress to stderr
 
 ## Dependencies

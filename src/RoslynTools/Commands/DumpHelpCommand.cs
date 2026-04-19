@@ -5,24 +5,26 @@ using RoslynTools.Core;
 namespace RoslynTools.Commands;
 
 /// <summary>
-/// Emits <c>docs/COMMANDS.md</c> content to stdout by walking the command registry in <see cref="App"/>.
-/// Does NOT call <c>MsBuildBootstrap.Register()</c> — pure in-process enumeration keeps the
-/// post-build regeneration step fast. Hidden from the general <c>rt --help</c> listing; invoked
-/// by the post-build MSBuild target.
+/// Displays the full command reference by walking the registry in <see cref="App"/>.
+/// When stdout is a terminal: coloured, categorised output.
+/// When stdout is redirected (e.g. the post-build MSBuild target): Markdown suitable for <c>docs/COMMANDS.md</c>.
+/// Hidden from <c>rt --help</c> to keep the top-level list clean.
 /// </summary>
 internal static class DumpHelpCommand
 {
     internal static Command Build()
     {
-        var cmd = new Command("dump-help", "Emit docs/COMMANDS.md content to stdout (auto-generated, do not invoke manually)")
+        var cmd = new Command("dump-help", "Show the full command reference (coloured in terminal, Markdown when piped)")
         {
             IsHidden = true,
         };
 
         cmd.SetHandler(() =>
         {
-            var md = RenderMarkdown(App.Commands);
-            Console.Out.Write(md);
+            if (Console.IsOutputRedirected)
+                Console.Out.Write(RenderMarkdown(App.Commands));
+            else
+                RenderColoured(App.Commands);
         });
 
         return cmd;
@@ -114,6 +116,61 @@ internal static class DumpHelpCommand
 
         return sb.ToString();
     }
+
+    internal static void RenderColoured(IReadOnlyList<(Command Cmd, RtCommandInfo Info)> registry)
+    {
+        var byCategory = registry
+            .GroupBy(e => e.Info.Category)
+            .OrderBy(g => CategoryOrder(g.Key))
+            .ToList();
+
+        Console.ForegroundColor = ConsoleColor.White;
+        Console.WriteLine($"rt Commands  ({registry.Count} total)");
+        Console.ResetColor();
+        Console.WriteLine();
+
+        foreach (var group in byCategory)
+        {
+            Console.ForegroundColor = CategoryColour(group.Key);
+            Console.WriteLine($"  {group.Key.ToUpperInvariant()}");
+            Console.ForegroundColor = ConsoleColor.DarkGray;
+            Console.WriteLine("  " + new string('\u2500', 52));
+            Console.ResetColor();
+
+            foreach (var (c, info) in group.OrderBy(e => e.Info.Name))
+            {
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.Write($"  {info.Name}");
+
+                if (info.Aliases is { Length: > 0 })
+                {
+                    Console.ForegroundColor = ConsoleColor.DarkGray;
+                    Console.Write($"  ({string.Join(", ", info.Aliases)})");
+                }
+
+                Console.ForegroundColor = info.Mutates ? ConsoleColor.DarkRed : ConsoleColor.DarkGreen;
+                Console.Write(info.Mutates ? "  writes" : "  read-only");
+
+                Console.ResetColor();
+                Console.WriteLine();
+
+                Console.ForegroundColor = ConsoleColor.Gray;
+                Console.WriteLine($"    {c.Description}");
+                Console.ResetColor();
+            }
+
+            Console.WriteLine();
+        }
+    }
+
+    private static ConsoleColor CategoryColour(string category) => category switch
+    {
+        "Navigation" => ConsoleColor.Cyan,
+        "Analysis"   => ConsoleColor.Yellow,
+        "Mutation"   => ConsoleColor.Magenta,
+        "Meta"       => ConsoleColor.DarkGray,
+        _            => ConsoleColor.White,
+    };
 
     private static int CategoryOrder(string category) => category switch
     {

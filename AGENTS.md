@@ -14,7 +14,7 @@ Guidance for agentic coding tools working in `C:\code\roslyn-tools`.
   - `src/RoslynTools/Models`: small model types.
 
 ## Command reference
-**Full command reference lives in [`docs/COMMANDS.md`](docs/COMMANDS.md)** — auto-generated on every `dotnet build -c Debug` from each command's static `RtCommandInfo Info` property. Do not hand-edit that file. See `CLAUDE.md` → "Command metadata contract" for the workflow when adding or changing a command.
+**Run `rt dump-help` to view the full command reference** (or `dotnet run --project src/RoslynTools/RoslynTools.csproj -- dump-help` without publishing). For an agent-friendly pre-loaded reference, load the `use-rt` skill. See `CLAUDE.md` → "Command metadata contract" for the workflow when adding or changing a command.
 
 ## Cursor and Copilot Rules
 No repository-specific rule files were found:

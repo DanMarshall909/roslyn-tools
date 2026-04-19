@@ -23,6 +23,9 @@ coverage/
 ## Claude Code local state (worktrees, user settings)
 .claude/
 
+## Auto-generated command reference (view via: rt dump-help)
+docs/COMMANDS.md
+
 ## OS
 Thumbs.db
 Desktop.ini
