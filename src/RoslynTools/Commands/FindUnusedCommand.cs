@@ -1,5 +1,7 @@
 using System.CommandLine;
+using RoslynTools.Commands.Results;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 
 namespace RoslynTools.Commands;
 
@@ -19,7 +21,8 @@ internal sealed class FindUnusedCommand : IRtCommand
             "rt find-unused --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt unused --scope ProjectX.Core --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt find-unused --scope types --solution RoslynTools.slnx",
-        ]
+        ],
+        SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );
 
     public static Command Build()
@@ -37,9 +40,9 @@ internal sealed class FindUnusedCommand : IRtCommand
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
             using (workspace)
             {
-                var results = await FindUnusedCore.AnalyzeAsync(sln, scope ?? "all");
-                foreach (var r in results)
-                    Console.WriteLine($"{r.Kind,-10} {r.Name,-40} {r.FilePath}:{r.Line}");
+                var symbols = await FindUnusedCore.AnalyzeAsync(sln, scope ?? "all");
+                var result = FindUnusedResult.FromSymbols(symbols);
+                RtSerializer.Write(result);
             }
         }, solutionOpt, scopeOpt);
 
