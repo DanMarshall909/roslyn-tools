@@ -597,7 +597,7 @@ rt safe-delete --symbol OldDtoType --kind type --solution RoslynTools.slnx
 
 _Report exact-clone code blocks repeated across the solution_
 
-**Read-only** | Plain-text output
+**Read-only** | JSON output
 
 **Aliases:** `fd`
 
@@ -614,6 +614,7 @@ rt find-duplicates --min-statements 4 --min-occurrences 3 --solution RoslynTools
 rt find-duplicates --scope MyApp.Services --solution RoslynTools.slnx
 rt find-duplicates --include-tests --solution RoslynTools.slnx
 rt find-duplicates --max-statements 20 --solution RoslynTools.slnx
+rt find-duplicates --json --solution RoslynTools.slnx
 ```
 
 ---

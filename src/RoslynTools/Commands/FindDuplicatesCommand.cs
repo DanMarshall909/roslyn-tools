@@ -1,4 +1,5 @@
 using System.CommandLine;
+using System.Text.Json;
 using RoslynTools.Core;
 
 namespace RoslynTools.Commands;
@@ -10,7 +11,7 @@ internal sealed class FindDuplicatesCommand : IRtCommand
     public static RtCommandInfo Info { get; } = new(
         Name: "find-duplicates",
         Mutates: false,
-        JsonOutput: false,
+        JsonOutput: true,
         Category: "Analysis — duplication",
         Aliases: ["fd"],
         WhenToUse: "Discovering repeated code blocks (exact clones) across a solution before an extract-method pass. Use --min-statements to tune noise vs. signal, --min-occurrences to target the most-duplicated blocks, and --scope to focus on one subsystem.",
@@ -22,6 +23,7 @@ internal sealed class FindDuplicatesCommand : IRtCommand
             "rt find-duplicates --scope MyApp.Services --solution RoslynTools.slnx",
             "rt find-duplicates --include-tests --solution RoslynTools.slnx",
             "rt find-duplicates --max-statements 20 --solution RoslynTools.slnx",
+            "rt find-duplicates --json --solution RoslynTools.slnx",
         ]
     );
 
@@ -33,6 +35,7 @@ internal sealed class FindDuplicatesCommand : IRtCommand
         var scopeOpt = new Option<string?>("--scope", "Project name or namespace prefix to restrict search to");
         var includeTestsOpt = new Option<bool>("--include-tests", () => false, "Include test projects (excluded by default)");
         var maxStatementsOpt = new Option<int>("--max-statements", () => 40, "Hard cap on duplicate window size");
+        var jsonOpt = new Option<bool>("--json", () => false, "Emit results as JSON to stdout");
 
         var cmd = new Command("find-duplicates", "Report exact-clone code blocks repeated across the solution");
         cmd.AddAlias("fd");
@@ -42,19 +45,76 @@ internal sealed class FindDuplicatesCommand : IRtCommand
         cmd.Add(scopeOpt);
         cmd.Add(includeTestsOpt);
         cmd.Add(maxStatementsOpt);
+        cmd.Add(jsonOpt);
 
-        cmd.SetHandler(async (solution, minStatements, minOccurrences, scope, includeTests, maxStatements) =>
+        cmd.SetHandler(async (solution, minStatements, minOccurrences, scope, includeTests, maxStatements, json) =>
         {
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
             using (workspace)
             {
                 var options = new FindDuplicatesOptions(minStatements, minOccurrences, scope, includeTests, maxStatements);
                 var groups = await FindDuplicatesCore.RunAsync(sln, options);
-                PrintGroups(groups);
+
+                if (json)
+                {
+                    var solutionDir = sln.FilePath is not null
+                        ? Path.GetDirectoryName(sln.FilePath)
+                        : null;
+                    PrintJson(groups, solutionDir);
+                }
+                else
+                {
+                    PrintGroups(groups);
+                }
             }
-        }, solutionOpt, minStatementsOpt, minOccurrencesOpt, scopeOpt, includeTestsOpt, maxStatementsOpt);
+        }, solutionOpt, minStatementsOpt, minOccurrencesOpt, scopeOpt, includeTestsOpt, maxStatementsOpt, jsonOpt);
 
         return cmd;
+    }
+
+    internal static void PrintJson(IReadOnlyList<DuplicateGroup> groups, string? solutionDir)
+    {
+        var doc = new
+        {
+            mode = "structural",
+            groups = groups.Select(g => new
+            {
+                groupId = g.GroupId,
+                mode = "structural",
+                score = g.Score,
+                occurrenceCount = g.Occurrences.Count,
+                extractability = "unknown",
+                preview = g.Preview,
+                occurrences = g.Occurrences.Select(o => new
+                {
+                    file = MakeRelativePath(o.FilePath, solutionDir),
+                    line = o.StartLine,
+                    endLine = o.EndLine,
+                    type = o.ContainingType,
+                    member = o.ContainingMember,
+                }).ToArray(),
+                checks = Array.Empty<object>(),
+            }).ToArray(),
+        };
+
+        Console.WriteLine(JsonSerializer.Serialize(doc, SymbolFormatter.DefaultJsonOptions));
+    }
+
+    private static string MakeRelativePath(string absolutePath, string? solutionDir)
+    {
+        if (solutionDir is not null)
+        {
+            try
+            {
+                return Path.GetRelativePath(solutionDir, absolutePath);
+            }
+            catch
+            {
+                // Fall through to filename fallback
+            }
+        }
+
+        return Path.GetFileName(absolutePath);
     }
 
     private static void PrintGroups(IReadOnlyList<DuplicateGroup> groups)
