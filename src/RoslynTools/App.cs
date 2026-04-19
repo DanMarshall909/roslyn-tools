@@ -1,7 +1,11 @@
 using System.CommandLine;
+using System.CommandLine.Builder;
+using System.CommandLine.Invocation;
+using System.CommandLine.Parsing;
 using System.Reflection;
 using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 
 namespace RoslynTools;
 
@@ -55,7 +59,28 @@ internal static class App
         // Hidden meta-command, not part of the public registry (does not implement IRtCommand).
         root.AddCommand(DumpHelpCommand.Build());
 
-        return await root.InvokeAsync(args);
+        var jsonOpt = new Option<bool>("--json", "Emit results as JSON");
+        var llmOpt = new Option<bool>("--llm", "Emit compact output for LLM consumption");
+        var markdownOpt = new Option<bool>("--markdown", "Emit results as Markdown");
+        root.AddGlobalOption(jsonOpt);
+        root.AddGlobalOption(llmOpt);
+        root.AddGlobalOption(markdownOpt);
+
+        return await new CommandLineBuilder(root)
+            .UseDefaults()
+            .AddMiddleware(async (context, next) =>
+            {
+                var md = context.ParseResult.GetValueForOption(markdownOpt);
+                var json = context.ParseResult.GetValueForOption(jsonOpt);
+                var llm = context.ParseResult.GetValueForOption(llmOpt);
+                RtContext.Format = md ? OutputFormat.Markdown
+                                 : json ? OutputFormat.Json
+                                 : llm ? OutputFormat.Llm
+                                 : OutputFormat.Text;
+                await next(context);
+            }, MiddlewareOrder.Configuration)
+            .Build()
+            .InvokeAsync(args);
     }
 
     private static IReadOnlyList<(Command, RtCommandInfo)> Discover()

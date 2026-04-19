@@ -1,3 +1,5 @@
+using RoslynTools.Core.Output;
+
 namespace RoslynTools.Core;
 
 /// <summary>
@@ -12,5 +14,6 @@ internal sealed record RtCommandInfo(
     string WhenToUse,
     string[] Examples,
     string[]? KnownIssues = null,
-    string[]? Aliases = null
+    string[]? Aliases = null,
+    OutputFormat[]? SupportedFormats = null
 );
