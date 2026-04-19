@@ -3,7 +3,7 @@ roslyn-tools Find-Duplicates Backlog — Ralph Execution Progress
 Branch: ralph/find-duplicates
 PRD: prd.json (7 user stories; source: tasks/prd-find-duplicates.md)
 Date Started: 2026-04-19
-Current Status: 5/6 stories complete (83%) — US-206 dropped by user
+Current Status: 6/6 stories complete (100%) — US-206 dropped by user
 
 Previous backlog (ralph/reduce-smells, 16/16 complete + US-017 change-signature pending)
 archived to: ralph/archive/2026-04-19-reduce-smells-with-us017/
@@ -19,4 +19,4 @@ PENDING STORIES
 [x] US-204: find-duplicates — scope and size filters
 [x] US-205: find-duplicates — JSON output
 [~] US-206: find-duplicates — semantic mode via pluggable IEmbeddingProvider (DROPPED)
-[ ] US-207: find-duplicates — extraction-readiness diagnostics
+[x] US-207: find-duplicates — extraction-readiness diagnostics

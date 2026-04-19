@@ -154,7 +154,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-206. This is the handoff point for a future `extract-method --from-duplicate-group <id>` flow (out of scope). Look at MethodExtractor for existing data-flow analysis helpers to reuse."
     }
   ]
