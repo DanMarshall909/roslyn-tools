@@ -29,11 +29,14 @@ internal static class ExtractabilityAnalyzer
         IReadOnlyList<StatementSyntax> canonicalWindow,
         IReadOnlyList<(IReadOnlyList<StatementSyntax> Window, SemanticModel Model, IReadOnlyDictionary<string, string>? SubstitutionMap)> occurrences)
     {
+        var firstModel = occurrences.Count > 0 ? occurrences[0].Model : null;
         var checks = new List<ExtractabilityCheck>
         {
             CheckParameterizableInputs(occurrences),
             CheckSingleOutput(occurrences),
-            CheckNoControlFlowEscape(canonicalWindow),
+            firstModel is not null
+                ? CheckNoControlFlowEscape(canonicalWindow, firstModel)
+                : new ExtractabilityCheck("no-control-flow-escape", "pass", null),
             CheckNoRefOutParams(occurrences),
             CheckConsistentCapturedState(occurrences),
         };
@@ -140,36 +143,23 @@ internal static class ExtractabilityAnalyzer
 
     // ── Check: no-control-flow-escape ────────────────────────────────────────────
 
-    private static ExtractabilityCheck CheckNoControlFlowEscape(IReadOnlyList<StatementSyntax> window)
+    private static ExtractabilityCheck CheckNoControlFlowEscape(
+        IReadOnlyList<StatementSyntax> window,
+        SemanticModel model)
     {
-        // A statement window has a control-flow escape if it contains:
-        //   - return statement
-        //   - yield return / yield break
-        //   - goto statement
-        //   - labelled break (break with a target outside the window is not detectable at
-        //     syntax level alone, so any labeled-statement ancestor of a break counts)
-        //
-        // Plain break/continue inside their own loop/switch within the window are fine
-        // (they don't escape the extracted method boundary). We only flag top-level escapes.
+        if (window.Count == 0)
+            return new ExtractabilityCheck("no-control-flow-escape", "pass", null);
 
-        foreach (var stmt in window)
-        {
-            // return statement at the top level of the window.
-            if (stmt is ReturnStatementSyntax)
-                return new ExtractabilityCheck("no-control-flow-escape", "fail", "block contains a return statement");
+        var flow = model.AnalyzeControlFlow(window[0], window[^1]);
+        if (flow == null || !flow.Succeeded)
+            return new ExtractabilityCheck("no-control-flow-escape", "pass", null);
 
-            // yield inside the window.
-            var hasYield = stmt.DescendantNodesAndSelf()
-                .Any(n => n is YieldStatementSyntax);
-            if (hasYield)
-                return new ExtractabilityCheck("no-control-flow-escape", "fail", "block contains a yield statement");
+        if (flow.ReturnStatements.Any())
+            return new ExtractabilityCheck("no-control-flow-escape", "fail", "block contains a return statement");
 
-            // goto inside the window.
-            var hasGoto = stmt.DescendantNodesAndSelf()
-                .Any(n => n is GotoStatementSyntax);
-            if (hasGoto)
-                return new ExtractabilityCheck("no-control-flow-escape", "fail", "block contains a goto statement");
-        }
+        if (flow.ExitPoints.Any())
+            return new ExtractabilityCheck("no-control-flow-escape", "fail",
+                "block contains a break/continue/goto that exits the window");
 
         return new ExtractabilityCheck("no-control-flow-escape", "pass", null);
     }
