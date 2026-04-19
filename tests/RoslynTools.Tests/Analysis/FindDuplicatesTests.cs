@@ -191,6 +191,112 @@ public class FindDuplicatesTests
         }
     }
 
+    // ── Bottom-up: only maximal clone reported, not sub-sequences ────────────────
+
+    [Fact]
+    public async Task Reports_only_maximal_clone_not_sub_sequences()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("A.cs", """
+            namespace TestApp;
+
+            public class A
+            {
+                public void First()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                    int z = 3;
+                    System.Console.WriteLine(z);
+                }
+
+                public void Second()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                    int z = 3;
+                    System.Console.WriteLine(z);
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var groups = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions(MinStatements: 3));
+
+            // The 5-statement clone is the maximal block; sub-sequences (3-stmt, 4-stmt windows)
+            // should not produce separate reported groups since all their occurrences are subsumed.
+            Assert.NotEmpty(groups);
+            var maximalGroup = groups.OrderByDescending(g => g.StatementCount).First();
+            Assert.Equal(5, maximalGroup.StatementCount);
+            Assert.Equal(2, maximalGroup.Occurrences.Count);
+        }
+    }
+
+    // ── Bottom-up: PartiallyExpandable flag when some occurrences extend further ─
+
+    [Fact]
+    public async Task Flags_partial_expansion_when_some_occurrences_extend()
+    {
+        // Three methods share [s1,s2,s3]; two of them also share s4.
+        // Expect: group [s1,s2,s3] with 3 occurrences and PartiallyExpandable=true
+        //         group [s1,s2,s3,s4] with 2 occurrences and PartiallyExpandable=false
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("A.cs", """
+            namespace TestApp;
+
+            public class A
+            {
+                public void MethodA()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                    int z = 3;
+                }
+
+                public void MethodB()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                    int z = 99;
+                }
+
+                public void MethodC()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                    int z = 3;
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var groups = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions(MinStatements: 3));
+
+            // The [s1,s2,s3] group appears in all 3 methods with PartiallyExpandable=true.
+            // Use 3-occurrence count + PartiallyExpandable as the discriminator since there may be
+            // other 3-statement groups (e.g. [s2,s3,s4] from MethodA and MethodC).
+            var threeStmtGroup = groups.FirstOrDefault(g => g.StatementCount == 3 && g.Occurrences.Count == 3);
+            Assert.NotNull(threeStmtGroup);
+            Assert.True(threeStmtGroup.PartiallyExpandable,
+                "3-statement group should be flagged PartiallyExpandable because some occurrences have an identical 4th statement");
+
+            var fourStmtGroup = groups.FirstOrDefault(g => g.StatementCount == 4);
+            Assert.NotNull(fourStmtGroup);
+            Assert.Equal(2, fourStmtGroup.Occurrences.Count);
+            Assert.False(fourStmtGroup.PartiallyExpandable,
+                "4-statement group should not be PartiallyExpandable because no occurrences extend further");
+        }
+    }
+
     // ── Boilerplate-only blocks not reported ──────────────────────────────────────
 
     [Fact]

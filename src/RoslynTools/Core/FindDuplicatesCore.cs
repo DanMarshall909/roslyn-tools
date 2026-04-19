@@ -21,7 +21,8 @@ internal sealed record DuplicateGroup(
     string GroupHash,
     IReadOnlyList<DuplicateOccurrence> Occurrences,
     string Preview,
-    int StatementCount);
+    int StatementCount,
+    bool PartiallyExpandable = false);
 
 internal static class FindDuplicatesCore
 {
@@ -50,16 +51,32 @@ internal static class FindDuplicatesCore
         return false;
     }
 
+    // Tracks a single occurrence of a window candidate during bottom-up expansion.
+    private sealed class CandidateLoc
+    {
+        public required string FilePath { get; init; }
+        public required IReadOnlyList<StatementSyntax> Body { get; init; }
+        public required int StartIdx { get; init; }
+        public required string ContainingType { get; init; }
+        public required string ContainingMember { get; init; }
+        public int Length { get; set; } = 1;
+
+        public IReadOnlyList<StatementSyntax> Window =>
+            Body.Skip(StartIdx).Take(Length).ToList();
+
+        public bool CanExtend => StartIdx + Length < Body.Count;
+    }
+
     public static async Task<IReadOnlyList<DuplicateGroup>> RunAsync(
         Solution solution,
         FindDuplicatesOptions options)
     {
         var projectCount = solution.Projects.Count();
         var methodCount = 0;
-        var candidateCount = 0;
 
-        // hash -> list of occurrences
-        var groups = new Dictionary<string, (List<DuplicateOccurrence> Occurrences, string Preview, int StatementCount)>(StringComparer.Ordinal);
+        // Phase 1: collect all single-statement seeds from every method body.
+        // Group by hash of the length-1 window.
+        var seeds = new Dictionary<string, List<CandidateLoc>>(StringComparer.Ordinal);
 
         foreach (var project in solution.Projects)
         {
@@ -90,74 +107,163 @@ internal static class FindDuplicatesCore
                     if (body is null)
                         continue;
 
-                    var stmts = body.Statements;
+                    var stmts = body.Statements.ToList();
                     if (stmts.Count < options.MinStatements)
                         continue;
 
                     var containingType = GetContainingTypeName(method);
                     var containingMember = GetMemberName(method);
 
-                    foreach (var window in EnumerateWindows(stmts, options.MinStatements))
+                    for (var i = 0; i < stmts.Count; i++)
                     {
-                        if (IsBoilerplateWindow(window))
+                        var loc = new CandidateLoc
+                        {
+                            FilePath = document.FilePath,
+                            Body = stmts,
+                            StartIdx = i,
+                            ContainingType = containingType,
+                            ContainingMember = containingMember,
+                            Length = 1,
+                        };
+
+                        // Filter single-statement boilerplate at seed time.
+                        if (IsBoilerplateWindow(loc.Window))
                             continue;
 
-                        candidateCount++;
-                        var hash = ComputeWindowHash(window);
-
-                        var startLine = window[0].GetLocation().GetLineSpan().StartLinePosition.Line + 1;
-                        var endLine = window[^1].GetLocation().GetLineSpan().EndLinePosition.Line + 1;
-
-                        var occurrence = new DuplicateOccurrence(
-                            document.FilePath,
-                            startLine,
-                            endLine,
-                            containingType,
-                            containingMember);
-
-                        if (!groups.TryGetValue(hash, out var entry))
-                        {
-                            var preview = BuildPreview(window);
-                            groups[hash] = ([occurrence], preview, window.Count);
-                        }
-                        else
-                        {
-                            entry.Occurrences.Add(occurrence);
-                        }
+                        var hash = ComputeWindowHash(loc.Window);
+                        if (!seeds.TryGetValue(hash, out var list))
+                            seeds[hash] = list = [];
+                        list.Add(loc);
                     }
                 }
             }
         }
 
-        Console.Error.WriteLine($"[find-duplicates] projects={projectCount} methods={methodCount} candidates={candidateCount}");
+        Console.Error.WriteLine($"[find-duplicates] projects={projectCount} methods={methodCount} seeds={seeds.Count}");
 
-        return groups.Values
-            .Where(e => e.Occurrences.Count >= options.MinOccurrences)
-            .Select(e => new DuplicateGroup(
-                GroupHash: string.Empty,
-                Occurrences: e.Occurrences,
-                Preview: e.Preview,
-                StatementCount: e.StatementCount))
-            .ToList();
-    }
+        // Phase 2: bottom-up expansion.
+        // Start with seed groups that meet MinOccurrences.
+        // At each round, try to extend every surviving candidate by one statement.
+        //
+        // Reporting rule:
+        //   - A group is reported when it can no longer fully agree on an extension:
+        //     some locations are terminal (body exhausted) or some diverge to a different hash.
+        //   - When a split occurs, ALL current locations are reported at the current length
+        //     (PartiallyExpandable=true), while the surviving subgroups continue expanding.
+        //   - When all locations terminate together (no extension possible for any),
+        //     they are reported as PartiallyExpandable=false.
 
-    private static IEnumerable<List<StatementSyntax>> EnumerateWindows(
-        SyntaxList<StatementSyntax> statements,
-        int minLength)
-    {
-        var stmtList = statements.ToList();
-        var count = stmtList.Count;
+        // candidates: hash -> List<CandidateLoc>, all at the same Length
+        var candidates = seeds
+            .Where(kv => kv.Value.Count >= options.MinOccurrences)
+            .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal);
 
-        for (var windowLen = minLength; windowLen <= count; windowLen++)
+        var results = new List<DuplicateGroup>();
+
+        while (candidates.Count > 0)
         {
-            for (var start = 0; start + windowLen <= count; start++)
+            var nextCandidates = new Dictionary<string, List<CandidateLoc>>(StringComparer.Ordinal);
+
+            foreach (var (currentHash, locations) in candidates)
             {
-                yield return stmtList.GetRange(start, windowLen);
+                var currentLength = locations[0].Length;
+
+                var extendable = locations.Where(l => l.CanExtend).ToList();
+                var terminal = locations.Where(l => !l.CanExtend).ToList();
+
+                // Re-group extendable by the hash of window extended by one statement.
+                var extGroups = extendable
+                    .GroupBy(l => ComputeExtendedHash(l), StringComparer.Ordinal)
+                    .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.Ordinal);
+
+                // Determine which extGroups have enough occurrences to continue.
+                var continuingGroups = extGroups
+                    .Where(eg => eg.Value.Count >= options.MinOccurrences)
+                    .ToList();
+
+                // A "split" occurs when:
+                //   - some locations are terminal (can't extend), OR
+                //   - extendable locations diverge across multiple hashes (more than one continuing group), OR
+                //   - some extendable locations form groups below MinOccurrences (become orphans).
+                var hasSplit = terminal.Count > 0
+                    || continuingGroups.Count > 1
+                    || extGroups.Any(eg => eg.Value.Count < options.MinOccurrences);
+
+                // Snapshot occurrence data and window BEFORE mutating lengths.
+                // CandidateLoc.Window is computed lazily from loc.Length, so we must
+                // capture before the increment loop below.
+                var currentWindow = locations[0].Window;
+                var currentOccurrences = locations.Select(BuildOccurrence).ToList();
+
+                // Queue continuing subgroups for next round.
+                foreach (var (extHash, extLocs) in continuingGroups)
+                {
+                    foreach (var loc in extLocs)
+                        loc.Length++;
+                    if (!nextCandidates.TryGetValue(extHash, out var existing))
+                        nextCandidates[extHash] = existing = [];
+                    existing.AddRange(extLocs);
+                }
+
+                // Decide what to report at the current length.
+                if (currentLength >= options.MinStatements)
+                {
+                    if (hasSplit)
+                    {
+                        // Report ALL current locations (full group before split) as PartiallyExpandable.
+                        if (currentOccurrences.Count >= options.MinOccurrences)
+                        {
+                            results.Add(new DuplicateGroup(
+                                GroupHash: currentHash,
+                                Occurrences: currentOccurrences,
+                                Preview: BuildPreview(currentWindow),
+                                StatementCount: currentWindow.Count,
+                                PartiallyExpandable: continuingGroups.Count > 0));
+                        }
+                    }
+                    else if (terminal.Count == locations.Count)
+                    {
+                        // All locations are terminal — report the full group, not expandable.
+                        // currentOccurrences == terminal occurrences since nothing was continuing.
+                        results.Add(new DuplicateGroup(
+                            GroupHash: currentHash,
+                            Occurrences: currentOccurrences,
+                            Preview: BuildPreview(currentWindow),
+                            StatementCount: currentWindow.Count,
+                            PartiallyExpandable: false));
+                    }
+                    // Otherwise: all extendable and all continuing to a single group — don't report yet.
+                }
             }
+
+            candidates = nextCandidates;
         }
+
+        Console.Error.WriteLine($"[find-duplicates] groups={results.Count}");
+
+        return results;
     }
 
-    private static string ComputeWindowHash(List<StatementSyntax> statements)
+    private static string ComputeExtendedHash(CandidateLoc loc)
+    {
+        var extWindow = loc.Body.Skip(loc.StartIdx).Take(loc.Length + 1).ToList();
+        return ComputeWindowHash(extWindow);
+    }
+
+    private static DuplicateOccurrence BuildOccurrence(CandidateLoc loc)
+    {
+        var window = loc.Window;
+        var startLine = window[0].GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+        var endLine = window[^1].GetLocation().GetLineSpan().EndLinePosition.Line + 1;
+        return new DuplicateOccurrence(
+            loc.FilePath,
+            startLine,
+            endLine,
+            loc.ContainingType,
+            loc.ContainingMember);
+    }
+
+    private static string ComputeWindowHash(IReadOnlyList<StatementSyntax> statements)
     {
         var sb = new StringBuilder();
         foreach (var stmt in statements)
@@ -167,7 +273,7 @@ internal static class FindDuplicatesCore
         return Convert.ToHexString(bytes);
     }
 
-    private static string BuildPreview(List<StatementSyntax> statements)
+    private static string BuildPreview(IReadOnlyList<StatementSyntax> statements)
     {
         var first = statements[0].NormalizeWhitespace().ToFullString().Trim();
         var newlineIdx = first.IndexOfAny(['\r', '\n']);
