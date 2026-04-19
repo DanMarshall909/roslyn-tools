@@ -83,7 +83,7 @@ internal sealed class FindDuplicatesCommand : IRtCommand
                 mode = "structural",
                 score = g.Score,
                 occurrenceCount = g.Occurrences.Count,
-                extractability = "unknown",
+                extractability = g.Extractability,
                 preview = g.Preview,
                 occurrences = g.Occurrences.Select(o => new
                 {
@@ -93,7 +93,12 @@ internal sealed class FindDuplicatesCommand : IRtCommand
                     type = o.ContainingType,
                     member = o.ContainingMember,
                 }).ToArray(),
-                checks = Array.Empty<object>(),
+                checks = (g.Checks ?? []).Select(c => new
+                {
+                    name = c.Name,
+                    status = c.Status,
+                    detail = c.Detail,
+                }).ToArray(),
             }).ToArray(),
         };
 
@@ -129,8 +134,16 @@ internal sealed class FindDuplicatesCommand : IRtCommand
         {
             var g = groups[i];
             var partialTag = g.PartiallyExpandable ? "  [partial]" : "";
-            Console.WriteLine($"Group {i + 1}  id={g.GroupId}  occurrences={g.Occurrences.Count}  score={g.Score:F2}{partialTag}");
+            Console.WriteLine($"Group {i + 1}  id={g.GroupId}  occurrences={g.Occurrences.Count}  score={g.Score:F2}  extractable={g.Extractability}{partialTag}");
             Console.WriteLine($"preview: {g.Preview}");
+            if (g.Checks is { Count: > 0 })
+            {
+                foreach (var c in g.Checks)
+                {
+                    var detail = c.Detail is not null ? $": {c.Detail}" : "";
+                    Console.WriteLine($"  [{c.Status}] {c.Name}{detail}");
+                }
+            }
             for (var j = 0; j < g.Occurrences.Count; j++)
             {
                 var o = g.Occurrences[j];

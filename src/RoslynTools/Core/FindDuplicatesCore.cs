@@ -30,7 +30,9 @@ internal sealed record DuplicateGroup(
     string Preview,
     int StatementCount,
     double Score,
-    bool PartiallyExpandable = false);
+    bool PartiallyExpandable = false,
+    string Extractability = "unknown",
+    IReadOnlyList<ExtractabilityCheck>? Checks = null);
 
 internal static class FindDuplicatesCore
 {
@@ -234,6 +236,10 @@ internal static class FindDuplicatesCore
                 // capture before the increment loop below.
                 var currentWindow = locations[0].Window;
                 var currentOccurrences = locations.Select(BuildOccurrence).ToList();
+                // Capture raw windows + models for extractability analysis.
+                var rawOccurrences = locations
+                    .Select(l => (Window: l.Window, Model: l.SemanticModel, SubstitutionMap: (IReadOnlyDictionary<string, string>?)BuildOccurrence(l).SubstitutionMap))
+                    .ToList();
 
                 // Queue continuing subgroups for next round.
                 foreach (var (extHash, extLocs) in continuingGroups)
@@ -255,8 +261,9 @@ internal static class FindDuplicatesCore
                         {
                             var stmtCount = currentWindow.Count;
                             var occCount = currentOccurrences.Count;
-                            // Score: log(occurrences) * statementCount — rewards both breadth and depth.
-                            var score = Math.Log(occCount) * stmtCount;
+                            var (extractability, checks) = ExtractabilityAnalyzer.Analyze(currentWindow, rawOccurrences);
+                            // Score: log(occurrences) * statementCount * extractabilityWeight
+                            var score = Math.Log(occCount) * stmtCount * ExtractabilityWeight(extractability);
                             results.Add(new DuplicateGroup(
                                 GroupHash: currentHash,
                                 GroupId: ComputeGroupId(currentHash, stmtCount),
@@ -264,7 +271,9 @@ internal static class FindDuplicatesCore
                                 Preview: BuildPreview(currentWindow),
                                 StatementCount: stmtCount,
                                 Score: score,
-                                PartiallyExpandable: continuingGroups.Count > 0));
+                                PartiallyExpandable: continuingGroups.Count > 0,
+                                Extractability: extractability,
+                                Checks: checks));
                         }
                     }
                     else if (terminal.Count == locations.Count)
@@ -273,8 +282,9 @@ internal static class FindDuplicatesCore
                         // currentOccurrences == terminal occurrences since nothing was continuing.
                         var stmtCount = currentWindow.Count;
                         var occCount = currentOccurrences.Count;
-                        // Score: log(occurrences) * statementCount — rewards both breadth and depth.
-                        var score = Math.Log(occCount) * stmtCount;
+                        var (extractability, checks) = ExtractabilityAnalyzer.Analyze(currentWindow, rawOccurrences);
+                        // Score: log(occurrences) * statementCount * extractabilityWeight
+                        var score = Math.Log(occCount) * stmtCount * ExtractabilityWeight(extractability);
                         results.Add(new DuplicateGroup(
                             GroupHash: currentHash,
                             GroupId: ComputeGroupId(currentHash, stmtCount),
@@ -282,7 +292,9 @@ internal static class FindDuplicatesCore
                             Preview: BuildPreview(currentWindow),
                             StatementCount: stmtCount,
                             Score: score,
-                            PartiallyExpandable: false));
+                            PartiallyExpandable: false,
+                            Extractability: extractability,
+                            Checks: checks));
                     }
                     // Otherwise: all extendable and all continuing to a single group — don't report yet.
                 }
@@ -325,6 +337,18 @@ internal static class FindDuplicatesCore
 
         return filtered;
     }
+
+    /// <summary>
+    /// Maps an extractability level to a score weight.
+    /// extractable=1.0, likely_extractable=0.7, discovery_only=0.3, unknown=1.0 (unanalysed).
+    /// </summary>
+    private static double ExtractabilityWeight(string extractability) => extractability switch
+    {
+        "extractable" => 1.0,
+        "likely_extractable" => 0.7,
+        "discovery_only" => 0.3,
+        _ => 1.0,
+    };
 
     /// <summary>
     /// Computes a short, stable, human-readable group identifier from the canonical hash

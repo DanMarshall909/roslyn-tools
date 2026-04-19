@@ -1081,7 +1081,10 @@ public class FindDuplicatesTests
 
             var g = groupsArr[0];
             Assert.Equal("structural", g.GetProperty("mode").GetString());
-            Assert.Equal("unknown", g.GetProperty("extractability").GetString());
+            // extractability is now analysed and must be a known level, not "unknown"
+            var ext = g.GetProperty("extractability").GetString()!;
+            Assert.True(ext is "extractable" or "likely_extractable" or "discovery_only",
+                $"Expected a known extractability level, got: {ext}");
             Assert.True(g.GetProperty("score").GetDouble() > 0);
             Assert.True(g.GetProperty("occurrenceCount").GetInt32() >= 2);
             Assert.True(g.GetProperty("preview").GetString()!.Length > 0);
@@ -1097,7 +1100,8 @@ public class FindDuplicatesTests
             Assert.True(occ.GetProperty("member").GetString()!.Length > 0);
 
             var checks = g.GetProperty("checks");
-            Assert.Equal(0, checks.GetArrayLength());
+            // checks is now populated with extractability analysis results
+            Assert.Equal(JsonValueKind.Array, checks.ValueKind);
         }
     }
 
@@ -1318,6 +1322,278 @@ public class FindDuplicatesTests
             var output = CaptureText(groups);
             Assert.Contains("Group 1", output);
             Assert.Contains("preview:", output);
+        }
+    }
+
+    // ── US-207: Extraction-readiness diagnostics ──────────────────────────────────
+
+    [Fact]
+    public async Task Fully_extractable_group_is_labelled_extractable()
+    {
+        // Simple 3-statement block with no control-flow escapes, no ref/out, consistent state.
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("A.cs", """
+            namespace TestApp;
+
+            public class A
+            {
+                public void First()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+
+                public void Second()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var groups = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions());
+
+            Assert.NotEmpty(groups);
+            var g = groups.First(g => g.StatementCount == 3);
+            Assert.Equal("extractable", g.Extractability);
+            Assert.NotNull(g.Checks);
+            Assert.True(g.Checks.Count > 0);
+            Assert.All(g.Checks, c => Assert.Equal("pass", c.Status));
+        }
+    }
+
+    [Fact]
+    public async Task Group_with_return_inside_block_is_discovery_only_with_no_control_flow_escape_fail()
+    {
+        // A 3-statement block where one of the statements is a return — extractability should fail.
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("A.cs", """
+            namespace TestApp;
+
+            public class A
+            {
+                public int First()
+                {
+                    int x = 1;
+                    int y = 2;
+                    return x + y;
+                }
+
+                public int Second()
+                {
+                    int x = 1;
+                    int y = 2;
+                    return x + y;
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var groups = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions(MinStatements: 3));
+
+            Assert.NotEmpty(groups);
+            var g = groups.First(g => g.StatementCount == 3);
+            Assert.Equal("discovery_only", g.Extractability);
+            Assert.NotNull(g.Checks);
+            var failCheck = g.Checks.FirstOrDefault(c => c.Name == "no-control-flow-escape");
+            Assert.NotNull(failCheck);
+            Assert.Equal("fail", failCheck.Status);
+        }
+    }
+
+    [Fact]
+    public async Task Group_with_ref_out_param_is_discovery_only_with_no_ref_out_params_fail()
+    {
+        // A block that passes a ref argument should fail the no-ref-out-params check.
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("A.cs", """
+            namespace TestApp;
+
+            public class A
+            {
+                private static void Helper(ref int v) { v++; }
+
+                public void First()
+                {
+                    int x = 1;
+                    int y = 2;
+                    Helper(ref x);
+                }
+
+                public void Second()
+                {
+                    int x = 1;
+                    int y = 2;
+                    Helper(ref x);
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var groups = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions());
+
+            Assert.NotEmpty(groups);
+            var g = groups.First(g => g.StatementCount >= 3);
+            Assert.Equal("discovery_only", g.Extractability);
+            Assert.NotNull(g.Checks);
+            var failCheck = g.Checks.FirstOrDefault(c => c.Name == "no-ref-out-params");
+            Assert.NotNull(failCheck);
+            Assert.Equal("fail", failCheck.Status);
+        }
+    }
+
+    [Fact]
+    public async Task Group_with_differing_captured_fields_is_likely_extractable_with_consistent_captured_state_warn()
+    {
+        // Two classes each have a field named `_count`, but they are distinct field symbols
+        // (A._count vs B._count). Both methods access `_count` with the same syntax, so they
+        // group canonically. The consistent-captured-state check detects the differing FQNs.
+        using var builder = new AdhocProjectBuilder("CaptureTest");
+        builder.AddSource("A.cs", """
+            namespace CaptureTest;
+
+            public class A
+            {
+                private int _count = 5;
+
+                public void Run()
+                {
+                    int x = 1;
+                    int y = _count;
+                    System.Console.WriteLine(x + y);
+                }
+            }
+            """);
+        builder.AddSource("B.cs", """
+            namespace CaptureTest;
+
+            public class B
+            {
+                private int _count = 10;
+
+                public void Run()
+                {
+                    int x = 1;
+                    int y = _count;
+                    System.Console.WriteLine(x + y);
+                }
+            }
+            """);
+
+        var (workspace, sln) = builder.Build();
+        using (workspace)
+        {
+            // "CaptureTest" ends with "Test" so it would be excluded as a test project;
+            // use IncludeTests:true so the project is scanned.
+            var groups = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions(IncludeTests: true));
+
+            Assert.NotEmpty(groups);
+            var g = groups.First(g => g.StatementCount >= 3);
+            // consistent-captured-state should warn (A._count vs B._count are different symbols)
+            Assert.NotNull(g.Checks);
+            var captureCheck = g.Checks.FirstOrDefault(c => c.Name == "consistent-captured-state");
+            Assert.NotNull(captureCheck);
+            Assert.Equal("warn", captureCheck.Status);
+            // Overall: at least likely_extractable (warn present, not extractable)
+            Assert.NotEqual("extractable", g.Extractability);
+        }
+    }
+
+    [Fact]
+    public async Task Json_output_includes_extractability_and_checks()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("A.cs", """
+            namespace TestApp;
+
+            public class A
+            {
+                public void First()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+
+                public void Second()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var groups = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions());
+            Assert.NotEmpty(groups);
+
+            var json = CaptureJson(groups, solutionDir: null);
+            var doc = System.Text.Json.JsonDocument.Parse(json);
+            var g = doc.RootElement.GetProperty("groups")[0];
+
+            // extractability must be a non-empty string (extractable/likely_extractable/discovery_only)
+            var ext = g.GetProperty("extractability").GetString()!;
+            Assert.True(ext.Length > 0 && ext != "unknown", $"Expected known extractability, got: {ext}");
+
+            // checks must be an array (may be empty for extractable groups but structure must be present)
+            var checks = g.GetProperty("checks");
+            Assert.Equal(System.Text.Json.JsonValueKind.Array, checks.ValueKind);
+
+            // Each check entry (if any) must have name, status, and detail fields
+            foreach (var check in checks.EnumerateArray())
+            {
+                Assert.True(check.TryGetProperty("name", out _));
+                Assert.True(check.TryGetProperty("status", out _));
+                Assert.True(check.TryGetProperty("detail", out _));
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Plain_text_output_includes_extractability_label()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("A.cs", """
+            namespace TestApp;
+
+            public class A
+            {
+                public void First()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+
+                public void Second()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var groups = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions());
+            Assert.NotEmpty(groups);
+
+            var output = CaptureText(groups);
+            Assert.Contains("extractable=", output);
         }
     }
 
