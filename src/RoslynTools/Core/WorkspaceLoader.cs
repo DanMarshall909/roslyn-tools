@@ -57,12 +57,23 @@ internal static class WorkspaceLoader
     private static string ResolveSolutionPath(string? solutionPath)
     {
         if (!string.IsNullOrWhiteSpace(solutionPath))
-            return Path.GetFullPath(solutionPath);
+        {
+            var full = Path.GetFullPath(solutionPath);
+            if (Path.GetExtension(full).Equals(".slnx", StringComparison.OrdinalIgnoreCase))
+            {
+                var sibling = Path.ChangeExtension(full, ".sln");
+                if (File.Exists(sibling))
+                {
+                    Console.Error.WriteLine($"Note: MSBuildWorkspace does not support .slnx; using {Path.GetFileName(sibling)}");
+                    return sibling;
+                }
+            }
+            return full;
+        }
 
         var cwd = Directory.GetCurrentDirectory();
         // MSBuildWorkspace only supports classic .sln format; .slnx is not supported.
-        // Auto-detect only considers .sln files. If a user explicitly passes --solution
-        // pointing to a .slnx, the error from MSBuild will explain the problem.
+        // Auto-detect only considers .sln files.
         var candidates = Directory
             .EnumerateFiles(cwd, "*.sln", SearchOption.TopDirectoryOnly)
             .ToList();
