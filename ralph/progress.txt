@@ -3,7 +3,7 @@ roslyn-tools Find-Duplicates Backlog — Ralph Execution Progress
 Branch: ralph/find-duplicates
 PRD: prd.json (7 user stories; source: tasks/prd-find-duplicates.md)
 Date Started: 2026-04-19
-Current Status: 0/7 stories complete (0%)
+Current Status: 1/7 stories complete (14%)
 
 Previous backlog (ralph/reduce-smells, 16/16 complete + US-017 change-signature pending)
 archived to: ralph/archive/2026-04-19-reduce-smells-with-us017/
@@ -13,7 +13,7 @@ then start this find-duplicates backlog.
 
 PENDING STORIES
 ===============
-[ ] US-201: find-duplicates — structural exact-clone discovery (skeleton)
+[x] US-201: find-duplicates — structural exact-clone discovery (skeleton)
 [ ] US-202: find-duplicates — canonicalise identifiers, literals, and trivia
 [ ] US-203: find-duplicates — overlap suppression and deterministic ranking
 [ ] US-204: find-duplicates — scope and size filters

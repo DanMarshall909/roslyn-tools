@@ -29,7 +29,7 @@
         "README.md command table updated with an entry and one example invocation"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Pattern-match FindPatternCommand + PatternMatcher for the thin-shell layout. Introduce DuplicateGroup, DuplicateOccurrence records in Core. Keep candidate enumeration streaming (yield return) to avoid holding every window in memory for large solutions."
     },
     {
