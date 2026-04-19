@@ -1,10 +1,13 @@
 roslyn-tools Reduce Smells + Core Extraction + New Commands — Ralph Execution Progress
 ========================================================================================
 Branch: ralph/reduce-smells
-PRD: prd.json (16 user stories)
+PRD: prd.json (17 user stories)
 Date Started: 2026-04-18
-Date Completed: 2026-04-19
-Current Status: 16/16 stories complete (100%)
+Current Status: 16/17 stories complete (94%)
+
+PENDING STORIES
+===============
+[ ] US-017: New command: change-signature
 
 COMPLETED STORIES
 =================
