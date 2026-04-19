@@ -92,6 +92,7 @@ internal sealed class FindDuplicatesCommand : IRtCommand
                     endLine = o.EndLine,
                     type = o.ContainingType,
                     member = o.ContainingMember,
+                    link = o.FilePath.Replace('\\', '/') + ":" + o.StartLine,
                 }).ToArray(),
                 checks = (g.Checks ?? []).Select(c => new
                 {
@@ -147,7 +148,8 @@ internal sealed class FindDuplicatesCommand : IRtCommand
             for (var j = 0; j < g.Occurrences.Count; j++)
             {
                 var o = g.Occurrences[j];
-                Console.WriteLine($"  {j + 1}. {o.FilePath}:{o.StartLine} in {o.ContainingType}.{o.ContainingMember}");
+                var path = o.FilePath.Replace('\\', '/');
+                Console.WriteLine($"  {j + 1}. {path}:{o.StartLine}-{o.EndLine} in {o.ContainingType}.{o.ContainingMember}");
             }
             Console.WriteLine();
         }
