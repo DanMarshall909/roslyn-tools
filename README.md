@@ -33,6 +33,7 @@ dotnet publish src/RoslynTools/RoslynTools.csproj -c Release -r win-x64
 | `find-callers` | `callers` | Find all invocation sites for a method (not type refs, not `nameof`) |
 | `find-pattern` | `fp` | Find all locations structurally matching a given statement range (same SyntaxKind shape, identifiers/literals may differ) |
 | `find-unused` | `unused` | Report types and methods with zero references |
+| `find-duplicates` | `fd` | Report exact-clone code blocks repeated across the solution |
 | `inspect` | | Show type shape as JSON — members, bases, interfaces, locations |
 | `outline` | | List all types/members in a file or namespace as JSON |
 | `list-smells` | `smells` | Report large classes, long methods, over-injected constructors |
@@ -189,6 +190,28 @@ rt convert-to-record --type Money --solution MySolution.sln [--dry-run]
 ```sh
 rt implement-interface --type Repo --interface IRepository --solution MySolution.sln [--dry-run]
 # Adds 'throw new NotImplementedException()' stubs for all unimplemented members
+```
+
+### find-duplicates
+
+Scan the entire solution for exact-clone statement blocks (verbatim syntax, trivia stripped). Useful before an extract-method pass to discover the highest-value refactoring targets.
+
+```sh
+# Report all duplicated blocks of 3+ statements appearing 2+ times
+rt find-duplicates --solution MySolution.sln
+
+# Raise the bar: only blocks of 5+ statements, 3+ occurrences
+rt fd --min-statements 5 --min-occurrences 3 --solution MySolution.sln
+```
+
+Output (plain text to stdout):
+
+```text
+Group 1  occurrences=3  score=9
+preview: int x = 1;
+  1. src/Foo.cs:10 in MyClass.MyMethod
+  2. src/Bar.cs:20 in OtherClass.OtherMethod
+  3. src/Baz.cs:30 in AnotherClass.AnotherMethod
 ```
 
 ### find-pattern
