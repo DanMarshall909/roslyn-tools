@@ -59,9 +59,8 @@ internal sealed class FindDuplicatesCommand : IRtCommand
         for (var i = 0; i < groups.Count; i++)
         {
             var g = groups[i];
-            var score = g.Occurrences.Count * g.StatementCount;
             var partialTag = g.PartiallyExpandable ? "  [partial]" : "";
-            Console.WriteLine($"Group {i + 1}  occurrences={g.Occurrences.Count}  score={score}{partialTag}");
+            Console.WriteLine($"Group {i + 1}  id={g.GroupId}  occurrences={g.Occurrences.Count}  score={g.Score:F2}{partialTag}");
             Console.WriteLine($"preview: {g.Preview}");
             for (var j = 0; j < g.Occurrences.Count; j++)
             {

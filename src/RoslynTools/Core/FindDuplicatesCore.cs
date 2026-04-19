@@ -20,9 +20,11 @@ internal sealed record DuplicateOccurrence(
 
 internal sealed record DuplicateGroup(
     string GroupHash,
+    string GroupId,
     IReadOnlyList<DuplicateOccurrence> Occurrences,
     string Preview,
     int StatementCount,
+    double Score,
     bool PartiallyExpandable = false);
 
 internal static class FindDuplicatesCore
@@ -220,11 +222,17 @@ internal static class FindDuplicatesCore
                         // Report ALL current locations (full group before split) as PartiallyExpandable.
                         if (currentOccurrences.Count >= options.MinOccurrences)
                         {
+                            var stmtCount = currentWindow.Count;
+                            var occCount = currentOccurrences.Count;
+                            // Score: log(occurrences) * statementCount — rewards both breadth and depth.
+                            var score = Math.Log(occCount) * stmtCount;
                             results.Add(new DuplicateGroup(
                                 GroupHash: currentHash,
+                                GroupId: ComputeGroupId(currentHash, stmtCount),
                                 Occurrences: currentOccurrences,
                                 Preview: BuildPreview(currentWindow),
-                                StatementCount: currentWindow.Count,
+                                StatementCount: stmtCount,
+                                Score: score,
                                 PartiallyExpandable: continuingGroups.Count > 0));
                         }
                     }
@@ -232,11 +240,17 @@ internal static class FindDuplicatesCore
                     {
                         // All locations are terminal — report the full group, not expandable.
                         // currentOccurrences == terminal occurrences since nothing was continuing.
+                        var stmtCount = currentWindow.Count;
+                        var occCount = currentOccurrences.Count;
+                        // Score: log(occurrences) * statementCount — rewards both breadth and depth.
+                        var score = Math.Log(occCount) * stmtCount;
                         results.Add(new DuplicateGroup(
                             GroupHash: currentHash,
+                            GroupId: ComputeGroupId(currentHash, stmtCount),
                             Occurrences: currentOccurrences,
                             Preview: BuildPreview(currentWindow),
-                            StatementCount: currentWindow.Count,
+                            StatementCount: stmtCount,
+                            Score: score,
                             PartiallyExpandable: false));
                     }
                     // Otherwise: all extendable and all continuing to a single group — don't report yet.
@@ -246,10 +260,48 @@ internal static class FindDuplicatesCore
             candidates = nextCandidates;
         }
 
-        Console.Error.WriteLine($"[find-duplicates] groups={results.Count}");
+        // Phase 3: overlap suppression.
+        // Group A is suppressed if ALL of A's occurrences are spatially covered by some
+        // occurrence of a different group B (same file, B.StartLine ≤ A.StartLine AND
+        // B.EndLine ≥ A.EndLine). This removes smaller sub-windows that are fully contained
+        // within a larger reported group.
+        var suppressed = new HashSet<int>();
+        for (var a = 0; a < results.Count; a++)
+        {
+            var groupA = results[a];
+            var allCovered = groupA.Occurrences.All(occA =>
+                Enumerable.Range(0, results.Count)
+                    .Where(b => b != a)
+                    .Any(b =>
+                    {
+                        var groupB = results[b];
+                        return groupB.Occurrences.Any(occB =>
+                            string.Equals(occB.FilePath, occA.FilePath, StringComparison.OrdinalIgnoreCase)
+                            && occB.StartLine <= occA.StartLine
+                            && occB.EndLine >= occA.EndLine);
+                    }));
 
-        return results;
+            if (allCovered)
+                suppressed.Add(a);
+        }
+
+        var filtered = results
+            .Where((_, idx) => !suppressed.Contains(idx))
+            .OrderByDescending(g => g.Score)
+            .ToList();
+
+        Console.Error.WriteLine($"[find-duplicates] groups={results.Count} after-suppression={filtered.Count}");
+
+        return filtered;
     }
+
+    /// <summary>
+    /// Computes a short, stable, human-readable group identifier from the canonical hash
+    /// and statement count. Format: "GRP-{stmtCount}-{first8hexOfHash}".
+    /// The id is deterministic across runs for the same code shape.
+    /// </summary>
+    private static string ComputeGroupId(string groupHash, int statementCount)
+        => $"GRP-{statementCount}-{groupHash[..8].ToLowerInvariant()}";
 
     private static string ComputeExtendedHash(CandidateLoc loc)
     {

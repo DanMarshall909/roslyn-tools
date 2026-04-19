@@ -604,4 +604,189 @@ public class FindDuplicatesTests
             Assert.Equal(2, g.Occurrences.Count);
         }
     }
+
+    // ── US-203: Overlap suppression — only largest window reported ────────────────
+
+    [Fact]
+    public async Task Overlap_suppression_keeps_only_largest_window()
+    {
+        // Both methods contain a 5-statement clone. The bottom-up algorithm may also
+        // report smaller sub-windows (3-stmt, 4-stmt). After overlap suppression, only
+        // the 5-statement group should survive.
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("A.cs", """
+            namespace TestApp;
+
+            public class A
+            {
+                public void First()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                    int z = 3;
+                    System.Console.WriteLine(z);
+                }
+
+                public void Second()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                    int z = 3;
+                    System.Console.WriteLine(z);
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var groups = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions(MinStatements: 3));
+
+            // Only the maximal (5-stmt) group should remain; sub-windows should be suppressed.
+            Assert.DoesNotContain(groups, g => g.StatementCount < 5);
+            var maxGroup = groups.Single(g => g.StatementCount == 5);
+            Assert.Equal(2, maxGroup.Occurrences.Count);
+        }
+    }
+
+    // ── US-203: Sub-block appearing standalone (not covered) is kept ──────────────
+
+    [Fact]
+    public async Task Sub_block_standalone_occurrence_is_not_suppressed()
+    {
+        // MethodA and MethodB share a 5-statement block.
+        // MethodC contains only the first 3 statements of that block (no larger covering group).
+        // The 3-statement group has an occurrence in MethodC that is NOT covered by the 5-stmt group,
+        // so it must NOT be suppressed.
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("A.cs", """
+            namespace TestApp;
+
+            public class A
+            {
+                public void MethodA()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                    int z = 3;
+                    System.Console.WriteLine(z);
+                }
+
+                public void MethodB()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                    int z = 3;
+                    System.Console.WriteLine(z);
+                }
+
+                public void MethodC()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var groups = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions(MinStatements: 3));
+
+            // The 3-statement group should still appear because MethodC's occurrence is NOT covered.
+            Assert.Contains(groups, g => g.StatementCount == 3);
+        }
+    }
+
+    // ── US-203: Score-based ranking is stable across two runs ────────────────────
+
+    [Fact]
+    public async Task Score_ranking_is_stable_across_two_runs()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("A.cs", """
+            namespace TestApp;
+
+            public class A
+            {
+                public void First()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+
+                public void Second()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var run1 = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions());
+            var run2 = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions());
+
+            Assert.Equal(run1.Count, run2.Count);
+            for (var i = 0; i < run1.Count; i++)
+            {
+                Assert.Equal(run1[i].Score, run2[i].Score);
+                Assert.Equal(run1[i].StatementCount, run2[i].StatementCount);
+                Assert.Equal(run1[i].Occurrences.Count, run2[i].Occurrences.Count);
+            }
+        }
+    }
+
+    // ── US-203: Two runs produce identical group ids ──────────────────────────────
+
+    [Fact]
+    public async Task Two_runs_produce_identical_group_ids()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("A.cs", """
+            namespace TestApp;
+
+            public class A
+            {
+                public void First()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+
+                public void Second()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var run1 = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions());
+            var run2 = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions());
+
+            Assert.Equal(run1.Count, run2.Count);
+            var ids1 = run1.Select(g => g.GroupId).OrderBy(id => id).ToList();
+            var ids2 = run2.Select(g => g.GroupId).OrderBy(id => id).ToList();
+            Assert.Equal(ids1, ids2);
+
+            // GroupId format: GRP-{stmtCount}-{8 hex chars}
+            foreach (var id in ids1)
+                Assert.Matches(@"^GRP-\d+-[0-9a-f]{8}$", id);
+        }
+    }
 }
