@@ -4,32 +4,21 @@
   Batch-rename test methods via `rt rename`, driven by a CSV mapping.
 
 .DESCRIPTION
-  Reads scripts/test-renames.csv (old_fqn, new_name), calls
-  `rt rename <old_fqn> <new_name> --solution RoslynTools.sln` for each row,
-  and logs the outcome. Runs with --dry-run by default; pass -Apply to
+  Reads scripts/test-renames.csv (old_fqn, nested_class, new_name, review),
+  calls `rt rename <old_fqn> <new_name> --solution RoslynTools.sln` for each
+  row, and logs the outcome. Runs with --dry-run by default; pass -Apply to
   perform real writes.
 
-  The old_fqn must be the fully-qualified method name as Roslyn sees it
-  (e.g. `RoslynTools.Tests.RenameTests.Rename_Type_Updates_Declaration_And_References`).
+  Rows where new_name is blank are skipped (the row exists only for the
+  nested_class grouping step that follows).
+
+  Refuses to run if any row has a non-empty review column - curate first.
 
 .PARAMETER Apply
-  When set, actually performs the rename. Otherwise runs --dry-run and just
-  shows what would change.
+  When set, actually performs the rename. Otherwise runs --dry-run.
 
 .PARAMETER Filter
-  Optional substring filter on old_fqn to limit the batch (e.g. 'RenameTests').
-
-.EXAMPLE
-  # Preview every rename in the CSV
-  .\scripts\rename-tests.ps1
-
-.EXAMPLE
-  # Apply renames for just the RenameTests file
-  .\scripts\rename-tests.ps1 -Apply -Filter RenameTests
-
-.EXAMPLE
-  # Apply everything after review
-  .\scripts\rename-tests.ps1 -Apply
+  Optional substring filter on old_fqn to limit the batch.
 #>
 param(
     [switch]$Apply,
@@ -45,15 +34,14 @@ $sln      = Join-Path $repoRoot 'RoslynTools.sln'
 if (-not (Test-Path $csvPath)) { throw "Missing mapping: $csvPath" }
 if (-not (Test-Path $rtCmd))   { throw "Missing rt.cmd: $rtCmd" }
 
-$rows = Import-Csv -Path $csvPath
-if ($Filter) { $rows = $rows | Where-Object { $_.old_fqn -like "*$Filter*" } }
+$rows = @(Import-Csv -Path $csvPath)
+if ($Filter) { $rows = @($rows | Where-Object { $_.old_fqn -like "*$Filter*" }) }
 
-# Fail fast on any row still marked REVIEW — these are awkward compound names
-# that need a human pass. The generator flags any row with > 6 words.
-$review = $rows | Where-Object { $_.new_name -like '# REVIEW:*' }
+# Fail fast on any row with a non-empty review column.
+$review = @($rows | Where-Object { $_.review })
 if ($review.Count -gt 0) {
-    Write-Host "$($review.Count) row(s) still marked '# REVIEW:' — curate them first." -ForegroundColor Red
-    $review | ForEach-Object { Write-Host "  $($_.old_fqn)" -ForegroundColor DarkYellow }
+    Write-Host "$($review.Count) row(s) still flagged in review column. Curate first." -ForegroundColor Red
+    $review | ForEach-Object { Write-Host "  $($_.old_fqn) [$($_.review)]" -ForegroundColor DarkYellow }
     exit 2
 }
 
@@ -62,24 +50,29 @@ $ok = 0; $skip = 0; $fail = 0
 $mode = if ($Apply) { 'APPLY' } else { 'DRY-RUN' }
 Write-Host "[$mode] $total rename(s) queued" -ForegroundColor Cyan
 
+$index = 0
 foreach ($row in $rows) {
+    $index++
     $old = $row.old_fqn
     $new = $row.new_name
     if (-not $old) { $skip++; continue }
-    # Blank new_name = keep the current method name (row exists only for
-    # the nested_class grouping). Skip the rename call.
+    # Blank new_name means keep the current method name (the row is present
+    # only for the nested_class grouping step). Skip the rename.
     if (-not $new) { $skip++; continue }
 
-    Write-Host "→ $old  →  $new" -ForegroundColor DarkGray
-    # Route through cmd /c to avoid PS 5.1 treating rt's stderr progress as errors.
+    Write-Host "[$index/$total] $old  ->  $new" -ForegroundColor DarkGray
+    # Route through cmd /c to avoid PS 5.1 converting rt stderr to errors.
     $rtArgs = @('rename', "`"$old`"", "`"$new`"", '--solution', "`"$sln`"")
     if (-not $Apply) { $rtArgs += '--dry-run' }
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
     cmd /c "`"$rtCmd`" $($rtArgs -join ' ') 2>nul 1>nul"
+    $sw.Stop()
     if ($LASTEXITCODE -eq 0) {
         $ok++
+        Write-Host ("  OK ({0:n1}s)" -f $sw.Elapsed.TotalSeconds) -ForegroundColor DarkGreen
     } else {
         $fail++
-        Write-Host "  FAILED (exit $LASTEXITCODE)" -ForegroundColor Red
+        Write-Host ("  FAILED (exit {0}, {1:n1}s)" -f $LASTEXITCODE, $sw.Elapsed.TotalSeconds) -ForegroundColor Red
     }
 }
 
@@ -88,5 +81,4 @@ Write-Host "Summary: $ok ok, $skip skipped, $fail failed" -ForegroundColor Cyan
 if ($fail -gt 0) { exit 1 }
 Write-Host ""
 Write-Host "NOTE: nested_class column is NOT applied by this script." -ForegroundColor Cyan
-Write-Host "      rt does not support moving methods to nested classes." -ForegroundColor Cyan
-Write-Host "      Run scripts/nest-tests.ps1 afterwards to apply groupings." -ForegroundColor Cyan
+Write-Host "      Run the nested-class restructure step next." -ForegroundColor Cyan

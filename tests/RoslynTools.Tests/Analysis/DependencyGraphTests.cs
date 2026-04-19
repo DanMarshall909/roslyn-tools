@@ -28,7 +28,7 @@ public class DependencyGraphTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task DependencyGraph_JsonOutput_HasNodes()
+    public async Task Returns_nodes_in_json_output()
     {
         using var proj = BuildGraphProject();
         var (workspace, sln) = proj.Build();
@@ -53,7 +53,7 @@ public class DependencyGraphTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task DependencyGraph_JsonOutput_HasEdges()
+    public async Task Returns_edges_in_json_output()
     {
         using var proj = BuildGraphProject();
         var (workspace, sln) = proj.Build();
@@ -79,7 +79,7 @@ public class DependencyGraphTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task DependencyGraph_DotOutput_ValidFormat()
+    public async Task Returns_valid_dot_output()
     {
         using var proj = BuildGraphProject();
         var (workspace, sln) = proj.Build();
@@ -97,7 +97,7 @@ public class DependencyGraphTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task DependencyGraph_DepthLimit()
+    public async Task Honours_the_depth_limit()
     {
         using var proj = BuildGraphProject();
         var (workspace, sln) = proj.Build();

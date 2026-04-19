@@ -7,7 +7,7 @@ namespace RoslynTools.Tests.Navigation;
 public class FindRefsTests
 {
     [Fact]
-    public async Task Finds_References_To_Type_Across_Files()
+    public async Task Returns_type_references_across_files()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Model.cs", """
@@ -65,7 +65,7 @@ public class FindRefsTests
     }
 
     [Fact]
-    public async Task Finds_References_To_Method()
+    public async Task Returns_method_references()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("App.cs", """
@@ -99,7 +99,7 @@ public class FindRefsTests
     }
 
     [Fact]
-    public async Task Unreferenced_Symbol_Returns_No_Locations()
+    public async Task Returns_no_locations_for_unreferenced_symbols()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Unused.cs", """

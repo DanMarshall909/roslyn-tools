@@ -6,7 +6,7 @@ namespace RoslynTools.Tests.Mutation;
 public class FixNamespaceTests
 {
     [Fact]
-    public async Task FixNamespace_UpdatesDeclarationToMatchPath()
+    public async Task Updates_declaration_to_match_path()
     {
         using var project = new AdhocProjectBuilder("MyApp");
         project.AddSource("Services/AgentService.cs", """
@@ -32,7 +32,7 @@ public class FixNamespaceTests
     }
 
     [Fact]
-    public async Task FixNamespace_UpdatesReferencingFiles()
+    public async Task Updates_referencing_files()
     {
         using var project = new AdhocProjectBuilder("MyApp");
         project.AddSource("Services/AgentService.cs", """
@@ -58,7 +58,7 @@ public class FixNamespaceTests
     }
 
     [Fact]
-    public async Task FixNamespace_DryRun_NoWrites()
+    public async Task Does_not_modify_files()
     {
         using var project = new AdhocProjectBuilder("MyApp");
         project.AddSource("Services/AgentService.cs", """

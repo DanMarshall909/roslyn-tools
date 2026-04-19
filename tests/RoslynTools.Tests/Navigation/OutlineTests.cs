@@ -6,7 +6,7 @@ namespace RoslynTools.Tests.Navigation;
 public class OutlineTests
 {
     [Fact]
-    public async Task Outline_File_Lists_All_Types()
+    public async Task Lists_all_types_in_the_file()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Domain.cs", """
@@ -48,7 +48,7 @@ public class OutlineTests
     }
 
     [Fact]
-    public async Task Outline_File_Includes_Members()
+    public async Task Includes_members_for_each_type()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
@@ -89,7 +89,7 @@ public class OutlineTests
     }
 
     [Fact]
-    public async Task Outline_Namespace_Finds_Types_Across_Files()
+    public async Task Returns_types_across_files()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("FileA.cs", """

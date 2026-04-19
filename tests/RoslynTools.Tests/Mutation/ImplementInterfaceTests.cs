@@ -24,7 +24,7 @@ public class ImplementInterfaceTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task ImplementInterface_StubsAddedForUnimplementedMembers()
+    public async Task Adds_stubs_for_unimplemented_members()
     {
         using var proj = new AdhocProjectBuilder("ImplApp");
         proj.AddSource("Types.cs", ImplAppSource);
@@ -44,7 +44,7 @@ public class ImplementInterfaceTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task ImplementInterface_StubBodyThrowsNotImplementedException()
+    public async Task Makes_stub_bodies_throw_not_implemented_exception()
     {
         using var proj = new AdhocProjectBuilder("ImplApp");
         proj.AddSource("Types.cs", ImplAppSource);
@@ -62,7 +62,7 @@ public class ImplementInterfaceTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task ImplementInterface_AlreadyImplemented_Skipped()
+    public async Task Skips_members_that_are_already_implemented()
     {
         using var proj = new AdhocProjectBuilder("ImplApp");
         proj.AddSource("Types.cs", ImplAppSource);
@@ -86,7 +86,7 @@ public class ImplementInterfaceTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task ImplementInterface_PropertyStub_Generated()
+    public async Task Generates_property_stubs()
     {
         using var proj = new AdhocProjectBuilder("ImplApp");
         proj.AddSource("Types.cs", ImplAppSource);
@@ -105,7 +105,7 @@ public class ImplementInterfaceTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task ImplementInterface_DryRun_NoWrites()
+    public async Task Does_not_modify_files()
     {
         using var proj = new AdhocProjectBuilder("ImplApp");
         proj.AddSource("Types.cs", ImplAppSource);

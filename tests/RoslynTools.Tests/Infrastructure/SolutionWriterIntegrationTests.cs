@@ -6,7 +6,7 @@ namespace RoslynTools.Tests.Infrastructure;
 public class SolutionWriterIntegrationTests
 {
     [Fact]
-    public async Task ApplyChanges_AddedDocument_WritesNewFile()
+    public async Task Writes_added_documents_to_new_files()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
@@ -38,7 +38,7 @@ public class SolutionWriterIntegrationTests
     }
 
     [Fact]
-    public async Task ApplyChanges_AddedDocument_DryRun_DoesNotWriteFile()
+    public async Task Does_not_write_added_documents()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """

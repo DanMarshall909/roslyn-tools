@@ -8,7 +8,7 @@ namespace RoslynTools.Tests.Mutation;
 public class MoveTests
 {
     [Fact]
-    public async Task Move_Single_Type_Updates_Namespace_Declaration()
+    public async Task Updates_the_namespace_declaration()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Model.cs", """
@@ -56,7 +56,7 @@ public class MoveTests
     }
 
     [Fact]
-    public async Task Move_Namespace_Batch_Rewrites_All_Types()
+    public async Task Rewrites_all_types_in_the_batch()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("ModelsA.cs", """
@@ -123,7 +123,7 @@ public class MoveTests
     }
 
     [Fact]
-    public async Task Move_DryRun_Does_Not_Modify_Files()
+    public async Task Does_not_modify_files()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Target.cs", """

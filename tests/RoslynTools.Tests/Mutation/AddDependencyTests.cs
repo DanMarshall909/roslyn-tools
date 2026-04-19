@@ -9,7 +9,7 @@ public class AddDependencyTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task AddDependency_AddsFieldAndCtorParam()
+    public async Task Adds_a_field_and_constructor_parameter()
     {
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("AgentService.cs", """
@@ -52,7 +52,7 @@ public class AddDependencyTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task AddDependency_CustomFieldName()
+    public async Task Uses_the_specified_field_name()
     {
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("AgentService.cs", """
@@ -96,7 +96,7 @@ public class AddDependencyTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task AddDependency_NoConstructor_GeneratesOne()
+    public async Task Generates_a_constructor_when_none_exists()
     {
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("AgentService.cs", """
@@ -139,7 +139,7 @@ public class AddDependencyTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task AddDependency_DryRun_NoWrites()
+    public async Task Does_not_modify_files()
     {
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("AgentService.cs", """

@@ -12,7 +12,7 @@ public class ExtractMethodTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Void_NoVariables_ExtractsStatementsToNewMethod()
+    public async Task Moves_the_selected_statements_into_a_new_method()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
@@ -53,7 +53,7 @@ public class ExtractMethodTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task WithParameters_FlowsIn_AddsParamsInFirstUseOrder()
+    public async Task Adds_parameters_in_first_use_order()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
@@ -92,7 +92,7 @@ public class ExtractMethodTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task WithReturnValue_SingleVar_ReturnsCorrectType()
+    public async Task Returns_the_extracted_value_with_the_correct_type()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
@@ -133,7 +133,7 @@ public class ExtractMethodTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task InnerVariable_NotUsedOutside_IsNotReturned()
+    public async Task Does_not_return_values_that_are_not_used_afterward()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
@@ -175,7 +175,7 @@ public class ExtractMethodTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task TupleReturn_MultipleFlowsOut_GeneratesTuple()
+    public async Task Returns_a_tuple()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
@@ -219,7 +219,7 @@ public class ExtractMethodTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task StaticContainingMethod_ExtractedMethodIsAlsoStatic()
+    public async Task Makes_the_extracted_method_static()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("MathUtil.cs", """
@@ -257,7 +257,7 @@ public class ExtractMethodTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Placement_Default_AppearsAfterContainingMethod()
+    public async Task Places_the_new_method_after_the_containing_method()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("MyClass.cs", """
@@ -304,7 +304,7 @@ public class ExtractMethodTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Placement_AfterNamed_AppearsAfterSpecifiedMember()
+    public async Task Places_the_new_method_after_the_named_member()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("MyClass.cs", """
@@ -348,7 +348,7 @@ public class ExtractMethodTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Placement_BeforeNamed_AppearsBeforeSpecifiedMember()
+    public async Task Places_the_new_method_before_the_named_member()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("MyClass.cs", """
@@ -392,7 +392,7 @@ public class ExtractMethodTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task DryRun_DoesNotModifyFiles()
+    public async Task Does_not_modify_files()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
@@ -431,7 +431,7 @@ public class ExtractMethodTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Error_EmptyRange_Throws()
+    public async Task Throws_an_error_when_the_selected_range_has_no_statements()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
@@ -464,7 +464,7 @@ public class ExtractMethodTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Error_AnchorNotFound_Throws()
+    public async Task Throws_an_error_when_the_named_anchor_is_missing()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
@@ -499,7 +499,7 @@ public class ExtractMethodTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task GeneratedMethod_UsesLF_NotCRLF()
+    public async Task Uses_lf_line_endings_in_the_generated_method()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
@@ -538,7 +538,7 @@ public class ExtractMethodTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Error_StartLineZero_Throws()
+    public async Task Throws_an_error_when_the_start_line_is_zero()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
@@ -567,7 +567,7 @@ public class ExtractMethodTests
     }
 
     [Fact]
-    public async Task Error_EndLineBeforeStartLine_Throws()
+    public async Task Throws_an_error_when_the_end_line_precedes_the_start_line()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
@@ -600,7 +600,7 @@ public class ExtractMethodTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task ReplaceDuplicates_ExactCrossFileDuplicate_FilesBothUpdated()
+    public async Task Updates_each_duplicate_file()
     {
         using var project = new AdhocProjectBuilder();
         // File A: contains the extraction target
@@ -661,7 +661,7 @@ public class ExtractMethodTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task ReplaceDuplicates_IdentifierRenamedDuplicate_ReplacedWithCorrectArgs()
+    public async Task Rewrites_duplicates_with_the_correct_arguments()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
@@ -721,7 +721,7 @@ public class ExtractMethodTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task ReplaceDuplicates_NoDuplicatesFound_ExtractionStillSucceeds()
+    public async Task Still_extracts_the_method_successfully()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
@@ -764,7 +764,7 @@ public class ExtractMethodTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task ReplaceDuplicates_DryRun_NoFilesWritten()
+    public async Task Does_not_write_files()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
@@ -820,7 +820,7 @@ public class ExtractMethodTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task ReplaceDuplicates_LiteralSubstitutionInMatch_MatchIsSkipped()
+    public async Task Skips_unmappable_matches()
     {
         // The extracted body has a parameter `x` that flows in. The "duplicate" at the
         // other site has a literal 42 where `x` was, so the structural kinds differ and
@@ -883,7 +883,7 @@ public class ExtractMethodTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task ReplaceDuplicates_TwoDuplicatesInSameFile_BothReplacedCorrectly()
+    public async Task Rewrites_all_duplicate_occurrences()
     {
         // Regression for the multi-match-in-same-file line-drift bug uncovered when
         // dogfooding rt extract-method --replace-duplicates against FindPatternCommand.

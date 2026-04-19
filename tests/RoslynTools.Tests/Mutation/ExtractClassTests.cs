@@ -29,7 +29,7 @@ public class ExtractClassTests
     }
 
     [Fact]
-    public async Task ExtractClass_CreatesNewFile()
+    public async Task Creates_new_file()
     {
         using var project = BuildFixture();
         var (workspace, sln) = project.Build();
@@ -49,7 +49,7 @@ public class ExtractClassTests
     }
 
     [Fact]
-    public async Task ExtractClass_ExtractedMembersAbsentFromSource()
+    public async Task Removes_the_extracted_members_from_the_source_type()
     {
         using var project = BuildFixture();
         var (workspace, sln) = project.Build();
@@ -69,7 +69,7 @@ public class ExtractClassTests
     }
 
     [Fact]
-    public async Task ExtractClass_SourceReceivesInjectedField()
+    public async Task Injects_a_field_for_the_extracted_type()
     {
         using var project = BuildFixture();
         var (workspace, sln) = project.Build();
@@ -89,7 +89,7 @@ public class ExtractClassTests
     }
 
     [Fact]
-    public async Task ExtractClass_StaticFlag_NoInjection()
+    public async Task Avoids_injecting_the_extracted_type()
     {
         using var project = BuildFixture();
         var (workspace, sln) = project.Build();
@@ -112,7 +112,7 @@ public class ExtractClassTests
     }
 
     [Fact]
-    public async Task ExtractClass_DryRun_NoWrites()
+    public async Task Does_not_write_files()
     {
         using var project = BuildFixture();
         var (workspace, sln) = project.Build();

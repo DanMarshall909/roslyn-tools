@@ -30,7 +30,7 @@ public class SafeDeleteTests
     }
 
     [Fact]
-    public async Task SafeDelete_UnreferencedType_Deleted()
+    public async Task Deletes_the_type()
     {
         var (project, workspace, sln) = BuildFixture();
         using (project)
@@ -44,7 +44,7 @@ public class SafeDeleteTests
     }
 
     [Fact]
-    public async Task SafeDelete_ReferencedType_Rejected()
+    public async Task Throws_an_error_for_a_referenced_type()
     {
         var (project, workspace, sln) = BuildFixture();
         using (project)
@@ -58,7 +58,7 @@ public class SafeDeleteTests
     }
 
     [Fact]
-    public async Task SafeDelete_UnreferencedMethod_Deleted()
+    public async Task Deletes_the_method()
     {
         var (project, workspace, sln) = BuildFixture();
         using (project)
@@ -73,7 +73,7 @@ public class SafeDeleteTests
     }
 
     [Fact]
-    public async Task SafeDelete_ReferencedMethod_Rejected()
+    public async Task Throws_an_error_for_a_referenced_method()
     {
         var (project, workspace, sln) = BuildFixture();
         using (project)
@@ -87,7 +87,7 @@ public class SafeDeleteTests
     }
 
     [Fact]
-    public async Task SafeDelete_DryRun_NoWrites()
+    public async Task Does_not_modify_files()
     {
         var (project, workspace, sln) = BuildFixture();
         using (project)

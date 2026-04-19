@@ -8,7 +8,7 @@ public class MakeInstanceTests
     // ── 1. Call site with reachable local variable ────────────────────────────
 
     [Fact]
-    public async Task MakeInstance_CallSiteWithLocalVar_Rewritten()
+    public async Task Rewrites_call_sites_to_use_the_local_instance()
     {
         const string source = """
             namespace App;
@@ -47,7 +47,7 @@ public class MakeInstanceTests
     // ── 2. Call site with reachable field ────────────────────────────────────
 
     [Fact]
-    public async Task MakeInstance_CallSiteWithField_Rewritten()
+    public async Task Rewrites_call_sites_to_use_the_field_instance()
     {
         const string source = """
             namespace App;
@@ -85,7 +85,7 @@ public class MakeInstanceTests
     // ── 3. Call site with no reachable instance — warn and skip ─────────────
 
     [Fact]
-    public async Task MakeInstance_NoReachableInstance_SkippedAndDeclarationStillUpdated()
+    public async Task Updates_the_declaration_but_leaves_unreachable_static_call_sites_unchanged()
     {
         const string source = """
             namespace App;
@@ -126,7 +126,7 @@ public class MakeInstanceTests
     // ── 4. Same-class call site — rewrite to this.Method(...) ────────────────
 
     [Fact]
-    public async Task MakeInstance_SameClassInstanceContext_RewrittenToThis()
+    public async Task Rewrites_call_sites_to_use_this()
     {
         const string source = """
             namespace App;
@@ -159,7 +159,7 @@ public class MakeInstanceTests
     // ── 5. Same-class static call site — no instance context, warn + skip ────
 
     [Fact]
-    public async Task MakeInstance_SameClassStaticContext_SkippedAndWarned()
+    public async Task Updates_the_declaration_but_leaves_same_class_static_call_sites_unchanged()
     {
         const string source = """
             namespace App;
@@ -193,7 +193,7 @@ public class MakeInstanceTests
     // ── 6. Dry-run — no writes ────────────────────────────────────────────────
 
     [Fact]
-    public async Task MakeInstance_DryRun_NoWrites()
+    public async Task Does_not_modify_files()
     {
         const string source = """
             namespace App;
@@ -229,7 +229,7 @@ public class MakeInstanceTests
     // ── 7. Multi-file: call sites in a different file rewritten ──────────────
 
     [Fact]
-    public async Task MakeInstance_CrossFile_CallSiteRewritten()
+    public async Task Rewrites_call_sites_in_other_files()
     {
         const string helperSource = """
             namespace App;

@@ -41,7 +41,7 @@ public class AddNullChecksTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task AddNullChecks_InsertsThrowIfNullForEligibleParams()
+    public async Task Inserts_null_guards_for_eligible_parameters()
     {
         using var proj = new AdhocProjectBuilder("NullApp");
         proj.AddSource("OrderService.cs", ServiceSource);
@@ -61,7 +61,7 @@ public class AddNullChecksTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task AddNullChecks_InsertsAtTopOfBody()
+    public async Task Inserts_them_at_the_top_of_the_method_body()
     {
         using var proj = new AdhocProjectBuilder("NullApp");
         proj.AddSource("OrderService.cs", """
@@ -91,7 +91,7 @@ public class AddNullChecksTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task AddNullChecks_SkipsAlreadyGuardedParams()
+    public async Task Skips_already_guarded_params()
     {
         using var proj = new AdhocProjectBuilder("NullApp");
         proj.AddSource("OrderService.cs", AlreadyGuardedSource);
@@ -114,7 +114,7 @@ public class AddNullChecksTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task AddNullChecks_SkipsNullableAnnotatedParams()
+    public async Task Skips_nullable_annotated_params()
     {
         using var proj = new AdhocProjectBuilder("NullApp");
         proj.AddSource("OrderService.cs", NullableAnnotatedSource);
@@ -132,7 +132,7 @@ public class AddNullChecksTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task AddNullChecks_DryRun_NoWrites()
+    public async Task Does_not_modify_files()
     {
         using var proj = new AdhocProjectBuilder("NullApp");
         proj.AddSource("OrderService.cs", ServiceSource);

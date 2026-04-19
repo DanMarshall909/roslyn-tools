@@ -10,7 +10,7 @@ public class ListSmellsTests
     // ---------------------------------------------------------------------------
 
     [Fact]
-    public async Task ListSmells_LargeClass_Reported()
+    public async Task Reports_large_classes()
     {
         using var project = new AdhocProjectBuilder();
 
@@ -36,7 +36,7 @@ public class ListSmellsTests
     // ---------------------------------------------------------------------------
 
     [Fact]
-    public async Task ListSmells_LongMethod_Reported()
+    public async Task Reports_long_methods()
     {
         using var project = new AdhocProjectBuilder();
 
@@ -64,7 +64,7 @@ public class ListSmellsTests
     // ---------------------------------------------------------------------------
 
     [Fact]
-    public async Task ListSmells_TooManyDependencies_Reported()
+    public async Task Reports_types_with_too_many_dependencies()
     {
         using var project = new AdhocProjectBuilder();
 
@@ -93,7 +93,7 @@ public class ListSmellsTests
     // ---------------------------------------------------------------------------
 
     [Fact]
-    public async Task ListSmells_CleanProject_ReturnsEmpty()
+    public async Task Returns_no_smells_for_a_clean_project()
     {
         using var project = new AdhocProjectBuilder();
 
@@ -125,7 +125,7 @@ public class ListSmellsTests
     // ---------------------------------------------------------------------------
 
     [Fact]
-    public async Task ListSmells_CustomThreshold_Respected()
+    public async Task Honours_custom_thresholds()
     {
         using var project = new AdhocProjectBuilder();
 

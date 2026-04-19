@@ -20,7 +20,7 @@ public class ConvertToRecordTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task ConvertToRecord_ClassBecomesRecord()
+    public async Task Converts_the_class_to_a_record()
     {
         using var proj = new AdhocProjectBuilder("RecordApp");
         proj.AddSource("Types.cs", RecordAppSource);
@@ -39,7 +39,7 @@ public class ConvertToRecordTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task ConvertToRecord_InitPropsBecomePrimaryParams()
+    public async Task Converts_init_only_properties_to_primary_parameters()
     {
         using var proj = new AdhocProjectBuilder("RecordApp");
         proj.AddSource("Types.cs", RecordAppSource);
@@ -59,7 +59,7 @@ public class ConvertToRecordTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task ConvertToRecord_ExplicitEqualsRemoved()
+    public async Task Removes_explicit_equality_members()
     {
         using var proj = new AdhocProjectBuilder("RecordApp");
         proj.AddSource("Types.cs", RecordAppSource);
@@ -78,7 +78,7 @@ public class ConvertToRecordTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task ConvertToRecord_MutablePropsWarnButConvert()
+    public async Task Warns_but_still_converts_the_class()
     {
         using var proj = new AdhocProjectBuilder("RecordApp");
         proj.AddSource("Types.cs", RecordAppSource);
@@ -109,7 +109,7 @@ public class ConvertToRecordTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task ConvertToRecord_DryRun_NoWrites()
+    public async Task Does_not_modify_files()
     {
         using var proj = new AdhocProjectBuilder("RecordApp");
         proj.AddSource("Types.cs", RecordAppSource);

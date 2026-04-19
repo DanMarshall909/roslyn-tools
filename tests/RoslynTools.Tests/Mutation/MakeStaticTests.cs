@@ -10,7 +10,7 @@ public class MakeStaticTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task MakeStatic_CleanMethod_AddsStaticModifier()
+    public async Task Adds_the_static_modifier()
     {
         using var proj = new AdhocProjectBuilder("StaticApp");
         proj.AddSource("Calc.cs", """
@@ -32,7 +32,7 @@ public class MakeStaticTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task MakeStatic_ThisUsage_Rejected()
+    public async Task Refuses_the_conversion_when_the_method_uses_this()
     {
         using var proj = new AdhocProjectBuilder("StaticApp");
         proj.AddSource("Service.cs", """
@@ -63,7 +63,7 @@ public class MakeStaticTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task MakeStatic_InstanceFieldUsage_Rejected()
+    public async Task Refuses_the_conversion_when_the_method_uses_instance_fields()
     {
         using var proj = new AdhocProjectBuilder("StaticApp");
         proj.AddSource("Repo.cs", """
@@ -94,7 +94,7 @@ public class MakeStaticTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task MakeStatic_VirtualMethod_Rejected()
+    public async Task Refuses_the_conversion_for_virtual_methods()
     {
         using var proj = new AdhocProjectBuilder("StaticApp");
         proj.AddSource("Base.cs", """
@@ -123,7 +123,7 @@ public class MakeStaticTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task MakeStatic_CallSites_RewrittenToTypeName()
+    public async Task Rewrites_call_sites_to_use_the_type_name()
     {
         using var proj = new AdhocProjectBuilder("StaticApp");
         proj.AddSource("Helper.cs", """
@@ -157,7 +157,7 @@ public class MakeStaticTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task MakeStatic_DryRun_NoWrites()
+    public async Task Does_not_modify_files()
     {
         using var proj = new AdhocProjectBuilder("StaticApp");
         proj.AddSource("Util.cs", """

@@ -6,7 +6,7 @@ namespace RoslynTools.Tests.Navigation;
 public class InspectTests
 {
     [Fact]
-    public async Task Inspect_Type_Returns_Members_And_BaseType()
+    public async Task Returns_its_members_and_base_type()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Models.cs", """
@@ -52,7 +52,7 @@ public class InspectTests
     }
 
     [Fact]
-    public async Task Inspect_Type_Returns_Interfaces()
+    public async Task Returns_its_interfaces()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Services.cs", """
@@ -88,7 +88,7 @@ public class InspectTests
     }
 
     [Fact]
-    public async Task Inspect_Method_Returns_Parameters_And_ReturnType()
+    public async Task Returns_its_parameters_and_return_type()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
@@ -115,7 +115,7 @@ public class InspectTests
     }
 
     [Fact]
-    public async Task Inspect_Property_Returns_Type_And_Accessors()
+    public async Task Returns_its_type_and_accessors()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Config.cs", """

@@ -30,7 +30,7 @@ public class MakeAsyncTests
         """;
 
     [Fact]
-    public async Task MakeAsync_MethodRenamedWithAsync()
+    public async Task Renames_the_method_with_an_async_suffix()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("AgentService.cs", AgentServiceSource);
@@ -45,7 +45,7 @@ public class MakeAsyncTests
     }
 
     [Fact]
-    public async Task MakeAsync_ReturnTypeWrapped()
+    public async Task Wraps_the_return_type_in_a_task()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("AgentService.cs", AgentServiceSource);
@@ -60,7 +60,7 @@ public class MakeAsyncTests
     }
 
     [Fact]
-    public async Task MakeAsync_AsyncKeywordAdded()
+    public async Task Adds_the_async_keyword()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("AgentService.cs", AgentServiceSource);
@@ -74,7 +74,7 @@ public class MakeAsyncTests
     }
 
     [Fact]
-    public async Task MakeAsync_DirectCallerUpdated()
+    public async Task Updates_direct_callers_to_await_the_method()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("AgentService.cs", AgentServiceSource);
@@ -88,7 +88,7 @@ public class MakeAsyncTests
     }
 
     [Fact]
-    public async Task MakeAsync_AlreadyAsync_NoOp()
+    public async Task Leaves_existing_async_methods_unchanged()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("AgentService.cs", AgentServiceSource);

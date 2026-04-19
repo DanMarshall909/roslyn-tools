@@ -48,7 +48,7 @@ public class SymbolFormatterTests : IDisposable
     }
 
     [Fact]
-    public async Task ExtractSourceLocations_ReturnsFileAndLine()
+    public async Task Returns_the_file_path_and_line_number()
     {
         var type = await LoadCircleSymbolAsync();
 
@@ -63,7 +63,7 @@ public class SymbolFormatterTests : IDisposable
     }
 
     [Fact]
-    public async Task ExtractMembers_IncludesStaticFlag()
+    public async Task Includes_static_flags_when_requested()
     {
         var type = await LoadCircleSymbolAsync();
 
@@ -79,7 +79,7 @@ public class SymbolFormatterTests : IDisposable
     }
 
     [Fact]
-    public async Task ExtractMembers_OmitsStaticFlagWhenDisabled()
+    public async Task Omits_static_flags_when_disabled()
     {
         var type = await LoadCircleSymbolAsync();
 
@@ -90,7 +90,7 @@ public class SymbolFormatterTests : IDisposable
     }
 
     [Fact]
-    public async Task AddTypeHierarchyInfo_SetsBaseTypeAndInterfaces()
+    public async Task Adds_the_base_type_and_interfaces()
     {
         var type = await LoadCircleSymbolAsync();
         var result = new Dictionary<string, object?>();
@@ -107,7 +107,7 @@ public class SymbolFormatterTests : IDisposable
     }
 
     [Fact]
-    public async Task AddTypeHierarchyInfo_OmitsObjectBase()
+    public async Task Omits_the_object_base_type()
     {
         // BaseShape extends System.Object directly — baseType should be omitted.
         _project.AddSource("Shapes.cs", SharedSource);

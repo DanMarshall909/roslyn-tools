@@ -22,7 +22,7 @@ public class SolutionWriterTests : IDisposable
     }
 
     [Fact]
-    public void PrintDiff_SingleLineInsertion_ShowsOnlyInsertedLine()
+    public void Shows_only_the_inserted_line()
     {
         var oldText = "a\nb\nc";
         var newText = "a\nX\nb\nc";
@@ -40,7 +40,7 @@ public class SolutionWriterTests : IDisposable
     }
 
     [Fact]
-    public void PrintDiff_SingleLineDeletion_ShowsOnlyDeletedLine()
+    public void Shows_only_the_deleted_line()
     {
         var oldText = "a\nX\nb";
         var newText = "a\nb";
@@ -58,7 +58,7 @@ public class SolutionWriterTests : IDisposable
     }
 
     [Fact]
-    public void PrintDiff_ModifiedLine_ShowsDeleteAndInsert()
+    public void Shows_the_deleted_and_inserted_lines()
     {
         var oldText = "a\nold\nc";
         var newText = "a\nnew\nc";
@@ -77,7 +77,7 @@ public class SolutionWriterTests : IDisposable
     }
 
     [Fact]
-    public void PrintDiff_IdenticalText_ProducesNoDiffLines()
+    public void Produces_no_diff_lines()
     {
         var text = "a\nb\nc";
 
@@ -93,7 +93,7 @@ public class SolutionWriterTests : IDisposable
     }
 
     [Fact]
-    public void PrintDiff_MultipleChanges_ProducesSeparateHunks()
+    public void Produces_separate_hunks()
     {
         // Two changes separated by >6 unchanged lines (2*contextSize) so they form separate hunks
         var oldText = "a\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk\nl\nm\nn\no";

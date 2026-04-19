@@ -29,7 +29,7 @@ public class CircularDepsTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task CircularDeps_DetectsCycle()
+    public async Task Reports_the_types_in_the_cycle()
     {
         using var proj = BuildCycleProject();
         var (workspace, sln) = proj.Build();
@@ -48,7 +48,7 @@ public class CircularDepsTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task CircularDeps_CyclePathInOutput()
+    public async Task Reports_the_cycle_path()
     {
         using var proj = BuildCycleProject();
         var (workspace, sln) = proj.Build();
@@ -65,7 +65,7 @@ public class CircularDepsTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task CircularDeps_NoCycle_ReturnsClean()
+    public async Task Returns_a_clean_result_when_no_cycles_exist()
     {
         using var proj = BuildCleanProject();
         var (workspace, sln) = proj.Build();
@@ -82,7 +82,7 @@ public class CircularDepsTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task CircularDeps_OutputToStdout()
+    public async Task Writes_the_cycle_path_to_stdout()
     {
         using var proj = BuildCycleProject();
         var (workspace, sln) = proj.Build();

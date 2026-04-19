@@ -5,7 +5,7 @@ namespace RoslynTools.Tests.Mutation;
 public class ReplaceTypeCommandTests
 {
     [Fact]
-    public async Task MultipleConstructors_AllGetTimeProviderInjected()
+    public async Task Injects_timeprovider_into_all_constructors()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("MyService.cs", """

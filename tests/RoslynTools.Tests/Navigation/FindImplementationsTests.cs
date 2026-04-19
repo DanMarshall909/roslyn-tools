@@ -7,7 +7,7 @@ namespace RoslynTools.Tests.Navigation;
 public class FindImplementationsTests
 {
     [Fact]
-    public async Task Finds_All_Interface_Implementations()
+    public async Task Returns_all_interface_implementations()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Contracts.cs", """
@@ -60,7 +60,7 @@ public class FindImplementationsTests
     }
 
     [Fact]
-    public async Task Finds_Derived_Classes_Of_Abstract_Base()
+    public async Task Returns_derived_types_of_an_abstract_base()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Types.cs", """
@@ -101,7 +101,7 @@ public class FindImplementationsTests
     }
 
     [Fact]
-    public async Task Interface_With_No_Implementations_Returns_Empty()
+    public async Task Returns_nothing_when_no_implementations_exist()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Lonely.cs", """

@@ -10,7 +10,7 @@ public class FindPatternTests
     // ── Exact duplicate found ─────────────────────────────────────────────────────
 
     [Fact]
-    public async Task ExactDuplicate_CrossFile_IsFound()
+    public async Task Finds_exact_cross_file_matches()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
@@ -58,7 +58,7 @@ public class FindPatternTests
     // ── Identifier-only-different match found ─────────────────────────────────────
 
     [Fact]
-    public async Task IdentifierOnlyDifferent_IsFound()
+    public async Task Finds_matches_with_different_identifiers()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
@@ -109,7 +109,7 @@ public class FindPatternTests
     // ── Structurally different code is NOT matched ────────────────────────────────
 
     [Fact]
-    public async Task StructurallyDifferent_IsNotFound()
+    public async Task Does_not_return_structurally_different_matches()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
@@ -155,7 +155,7 @@ public class FindPatternTests
     // ── Pattern origin is excluded from results ───────────────────────────────────
 
     [Fact]
-    public async Task PatternOrigin_IsExcludedFromResults()
+    public async Task Excludes_the_pattern_origin_from_the_results()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
@@ -190,7 +190,7 @@ public class FindPatternTests
     // ── Scope filter excludes out-of-scope matches ────────────────────────────────
 
     [Fact]
-    public async Task ScopeFilter_ExcludesOutOfScopeMatches()
+    public async Task Excludes_matches_outside_the_scope()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
@@ -238,7 +238,7 @@ public class FindPatternTests
     // ── Cross-file match returns correct metadata ─────────────────────────────────
 
     [Fact]
-    public async Task CrossFileMatch_ReturnsCorrectLineAndPreview()
+    public async Task Returns_the_correct_line_and_preview()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """

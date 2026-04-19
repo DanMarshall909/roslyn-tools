@@ -6,7 +6,7 @@ namespace RoslynTools.Tests.Mutation;
 public class ExtractInterfaceTests
 {
     [Fact]
-    public async Task ExtractInterface_CreatesInterfaceFile()
+    public async Task Creates_interface_file()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("AgentService.cs", """
@@ -34,7 +34,7 @@ public class ExtractInterfaceTests
     }
 
     [Fact]
-    public async Task ExtractInterface_InterfaceContainsPublicMembersOnly()
+    public async Task Includes_only_public_members()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("AgentService.cs", """
@@ -64,7 +64,7 @@ public class ExtractInterfaceTests
     }
 
     [Fact]
-    public async Task ExtractInterface_ClassUpdatedToImplementInterface()
+    public async Task Updates_the_class_to_implement_the_interface()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("AgentService.cs", """
@@ -92,7 +92,7 @@ public class ExtractInterfaceTests
     }
 
     [Fact]
-    public async Task ExtractInterface_DryRun_NoFileWritten()
+    public async Task Does_not_write_the_interface_file()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("AgentService.cs", """

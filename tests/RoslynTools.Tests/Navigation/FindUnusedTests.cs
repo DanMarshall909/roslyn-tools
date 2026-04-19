@@ -10,7 +10,7 @@ public class FindUnusedTests
 {
 
     [Fact]
-    public async Task FindUnused_ReportsUnreferencedMethod()
+    public async Task Reports_unreferenced_method()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Services.cs", """
@@ -46,7 +46,7 @@ public class FindUnusedTests
     }
 
     [Fact]
-    public async Task FindUnused_DoesNotReportReferencedMethod()
+    public async Task Does_not_report_referenced_method()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Services.cs", """
@@ -82,7 +82,7 @@ public class FindUnusedTests
     }
 
     [Fact]
-    public async Task FindUnused_ExcludesSerializationAttributedTypes()
+    public async Task Excludes_serializable_types()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Services.cs", """
@@ -118,7 +118,7 @@ public class FindUnusedTests
     }
 
     [Fact]
-    public async Task FindUnused_ScopeMethods_OnlyReportsMethods()
+    public async Task Reports_only_methods()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Services.cs", """

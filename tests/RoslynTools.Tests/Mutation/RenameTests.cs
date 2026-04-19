@@ -1,5 +1,6 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Rename;
+using RoslynTools.Commands;
 using RoslynTools.Core;
 
 namespace RoslynTools.Tests.Mutation;
@@ -7,7 +8,7 @@ namespace RoslynTools.Tests.Mutation;
 public class RenameTests
 {
     [Fact]
-    public async Task Rename_Type_Updates_Declaration_And_References()
+    public async Task Updates_the_declaration_and_references()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Model.cs", """
@@ -56,7 +57,7 @@ public class RenameTests
     }
 
     [Fact]
-    public async Task Rename_Method_Updates_All_Call_Sites()
+    public async Task Updates_all_call_sites()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Util.cs", """
@@ -104,7 +105,7 @@ public class RenameTests
     }
 
     [Fact]
-    public async Task Rename_DryRun_Does_Not_Modify_Files()
+    public async Task Does_not_modify_files()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Original.cs", """
@@ -135,5 +136,90 @@ public class RenameTests
 
         var afterContent = await project.ReadSourceAsync("Original.cs");
         Assert.Equal(originalContent, afterContent);
+    }
+
+    [Fact]
+    public async Task Rename_Csv_Batch_Updates_Multiple_Symbols()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Model.cs", """
+            namespace TestApp;
+
+            public class Product
+            {
+                public int Id { get; set; }
+            }
+            """);
+        project.AddSource("Service.cs", """
+            namespace TestApp;
+
+            public class ProductService
+            {
+                public Product GetProduct()
+                {
+                    return new Product();
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        var csvPath = Path.Combine(project.ProjectDir, "renames.csv");
+        await File.WriteAllTextAsync(csvPath, """
+            "old_fqn","new_name"
+            "TestApp.Product","Item"
+            "TestApp.ProductService.GetProduct","FetchItem"
+            """);
+        using (workspace)
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
+            var originalError = Console.Error;
+            using var errorWriter = new StringWriter();
+            Console.SetError(errorWriter);
+            try
+            {
+                var exitCode = await App.RunAsync(["rename", "--csv", csvPath, "--solution", "ignored"]);
+                Assert.True(exitCode == 0, $"Expected exit code 0 but got {exitCode}. stderr: {errorWriter}");
+            }
+            finally
+            {
+                Console.SetError(originalError);
+            }
+        }
+
+        var modelContent = await project.ReadSourceAsync("Model.cs");
+        Assert.Contains("class Item", modelContent);
+
+        var serviceContent = await project.ReadSourceAsync("Service.cs");
+        Assert.Contains("Item FetchItem()", serviceContent);
+        Assert.Contains("new Item()", serviceContent);
+    }
+
+    [Fact]
+    public async Task Rename_Csv_Batch_Rejects_Flagged_Rows()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Model.cs", """
+            namespace TestApp;
+
+            public class Product
+            {
+                public int Id { get; set; }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        var csvPath = Path.Combine(project.ProjectDir, "renames-with-review.csv");
+        await File.WriteAllTextAsync(csvPath, """
+            "old_fqn","new_name","review"
+            "TestApp.Product","Item","no-verb"
+            """);
+
+        using (workspace)
+        {
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                RenameCommand.ExecuteBatchAsync(sln, csvPath, dryRun: true));
+
+            Assert.Contains("review column", ex.Message);
+        }
     }
 }

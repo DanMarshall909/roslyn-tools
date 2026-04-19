@@ -16,7 +16,7 @@ public class WorkspaceLoaderSmokeTests
     static WorkspaceLoaderSmokeTests() => MsBuildFixture.Ensure();
 
     [Fact]
-    public async Task LoadAsync_OpensRealSolution_AndFindsKnownType()
+    public async Task Opens_the_solution_and_finds_a_known_type()
     {
         var slnPath = Path.GetFullPath(Path.Combine(
             Path.GetDirectoryName(typeof(WorkspaceLoaderSmokeTests).Assembly.Location)!,

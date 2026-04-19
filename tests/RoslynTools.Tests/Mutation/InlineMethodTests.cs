@@ -24,7 +24,7 @@ public class InlineMethodTests
         """;
 
     [Fact]
-    public async Task InlineMethod_SingleExpressionBody_ReplacedAtCallSite()
+    public async Task Replaces_call_sites_with_the_expression()
     {
         using var project = new AdhocProjectBuilder("MathApp");
         project.AddSource("MathHelper.cs", MathHelperSource);
@@ -39,7 +39,7 @@ public class InlineMethodTests
     }
 
     [Fact]
-    public async Task InlineMethod_BlockBodySingleReturn_InlinedCorrectly()
+    public async Task Replaces_call_sites_with_the_return_expression()
     {
         using var project = new AdhocProjectBuilder("MathApp");
         project.AddSource("MathHelper.cs", """
@@ -68,7 +68,7 @@ public class InlineMethodTests
     }
 
     [Fact]
-    public async Task InlineMethod_MethodDeletedAfterInlining()
+    public async Task Deletes_the_inlined_method()
     {
         using var project = new AdhocProjectBuilder("MathApp");
         project.AddSource("MathHelper.cs", MathHelperSource);
@@ -82,7 +82,7 @@ public class InlineMethodTests
     }
 
     [Fact]
-    public async Task InlineMethod_MultipleCallSites_AllInlined()
+    public async Task Inlines_every_call_site()
     {
         using var project = new AdhocProjectBuilder("MathApp");
         project.AddSource("MathHelper.cs", """
@@ -116,7 +116,7 @@ public class InlineMethodTests
     }
 
     [Fact]
-    public async Task InlineMethod_DryRun_NoWrites()
+    public async Task Does_not_modify_files()
     {
         using var project = new AdhocProjectBuilder("MathApp");
         project.AddSource("MathHelper.cs", MathHelperSource);

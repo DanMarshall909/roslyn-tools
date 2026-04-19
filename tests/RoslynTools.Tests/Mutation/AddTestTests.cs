@@ -10,14 +10,14 @@ public class AddTestTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public void AcToMethodName_ConvertsAcStringToIdentifier()
+    public void Creates_valid_test_identifiers()
     {
         Assert.Equal("Returns_404_When_Order_Not_Found",
             AddTestCommand.AcToMethodName("Returns 404 when order not found"));
     }
 
     [Fact]
-    public void AcToMethodName_StripsPunctuation()
+    public void Strips_punctuation()
     {
         Assert.Equal("It_Works",
             AddTestCommand.AcToMethodName("It works!"));
@@ -28,7 +28,7 @@ public class AddTestTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task SingleMode_AppendsSingleFactMethod()
+    public async Task Appends_a_fact_method()
     {
         using var proj = new AdhocProjectBuilder();
         // Source has no usings — command must add them
@@ -64,7 +64,7 @@ public class AddTestTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task AcMode_GeneratesMethodsFromAcs()
+    public async Task Generates_test_methods()
     {
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("OrderTests.cs", """
@@ -99,7 +99,7 @@ public class AddTestTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task AcMode_WithNestedClass_WrapsInNestedClass()
+    public async Task Wraps_generated_methods_in_the_nested_class()
     {
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("OrderTests.cs", """
@@ -138,7 +138,7 @@ public class AddTestTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task DryRun_DoesNotModifyFile()
+    public async Task Does_not_modify_the_file()
     {
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("MyTests.cs", """
@@ -171,7 +171,7 @@ public class AddTestTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task SingleMode_AddsUsingDirectivesWhenMissing()
+    public async Task Adds_missing_using_directives()
     {
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("MyTests.cs", """

@@ -12,7 +12,7 @@ public class TransformParametersTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Simple3ParamMethod_GeneratesRecord_RewritesSignatureAndCallSite()
+    public async Task Generates_a_record_and_rewrites_the_signature_and_call_site()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("OrderService.cs", """
@@ -68,7 +68,7 @@ public class TransformParametersTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task DefaultValue_PreservedInRecord()
+    public async Task Preserves_default_values_in_the_generated_record()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Greeter.cs", """
@@ -102,7 +102,7 @@ public class TransformParametersTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task OutParam_ThrowsWithClearMessage()
+    public async Task Throws_a_clear_error_for_out_parameters()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Parser.cs", """
@@ -130,7 +130,7 @@ public class TransformParametersTests
     }
 
     [Fact]
-    public async Task RefParam_ThrowsWithClearMessage()
+    public async Task Throws_a_clear_error_for_ref_parameters()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Modifier.cs", """
@@ -160,7 +160,7 @@ public class TransformParametersTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task MultipleCallSites_AllUpdated()
+    public async Task Updates_every_call_site()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
@@ -223,7 +223,7 @@ public class TransformParametersTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task DryRun_DoesNotModifyFiles()
+    public async Task Does_not_modify_files()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
@@ -254,7 +254,7 @@ public class TransformParametersTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task MethodNotFound_Throws()
+    public async Task Throws_an_error_when_the_method_is_missing()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Dummy.cs", """
@@ -279,7 +279,7 @@ public class TransformParametersTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task NoParameters_Throws()
+    public async Task Throws_an_error_when_the_method_has_no_parameters()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Empty.cs", """
@@ -306,7 +306,7 @@ public class TransformParametersTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task InvalidMethodSpec_Throws()
+    public async Task Throws_an_error_for_an_invalid_method_specification()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Stub.cs", """
@@ -330,7 +330,7 @@ public class TransformParametersTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task ExistingRecord_MatchingParams_RewritesCallSitePositionally()
+    public async Task Rewrites_call_sites_with_positional_construction()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("OrderArgs.cs", """
@@ -388,7 +388,7 @@ public class TransformParametersTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task ExistingClass_MatchingProperties_RewritesCallSiteWithObjectInitializer()
+    public async Task Rewrites_call_sites_with_object_initializers()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("SearchArgs.cs", """
@@ -448,7 +448,7 @@ public class TransformParametersTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task ExistingType_MissingProperty_ThrowsWithMissingNames()
+    public async Task Throws_an_error_listing_missing_properties()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("IncompleteArgs.cs", """
@@ -489,7 +489,7 @@ public class TransformParametersTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task ExistingType_PartialMatch_ThrowsListingMissingNames()
+    public async Task Lists_only_the_missing_properties_in_the_error()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("PartialArgs.cs", """
@@ -523,7 +523,7 @@ public class TransformParametersTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task BothNewTypeAndExistingType_ThrowsMutualExclusionError()
+    public async Task Throws_a_mutual_exclusion_error()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("BothFlagsService.cs", """
@@ -550,7 +550,7 @@ public class TransformParametersTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task NeitherNewTypeNorExistingType_ThrowsError()
+    public async Task Throws_an_error_when_no_target_type_is_specified()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("NeitherService.cs", """

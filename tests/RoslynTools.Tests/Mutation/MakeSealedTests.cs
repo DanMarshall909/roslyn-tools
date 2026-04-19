@@ -18,7 +18,7 @@ public class MakeSealedTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task MakeSealed_NoDerivedTypes_AddsSealedKeyword()
+    public async Task Adds_the_sealed_keyword()
     {
         using var proj = new AdhocProjectBuilder("SealApp");
         proj.AddSource("Types.cs", SealAppSource);
@@ -36,7 +36,7 @@ public class MakeSealedTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task MakeSealed_HasDerivedType_Rejected()
+    public async Task Throws_an_error()
     {
         using var proj = new AdhocProjectBuilder("SealApp");
         proj.AddSource("Types.cs", SealAppSource);
@@ -56,7 +56,7 @@ public class MakeSealedTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task MakeSealed_AbstractClass_Skipped()
+    public async Task Leaves_the_abstract_type_unchanged()
     {
         using var proj = new AdhocProjectBuilder("SealApp");
         proj.AddSource("Types.cs", SealAppSource);
@@ -76,7 +76,7 @@ public class MakeSealedTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task MakeSealed_AlreadySealed_NoOp()
+    public async Task Leaves_an_already_sealed_type_unchanged()
     {
         using var proj = new AdhocProjectBuilder("SealApp");
         proj.AddSource("Types.cs", SealAppSource);
@@ -96,7 +96,7 @@ public class MakeSealedTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task MakeSealed_DryRun_NoWrites()
+    public async Task Does_not_modify_files()
     {
         using var proj = new AdhocProjectBuilder("SealApp");
         proj.AddSource("Types.cs", SealAppSource);

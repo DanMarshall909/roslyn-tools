@@ -25,7 +25,7 @@ public class ReplaceCallTests
     }
 
     [Fact]
-    public async Task ReplaceCall_AllInvocationsReplaced()
+    public async Task Replaces_all_invocations()
     {
         var (project, workspace, sln) = BuildFixture();
         using (project)
@@ -41,7 +41,7 @@ public class ReplaceCallTests
     }
 
     [Fact]
-    public async Task ReplaceCall_ArgumentsPreserved()
+    public async Task Preserves_existing_arguments()
     {
         using var project = new AdhocProjectBuilder("LogApp");
         project.AddSource("LogApp.cs", """
@@ -63,7 +63,7 @@ public class ReplaceCallTests
     }
 
     [Fact]
-    public async Task ReplaceCall_ZeroCallSites_PrintsMessage()
+    public async Task Reports_when_no_call_sites_are_found()
     {
         using var project = new AdhocProjectBuilder("LogApp");
         project.AddSource("LogApp.cs", """
@@ -95,7 +95,7 @@ public class ReplaceCallTests
     }
 
     [Fact]
-    public async Task ReplaceCall_DryRun_NoWrites()
+    public async Task Does_not_modify_files()
     {
         var (project, workspace, sln) = BuildFixture();
         using (project)

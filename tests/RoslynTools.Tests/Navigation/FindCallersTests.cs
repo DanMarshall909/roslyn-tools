@@ -9,7 +9,7 @@ namespace RoslynTools.Tests.Navigation;
 public class FindCallersTests
 {
     [Fact]
-    public async Task FindCallers_ReturnsInvocationSites()
+    public async Task Returns_invocation_sites()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Greeter.cs", """
@@ -51,7 +51,7 @@ public class FindCallersTests
     }
 
     [Fact]
-    public async Task FindCallers_ZeroCallers_ReturnsEmpty()
+    public async Task Returns_nothing_when_no_callers_exist()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
@@ -72,7 +72,7 @@ public class FindCallersTests
     }
 
     [Fact]
-    public async Task FindCallers_ExcludesNameofReferences()
+    public async Task Excludes_nameof_references_from_the_results()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Greeter.cs", """
