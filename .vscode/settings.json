@@ -1,0 +1,23 @@
+{
+  // C# Dev Kit / .NET Test Explorer integration.
+  // These tests run on AdhocWorkspace (no real MSBuild) except for
+  // WorkspaceLoaderSmokeTests — so no special test host setup needed.
+  "dotnet.defaultSolution": "RoslynTools.slnx",
+
+  // dotnet.unitTests extension (formulahendry.dotnet-test-explorer), if installed.
+  "dotnet-test-explorer.testProjectPath": "tests/RoslynTools.Tests/RoslynTools.Tests.csproj",
+  "dotnet-test-explorer.autoWatch": false,
+  "dotnet-test-explorer.showCodeLens": true,
+
+  // Keep file-watcher noise low — the TestOutput dir churns during test runs.
+  "files.watcherExclude": {
+    "**/bin/**": true,
+    "**/obj/**": true,
+    "**/TestOutput/**": true
+  },
+  "search.exclude": {
+    "**/bin": true,
+    "**/obj": true,
+    "**/TestOutput": true
+  }
+}

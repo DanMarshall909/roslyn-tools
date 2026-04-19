@@ -1,0 +1,56 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["build", "${workspaceFolder}/RoslynTools.slnx"],
+      "problemMatcher": "$msCompile",
+      "group": { "kind": "build", "isDefault": true }
+    },
+    {
+      "label": "test",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "test",
+        "${workspaceFolder}/tests/RoslynTools.Tests/RoslynTools.Tests.csproj",
+        "-v",
+        "quiet"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": { "kind": "test", "isDefault": true }
+    },
+    {
+      "label": "test (filter)",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "test",
+        "${workspaceFolder}/tests/RoslynTools.Tests/RoslynTools.Tests.csproj",
+        "--filter",
+        "FullyQualifiedName~${input:testFilter}",
+        "-v",
+        "normal"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": "test"
+    },
+    {
+      "label": "format",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["format", "${workspaceFolder}/RoslynTools.slnx"],
+      "problemMatcher": "$msCompile"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "testFilter",
+      "type": "promptString",
+      "description": "Test name substring (e.g. RenameTests or Rename_Type)",
+      "default": "Tests"
+    }
+  ]
+}

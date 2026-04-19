@@ -1,0 +1,24 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug rt",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/RoslynTools/bin/Debug/net8.0/win-x64/rt.dll",
+      "args": ["${input:rtArgs}"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "stopAtEntry": false
+    }
+  ],
+  "inputs": [
+    {
+      "id": "rtArgs",
+      "type": "promptString",
+      "description": "rt args (space-separated, e.g. 'inspect Foo --solution RoslynTools.sln')",
+      "default": "--help"
+    }
+  ]
+}
