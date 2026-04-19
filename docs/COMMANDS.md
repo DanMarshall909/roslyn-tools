@@ -603,7 +603,7 @@ _Report exact-clone code blocks repeated across the solution_
 
 **When to use:**
 
-Discovering repeated code blocks (exact clones) across a solution before an extract-method pass. Use --min-statements to tune noise vs. signal and --min-occurrences to target the most-duplicated blocks first.
+Discovering repeated code blocks (exact clones) across a solution before an extract-method pass. Use --min-statements to tune noise vs. signal, --min-occurrences to target the most-duplicated blocks, and --scope to focus on one subsystem.
 
 **Examples:**
 
@@ -611,6 +611,9 @@ Discovering repeated code blocks (exact clones) across a solution before an extr
 rt find-duplicates --solution C:\code\libraries\ProjectX.Libraries.sln
 rt fd --min-statements 5 --solution C:\code\libraries\ProjectX.Libraries.sln
 rt find-duplicates --min-statements 4 --min-occurrences 3 --solution RoslynTools.slnx
+rt find-duplicates --scope MyApp.Services --solution RoslynTools.slnx
+rt find-duplicates --include-tests --solution RoslynTools.slnx
+rt find-duplicates --max-statements 20 --solution RoslynTools.slnx
 ```
 
 ---
