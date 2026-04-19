@@ -20,9 +20,9 @@ public class WorkspaceLoaderSmokeTests
     {
         var slnPath = Path.GetFullPath(Path.Combine(
             Path.GetDirectoryName(typeof(WorkspaceLoaderSmokeTests).Assembly.Location)!,
-            "..", "..", "..", "..", "..", "..", "RoslynTools.sln"));
+            "..", "..", "..", "..", "..", "..", "RoslynTools.slnx"));
 
-        Assert.True(File.Exists(slnPath), $"Expected sln at {slnPath}");
+        Assert.True(File.Exists(slnPath), $"Expected slnx at {slnPath}");
 
         var (workspace, solution) = await WorkspaceLoader.LoadAsync(slnPath);
         using (workspace)

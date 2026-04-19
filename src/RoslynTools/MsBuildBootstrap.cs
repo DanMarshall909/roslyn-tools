@@ -6,6 +6,14 @@ internal static class MsBuildBootstrap
 {
     internal static void Register()
     {
+        var sdkInstance = FindPreferredInstance();
+
+        if (sdkInstance != null)
+        {
+            MSBuildLocator.RegisterInstance(sdkInstance);
+            return;
+        }
+
         try
         {
             MSBuildLocator.RegisterDefaults();
@@ -23,6 +31,14 @@ internal static class MsBuildBootstrap
 
         MSBuildLocator.RegisterMSBuildPath(sdkPath);
     }
+
+    // Prefer a .NET SDK instance over VS's .NET Framework MSBuild — the Framework host
+    // causes TypeInitializationException when loading .NET 8+ projects.
+    internal static VisualStudioInstance? FindPreferredInstance() =>
+        MSBuildLocator.QueryVisualStudioInstances()
+            .Where(i => i.DiscoveryType == DiscoveryType.DotNetSdk)
+            .OrderByDescending(i => i.Version)
+            .FirstOrDefault();
 
     private static string? FindLatestDotnetSdkPath()
     {
