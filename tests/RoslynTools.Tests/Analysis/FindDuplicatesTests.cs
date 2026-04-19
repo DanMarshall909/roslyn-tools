@@ -789,4 +789,250 @@ public class FindDuplicatesTests
                 Assert.Matches(@"^GRP-\d+-[0-9a-f]{8}$", id);
         }
     }
+
+    // ── US-204: --scope namespace prefix filters occurrences ─────────────────────
+
+    [Fact]
+    public async Task Scope_namespace_returns_only_groups_in_that_namespace()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Services/A.cs", """
+            namespace MyApp.Services;
+
+            public class ServiceA
+            {
+                public void Run()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+            }
+            """);
+        project.AddSource("Services/B.cs", """
+            namespace MyApp.Services;
+
+            public class ServiceB
+            {
+                public void Run()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+            }
+            """);
+        project.AddSource("Other/C.cs", """
+            namespace MyApp.Other;
+
+            public class OtherC
+            {
+                public void Run()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var groups = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions(Scope: "MyApp.Services"));
+
+            Assert.NotEmpty(groups);
+            foreach (var g in groups)
+                Assert.All(g.Occurrences, o => Assert.Contains("Services", o.FilePath));
+        }
+    }
+
+    // ── US-204: --scope project name filters to that project ─────────────────────
+
+    [Fact]
+    public async Task Scope_project_name_filters_to_that_project()
+    {
+        using var builder = new AdhocProjectBuilder("ProjectAlpha");
+        builder.AddSource("A.cs", """
+            namespace ProjectAlpha;
+
+            public class A
+            {
+                public void Run()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+            }
+            """);
+        builder.AddSource("B.cs", """
+            namespace ProjectAlpha;
+
+            public class B
+            {
+                public void Run()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+            }
+            """);
+
+        var beta = builder.AddProject("ProjectBeta");
+        beta.AddSource("C.cs", """
+            namespace ProjectBeta;
+
+            public class C
+            {
+                public void Run()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+            }
+            """);
+
+        var (workspace, sln) = builder.Build();
+        using (workspace)
+        {
+            var groups = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions(Scope: "ProjectAlpha"));
+
+            Assert.NotEmpty(groups);
+            foreach (var g in groups)
+                Assert.All(g.Occurrences, o => Assert.Contains("ProjectAlpha", o.FilePath));
+        }
+    }
+
+    // ── US-204: --include-tests false excludes test projects ─────────────────────
+
+    [Fact]
+    public async Task IncludeTests_false_excludes_test_projects()
+    {
+        // Two identical methods in a project named "MyApp.Tests" — should not be reported
+        // when IncludeTests=false (the default).
+        using var builder = new AdhocProjectBuilder("MyApp.Tests");
+        builder.AddSource("A.cs", """
+            namespace MyApp.Tests;
+
+            public class TestA
+            {
+                public void Run()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+            }
+            """);
+        builder.AddSource("B.cs", """
+            namespace MyApp.Tests;
+
+            public class TestB
+            {
+                public void Run()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+            }
+            """);
+
+        var (workspace, sln) = builder.Build();
+        using (workspace)
+        {
+            var groups = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions(IncludeTests: false));
+
+            Assert.Empty(groups);
+        }
+    }
+
+    // ── US-204: --include-tests true includes test projects ──────────────────────
+
+    [Fact]
+    public async Task IncludeTests_true_includes_test_projects()
+    {
+        using var builder = new AdhocProjectBuilder("MyApp.Tests");
+        builder.AddSource("A.cs", """
+            namespace MyApp.Tests;
+
+            public class TestA
+            {
+                public void Run()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+            }
+            """);
+        builder.AddSource("B.cs", """
+            namespace MyApp.Tests;
+
+            public class TestB
+            {
+                public void Run()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+            }
+            """);
+
+        var (workspace, sln) = builder.Build();
+        using (workspace)
+        {
+            var groups = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions(IncludeTests: true));
+
+            Assert.NotEmpty(groups);
+            var g = groups.First(gr => gr.StatementCount == 3);
+            Assert.Equal(2, g.Occurrences.Count);
+        }
+    }
+
+    // ── US-204: --max-statements filters out windows exceeding the cap ────────────
+
+    [Fact]
+    public async Task MaxStatements_filters_out_windows_exceeding_cap()
+    {
+        // Both methods have a 5-statement duplicate. With max-statements=3, the algorithm
+        // should stop expanding at 3 statements and never produce a 5-statement group.
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("A.cs", """
+            namespace TestApp;
+
+            public class A
+            {
+                public void First()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                    int z = 3;
+                    System.Console.WriteLine(z);
+                }
+
+                public void Second()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                    int z = 3;
+                    System.Console.WriteLine(z);
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var groups = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions(MaxStatements: 3));
+
+            Assert.DoesNotContain(groups, g => g.StatementCount > 3);
+        }
+    }
 }

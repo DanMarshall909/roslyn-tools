@@ -8,7 +8,12 @@ namespace RoslynTools.Core;
 
 internal sealed record FindDuplicatesOptions(
     int MinStatements = 3,
-    int MinOccurrences = 2);
+    int MinOccurrences = 2,
+    string? Scope = null,
+    bool IncludeTests = false,
+    // 40-statement cap: windows larger than this are rarely extractable as a unit
+    // and significantly increase enumeration time on large solutions.
+    int MaxStatements = 40);
 
 internal sealed record DuplicateOccurrence(
     string FilePath,
@@ -84,6 +89,23 @@ internal static class FindDuplicatesCore
 
         foreach (var project in solution.Projects)
         {
+            // Test-project detection: a project whose name ends with `.Tests` or `Test`
+            // (case-insensitive) is considered a test project. When --include-tests is false
+            // (the default), such projects are skipped entirely.
+            if (!options.IncludeTests && IsTestProject(project))
+                continue;
+
+            // Scope filter — project name takes priority over namespace prefix.
+            // If the scope matches a project name exactly, only that project is enumerated.
+            // Otherwise, scope is treated as a namespace prefix and applied per-document.
+            var scopeMatchesProject = options.Scope is not null
+                && string.Equals(project.Name, options.Scope, StringComparison.OrdinalIgnoreCase);
+
+            if (options.Scope is not null
+                && !scopeMatchesProject
+                && !ScopeCouldMatchProject(project, options.Scope))
+                continue;
+
             foreach (var document in project.Documents)
             {
                 if (document.FilePath is null)
@@ -92,6 +114,14 @@ internal static class FindDuplicatesCore
                 var root = await document.GetSyntaxRootAsync();
                 if (root is null)
                     continue;
+
+                // Namespace-prefix scope filter (applied only when scope did not match project name).
+                if (options.Scope is not null && !scopeMatchesProject)
+                {
+                    var ns = GetDocumentNamespace(root);
+                    if (ns is null || !ns.StartsWith(options.Scope, StringComparison.Ordinal))
+                        continue;
+                }
 
                 var semanticModel = await document.GetSemanticModelAsync();
                 if (semanticModel is null)
@@ -177,8 +207,9 @@ internal static class FindDuplicatesCore
             {
                 var currentLength = locations[0].Length;
 
-                var extendable = locations.Where(l => l.CanExtend).ToList();
-                var terminal = locations.Where(l => !l.CanExtend).ToList();
+                // Hard cap on window size — treat locations at max as terminal.
+                var extendable = locations.Where(l => l.CanExtend && l.Length < options.MaxStatements).ToList();
+                var terminal = locations.Where(l => !l.CanExtend || l.Length >= options.MaxStatements).ToList();
 
                 // Re-group extendable by the hash of window extended by one statement.
                 var extGroups = extendable
@@ -352,4 +383,37 @@ internal static class FindDuplicatesCore
         LocalFunctionStatementSyntax lf => lf.Identifier.Text,
         _ => "<unknown>"
     };
+
+    // Test-project detection: name ends with ".Tests" or "Test" (case-insensitive).
+    // AdhocWorkspace tests use project names only — no metadata references to check.
+    private static bool IsTestProject(Project project)
+    {
+        var name = project.Name;
+        return name.EndsWith(".Tests", StringComparison.OrdinalIgnoreCase)
+            || name.EndsWith("Test", StringComparison.OrdinalIgnoreCase)
+            || name.Contains("xunit", StringComparison.OrdinalIgnoreCase)
+            || name.Contains("nunit", StringComparison.OrdinalIgnoreCase)
+            || name.Contains("mstest", StringComparison.OrdinalIgnoreCase);
+    }
+
+    // Returns true if the project *might* contain documents in the given namespace scope.
+    // Used to skip whole projects early when scope is a namespace prefix (not a project name).
+    // Since we can't know without parsing, we always return true here — the per-document
+    // check below is the real filter. This method exists so the logic is extensible.
+    private static bool ScopeCouldMatchProject(Project project, string scope) => true;
+
+    // Returns the first namespace declaration in the document, preferring file-scoped.
+    private static string? GetDocumentNamespace(SyntaxNode root)
+    {
+        var fileScoped = root.DescendantNodes()
+            .OfType<FileScopedNamespaceDeclarationSyntax>()
+            .FirstOrDefault();
+        if (fileScoped is not null)
+            return fileScoped.Name.ToString();
+
+        var blockScoped = root.DescendantNodes()
+            .OfType<NamespaceDeclarationSyntax>()
+            .FirstOrDefault();
+        return blockScoped?.Name.ToString();
+    }
 }
