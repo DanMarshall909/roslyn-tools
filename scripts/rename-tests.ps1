@@ -48,6 +48,15 @@ if (-not (Test-Path $rtCmd))   { throw "Missing rt.cmd: $rtCmd" }
 $rows = Import-Csv -Path $csvPath
 if ($Filter) { $rows = $rows | Where-Object { $_.old_fqn -like "*$Filter*" } }
 
+# Fail fast on any row still marked REVIEW — these are awkward compound names
+# that need a human pass. The generator flags any row with > 6 words.
+$review = $rows | Where-Object { $_.new_name -like '# REVIEW:*' }
+if ($review.Count -gt 0) {
+    Write-Host "$($review.Count) row(s) still marked '# REVIEW:' — curate them first." -ForegroundColor Red
+    $review | ForEach-Object { Write-Host "  $($_.old_fqn)" -ForegroundColor DarkYellow }
+    exit 2
+}
+
 $total = $rows.Count
 $ok = 0; $skip = 0; $fail = 0
 $mode = if ($Apply) { 'APPLY' } else { 'DRY-RUN' }
@@ -58,11 +67,11 @@ foreach ($row in $rows) {
     $new = $row.new_name
     if (-not $old -or -not $new) { $skip++; continue }
 
-    $args = @('rename', $old, $new, '--solution', $sln)
-    if (-not $Apply) { $args += '--dry-run' }
-
     Write-Host "→ $old  →  $new" -ForegroundColor DarkGray
-    & $rtCmd @args 2>&1 | Out-Null
+    # Route through cmd /c to avoid PS 5.1 treating rt's stderr progress as errors.
+    $rtArgs = @('rename', "`"$old`"", "`"$new`"", '--solution', "`"$sln`"")
+    if (-not $Apply) { $rtArgs += '--dry-run' }
+    cmd /c "`"$rtCmd`" $($rtArgs -join ' ') 2>nul 1>nul"
     if ($LASTEXITCODE -eq 0) {
         $ok++
     } else {
@@ -74,3 +83,7 @@ foreach ($row in $rows) {
 Write-Host ""
 Write-Host "Summary: $ok ok, $skip skipped, $fail failed" -ForegroundColor Cyan
 if ($fail -gt 0) { exit 1 }
+Write-Host ""
+Write-Host "NOTE: nested_class column is NOT applied by this script." -ForegroundColor Cyan
+Write-Host "      rt does not support moving methods to nested classes." -ForegroundColor Cyan
+Write-Host "      Run scripts/nest-tests.ps1 afterwards to apply groupings." -ForegroundColor Cyan
