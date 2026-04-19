@@ -109,7 +109,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-204. Read any existing find-pattern/outline JSON helpers under src/RoslynTools/Core to reuse the serializer options and avoid duplication."
     },
     {
