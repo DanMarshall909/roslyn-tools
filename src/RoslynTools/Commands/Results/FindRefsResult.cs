@@ -33,6 +33,7 @@ internal sealed record FindRefsResult : IRtOutput
             writer.WriteLine();
         }
 
-        writer.WriteLine($"\nFound {References.Count} reference(s) to '{SymbolName}'.");
+        writer.WriteLine();
+        writer.WriteLine($"Found {References.Count} reference(s) to '{SymbolName}'.");
     }
 }

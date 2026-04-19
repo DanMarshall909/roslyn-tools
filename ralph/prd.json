@@ -120,7 +120,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes."
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Follows the FindDuplicates pilot pattern."
     },
     {
@@ -140,7 +140,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes."
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -162,7 +162,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes."
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -185,7 +185,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes."
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "Final migration story. After this, adding a new output format requires only one new renderer file."
     }
   ]
