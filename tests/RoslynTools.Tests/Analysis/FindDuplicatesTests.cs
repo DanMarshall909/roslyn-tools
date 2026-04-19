@@ -1,3 +1,5 @@
+using System.Text.Json;
+using RoslynTools.Commands;
 using RoslynTools.Core;
 
 namespace RoslynTools.Tests.Analysis;
@@ -1034,5 +1036,325 @@ public class FindDuplicatesTests
 
             Assert.DoesNotContain(groups, g => g.StatementCount > 3);
         }
+    }
+
+    // ── US-205: JSON output — 2-group result deserializes correctly ───────────────
+
+    [Fact]
+    public async Task Json_output_two_groups_deserializes_correctly()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("A.cs", """
+            namespace TestApp;
+
+            public class A
+            {
+                public void First()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+
+                public void Second()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var groups = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions());
+            Assert.NotEmpty(groups);
+
+            var json = CaptureJson(groups, solutionDir: null);
+            var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            Assert.Equal("structural", root.GetProperty("mode").GetString());
+            var groupsArr = root.GetProperty("groups");
+            Assert.True(groupsArr.GetArrayLength() >= 1);
+
+            var g = groupsArr[0];
+            Assert.Equal("structural", g.GetProperty("mode").GetString());
+            Assert.Equal("unknown", g.GetProperty("extractability").GetString());
+            Assert.True(g.GetProperty("score").GetDouble() > 0);
+            Assert.True(g.GetProperty("occurrenceCount").GetInt32() >= 2);
+            Assert.True(g.GetProperty("preview").GetString()!.Length > 0);
+
+            var occs = g.GetProperty("occurrences");
+            Assert.True(occs.GetArrayLength() >= 2);
+
+            var occ = occs[0];
+            Assert.True(occ.GetProperty("file").GetString()!.Length > 0);
+            Assert.True(occ.GetProperty("line").GetInt32() > 0);
+            Assert.True(occ.GetProperty("endLine").GetInt32() > 0);
+            Assert.True(occ.GetProperty("type").GetString()!.Length > 0);
+            Assert.True(occ.GetProperty("member").GetString()!.Length > 0);
+
+            var checks = g.GetProperty("checks");
+            Assert.Equal(0, checks.GetArrayLength());
+        }
+    }
+
+    // ── US-205: JSON output — empty result emits correct shape ───────────────────
+
+    [Fact]
+    public async Task Json_output_empty_result_emits_correct_shape()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("A.cs", """
+            namespace TestApp;
+
+            public class A
+            {
+                public void Run()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var groups = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions());
+            Assert.Empty(groups);
+
+            var json = CaptureJson(groups, solutionDir: null);
+            var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            Assert.Equal("structural", root.GetProperty("mode").GetString());
+            Assert.Equal(0, root.GetProperty("groups").GetArrayLength());
+        }
+    }
+
+    // ── US-205: JSON output — groupId is stable across two runs ─────────────────
+
+    [Fact]
+    public async Task Json_output_groupId_is_stable_across_two_runs()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("A.cs", """
+            namespace TestApp;
+
+            public class A
+            {
+                public void First()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+
+                public void Second()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var run1 = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions());
+            var run2 = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions());
+
+            var json1 = CaptureJson(run1, solutionDir: null);
+            var json2 = CaptureJson(run2, solutionDir: null);
+
+            var ids1 = JsonDocument.Parse(json1).RootElement
+                .GetProperty("groups").EnumerateArray()
+                .Select(g => g.GetProperty("groupId").GetString())
+                .OrderBy(id => id)
+                .ToList();
+
+            var ids2 = JsonDocument.Parse(json2).RootElement
+                .GetProperty("groups").EnumerateArray()
+                .Select(g => g.GetProperty("groupId").GetString())
+                .OrderBy(id => id)
+                .ToList();
+
+            Assert.Equal(ids1, ids2);
+        }
+    }
+
+    // ── US-205: JSON output — occurrences use relative paths ────────────────────
+
+    [Fact]
+    public async Task Json_output_uses_relative_paths_when_solution_dir_provided()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("A.cs", """
+            namespace TestApp;
+
+            public class A
+            {
+                public void First()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+
+                public void Second()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var groups = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions());
+            Assert.NotEmpty(groups);
+
+            // Use the project directory as the "solution dir" so relative paths are computed.
+            var solutionDir = project.Directory;
+            var json = CaptureJson(groups, solutionDir);
+            var doc = JsonDocument.Parse(json);
+
+            var occs = doc.RootElement.GetProperty("groups")[0].GetProperty("occurrences");
+            foreach (var occ in occs.EnumerateArray())
+            {
+                var file = occ.GetProperty("file").GetString()!;
+                // Relative path must not be an absolute path
+                Assert.False(Path.IsPathRooted(file), $"Expected relative path, got: {file}");
+            }
+        }
+    }
+
+    // ── US-205: JSON output — falls back to filename when no solution dir ────────
+
+    [Fact]
+    public async Task Json_output_falls_back_to_filename_without_solution_dir()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("A.cs", """
+            namespace TestApp;
+
+            public class A
+            {
+                public void First()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+
+                public void Second()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var groups = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions());
+            Assert.NotEmpty(groups);
+
+            var json = CaptureJson(groups, solutionDir: null);
+            var doc = JsonDocument.Parse(json);
+
+            var occs = doc.RootElement.GetProperty("groups")[0].GetProperty("occurrences");
+            foreach (var occ in occs.EnumerateArray())
+            {
+                var file = occ.GetProperty("file").GetString()!;
+                // Should be just a filename, not an absolute path
+                Assert.Equal(Path.GetFileName(file), file);
+            }
+        }
+    }
+
+    // ── US-205: Plain-text output still works when --json not set ────────────────
+
+    [Fact]
+    public async Task Plain_text_output_still_works_without_json_flag()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("A.cs", """
+            namespace TestApp;
+
+            public class A
+            {
+                public void First()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+
+                public void Second()
+                {
+                    int x = 1;
+                    int y = 2;
+                    System.Console.WriteLine(x + y);
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var groups = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions());
+            Assert.NotEmpty(groups);
+
+            var output = CaptureText(groups);
+            Assert.Contains("Group 1", output);
+            Assert.Contains("preview:", output);
+        }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────────
+
+    private static string CaptureJson(IReadOnlyList<DuplicateGroup> groups, string? solutionDir)
+    {
+        var sw = new System.IO.StringWriter();
+        var original = Console.Out;
+        Console.SetOut(sw);
+        try
+        {
+            FindDuplicatesCommand.PrintJson(groups, solutionDir);
+        }
+        finally
+        {
+            Console.SetOut(original);
+        }
+        return sw.ToString().Trim();
+    }
+
+    private static string CaptureText(IReadOnlyList<DuplicateGroup> groups)
+    {
+        var sw = new System.IO.StringWriter();
+        var original = Console.Out;
+        Console.SetOut(sw);
+        try
+        {
+            // Access via reflection to call private static PrintGroups
+            var method = typeof(FindDuplicatesCommand)
+                .GetMethod("PrintGroups", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+            method.Invoke(null, [groups]);
+        }
+        finally
+        {
+            Console.SetOut(original);
+        }
+        return sw.ToString();
     }
 }
