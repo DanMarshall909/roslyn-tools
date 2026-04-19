@@ -44,8 +44,8 @@ internal static class WorkspaceLoader
 
         // Log workspace diagnostics as warnings rather than throwing — packages.config
         // projects produce many "cannot find file" warnings but load correctly.
-        workspace.WorkspaceFailed += (_, e) =>
-            Console.Error.WriteLine($"[workspace] {e.Diagnostic.Kind}: {e.Diagnostic.Message}");
+        workspace.RegisterWorkspaceFailedHandler(e =>
+            Console.Error.WriteLine($"[workspace] {e.Diagnostic.Kind}: {e.Diagnostic.Message}"));
 
         Console.Error.WriteLine($"Loading solution: {solutionPath}");
         var solution = await workspace.OpenSolutionAsync(solutionPath);
@@ -57,25 +57,12 @@ internal static class WorkspaceLoader
     private static string ResolveSolutionPath(string? solutionPath)
     {
         if (!string.IsNullOrWhiteSpace(solutionPath))
-        {
-            var full = Path.GetFullPath(solutionPath);
-            if (Path.GetExtension(full).Equals(".slnx", StringComparison.OrdinalIgnoreCase))
-            {
-                var sibling = Path.ChangeExtension(full, ".sln");
-                if (File.Exists(sibling))
-                {
-                    Console.Error.WriteLine($"Note: MSBuildWorkspace does not support .slnx; using {Path.GetFileName(sibling)}");
-                    return sibling;
-                }
-            }
-            return full;
-        }
+            return Path.GetFullPath(solutionPath);
 
         var cwd = Directory.GetCurrentDirectory();
-        // MSBuildWorkspace only supports classic .sln format; .slnx is not supported.
-        // Auto-detect only considers .sln files.
         var candidates = Directory
             .EnumerateFiles(cwd, "*.sln", SearchOption.TopDirectoryOnly)
+            .Concat(Directory.EnumerateFiles(cwd, "*.slnx", SearchOption.TopDirectoryOnly))
             .ToList();
 
         if (candidates.Count == 1)
@@ -83,10 +70,19 @@ internal static class WorkspaceLoader
 
         if (candidates.Count == 0)
             throw new FileNotFoundException(
-                "No .sln file found in current directory. Pass --solution explicitly.");
+                "No .sln/.slnx file found in current directory. Pass --solution explicitly.");
 
-        var names = string.Join(", ", candidates.Select(Path.GetFileName));
+        // Prefer .sln over .slnx when both exist for the same base name.
+        var deduplicated = candidates
+            .GroupBy(p => Path.GetFileNameWithoutExtension(p), StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.FirstOrDefault(p => p.EndsWith(".sln", StringComparison.OrdinalIgnoreCase)) ?? g.First())
+            .ToList();
+
+        if (deduplicated.Count == 1)
+            return deduplicated[0];
+
+        var names = string.Join(", ", deduplicated.Select(Path.GetFileName));
         throw new InvalidOperationException(
-            $"Multiple .sln files found ({names}). Pass --solution explicitly.");
+            $"Multiple solution files found ({names}). Pass --solution explicitly.");
     }
 }
