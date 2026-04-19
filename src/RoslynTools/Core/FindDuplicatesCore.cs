@@ -28,6 +28,7 @@ internal sealed record DuplicateGroup(
     string GroupId,
     IReadOnlyList<DuplicateOccurrence> Occurrences,
     string Preview,
+    string FullBlock,
     int StatementCount,
     double Score,
     bool PartiallyExpandable = false,
@@ -269,6 +270,7 @@ internal static class FindDuplicatesCore
                                 GroupId: ComputeGroupId(currentHash, stmtCount),
                                 Occurrences: currentOccurrences,
                                 Preview: BuildPreview(currentWindow),
+                                FullBlock: BuildFullBlock(currentWindow),
                                 StatementCount: stmtCount,
                                 Score: score,
                                 PartiallyExpandable: continuingGroups.Count > 0,
@@ -290,6 +292,7 @@ internal static class FindDuplicatesCore
                             GroupId: ComputeGroupId(currentHash, stmtCount),
                             Occurrences: currentOccurrences,
                             Preview: BuildPreview(currentWindow),
+                            FullBlock: BuildFullBlock(currentWindow),
                             StatementCount: stmtCount,
                             Score: score,
                             PartiallyExpandable: false,
@@ -394,6 +397,9 @@ internal static class FindDuplicatesCore
             first = first[..newlineIdx].TrimEnd() + " …";
         return first.Length > 120 ? first[..120] + " …" : first;
     }
+
+    private static string BuildFullBlock(IReadOnlyList<StatementSyntax> statements) =>
+        string.Join("\n", statements.Select(s => s.NormalizeWhitespace().ToFullString().Trim()));
 
     private static string GetContainingTypeName(SyntaxNode node)
     {

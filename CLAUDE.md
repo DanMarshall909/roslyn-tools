@@ -22,7 +22,11 @@ dotnet format "RoslynTools.slnx" --verify-no-changes                     # check
 dotnet format "RoslynTools.slnx"                                         # fix formatting
 ```
 
-Wrapper scripts `rt.cmd` / `rt.ps1` run the built executable directly.
+Wrapper scripts `rt.cmd` / `rt.ps1` run the built executable directly. **Always publish before using `rt.cmd`** — it runs the published binary, not the build output:
+
+```powershell
+dotnet publish src/RoslynTools/RoslynTools.csproj -c Release -r win-x64 --self-contained false
+```
 
 ```powershell
 dotnet test "RoslynTools.slnx" -v minimal

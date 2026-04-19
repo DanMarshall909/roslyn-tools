@@ -69,6 +69,8 @@ internal sealed record DuplicateGroupResult : IRtOutput
     [OutputField(OutputLevel.Llm, "preview")]
     public required string Preview { get; init; }
 
+    public required string FullBlock { get; init; }
+
     public required bool PartiallyExpandable { get; init; }
 
     [OutputField(OutputLevel.Llm, "occurrences")]
@@ -141,8 +143,8 @@ internal sealed record FindDuplicatesResult : IRtOutput, IRtMarkdownOutput, IRtJ
             writer.WriteLine();
             writer.WriteLine("**Preview:**");
             writer.WriteLine();
-            writer.WriteLine("```");
-            writer.WriteLine(g.Preview);
+            writer.WriteLine("```csharp");
+            writer.WriteLine(g.FullBlock);
             writer.WriteLine("```");
             writer.WriteLine();
 
@@ -153,7 +155,10 @@ internal sealed record FindDuplicatesResult : IRtOutput, IRtMarkdownOutput, IRtJ
                 for (var j = 0; j < g.Occurrences.Count; j++)
                 {
                     var o = g.Occurrences[j];
-                    writer.WriteLine($"| {j + 1} | {o.Link} | {o.Type} | {o.Member} |");
+                    var label = $"{Path.GetFileName(o.File)}:{o.Line}-{o.EndLine}";
+                    var href = $"vscode://file/{o.AbsoluteForwardSlashPath}:{o.Line}";
+                    var fallback = $"file:///{o.AbsoluteForwardSlashPath}#L{o.Line}";
+                    writer.WriteLine($"| {j + 1} | <a href=\"{href}\" title=\"{fallback}\">{label}</a> | {o.Type} | {o.Member} |");
                 }
                 writer.WriteLine();
             }
@@ -213,6 +218,7 @@ internal sealed record FindDuplicatesResult : IRtOutput, IRtMarkdownOutput, IRtJ
                 GroupId = g.GroupId,
                 Extractability = g.Extractability,
                 Preview = g.Preview,
+                FullBlock = g.FullBlock,
                 Score = g.Score,
                 OccurrenceCount = g.Occurrences.Count,
                 PartiallyExpandable = g.PartiallyExpandable,
@@ -223,7 +229,7 @@ internal sealed record FindDuplicatesResult : IRtOutput, IRtMarkdownOutput, IRtJ
                     return new OccurrenceResult
                     {
                         AbsoluteForwardSlashPath = absoluteForwardSlash,
-                        Link = $"{absoluteForwardSlash}:{o.StartLine}",
+                        Link = $"{absoluteForwardSlash}:{o.StartLine}-{o.EndLine}",
                         File = relativePath,
                         Line = o.StartLine,
                         EndLine = o.EndLine,
