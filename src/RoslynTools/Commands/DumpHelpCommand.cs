@@ -166,10 +166,10 @@ internal static class DumpHelpCommand
     private static ConsoleColor CategoryColour(string category) => category switch
     {
         "Navigation" => ConsoleColor.Cyan,
-        "Analysis"   => ConsoleColor.Yellow,
-        "Mutation"   => ConsoleColor.Magenta,
-        "Meta"       => ConsoleColor.DarkGray,
-        _            => ConsoleColor.White,
+        "Analysis" => ConsoleColor.Yellow,
+        "Mutation" => ConsoleColor.Magenta,
+        "Meta" => ConsoleColor.DarkGray,
+        _ => ConsoleColor.White,
     };
 
     private static int CategoryOrder(string category) => category switch
