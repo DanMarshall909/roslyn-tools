@@ -1,9 +1,9 @@
 roslyn-tools Backlog
 ====================
 Branch: ralph/change-signature
-PRD: prd.json (8 user stories)
+PRD: prd.json (10 user stories)
 Date Started: 2026-04-20
-Current Status: 1/8 stories complete (13%)
+Current Status: 1/10 stories complete (10%)
 
 Previous backlog (ralph/output-layer, 8/8 complete)
 archived to: ralph/archive/2026-04-20-output-layer/
@@ -18,3 +18,5 @@ PENDING STORIES
 [ ] US-221: analyze-interface command with consumer-by-consumer member usage
 [ ] US-222: replacement interface suggestions on top of analyze-interface
 [ ] US-223: narrow-dependency refactor workflow for interface segregation
+[ ] US-224: extract-class safety validation and dependency-injection reuse
+[ ] US-225: make-instance reachability ambiguity and scope-awareness hardening

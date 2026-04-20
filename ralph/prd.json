@@ -1,7 +1,7 @@
 {
   "project": "roslyn-tools",
   "branchName": "ralph/change-signature",
-  "description": "A mixed backlog covering `change-signature` sub-commands plus dogfood-driven workspace-loading, diagnostic-output, and interface-segregation improvements for `rt`. Stories are ordered so the original change-signature work lands first, followed by infrastructure and analysis improvements uncovered during real repo usage.",
+  "description": "A mixed backlog covering `change-signature` sub-commands plus dogfood-driven workspace-loading, diagnostic-output, interface-segregation, and mutation-safety improvements for `rt`. Stories are ordered so the original change-signature work lands first, followed by infrastructure and analysis improvements uncovered during real repo usage.",
   "userStories": [
     {
       "id": "US-216",
@@ -235,6 +235,52 @@
       "priority": 8,
       "passes": false,
       "notes": "This is a new mutation workflow in the same family as extract-interface and add-dependency. It should build on analyze-interface-style member usage where possible, but the analysis dependency should remain explicit rather than hidden heuristics. Keep DI registration rewriting out of v1; report manual follow-up instead."
+    },
+    {
+      "id": "US-224",
+      "title": "extract-class safety validation and dependency-injection reuse",
+      "description": "As a developer, I want `rt extract-class` to reject unsafe extractions and reuse a single dependency-injection implementation so that the command does not generate broken code on non-trivial classes.",
+      "acceptanceCriteria": [
+        "`ExtractClassCommand` resolves the target source type semantically and fails with a clear validation error when `--type` is ambiguous across the loaded solution.",
+        "Extracting from a field declaration that declares multiple variables (for example `private int a, b;`) either splits the declaration safely or rejects the extraction with a clear validation error; it must never remove unrelated variables.",
+        "Before moving members, the command performs semantic validation of the selected members and detects references to source-class instance state that will not exist on the extracted type.",
+        "If any selected member references a non-extracted instance field, property, method, or `this`-bound member that would make the extracted type invalid, the command exits non-zero with an actionable error and makes no partial changes.",
+        "A safe extraction where all required state is self-contained or fully extracted continues to produce the new class file and remove the selected members from the source type.",
+        "The logic that injects the extracted type back into the source class reuses the shared core `DependencyInjector` implementation rather than keeping a second divergent nested implementation in `AddDependencyCommand`.",
+        "The shared `DependencyInjector` exposes a reliable applied/no-op signal so callers can distinguish `class not found`, `already injected`, and `rewrite applied` cases without duplicating syntax checks.",
+        "`DependencyInjector` matches existing constructor dependencies structurally rather than by `string.Contains(...)`, so qualified type names, aliases, and similarly named types do not produce false positives.",
+        "Expression-bodied constructors are either rewritten correctly to assign the injected field or explicitly rejected with a clear validation error; the command must not add a parameter without adding the assignment.",
+        "Running `extract-class --dry-run` still prints a unified diff to stdout and writes no files when validation passes, and writes no files when validation fails.",
+        "A new or updated test fixture covers: ambiguous source-type resolution, rejection of extraction that captures a non-extracted instance field, multi-variable field extraction safety, successful safe extraction, reuse of the shared `DependencyInjector`, structural duplicate-dependency detection, and expression-bodied-constructor handling.",
+        "dotnet build RoslynTools.slnx passes with zero errors and zero new warnings.",
+        "dotnet test tests/RoslynTools.Tests/RoslynTools.Tests.csproj -v minimal passes with all new and existing tests green.",
+        "dotnet format RoslynTools.slnx --verify-no-changes passes with no formatting violations."
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": "This story is driven by dogfooding gaps in the first extract-class implementation. Keep v1 conservative: rejection is preferred over clever partial rewriting when extracted members still depend on source-class state."
+    },
+    {
+      "id": "US-225",
+      "title": "make-instance reachability ambiguity and scope-awareness hardening",
+      "description": "As a developer, I want `rt make-instance` to choose receivers conservatively so that it does not rewrite call sites to the wrong instance when multiple candidates or unsupported local shapes are present.",
+      "acceptanceCriteria": [
+        "`InstanceReachabilityAnalyzer.FindReachableInstance` returns an explicit no-match/ambiguous result when more than one reachable field or property of the target type exists on the enclosing type; it must not silently pick the first member returned by Roslyn.",
+        "When multiple parameters of the target type are in scope on the enclosing callable, the analyzer reports ambiguity instead of selecting the first parameter.",
+        "When multiple local variables of the target type are reachable before the call site in the same block, the analyzer reports ambiguity instead of selecting the first declaration.",
+        "The analyzer continues to reject static contexts: it must never return `this` or an instance field/property from a static method or static constructor.",
+        "Local reachability analysis handles at least these additional declaration shapes: `using var`, `foreach (var x in ...)`, and deconstruction locals when the declared symbol type matches the target type.",
+        "If a declaration shape cannot be analyzed safely, the analyzer falls back to 'no reachable instance' rather than guessing.",
+        "`MakeInstanceCore` surfaces ambiguous reachability distinctly in warning output so skipped call sites report `ambiguous reachable instance` instead of the generic `no reachable instance` reason.",
+        "Multiple skipped call sites in the same document are still rewritten in a single pass without later replacements using stale spans from earlier edits.",
+        "A new or updated test fixture covers: ambiguous fields, ambiguous parameters, ambiguous locals, supported `using var`/`foreach`/deconstruction cases, unsupported-shape conservative no-op, and static-context rejection.",
+        "dotnet build RoslynTools.slnx passes with zero errors and zero new warnings.",
+        "dotnet test tests/RoslynTools.Tests/RoslynTools.Tests.csproj -v minimal passes with all new and existing tests green.",
+        "dotnet format RoslynTools.slnx --verify-no-changes passes with no formatting violations."
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": "Prefer a small result type over a nullable `ExpressionSyntax` if needed so callers can distinguish `none` from `ambiguous`. This is a correctness story, not a heuristic expansion story."
     }
   ]
 }
