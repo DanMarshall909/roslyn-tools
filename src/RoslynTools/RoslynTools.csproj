@@ -4,6 +4,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <AssemblyName>rt</AssemblyName>
     <RootNamespace>RoslynTools</RootNamespace>
     <!-- dotnet tool packaging -->
@@ -53,6 +54,18 @@
     Override the destination: -p:RtSkillsDir="C:\path\to\skills\use-rt"
     Skip entirely:            -p:DeployRtSkill=false
   -->
+  <Target Name="FormatCheck"
+          AfterTargets="Build"
+          Condition="'$(Configuration)' == 'Debug' AND '$(FormatCheck)' != 'false' AND '$(RuntimeIdentifier)' == ''">
+    <PropertyGroup>
+      <SolutionPath>$(MSBuildProjectDirectory)\..\..\RoslynTools.slnx</SolutionPath>
+    </PropertyGroup>
+    <Exec Command="dotnet format &quot;$(SolutionPath)&quot; --verify-no-changes"
+          EchoOff="true"
+          ContinueOnError="false" />
+    <Message Importance="normal" Text="Format check passed." />
+  </Target>
+
   <Target Name="DeployRtSkill"
           AfterTargets="Build"
           Condition="'$(Configuration)' == 'Debug' AND '$(DeployRtSkill)' != 'false' AND '$(RuntimeIdentifier)' == ''">
