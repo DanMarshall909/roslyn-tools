@@ -19,6 +19,7 @@ nupkg/
 **/TestOutput/
 **/TestResults/
 coverage/
+StrykerOutput/
 
 ## Claude Code local state (worktrees, user settings)
 .claude/

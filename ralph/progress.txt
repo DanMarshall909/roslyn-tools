@@ -1,9 +1,9 @@
 roslyn-tools Change Signature Backlog
 ======================================
 Branch: ralph/change-signature
-PRD: prd.json (3 user stories)
+PRD: prd.json (8 user stories)
 Date Started: 2026-04-20
-Current Status: 0/3 stories complete (0%)
+Current Status: 0/8 stories complete (0%)
 
 Previous backlog (ralph/output-layer, 8/8 complete)
 archived to: ralph/archive/2026-04-20-output-layer/
@@ -13,3 +13,8 @@ PENDING STORIES
 [ ] US-216: change-signature command infrastructure + rename-param sub-command
 [ ] US-217: change-signature reorder sub-command
 [ ] US-218: change-signature add-param and remove-param sub-commands
+[ ] US-219: nearest-solution auto-detection and repo default resolution
+[ ] US-220: separate exploration results from non-fatal workspace diagnostics
+[ ] US-221: analyze-interface command with consumer-by-consumer member usage
+[ ] US-222: replacement interface suggestions on top of analyze-interface
+[ ] US-223: narrow-dependency refactor workflow for interface segregation

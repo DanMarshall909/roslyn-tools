@@ -41,6 +41,23 @@ dotnet build "RoslynTools.slnx"
 dotnet format "RoslynTools.slnx" --verify-no-changes
 ```
 
+## Mutation Testing
+
+Stryker.NET is pinned via `.config/dotnet-tools.json` and configured in `stryker-config.json`. Currently piloted against `MakeSealedCommand` only; rollout to the rest of `Commands/` is tracked in the backlog.
+
+```powershell
+dotnet tool restore      # one-time, installs dotnet-stryker 4.14.1
+dotnet stryker           # runs against the config'd file(s), reports to StrykerOutput/
+```
+
+**Target: 100% mutation score on `src/RoslynTools/Commands/`.** Every surviving mutant is a signal — classify it:
+
+- **Missing test case** — real gap. The mutated code has observable behaviour but no test asserts on it. Add the assertion that would have killed the mutant.
+- **Extra cruft** — the mutated code has no observable behaviour because it shouldn't exist. The test suite passing after the mutation is proof the code is dead / unneeded. Delete the code; do not add a test to justify it.
+- **Equivalent mutant** — rare. Genuinely behaviour-preserving transformation (e.g. `>=` vs `>` on an unreachable branch). Document in a one-line `// mutation: equivalent — <reason>` comment and add to `ignore-mutations` in `stryker-config.json`.
+
+Never weaken an assertion to make a mutant "die" — that's score fraud. The valid moves are "tighten test", "delete code", or "justify as equivalent". Nothing else.
+
 ## Dogfooding
 
 After modifying or adding any command, test it against a real solution before marking work complete. Use the roslyn-tools solution itself (`RoslynTools.slnx`) as the default target — it's small enough to load fast but has enough types/members to exercise the commands.
