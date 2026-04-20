@@ -40,7 +40,7 @@ public class FindDuplicatesTests
             var groups = await FindDuplicatesCore.RunAsync(sln, new FindDuplicatesOptions());
 
             Assert.NotEmpty(groups);
-            var g = groups.First();
+            var g = groups[0];
             Assert.Equal(2, g.Occurrences.Count);
             Assert.Equal(3, g.StatementCount);
         }
@@ -1632,7 +1632,7 @@ public class FindDuplicatesTests
             Assert.NotEmpty(groups);
 
             var output = CaptureText(groups);
-            var occurrenceLines = output.Split('\n').Where(l => l.TrimStart().StartsWith("1.") || l.TrimStart().StartsWith("2."));
+            var occurrenceLines = output.Split('\n').Where(l => l.TrimStart().StartsWith("1.", StringComparison.Ordinal) || l.TrimStart().StartsWith("2.", StringComparison.Ordinal));
             Assert.All(occurrenceLines, line => Assert.DoesNotContain('\\', line));
         }
     }
@@ -1670,7 +1670,7 @@ public class FindDuplicatesTests
 
             var output = CaptureText(groups);
             // Each occurrence line should contain a startLine-endLine range like ":7-9"
-            var occurrenceLines = output.Split('\n').Where(l => l.TrimStart().StartsWith("1.") || l.TrimStart().StartsWith("2.")).ToList();
+            var occurrenceLines = output.Split('\n').Where(l => l.TrimStart().StartsWith("1.", StringComparison.Ordinal) || l.TrimStart().StartsWith("2.", StringComparison.Ordinal)).ToList();
             Assert.All(occurrenceLines, line => Assert.Matches(@":\d+-\d+", line));
         }
     }

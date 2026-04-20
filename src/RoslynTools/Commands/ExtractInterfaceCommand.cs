@@ -136,25 +136,25 @@ internal sealed class ExtractInterfaceCommand : IRtCommand
 
         if (!string.IsNullOrEmpty(namespaceName))
         {
-            sb.AppendLine($"namespace {namespaceName};");
+            sb.AppendLineF($"namespace {namespaceName};");
             sb.AppendLine();
         }
 
-        sb.AppendLine($"public interface {interfaceName}");
+        sb.AppendLineF($"public interface {interfaceName}");
         sb.AppendLine("{");
 
         foreach (var method in methods)
         {
             var returnType = method.ReturnType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
             var paramList = BuildParamList(method);
-            sb.AppendLine($"    {returnType} {method.Name}({paramList});");
+            sb.AppendLineF($"    {returnType} {method.Name}({paramList});");
         }
 
         foreach (var property in properties)
         {
             var typeName = property.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
             var accessors = BuildAccessors(property);
-            sb.AppendLine($"    {typeName} {property.Name} {{ {accessors} }}");
+            sb.AppendLineF($"    {typeName} {property.Name} {{ {accessors} }}");
         }
 
         sb.AppendLine("}");

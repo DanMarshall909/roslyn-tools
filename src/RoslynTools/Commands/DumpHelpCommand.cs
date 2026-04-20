@@ -38,7 +38,7 @@ internal static class DumpHelpCommand
         sb.AppendLine();
         sb.AppendLine("Auto-generated on every `dotnet build` from each command's static `RtCommandInfo Info` property. **Do not hand-edit.**");
         sb.AppendLine();
-        sb.AppendLine($"Total commands: **{registry.Count}**");
+        sb.AppendLineF($"Total commands: **{registry.Count}**");
         sb.AppendLine();
 
         var byCategory = registry
@@ -49,21 +49,21 @@ internal static class DumpHelpCommand
         sb.AppendLine();
         foreach (var group in byCategory)
         {
-            sb.AppendLine($"- **{group.Key}** — {string.Join(", ", group.OrderBy(e => e.Info.Name).Select(e => $"[`{e.Info.Name}`](#{Anchor(e.Info.Name)}){(e.Info.Aliases is { Length: > 0 } a ? $" ({string.Join("/", a)})" : "")}"))}");
+            sb.AppendLineF($"- **{group.Key}** — {string.Join(", ", group.OrderBy(e => e.Info.Name).Select(e => $"[`{e.Info.Name}`](#{Anchor(e.Info.Name)}){(e.Info.Aliases is { Length: > 0 } a ? $" ({string.Join("/", a)})" : "")}"))}");
         }
         sb.AppendLine();
 
         foreach (var group in byCategory)
         {
-            sb.AppendLine($"## {group.Key}");
+            sb.AppendLineF($"## {group.Key}");
             sb.AppendLine();
 
             foreach (var (c, info) in group.OrderBy(e => e.Info.Name))
             {
                 var shortDescription = c.Description ?? "(no description)";
-                sb.AppendLine($"### {info.Name}");
+                sb.AppendLineF($"### {info.Name}");
                 sb.AppendLine();
-                sb.AppendLine($"_{shortDescription}_");
+                sb.AppendLineF($"_{shortDescription}_");
                 sb.AppendLine();
 
                 var badges = new List<string>
@@ -76,7 +76,7 @@ internal static class DumpHelpCommand
 
                 if (info.Aliases is { Length: > 0 })
                 {
-                    sb.AppendLine($"**Aliases:** {string.Join(", ", info.Aliases.Select(a => $"`{a}`"))}");
+                    sb.AppendLineF($"**Aliases:** {string.Join(", ", info.Aliases.Select(a => $"`{a}`"))}");
                     sb.AppendLine();
                 }
 
@@ -104,7 +104,7 @@ internal static class DumpHelpCommand
                     sb.AppendLine();
                     foreach (var issue in info.KnownIssues)
                     {
-                        sb.AppendLine($"- {issue}");
+                        sb.AppendLineF($"- {issue}");
                     }
                     sb.AppendLine();
                 }

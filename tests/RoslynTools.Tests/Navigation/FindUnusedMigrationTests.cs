@@ -16,6 +16,7 @@ public class FindUnusedMigrationTests : IDisposable
     public void Dispose()
     {
         RtContext.Format = OutputFormat.Text;
+        GC.SuppressFinalize(this);
     }
 
     private static FindUnusedResult BuildSampleResult()

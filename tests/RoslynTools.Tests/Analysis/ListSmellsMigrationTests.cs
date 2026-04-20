@@ -15,6 +15,7 @@ public class ListSmellsMigrationTests : IDisposable
     public void Dispose()
     {
         RtContext.Format = OutputFormat.Text;
+        GC.SuppressFinalize(this);
     }
 
     private static ListSmellsResult BuildResult(params (string SmellType, string TypeName, string? MemberName, string FilePath, int Line, string Detail)[] items)

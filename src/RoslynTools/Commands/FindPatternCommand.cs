@@ -8,6 +8,8 @@ internal sealed class FindPatternCommand : IRtCommand
 {
     private FindPatternCommand() { }
 
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+
     public static RtCommandInfo Info { get; } = new(
         Name: "find-pattern",
         Mutates: false,
@@ -53,7 +55,7 @@ internal sealed class FindPatternCommand : IRtCommand
                 }
 
                 var output = new { matches };
-                Console.WriteLine(JsonSerializer.Serialize(output, new JsonSerializerOptions { WriteIndented = true }));
+                Console.WriteLine(JsonSerializer.Serialize(output, JsonOptions));
             }
         }, fileOpt, startLineOpt, endLineOpt, solutionOpt, scopeOpt);
 

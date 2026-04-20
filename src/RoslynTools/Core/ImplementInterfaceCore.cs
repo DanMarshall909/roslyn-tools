@@ -232,11 +232,11 @@ internal static class ImplementInterfaceCore
         var typeParams = BuildTypeParamList(method);
 
         var sb = new StringBuilder();
-        sb.Append($"public {returnType} {method.Name}{typeParams}({paramList})");
+        sb.AppendF($"public {returnType} {method.Name}{typeParams}({paramList})");
         sb.AppendLine();
         sb.AppendLine("{");
         sb.AppendLine("    throw new NotImplementedException();");
-        sb.Append("}");
+        sb.Append('}');
 
         var member = SyntaxFactory.ParseMemberDeclaration(sb.ToString())
             ?? throw new InvalidOperationException($"Failed to parse method stub for '{method.Name}'.");

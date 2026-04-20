@@ -105,7 +105,7 @@ public class FindCallersTests
     // Helper: mirrors the algorithm from FindCallersCommand
     // ---------------------------------------------------------------------------
 
-    private record CallerInfo(string? FilePath, int Line, string? ContainingMethod);
+    private sealed record CallerInfo(string? FilePath, int Line, string? ContainingMethod);
 
     private static async Task<List<CallerInfo>> FindInvocationCallersAsync(
         Solution solution,

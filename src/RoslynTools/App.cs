@@ -83,7 +83,7 @@ internal static class App
             .InvokeAsync(args);
     }
 
-    private static IReadOnlyList<(Command, RtCommandInfo)> Discover()
+    private static List<(Command, RtCommandInfo)> Discover()
     {
         const BindingFlags staticFlags = BindingFlags.Static | BindingFlags.Public;
 

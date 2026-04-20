@@ -498,7 +498,7 @@ internal static class TransformParametersCore
     // ──────────────────────────────────────────────────────────────────────────
 
     private static string Capitalize(string name)
-        => name.Length == 0 ? name : char.ToUpper(name[0]) + name[1..];
+        => name.Length == 0 ? name : char.ToUpperInvariant(name[0]) + name[1..];
 
     private static string MemberIndent(TypeDeclarationSyntax type)
     {

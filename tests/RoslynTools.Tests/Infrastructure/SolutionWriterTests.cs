@@ -31,8 +31,8 @@ public class SolutionWriterTests : IDisposable
 
         var output = _output.ToString();
         var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        var diffLines = lines.Where(l => l.StartsWith('+') && !l.StartsWith("+++")).ToArray();
-        var removedLines = lines.Where(l => l.StartsWith('-') && !l.StartsWith("---")).ToArray();
+        var diffLines = lines.Where(l => l.StartsWith('+') && !l.StartsWith("+++", StringComparison.Ordinal)).ToArray();
+        var removedLines = lines.Where(l => l.StartsWith('-') && !l.StartsWith("---", StringComparison.Ordinal)).ToArray();
 
         Assert.Single(diffLines);
         Assert.Contains("X", diffLines[0]);
@@ -49,8 +49,8 @@ public class SolutionWriterTests : IDisposable
 
         var output = _output.ToString();
         var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        var addedLines = lines.Where(l => l.StartsWith('+') && !l.StartsWith("+++")).ToArray();
-        var removedLines = lines.Where(l => l.StartsWith('-') && !l.StartsWith("---")).ToArray();
+        var addedLines = lines.Where(l => l.StartsWith('+') && !l.StartsWith("+++", StringComparison.Ordinal)).ToArray();
+        var removedLines = lines.Where(l => l.StartsWith('-') && !l.StartsWith("---", StringComparison.Ordinal)).ToArray();
 
         Assert.Single(removedLines);
         Assert.Contains("X", removedLines[0]);
@@ -67,8 +67,8 @@ public class SolutionWriterTests : IDisposable
 
         var output = _output.ToString();
         var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        var addedLines = lines.Where(l => l.StartsWith('+') && !l.StartsWith("+++")).ToArray();
-        var removedLines = lines.Where(l => l.StartsWith('-') && !l.StartsWith("---")).ToArray();
+        var addedLines = lines.Where(l => l.StartsWith('+') && !l.StartsWith("+++", StringComparison.Ordinal)).ToArray();
+        var removedLines = lines.Where(l => l.StartsWith('-') && !l.StartsWith("---", StringComparison.Ordinal)).ToArray();
 
         Assert.Single(removedLines);
         Assert.Single(addedLines);
@@ -86,8 +86,8 @@ public class SolutionWriterTests : IDisposable
         var output = _output.ToString();
         var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         var diffLines = lines.Where(l =>
-            (l.StartsWith('+') && !l.StartsWith("+++")) ||
-            (l.StartsWith('-') && !l.StartsWith("---"))).ToArray();
+            (l.StartsWith('+') && !l.StartsWith("+++", StringComparison.Ordinal)) ||
+            (l.StartsWith('-') && !l.StartsWith("---", StringComparison.Ordinal))).ToArray();
 
         Assert.Empty(diffLines);
     }
@@ -103,7 +103,7 @@ public class SolutionWriterTests : IDisposable
 
         var output = _output.ToString();
         var hunkHeaders = output.Split('\n')
-            .Where(l => l.StartsWith("@@"))
+            .Where(l => l.StartsWith("@@", StringComparison.Ordinal))
             .ToArray();
 
         Assert.True(hunkHeaders.Length >= 2, $"Expected at least 2 hunk headers, got {hunkHeaders.Length}. Output:\n{output}");

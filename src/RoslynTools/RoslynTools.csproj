@@ -65,6 +65,21 @@
           ContinueOnError="true" />
   </Target>
 
+  <!-- Run rt analysis commands. Not wired to AfterBuild — invoke explicitly:
+       dotnet build src/RoslynTools/RoslynTools.csproj -t:Analyze -->
+  <Target Name="Analyze">
+    <PropertyGroup>
+      <RtDll>$(OutputPath)rt.dll</RtDll>
+      <SolutionPath>$(MSBuildProjectDirectory)\..\..\RoslynTools.slnx</SolutionPath>
+    </PropertyGroup>
+    <Message Importance="high" Text="=== rt find-unused ===" />
+    <Exec Command="dotnet &quot;$(RtDll)&quot; find-unused --solution &quot;$(SolutionPath)&quot;"
+          ContinueOnError="true" />
+    <Message Importance="high" Text="=== rt list-smells ===" />
+    <Exec Command="dotnet &quot;$(RtDll)&quot; list-smells --solution &quot;$(SolutionPath)&quot;"
+          ContinueOnError="true" />
+  </Target>
+
   <Target Name="DeployRtSkill"
           AfterTargets="Build"
           Condition="'$(Configuration)' == 'Debug' AND '$(DeployRtSkill)' != 'false' AND '$(RuntimeIdentifier)' == ''">

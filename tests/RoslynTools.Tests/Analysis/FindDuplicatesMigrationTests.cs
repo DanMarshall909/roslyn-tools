@@ -15,6 +15,7 @@ public class FindDuplicatesMigrationTests : IDisposable
     public void Dispose()
     {
         RtContext.Format = OutputFormat.Text;
+        GC.SuppressFinalize(this);
     }
 
     private static (AdhocProjectBuilder Project, IReadOnlyList<DuplicateGroup> Groups, string? SolutionDir) BuildDuplicateProject()

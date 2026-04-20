@@ -16,7 +16,7 @@ public class ListSmellsTests
 
         var largeClassLines = new System.Text.StringBuilder();
         largeClassLines.AppendLine("public class BigClass {");
-        for (int i = 0; i < 305; i++) largeClassLines.AppendLine($"    public int Prop{i} {{ get; set; }}");
+        for (int i = 0; i < 305; i++) largeClassLines.AppendLineF($"    public int Prop{i} {{ get; set; }}");
         largeClassLines.AppendLine("}");
         project.AddSource("BigClass.cs", largeClassLines.ToString());
 
@@ -43,7 +43,7 @@ public class ListSmellsTests
         var longMethodLines = new System.Text.StringBuilder();
         longMethodLines.AppendLine("public class MyService {");
         longMethodLines.AppendLine("    public void DoWork() {");
-        for (int i = 0; i < 45; i++) longMethodLines.AppendLine($"        var x{i} = {i};");
+        for (int i = 0; i < 45; i++) longMethodLines.AppendLineF($"        var x{i} = {i};");
         longMethodLines.AppendLine("    }");
         longMethodLines.AppendLine("}");
         project.AddSource("MyService.cs", longMethodLines.ToString());
@@ -132,7 +132,7 @@ public class ListSmellsTests
         // A class of ~55 lines — under default 300 but over custom threshold of 50
         var mediumClassLines = new System.Text.StringBuilder();
         mediumClassLines.AppendLine("public class MediumClass {");
-        for (int i = 0; i < 53; i++) mediumClassLines.AppendLine($"    public int Prop{i} {{ get; set; }}");
+        for (int i = 0; i < 53; i++) mediumClassLines.AppendLineF($"    public int Prop{i} {{ get; set; }}");
         mediumClassLines.AppendLine("}");
         project.AddSource("MediumClass.cs", mediumClassLines.ToString());
 

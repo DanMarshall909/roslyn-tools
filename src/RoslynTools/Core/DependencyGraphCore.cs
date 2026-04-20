@@ -295,13 +295,13 @@ internal static class DependencyGraphCore
         sb.AppendLine("digraph {");
 
         foreach (var (from, to) in edges)
-            sb.AppendLine($"  \"{from}\" -> \"{to}\";");
+            sb.AppendLineF($"  \"{from}\" -> \"{to}\";");
 
         var nodesInEdges = new HashSet<string>(
             edges.SelectMany(e => new[] { e.From, e.To }),
             StringComparer.Ordinal);
         foreach (var node in nodes.Where(n => !nodesInEdges.Contains(n)).OrderBy(n => n))
-            sb.AppendLine($"  \"{node}\";");
+            sb.AppendLineF($"  \"{node}\";");
 
         sb.Append('}');
         return sb.ToString();

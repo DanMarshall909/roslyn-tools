@@ -16,6 +16,7 @@ public class CircularDepsMigrationTests : IDisposable
     public void Dispose()
     {
         RtContext.Format = OutputFormat.Text;
+        GC.SuppressFinalize(this);
     }
 
     // Three namespaces that form a cycle: A -> B -> C -> A

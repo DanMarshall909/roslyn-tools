@@ -1,4 +1,5 @@
 using System.CommandLine;
+using System.Globalization;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -183,12 +184,12 @@ internal sealed class ExtractClassCommand : IRtCommand
 
         if (!string.IsNullOrEmpty(namespaceName))
         {
-            sb.AppendLine($"namespace {namespaceName};");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"namespace {namespaceName};");
             sb.AppendLine();
         }
 
         var staticKeyword = isStatic ? "static " : string.Empty;
-        sb.AppendLine($"public {staticKeyword}class {newTypeName}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"public {staticKeyword}class {newTypeName}");
         sb.AppendLine("{");
 
         foreach (var member in membersToExtract)
@@ -202,7 +203,7 @@ internal sealed class ExtractClassCommand : IRtCommand
                 if (string.IsNullOrWhiteSpace(trimmedLine))
                     sb.AppendLine();
                 else
-                    sb.AppendLine($"    {trimmedLine.TrimStart()}");
+                    sb.AppendLine(CultureInfo.InvariantCulture, $"    {trimmedLine.TrimStart()}");
             }
         }
 
@@ -218,7 +219,7 @@ internal sealed class ExtractClassCommand : IRtCommand
     private static string DeriveFieldName(string typeName)
     {
         if (string.IsNullOrEmpty(typeName)) return "_dependency";
-        var name = char.ToLower(typeName[0]) + typeName[1..];
+        var name = char.ToLower(typeName[0], CultureInfo.InvariantCulture) + typeName[1..];
         return "_" + name;
     }
 

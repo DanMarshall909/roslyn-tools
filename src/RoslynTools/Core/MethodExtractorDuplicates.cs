@@ -165,7 +165,7 @@ internal static class MethodExtractorDuplicates
         if (value.Length > 1 && value[0] == '-' && char.IsDigit(value[1])) return true;
 
         // String literal
-        if (value.StartsWith('"') || value.StartsWith("@\"") || value.StartsWith("$\"")) return true;
+        if (value.StartsWith('"') || value.StartsWithOrdinal("@\"") || value.StartsWithOrdinal("$\"")) return true;
 
         // Char literal
         if (value.StartsWith('\'')) return true;

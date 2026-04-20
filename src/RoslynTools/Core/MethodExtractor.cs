@@ -328,7 +328,7 @@ internal static class MethodExtractor
         string name,
         IReadOnlyList<ISymbol> parameters,
         List<ISymbol> returnVars,
-        IReadOnlyList<StatementSyntax> bodyStatements,
+        List<StatementSyntax> bodyStatements,
         SemanticModel model,
         bool isStatic)
     {

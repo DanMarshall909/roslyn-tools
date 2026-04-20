@@ -66,7 +66,7 @@ internal static class FindDuplicatesCore
     private sealed class CandidateLoc
     {
         public required string FilePath { get; init; }
-        public required IReadOnlyList<StatementSyntax> Body { get; init; }
+        public required List<StatementSyntax> Body { get; init; }
         public required int StartIdx { get; init; }
         public required string ContainingType { get; init; }
         public required string ContainingMember { get; init; }

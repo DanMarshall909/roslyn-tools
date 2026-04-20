@@ -19,7 +19,7 @@ internal static class JsonRenderer
         writer.Write(json);
     }
 
-    private static object? BuildObject(IRtOutput result, OutputLevel maxLevel)
+    private static Dictionary<string, object?>? BuildObject(IRtOutput result, OutputLevel maxLevel)
     {
         var dict = new Dictionary<string, object?>();
 

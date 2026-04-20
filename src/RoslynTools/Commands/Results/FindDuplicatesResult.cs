@@ -55,7 +55,7 @@ internal sealed record DuplicateGroupResult : IRtOutput
     public required string GroupId { get; init; }
 
     [OutputField(OutputLevel.Default, "mode")]
-    public string Mode => "structural";
+    public static string Mode => "structural";
 
     [OutputField(OutputLevel.Default, "score")]
     public required double Score { get; init; }
@@ -85,7 +85,7 @@ internal sealed record DuplicateGroupResult : IRtOutput
 internal sealed record FindDuplicatesResult : IRtOutput, IRtMarkdownOutput, IRtJsonOutput
 {
     [OutputField(OutputLevel.Default, "mode")]
-    public string Mode => "structural";
+    public static string Mode => "structural";
 
     [OutputField(OutputLevel.Llm, "groups")]
     public required IReadOnlyList<DuplicateGroupResult> Groups { get; init; }
@@ -184,7 +184,7 @@ internal sealed record FindDuplicatesResult : IRtOutput, IRtMarkdownOutput, IRtJ
             groups = Groups.Select(g => new
             {
                 groupId = g.GroupId,
-                mode = g.Mode,
+                mode = DuplicateGroupResult.Mode,
                 score = g.Score,
                 occurrenceCount = g.OccurrenceCount,
                 extractability = g.Extractability,

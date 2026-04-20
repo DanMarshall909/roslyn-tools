@@ -81,7 +81,7 @@ internal static class WorkspaceLoader
         return (workspace, solution);
     }
 
-    private static void EmitDiagnostics(IReadOnlyList<WorkspaceDiagnostic> diagnostics, bool fatal)
+    private static void EmitDiagnostics(List<WorkspaceDiagnostic> diagnostics, bool fatal)
     {
         if (diagnostics.Count == 0)
             return;

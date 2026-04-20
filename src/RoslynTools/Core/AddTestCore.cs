@@ -127,7 +127,7 @@ internal static class AddTestCore
 
         var words = cleaned
             .Split(' ', StringSplitOptions.RemoveEmptyEntries)
-            .Select(w => char.ToUpper(w[0]) + w[1..].ToLower());
+            .Select(w => char.ToUpperInvariant(w[0]) + w[1..].ToLowerInvariant());
 
         return string.Join("_", words);
     }

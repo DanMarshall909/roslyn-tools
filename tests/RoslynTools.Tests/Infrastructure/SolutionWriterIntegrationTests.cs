@@ -83,7 +83,7 @@ public class SolutionWriterIntegrationTests
     /// <summary>
     /// Simple TextLoader that provides the content for the new document.
     /// </summary>
-    private class NewClassTextLoader : TextLoader
+    private sealed class NewClassTextLoader : TextLoader
     {
         public override Task<TextAndVersion> LoadTextAndVersionAsync(
             LoadTextOptions options, CancellationToken cancellationToken)

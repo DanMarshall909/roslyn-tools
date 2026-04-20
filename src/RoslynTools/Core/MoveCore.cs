@@ -356,7 +356,7 @@ internal static class MoveCore
         if (ns == rootNamespace)
             return "";
 
-        if (ns.StartsWith(rootNamespace + "."))
+        if (ns.StartsWithOrdinal(rootNamespace + "."))
             return ns[(rootNamespace.Length + 1)..].Replace('.', Path.DirectorySeparatorChar);
 
         return ns.Replace('.', Path.DirectorySeparatorChar);
@@ -409,7 +409,7 @@ internal static class MoveCore
                 return SyntaxFactory.ParseName(_newNs).WithTriviaFrom(visited);
             }
 
-            if (text.StartsWith(_oldNs + "."))
+            if (text.StartsWithOrdinal(_oldNs + "."))
             {
                 Changed = true;
                 var newText = _newNs + text[_oldNs.Length..];
@@ -431,7 +431,7 @@ internal static class MoveCore
                 return SyntaxFactory.ParseExpression(_newNs).WithTriviaFrom(visited);
             }
 
-            if (text.StartsWith(_oldNs + "."))
+            if (text.StartsWithOrdinal(_oldNs + "."))
             {
                 Changed = true;
                 var newText = _newNs + text[_oldNs.Length..];

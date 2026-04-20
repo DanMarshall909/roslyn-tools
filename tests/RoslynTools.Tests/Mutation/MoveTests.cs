@@ -162,7 +162,7 @@ public class MoveTests
     /// <summary>
     /// Minimal syntax rewriter for test purposes — mirrors the pattern in MoveCommand.
     /// </summary>
-    private class NamespaceRewriter : CSharpSyntaxRewriter
+    private sealed class NamespaceRewriter : CSharpSyntaxRewriter
     {
         private readonly string _oldNs;
         private readonly string _newNs;

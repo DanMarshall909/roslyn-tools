@@ -1,4 +1,5 @@
 using System.CommandLine;
+using System.Globalization;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -108,7 +109,7 @@ internal sealed class AddDependencyCommand : IRtCommand
             name = name[1..];
 
         // Convert first char to lowercase: EmailService → emailService
-        name = char.ToLower(name[0]) + name[1..];
+        name = char.ToLower(name[0], CultureInfo.InvariantCulture) + name[1..];
 
         // Prefix with _: emailService → _emailService
         return "_" + name;
