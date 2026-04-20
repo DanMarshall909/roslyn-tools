@@ -160,7 +160,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes with no formatting violations."
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Primary touch points: src/RoslynTools/Core/WorkspaceLoader.cs plus any shared output helpers. Keep stdout for primary results; reserve stderr for true failures or explicitly marked warning sections. This story should address the current PowerShell stderr pollution gap."
     },
     {

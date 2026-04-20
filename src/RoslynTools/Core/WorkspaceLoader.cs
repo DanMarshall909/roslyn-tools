@@ -12,6 +12,12 @@ internal static class WorkspaceLoader
     internal static AsyncLocal<(Workspace Workspace, Solution Solution)?> Override { get; } = new();
 
     /// <summary>
+    /// Test hook: redirects diagnostic output away from <see cref="Console.Error"/> when set.
+    /// AsyncLocal so parallel xunit tests don't clobber each other.
+    /// </summary>
+    internal static AsyncLocal<TextWriter?> DiagnosticSinkOverride { get; } = new();
+
+    /// <summary>
     /// Test-only scope: installs an override for the duration of the returned IDisposable, then clears it.
     /// </summary>
     internal static IDisposable UseOverride(Workspace workspace, Solution solution)
@@ -42,16 +48,49 @@ internal static class WorkspaceLoader
             { "SkipUnrecognizedProjects", "true" }
         });
 
-        // Log workspace diagnostics as warnings rather than throwing — packages.config
-        // projects produce many "cannot find file" warnings but load correctly.
-        workspace.RegisterWorkspaceFailedHandler(e =>
-            Console.Error.WriteLine($"[workspace] {e.Diagnostic.Kind}: {e.Diagnostic.Message}"));
+        var diagnostics = new List<WorkspaceDiagnostic>();
+        var subscription = workspace.RegisterWorkspaceFailedHandler(e =>
+        {
+            lock (diagnostics) diagnostics.Add(e.Diagnostic);
+        });
 
-        Console.Error.WriteLine($"Loading solution: {solutionPath}");
-        var solution = await workspace.OpenSolutionAsync(solutionPath);
-        Console.Error.WriteLine($"Loaded {solution.Projects.Count()} project(s).");
+        Solution solution;
+        try
+        {
+            solution = await workspace.OpenSolutionAsync(solutionPath);
+        }
+        catch
+        {
+            EmitDiagnostics(diagnostics, fatal: true);
+            workspace.Dispose();
+            throw;
+        }
 
+        // Fail fast only when we actually got nothing usable: no projects AND a Failure-kind diagnostic.
+        // Warnings (restore, package audit, unresolved imports) are non-fatal as long as Roslyn has a usable model.
+        var hasFailureKind = diagnostics.Any(d => d.Kind == WorkspaceDiagnosticKind.Failure);
+        if (!solution.Projects.Any() && hasFailureKind)
+        {
+            EmitDiagnostics(diagnostics, fatal: true);
+            workspace.Dispose();
+            throw new InvalidOperationException(
+                $"Solution '{solutionPath}' failed to load: no projects and {diagnostics.Count} diagnostic(s). See [workspace-warnings] above.");
+        }
+
+        EmitDiagnostics(diagnostics, fatal: false);
         return (workspace, solution);
+    }
+
+    private static void EmitDiagnostics(IReadOnlyList<WorkspaceDiagnostic> diagnostics, bool fatal)
+    {
+        if (diagnostics.Count == 0)
+            return;
+
+        var sink = DiagnosticSinkOverride.Value ?? Console.Error;
+        sink.WriteLine("---");
+        sink.WriteLine(fatal ? "[workspace-failures]" : "[workspace-warnings]");
+        foreach (var d in diagnostics)
+            sink.WriteLine($"  {d.Kind}: {d.Message}");
     }
 
     private static string ResolveSolutionPath(string? solutionPath)

@@ -15,13 +15,14 @@ public class WorkspaceLoaderSmokeTests
 {
     static WorkspaceLoaderSmokeTests() => MsBuildFixture.Ensure();
 
+    private static string ResolveSelfSlnx() => Path.GetFullPath(Path.Combine(
+        Path.GetDirectoryName(typeof(WorkspaceLoaderSmokeTests).Assembly.Location)!,
+        "..", "..", "..", "..", "..", "..", "RoslynTools.slnx"));
+
     [Fact]
     public async Task Opens_the_solution_and_finds_a_known_type()
     {
-        var slnPath = Path.GetFullPath(Path.Combine(
-            Path.GetDirectoryName(typeof(WorkspaceLoaderSmokeTests).Assembly.Location)!,
-            "..", "..", "..", "..", "..", "..", "RoslynTools.slnx"));
-
+        var slnPath = ResolveSelfSlnx();
         Assert.True(File.Exists(slnPath), $"Expected slnx at {slnPath}");
 
         var (workspace, solution) = await WorkspaceLoader.LoadAsync(slnPath);
@@ -32,6 +33,58 @@ public class WorkspaceLoaderSmokeTests
             var sym = await SymbolLocator.FindSymbolByFqnAsync(
                 solution, "RoslynTools.Core.WorkspaceLoader", "type");
             Assert.NotNull(sym);
+        }
+    }
+
+    [Fact]
+    public async Task Successful_load_does_not_emit_progress_banner_to_diagnostic_sink()
+    {
+        var slnPath = ResolveSelfSlnx();
+        using var sink = new StringWriter();
+        WorkspaceLoader.DiagnosticSinkOverride.Value = sink;
+        try
+        {
+            var (workspace, solution) = await WorkspaceLoader.LoadAsync(slnPath);
+            using (workspace)
+            {
+                Assert.NotEmpty(solution.Projects);
+            }
+
+            var output = sink.ToString();
+            Assert.DoesNotContain("Loading solution", output);
+            Assert.DoesNotContain("Loaded ", output);
+
+            // If any diagnostics surfaced from the real load, they must live under the
+            // delimited warnings section, not as raw interleaved lines.
+            if (output.Length > 0)
+            {
+                Assert.StartsWith("---", output);
+                Assert.Contains("[workspace-warnings]", output);
+            }
+        }
+        finally
+        {
+            WorkspaceLoader.DiagnosticSinkOverride.Value = null;
+        }
+    }
+
+    [Fact]
+    public async Task Missing_solution_file_throws_without_touching_diagnostic_sink()
+    {
+        using var sink = new StringWriter();
+        WorkspaceLoader.DiagnosticSinkOverride.Value = sink;
+        try
+        {
+            var missing = Path.Combine(Path.GetTempPath(), $"rt-nonexistent-{Guid.NewGuid():N}.sln");
+
+            await Assert.ThrowsAsync<FileNotFoundException>(
+                () => WorkspaceLoader.LoadAsync(missing));
+
+            Assert.Equal(string.Empty, sink.ToString());
+        }
+        finally
+        {
+            WorkspaceLoader.DiagnosticSinkOverride.Value = null;
         }
     }
 }
