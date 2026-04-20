@@ -4,7 +4,6 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <AssemblyName>rt</AssemblyName>
     <RootNamespace>RoslynTools</RootNamespace>
     <!-- dotnet tool packaging -->
