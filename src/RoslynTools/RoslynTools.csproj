@@ -54,16 +54,16 @@
     Override the destination: -p:RtSkillsDir="C:\path\to\skills\use-rt"
     Skip entirely:            -p:DeployRtSkill=false
   -->
-  <Target Name="FormatCheck"
+  <Target Name="FormatChanged"
           AfterTargets="Build"
-          Condition="'$(Configuration)' == 'Debug' AND '$(FormatCheck)' != 'false' AND '$(RuntimeIdentifier)' == ''">
+          Condition="'$(Configuration)' == 'Debug' AND '$(FormatChanged)' != 'false' AND '$(RuntimeIdentifier)' == ''">
     <PropertyGroup>
       <SolutionPath>$(MSBuildProjectDirectory)\..\..\RoslynTools.slnx</SolutionPath>
+      <FormatScript>$(MSBuildProjectDirectory)\..\..\scripts\format-changed.ps1</FormatScript>
     </PropertyGroup>
-    <Exec Command="dotnet format &quot;$(SolutionPath)&quot; --verify-no-changes"
+    <Exec Command="powershell -NoProfile -NonInteractive -File &quot;$(FormatScript)&quot; -Solution &quot;$(SolutionPath)&quot;"
           EchoOff="true"
-          ContinueOnError="false" />
-    <Message Importance="normal" Text="Format check passed." />
+          ContinueOnError="true" />
   </Target>
 
   <Target Name="DeployRtSkill"
