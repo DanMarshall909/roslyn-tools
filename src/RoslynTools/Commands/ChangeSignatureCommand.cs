@@ -16,6 +16,7 @@ internal sealed class ChangeSignatureCommand : IRtCommand
         Examples:
         [
             "rt change-signature rename-param \"MyApp.Services.OrderService.PlaceOrder\" oldName newName --solution MyApp.sln",
+            "rt change-signature reorder \"MyApp.Services.OrderService.PlaceOrder\" \"2,0,1\" --solution MyApp.sln",
         ]
     );
 
@@ -66,9 +67,53 @@ internal sealed class ChangeSignatureCommand : IRtCommand
             }
         });
 
+        var reorderMethodSpecArg = new Argument<string>("methodSpec", "Method spec, e.g. MyApp.Services.OrderService.PlaceOrder");
+        var orderArg = new Argument<string>("order", "Comma-separated new parameter order: indices (\"2,0,1\") or names (\"c,a,b\").");
+        var reorderSolutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file. Defaults to the single solution in current directory.");
+        var reorderDryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk.");
+
+        var reorder = new Command("reorder", "Reorder method parameters and update all call sites.")
+        {
+            reorderMethodSpecArg,
+            orderArg,
+            reorderSolutionOpt,
+            reorderDryRunOpt
+        };
+
+        reorder.SetHandler(async context =>
+        {
+            var methodSpec = context.ParseResult.GetValueForArgument(reorderMethodSpecArg);
+            var orderRaw = context.ParseResult.GetValueForArgument(orderArg);
+            var solution = context.ParseResult.GetValueForOption(reorderSolutionOpt);
+            var dryRun = context.ParseResult.GetValueForOption(reorderDryRunOpt);
+
+            var newOrder = orderRaw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            var (workspace, loadedSolution) = await WorkspaceLoader.LoadAsync(solution);
+            using (workspace)
+            {
+                try
+                {
+                    var updatedSolution = await ChangeSignatureCore.ReorderParamsAsync(
+                        loadedSolution,
+                        methodSpec,
+                        newOrder);
+
+                    await SolutionWriter.ApplyChangesAsync(loadedSolution, updatedSolution, dryRun);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    Console.Error.WriteLine($"Error: {ex.Message}");
+                    context.ExitCode = 1;
+                    return;
+                }
+            }
+        });
+
         var command = new Command("change-signature", "Change method signatures.")
         {
-            renameParam
+            renameParam,
+            reorder
         };
 
         return command;
