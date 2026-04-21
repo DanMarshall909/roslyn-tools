@@ -238,6 +238,225 @@ public sealed class AnalyzeInterfaceTests : IDisposable
         Assert.Contains(OutputFormat.Llm, formats);
     }
 
+    // --suggest tests (AC 1–8)
+
+    [Fact]
+    public async Task Suggest_flag_is_registered_on_the_command()
+    {
+        var command = AnalyzeInterfaceCommand.Build();
+        Assert.Contains(command.Options, option => option.Name == "suggest");
+    }
+
+    [Fact]
+    public async Task Suggest_produces_strict_subset_for_partial_consumer()
+    {
+        using var project = BuildInterfaceProject();
+        var (workspace, sln) = project.Build();
+
+        using (workspace)
+        {
+            var report = await AnalyzeInterfaceCore.AnalyzeAsync(
+                sln,
+                "Demo.Contracts.IWorker",
+                new AnalyzeInterfaceOptions(Suggest: true));
+
+            // RunAndNameConsumer uses {Name, Run} out of 4 — strict subset
+            var consumer = FindConsumer(report, "Demo.App.RunAndNameConsumer");
+            Assert.NotNull(consumer.Suggestion);
+            Assert.True(consumer.Suggestion!.HasNarrowingBenefit);
+            Assert.Equal(
+                ["string Demo.Contracts.IWorker.Name { get; }", "void Demo.Contracts.IWorker.Run()"],
+                consumer.Suggestion.SuggestedMembers.Select(m => m.DisplayName).ToArray());
+        }
+    }
+
+    [Fact]
+    public async Task Suggest_suggested_members_do_not_include_unused_members()
+    {
+        using var project = BuildInterfaceProject();
+        var (workspace, sln) = project.Build();
+
+        using (workspace)
+        {
+            var report = await AnalyzeInterfaceCore.AnalyzeAsync(
+                sln,
+                "Demo.Contracts.IWorker",
+                new AnalyzeInterfaceOptions(Suggest: true));
+
+            var consumer = FindConsumer(report, "Demo.App.RunAndNameConsumer");
+            Assert.NotNull(consumer.Suggestion);
+            var suggestedNames = consumer.Suggestion!.SuggestedMembers.Select(m => m.Name).ToHashSet();
+            Assert.DoesNotContain("Stop", suggestedNames);
+            Assert.DoesNotContain("Changed", suggestedNames);
+        }
+    }
+
+    [Fact]
+    public async Task Suggest_consumers_sharing_same_subset_have_matching_group_id()
+    {
+        using var project = BuildSuggestProject();
+        var (workspace, sln) = project.Build();
+
+        using (workspace)
+        {
+            var report = await AnalyzeInterfaceCore.AnalyzeAsync(
+                sln,
+                "Suggest.Contracts.IService",
+                new AnalyzeInterfaceOptions(Suggest: true));
+
+            var a = FindConsumer(report, "Suggest.App.ConsumerA");
+            var b = FindConsumer(report, "Suggest.App.ConsumerB");
+
+            Assert.NotNull(a.Suggestion);
+            Assert.NotNull(b.Suggestion);
+            Assert.Equal(a.Suggestion!.SharedGroupId, b.Suggestion!.SharedGroupId);
+        }
+    }
+
+    [Fact]
+    public async Task Suggest_consumer_using_full_interface_reports_no_narrowing_benefit()
+    {
+        using var project = BuildSuggestProject();
+        var (workspace, sln) = project.Build();
+
+        using (workspace)
+        {
+            var report = await AnalyzeInterfaceCore.AnalyzeAsync(
+                sln,
+                "Suggest.Contracts.IService",
+                new AnalyzeInterfaceOptions(Suggest: true));
+
+            var full = FindConsumer(report, "Suggest.App.FullConsumer");
+            Assert.NotNull(full.Suggestion);
+            Assert.False(full.Suggestion!.HasNarrowingBenefit);
+        }
+    }
+
+    [Fact]
+    public async Task Suggest_without_flag_leaves_suggestion_null()
+    {
+        using var project = BuildInterfaceProject();
+        var (workspace, sln) = project.Build();
+
+        using (workspace)
+        {
+            var report = await AnalyzeInterfaceCore.AnalyzeAsync(
+                sln,
+                "Demo.Contracts.IWorker",
+                new AnalyzeInterfaceOptions(Suggest: false));
+
+            var consumer = FindConsumer(report, "Demo.App.RunAndNameConsumer");
+            Assert.Null(consumer.Suggestion);
+        }
+    }
+
+    [Fact]
+    public async Task Suggest_json_output_includes_suggestion_payload()
+    {
+        using var project = BuildSuggestProject();
+        var (workspace, sln) = project.Build();
+
+        using (workspace)
+        {
+            var report = await AnalyzeInterfaceCore.AnalyzeAsync(
+                sln,
+                "Suggest.Contracts.IService",
+                new AnalyzeInterfaceOptions(Suggest: true));
+
+            var result = AnalyzeInterfaceResult.FromReport(report, suggest: true);
+            using var output = new StringWriter();
+            RtContext.Format = OutputFormat.Json;
+            RtSerializer.Write(result, output);
+
+            using var json = JsonDocument.Parse(output.ToString());
+            var consumers = json.RootElement.GetProperty("consumers").EnumerateArray().ToList();
+
+            var fullEntry = consumers.Single(c =>
+                c.GetProperty("consumer").GetProperty("displayName").GetString() == "Suggest.App.FullConsumer");
+
+            var suggestion = fullEntry.GetProperty("suggestion");
+            Assert.False(suggestion.GetProperty("hasNarrowingBenefit").GetBoolean());
+
+            var subsetEntry = consumers.Single(c =>
+                c.GetProperty("consumer").GetProperty("displayName").GetString() == "Suggest.App.ConsumerA");
+
+            var subsetSuggestion = subsetEntry.GetProperty("suggestion");
+            Assert.True(subsetSuggestion.GetProperty("hasNarrowingBenefit").GetBoolean());
+            Assert.True(subsetSuggestion.GetProperty("suggestedMembers").GetArrayLength() > 0);
+        }
+    }
+
+    [Fact]
+    public async Task Suggest_text_output_is_readable_and_labeled_advisory()
+    {
+        using var project = BuildSuggestProject();
+        var (workspace, sln) = project.Build();
+
+        using (workspace)
+        {
+            var report = await AnalyzeInterfaceCore.AnalyzeAsync(
+                sln,
+                "Suggest.Contracts.IService",
+                new AnalyzeInterfaceOptions(Suggest: true));
+
+            var result = AnalyzeInterfaceResult.FromReport(report, suggest: true);
+            using var output = new StringWriter();
+            result.RenderText(output);
+            var text = output.ToString();
+
+            // advisory label present
+            Assert.Contains("[advisory]", text, StringComparison.OrdinalIgnoreCase);
+            // no narrowing benefit explicit message
+            Assert.Contains("no narrowing benefit", text, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    private static AdhocProjectBuilder BuildSuggestProject()
+    {
+        var project = new AdhocProjectBuilder("SuggestApp");
+        project.AddSource("Contracts.cs", """
+            namespace Suggest.Contracts;
+
+            public interface IService
+            {
+                void Alpha();
+                void Beta();
+                void Gamma();
+            }
+            """);
+
+        project.AddSource("Consumers.cs", """
+            namespace Suggest.App;
+
+            using Suggest.Contracts;
+
+            // Uses only Alpha — strict subset, same as ConsumerB
+            public sealed class ConsumerA
+            {
+                public void Use(IService svc) => svc.Alpha();
+            }
+
+            // Uses only Alpha — strict subset, same as ConsumerA
+            public sealed class ConsumerB
+            {
+                public void Use(IService svc) => svc.Alpha();
+            }
+
+            // Uses all three members — no narrowing benefit
+            public sealed class FullConsumer
+            {
+                public void Use(IService svc)
+                {
+                    svc.Alpha();
+                    svc.Beta();
+                    svc.Gamma();
+                }
+            }
+            """);
+
+        return project;
+    }
+
     private static AdhocProjectBuilder BuildInterfaceProject()
     {
         var project = new AdhocProjectBuilder("DemoApp");

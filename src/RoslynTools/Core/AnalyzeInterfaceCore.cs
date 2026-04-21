@@ -57,10 +57,14 @@ internal static class AnalyzeInterfaceCore
             }
         }
 
-        var consumerReports = consumers.Values
+        var rawReports = consumers.Values
             .OrderBy(consumer => consumer.ConsumerDisplayName, StringComparer.Ordinal)
             .Select(consumer => consumer.ToReport())
             .ToList();
+
+        var consumerReports = options.Suggest
+            ? AttachSuggestions(rawReports, trackedMembers.Count)
+            : rawReports;
 
         return new AnalyzeInterfaceReport(
             InterfaceName: interfaceSymbol.Name,
@@ -291,6 +295,50 @@ internal static class AnalyzeInterfaceCore
     {
         return symbolSpec.StartsWith("global::", StringComparison.Ordinal)
                || symbolSpec.Contains('.', StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Derives advisory minimal-interface suggestions for each consumer from its used-member set.
+    /// The suggestion is purely advisory and does not imply a named type already exists.
+    /// </summary>
+    private static List<AnalyzeInterfaceConsumerReport> AttachSuggestions(
+        List<AnalyzeInterfaceConsumerReport> reports,
+        int totalInterfaceMemberCount)
+    {
+        // Build a canonical key for each consumer's used-member set so that consumers
+        // sharing the same subset get the same SharedGroupId.
+        var groupIds = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        return reports.Select(report =>
+        {
+            var usedCount = report.UsedMembers.Count;
+            var hasNarrowingBenefit = usedCount > 0 && usedCount < totalInterfaceMemberCount;
+
+            // Canonical key: sorted display names joined — same set => same key
+            var memberKey = string.Join("|", report.UsedMembers.Select(m => m.DisplayName));
+
+            if (!groupIds.TryGetValue(memberKey, out var groupId))
+            {
+                // Stable, deterministic identifier: short hash of the key
+                groupId = ComputeGroupId(memberKey);
+                groupIds[memberKey] = groupId;
+            }
+
+            var suggestion = new AnalyzeInterfaceSuggestion(
+                HasNarrowingBenefit: hasNarrowingBenefit,
+                SharedGroupId: groupId,
+                SuggestedMembers: hasNarrowingBenefit ? report.UsedMembers : []);
+
+            return report with { Suggestion = suggestion };
+        }).ToList();
+    }
+
+    private static string ComputeGroupId(string key)
+    {
+        // Stable 8-char hex group identifier derived from the member-set key.
+        var bytes = System.Text.Encoding.UTF8.GetBytes(key);
+        var hash = System.Security.Cryptography.SHA256.HashData(bytes);
+        return Convert.ToHexString(hash)[..8].ToLowerInvariant();
     }
 
     private sealed class ConsumerAccumulator

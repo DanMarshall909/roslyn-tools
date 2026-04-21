@@ -30,14 +30,16 @@ internal sealed class AnalyzeInterfaceCommand : IRtCommand
         var solutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file");
         var scopeOpt = new Option<string?>("--scope", "Project name or namespace prefix to restrict analysis");
         var includeTestsOpt = new Option<bool>("--include-tests", () => false, "Include test projects in results");
+        var suggestOpt = new Option<bool>("--suggest", () => false, "Augment output with advisory minimal replacement interface suggestions per consumer");
 
         var cmd = new Command("analyze-interface", "Group interface consumers by the exact members they use");
         cmd.Add(interfaceArg);
         cmd.Add(solutionOpt);
         cmd.Add(scopeOpt);
         cmd.Add(includeTestsOpt);
+        cmd.Add(suggestOpt);
 
-        cmd.SetHandler(async (interfaceSpec, solution, scope, includeTests) =>
+        cmd.SetHandler(async (interfaceSpec, solution, scope, includeTests, suggest) =>
         {
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
             using (workspace)
@@ -45,11 +47,11 @@ internal sealed class AnalyzeInterfaceCommand : IRtCommand
                 var report = await AnalyzeInterfaceCore.AnalyzeAsync(
                     sln,
                     interfaceSpec,
-                    new AnalyzeInterfaceOptions(scope, includeTests));
+                    new AnalyzeInterfaceOptions(scope, includeTests, suggest));
 
-                RtSerializer.Write(AnalyzeInterfaceResult.FromReport(report));
+                RtSerializer.Write(AnalyzeInterfaceResult.FromReport(report, suggest));
             }
-        }, interfaceArg, solutionOpt, scopeOpt, includeTestsOpt);
+        }, interfaceArg, solutionOpt, scopeOpt, includeTestsOpt, suggestOpt);
 
         return cmd;
     }

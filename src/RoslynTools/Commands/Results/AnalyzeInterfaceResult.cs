@@ -19,6 +19,20 @@ internal sealed record AnalyzeInterfaceMemberOutput : IRtOutput
     public void RenderText(TextWriter writer) => writer.Write(DisplayName);
 }
 
+internal sealed record AnalyzeInterfaceSuggestionOutput : IRtOutput
+{
+    [OutputField(OutputLevel.Default, "hasNarrowingBenefit")]
+    public required bool HasNarrowingBenefit { get; init; }
+
+    [OutputField(OutputLevel.Default, "sharedGroupId")]
+    public required string SharedGroupId { get; init; }
+
+    [OutputField(OutputLevel.Llm, "suggestedMembers")]
+    public required IReadOnlyList<AnalyzeInterfaceMemberOutput> SuggestedMembers { get; init; }
+
+    public void RenderText(TextWriter writer) => writer.Write(HasNarrowingBenefit ? "narrowing possible" : "no narrowing benefit");
+}
+
 internal sealed record AnalyzeInterfaceConsumerOutput : IRtOutput
 {
     [OutputField(OutputLevel.Llm, "consumer")]
@@ -38,6 +52,8 @@ internal sealed record AnalyzeInterfaceConsumerOutput : IRtOutput
 
     [OutputField(OutputLevel.Llm, "usedMembers")]
     public required IReadOnlyList<AnalyzeInterfaceMemberOutput> UsedMembers { get; init; }
+
+    public AnalyzeInterfaceSuggestionOutput? Suggestion { get; init; }
 
     public void RenderText(TextWriter writer) => writer.Write(ConsumerDisplayName);
 }
@@ -83,6 +99,22 @@ internal sealed record AnalyzeInterfaceResult : IRtOutput, IRtJsonOutput, IRtMar
                 }
             }
 
+            if (consumer.Suggestion is { } suggestion)
+            {
+                writer.WriteLine($"  [advisory] suggestion (group: {suggestion.SharedGroupId}):");
+                if (!suggestion.HasNarrowingBenefit)
+                {
+                    writer.WriteLine("    no narrowing benefit — consumer uses every interface member");
+                }
+                else
+                {
+                    foreach (var member in suggestion.SuggestedMembers)
+                    {
+                        writer.WriteLine($"    ~ {member.DisplayName}");
+                    }
+                }
+            }
+
             writer.WriteLine();
         }
     }
@@ -120,6 +152,24 @@ internal sealed record AnalyzeInterfaceResult : IRtOutput, IRtJsonOutput, IRtMar
                 writer.WriteLine($"- `{member.DisplayName}`");
             }
 
+            if (consumer.Suggestion is { } suggestion)
+            {
+                writer.WriteLine();
+                writer.WriteLine("**[advisory] Suggested minimal interface shape:**");
+                if (!suggestion.HasNarrowingBenefit)
+                {
+                    writer.WriteLine("No narrowing benefit — consumer uses every interface member.");
+                }
+                else
+                {
+                    writer.WriteLine($"Shared group: `{suggestion.SharedGroupId}`");
+                    foreach (var member in suggestion.SuggestedMembers)
+                    {
+                        writer.WriteLine($"- `{member.DisplayName}`");
+                    }
+                }
+            }
+
             writer.WriteLine();
         }
     }
@@ -151,13 +201,26 @@ internal sealed record AnalyzeInterfaceResult : IRtOutput, IRtJsonOutput, IRtMar
                     kind = member.Kind,
                     displayName = member.DisplayName,
                 }).ToArray(),
+                suggestion = consumer.Suggestion is { } s
+                    ? new
+                    {
+                        hasNarrowingBenefit = s.HasNarrowingBenefit,
+                        sharedGroupId = s.SharedGroupId,
+                        suggestedMembers = s.SuggestedMembers.Select(member => new
+                        {
+                            name = member.Name,
+                            kind = member.Kind,
+                            displayName = member.DisplayName,
+                        }).ToArray(),
+                    }
+                    : (object?)null,
             }).ToArray(),
         };
 
         writer.Write(JsonSerializer.Serialize(document, SymbolFormatter.DefaultJsonOptions));
     }
 
-    internal static AnalyzeInterfaceResult FromReport(AnalyzeInterfaceReport report)
+    internal static AnalyzeInterfaceResult FromReport(AnalyzeInterfaceReport report, bool suggest = false)
     {
         return new AnalyzeInterfaceResult
         {
@@ -178,6 +241,19 @@ internal sealed record AnalyzeInterfaceResult : IRtOutput, IRtJsonOutput, IRtMar
                     Kind = member.Kind,
                     DisplayName = member.DisplayName,
                 }).ToList(),
+                Suggestion = consumer.Suggestion is { } s
+                    ? new AnalyzeInterfaceSuggestionOutput
+                    {
+                        HasNarrowingBenefit = s.HasNarrowingBenefit,
+                        SharedGroupId = s.SharedGroupId,
+                        SuggestedMembers = s.SuggestedMembers.Select(member => new AnalyzeInterfaceMemberOutput
+                        {
+                            Name = member.Name,
+                            Kind = member.Kind,
+                            DisplayName = member.DisplayName,
+                        }).ToList(),
+                    }
+                    : null,
             }).ToList(),
         };
     }

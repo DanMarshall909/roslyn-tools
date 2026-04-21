@@ -2,12 +2,22 @@ namespace RoslynTools.Models;
 
 internal sealed record AnalyzeInterfaceOptions(
     string? Scope = null,
-    bool IncludeTests = false);
+    bool IncludeTests = false,
+    bool Suggest = false);
 
 internal sealed record AnalyzeInterfaceMemberReport(
     string Name,
     string Kind,
     string DisplayName);
+
+/// <summary>
+/// Advisory suggestion for a minimal replacement interface shape for a single consumer.
+/// Derived solely from observed used-member data — does not imply a named type exists.
+/// </summary>
+internal sealed record AnalyzeInterfaceSuggestion(
+    bool HasNarrowingBenefit,
+    string SharedGroupId,
+    IReadOnlyList<AnalyzeInterfaceMemberReport> SuggestedMembers);
 
 internal sealed record AnalyzeInterfaceConsumerReport(
     string ConsumerName,
@@ -17,7 +27,8 @@ internal sealed record AnalyzeInterfaceConsumerReport(
     string ProjectName,
     string UsageKind,
     IReadOnlyList<string> Documents,
-    IReadOnlyList<AnalyzeInterfaceMemberReport> UsedMembers);
+    IReadOnlyList<AnalyzeInterfaceMemberReport> UsedMembers,
+    AnalyzeInterfaceSuggestion? Suggestion = null);
 
 internal sealed record AnalyzeInterfaceReport(
     string InterfaceName,
