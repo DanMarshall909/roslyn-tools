@@ -15,23 +15,29 @@ public class WorkspaceLoaderSmokeTests
 {
     static WorkspaceLoaderSmokeTests() => MsBuildFixture.Ensure();
 
-    private static string ResolveSelfSlnx() => Path.GetFullPath(Path.Combine(
-        Path.GetDirectoryName(typeof(WorkspaceLoaderSmokeTests).Assembly.Location)!,
-        "..", "..", "..", "..", "..", "..", "RoslynTools.slnx"));
-
     [Fact]
     public async Task Opens_the_solution_and_finds_a_known_type()
     {
-        var slnPath = ResolveSelfSlnx();
-        Assert.True(File.Exists(slnPath), $"Expected slnx at {slnPath}");
+        using var project = new WorkspaceLoaderTestProject();
+        var sln = project.AddSolution(
+            relativeDirectory: "",
+            solutionName: "Smoke",
+            projectName: "SmokeProject",
+            source: """
+            namespace SmokeProject;
 
-        var (workspace, solution) = await WorkspaceLoader.LoadAsync(slnPath);
+            public class SmokeType
+            {
+            }
+            """);
+
+        var (workspace, solution) = await WorkspaceLoader.LoadAsync(sln.SolutionPath);
         using (workspace)
         {
             Assert.NotEmpty(solution.Projects);
 
             var sym = await SymbolLocator.FindSymbolByFqnAsync(
-                solution, "RoslynTools.Core.WorkspaceLoader", "type");
+                solution, "SmokeProject.SmokeType", "type");
             Assert.NotNull(sym);
         }
     }
@@ -39,12 +45,16 @@ public class WorkspaceLoaderSmokeTests
     [Fact]
     public async Task Successful_load_does_not_emit_progress_banner_to_diagnostic_sink()
     {
-        var slnPath = ResolveSelfSlnx();
+        using var project = new WorkspaceLoaderTestProject();
+        var sln = project.AddSolution(
+            relativeDirectory: "",
+            solutionName: "Smoke",
+            projectName: "SmokeProject");
         using var sink = new StringWriter();
         WorkspaceLoader.DiagnosticSinkOverride.Value = sink;
         try
         {
-            var (workspace, solution) = await WorkspaceLoader.LoadAsync(slnPath);
+            var (workspace, solution) = await WorkspaceLoader.LoadAsync(sln.SolutionPath);
             using (workspace)
             {
                 Assert.NotEmpty(solution.Projects);

@@ -96,32 +96,78 @@ internal static class WorkspaceLoader
     private static string ResolveSolutionPath(string? solutionPath)
     {
         if (!string.IsNullOrWhiteSpace(solutionPath))
-            return Path.GetFullPath(solutionPath);
+            return ResolveExplicitSolutionPath(solutionPath);
 
-        var cwd = Directory.GetCurrentDirectory();
-        var candidates = Directory
-            .EnumerateFiles(cwd, "*.sln", SearchOption.TopDirectoryOnly)
-            .Concat(Directory.EnumerateFiles(cwd, "*.slnx", SearchOption.TopDirectoryOnly))
-            .ToList();
+        var currentDirectory = new DirectoryInfo(Directory.GetCurrentDirectory());
+        var configuredDefault = ResolveRepoDefaultPath(currentDirectory);
+        if (configuredDefault is not null)
+            return configuredDefault;
 
-        if (candidates.Count == 1)
-            return candidates[0];
+        for (DirectoryInfo? directory = currentDirectory; directory is not null; directory = directory.Parent)
+        {
+            var candidates = Directory
+                .EnumerateFiles(directory.FullName, "*.sln", SearchOption.TopDirectoryOnly)
+                .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
-        if (candidates.Count == 0)
-            throw new FileNotFoundException(
-                "No .sln/.slnx file found in current directory. Pass --solution explicitly.");
+            if (candidates.Count == 1)
+                return candidates[0];
 
-        // Prefer .sln over .slnx when both exist for the same base name.
-        var deduplicated = candidates
-            .GroupBy(p => Path.GetFileNameWithoutExtension(p), StringComparer.OrdinalIgnoreCase)
-            .Select(g => g.FirstOrDefault(p => p.EndsWith(".sln", StringComparison.OrdinalIgnoreCase)) ?? g.First())
-            .ToList();
+            if (candidates.Count > 1)
+            {
+                var names = string.Join(", ", candidates.Select(Path.GetFileName));
+                throw new InvalidOperationException(
+                    $"Multiple .sln files found in '{directory.FullName}' ({names}). Pass --solution explicitly.");
+            }
+        }
 
-        if (deduplicated.Count == 1)
-            return deduplicated[0];
+        throw new FileNotFoundException(
+            "No .sln file was discovered while searching from the current directory to the filesystem root. Pass --solution explicitly to override.");
+    }
 
-        var names = string.Join(", ", deduplicated.Select(Path.GetFileName));
-        throw new InvalidOperationException(
-            $"Multiple solution files found ({names}). Pass --solution explicitly.");
+    private static string ResolveExplicitSolutionPath(string solutionPath)
+    {
+        var fullPath = Path.GetFullPath(solutionPath);
+        ValidateSolutionFormat(fullPath, sourceDescription: "Explicit solution path");
+        return fullPath;
+    }
+
+    private static string? ResolveRepoDefaultPath(DirectoryInfo currentDirectory)
+    {
+        for (DirectoryInfo? directory = currentDirectory; directory is not null; directory = directory.Parent)
+        {
+            var repoDefaultPath = Path.Combine(directory.FullName, ".rt-solution");
+            if (!File.Exists(repoDefaultPath))
+                continue;
+
+            var configuredPath = File.ReadAllText(repoDefaultPath).Trim();
+            var resolvedPath = Path.GetFullPath(configuredPath, directory.FullName);
+            ValidateRepoDefaultTarget(directory.FullName, configuredPath, resolvedPath);
+            return resolvedPath;
+        }
+
+        return null;
+    }
+
+    private static void ValidateRepoDefaultTarget(string repoRoot, string configuredPath, string resolvedPath)
+    {
+        if (string.IsNullOrWhiteSpace(configuredPath))
+            throw new InvalidOperationException(
+                $"Repository solution default '.rt-solution' in '{repoRoot}' is empty. Pass --solution explicitly.");
+
+        if (!resolvedPath.EndsWith(".sln", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException(
+                $"Repository solution default '.rt-solution' in '{repoRoot}' points to '{configuredPath}', which is not a .sln file.");
+
+        if (!File.Exists(resolvedPath))
+            throw new InvalidOperationException(
+                $"Repository solution default '.rt-solution' in '{repoRoot}' points to '{configuredPath}', which does not exist.");
+    }
+
+    private static void ValidateSolutionFormat(string solutionPath, string sourceDescription)
+    {
+        if (solutionPath.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException(
+                $"{sourceDescription} '{solutionPath}' uses unsupported format '.slnx'. Pass a .sln file instead.");
     }
 }
