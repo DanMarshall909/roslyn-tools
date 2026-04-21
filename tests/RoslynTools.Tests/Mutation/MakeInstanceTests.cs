@@ -270,4 +270,55 @@ public class MakeInstanceTests
         Assert.Contains("_util.Square(value)", callerContent);
         Assert.DoesNotContain("MathUtil.Square(", callerContent);
     }
+
+    [Fact]
+    public async Task Warns_for_ambiguous_reachability_and_still_rewrites_later_call_sites_in_the_same_document()
+    {
+        const string source = """
+            namespace App;
+
+            public class Utility
+            {
+                public static void Ping() { }
+            }
+
+            public class Consumer
+            {
+                private readonly Utility _first = new();
+                private readonly Utility _second = new();
+
+                public void Run()
+                {
+                    Utility.Ping();
+
+                    var utility = new Utility();
+                    Utility.Ping();
+                }
+            }
+            """;
+
+        using var proj = new AdhocProjectBuilder("App");
+        proj.AddSource("Utility.cs", source);
+        var (workspace, sln) = proj.Build();
+
+        var previousError = Console.Error;
+        using var errorCapture = new StringWriter();
+        Console.SetError(errorCapture);
+        try
+        {
+            using (WorkspaceLoader.UseOverride(workspace, sln))
+                await MakeInstanceCommand.ExecuteAsync("Utility.Ping", "ignored", dryRun: false);
+        }
+        finally
+        {
+            Console.SetError(previousError);
+        }
+
+        var content = await proj.ReadSourceAsync("Utility.cs");
+        Assert.Contains("Utility.Ping();", content);
+        Assert.Contains("utility.Ping();", content);
+
+        var stderr = errorCapture.ToString();
+        Assert.Contains("ambiguous reachable instance", stderr);
+    }
 }

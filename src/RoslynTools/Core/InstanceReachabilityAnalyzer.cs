@@ -4,6 +4,22 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace RoslynTools.Core;
 
+internal enum ReachableInstanceKind
+{
+    None,
+    Match,
+    Ambiguous
+}
+
+internal readonly record struct ReachableInstanceResult(ReachableInstanceKind Kind, ExpressionSyntax? Expression)
+{
+    internal static ReachableInstanceResult None { get; } = new(ReachableInstanceKind.None, null);
+    internal static ReachableInstanceResult Ambiguous { get; } = new(ReachableInstanceKind.Ambiguous, null);
+
+    internal static ReachableInstanceResult FromExpression(ExpressionSyntax expression) =>
+        new(ReachableInstanceKind.Match, expression);
+}
+
 /// <summary>
 /// Determines which instance of a given type is reachable at a call site,
 /// used by make-instance to find a suitable receiver expression.
@@ -13,9 +29,9 @@ internal static class InstanceReachabilityAnalyzer
     /// <summary>
     /// Finds a reachable instance of <paramref name="targetType"/> at <paramref name="callSite"/>.
     /// Priority: local variables → parameters → this (same-class instance context) → fields/properties.
-    /// Returns null when conservatively no instance can be determined.
+    /// Returns an explicit result so callers can distinguish no-match from ambiguity.
     /// </summary>
-    internal static ExpressionSyntax? FindReachableInstance(
+    internal static ReachableInstanceResult FindReachableInstance(
         InvocationExpressionSyntax callSite,
         SemanticModel semanticModel,
         INamedTypeSymbol targetType)
@@ -26,17 +42,24 @@ internal static class InstanceReachabilityAnalyzer
                               || n is PropertyDeclarationSyntax
                               || n is AccessorDeclarationSyntax);
 
-        if (enclosingMember is null) return null;
+        if (enclosingMember is null)
+            return ReachableInstanceResult.None;
 
         // 1. Local variables of the target type declared before this call site
-        var localVar = FindLocalVariableName(callSite, semanticModel, targetType);
-        if (localVar is not null)
-            return SyntaxFactory.IdentifierName(localVar);
+        var localVar = FindLocalVariableCandidate(callSite, semanticModel, targetType);
+        if (localVar.Kind == CandidateKind.Unsupported)
+            return ReachableInstanceResult.None;
+        if (localVar.Kind == CandidateKind.Ambiguous)
+            return ReachableInstanceResult.Ambiguous;
+        if (localVar.Name is not null)
+            return ReachableInstanceResult.FromExpression(SyntaxFactory.IdentifierName(localVar.Name));
 
         // 2. Parameters of the target type in the enclosing member
-        var param = FindParameterName(enclosingMember, semanticModel, targetType);
-        if (param is not null)
-            return SyntaxFactory.IdentifierName(param);
+        var param = FindParameterCandidate(enclosingMember, semanticModel, targetType);
+        if (param.Kind == CandidateKind.Ambiguous)
+            return ReachableInstanceResult.Ambiguous;
+        if (param.Name is not null)
+            return ReachableInstanceResult.FromExpression(SyntaxFactory.IdentifierName(param.Name));
 
         // 3. Same-class call site: `this` when in an instance context
         var enclosingType = GetEnclosingTypeSymbol(enclosingMember, semanticModel);
@@ -45,18 +68,20 @@ internal static class InstanceReachabilityAnalyzer
         if (enclosingType is not null && isInstance &&
             SymbolEqualityComparer.Default.Equals(enclosingType, targetType))
         {
-            return SyntaxFactory.ThisExpression();
+            return ReachableInstanceResult.FromExpression(SyntaxFactory.ThisExpression());
         }
 
         // 4. Instance field or property on the enclosing class that holds the target type
         if (enclosingType is not null && isInstance)
         {
-            var fieldName = FindFieldOrPropertyName(enclosingType, targetType);
-            if (fieldName is not null)
-                return SyntaxFactory.IdentifierName(fieldName);
+            var member = FindFieldOrPropertyCandidate(enclosingType, targetType);
+            if (member.Kind == CandidateKind.Ambiguous)
+                return ReachableInstanceResult.Ambiguous;
+            if (member.Name is not null)
+                return ReachableInstanceResult.FromExpression(SyntaxFactory.IdentifierName(member.Name));
         }
 
-        return null;
+        return ReachableInstanceResult.None;
     }
 
     internal static INamedTypeSymbol? GetEnclosingTypeSymbol(SyntaxNode memberNode, SemanticModel semanticModel)
@@ -73,38 +98,57 @@ internal static class InstanceReachabilityAnalyzer
                 !m.Modifiers.Any(t => t.IsKind(SyntaxKind.StaticKeyword)),
             ConstructorDeclarationSyntax c =>
                 !c.Modifiers.Any(t => t.IsKind(SyntaxKind.StaticKeyword)),
+            PropertyDeclarationSyntax p =>
+                !p.Modifiers.Any(t => t.IsKind(SyntaxKind.StaticKeyword)),
+            AccessorDeclarationSyntax a =>
+                !GetAccessorOwnerModifiers(a).Any(t => t.IsKind(SyntaxKind.StaticKeyword)),
             _ => true
         };
 
     internal static string? FindLocalVariableName(
         InvocationExpressionSyntax callSite,
         SemanticModel semanticModel,
+        INamedTypeSymbol targetType) =>
+        FindLocalVariableCandidate(callSite, semanticModel, targetType).Name;
+
+    internal static string? FindParameterName(
+        SyntaxNode enclosingMember,
+        SemanticModel semanticModel,
+        INamedTypeSymbol targetType) =>
+        FindParameterCandidate(enclosingMember, semanticModel, targetType).Name;
+
+    internal static string? FindFieldOrPropertyName(INamedTypeSymbol enclosingType, INamedTypeSymbol targetType) =>
+        FindFieldOrPropertyCandidate(enclosingType, targetType).Name;
+
+    private static CandidateNameResult FindLocalVariableCandidate(
+        InvocationExpressionSyntax callSite,
+        SemanticModel semanticModel,
         INamedTypeSymbol targetType)
     {
         var block = callSite.Ancestors().OfType<BlockSyntax>().FirstOrDefault();
-        if (block is null) return null;
+        if (block is null)
+            return CandidateNameResult.None;
 
-        // Stryker disable all
-        foreach (var decl in block.Statements
-            .OfType<LocalDeclarationStatementSyntax>()
-            .Where(d => d.SpanStart < callSite.SpanStart))
+        var matches = new List<string>();
+
+        foreach (var localSymbol in semanticModel.LookupSymbols(callSite.SpanStart)
+            .OfType<ILocalSymbol>())
         {
-            // Stryker restore all
-            foreach (var variable in decl.Declaration.Variables)
-            {
-                var localSymbol = semanticModel.GetDeclaredSymbol(variable) as ILocalSymbol;
-                // Stryker disable all
-                if (localSymbol is null) continue;
-                // Stryker restore all
-                if (SymbolEqualityComparer.Default.Equals(localSymbol.Type, targetType))
-                    return variable.Identifier.Text;
-            }
+            if (!SymbolEqualityComparer.Default.Equals(localSymbol.Type, targetType))
+                continue;
+
+            var declarationInfo = GetLocalDeclarationInfo(localSymbol);
+            if (declarationInfo.Safety == LocalDeclarationSafety.Unsupported)
+                return CandidateNameResult.Unsupported;
+
+            if (declarationInfo.DeclarationStart < callSite.SpanStart)
+                matches.Add(localSymbol.Name);
         }
 
-        return null;
+        return ToCandidateResult(matches);
     }
 
-    internal static string? FindParameterName(
+    private static CandidateNameResult FindParameterCandidate(
         SyntaxNode enclosingMember,
         SemanticModel semanticModel,
         INamedTypeSymbol targetType)
@@ -116,23 +160,27 @@ internal static class InstanceReachabilityAnalyzer
             _ => null
         };
 
-        if (paramList is null) return null;
+        if (paramList is null)
+            return CandidateNameResult.None;
+
+        var matches = new List<string>();
 
         foreach (var param in paramList.Parameters)
         {
             var paramSymbol = semanticModel.GetDeclaredSymbol(param) as IParameterSymbol;
-            // Stryker disable all
-            if (paramSymbol is null) continue;
-            // Stryker restore all
+            if (paramSymbol is null)
+                continue;
             if (SymbolEqualityComparer.Default.Equals(paramSymbol.Type, targetType))
-                return param.Identifier.Text;
+                matches.Add(param.Identifier.Text);
         }
 
-        return null;
+        return ToCandidateResult(matches);
     }
 
-    internal static string? FindFieldOrPropertyName(INamedTypeSymbol enclosingType, INamedTypeSymbol targetType)
+    private static CandidateNameResult FindFieldOrPropertyCandidate(INamedTypeSymbol enclosingType, INamedTypeSymbol targetType)
     {
+        var matches = new List<string>();
+
         foreach (var member in enclosingType.GetMembers())
         {
             if (member.IsStatic) continue;
@@ -144,13 +192,91 @@ internal static class InstanceReachabilityAnalyzer
                 _ => null
             };
 
-            // Stryker disable all
-            if (memberType is null) continue;
-            // Stryker restore all
+            if (memberType is null)
+                continue;
             if (SymbolEqualityComparer.Default.Equals(memberType, targetType))
-                return member.Name;
+                matches.Add(member.Name);
         }
 
-        return null;
+        return ToCandidateResult(matches);
+    }
+
+    private static CandidateNameResult ToCandidateResult(IEnumerable<string> matches)
+    {
+        var distinctMatches = matches.Distinct(StringComparer.Ordinal).ToArray();
+        return distinctMatches.Length switch
+        {
+            0 => CandidateNameResult.None,
+            1 => CandidateNameResult.Match(distinctMatches[0]),
+            _ => CandidateNameResult.Ambiguous
+        };
+    }
+
+    private static LocalDeclarationInfo GetLocalDeclarationInfo(ILocalSymbol localSymbol)
+    {
+        foreach (var syntaxReference in localSymbol.DeclaringSyntaxReferences)
+        {
+            var syntax = syntaxReference.GetSyntax();
+
+            if (syntax is VariableDeclaratorSyntax variableDeclarator)
+            {
+                var localDeclaration = variableDeclarator.AncestorsAndSelf().OfType<LocalDeclarationStatementSyntax>().FirstOrDefault();
+                if (localDeclaration is not null)
+                    return new LocalDeclarationInfo(LocalDeclarationSafety.Supported, localDeclaration.SpanStart);
+            }
+
+            if (syntax is SingleVariableDesignationSyntax designation &&
+                designation.Ancestors().OfType<DeclarationExpressionSyntax>().Any())
+            {
+                var localDeclaration = designation.Ancestors().OfType<LocalDeclarationStatementSyntax>().FirstOrDefault();
+                if (localDeclaration is not null)
+                    return new LocalDeclarationInfo(LocalDeclarationSafety.Supported, localDeclaration.SpanStart);
+
+                var assignmentStatement = designation.Ancestors()
+                    .OfType<ExpressionStatementSyntax>()
+                    .FirstOrDefault(statement => statement.Expression is AssignmentExpressionSyntax assignment &&
+                        assignment.IsKind(SyntaxKind.SimpleAssignmentExpression));
+
+                if (assignmentStatement is not null)
+                    return new LocalDeclarationInfo(LocalDeclarationSafety.Supported, assignmentStatement.SpanStart);
+            }
+
+            var foreachStatement = syntax.AncestorsAndSelf().OfType<ForEachStatementSyntax>().FirstOrDefault();
+            if (foreachStatement is not null)
+                return new LocalDeclarationInfo(LocalDeclarationSafety.Supported, foreachStatement.SpanStart);
+        }
+
+        return new LocalDeclarationInfo(LocalDeclarationSafety.Unsupported, int.MaxValue);
+    }
+
+    private static SyntaxTokenList GetAccessorOwnerModifiers(AccessorDeclarationSyntax accessor)
+    {
+        var property = accessor.Parent?.Parent as BasePropertyDeclarationSyntax;
+        return property?.Modifiers ?? default;
+    }
+
+    private enum CandidateKind
+    {
+        None,
+        Match,
+        Ambiguous,
+        Unsupported
+    }
+
+    private enum LocalDeclarationSafety
+    {
+        Supported,
+        Unsupported
+    }
+
+    private readonly record struct LocalDeclarationInfo(LocalDeclarationSafety Safety, int DeclarationStart);
+
+    private readonly record struct CandidateNameResult(CandidateKind Kind, string? Name)
+    {
+        internal static CandidateNameResult None { get; } = new(CandidateKind.None, null);
+        internal static CandidateNameResult Ambiguous { get; } = new(CandidateKind.Ambiguous, null);
+        internal static CandidateNameResult Unsupported { get; } = new(CandidateKind.Unsupported, null);
+
+        internal static CandidateNameResult Match(string name) => new(CandidateKind.Match, name);
     }
 }

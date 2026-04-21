@@ -119,14 +119,24 @@ internal static class MakeInstanceCore
 
             var lineNum = fileText.Lines.GetLineFromPosition(span.Start).LineNumber + 1;
 
-            var instanceExpr = InstanceReachabilityAnalyzer.FindReachableInstance(invocation, semanticModel, targetType);
+            var reachability = InstanceReachabilityAnalyzer.FindReachableInstance(invocation, semanticModel, targetType);
 
-            if (instanceExpr is null)
+            if (reachability.Kind == ReachableInstanceKind.None)
             {
                 Console.Error.WriteLine($"WARNING: {filePath}:{lineNum}: no reachable instance — skipped");
                 skipped.Add((filePath, lineNum, "no reachable instance"));
                 continue;
             }
+
+            if (reachability.Kind == ReachableInstanceKind.Ambiguous)
+            {
+                Console.Error.WriteLine($"WARNING: {filePath}:{lineNum}: ambiguous reachable instance — skipped");
+                skipped.Add((filePath, lineNum, "ambiguous reachable instance"));
+                continue;
+            }
+
+            ExpressionSyntax instanceExpr = reachability.Expression
+                ?? throw new InvalidOperationException("Reachability analysis returned no expression for a matched instance.");
 
             var newMemberAccess = memberAccess
                 .WithExpression(instanceExpr.WithTriviaFrom(memberAccess.Expression))

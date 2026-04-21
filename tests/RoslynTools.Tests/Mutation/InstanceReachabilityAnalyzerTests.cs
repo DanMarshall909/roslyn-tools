@@ -75,7 +75,8 @@ public sealed class InstanceReachabilityAnalyzerTests
 
             // model from a different compilation — GetEnclosingTypeSymbol will return null
             var result = InstanceReachabilityAnalyzer.FindReachableInstance(invocation, model!, typeSymbol);
-            Assert.Null(result);
+            Assert.Equal(ReachableInstanceKind.None, result.Kind);
+            Assert.Null(result.Expression);
         }
     }
 
@@ -265,7 +266,8 @@ public sealed class InstanceReachabilityAnalyzerTests
             var invocation = root!.DescendantNodes().OfType<InvocationExpressionSyntax>().First();
             var result = InstanceReachabilityAnalyzer.FindReachableInstance(invocation, model!, typeSymbol);
             // Static context: isInstance = false, so should not return `this`
-            Assert.Null(result);
+            Assert.Equal(ReachableInstanceKind.None, result.Kind);
+            Assert.Null(result.Expression);
         }
     }
 
@@ -299,8 +301,8 @@ public sealed class InstanceReachabilityAnalyzerTests
             var invocation = root!.DescendantNodes().OfType<InvocationExpressionSyntax>().First();
             var result = InstanceReachabilityAnalyzer.FindReachableInstance(invocation, model!, typeSymbol);
             // d is a parameter of MyDep, so result is "d" (not field — this tests FindParameterName path)
-            Assert.NotNull(result);
-            Assert.Equal("d", result!.ToString());
+            Assert.Equal(ReachableInstanceKind.Match, result.Kind);
+            Assert.Equal("d", result.Expression!.ToString());
         }
     }
 
@@ -333,7 +335,8 @@ public sealed class InstanceReachabilityAnalyzerTests
             var invocation = root!.DescendantNodes().OfType<InvocationExpressionSyntax>().First();
             var result = InstanceReachabilityAnalyzer.FindReachableInstance(invocation, model!, typeSymbol);
             // Static context + no locals/params → null; with || mutant would return "_dep"
-            Assert.Null(result);
+            Assert.Equal(ReachableInstanceKind.None, result.Kind);
+            Assert.Null(result.Expression);
         }
     }
 
@@ -363,6 +366,300 @@ public sealed class InstanceReachabilityAnalyzerTests
 
             var result = InstanceReachabilityAnalyzer.FindParameterName(method, model!, targetType);
             Assert.Equal("dep", result);
+        }
+    }
+
+    [Fact]
+    public async Task FindReachableInstance_returns_null_when_multiple_matching_fields_exist()
+    {
+        using var proj = new AdhocProjectBuilder();
+        proj.AddSource("A.cs", """
+            class MyDep
+            {
+                public static void Go() { }
+            }
+
+            class Consumer
+            {
+                private readonly MyDep _first = new();
+                private readonly MyDep _second = new();
+
+                void Run()
+                {
+                    MyDep.Go();
+                }
+            }
+            """);
+        var (workspace, sln) = proj.Build();
+        using (workspace)
+        {
+            var doc = sln.Projects.First().Documents.First();
+            var root = await doc.GetSyntaxRootAsync();
+            var model = await doc.GetSemanticModelAsync();
+            var compilation = await sln.Projects.First().GetCompilationAsync();
+            var targetType = compilation!.GetTypeByMetadataName("MyDep")!;
+
+            var invocation = root!.DescendantNodes().OfType<InvocationExpressionSyntax>().First();
+            var result = InstanceReachabilityAnalyzer.FindReachableInstance(invocation, model!, targetType);
+            Assert.Equal(ReachableInstanceKind.Ambiguous, result.Kind);
+            Assert.Null(result.Expression);
+        }
+    }
+
+    [Fact]
+    public async Task FindReachableInstance_returns_null_when_multiple_matching_parameters_exist()
+    {
+        using var proj = new AdhocProjectBuilder();
+        proj.AddSource("A.cs", """
+            class MyDep
+            {
+                public static void Go() { }
+            }
+
+            class Consumer
+            {
+                void Run(MyDep first, MyDep second)
+                {
+                    MyDep.Go();
+                }
+            }
+            """);
+        var (workspace, sln) = proj.Build();
+        using (workspace)
+        {
+            var doc = sln.Projects.First().Documents.First();
+            var root = await doc.GetSyntaxRootAsync();
+            var model = await doc.GetSemanticModelAsync();
+            var compilation = await sln.Projects.First().GetCompilationAsync();
+            var targetType = compilation!.GetTypeByMetadataName("MyDep")!;
+
+            var invocation = root!.DescendantNodes().OfType<InvocationExpressionSyntax>().First();
+            var result = InstanceReachabilityAnalyzer.FindReachableInstance(invocation, model!, targetType);
+            Assert.Equal(ReachableInstanceKind.Ambiguous, result.Kind);
+            Assert.Null(result.Expression);
+        }
+    }
+
+    [Fact]
+    public async Task FindReachableInstance_returns_null_when_multiple_matching_locals_exist()
+    {
+        using var proj = new AdhocProjectBuilder();
+        proj.AddSource("A.cs", """
+            class MyDep
+            {
+                public static void Go() { }
+            }
+
+            class Consumer
+            {
+                void Run()
+                {
+                    var first = new MyDep();
+                    var second = new MyDep();
+                    MyDep.Go();
+                }
+            }
+            """);
+        var (workspace, sln) = proj.Build();
+        using (workspace)
+        {
+            var doc = sln.Projects.First().Documents.First();
+            var root = await doc.GetSyntaxRootAsync();
+            var model = await doc.GetSemanticModelAsync();
+            var compilation = await sln.Projects.First().GetCompilationAsync();
+            var targetType = compilation!.GetTypeByMetadataName("MyDep")!;
+
+            var invocation = root!.DescendantNodes().OfType<InvocationExpressionSyntax>().First();
+            var result = InstanceReachabilityAnalyzer.FindReachableInstance(invocation, model!, targetType);
+            Assert.Equal(ReachableInstanceKind.Ambiguous, result.Kind);
+            Assert.Null(result.Expression);
+        }
+    }
+
+    [Fact]
+    public async Task FindReachableInstance_finds_using_var_local()
+    {
+        using var proj = new AdhocProjectBuilder();
+        proj.AddSource("A.cs", """
+            class MyDep : System.IDisposable
+            {
+                public static void Go() { }
+                public void Dispose() { }
+            }
+
+            class Consumer
+            {
+                void Run()
+                {
+                    using var dep = new MyDep();
+                    MyDep.Go();
+                }
+            }
+            """);
+        var (workspace, sln) = proj.Build();
+        using (workspace)
+        {
+            var doc = sln.Projects.First().Documents.First();
+            var root = await doc.GetSyntaxRootAsync();
+            var model = await doc.GetSemanticModelAsync();
+            var compilation = await sln.Projects.First().GetCompilationAsync();
+            var targetType = compilation!.GetTypeByMetadataName("MyDep")!;
+
+            var invocation = root!.DescendantNodes().OfType<InvocationExpressionSyntax>().First();
+            var result = InstanceReachabilityAnalyzer.FindReachableInstance(invocation, model!, targetType);
+            Assert.Equal(ReachableInstanceKind.Match, result.Kind);
+            Assert.Equal("dep", result.Expression!.ToString());
+        }
+    }
+
+    [Fact]
+    public async Task FindReachableInstance_finds_foreach_local()
+    {
+        using var proj = new AdhocProjectBuilder();
+        proj.AddSource("A.cs", """
+            using System.Collections.Generic;
+
+            class MyDep
+            {
+                public static void Go() { }
+            }
+
+            class Consumer
+            {
+                void Run(List<MyDep> deps)
+                {
+                    foreach (var dep in deps)
+                    {
+                        MyDep.Go();
+                    }
+                }
+            }
+            """);
+        var (workspace, sln) = proj.Build();
+        using (workspace)
+        {
+            var doc = sln.Projects.First().Documents.First();
+            var root = await doc.GetSyntaxRootAsync();
+            var model = await doc.GetSemanticModelAsync();
+            var compilation = await sln.Projects.First().GetCompilationAsync();
+            var targetType = compilation!.GetTypeByMetadataName("MyDep")!;
+
+            var invocation = root!.DescendantNodes().OfType<InvocationExpressionSyntax>().First();
+            var result = InstanceReachabilityAnalyzer.FindReachableInstance(invocation, model!, targetType);
+            Assert.Equal(ReachableInstanceKind.Match, result.Kind);
+            Assert.Equal("dep", result.Expression!.ToString());
+        }
+    }
+
+    [Fact]
+    public async Task FindReachableInstance_finds_deconstruction_local()
+    {
+        using var proj = new AdhocProjectBuilder();
+        proj.AddSource("A.cs", """
+            class MyDep
+            {
+                public static void Go() { }
+            }
+
+            class Consumer
+            {
+                private static (int Count, MyDep Dep) Create() => (1, new MyDep());
+
+                void Run()
+                {
+                    var (count, dep) = Create();
+                    MyDep.Go();
+                }
+            }
+            """);
+        var (workspace, sln) = proj.Build();
+        using (workspace)
+        {
+            var doc = sln.Projects.First().Documents.First();
+            var root = await doc.GetSyntaxRootAsync();
+            var model = await doc.GetSemanticModelAsync();
+            var compilation = await sln.Projects.First().GetCompilationAsync();
+            var targetType = compilation!.GetTypeByMetadataName("MyDep")!;
+
+            var invocation = root!.DescendantNodes().OfType<InvocationExpressionSyntax>().First();
+            var result = InstanceReachabilityAnalyzer.FindReachableInstance(invocation, model!, targetType);
+            Assert.Equal(ReachableInstanceKind.Match, result.Kind);
+            Assert.Equal("dep", result.Expression!.ToString());
+        }
+    }
+
+    [Fact]
+    public async Task FindReachableInstance_returns_null_for_unsupported_pattern_local()
+    {
+        using var proj = new AdhocProjectBuilder();
+        proj.AddSource("A.cs", """
+            class MyDep
+            {
+                public static void Go() { }
+            }
+
+            class Consumer
+            {
+                object Create() => new MyDep();
+
+                void Run()
+                {
+                    if (Create() is MyDep dep)
+                    {
+                        MyDep.Go();
+                    }
+                }
+            }
+            """);
+        var (workspace, sln) = proj.Build();
+        using (workspace)
+        {
+            var doc = sln.Projects.First().Documents.First();
+            var root = await doc.GetSyntaxRootAsync();
+            var model = await doc.GetSemanticModelAsync();
+            var compilation = await sln.Projects.First().GetCompilationAsync();
+            var targetType = compilation!.GetTypeByMetadataName("MyDep")!;
+
+            var invocation = root!.DescendantNodes().OfType<InvocationExpressionSyntax>().First();
+            var result = InstanceReachabilityAnalyzer.FindReachableInstance(invocation, model!, targetType);
+            Assert.Equal(ReachableInstanceKind.None, result.Kind);
+            Assert.Null(result.Expression);
+        }
+    }
+
+    [Fact]
+    public async Task FindReachableInstance_returns_null_for_static_constructor_even_with_matching_field()
+    {
+        using var proj = new AdhocProjectBuilder();
+        proj.AddSource("A.cs", """
+            class MyDep
+            {
+                public static void Go() { }
+            }
+
+            class Consumer
+            {
+                private readonly MyDep _dep = new();
+
+                static Consumer()
+                {
+                    MyDep.Go();
+                }
+            }
+            """);
+        var (workspace, sln) = proj.Build();
+        using (workspace)
+        {
+            var doc = sln.Projects.First().Documents.First();
+            var root = await doc.GetSyntaxRootAsync();
+            var model = await doc.GetSemanticModelAsync();
+            var compilation = await sln.Projects.First().GetCompilationAsync();
+            var targetType = compilation!.GetTypeByMetadataName("MyDep")!;
+
+            var invocation = root!.DescendantNodes().OfType<InvocationExpressionSyntax>().First();
+            var result = InstanceReachabilityAnalyzer.FindReachableInstance(invocation, model!, targetType);
+            Assert.Equal(ReachableInstanceKind.None, result.Kind);
+            Assert.Null(result.Expression);
         }
     }
 }
