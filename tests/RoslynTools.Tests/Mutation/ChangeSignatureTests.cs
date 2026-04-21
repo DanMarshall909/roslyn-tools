@@ -458,6 +458,594 @@ public class ChangeSignatureTests
         }
     }
 
+    // ── add-param tests ──────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task AddParam_appends_at_end_when_no_after_specified()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Service.cs", """
+            namespace TestApp;
+
+            public class Service
+            {
+                public void Foo(int a, int b)
+                {
+                }
+            }
+            """);
+        project.AddSource("Caller.cs", """
+            namespace TestApp;
+
+            public class Caller
+            {
+                public void Run(Service svc) => svc.Foo(1, 2);
+            }
+            """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var updated = await ChangeSignatureCore.AddParamAsync(
+                solution,
+                "TestApp.Service.Foo",
+                "int count = 0",
+                afterParam: null);
+
+            var serviceText = await GetDocumentTextAsync(updated, "Service.cs");
+            // Declaration updated: count appended after b
+            Assert.Contains("Foo(int a, int b, int count = 0)", serviceText);
+
+            // Call site NOT modified (new param has a default)
+            var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
+            Assert.Contains("svc.Foo(1, 2)", callerText);
+        }
+    }
+
+    [Fact]
+    public async Task AddParam_inserts_after_named_param()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Service.cs", """
+            namespace TestApp;
+
+            public class Service
+            {
+                public void Foo(int a, int b, int c)
+                {
+                }
+            }
+            """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var updated = await ChangeSignatureCore.AddParamAsync(
+                solution,
+                "TestApp.Service.Foo",
+                "int x = 0",
+                afterParam: "b");
+
+            var serviceText = await GetDocumentTextAsync(updated, "Service.cs");
+            Assert.Contains("Foo(int a, int b, int x = 0, int c)", serviceText);
+        }
+    }
+
+    [Fact]
+    public async Task AddParam_after_nonexistent_param_throws()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Service.cs", """
+            namespace TestApp;
+
+            public class Service
+            {
+                public void Foo(int a)
+                {
+                }
+            }
+            """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                ChangeSignatureCore.AddParamAsync(solution, "TestApp.Service.Foo", "int x = 0", afterParam: "z"));
+
+            Assert.Contains("z", ex.Message);
+        }
+    }
+
+    [Fact]
+    public async Task AddParam_without_default_value_throws()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Service.cs", """
+            namespace TestApp;
+
+            public class Service
+            {
+                public void Foo(int a)
+                {
+                }
+            }
+            """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                ChangeSignatureCore.AddParamAsync(solution, "TestApp.Service.Foo", "int count", afterParam: null));
+
+            Assert.Contains("default value", ex.Message);
+        }
+    }
+
+    [Fact]
+    public async Task AddParam_name_conflict_throws()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Service.cs", """
+            namespace TestApp;
+
+            public class Service
+            {
+                public void Foo(int a, int b)
+                {
+                }
+            }
+            """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                ChangeSignatureCore.AddParamAsync(solution, "TestApp.Service.Foo", "int a = 0", afterParam: null));
+
+            Assert.Contains("a", ex.Message);
+        }
+    }
+
+    [Fact]
+    public async Task AddParam_works_for_constructor_target()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Widget.cs", """
+            namespace TestApp;
+
+            public class Widget
+            {
+                public Widget(int x)
+                {
+                }
+            }
+            """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var updated = await ChangeSignatureCore.AddParamAsync(
+                solution,
+                "TestApp.Widget.Widget",
+                "string label = \"\"",
+                afterParam: null);
+
+            var text = await GetDocumentTextAsync(updated, "Widget.cs");
+            Assert.Contains("Widget(int x, string label = \"\")", text);
+        }
+    }
+
+    [Fact]
+    public async Task AddParam_works_for_local_function_target()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Container.cs", """
+            namespace TestApp;
+
+            public class Container
+            {
+                public void Run()
+                {
+                    void Local(int a)
+                    {
+                    }
+
+                    Local(1);
+                }
+            }
+            """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var updated = await ChangeSignatureCore.AddParamAsync(
+                solution,
+                "TestApp.Container.Run.Local",
+                "int b = 0",
+                afterParam: null);
+
+            var text = await GetDocumentTextAsync(updated, "Container.cs");
+            Assert.Contains("Local(int a, int b = 0)", text);
+        }
+    }
+
+    // ── remove-param tests ────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task RemoveParam_requires_default_value_without_force()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Service.cs", """
+            namespace TestApp;
+
+            public class Service
+            {
+                public void Foo(int a, int b)
+                {
+                }
+            }
+            """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                ChangeSignatureCore.RemoveParamAsync(solution, "TestApp.Service.Foo", "a", force: false));
+
+            Assert.Contains("default value", ex.Message);
+        }
+    }
+
+    [Fact]
+    public async Task RemoveParam_force_bypasses_default_value_check()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Service.cs", """
+            namespace TestApp;
+
+            public class Service
+            {
+                public void Foo(int a, int b)
+                {
+                }
+            }
+            """);
+        project.AddSource("Caller.cs", """
+            namespace TestApp;
+
+            public class Caller
+            {
+                public void Run(Service svc) => svc.Foo(1, 2);
+            }
+            """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var updated = await ChangeSignatureCore.RemoveParamAsync(
+                solution, "TestApp.Service.Foo", "a", force: true);
+
+            var serviceText = await GetDocumentTextAsync(updated, "Service.cs");
+            Assert.DoesNotContain("int a", serviceText);
+            Assert.Contains("Foo(int b)", serviceText);
+
+            var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
+            Assert.Contains("Foo(2)", callerText);
+        }
+    }
+
+    [Fact]
+    public async Task RemoveParam_removes_positional_arg_from_single_call_site()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Service.cs", """
+            namespace TestApp;
+
+            public class Service
+            {
+                public void Foo(int a = 0, int b = 0)
+                {
+                }
+            }
+            """);
+        project.AddSource("Caller.cs", """
+            namespace TestApp;
+
+            public class Caller
+            {
+                public void Run(Service svc) => svc.Foo(1, 2);
+            }
+            """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var updated = await ChangeSignatureCore.RemoveParamAsync(
+                solution, "TestApp.Service.Foo", "a", force: false);
+
+            var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
+            Assert.Contains("Foo(2)", callerText);
+        }
+    }
+
+    [Fact]
+    public async Task RemoveParam_rewrites_multiple_call_sites_in_same_document()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Service.cs", """
+            namespace TestApp;
+
+            public class Service
+            {
+                public void Foo(int a = 0, int b = 0)
+                {
+                }
+            }
+            """);
+        project.AddSource("Caller.cs", """
+            namespace TestApp;
+
+            public class Caller
+            {
+                public void Run(Service svc)
+                {
+                    svc.Foo(1, 2);
+                    svc.Foo(3, 4);
+                }
+            }
+            """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var updated = await ChangeSignatureCore.RemoveParamAsync(
+                solution, "TestApp.Service.Foo", "a", force: false);
+
+            var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
+            Assert.Contains("Foo(2)", callerText);
+            Assert.Contains("Foo(4)", callerText);
+        }
+    }
+
+    [Fact]
+    public async Task RemoveParam_removes_positional_arg_across_multiple_files()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Service.cs", """
+            namespace TestApp;
+
+            public class Service
+            {
+                public void Foo(int a = 0, int b = 0)
+                {
+                }
+            }
+            """);
+        project.AddSource("Caller1.cs", """
+            namespace TestApp;
+
+            public class Caller1
+            {
+                public void Run(Service svc) => svc.Foo(1, 2);
+            }
+            """);
+        project.AddSource("Caller2.cs", """
+            namespace TestApp;
+
+            public class Caller2
+            {
+                public void Run(Service svc) => svc.Foo(3, 4);
+            }
+            """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var updated = await ChangeSignatureCore.RemoveParamAsync(
+                solution, "TestApp.Service.Foo", "a", force: false);
+
+            var caller1Text = await GetDocumentTextAsync(updated, "Caller1.cs");
+            var caller2Text = await GetDocumentTextAsync(updated, "Caller2.cs");
+
+            Assert.Contains("Foo(2)", caller1Text);
+            Assert.Contains("Foo(4)", caller2Text);
+        }
+    }
+
+    [Fact]
+    public async Task RemoveParam_removes_named_arg_from_call_site()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Service.cs", """
+            namespace TestApp;
+
+            public class Service
+            {
+                public void Foo(int a = 0, int b = 0)
+                {
+                }
+            }
+            """);
+        project.AddSource("Caller.cs", """
+            namespace TestApp;
+
+            public class Caller
+            {
+                public void Run(Service svc) => svc.Foo(a: 1, b: 2);
+            }
+            """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var updated = await ChangeSignatureCore.RemoveParamAsync(
+                solution, "TestApp.Service.Foo", "a", force: false);
+
+            var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
+            Assert.Contains("Foo(b: 2)", callerText);
+            Assert.DoesNotContain("a: 1", callerText);
+        }
+    }
+
+    [Fact]
+    public async Task RemoveParam_handles_mixed_positional_and_named_call_sites()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Service.cs", """
+            namespace TestApp;
+
+            public class Service
+            {
+                public void Foo(int a = 0, int b = 0)
+                {
+                }
+            }
+            """);
+        project.AddSource("Caller.cs", """
+            namespace TestApp;
+
+            public class Caller
+            {
+                public void Run(Service svc)
+                {
+                    svc.Foo(1, 2);
+                    svc.Foo(a: 3, b: 4);
+                }
+            }
+            """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var updated = await ChangeSignatureCore.RemoveParamAsync(
+                solution, "TestApp.Service.Foo", "a", force: false);
+
+            var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
+            Assert.Contains("Foo(2)", callerText);
+            Assert.Contains("Foo(b: 4)", callerText);
+            Assert.DoesNotContain("a: 3", callerText);
+        }
+    }
+
+    [Fact]
+    public async Task RemoveParam_throws_when_param_not_found()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Service.cs", """
+            namespace TestApp;
+
+            public class Service
+            {
+                public void Foo(int a)
+                {
+                }
+            }
+            """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                ChangeSignatureCore.RemoveParamAsync(solution, "TestApp.Service.Foo", "missing", force: true));
+
+            Assert.Contains("missing", ex.Message);
+        }
+    }
+
+    [Fact]
+    public async Task RemoveParam_works_for_constructor_target()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Widget.cs", """
+            namespace TestApp;
+
+            public class Widget
+            {
+                public Widget(int x = 0, int y = 0)
+                {
+                }
+            }
+            """);
+        project.AddSource("Caller.cs", """
+            namespace TestApp;
+
+            public class Caller
+            {
+                public void Run() => _ = new Widget(1, 2);
+            }
+            """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var updated = await ChangeSignatureCore.RemoveParamAsync(
+                solution, "TestApp.Widget.Widget", "x", force: false);
+
+            var widgetText = await GetDocumentTextAsync(updated, "Widget.cs");
+            var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
+
+            Assert.Contains("Widget(int y = 0)", widgetText);
+            Assert.DoesNotContain("int x", widgetText);
+            Assert.Contains("new Widget(2)", callerText);
+        }
+    }
+
+    [Fact]
+    public async Task RemoveParam_works_for_local_function_target()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Container.cs", """
+            namespace TestApp;
+
+            public class Container
+            {
+                public void Run()
+                {
+                    void Local(int a = 0, int b = 0)
+                    {
+                    }
+
+                    Local(1, 2);
+                }
+            }
+            """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var updated = await ChangeSignatureCore.RemoveParamAsync(
+                solution, "TestApp.Container.Run.Local", "a", force: false);
+
+            var text = await GetDocumentTextAsync(updated, "Container.cs");
+            Assert.Contains("Local(int b = 0)", text);
+            Assert.Contains("Local(2)", text);
+        }
+    }
+
+    // ── registration tests ────────────────────────────────────────────────────
+
+    [Fact]
+    public void Registers_add_param_and_remove_param_subcommands()
+    {
+        var command = ChangeSignatureCommand.Build();
+
+        var addParam = command.Subcommands.Single(subcommand => subcommand.Name == "add-param");
+        var removeParam = command.Subcommands.Single(subcommand => subcommand.Name == "remove-param");
+
+        Assert.Equal(["methodSpec", "paramSpec"], addParam.Arguments.Select(a => a.Name));
+        Assert.Contains(addParam.Options, o => o.Name == "after");
+        Assert.Contains(addParam.Options, o => o.Name == "dry-run");
+        Assert.Contains(addParam.Options, o => o.Name == "solution");
+
+        Assert.Equal(["methodSpec", "paramName"], removeParam.Arguments.Select(a => a.Name));
+        Assert.Contains(removeParam.Options, o => o.Name == "force");
+        Assert.Contains(removeParam.Options, o => o.Name == "dry-run");
+        Assert.Contains(removeParam.Options, o => o.Name == "solution");
+
+        Assert.Contains(ChangeSignatureCommand.Info.Examples, e => e.Contains("add-param", StringComparison.Ordinal));
+        Assert.Contains(ChangeSignatureCommand.Info.Examples, e => e.Contains("remove-param", StringComparison.Ordinal));
+    }
+
     private static async Task<string> GetDocumentTextAsync(Solution solution, string documentName)
     {
         var document = solution.Projects
