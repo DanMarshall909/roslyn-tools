@@ -602,7 +602,7 @@ public class ChangeSignatureTests
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 ChangeSignatureCore.AddParamAsync(solution, "TestApp.Service.Foo", "int a = 0", afterParam: null));
 
-            Assert.Contains("a", ex.Message);
+            Assert.Contains("parameter named 'a'", ex.Message);
         }
     }
 
@@ -1019,6 +1019,215 @@ public class ChangeSignatureTests
             var text = await GetDocumentTextAsync(updated, "Container.cs");
             Assert.Contains("Local(int b = 0)", text);
             Assert.Contains("Local(2)", text);
+        }
+    }
+
+    // ── WARN fixes ────────────────────────────────────────────────────────────
+
+    // WARN 4: AddParam empty-list should use SourceText.WithChanges not round-trip
+    [Fact]
+    public async Task AddParam_into_empty_param_list_uses_WithChanges()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Service.cs", """
+            namespace TestApp;
+
+            public class Service
+            {
+                public void Foo()
+                {
+                }
+            }
+            """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var updated = await ChangeSignatureCore.AddParamAsync(
+                solution,
+                "TestApp.Service.Foo",
+                "int count = 0",
+                afterParam: null);
+
+            var text = await GetDocumentTextAsync(updated, "Service.cs");
+            Assert.Contains("Foo(int count = 0)", text);
+        }
+    }
+
+    // WARN 5: same-document declaration + call site — "collect against original, apply after" invariant
+    [Fact]
+    public async Task RemoveParam_rewrites_declaration_and_call_site_in_same_document()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("All.cs", """
+            namespace TestApp;
+
+            public class Service
+            {
+                public void Foo(int a = 0, int b = 0) { }
+
+                public void Run()
+                {
+                    Foo(1, 2);
+                    Foo(3, 4);
+                }
+            }
+            """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var updated = await ChangeSignatureCore.RemoveParamAsync(
+                solution, "TestApp.Service.Foo", "a", force: false);
+
+            var text = await GetDocumentTextAsync(updated, "All.cs");
+            Assert.Contains("Foo(int b = 0)", text);
+            Assert.DoesNotContain("int a", text);
+            Assert.Contains("Foo(2)", text);
+            Assert.Contains("Foo(4)", text);
+        }
+    }
+
+    // WARN 2: extension method — paramIndex must exclude the implicit receiver
+    [Fact]
+    public async Task RemoveParam_extension_method_adjusts_arg_index_for_instance_call()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Extensions.cs", """
+            namespace TestApp;
+
+            public static class Extensions
+            {
+                public static void Foo(this Service s, int a = 0, int b = 0) { }
+            }
+            """);
+        project.AddSource("Service.cs", """
+            namespace TestApp;
+
+            public class Service { }
+            """);
+        project.AddSource("Caller.cs", """
+            namespace TestApp;
+
+            public class Caller
+            {
+                public void Run(Service svc) => svc.Foo(1, 2);
+            }
+            """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            // Remove 'a' (param index 1 on the symbol, arg index 0 at call site)
+            var updated = await ChangeSignatureCore.RemoveParamAsync(
+                solution, "TestApp.Extensions.Foo", "a", force: false);
+
+            var extText = await GetDocumentTextAsync(updated, "Extensions.cs");
+            var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
+
+            Assert.Contains("Foo(this Service s, int b = 0)", extText);
+            Assert.DoesNotContain("int a", extText);
+            Assert.Contains("svc.Foo(2)", callerText); // only b=2 remains, not a=1
+        }
+    }
+
+    // WARN 1: method-group reference emits warning to stderr and doesn't crash
+    [Fact]
+    public async Task RemoveParam_method_group_reference_emits_warning_to_stderr()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Service.cs", """
+            namespace TestApp;
+
+            public class Service
+            {
+                public void Foo(int a = 0, int b = 0) { }
+            }
+            """);
+        project.AddSource("Caller.cs", """
+            namespace TestApp;
+
+            public class Caller
+            {
+                public void Run(Service svc)
+                {
+                    System.Action<int, int> fn = svc.Foo;
+                    svc.Foo(1, 2);
+                }
+            }
+            """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var originalError = Console.Error;
+            using var stderrCapture = new StringWriter();
+            Console.SetError(stderrCapture);
+
+            try
+            {
+                var updated = await ChangeSignatureCore.RemoveParamAsync(
+                    solution, "TestApp.Service.Foo", "a", force: false);
+
+                var stderr = stderrCapture.ToString();
+                Assert.Contains("Warning", stderr); // method-group ref warned
+
+                var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
+                Assert.Contains("svc.Foo(2)", callerText); // invocation still rewritten
+            }
+            finally
+            {
+                Console.SetError(originalError);
+            }
+        }
+    }
+
+    // WARN 3: virtual override — call sites on overriding class are also rewritten
+    [Fact]
+    public async Task RemoveParam_virtual_method_rewrites_override_call_sites()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Base.cs", """
+            namespace TestApp;
+
+            public class Base
+            {
+                public virtual void Foo(int a = 0, int b = 0) { }
+            }
+            """);
+        project.AddSource("Derived.cs", """
+            namespace TestApp;
+
+            public class Derived : Base
+            {
+                public override void Foo(int a = 0, int b = 0) { }
+            }
+            """);
+        project.AddSource("Caller.cs", """
+            namespace TestApp;
+
+            public class Caller
+            {
+                public void Run(Base b, Derived d)
+                {
+                    b.Foo(1, 2);
+                    d.Foo(3, 4);
+                }
+            }
+            """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var updated = await ChangeSignatureCore.RemoveParamAsync(
+                solution, "TestApp.Base.Foo", "a", force: false);
+
+            var baseText = await GetDocumentTextAsync(updated, "Base.cs");
+            var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
+
+            Assert.Contains("Foo(int b = 0)", baseText);
+            Assert.Contains("b.Foo(2)", callerText);
+            Assert.Contains("d.Foo(4)", callerText);
         }
     }
 

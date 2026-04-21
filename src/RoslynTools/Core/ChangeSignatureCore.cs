@@ -66,7 +66,7 @@ internal static class ChangeSignatureCore
         if (methodSymbol.Parameters.Any(p => p.Name == newParamName))
         {
             throw new InvalidOperationException(
-                $"Method already has a parameter named '{newParamName}'.");
+                $"Method '{methodSpec}' already has a parameter named '{newParamName}'.");
         }
 
         // Determine insertion index
@@ -106,10 +106,6 @@ internal static class ChangeSignatureCore
             if (document is null)
                 continue;
 
-            var root = await document.GetSyntaxRootAsync();
-            if (root is null)
-                continue;
-
             var sourceText = await document.GetTextAsync();
 
             // Find the parameter list for this declaration
@@ -127,15 +123,13 @@ internal static class ChangeSignatureCore
             var existingParams = paramList.Parameters;
             if (existingParams.Count == 0)
             {
-                // Inserting into empty param list — just add the new param
-                var insertedParam = newParam.WithLeadingTrivia().WithTrailingTrivia();
-                var newParamList = paramList.AddParameters(insertedParam);
-                var newRoot = root.ReplaceNode(paramList, newParamList);
-                var newText = newRoot.ToFullString();
-
+                // Empty param list — insert at position right after '('
+                var insertPos = paramList.OpenParenToken.Span.End;
+                var paramText = newParam.ToFullString().Trim();
+                var changes = new[] { new TextChange(new TextSpan(insertPos, 0), paramText) };
                 currentSolution = currentSolution.WithDocumentText(
                     document.Id,
-                    SourceText.From(newText, sourceText.Encoding));
+                    sourceText.WithChanges(changes));
             }
             else
             {
@@ -260,9 +254,25 @@ internal static class ChangeSignatureCore
                 var node = root.FindNode(loc.Location.SourceSpan);
                 var argList = FindArgumentList(node);
                 if (argList is null)
+                {
+                    // Not an invocation — likely a method group, nameof, or attribute.
+                    // The signature change may break this site; warn so the user can inspect.
+                    Console.Error.WriteLine(
+                        $"  Warning: reference at {loc.Location} is not an invocation and was not rewritten automatically. Inspect manually.");
                     continue;
+                }
 
-                var argChanges = BuildArgumentRemovalChanges(argList, paramIndex, paramName, sourceText);
+                // Extension methods called in instance style (receiver.Foo(args)) exclude
+                // the receiver from the arg list, so the positional index must be adjusted.
+                var callSiteParamIndex = (methodSymbol.IsExtensionMethod
+                    && argList.Arguments.Count < methodSymbol.Parameters.Length)
+                    ? paramIndex - 1
+                    : paramIndex;
+
+                if (callSiteParamIndex < 0)
+                    continue; // removing the implicit receiver param — nothing to rewrite
+
+                var argChanges = BuildArgumentRemovalChanges(argList, callSiteParamIndex, paramName, sourceText);
                 docChanges.AddRange(argChanges);
             }
         }
