@@ -233,10 +233,23 @@ internal static class ChangeSignatureCore
                 if (args.Count == 0)
                     continue;
 
-                // Check for omitted optional arguments (fewer args than params)
                 if (args.Count < paramCount)
-                    throw new InvalidOperationException(
-                        $"Call site at {location.Location} has omitted optional arguments, which is not supported in v1.");
+                {
+                    // Trailing args with default values may be legitimately omitted.
+                    // Throw only if any omitted param is required, or if any omitted
+                    // param would move to a non-trailing position after reorder.
+                    bool allOmittedHaveDefaults = methodSymbol.Parameters
+                        .Skip(args.Count)
+                        .All(p => p.HasExplicitDefaultValue);
+                    if (!allOmittedHaveDefaults)
+                        throw new InvalidOperationException(
+                            $"Call site at {location.Location} is missing required arguments, which is not supported in v1.");
+                    var omittedPositions = Enumerable.Range(args.Count, paramCount - args.Count).ToHashSet();
+                    if (omittedPositions.Any(oldPos => reverseMap[oldPos] < args.Count))
+                        throw new InvalidOperationException(
+                            $"Call site at {location.Location} omits optional argument(s) that would move to a non-trailing position after reorder. Specify all arguments explicitly first.");
+                    continue;
+                }
 
                 var newArgs = ReorderArguments(args, paramNames, reverseMap);
 
@@ -252,18 +265,16 @@ internal static class ChangeSignatureCore
             }
         }
 
-        // Apply all edits, one document at a time (apply in reverse span order to preserve offsets)
+        // Apply all edits per document — spans are stable relative to the original text,
+        // so SourceText.WithChanges can apply them all at once without offset drift.
         foreach (var (docId, replacements) in edits)
         {
             var document = solution.GetDocument(docId)!;
             var sourceText = await document.GetTextAsync();
-            var ordered = replacements.OrderByDescending(r => r.Span.Start).ToList();
-
-            var textStr = sourceText.ToString();
-            foreach (var (span, newText) in ordered)
-                textStr = textStr[..span.Start] + newText + textStr[span.End..];
-
-            solution = solution.WithDocumentText(docId, SourceText.From(textStr, System.Text.Encoding.UTF8));
+            var changes = replacements
+                .OrderBy(r => r.Span.Start)
+                .Select(r => new TextChange(r.Span, r.NewText));
+            solution = solution.WithDocumentText(docId, sourceText.WithChanges(changes));
         }
 
         return solution;

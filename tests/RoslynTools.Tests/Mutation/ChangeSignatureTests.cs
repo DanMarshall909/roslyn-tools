@@ -869,6 +869,70 @@ public class ChangeSignatureTests
         }
     }
 
+    // ---- ReorderParamsAsync: omitted optional arguments ----
+
+    [Fact]
+    public async Task ReorderParams_omitted_trailing_optional_call_site_left_unchanged()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Service.cs", """
+            namespace TestApp;
+            public class Service
+            {
+                public void Foo(int a, int b, int c = 0) { }
+            }
+            """);
+        project.AddSource("Caller.cs", """
+            namespace TestApp;
+            public class Caller
+            {
+                public void Run(Service s) { s.Foo(1, 2); }
+            }
+            """);
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            // Reorder a and b; c stays at the end (omitted optional — safe to leave)
+            var updated = await ChangeSignatureCore.ReorderParamsAsync(
+                solution, "TestApp.Service.Foo", ["1", "0", "2"]);
+
+            var svc = await GetDocumentTextAsync(updated, "Service.cs");
+            var caller = await GetDocumentTextAsync(updated, "Caller.cs");
+
+            Assert.Contains("Foo(int b, int a, int c = 0)", svc);
+            Assert.Contains("s.Foo(1, 2)", caller); // call site left as-is (c still trailing)
+        }
+    }
+
+    [Fact]
+    public async Task ReorderParams_omitted_optional_moved_to_non_trailing_throws()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Service.cs", """
+            namespace TestApp;
+            public class Service
+            {
+                public void Foo(int a, int b = 0, int c = 0) { }
+            }
+            """);
+        project.AddSource("Caller.cs", """
+            namespace TestApp;
+            public class Caller
+            {
+                public void Run(Service s) { s.Foo(1); }
+            }
+            """);
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            // Reorder puts b (index 1, currently omitted) before a (index 0)
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                ChangeSignatureCore.ReorderParamsAsync(solution, "TestApp.Service.Foo", ["1", "0", "2"]));
+
+            Assert.Contains("non-trailing position", ex.Message);
+        }
+    }
+
     private static async Task<string> GetDocumentTextAsync(Solution solution, string documentName)
     {
         var document = solution.Projects
