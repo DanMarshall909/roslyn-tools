@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using RoslynTools.Models;
 
@@ -141,6 +142,55 @@ internal static class SymbolLocator
         return Disambiguate(symbolMatches, fqn);
     }
 
+    internal static async Task<IMethodSymbol> FindMethodBySpecAsync(Solution solution, string methodSpec)
+    {
+        var input = NormalizeFqn(methodSpec);
+        var inputWithoutSignature = RemoveSignature(input);
+        var specSegments = inputWithoutSignature.Split('.', StringSplitOptions.RemoveEmptyEntries);
+        var matches = new List<SymbolMatch>();
+
+        foreach (var project in solution.Projects)
+        {
+            foreach (var document in project.Documents)
+            {
+                var root = await document.GetSyntaxRootAsync();
+                var semanticModel = await document.GetSemanticModelAsync();
+                if (root is null || semanticModel is null)
+                    continue;
+
+                foreach (var declaration in root.DescendantNodes().Where(IsMethodLikeDeclaration))
+                {
+                    var method = semanticModel.GetDeclaredSymbol(declaration) as IMethodSymbol;
+                    if (method is null || !IsSupportedMethod(method))
+                        continue;
+
+                    if (!MatchesMethodSpec(method, input, inputWithoutSignature, specSegments))
+                        continue;
+
+                    matches.Add(new SymbolMatch
+                    {
+                        Symbol = method,
+                        DisplayName = method.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
+                        ProjectName = method.ContainingAssembly?.Name ?? "?"
+                    });
+                }
+            }
+        }
+
+        matches = matches
+            .GroupBy(match => match.DisplayName, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .ToList();
+
+        if (matches.Count == 0)
+            throw new InvalidOperationException($"Method '{methodSpec}' not found in solution.");
+
+        if (matches.Count == 1)
+            return (IMethodSymbol)matches[0].Symbol;
+
+        return (IMethodSymbol)Disambiguate(matches, methodSpec);
+    }
+
     private static ISymbol Disambiguate(List<SymbolMatch> matches, string name)
     {
         Console.WriteLine($"\nMultiple symbols match '{name}':");
@@ -220,5 +270,105 @@ internal static class SymbolLocator
         var noParams = fqn.Split('(')[0];
         var lastDot = noParams.LastIndexOf('.');
         return lastDot >= 0 ? noParams[(lastDot + 1)..] : noParams;
+    }
+
+    private static bool IsMethodLikeDeclaration(SyntaxNode node) =>
+        node is MethodDeclarationSyntax or ConstructorDeclarationSyntax or LocalFunctionStatementSyntax;
+
+    private static bool IsSupportedMethod(IMethodSymbol method) =>
+        method.MethodKind is MethodKind.Ordinary or MethodKind.Constructor or MethodKind.LocalFunction;
+
+    private static bool MatchesMethodSpec(
+        IMethodSymbol method,
+        string input,
+        string inputWithoutSignature,
+        string[] specSegments)
+    {
+        var displayName = NormalizeFqn(method.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat));
+        if (displayName == input)
+            return true;
+
+        foreach (var candidate in GetMethodSpecCandidates(method))
+        {
+            if (candidate == inputWithoutSignature)
+                return true;
+
+            var candidateSegments = candidate.Split('.', StringSplitOptions.RemoveEmptyEntries);
+            if (candidateSegments.Length >= specSegments.Length
+                && candidateSegments[^specSegments.Length..].SequenceEqual(specSegments, StringComparer.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static IEnumerable<string> GetMethodSpecCandidates(IMethodSymbol method)
+    {
+        yield return string.Join(".", BuildMethodPathSegments(method, constructorUsesTypeName: false));
+
+        if (method.MethodKind == MethodKind.Constructor)
+            yield return string.Join(".", BuildMethodPathSegments(method, constructorUsesTypeName: true));
+    }
+
+    private static string[] BuildMethodPathSegments(IMethodSymbol method, bool constructorUsesTypeName)
+    {
+        var segments = new List<string>();
+
+        if (!method.ContainingNamespace.IsGlobalNamespace)
+            segments.AddRange(method.ContainingNamespace.ToDisplayString().Split('.', StringSplitOptions.RemoveEmptyEntries));
+
+        segments.AddRange(GetContainingTypeNames(method.ContainingType));
+        segments.AddRange(GetContainingCallableNames(method.ContainingSymbol));
+        segments.Add(GetMethodSegment(method, constructorUsesTypeName));
+
+        return [.. segments];
+    }
+
+    private static string[] GetContainingTypeNames(INamedTypeSymbol? type)
+    {
+        if (type is null)
+            return [];
+
+        var stack = new Stack<string>();
+        for (var current = type; current is not null; current = current.ContainingType)
+            stack.Push(current.Name);
+
+        return [.. stack];
+    }
+
+    private static string[] GetContainingCallableNames(ISymbol? symbol)
+    {
+        var stack = new Stack<string>();
+
+        for (var current = symbol; current is IMethodSymbol method; current = current.ContainingSymbol)
+        {
+            if (method.MethodKind == MethodKind.LocalFunction)
+            {
+                stack.Push(method.Name);
+                continue;
+            }
+
+            if (method.MethodKind == MethodKind.Ordinary)
+            {
+                stack.Push(method.Name);
+            }
+
+            break;
+        }
+
+        return [.. stack];
+    }
+
+    private static string GetMethodSegment(IMethodSymbol method, bool constructorUsesTypeName) =>
+        method.MethodKind == MethodKind.Constructor && constructorUsesTypeName
+            ? method.ContainingType.Name
+            : method.Name;
+
+    private static string RemoveSignature(string value)
+    {
+        var parenIndex = value.IndexOf('(');
+        return parenIndex >= 0 ? value[..parenIndex] : value;
     }
 }
