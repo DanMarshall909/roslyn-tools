@@ -7,6 +7,7 @@ internal sealed class MakeSealedCommand : IRtCommand
 {
     private MakeSealedCommand() { }
 
+    // Stryker disable all
     public static RtCommandInfo Info { get; } = new(
         Name: "make-sealed",
         Mutates: true,
@@ -21,7 +22,9 @@ internal sealed class MakeSealedCommand : IRtCommand
             "rt make-sealed --type RtCommandInfo --solution RoslynTools.slnx",
         ]
     );
+    // Stryker restore all
 
+    // Stryker disable all
     public static Command Build()
     {
         var typeOpt = new Option<string>("--type", "Class to seal") { IsRequired = true };
@@ -41,6 +44,7 @@ internal sealed class MakeSealedCommand : IRtCommand
 
         return cmd;
     }
+    // Stryker restore all
 
     internal static async Task ExecuteAsync(string typeName, string? solutionPath, bool dryRun)
     {

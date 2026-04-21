@@ -34,10 +34,10 @@ internal static class MethodExtractor
         var (containingMethod, containingType, isStatic) = FindContainingContext(selected);
 
         // ── 7. Build new method ───────────────────────────────────────────────
-        var newMethod = BuildNewMethod(newMethodName, orderedParams, returnVars, selected, model, isStatic);
+        var newMethod = MethodExtractorBuilder.BuildNewMethod(newMethodName, orderedParams, returnVars, selected, model, isStatic);
 
         // ── 8. Build call site ────────────────────────────────────────────────
-        var callSite = BuildCallSite(newMethodName, orderedParams, returnVars, selected.First());
+        var callSite = MethodExtractorBuilder.BuildCallSite(newMethodName, orderedParams, returnVars, selected.First());
 
         // ── 9. Splice call site into the original block ───────────────────────
         var newContainingMethod = SpliceCallSite(selected, callSite, containingMethod);
@@ -321,100 +321,8 @@ internal static class MethodExtractor
     }
 
     // ────────────────────────────────────────────────────────────────────────────
-    //  Method builder — text-based to guarantee correct trivia/spacing
-    // ────────────────────────────────────────────────────────────────────────────
-
-    private static MethodDeclarationSyntax BuildNewMethod(
-        string name,
-        IReadOnlyList<ISymbol> parameters,
-        List<ISymbol> returnVars,
-        List<StatementSyntax> bodyStatements,
-        SemanticModel model,
-        bool isStatic)
-    {
-        var modifiers = $"private{(isStatic ? " static" : "")}";
-        var paramStr = string.Join(", ", parameters.Select(p => $"{GetTypeName(p)} {p.Name}"));
-
-        string returnTypeStr;
-        string returnStmtStr;
-
-        if (returnVars.Count == 0)
-        {
-            returnTypeStr = "void";
-            returnStmtStr = "";
-        }
-        else if (returnVars.Count == 1)
-        {
-            returnTypeStr = GetTypeName(returnVars[0]);
-            returnStmtStr = "\n" + IndentOf(bodyStatements[^1]) + $"return {returnVars[0].Name};";
-        }
-        else
-        {
-            var tupleTypes = string.Join(", ", returnVars.Select(v => $"{GetTypeName(v)} {v.Name}"));
-            returnTypeStr = $"({tupleTypes})";
-            var tupleValues = string.Join(", ", returnVars.Select(v => v.Name));
-            returnStmtStr = "\n" + IndentOf(bodyStatements[^1]) + $"return ({tupleValues});";
-        }
-
-        // Reconstruct body text from original statements to preserve indentation
-        var bodyText = string.Join("", bodyStatements.Select(s => s.ToFullString()));
-
-        // The method text is parsed at the file root level; leading indent is applied after parsing.
-        var memberIndent = MemberIndentOf(bodyStatements[0]);
-        var methodText = $"{modifiers} {returnTypeStr} {name}({paramStr})\n{memberIndent}{{\n{bodyText}{returnStmtStr}\n{memberIndent}}}";
-
-        var method = (MethodDeclarationSyntax)(SyntaxFactory.ParseMemberDeclaration(methodText)
-            ?? throw new InvalidOperationException("Failed to parse the generated method."));
-
-        // Add a blank line before the new method to separate it from the previous member
-        return method.WithLeadingTrivia(
-            SyntaxFactory.LineFeed,
-            SyntaxFactory.Whitespace(memberIndent));
-    }
-
-    // ────────────────────────────────────────────────────────────────────────────
-    //  Call site builder — text-based to guarantee correct trivia/spacing
-    // ────────────────────────────────────────────────────────────────────────────
-
-    private static StatementSyntax BuildCallSite(
-        string methodName,
-        IReadOnlyList<ISymbol> parameters,
-        List<ISymbol> returnVars,
-        StatementSyntax firstExtracted)
-    {
-        var argStr = string.Join(", ", parameters.Select(p => p.Name));
-
-        string stmtText;
-        if (returnVars.Count == 0)
-            stmtText = $"{methodName}({argStr});";
-        else if (returnVars.Count == 1)
-            stmtText = $"var {returnVars[0].Name} = {methodName}({argStr});";
-        else
-        {
-            var varNames = string.Join(", ", returnVars.Select(v => v.Name));
-            stmtText = $"var ({varNames}) = {methodName}({argStr});";
-        }
-
-        return SyntaxFactory.ParseStatement(stmtText)
-            .WithLeadingTrivia(firstExtracted.GetLeadingTrivia())
-            .WithTrailingTrivia(SyntaxFactory.LineFeed);
-    }
-
-    // ────────────────────────────────────────────────────────────────────────────
     //  Helpers
     // ────────────────────────────────────────────────────────────────────────────
-
-    private static string GetTypeName(ISymbol symbol)
-    {
-        var type = symbol switch
-        {
-            ILocalSymbol loc => loc.Type,
-            IParameterSymbol param => param.Type,
-            _ => throw new InvalidOperationException(
-                $"Unexpected symbol kind when resolving type: {symbol.Kind} ({symbol.Name})")
-        };
-        return type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
-    }
 
     private static string? GetMemberName(MemberDeclarationSyntax member) => member switch
     {
@@ -424,22 +332,4 @@ internal static class MethodExtractor
         ConstructorDeclarationSyntax c => c.Identifier.Text,
         _ => null
     };
-
-    /// <summary>Returns the leading whitespace string of a statement (body-level indent).</summary>
-    private static string IndentOf(StatementSyntax stmt)
-    {
-        var ws = stmt.GetLeadingTrivia()
-            .LastOrDefault(t => t.IsKind(SyntaxKind.WhitespaceTrivia));
-        return ws == default ? "        " : ws.ToString();
-    }
-
-    /// <summary>Returns the indent string one level up from body indent (member/class-body level).</summary>
-    private static string MemberIndentOf(StatementSyntax stmt)
-    {
-        var bodyIndent = IndentOf(stmt);
-        // Trim one 4-space level to get the member indent (class body level)
-        return bodyIndent.Length >= 4
-            ? bodyIndent[..^4]
-            : bodyIndent;
-    }
 }
