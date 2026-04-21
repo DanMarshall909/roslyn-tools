@@ -127,9 +127,7 @@ internal static class WorkspaceLoader
 
     private static string ResolveExplicitSolutionPath(string solutionPath)
     {
-        var fullPath = Path.GetFullPath(solutionPath);
-        ValidateSolutionFormat(fullPath, sourceDescription: "Explicit solution path");
-        return fullPath;
+        return Path.GetFullPath(solutionPath);
     }
 
     private static string? ResolveRepoDefaultPath(DirectoryInfo currentDirectory)
@@ -164,10 +162,4 @@ internal static class WorkspaceLoader
                 $"Repository solution default '.rt-solution' in '{repoRoot}' points to '{configuredPath}', which does not exist.");
     }
 
-    private static void ValidateSolutionFormat(string solutionPath, string sourceDescription)
-    {
-        if (solutionPath.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException(
-                $"{sourceDescription} '{solutionPath}' uses unsupported format '.slnx'. Pass a .sln file instead.");
-    }
 }
