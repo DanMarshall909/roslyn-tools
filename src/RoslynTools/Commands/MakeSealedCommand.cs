@@ -33,9 +33,7 @@ internal sealed class MakeSealedCommand : IRtCommand
 
         var cmd = new Command("make-sealed", "Add the sealed modifier to a class that has no derived types");
         cmd.AddAlias("ms");
-        cmd.Add(typeOpt);
-        cmd.Add(solutionOpt);
-        cmd.Add(dryRunOpt);
+        cmd.AddAll(typeOpt, solutionOpt, dryRunOpt);
 
         cmd.SetHandler(async (type, solution, dryRun) =>
         {

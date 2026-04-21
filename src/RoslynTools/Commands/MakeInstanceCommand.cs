@@ -29,9 +29,7 @@ internal sealed class MakeInstanceCommand : IRtCommand
 
         var cmd = new Command("make-instance", "Remove static from a method and rewrite call sites to use an instance");
         cmd.AddAlias("mns");
-        cmd.Add(methodOpt);
-        cmd.Add(solutionOpt);
-        cmd.Add(dryRunOpt);
+        cmd.AddAll(methodOpt, solutionOpt, dryRunOpt);
 
         cmd.SetHandler(async (method, solution, dryRun) =>
         {

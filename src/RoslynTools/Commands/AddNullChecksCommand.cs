@@ -34,10 +34,7 @@ internal sealed class AddNullChecksCommand : IRtCommand
 
         var cmd = new Command("add-null-checks", "Insert ArgumentNullException.ThrowIfNull guards for reference-type parameters");
         cmd.AddAlias("anc");
-        cmd.Add(typeOpt);
-        cmd.Add(methodOpt);
-        cmd.Add(solutionOpt);
-        cmd.Add(dryRunOpt);
+        cmd.AddAll(typeOpt, methodOpt, solutionOpt, dryRunOpt);
 
         cmd.SetHandler(async (type, method, solution, dryRun) =>
         {
@@ -98,7 +95,7 @@ internal sealed class AddNullChecksCommand : IRtCommand
             var newMethod = methodSyntax.WithBody(newBody);
 
             // Replace the method in the document root
-            var docId = await FindDocumentIdAsync(sln, methodSymbol);
+            var docId = SymbolDocumentLocator.FindDocumentId(sln, methodSymbol);
             if (docId == null)
                 throw new InvalidOperationException("Cannot locate source document for the target method.");
 
@@ -114,7 +111,7 @@ internal sealed class AddNullChecksCommand : IRtCommand
             root = root.ReplaceNode(oldMethodNode, newMethod);
 
             // Ensure `using System;` is present (after method replacement)
-            root = EnsureUsing(root, "System");
+            root = RoslynSyntax.EnsureUsing(root, "System");
 
             sln = sln.WithDocumentSyntaxRoot(docId, root);
             await SolutionWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
@@ -160,36 +157,4 @@ internal sealed class AddNullChecksCommand : IRtCommand
         return null;
     }
 
-    private static async Task<DocumentId?> FindDocumentIdAsync(Solution sln, IMethodSymbol method)
-    {
-        var location = method.Locations.FirstOrDefault(l => l.IsInSource);
-        if (location == null) return null;
-
-        foreach (var project in sln.Projects)
-        {
-            foreach (var doc in project.Documents)
-            {
-                if (doc.FilePath != null &&
-                    string.Equals(doc.FilePath, location.SourceTree?.FilePath, StringComparison.OrdinalIgnoreCase))
-                    return doc.Id;
-            }
-        }
-        return null;
-    }
-
-    private static CompilationUnitSyntax EnsureUsing(CompilationUnitSyntax root, string ns)
-    {
-        var existing = root.Usings
-            .Select(u => u.Name?.ToString().Trim())
-            .ToHashSet(StringComparer.Ordinal);
-
-        if (existing.Contains(ns))
-            return root;
-
-        var newUsing = SyntaxFactory.UsingDirective(
-            SyntaxFactory.ParseName(" " + ns))
-            .WithTrailingTrivia(SyntaxFactory.LineFeed);
-
-        return root.AddUsings(newUsing);
-    }
 }

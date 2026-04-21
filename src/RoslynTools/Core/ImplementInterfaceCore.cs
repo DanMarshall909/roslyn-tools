@@ -21,7 +21,7 @@ internal static class ImplementInterfaceCore
             return;
         }
 
-        var docId = await FindDocumentIdAsync(sln, classSymbol)
+        var docId = SymbolDocumentLocator.FindDocumentId(sln, classSymbol)
             ?? throw new InvalidOperationException("Cannot locate source document for the target class.");
 
         var unimplementedMembers = CollectUnimplementedMembers(classSymbol, interfacesToImplement);
@@ -70,7 +70,7 @@ internal static class ImplementInterfaceCore
 
         var newClassDecl = classDecl.WithMembers(newMembers);
         root = root.ReplaceNode(classDecl, newClassDecl);
-        root = EnsureUsing(root, "System");
+        root = RoslynSyntax.EnsureUsing(root, "System");
         return sln.WithDocumentSyntaxRoot(docId, root);
     }
 
@@ -133,26 +133,6 @@ internal static class ImplementInterfaceCore
         }
 
         return result;
-    }
-
-    private static async Task<DocumentId?> FindDocumentIdAsync(Solution sln, INamedTypeSymbol classSymbol)
-    {
-        var location = classSymbol.Locations.FirstOrDefault(l => l.IsInSource)
-            ?? throw new InvalidOperationException($"No source location found for '{classSymbol.Name}'.");
-
-        foreach (var project in sln.Projects)
-        {
-            foreach (var doc in project.Documents)
-            {
-                if (doc.FilePath != null &&
-                    string.Equals(doc.FilePath, location.SourceTree?.FilePath, StringComparison.OrdinalIgnoreCase))
-                {
-                    return doc.Id;
-                }
-            }
-        }
-
-        return null;
     }
 
     private static List<ISymbol> CollectUnimplementedMembers(
@@ -283,19 +263,4 @@ internal static class ImplementInterfaceCore
         return "<" + string.Join(", ", method.TypeParameters.Select(tp => tp.Name)) + ">";
     }
 
-    private static CompilationUnitSyntax EnsureUsing(CompilationUnitSyntax root, string ns)
-    {
-        var existing = root.Usings
-            .Select(u => u.Name?.ToString().Trim())
-            .ToHashSet(StringComparer.Ordinal);
-
-        if (existing.Contains(ns))
-            return root;
-
-        var newUsing = SyntaxFactory.UsingDirective(
-            SyntaxFactory.ParseName(" " + ns))
-            .WithTrailingTrivia(SyntaxFactory.LineFeed);
-
-        return root.AddUsings(newUsing);
-    }
 }

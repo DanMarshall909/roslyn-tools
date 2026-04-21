@@ -30,7 +30,7 @@ internal static class MakeSealedCore
         var syntaxRef = classSymbol.DeclaringSyntaxReferences.FirstOrDefault()
             ?? throw new InvalidOperationException($"No source declaration found for '{typeName}'.");
 
-        var docId = await FindDocumentIdAsync(classSymbol, sln)
+        var docId = SymbolDocumentLocator.FindDocumentId(sln, classSymbol)
             ?? throw new InvalidOperationException("Cannot locate source document for the target class.");
 
         return (classSymbol, syntaxRef, docId);
@@ -94,26 +94,6 @@ internal static class MakeSealedCore
                     namedType.Name == typeName)
                 {
                     return namedType;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    private static async Task<DocumentId?> FindDocumentIdAsync(INamedTypeSymbol classSymbol, Solution sln)
-    {
-        var location = classSymbol.Locations.FirstOrDefault(l => l.IsInSource);
-        if (location == null) return null;
-
-        foreach (var project in sln.Projects)
-        {
-            foreach (var doc in project.Documents)
-            {
-                if (doc.FilePath != null &&
-                    string.Equals(doc.FilePath, location.SourceTree?.FilePath, StringComparison.OrdinalIgnoreCase))
-                {
-                    return doc.Id;
                 }
             }
         }

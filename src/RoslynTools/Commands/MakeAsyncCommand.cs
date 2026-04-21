@@ -69,7 +69,7 @@ internal sealed class MakeAsyncCommand : IRtCommand
             var newMethodName = noRename ? methodName : methodName + "Async";
 
             // Find the document containing the target method
-            var targetDocId = FindDocumentIdContainingMethod(sln, methodSymbol);
+            var targetDocId = SymbolDocumentLocator.FindDocumentId(sln, methodSymbol);
             if (targetDocId == null)
                 throw new InvalidOperationException("Cannot locate source document for the target method.");
 
@@ -107,7 +107,7 @@ internal sealed class MakeAsyncCommand : IRtCommand
                     callSpans ?? new List<TextSpan>());
 
                 if (root is CompilationUnitSyntax cu)
-                    root = EnsureUsing(cu, "System.Threading.Tasks");
+                    root = RoslynSyntax.EnsureUsing(cu, "System.Threading.Tasks");
 
                 sln = sln.WithDocumentSyntaxRoot(docId, root);
             }
@@ -275,36 +275,4 @@ internal sealed class MakeAsyncCommand : IRtCommand
         return null;
     }
 
-    private static DocumentId? FindDocumentIdContainingMethod(Solution sln, IMethodSymbol method)
-    {
-        var location = method.Locations.FirstOrDefault(l => l.IsInSource);
-        if (location == null) return null;
-
-        foreach (var project in sln.Projects)
-        {
-            foreach (var doc in project.Documents)
-            {
-                if (doc.FilePath != null &&
-                    string.Equals(doc.FilePath, location.SourceTree?.FilePath, StringComparison.OrdinalIgnoreCase))
-                    return doc.Id;
-            }
-        }
-        return null;
-    }
-
-    private static CompilationUnitSyntax EnsureUsing(CompilationUnitSyntax root, string ns)
-    {
-        var existing = root.Usings
-            .Select(u => u.Name?.ToString().Trim())
-            .ToHashSet(StringComparer.Ordinal);
-
-        if (existing.Contains(ns))
-            return root;
-
-        var newUsing = SyntaxFactory.UsingDirective(
-            SyntaxFactory.ParseName(" " + ns))
-            .WithTrailingTrivia(SyntaxFactory.LineFeed);
-
-        return root.AddUsings(newUsing);
-    }
 }

@@ -75,8 +75,8 @@ internal static class AddTestCore
         string? nestedClass)
     {
         var cu = (CompilationUnitSyntax)classDecl.SyntaxTree.GetRoot();
-        cu = EnsureUsing(cu, "Xunit");
-        cu = EnsureUsing(cu, "System");
+        cu = RoslynSyntax.EnsureUsing(cu, "Xunit");
+        cu = RoslynSyntax.EnsureUsing(cu, "System");
 
         // Re-find classDecl after root may have changed
         classDecl = cu.DescendantNodes()
@@ -144,19 +144,4 @@ internal static class AddTestCore
         return SyntaxFactory.ParseMemberDeclaration(text)!;
     }
 
-    private static CompilationUnitSyntax EnsureUsing(CompilationUnitSyntax root, string ns)
-    {
-        var existing = root.Usings
-            .Select(u => u.Name?.ToString().Trim())
-            .ToHashSet(StringComparer.Ordinal);
-
-        if (existing.Contains(ns))
-            return root;
-
-        var newUsing = SyntaxFactory.UsingDirective(
-                SyntaxFactory.ParseName(" " + ns))
-            .WithTrailingTrivia(SyntaxFactory.LineFeed);
-
-        return root.AddUsings(newUsing);
-    }
 }

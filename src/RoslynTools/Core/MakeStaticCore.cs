@@ -59,7 +59,7 @@ internal static class MakeStaticCore
 
                 if (method == null) continue;
 
-                var docId = await FindDocumentIdForSymbolAsync(method, sln)
+                var docId = SymbolDocumentLocator.FindDocumentId(sln, method)
                     ?? throw new InvalidOperationException(
                         $"Cannot locate source document for '{typeName}.{methodName}'.");
 
@@ -69,25 +69,6 @@ internal static class MakeStaticCore
 
         throw new InvalidOperationException(
             $"Method '{typeName}.{methodName}' not found in solution.");
-    }
-
-    private static async Task<DocumentId?> FindDocumentIdForSymbolAsync(ISymbol symbol, Solution sln)
-    {
-        var location = symbol.Locations.FirstOrDefault(l => l.IsInSource);
-        if (location == null) return null;
-
-        foreach (var project in sln.Projects)
-        {
-            foreach (var doc in project.Documents)
-            {
-                if (doc.FilePath != null &&
-                    string.Equals(doc.FilePath, location.SourceTree?.FilePath,
-                        StringComparison.OrdinalIgnoreCase))
-                    return doc.Id;
-            }
-        }
-
-        return null;
     }
 
     // ── Safety check ──────────────────────────────────────────────────────────

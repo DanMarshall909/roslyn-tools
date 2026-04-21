@@ -76,7 +76,7 @@ internal sealed class ReplaceTypeCommand : IRtCommand
                 // Add 'using System;' if not present (for TimeProvider)
                 if (newRoot is CompilationUnitSyntax compilationUnit)
                 {
-                    newRoot = EnsureUsing(compilationUnit, "System");
+                    newRoot = RoslynSyntax.EnsureUsing(compilationUnit, "System");
                 }
 
                 solution = solution.WithDocumentSyntaxRoot(doc.Id, newRoot);
@@ -101,22 +101,6 @@ internal sealed class ReplaceTypeCommand : IRtCommand
         Console.Error.WriteLine("\n--- Manual review needed ---");
         Console.Error.WriteLine("Verify constructor injection was added correctly in each class.");
         Console.Error.WriteLine("Static classes and top-level statements need manual wiring.");
-    }
-
-    private static CompilationUnitSyntax EnsureUsing(CompilationUnitSyntax root, string ns)
-    {
-        var existing = root.Usings
-            .Select(u => u.Name?.ToString().Trim())
-            .ToHashSet(StringComparer.Ordinal);
-
-        if (existing.Contains(ns))
-            return root;
-
-        var newUsing = SyntaxFactory.UsingDirective(
-            SyntaxFactory.ParseName(" " + ns))
-            .WithTrailingTrivia(SyntaxFactory.CarriageReturnLineFeed);
-
-        return root.AddUsings(newUsing);
     }
 
     // ──────────────────────────────────────────────────────────────

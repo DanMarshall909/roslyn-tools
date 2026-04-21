@@ -33,9 +33,7 @@ internal sealed class FixNamespaceCommand : IRtCommand
 
         var cmd = new Command("fix-namespace", "Align a file's namespace declaration to its folder path");
         cmd.AddAlias("fns");
-        cmd.Add(fileOpt);
-        cmd.Add(solutionOpt);
-        cmd.Add(dryRunOpt);
+        cmd.AddAll(fileOpt, solutionOpt, dryRunOpt);
 
         cmd.SetHandler(async (file, solution, dryRun) =>
         {

@@ -83,7 +83,7 @@ internal sealed class InlineMethodCommand : IRtCommand
                 .ToDictionary(g => g.Key, g => g.Select(l => l.Location.SourceSpan).ToList());
 
             // Find the document containing the method declaration
-            var declDocId = FindDocumentIdContainingMethod(sln, methodSymbol);
+            var declDocId = SymbolDocumentLocator.FindDocumentId(sln, methodSymbol);
             if (declDocId == null)
             {
                 Console.Error.WriteLine($"Error: Cannot locate source document for '{methodName}'.");
@@ -262,23 +262,6 @@ internal sealed class InlineMethodCommand : IRtCommand
                     if (method != null)
                         return method;
                 }
-            }
-        }
-        return null;
-    }
-
-    private static DocumentId? FindDocumentIdContainingMethod(Solution sln, IMethodSymbol method)
-    {
-        var location = method.Locations.FirstOrDefault(l => l.IsInSource);
-        if (location == null) return null;
-
-        foreach (var project in sln.Projects)
-        {
-            foreach (var doc in project.Documents)
-            {
-                if (doc.FilePath != null &&
-                    string.Equals(doc.FilePath, location.SourceTree?.FilePath, StringComparison.OrdinalIgnoreCase))
-                    return doc.Id;
             }
         }
         return null;

@@ -30,9 +30,7 @@ internal sealed class ConvertToRecordCommand : IRtCommand
 
         var cmd = new Command("convert-to-record", "Convert a class to a record type with positional parameters");
         cmd.AddAlias("ctr");
-        cmd.Add(typeOpt);
-        cmd.Add(solutionOpt);
-        cmd.Add(dryRunOpt);
+        cmd.AddAll(typeOpt, solutionOpt, dryRunOpt);
 
         cmd.SetHandler(async (type, solution, dryRun) =>
         {

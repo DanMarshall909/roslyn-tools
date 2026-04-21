@@ -32,9 +32,7 @@ internal sealed class MakeStaticCommand : IRtCommand
 
         var cmd = new Command("make-static", "Convert an instance method to static when it has no instance-state dependencies");
         cmd.AddAlias("mst");
-        cmd.Add(methodOpt);
-        cmd.Add(solutionOpt);
-        cmd.Add(dryRunOpt);
+        cmd.AddAll(methodOpt, solutionOpt, dryRunOpt);
 
         cmd.SetHandler(async (method, solution, dryRun) =>
         {
