@@ -1730,6 +1730,220 @@ public class ChangeSignatureTests
         Assert.Contains(ChangeSignatureCommand.Info.Examples, e => e.Contains("remove-param", StringComparison.Ordinal));
     }
 
+    // ── AC24: unresolved methodSpec on add-param / remove-param ──────────────
+
+    [Fact]
+    public async Task AddParam_unresolved_method_spec_exits_non_zero()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Service.cs", """
+            namespace TestApp;
+            public class Service { public void Foo(int a) { } }
+            """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        using (WorkspaceLoader.UseOverride(workspace, solution))
+        {
+            var originalError = Console.Error;
+            using var error = new StringWriter();
+            Console.SetError(error);
+
+            try
+            {
+                var exitCode = await App.RunAsync(
+                [
+                    "change-signature", "add-param",
+                    "TestApp.Service.Missing", "int x = 0",
+                    "--solution", "ignored"
+                ]);
+
+                Assert.Equal(1, exitCode);
+                Assert.Contains("Missing", error.ToString());
+            }
+            finally
+            {
+                Console.SetError(originalError);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task RemoveParam_unresolved_method_spec_exits_non_zero()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Service.cs", """
+            namespace TestApp;
+            public class Service { public void Foo(int a = 0) { } }
+            """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        using (WorkspaceLoader.UseOverride(workspace, solution))
+        {
+            var originalError = Console.Error;
+            using var error = new StringWriter();
+            Console.SetError(error);
+
+            try
+            {
+                var exitCode = await App.RunAsync(
+                [
+                    "change-signature", "remove-param",
+                    "TestApp.Service.Missing", "a",
+                    "--solution", "ignored"
+                ]);
+
+                Assert.Equal(1, exitCode);
+                Assert.Contains("Missing", error.ToString());
+            }
+            finally
+            {
+                Console.SetError(originalError);
+            }
+        }
+    }
+
+    // ── AC26: --dry-run for add-param and remove-param ────────────────────────
+
+    [Fact]
+    public async Task AddParam_dry_run_prints_diff_and_does_not_write_files()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Service.cs", """
+            namespace TestApp;
+            public class Service { public void Foo(int a) { } }
+            """);
+
+        var (workspace, solution) = project.Build();
+        var before = await project.ReadSourceAsync("Service.cs");
+
+        using (workspace)
+        using (WorkspaceLoader.UseOverride(workspace, solution))
+        {
+            var originalOut = Console.Out;
+            using var output = new StringWriter();
+            Console.SetOut(output);
+
+            try
+            {
+                var exitCode = await App.RunAsync(
+                [
+                    "change-signature", "add-param",
+                    "TestApp.Service.Foo", "int b = 0",
+                    "--solution", "ignored", "--dry-run"
+                ]);
+
+                Assert.Equal(0, exitCode);
+                Assert.Contains("--- ", output.ToString());
+                Assert.Contains("+++ ", output.ToString());
+                Assert.Contains("[dry-run]", output.ToString());
+            }
+            finally
+            {
+                Console.SetOut(originalOut);
+            }
+        }
+
+        Assert.Equal(before, await project.ReadSourceAsync("Service.cs"));
+    }
+
+    [Fact]
+    public async Task RemoveParam_dry_run_prints_diff_and_does_not_write_files()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Service.cs", """
+            namespace TestApp;
+            public class Service { public void Foo(int a = 0) { } }
+            """);
+
+        var (workspace, solution) = project.Build();
+        var before = await project.ReadSourceAsync("Service.cs");
+
+        using (workspace)
+        using (WorkspaceLoader.UseOverride(workspace, solution))
+        {
+            var originalOut = Console.Out;
+            using var output = new StringWriter();
+            Console.SetOut(output);
+
+            try
+            {
+                var exitCode = await App.RunAsync(
+                [
+                    "change-signature", "remove-param",
+                    "TestApp.Service.Foo", "a",
+                    "--solution", "ignored", "--dry-run"
+                ]);
+
+                Assert.Equal(0, exitCode);
+                Assert.Contains("--- ", output.ToString());
+                Assert.Contains("+++ ", output.ToString());
+                Assert.Contains("[dry-run]", output.ToString());
+            }
+            finally
+            {
+                Console.SetOut(originalOut);
+            }
+        }
+
+        Assert.Equal(before, await project.ReadSourceAsync("Service.cs"));
+    }
+
+    // ── AC27: without --dry-run applies changes to disk ───────────────────────
+
+    [Fact]
+    public async Task AddParam_applies_changes_to_disk_without_dry_run()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Service.cs", """
+            namespace TestApp;
+            public class Service { public void Foo(int a) { } }
+            """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        using (WorkspaceLoader.UseOverride(workspace, solution))
+        {
+            var exitCode = await App.RunAsync(
+            [
+                "change-signature", "add-param",
+                "TestApp.Service.Foo", "int b = 0",
+                "--solution", "ignored"
+            ]);
+
+            Assert.Equal(0, exitCode);
+        }
+
+        Assert.Contains("Foo(int a, int b = 0)", await project.ReadSourceAsync("Service.cs"));
+    }
+
+    [Fact]
+    public async Task RemoveParam_applies_changes_to_disk_without_dry_run()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Service.cs", """
+            namespace TestApp;
+            public class Service { public void Foo(int a = 0) { } }
+            """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        using (WorkspaceLoader.UseOverride(workspace, solution))
+        {
+            var exitCode = await App.RunAsync(
+            [
+                "change-signature", "remove-param",
+                "TestApp.Service.Foo", "a",
+                "--solution", "ignored"
+            ]);
+
+            Assert.Equal(0, exitCode);
+        }
+
+        Assert.Contains("Foo()", await project.ReadSourceAsync("Service.cs"));
+    }
+
     private static async Task<string> GetDocumentTextAsync(Solution solution, string documentName)
     {
         var document = solution.Projects
