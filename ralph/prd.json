@@ -281,6 +281,30 @@
       "priority": 10,
       "passes": true,
       "notes": "Prefer a small result type over a nullable `ExpressionSyntax` if needed so callers can distinguish `none` from `ambiguous`. This is a correctness story, not a heuristic expansion story."
+    },
+    {
+      "id": "US-226",
+      "title": "replace ad hoc Console.WriteLine usage with a shared logging abstraction",
+      "description": "As a developer, I want `rt` operational messages to go through a shared logging abstraction so that progress, warnings, and errors are emitted consistently and can be redirected or tested without scattering direct `Console.WriteLine` calls across the codebase.",
+      "acceptanceCriteria": [
+        "A shared logging abstraction exists under `src/RoslynTools/Core` for non-result operational output, with explicit support for at least info, warning, and error severity levels.",
+        "The logging abstraction preserves the CLI output contract: primary command results still flow through existing result renderers and stdout paths, while operational diagnostics continue to use the appropriate stream for their severity.",
+        "Direct `Console.WriteLine` and `Console.Error.WriteLine` calls in `src/RoslynTools` that are used for progress, warnings, status banners, dry-run summaries, or error text are replaced with the shared logging abstraction.",
+        "Deliberate output-writing code that renders command results to a supplied `TextWriter` or to stdout as part of the public result contract is not rewritten to use the logging abstraction.",
+        "The new logging abstraction supports test redirection or capture without requiring tests to patch `Console.Out` or `Console.Error` globally.",
+        "Workspace-loader diagnostics continue to support their existing override hook or are migrated to the new abstraction without losing the ability to capture warnings in tests.",
+        "At least these current operational-output hotspots are migrated: `WorkspaceLoader`, `SolutionWriter`, command progress/error reporting, and core mutation/refactoring progress messages.",
+        "A repository search after the refactor shows no remaining direct `Console.WriteLine` or `Console.Error.WriteLine` calls in `src/RoslynTools` except in explicitly documented bridge code or entry-point wiring that is intentionally outside the logging abstraction.",
+        "A focused test fixture covers logging redirection/capture and asserts that at least one command/core workflow emits info, warning, and error messages through the shared abstraction rather than directly through `Console`.",
+        "A focused test fixture or assertions verify that primary result output for at least one read-only command and one mutation dry-run path remains unchanged in its public contract after the logging refactor.",
+        "Implementation notes or inline documentation clearly distinguish operational logging from result rendering so future commands do not regress back to ad hoc `Console.WriteLine` usage.",
+        "dotnet build RoslynTools.slnx passes with zero errors and zero new warnings.",
+        "dotnet test tests/RoslynTools.Tests/RoslynTools.Tests.csproj -v minimal passes with all new and existing tests green.",
+        "dotnet format RoslynTools.slnx --verify-no-changes passes with no formatting violations."
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": "Scope this to `src/RoslynTools` only; test fixture code that intentionally uses `Console.WriteLine` as sample input should remain untouched. Current candidates include `WorkspaceLoader`, `SolutionWriter`, `MsBuildBootstrap`, command progress/error paths, and core refactoring workflows such as `ConvertToRecordCore`, `MakeInstanceCore`, `MakeStaticCore`, `MoveCore`, `NarrowDependencyCore`, and `ReplaceCallCore`. Preserve existing stdout/stderr semantics for result payloads and dry-run diffs."
     }
   ]
 }
