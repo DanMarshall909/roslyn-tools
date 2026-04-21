@@ -34,7 +34,7 @@
         "`rt dump-help` and the locally regenerated `docs/COMMANDS.md` include the `change-signature` parent command with examples that show the `rename-param` sub-command; the generated Markdown is not committed because it is gitignored."
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "New files: ChangeSignatureCommand.cs, ChangeSignatureCore.cs, ChangeSignatureTests.cs. Sub-command pattern: cmd.AddCommand(). Prefer `Renamer.RenameSymbolAsync` for parameter rename semantics rather than custom named-argument rewriting. Method-symbol lookup logic from TransformParametersCore.FindMethodAsync is private today, so either extract a reusable resolver into SymbolLocator or intentionally duplicate the lookup logic."
     },
     {
@@ -71,7 +71,7 @@
         "`rt dump-help` and the locally regenerated `docs/COMMANDS.md` include `change-signature` examples covering the `reorder` sub-command; the generated Markdown is not committed because it is gitignored."
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Adds `reorder` to ChangeSignatureCommand. Key challenge: reordering positional args requires tracking old-param-index to arg-position mapping while preserving named labels. Keep v1 scope tight by rejecting `params` arrays and omitted-optional-argument scenarios with a clear validation error."
     },
     {
@@ -97,7 +97,7 @@
         "`remove-param` removes the parameter from the declaration, preserving trivia and remaining parameters' formatting.",
         "`remove-param` removes the positional argument at the corresponding index from all call sites across the solution.",
         "`remove-param` removes named arguments matching the removed parameter's name from all call sites.",
-        "`remove-param` handles call sites where the argument is positional at some sites and named at others — both are removed correctly.",
+        "`remove-param` handles call sites where the argument is positional at some sites and named at others â€” both are removed correctly.",
         "Multiple call sites in the same document are all rewritten correctly in a single invocation without later rewrites using stale spans from earlier edits.",
         "Using `--force` does not suppress rewrite-safety checks: if any invocation shape cannot be safely rewritten, the command exits non-zero and makes no partial changes.",
         "`remove-param` for a parameter that does not exist on the target method produces a validation error.",
@@ -114,7 +114,7 @@
         "`rt dump-help` and the locally regenerated `docs/COMMANDS.md` include `change-signature` examples covering `add-param` and `remove-param`; the generated Markdown is not committed because it is gitignored."
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "add-param: parse paramSpec with SyntaxFactory.ParseParameterList; require default value. remove-param: find param index, strip positional arg at that index from all call sites + remove named arg if present."
     },
     {
@@ -137,7 +137,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes with no formatting violations."
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Primary touch points: src/RoslynTools/Core/WorkspaceLoader.cs and tests/RoslynTools.Tests/Infrastructure/WorkspaceLoaderSmokeTests.cs. Keep command surface unchanged; centralize behavior in WorkspaceLoader. Use a repo-root `.rt-solution` file containing a relative `.sln` path rather than any user-machine global state."
     },
     {
@@ -185,7 +185,7 @@
         "`rt dump-help` and the locally regenerated `docs/COMMANDS.md` include `analyze-interface` with at least one example invocation; the generated Markdown is not committed because it is gitignored."
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "New files likely include AnalyzeInterfaceCommand.cs, AnalyzeInterfaceCore.cs, result/output models, and tests under Navigation or Analysis. Reuse SymbolLocator and SymbolFinder where possible. The core deliverable is exact per-consumer member usage, not heuristic interface synthesis."
     },
     {
@@ -207,7 +207,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes with no formatting violations."
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "Treat this as phase 2 of analyze-interface. Do not synthesize C# files yet; emit suggestion payloads only. Keep heuristics transparent by deriving suggestions directly from exact used-member sets."
     },
     {
@@ -233,7 +233,7 @@
         "`rt dump-help` and the locally regenerated `docs/COMMANDS.md` document the new narrow-dependency workflow with example invocations; the generated Markdown is not committed because it is gitignored."
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "This is a new mutation workflow in the same family as extract-interface and add-dependency. It should build on analyze-interface-style member usage where possible, but the analysis dependency should remain explicit rather than hidden heuristics. Keep DI registration rewriting out of v1; report manual follow-up instead."
     },
     {
@@ -257,7 +257,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes with no formatting violations."
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "This story is driven by dogfooding gaps in the first extract-class implementation. Keep v1 conservative: rejection is preferred over clever partial rewriting when extracted members still depend on source-class state."
     },
     {
@@ -279,7 +279,7 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes with no formatting violations."
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "Prefer a small result type over a nullable `ExpressionSyntax` if needed so callers can distinguish `none` from `ambiguous`. This is a correctness story, not a heuristic expansion story."
     }
   ]
