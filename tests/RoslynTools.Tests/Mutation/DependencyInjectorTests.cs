@@ -1,4 +1,6 @@
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using RoslynTools.Core;
 
 namespace RoslynTools.Tests.Mutation;
@@ -9,8 +11,45 @@ public sealed class DependencyInjectorTests
     {
         var tree = CSharpSyntaxTree.ParseText(source);
         var root = tree.GetRoot();
-        var injector = new DependencyInjector(targetClass, depType, fieldName, paramName);
+        var targetDeclaration = root.DescendantNodes()
+            .OfType<ClassDeclarationSyntax>()
+            .FirstOrDefault(c => c.Identifier.Text == targetClass);
+
+        if (targetDeclaration is null)
+        {
+            var injectorWithoutTarget = new DependencyInjector(targetClass, depType, fieldName, paramName);
+            return injectorWithoutTarget.Visit(root)!.ToFullString();
+        }
+
+        var compilation = CSharpCompilation.Create(
+            assemblyName: "DependencyInjectorTests",
+            syntaxTrees: [tree],
+            references: BuildMetadataReferences(),
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        var semanticModel = compilation.GetSemanticModel(tree);
+        var targetSymbol = semanticModel.GetDeclaredSymbol(targetDeclaration) as INamedTypeSymbol
+            ?? throw new InvalidOperationException($"Could not resolve target class '{targetClass}'.");
+        var depTypeSymbol = semanticModel.GetSpeculativeTypeInfo(
+            targetDeclaration.OpenBraceToken.SpanStart,
+            SyntaxFactory.ParseTypeName(depType),
+            SpeculativeBindingOption.BindAsTypeOrNamespace).Type;
+        var injector = new DependencyInjector(
+            targetClass,
+            depType,
+            fieldName,
+            paramName,
+            semanticModel,
+            depTypeSymbol,
+            targetSymbol);
         return injector.Visit(root)!.ToFullString();
+    }
+
+    private static ConstructorDeclarationSyntax GetFirstConstructor(string source)
+    {
+        var root = CSharpSyntaxTree.ParseText(source).GetRoot();
+        return root.DescendantNodes()
+            .OfType<ConstructorDeclarationSyntax>()
+            .Single();
     }
 
     [Fact]
@@ -64,7 +103,6 @@ public sealed class DependencyInjectorTests
             }
             """;
         var result = Rewrite(source, "MyService", "ILogger", "_logger", "logger");
-        // Field should appear exactly once
         Assert.Equal(1, CountOccurrences(result, "private readonly ILogger _logger"));
     }
 
@@ -79,19 +117,13 @@ public sealed class DependencyInjectorTests
             }
             """;
         var result = Rewrite(source, "MyService", "ILogger", "_logger", "logger");
-        // No new ctor parameter added since ILogger already present
-        // But field is added
         Assert.Contains("private readonly ILogger _logger;", result);
-        // Constructor should remain unchanged (ILogger not added again)
-        var ctorCount = CountOccurrences(result, "ILogger logger");
-        Assert.Equal(1, ctorCount);
+        Assert.Equal(1, CountOccurrences(result, "ILogger logger"));
     }
 
     [Fact]
     public void Does_not_duplicate_field_when_class_has_multiple_other_fields()
     {
-        // Kills Any()→All() mutant: if All() were used, it would be false (not all fields match _logger)
-        // and would inject a duplicate _logger field.
         var source = """
             class MyService
             {
@@ -107,8 +139,6 @@ public sealed class DependencyInjectorTests
     [Fact]
     public void Inserts_new_field_after_existing_fields_not_before_methods()
     {
-        // Kills L46 negate and L49 statement removal mutants: if insertIndex stays 0
-        // or the condition is negated, the new field would be inserted at position 0 (before existing fields).
         var source = """
             class MyService
             {
@@ -117,7 +147,6 @@ public sealed class DependencyInjectorTests
             }
             """;
         var result = Rewrite(source, "MyService", "IBar", "_bar", "bar");
-        // _foo field should appear before _bar field (both before the method)
         var fooIdx = result.IndexOf("IFoo _foo", StringComparison.Ordinal);
         var barIdx = result.IndexOf("IBar _bar", StringComparison.Ordinal);
         Assert.True(fooIdx >= 0, "original field _foo not found");
@@ -128,8 +157,6 @@ public sealed class DependencyInjectorTests
     [Fact]
     public void Skips_replacement_when_all_constructors_already_have_dep_type()
     {
-        // Kills L84 mutation (Count > 0 → Count >= 0): verifies replacements is empty
-        // when all ctors already have the dep, so no replacement occurs.
         var source = """
             class MyService
             {
@@ -139,10 +166,58 @@ public sealed class DependencyInjectorTests
             }
             """;
         var result = Rewrite(source, "MyService", "ILogger", "_logger", "logger");
-        // Both ctors already have ILogger — no extra param added, but field IS added
         Assert.Contains("private readonly ILogger _logger;", result);
-        // Count of "ILogger logger" should be exactly 2 (one per existing ctor, none added)
         Assert.Equal(2, CountOccurrences(result, "ILogger logger"));
+    }
+
+    [Fact]
+    public void Reuses_a_matching_constructor_parameter_without_duplicating_it()
+    {
+        var source = """
+            using Alias = MyApp.Logging.ILogger;
+
+            namespace MyApp.Logging
+            {
+                public interface ILogger { }
+            }
+
+            class MyService
+            {
+                public MyService(Alias logger)
+                {
+                }
+            }
+            """;
+
+        var result = Rewrite(source, "MyService", "MyApp.Logging.ILogger", "_logger", "logger");
+        var constructor = GetFirstConstructor(result);
+
+        Assert.Single(constructor.ParameterList.Parameters);
+        Assert.Contains("_logger = logger;", result);
+    }
+
+    [Fact]
+    public void Does_not_leave_expression_bodied_constructors_with_an_unassigned_dependency_parameter()
+    {
+        var source = """
+            interface ILogger { }
+
+            class MyService
+            {
+                public MyService() => Initialize();
+
+                private void Initialize()
+                {
+                }
+            }
+            """;
+
+        var result = Rewrite(source, "MyService", "ILogger", "_logger", "logger");
+        var constructor = GetFirstConstructor(result);
+
+        Assert.True(
+            constructor.ExpressionBody is null || constructor.ParameterList.Parameters.Count == 0,
+            "expression-bodied constructors must not gain an injected parameter without a corresponding assignment rewrite");
     }
 
     private static int CountOccurrences(string text, string pattern)
@@ -155,5 +230,16 @@ public sealed class DependencyInjectorTests
             idx += pattern.Length;
         }
         return count;
+    }
+
+    private static IEnumerable<MetadataReference> BuildMetadataReferences()
+    {
+        var trustedPlatformAssemblies = AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") as string
+            ?? throw new InvalidOperationException("TRUSTED_PLATFORM_ASSEMBLIES is not set.");
+
+        return trustedPlatformAssemblies
+            .Split(Path.PathSeparator)
+            .Where(path => path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+            .Select(path => MetadataReference.CreateFromFile(path));
     }
 }

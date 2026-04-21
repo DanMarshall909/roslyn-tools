@@ -9,6 +9,18 @@ namespace RoslynTools.Commands;
 
 internal sealed class AddDependencyCommand : IRtCommand
 {
+    private static readonly SymbolDisplayFormat TypeDisplayFormat = new(
+        globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Omitted,
+        typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
+        genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters);
+
+    private sealed record ResolvedTarget(
+        Document Document,
+        SyntaxNode Root,
+        SemanticModel SemanticModel,
+        ClassDeclarationSyntax Declaration,
+        INamedTypeSymbol Symbol);
+
     private AddDependencyCommand() { }
 
     public static RtCommandInfo Info { get; } = new(
@@ -61,149 +73,138 @@ internal sealed class AddDependencyCommand : IRtCommand
         var resolvedField = fieldName ?? DeriveFieldName(depType);
         var paramName = resolvedField.TrimStart('_');
 
-        bool found = false;
+        var target = await ResolveTargetClassAsync(solution, typeName);
+        if (target is null)
+            return;
+
+        var dependencyTypeSymbol = ResolveDependencyTypeSymbol(target.SemanticModel, target.Declaration, depType);
+        var injector = new DependencyInjector(
+            typeName,
+            depType,
+            resolvedField,
+            paramName,
+            target.SemanticModel,
+            dependencyTypeSymbol,
+            target.Symbol);
+
+        var newRoot = injector.Visit(target.Root);
+
+        switch (injector.Status)
+        {
+            case DependencyInjectionStatus.ClassNotFound:
+                Console.Error.WriteLine($"Class '{typeName}' not found in solution.");
+                Environment.ExitCode = 1;
+                return;
+
+            case DependencyInjectionStatus.AlreadyInjected:
+                Console.Error.WriteLine($"Dependency '{depType}' is already injected into '{target.Symbol.ToDisplayString(TypeDisplayFormat)}'.");
+                return;
+
+            case DependencyInjectionStatus.Unsupported:
+                Console.Error.WriteLine(injector.ValidationError ??
+                    $"Cannot inject '{depType}' into '{target.Symbol.ToDisplayString(TypeDisplayFormat)}'.");
+                Environment.ExitCode = 1;
+                return;
+
+            case DependencyInjectionStatus.Applied:
+                solution = solution.WithDocumentSyntaxRoot(target.Document.Id, newRoot!);
+                await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
+                Console.Error.WriteLine($"Injected {depType} into {target.Symbol.ToDisplayString(TypeDisplayFormat)}.");
+                return;
+
+            default:
+                throw new InvalidOperationException($"Unknown dependency injection status '{injector.Status}'.");
+        }
+    }
+
+    private static async Task<ResolvedTarget?> ResolveTargetClassAsync(Solution solution, string typeName)
+    {
+        var normalizedTypeName = NormalizeTypeName(typeName);
+        var isQualifiedName = normalizedTypeName.Contains('.', StringComparison.Ordinal);
+        var matches = new List<ResolvedTarget>();
+
         foreach (var project in solution.Projects)
         {
-            foreach (var doc in project.Documents)
+            foreach (var document in project.Documents)
             {
-                if (doc.FilePath == null) continue;
+                var root = await document.GetSyntaxRootAsync();
+                if (root is null)
+                    continue;
 
-                var root = await doc.GetSyntaxRootAsync();
-                if (root == null) continue;
+                var semanticModel = await document.GetSemanticModelAsync();
+                if (semanticModel is null)
+                    continue;
 
-                var hasTarget = root.DescendantNodes()
-                    .OfType<ClassDeclarationSyntax>()
-                    .Any(c => c.Identifier.Text == typeName);
+                foreach (var declaration in root.DescendantNodes().OfType<ClassDeclarationSyntax>())
+                {
+                    if (semanticModel.GetDeclaredSymbol(declaration) is not INamedTypeSymbol symbol)
+                        continue;
 
-                if (!hasTarget) continue;
+                    if (!IsTypeMatch(symbol, normalizedTypeName, isQualifiedName))
+                        continue;
 
-                var injector = new DependencyInjector(typeName, depType, resolvedField, paramName);
-                var newRoot = injector.Visit(root);
-
-                if (!injector.Applied) continue;
-
-                solution = solution.WithDocumentSyntaxRoot(doc.Id, newRoot);
-                found = true;
+                    matches.Add(new ResolvedTarget(document, root, semanticModel, declaration, symbol));
+                }
             }
         }
 
-        if (!found)
+        if (matches.Count == 0)
         {
             Console.Error.WriteLine($"Class '{typeName}' not found in solution.");
-            return;
+            Environment.ExitCode = 1;
+            return null;
         }
 
-        await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
-        Console.Error.WriteLine($"Injected {depType} into {typeName}.");
+        if (matches.Count > 1)
+        {
+            var candidateList = string.Join(", ", matches
+                .Select(m => m.Symbol.ToDisplayString(TypeDisplayFormat))
+                .Distinct(StringComparer.Ordinal));
+            Console.Error.WriteLine($"Class '{typeName}' is ambiguous across the loaded solution: {candidateList}. Pass a fully qualified type name.");
+            Environment.ExitCode = 1;
+            return null;
+        }
+
+        return matches[0];
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    //  Field name derivation: IEmailService → _emailService
-    // ──────────────────────────────────────────────────────────────────────────
+    private static ITypeSymbol? ResolveDependencyTypeSymbol(
+        SemanticModel semanticModel,
+        ClassDeclarationSyntax declaration,
+        string depType)
+    {
+        var typeSyntax = SyntaxFactory.ParseTypeName(depType);
+        var speculative = semanticModel.GetSpeculativeTypeInfo(
+            declaration.OpenBraceToken.SpanStart,
+            typeSyntax,
+            SpeculativeBindingOption.BindAsTypeOrNamespace);
+
+        if (speculative.Type is not null)
+            return speculative.Type;
+
+        return semanticModel.LookupNamespacesAndTypes(declaration.Identifier.SpanStart, name: depType)
+            .OfType<ITypeSymbol>()
+            .FirstOrDefault();
+    }
+
+    private static bool IsTypeMatch(INamedTypeSymbol symbol, string normalizedTypeName, bool isQualifiedName)
+    {
+        if (isQualifiedName)
+            return NormalizeTypeName(symbol.ToDisplayString(TypeDisplayFormat)) == normalizedTypeName;
+
+        return symbol.Name == normalizedTypeName;
+    }
+
+    private static string NormalizeTypeName(string typeName) =>
+        typeName.Replace("global::", string.Empty, StringComparison.Ordinal).Trim();
 
     private static string DeriveFieldName(string depType)
     {
-        // Strip leading 'I' from interface names: IEmailService → EmailService
         var name = depType;
         if (name.Length > 1 && name[0] == 'I' && char.IsUpper(name[1]))
             name = name[1..];
 
-        // Convert first char to lowercase: EmailService → emailService
         name = char.ToLower(name[0], CultureInfo.InvariantCulture) + name[1..];
-
-        // Prefix with _: emailService → _emailService
         return "_" + name;
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    //  Syntax rewriter: adds field + ctor param to target class
-    // ──────────────────────────────────────────────────────────────────────────
-
-    private sealed class DependencyInjector : CSharpSyntaxRewriter
-    {
-        private readonly string _targetClass;
-        private readonly string _depType;
-        private readonly string _fieldName;
-        private readonly string _paramName;
-
-        public bool Applied { get; private set; }
-
-        public DependencyInjector(string targetClass, string depType, string fieldName, string paramName)
-        {
-            _targetClass = targetClass;
-            _depType = depType;
-            _fieldName = fieldName;
-            _paramName = paramName;
-        }
-
-        public override Microsoft.CodeAnalysis.SyntaxNode? VisitClassDeclaration(ClassDeclarationSyntax node)
-        {
-            if (node.Identifier.Text != _targetClass)
-                return base.VisitClassDeclaration(node);
-
-            var visited = (ClassDeclarationSyntax)base.VisitClassDeclaration(node)!;
-
-            // Skip if the field already exists
-            if (visited.Members.OfType<FieldDeclarationSyntax>()
-                .Any(f => f.Declaration.Variables.Any(v => v.Identifier.Text == _fieldName)))
-                return visited;
-
-            // Add the field after existing fields
-            var fieldDecl = SyntaxFactory.ParseMemberDeclaration(
-                $"    private readonly {_depType} {_fieldName};\n")!;
-
-            var members = visited.Members;
-            int insertIndex = 0;
-            for (int i = 0; i < members.Count; i++)
-            {
-                if (members[i] is FieldDeclarationSyntax)
-                    insertIndex = i + 1;
-                else
-                    break;
-            }
-            members = members.Insert(insertIndex, fieldDecl);
-            visited = visited.WithMembers(members);
-
-            var constructors = visited.Members.OfType<ConstructorDeclarationSyntax>().ToList();
-
-            if (constructors.Count == 0)
-            {
-                // Generate a new constructor
-                var ctorText =
-                    $"    public {visited.Identifier.Text}({_depType} {_paramName})\n" +
-                    $"    {{\n" +
-                    $"        {_fieldName} = {_paramName};\n" +
-                    $"    }}\n";
-                var ctorDecl = SyntaxFactory.ParseMemberDeclaration(ctorText)!;
-                members = visited.Members.Insert(insertIndex + 1, ctorDecl);
-                visited = visited.WithMembers(members);
-            }
-            else
-            {
-                // Add parameter + assignment to existing constructors
-                var replacements = new List<(ConstructorDeclarationSyntax Orig, ConstructorDeclarationSyntax Repl)>();
-                foreach (var ctor in constructors)
-                {
-                    if (ctor.ParameterList.Parameters.Any(p => p.Type?.ToString().Contains(_depType) == true))
-                        continue;
-
-                    var newParam = SyntaxFactory.Parameter(SyntaxFactory.Identifier(_paramName))
-                        .WithType(SyntaxFactory.ParseTypeName(_depType + " "));
-                    var newCtor = ctor.WithParameterList(ctor.ParameterList.AddParameters(newParam));
-                    var assignment = SyntaxFactory.ParseStatement($"        {_fieldName} = {_paramName};\n");
-                    if (newCtor.Body != null)
-                        newCtor = newCtor.WithBody(newCtor.Body.WithStatements(newCtor.Body.Statements.Insert(0, assignment)));
-                    replacements.Add((ctor, newCtor));
-                }
-
-                if (replacements.Count > 0)
-                    visited = visited.ReplaceNodes(
-                        replacements.Select(r => r.Orig),
-                        (orig, _) => replacements.First(r => ReferenceEquals(r.Orig, orig)).Repl);
-            }
-
-            Applied = true;
-            return visited;
-        }
     }
 }
