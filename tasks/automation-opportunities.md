@@ -30,3 +30,5 @@ Style mirrors `dogfood-gaps.md`: one bullet per entry, `- YYYY-MM-DD: <pattern> 
 - 2026-04-23: Extracting API calls from a HAR — wrote an inline `node -e` twice this session to `JSON.parse` a HAR and list its entries. Proposed: `tests/e2e/helpers/inspect-har.ts` — `npm run har:inspect <path>` prints method + status + path + size per entry.
 
 - 2026-04-23: Finding the PID on a given port: `Get-NetTCPConnection -LocalPort N -State Listen | Select OwningProcess`. Run 4+ times. Proposed: `scripts/pid-on-port.ps1 <port>` — one-liner wrapper so it fits in muscle memory.
+
+- 2026-04-23: Applying a rule change — Edit file, git add, git commit with generated message, git pull --rebase, git push, across 1-3 related repos (ai-rules + roslyn-tools + sometimes user CLAUDE.md). Done 4+ times this session in the retro loop. Proposed: `/apply-rule-change` slash command — takes `{target-file, before, after, commit-msg, repos[]}` and runs the full chain with a single confirmation. Saves ~8 tool calls per iteration.
