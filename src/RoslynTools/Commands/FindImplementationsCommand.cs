@@ -1,8 +1,8 @@
 using System.CommandLine;
 using System.Text.Json;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.FindSymbols;
 using RoslynTools.Core;
+using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
@@ -49,7 +49,7 @@ internal sealed class FindImplementationsCommand : IRtCommand
                 if (typeSymbol.TypeKind != TypeKind.Interface && !typeSymbol.IsAbstract)
                     Console.Error.WriteLine($"Warning: '{symbol}' is not an interface or abstract class. Searching for derived types.");
 
-                var implementations = await FindImplementationsAsync(sln, typeSymbol);
+                var implementations = await FindImplementationsService.FindAsync(sln, typeSymbol);
 
                 var result = new Dictionary<string, object?>
                 {
@@ -65,74 +65,5 @@ internal sealed class FindImplementationsCommand : IRtCommand
         symbolArg, solutionOpt);
 
         return cmd;
-    }
-
-    private static async Task<List<Dictionary<string, object?>>> FindImplementationsAsync(
-        Solution solution,
-        INamedTypeSymbol typeSymbol)
-    {
-        var results = new List<Dictionary<string, object?>>();
-        var seen = new HashSet<string>();
-
-        var implementations = await SymbolFinder.FindImplementationsAsync(typeSymbol, solution);
-
-        foreach (var impl in implementations)
-        {
-            if (impl is not INamedTypeSymbol implType) continue;
-
-            var fqn = implType.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
-            if (!seen.Add(fqn)) continue;
-
-            var locations = SymbolFormatter.ExtractSourceLocations(implType);
-
-            var entry = new Dictionary<string, object?>
-            {
-                ["name"] = implType.Name,
-                ["fqn"] = fqn,
-                ["typeKind"] = implType.TypeKind.ToString(),
-                ["accessibility"] = implType.DeclaredAccessibility.ToString(),
-                ["isAbstract"] = implType.IsAbstract,
-                ["project"] = implType.ContainingAssembly?.Name,
-                ["locations"] = locations,
-            };
-
-            // Show which interfaces this impl covers (useful when searching for a base interface)
-            var directInterfaces = implType.Interfaces
-                .Select(i => i.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat))
-                .ToList();
-            if (directInterfaces.Count > 0)
-                entry["directInterfaces"] = directInterfaces;
-
-            if (implType.BaseType != null && implType.BaseType.SpecialType != SpecialType.System_Object)
-                entry["baseType"] = implType.BaseType.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
-
-            results.Add(entry);
-        }
-
-        // Also find derived classes (for abstract classes)
-        if (typeSymbol.TypeKind == TypeKind.Class && typeSymbol.IsAbstract)
-        {
-            var derived = await SymbolFinder.FindDerivedClassesAsync(typeSymbol, solution);
-            foreach (var d in derived)
-            {
-                var fqn = d.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
-                if (!seen.Add(fqn)) continue;
-
-                var locations = SymbolFormatter.ExtractSourceLocations(d);
-
-                results.Add(new Dictionary<string, object?>
-                {
-                    ["name"] = d.Name,
-                    ["fqn"] = fqn,
-                    ["typeKind"] = d.TypeKind.ToString(),
-                    ["accessibility"] = d.DeclaredAccessibility.ToString(),
-                    ["isAbstract"] = d.IsAbstract,
-                    ["project"] = d.ContainingAssembly?.Name,
-                    ["locations"] = locations,
-                });
-            }
-        }
-
-        return results;
     }
 }

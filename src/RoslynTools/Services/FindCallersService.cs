@@ -1,0 +1,81 @@
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.FindSymbols;
+using RoslynTools.Commands.Results;
+using RoslynTools.Core;
+
+namespace RoslynTools.Services;
+
+internal static class FindCallersService
+{
+    internal static async Task<FindCallersResult> FindAsync(
+        Solution sln,
+        string symbol,
+        bool includeTests)
+    {
+        var methodSymbol = await SymbolLocator.FindSymbolAsync(sln, symbol, "method");
+
+        Console.Error.WriteLine($"Finding callers of '{methodSymbol.ToDisplayString()}'...");
+
+        var referencedSymbols = await SymbolFinder.FindReferencesAsync(methodSymbol, sln);
+        var callers = new List<CallerResult>();
+
+        foreach (var referencedSymbol in referencedSymbols)
+        {
+            foreach (var loc in referencedSymbol.Locations)
+            {
+                var doc = loc.Document;
+
+                if (!includeTests && IsTestProject(doc.Project.Name))
+                    continue;
+
+                var root = await doc.GetSyntaxRootAsync();
+                if (root is null)
+                    continue;
+
+                var node = root.FindNode(loc.Location.SourceSpan);
+
+                var invocation = node.AncestorsAndSelf()
+                    .OfType<InvocationExpressionSyntax>()
+                    .FirstOrDefault();
+
+                if (invocation is null || IsNameofExpression(invocation))
+                    continue;
+
+                var lineSpan = loc.Location.GetLineSpan();
+                var line = lineSpan.StartLinePosition.Line + 1;
+
+                var containingMethod = invocation.Ancestors()
+                    .OfType<MethodDeclarationSyntax>()
+                    .FirstOrDefault()
+                    ?.Identifier.Text ?? "<unknown>";
+
+                var text = await doc.GetTextAsync();
+                var sourceLine = text.Lines[line - 1].ToString().TrimStart();
+
+                callers.Add(new CallerResult
+                {
+                    FilePath = doc.FilePath ?? string.Empty,
+                    Line = line,
+                    ContainingMethod = containingMethod,
+                    SourceLine = sourceLine,
+                });
+            }
+        }
+
+        Console.Error.WriteLine($"Found {callers.Count} caller(s) of '{methodSymbol.Name}'.");
+
+        return new FindCallersResult
+        {
+            SymbolName = methodSymbol.Name,
+            Callers = callers,
+        };
+    }
+
+    internal static bool IsNameofExpression(InvocationExpressionSyntax invocation) =>
+        invocation.Expression is IdentifierNameSyntax id &&
+        id.Identifier.ValueText == "nameof";
+
+    internal static bool IsTestProject(string projectName) =>
+        projectName.Contains("Test", StringComparison.OrdinalIgnoreCase);
+}
