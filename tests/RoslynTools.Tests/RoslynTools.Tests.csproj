@@ -27,5 +27,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\RoslynTools\RoslynTools.csproj" />
+    <ProjectReference Include="..\..\src\RoslynTools.Cli\RoslynTools.Cli.csproj" />
   </ItemGroup>
 </Project>

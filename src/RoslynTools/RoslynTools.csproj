@@ -1,37 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <AssemblyName>rt</AssemblyName>
     <RootNamespace>RoslynTools</RootNamespace>
-    <!-- dotnet tool packaging -->
-    <PackAsTool>true</PackAsTool>
-    <ToolCommandName>rt</ToolCommandName>
-    <PackageId>roslyn-tools-rt</PackageId>
-    <Version>1.0.0</Version>
-    <Description>Roslyn-based C# refactoring CLI (rt) — rename, move, extract, inspect and more.</Description>
-    <Authors>Dan Marshall</Authors>
-  </PropertyGroup>
-  <!-- Single-file self-contained publish profile — use: dotnet publish -c Release -r win-x64 -->
-  <!--
-    Single-file self-contained publish. IncludeAllContentForSelfExtract is required because
-    Roslyn's MSBuildWorkspace (Microsoft.CodeAnalysis.MSBuild.BuildHostProcessManager) locates
-    the BuildHost-netcore/ folder via typeof(BuildHostProcessManager).Assembly.Location. With
-    single-file publish, Assembly.Location is empty for bundled managed assemblies, so the lookup
-    becomes Path.Combine(null, ...) and throws ArgumentNullException during OpenSolutionAsync.
-    IncludeAllContentForSelfExtract=true extracts all bundled files to a temp directory on startup,
-    restoring a meaningful Assembly.Location so the BuildHost process can be located.
-  -->
-  <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
-    <PublishSingleFile>true</PublishSingleFile>
-    <SelfContained>true</SelfContained>
-    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="RoslynTools.Tests" />
+    <InternalsVisibleTo Include="RoslynTools.Cli" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="System.CommandLine" />
@@ -40,68 +16,4 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
     <PackageReference Include="DiffPlex" />
   </ItemGroup>
-  <!--
-    Auto-regenerate docs/COMMANDS.md on every local Debug build from the command registry's
-    `RtCommandInfo.Info` metadata. The `rt dump-help` subcommand is in-process only (does not
-    load an MSBuild workspace), so the post-build step stays fast.
-
-    Escape hatch for CI or release-only builds: `-p:GenerateCommandsMd=false`.
-    Only runs on Debug to keep release publishes fast; devs regenerate locally, commit the MD.
-  -->
-  <!--
-    Deploy docs/use-rt-skill.md to the configured AI skills folder after every local Debug build.
-    Override the destination: -p:RtSkillsDir="C:\path\to\skills\use-rt"
-    Skip entirely:            -p:DeployRtSkill=false
-  -->
-  <Target Name="FormatChanged"
-          AfterTargets="Build"
-          Condition="'$(Configuration)' == 'Debug' AND '$(FormatChanged)' != 'false' AND '$(RuntimeIdentifier)' == ''">
-    <PropertyGroup>
-      <SolutionPath>$(MSBuildProjectDirectory)\..\..\RoslynTools.slnx</SolutionPath>
-      <FormatScript>$(MSBuildProjectDirectory)\..\..\scripts\format-changed.ps1</FormatScript>
-    </PropertyGroup>
-    <Exec Command="powershell -NoProfile -NonInteractive -File &quot;$(FormatScript)&quot; -Solution &quot;$(SolutionPath)&quot;"
-          EchoOff="true"
-          ContinueOnError="true" />
-  </Target>
-
-  <!-- Run rt analysis commands. Not wired to AfterBuild — invoke explicitly:
-       dotnet build src/RoslynTools/RoslynTools.csproj -t:Analyze -->
-  <Target Name="Analyze">
-    <PropertyGroup>
-      <RtDll>$(OutputPath)rt.dll</RtDll>
-      <SolutionPath>$(MSBuildProjectDirectory)\..\..\RoslynTools.slnx</SolutionPath>
-    </PropertyGroup>
-    <Message Importance="high" Text="=== rt find-unused ===" />
-    <Exec Command="dotnet &quot;$(RtDll)&quot; find-unused --solution &quot;$(SolutionPath)&quot;"
-          ContinueOnError="true" />
-    <Message Importance="high" Text="=== rt list-smells ===" />
-    <Exec Command="dotnet &quot;$(RtDll)&quot; list-smells --solution &quot;$(SolutionPath)&quot;"
-          ContinueOnError="true" />
-  </Target>
-
-  <Target Name="DeployRtSkill"
-          AfterTargets="Build"
-          Condition="'$(Configuration)' == 'Debug' AND '$(DeployRtSkill)' != 'false' AND '$(RuntimeIdentifier)' == ''">
-    <PropertyGroup>
-      <RtSkillsDir Condition="'$(RtSkillsDir)' == ''">$(USERPROFILE)\.claude\skills\use-rt</RtSkillsDir>
-      <DeploySkillScript>$(MSBuildProjectDirectory)\..\..\scripts\deploy-skill.ps1</DeploySkillScript>
-    </PropertyGroup>
-    <Exec Command="powershell -NoProfile -NonInteractive -File &quot;$(DeploySkillScript)&quot; -DestDir &quot;$(RtSkillsDir)&quot;"
-          EchoOff="true"
-          ContinueOnError="true" />
-  </Target>
-
-  <Target Name="GenerateCommandsMd"
-          AfterTargets="Build"
-          Condition="'$(Configuration)' == 'Debug' AND '$(GenerateCommandsMd)' != 'false' AND '$(RuntimeIdentifier)' == ''">
-    <PropertyGroup>
-      <RtExecutable>$(OutputPath)rt.dll</RtExecutable>
-      <CommandsMdPath>$(MSBuildProjectDirectory)\..\..\docs\COMMANDS.md</CommandsMdPath>
-    </PropertyGroup>
-    <Exec Command="dotnet &quot;$(RtExecutable)&quot; dump-help &gt; &quot;$(CommandsMdPath)&quot;"
-          EchoOff="true"
-          ContinueOnError="false" />
-    <Message Importance="high" Text="Regenerated $(CommandsMdPath) from command registry." />
-  </Target>
 </Project>
