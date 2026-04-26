@@ -101,4 +101,36 @@ public class SafeDeleteTests
             Assert.Equal(originalContent, afterContent);
         }
     }
+
+    [Fact]
+    public async Task Treats_nameof_references_as_non_references_and_deletes()
+    {
+        var project = new AdhocProjectBuilder("SafeApp");
+        project.AddSource("SafeApp.cs", """
+            public class Logger
+            {
+                public void Log(string msg) { }
+            }
+
+            public class Client
+            {
+                void Setup()
+                {
+                    // nameof reference only — not a real usage
+                    var name = nameof(Logger);
+                }
+            }
+            """);
+        var (workspace, sln) = project.Build();
+
+        using (project)
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
+            // Logger is only used inside nameof() — should be deletable
+            await SafeDeleteCommand.ExecuteAsync("Logger", kind: null, solutionPath: "ignored", dryRun: false);
+
+            var content = await project.ReadSourceAsync("SafeApp.cs");
+            Assert.DoesNotContain("class Logger", content);
+        }
+    }
 }

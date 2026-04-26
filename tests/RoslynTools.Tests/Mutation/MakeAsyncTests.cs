@@ -102,4 +102,137 @@ public class MakeAsyncTests
         var afterContent = await project.ReadSourceAsync("AgentService.cs");
         Assert.Equal(originalContent, afterContent);
     }
+
+    [Fact]
+    public async Task Preserves_method_name_when_no_rename_is_true()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("AgentService.cs", AgentServiceSource);
+        var (workspace, sln) = project.Build();
+
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await MakeAsyncCommand.ExecuteAsync("AgentService", "GetAgent", noRename: true, "ignored", dryRun: false);
+
+        var content = await project.ReadSourceAsync("AgentService.cs");
+        Assert.Contains("async", content);
+        Assert.DoesNotContain("GetAgentAsync", content);
+        // Call sites keep the original name
+        Assert.Contains("_svc.GetAgent(", content);
+    }
+
+    [Fact]
+    public async Task Converts_void_return_type_to_Task()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Svc.cs", """
+            public class Svc
+            {
+                public void Send() { }
+            }
+            """);
+        var (workspace, sln) = project.Build();
+
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await MakeAsyncCommand.ExecuteAsync("Svc", "Send", noRename: false, "ignored", dryRun: false);
+
+        var content = await project.ReadSourceAsync("Svc.cs");
+        Assert.Contains("async Task SendAsync", content);
+        Assert.DoesNotContain("Task<void>", content);
+    }
+
+    [Fact]
+    public async Task Promotes_void_sync_caller_to_async_Task()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("AgentService.cs", AgentServiceSource);
+        var (workspace, sln) = project.Build();
+
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await MakeAsyncCommand.ExecuteAsync("AgentService", "GetAgent", noRename: false, "ignored", dryRun: false);
+
+        var content = await project.ReadSourceAsync("AgentService.cs");
+        // UseAgent was void non-async; it must be promoted to async Task
+        Assert.Contains("async Task UseAgent()", content);
+    }
+
+    [Fact]
+    public async Task Does_not_double_wrap_already_awaited_call_sites()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Svc.cs", """
+            using System.Threading.Tasks;
+
+            public class Processor
+            {
+                public string Run() => "ok";
+            }
+
+            public class Consumer
+            {
+                private readonly Processor _p = new();
+
+                // Already written with await even though Run is currently sync
+                public async Task Go()
+                {
+                    var r = await Task.FromResult(_p.Run());
+                }
+            }
+            """);
+        var (workspace, sln) = project.Build();
+
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await MakeAsyncCommand.ExecuteAsync("Processor", "Run", noRename: false, "ignored", dryRun: false);
+
+        var content = await project.ReadSourceAsync("Svc.cs");
+        // The call inside Task.FromResult is not a direct invocation of Run that returns Task,
+        // so there should be no doubled-up await on the Run call itself
+        Assert.DoesNotContain("await await", content);
+    }
+
+    [Fact]
+    public async Task Does_not_double_wrap_Task_return_type_on_caller_promotion()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Svc.cs", """
+            using System.Threading.Tasks;
+
+            public class Worker
+            {
+                public string Fetch() => "data";
+            }
+
+            public class Consumer
+            {
+                private readonly Worker _w = new();
+                public Task Run()
+                {
+                    var result = _w.Fetch();
+                    return Task.CompletedTask;
+                }
+            }
+            """);
+        var (workspace, sln) = project.Build();
+
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await MakeAsyncCommand.ExecuteAsync("Worker", "Fetch", noRename: false, "ignored", dryRun: false);
+
+        var content = await project.ReadSourceAsync("Svc.cs");
+        // Run already returned Task — promotion must not produce Task<Task>
+        Assert.DoesNotContain("Task<Task>", content);
+        Assert.Contains("async Task", content);
+    }
+
+    [Fact]
+    public async Task Throws_when_method_not_found()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("AgentService.cs", AgentServiceSource);
+        var (workspace, sln) = project.Build();
+
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => MakeAsyncCommand.ExecuteAsync("AgentService", "NonExistent", noRename: false, "ignored", dryRun: false));
+        }
+    }
 }

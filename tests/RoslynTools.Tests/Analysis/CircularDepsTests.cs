@@ -106,4 +106,75 @@ public class CircularDepsTests
         var captured = sw.ToString();
         Assert.Contains("->", captured);
     }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  5. Scope filter limits analysis to a namespace prefix
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Scope_filter_limits_cycles_to_matching_namespace_prefix()
+    {
+        // Two independent cycle groups: CycleApp.A/B/C and External.X/Y/Z
+        var proj = new AdhocProjectBuilder("Mixed");
+        proj.AddSource("A.cs", "namespace CycleApp.A { using CycleApp.B; class A { } }");
+        proj.AddSource("B.cs", "namespace CycleApp.B { using CycleApp.C; class B { } }");
+        proj.AddSource("C.cs", "namespace CycleApp.C { using CycleApp.A; class C { } }");
+        proj.AddSource("X.cs", "namespace External.X { using External.Y; class X { } }");
+        proj.AddSource("Y.cs", "namespace External.Y { using External.Z; class Y { } }");
+        proj.AddSource("Z.cs", "namespace External.Z { using External.X; class Z { } }");
+
+        using (proj)
+        {
+            var (workspace, sln) = proj.Build();
+            using (workspace)
+            {
+                var result = await CircularDepsCommand.AnalyzeAsync(sln, scope: "CycleApp");
+                Assert.Contains("CycleApp", result);
+                Assert.DoesNotContain("External", result);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Scope_filter_reports_no_cycles_when_scope_has_none()
+    {
+        var proj = new AdhocProjectBuilder("Mixed");
+        proj.AddSource("A.cs", "namespace CycleApp.A { using CycleApp.B; class A { } }");
+        proj.AddSource("B.cs", "namespace CycleApp.B { using CycleApp.C; class B { } }");
+        proj.AddSource("C.cs", "namespace CycleApp.C { using CycleApp.A; class C { } }");
+        proj.AddSource("X.cs", "namespace Clean.X { class X { } }");
+
+        using (proj)
+        {
+            var (workspace, sln) = proj.Build();
+            using (workspace)
+            {
+                var result = await CircularDepsCommand.AnalyzeAsync(sln, scope: "Clean");
+                Assert.Contains("No circular", result, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  6. File-scoped namespace declarations are handled
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Detects_cycles_in_file_scoped_namespaces()
+    {
+        var proj = new AdhocProjectBuilder("FsNs");
+        proj.AddSource("P.cs", "namespace Fs.P;\nusing Fs.Q;\nclass P { }");
+        proj.AddSource("Q.cs", "namespace Fs.Q;\nusing Fs.P;\nclass Q { }");
+
+        using (proj)
+        {
+            var (workspace, sln) = proj.Build();
+            using (workspace)
+            {
+                var result = await CircularDepsCommand.AnalyzeAsync(sln, scope: null);
+                Assert.Contains("Fs.P", result);
+                Assert.Contains("Fs.Q", result);
+            }
+        }
+    }
 }

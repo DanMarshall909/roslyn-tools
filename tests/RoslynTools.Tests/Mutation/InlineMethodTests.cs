@@ -130,4 +130,53 @@ public class InlineMethodTests
         var afterContent = await project.ReadSourceAsync("MathHelper.cs");
         Assert.Equal(originalContent, afterContent);
     }
+
+    [Fact]
+    public async Task Does_not_modify_files_for_multi_statement_body()
+    {
+        using var project = new AdhocProjectBuilder("MathApp");
+        project.AddSource("MathHelper.cs", """
+            namespace MathApp;
+
+            public class MathHelper
+            {
+                public static int Complex(int x)
+                {
+                    var y = x + 1;
+                    return y * 2;
+                }
+            }
+
+            public class Calc
+            {
+                void Run() { var r = MathHelper.Complex(3); }
+            }
+            """);
+        var (workspace, sln) = project.Build();
+
+        var originalContent = await project.ReadSourceAsync("MathHelper.cs");
+
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await InlineMethodCommand.ExecuteAsync("MathHelper", "Complex", "ignored", dryRun: false);
+
+        var afterContent = await project.ReadSourceAsync("MathHelper.cs");
+        // Multi-statement block body is not inlinable — file must be unchanged
+        Assert.Equal(originalContent, afterContent);
+    }
+
+    [Fact]
+    public async Task Does_not_modify_files_when_method_not_found()
+    {
+        using var project = new AdhocProjectBuilder("MathApp");
+        project.AddSource("MathHelper.cs", MathHelperSource);
+        var (workspace, sln) = project.Build();
+
+        var originalContent = await project.ReadSourceAsync("MathHelper.cs");
+
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await InlineMethodCommand.ExecuteAsync("MathHelper", "NonExistent", "ignored", dryRun: false);
+
+        var afterContent = await project.ReadSourceAsync("MathHelper.cs");
+        Assert.Equal(originalContent, afterContent);
+    }
 }
