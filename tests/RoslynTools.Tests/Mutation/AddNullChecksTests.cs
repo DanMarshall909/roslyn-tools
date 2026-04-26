@@ -146,4 +146,141 @@ public class AddNullChecksTests
         var after = await proj.ReadSourceAsync("OrderService.cs");
         Assert.Equal(before, after);
     }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  6. Expression-bodied methods (no block body) are skipped
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Skips_expression_bodied_methods()
+    {
+        using var proj = new AdhocProjectBuilder("NullApp");
+        proj.AddSource("OrderService.cs", """
+            public class OrderService
+            {
+                public string Process(string name) => name.ToUpper();
+            }
+            """);
+        var (workspace, sln) = proj.Build();
+
+        var before = await proj.ReadSourceAsync("OrderService.cs");
+
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", "ignored", dryRun: false);
+
+        var after = await proj.ReadSourceAsync("OrderService.cs");
+        // No ThrowIfNull inserted into an expression-bodied method
+        Assert.DoesNotContain("ThrowIfNull", after);
+        Assert.Equal(before, after);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  7. All null-check patterns count as existing guards
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Recognizes_not_equal_null_pattern_as_existing_guard()
+    {
+        using var proj = new AdhocProjectBuilder("NullApp");
+        proj.AddSource("OrderService.cs", """
+            public class OrderService
+            {
+                public void Process(string name)
+                {
+                    if (name != null) { }
+                }
+            }
+            """);
+        var (workspace, sln) = proj.Build();
+
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", "ignored", dryRun: false);
+
+        var content = await proj.ReadSourceAsync("OrderService.cs");
+        Assert.DoesNotContain("ThrowIfNull(name)", content);
+    }
+
+    [Fact]
+    public async Task Recognizes_null_not_equal_pattern_as_existing_guard()
+    {
+        using var proj = new AdhocProjectBuilder("NullApp");
+        proj.AddSource("OrderService.cs", """
+            public class OrderService
+            {
+                public void Process(string name)
+                {
+                    if (null != name) { }
+                }
+            }
+            """);
+        var (workspace, sln) = proj.Build();
+
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", "ignored", dryRun: false);
+
+        var content = await proj.ReadSourceAsync("OrderService.cs");
+        Assert.DoesNotContain("ThrowIfNull(name)", content);
+    }
+
+    [Fact]
+    public async Task Recognizes_is_null_pattern_as_existing_guard()
+    {
+        using var proj = new AdhocProjectBuilder("NullApp");
+        proj.AddSource("OrderService.cs", """
+            public class OrderService
+            {
+                public void Process(string name)
+                {
+                    if (name is null) throw new System.ArgumentNullException(nameof(name));
+                }
+            }
+            """);
+        var (workspace, sln) = proj.Build();
+
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", "ignored", dryRun: false);
+
+        var content = await proj.ReadSourceAsync("OrderService.cs");
+        Assert.DoesNotContain("ThrowIfNull(name)", content);
+    }
+
+    [Fact]
+    public async Task Recognizes_equal_null_pattern_as_existing_guard()
+    {
+        using var proj = new AdhocProjectBuilder("NullApp");
+        proj.AddSource("OrderService.cs", """
+            public class OrderService
+            {
+                public void Process(string name)
+                {
+                    if (name == null) throw new System.ArgumentNullException(nameof(name));
+                }
+            }
+            """);
+        var (workspace, sln) = proj.Build();
+
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", "ignored", dryRun: false);
+
+        var content = await proj.ReadSourceAsync("OrderService.cs");
+        Assert.DoesNotContain("ThrowIfNull(name)", content);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  8. Throws when method is not found
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Throws_when_method_is_not_found()
+    {
+        using var proj = new AdhocProjectBuilder("NullApp");
+        proj.AddSource("OrderService.cs", ServiceSource);
+        var (workspace, sln) = proj.Build();
+
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => AddNullChecksCommand.ExecuteAsync("OrderService", "NonExistent", "ignored", dryRun: false));
+        }
+    }
 }
