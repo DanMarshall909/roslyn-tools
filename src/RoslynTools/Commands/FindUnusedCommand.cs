@@ -2,6 +2,7 @@ using System.CommandLine;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
+using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
@@ -40,7 +41,7 @@ internal sealed class FindUnusedCommand : IRtCommand
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
             using (workspace)
             {
-                var symbols = await FindUnusedCore.AnalyzeAsync(sln, scope ?? "all");
+                var symbols = await FindUnusedService.AnalyzeAsync(sln, scope ?? "all");
                 var result = FindUnusedResult.FromSymbols(symbols);
                 RtSerializer.Write(result);
             }

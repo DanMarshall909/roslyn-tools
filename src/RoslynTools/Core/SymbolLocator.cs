@@ -371,4 +371,30 @@ internal static class SymbolLocator
         var parenIndex = value.IndexOf('(');
         return parenIndex >= 0 ? value[..parenIndex] : value;
     }
+
+    /// <summary>
+    /// Finds the first method with the given name in the named type, searching across all projects.
+    /// Returns null when not found.
+    /// </summary>
+    internal static async Task<IMethodSymbol?> FindMethodInTypeAsync(
+        Solution sln, string typeName, string methodName)
+    {
+        foreach (var project in sln.Projects)
+        {
+            var compilation = await project.GetCompilationAsync();
+            if (compilation == null) continue;
+
+            foreach (var symbol in compilation.GetSymbolsWithName(typeName, SymbolFilter.Type))
+            {
+                if (symbol is INamedTypeSymbol typeSymbol)
+                {
+                    var method = typeSymbol.GetMembers(methodName)
+                        .OfType<IMethodSymbol>()
+                        .FirstOrDefault();
+                    if (method != null) return method;
+                }
+            }
+        }
+        return null;
+    }
 }
