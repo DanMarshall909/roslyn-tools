@@ -1,8 +1,8 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Services;
 
 namespace RoslynTools.Tests.Navigation;
 
@@ -39,7 +39,7 @@ public class FindUnusedTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var results = await FindUnusedCore.AnalyzeAsync(sln, "all");
+            var results = await FindUnusedService.AnalyzeAsync(sln, "all");
             var names = results.Select(r => r.Name).ToList();
             Assert.Contains("UnusedMethod", names);
         }
@@ -75,7 +75,7 @@ public class FindUnusedTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var results = await FindUnusedCore.AnalyzeAsync(sln, "all");
+            var results = await FindUnusedService.AnalyzeAsync(sln, "all");
             var names = results.Select(r => r.Name).ToList();
             Assert.DoesNotContain("UsedMethod", names);
         }
@@ -111,7 +111,7 @@ public class FindUnusedTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var results = await FindUnusedCore.AnalyzeAsync(sln, "all");
+            var results = await FindUnusedService.AnalyzeAsync(sln, "all");
             var names = results.Select(r => r.Name).ToList();
             Assert.DoesNotContain("SerializableData", names);
         }
@@ -147,7 +147,7 @@ public class FindUnusedTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var results = await FindUnusedCore.AnalyzeAsync(sln, "methods");
+            var results = await FindUnusedService.AnalyzeAsync(sln, "methods");
             var names = results.Select(r => r.Name).ToList();
             // UnusedClass is a type, not a method — should not appear with scope=methods
             Assert.DoesNotContain("UnusedClass", names);

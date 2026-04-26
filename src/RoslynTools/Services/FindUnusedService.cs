@@ -3,11 +3,11 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using RoslynTools.Core;
 
-namespace RoslynTools.Commands;
+namespace RoslynTools.Services;
 
 internal record UnusedSymbol(string Name, string Kind, string? FilePath, int Line);
 
-internal static class FindUnusedCore
+internal static class FindUnusedService
 {
     internal static async Task<List<UnusedSymbol>> AnalyzeAsync(Solution solution, string scope = "all")
     {
@@ -26,7 +26,6 @@ internal static class FindUnusedCore
                 if (root == null || semanticModel == null)
                     continue;
 
-                // Check named types
                 if (scope is "all" or "types")
                 {
                     foreach (var typeDecl in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
@@ -45,7 +44,6 @@ internal static class FindUnusedCore
                     }
                 }
 
-                // Check methods
                 if (scope is "all" or "methods")
                 {
                     foreach (var methodDecl in root.DescendantNodes().OfType<MethodDeclarationSyntax>())
@@ -71,7 +69,6 @@ internal static class FindUnusedCore
 
     private static bool ShouldExclude(ISymbol symbol)
     {
-        // Exclude types with serialization attributes
         if (symbol is INamedTypeSymbol type)
         {
             var attrNames = type.GetAttributes().Select(a => a.AttributeClass?.Name ?? "");
@@ -80,15 +77,12 @@ internal static class FindUnusedCore
                 return true;
         }
 
-        // Exclude interface members
         if (symbol.ContainingType?.TypeKind == TypeKind.Interface)
             return true;
 
-        // Exclude Main / entry points
         if (symbol.Name == "Main")
             return true;
 
-        // Exclude xUnit test methods ([Fact], [Theory])
         if (symbol is IMethodSymbol m && m.GetAttributes().Any(a =>
                 a.AttributeClass?.Name is "FactAttribute" or "TheoryAttribute"))
             return true;
