@@ -1,9 +1,8 @@
 using System.CommandLine;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.CodeAnalysis.FindSymbols;
-using RoslynTools.Commands.Results;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
+using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
@@ -44,79 +43,15 @@ internal sealed class FindCallersCommand : IRtCommand
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
             using (workspace)
             {
-                var methodSymbol = await SymbolLocator.FindSymbolAsync(sln, symbol, "method");
-
-                Console.Error.WriteLine($"Finding callers of '{methodSymbol.ToDisplayString()}'...");
-
-                var referencedSymbols = await SymbolFinder.FindReferencesAsync(methodSymbol, sln);
-                var callers = new List<CallerResult>();
-
-                foreach (var referencedSymbol in referencedSymbols)
-                {
-                    foreach (var loc in referencedSymbol.Locations)
-                    {
-                        var doc = loc.Document;
-
-                        if (!includeTests && IsTestProject(doc.Project.Name))
-                            continue;
-
-                        var root = await doc.GetSyntaxRootAsync();
-                        if (root is null)
-                            continue;
-
-                        var node = root.FindNode(loc.Location.SourceSpan);
-
-                        var invocation = node.AncestorsAndSelf()
-                            .OfType<InvocationExpressionSyntax>()
-                            .FirstOrDefault();
-
-                        // Exclude nameof(...) — they are invocations syntactically but not real callers
-                        if (invocation is null || IsNameofExpression(invocation))
-                            continue;
-
-                        var lineSpan = loc.Location.GetLineSpan();
-                        var line = lineSpan.StartLinePosition.Line + 1;
-
-                        var containingMethod = invocation.Ancestors()
-                            .OfType<MethodDeclarationSyntax>()
-                            .FirstOrDefault()
-                            ?.Identifier.Text ?? "<unknown>";
-
-                        var text = await doc.GetTextAsync();
-                        var sourceLine = text.Lines[line - 1].ToString().TrimStart();
-
-                        callers.Add(new CallerResult
-                        {
-                            FilePath = doc.FilePath ?? string.Empty,
-                            Line = line,
-                            ContainingMethod = containingMethod,
-                            SourceLine = sourceLine,
-                        });
-                    }
-                }
-
-                var result = new FindCallersResult
-                {
-                    SymbolName = methodSymbol.Name,
-                    Callers = callers,
-                };
-
+                var result = await FindCallersService.FindAsync(sln, symbol, includeTests);
                 RtSerializer.Write(result);
-
-                Console.Error.WriteLine($"Found {callers.Count} caller(s) of '{methodSymbol.Name}'.");
             }
         }, symbolOpt, solutionOpt, includeTestsOpt);
 
         return cmd;
     }
 
-    internal static bool IsNameofExpression(InvocationExpressionSyntax invocation)
-    {
-        // nameof(...) has an IdentifierNameSyntax expression with text "nameof"
-        return invocation.Expression is IdentifierNameSyntax id &&
-               id.Identifier.ValueText == "nameof";
-    }
-
-    private static bool IsTestProject(string projectName) =>
-        projectName.Contains("Test", StringComparison.OrdinalIgnoreCase);
+    // Forwarding stubs kept for backwards compatibility with tests
+    internal static bool IsNameofExpression(InvocationExpressionSyntax invocation) =>
+        FindCallersService.IsNameofExpression(invocation);
 }
