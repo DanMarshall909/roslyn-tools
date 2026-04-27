@@ -229,7 +229,7 @@ internal sealed record FindDuplicatesResult : IRtOutput, IRtMarkdownOutput, IRtJ
                     return new OccurrenceResult
                     {
                         AbsoluteForwardSlashPath = absoluteForwardSlash,
-                        Link = $"{absoluteForwardSlash}:{o.StartLine}-{o.EndLine}",
+                        Link = $"{absoluteForwardSlash}:{o.StartLine}",
                         File = relativePath,
                         Line = o.StartLine,
                         EndLine = o.EndLine,

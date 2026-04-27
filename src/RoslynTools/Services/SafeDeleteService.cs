@@ -10,9 +10,7 @@ internal static class SafeDeleteService
 {
     internal static async Task RunAsync(Solution sln, string symbol, string? kind, bool dryRun)
     {
-        var sym = symbol.Contains('.')
-            ? await SymbolLocator.FindSymbolByFqnAsync(sln, symbol, kind)
-            : await SymbolLocator.FindSymbolAsync(sln, symbol, kind);
+        var sym = await ResolveSymbolAsync(sln, symbol, kind);
 
         RtLog.Info("Checking references for '{Symbol}'...", sym.ToDisplayString());
 
@@ -87,6 +85,27 @@ internal static class SafeDeleteService
         var newSln = newDoc.Project.Solution;
 
         await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun);
+    }
+
+    private static async Task<ISymbol> ResolveSymbolAsync(Solution sln, string symbol, string? kind)
+    {
+        if (symbol.Contains('.'))
+            return await SymbolLocator.FindSymbolByFqnAsync(sln, symbol, kind);
+
+        if (kind is null)
+        {
+            try
+            {
+                return await SymbolLocator.FindSymbolAsync(sln, symbol, "type");
+            }
+            catch (InvalidOperationException ex)
+                when (ex.Message.StartsWith($"No symbol named '{symbol}'", StringComparison.Ordinal))
+            {
+                // Fall back to the broader lookup so explicit member-like simple names keep working.
+            }
+        }
+
+        return await SymbolLocator.FindSymbolAsync(sln, symbol, kind);
     }
 
     internal static SyntaxNode? FindDeclarationNode(SyntaxNode node) =>

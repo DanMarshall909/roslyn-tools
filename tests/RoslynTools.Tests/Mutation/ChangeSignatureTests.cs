@@ -1645,7 +1645,7 @@ public class ChangeSignatureTests
                     solution, "TestApp.Service.Foo", "a", force: false);
 
                 var stderr = stderrCapture.ToString();
-                Assert.Contains("Warning", stderr); // method-group ref warned
+                Assert.Contains("[WARNING] Reference at", stderr); // method-group ref warned
 
                 var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
                 Assert.Contains("svc.Foo(2)", callerText); // invocation still rewritten

@@ -29,7 +29,7 @@ internal static class SymbolLocator
         {
             var found = await SymbolFinder.FindDeclarationsAsync(
                 project, symbolName, ignoreCase: false, filter);
-            allDeclarations.AddRange(found);
+            allDeclarations.AddRange(found.Where(IsSourceDeclaration));
         }
 
         // Further narrow by kind when filter covers multiple symbol types.
@@ -75,7 +75,7 @@ internal static class SymbolLocator
                 simpleName,
                 ignoreCase: false,
                 filter);
-            allDeclarations.AddRange(found);
+            allDeclarations.AddRange(found.Where(IsSourceDeclaration));
         }
 
         var matches = NarrowByKind(allDeclarations, kind)
@@ -114,7 +114,7 @@ internal static class SymbolLocator
         {
             var found = await SymbolFinder.FindDeclarationsAsync(
                 project, simpleName, ignoreCase: false, SymbolFilter.Type);
-            allDeclarations.AddRange(found);
+            allDeclarations.AddRange(found.Where(IsSourceDeclaration));
         }
 
         // Deduplicate: same FQN appearing in multiple projects (e.g. main + test) collapses to one.
@@ -203,7 +203,15 @@ internal static class SymbolLocator
         while (true)
         {
             Console.Write($"Enter number [0-{matches.Count - 1}]: ");
-            var input = Console.ReadLine()?.Trim();
+            var rawInput = Console.ReadLine();
+            if (rawInput is null)
+            {
+                throw new InvalidOperationException(
+                    $"Multiple symbols match '{name}', but no selection was provided. "
+                    + "Pass a more specific symbol or provide input for the prompt.");
+            }
+
+            var input = rawInput.Trim();
             if (int.TryParse(input, out int choice) && choice >= 0 && choice < matches.Count)
                 return matches[choice].Symbol;
             Console.WriteLine("  Invalid selection, try again.");
@@ -221,8 +229,13 @@ internal static class SymbolLocator
         _ => SymbolFilter.All
     };
 
+    private static bool IsSourceDeclaration(ISymbol symbol) =>
+        symbol.DeclaringSyntaxReferences.Length > 0;
+
     private static IEnumerable<ISymbol> NarrowByKind(IEnumerable<ISymbol> symbols, string? kind) => kind switch
     {
+        "namespace" => symbols.OfType<INamespaceSymbol>(),
+        "type" => symbols.OfType<INamedTypeSymbol>(),
         "method" => symbols.OfType<IMethodSymbol>(),
         "property" => symbols.OfType<IPropertySymbol>(),
         "field" => symbols.OfType<IFieldSymbol>(),
