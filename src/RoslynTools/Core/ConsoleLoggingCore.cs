@@ -25,6 +25,11 @@ internal enum ConsoleLoggingStream
 
 internal static class ConsoleLoggingCore
 {
+    private static readonly SymbolDisplayFormat TypeDisplayFormat = new(
+        globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Omitted,
+        typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
+        genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters);
+
     internal static async Task<ConsoleLoggingReview> AnalyzeAsync(Solution solution, ConsoleLoggingOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -39,7 +44,8 @@ internal static class ConsoleLoggingCore
                 if (root is null || ShouldExclude(document.FilePath, options.ExcludePaths))
                     continue;
 
-                var analyzer = new ConsoleLoggingAnalyzer(options, document.FilePath ?? document.Name);
+                var semanticModel = await document.GetSemanticModelAsync();
+                var analyzer = new ConsoleLoggingAnalyzer(options, document.FilePath ?? document.Name, semanticModel);
                 analyzer.Visit(root);
                 review.AddRange(analyzer.Entries);
             }
@@ -53,6 +59,13 @@ internal static class ConsoleLoggingCore
         ArgumentNullException.ThrowIfNull(options);
 
         var originalSolution = solution;
+        var newSolution = await ApplyAsync(solution, options);
+        await SolutionWriter.ApplyChangesAsync(originalSolution, newSolution, dryRun);
+    }
+
+    internal static async Task<Solution> ApplyAsync(Solution solution, ConsoleLoggingOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
 
         foreach (var project in solution.Projects)
         {
@@ -72,7 +85,7 @@ internal static class ConsoleLoggingCore
             }
         }
 
-        await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
+        return solution;
     }
 
     private static bool ShouldExclude(string? filePath, IReadOnlyList<string> excludePaths)
@@ -438,7 +451,10 @@ internal static class ConsoleLoggingCore
 
     private readonly record struct ConvertedMessage(string Template, List<ExpressionSyntax> Arguments);
 
-    private sealed class ConsoleLoggingAnalyzer(ConsoleLoggingOptions options, string filePath) : CSharpSyntaxWalker
+    private sealed class ConsoleLoggingAnalyzer(
+        ConsoleLoggingOptions options,
+        string filePath,
+        SemanticModel? semanticModel) : CSharpSyntaxWalker
     {
         public List<ConsoleLoggingReviewEntry> Entries { get; } = [];
 
@@ -453,13 +469,16 @@ internal static class ConsoleLoggingCore
                     : isError ? ConsoleLoggingLevel.Error : ConsoleLoggingLevel.Information;
 
                 var line = node.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+                var targetType = ResolveContainingType(node);
                 Entries.Add(new ConsoleLoggingReviewEntry(
                     filePath,
                     line,
                     isError ? "stderr" : "stdout",
                     level,
                     message.Template,
-                    message.Template.Contains("{Value}", StringComparison.Ordinal)));
+                    message.Template.Contains("{Value}", StringComparison.Ordinal),
+                    targetType?.Name,
+                    targetType?.ToDisplayString(TypeDisplayFormat)));
             }
 
             base.VisitInvocationExpression(node);
@@ -472,6 +491,18 @@ internal static class ConsoleLoggingCore
                 ConsoleLoggingStream.Stderr => isError,
                 _ => true,
             };
+
+        private INamedTypeSymbol? ResolveContainingType(SyntaxNode node)
+        {
+            var classDeclaration = node.AncestorsAndSelf()
+                .OfType<ClassDeclarationSyntax>()
+                .FirstOrDefault();
+
+            if (classDeclaration is null)
+                return null;
+
+            return semanticModel?.GetDeclaredSymbol(classDeclaration);
+        }
     }
 }
 
@@ -488,7 +519,9 @@ internal sealed record ConsoleLoggingReviewEntry(
     string Stream,
     ConsoleLoggingLevel Level,
     string Template,
-    bool NeedsReview);
+    bool NeedsReview,
+    string? TypeName,
+    string? TypeFullName);
 
 internal sealed class ConsoleLoggingReview
 {

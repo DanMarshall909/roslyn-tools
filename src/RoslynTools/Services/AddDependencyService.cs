@@ -28,12 +28,26 @@ internal static class AddDependencyService
         bool dryRun)
     {
         var originalSolution = solution;
+        var result = await ApplyAsync(solution, typeName, depType, fieldName);
+        if (result.Solution == solution)
+            return;
+
+        await SolutionWriter.ApplyChangesAsync(originalSolution, result.Solution, dryRun);
+        RtLog.Info("Injected {DepType} into {TargetType}.", depType, result.TargetType ?? typeName);
+    }
+
+    internal static async Task<DependencyInjectionResult> ApplyAsync(
+        Solution solution,
+        string typeName,
+        string depType,
+        string? fieldName)
+    {
         var resolvedField = fieldName ?? DeriveFieldName(depType);
         var paramName = resolvedField.TrimStart('_');
 
         var target = await ResolveTargetClassAsync(solution, typeName);
         if (target is null)
-            return;
+            return new DependencyInjectionResult(solution, false, null);
 
         var dependencyTypeSymbol = ResolveDependencyTypeSymbol(target.SemanticModel, target.Declaration, depType);
         var injector = new DependencyInjector(
@@ -52,28 +66,31 @@ internal static class AddDependencyService
             case DependencyInjectionStatus.ClassNotFound:
                 RtLog.Error("Class '{TypeName}' not found in solution.", typeName);
                 Environment.ExitCode = 1;
-                return;
+                return new DependencyInjectionResult(solution, false, target.Symbol.ToDisplayString(TypeDisplayFormat));
 
             case DependencyInjectionStatus.AlreadyInjected:
                 RtLog.Info("Dependency '{DepType}' is already injected into '{TargetType}'.", depType, target.Symbol.ToDisplayString(TypeDisplayFormat));
-                return;
+                return new DependencyInjectionResult(solution, false, target.Symbol.ToDisplayString(TypeDisplayFormat));
 
             case DependencyInjectionStatus.Unsupported:
                 RtLog.Error("{Message}", injector.ValidationError ??
                     $"Cannot inject '{depType}' into '{target.Symbol.ToDisplayString(TypeDisplayFormat)}'.");
                 Environment.ExitCode = 1;
-                return;
+                return new DependencyInjectionResult(solution, false, target.Symbol.ToDisplayString(TypeDisplayFormat));
 
             case DependencyInjectionStatus.Applied:
                 solution = solution.WithDocumentSyntaxRoot(target.Document.Id, newRoot!);
-                await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
-                RtLog.Info("Injected {DepType} into {TargetType}.", depType, target.Symbol.ToDisplayString(TypeDisplayFormat));
-                return;
+                return new DependencyInjectionResult(solution, true, target.Symbol.ToDisplayString(TypeDisplayFormat));
 
             default:
                 throw new InvalidOperationException($"Unknown dependency injection status '{injector.Status}'.");
         }
     }
+
+    internal sealed record DependencyInjectionResult(
+        Solution Solution,
+        bool Changed,
+        string? TargetType);
 
     internal static async Task<ResolvedTarget?> ResolveTargetClassAsync(Solution solution, string typeName)
     {

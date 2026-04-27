@@ -1,5 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Core;
+using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
@@ -17,12 +18,13 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
         Examples:
         [
             "rt convert-console-logging --solution C:\\code\\libraries\\ProjectX.Libraries.sln --review",
+            "rt ccl --inject-logger --solution C:\\code\\app\\App.sln",
             "rt ccl --logger _logger --solution RoslynTools.slnx",
             "rt convert-console-logging --stream all --logger _log --information-method Info --warning-method Warn --error-method Error --solution C:\\code\\app\\App.sln",
         ],
         KnownIssues:
         [
-            "The command rewrites call sites only; it does not inject the logger dependency.",
+            "Logger injection reuses add-dependency and only targets containing classes that have matching Console call sites.",
             "Ambiguous non-template expressions are wrapped as {Value} and flagged by --review.",
         ]
     );
@@ -42,10 +44,13 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
         };
         var noInferLevelOpt = new Option<bool>("--no-infer-level", "Disable warning/info/error inference and map stderr to the error method");
         var reviewOpt = new Option<bool>("--review", "Summarize matching call sites without writing files or printing a full diff");
+        var injectLoggerOpt = new Option<bool>("--inject-logger", "Inject the logger dependency into each containing class before rewriting call sites");
+        var loggerDependencyOpt = new Option<string>("--logger-dependency", () => "ILogger<{TypeName}>", "Logger dependency type template; supports {TypeName} and {TypeFullName}");
+        var loggerFieldOpt = new Option<string>("--logger-field", () => "_logger", "Logger field name passed to add-dependency");
 
         var cmd = new Command("convert-console-logging", "Convert Console.Write/WriteLine calls to logger calls");
         cmd.AddAlias("ccl");
-        cmd.AddAll(solutionOpt, dryRunOpt, loggerOpt, informationMethodOpt, warningMethodOpt, errorMethodOpt, streamOpt, excludeOpt, noInferLevelOpt, reviewOpt);
+        cmd.AddAll(solutionOpt, dryRunOpt, loggerOpt, informationMethodOpt, warningMethodOpt, errorMethodOpt, streamOpt, excludeOpt, noInferLevelOpt, reviewOpt, injectLoggerOpt, loggerDependencyOpt, loggerFieldOpt);
 
         cmd.SetHandler(async context =>
         {
@@ -59,7 +64,10 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
                 context.ParseResult.GetValueForOption(streamOpt)!,
                 context.ParseResult.GetValueForOption(excludeOpt) ?? [],
                 !context.ParseResult.GetValueForOption(noInferLevelOpt),
-                context.ParseResult.GetValueForOption(reviewOpt));
+                context.ParseResult.GetValueForOption(reviewOpt),
+                context.ParseResult.GetValueForOption(injectLoggerOpt),
+                context.ParseResult.GetValueForOption(loggerDependencyOpt)!,
+                context.ParseResult.GetValueForOption(loggerFieldOpt)!);
         });
 
         return cmd;
@@ -75,12 +83,15 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
         string stream,
         string[] excludePaths,
         bool inferLevel,
-        bool review)
+        bool review,
+        bool injectLogger,
+        string loggerDependency,
+        string loggerField)
     {
         var (workspace, solution) = await WorkspaceLoader.LoadAsync(solutionPath);
         using (workspace)
         {
-            await ExecuteCoreAsync(solution, dryRun, loggerExpression, informationMethod, warningMethod, errorMethod, stream, excludePaths, inferLevel, review);
+            await ExecuteCoreAsync(solution, dryRun, loggerExpression, informationMethod, warningMethod, errorMethod, stream, excludePaths, inferLevel, review, injectLogger, loggerDependency, loggerField);
         }
     }
 
@@ -94,7 +105,10 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
         string stream = "all",
         string[]? excludePaths = null,
         bool inferLevel = true,
-        bool review = false)
+        bool review = false,
+        bool injectLogger = false,
+        string loggerDependency = "ILogger<{TypeName}>",
+        string loggerField = "_logger")
     {
         var options = new ConsoleLoggingOptions(
                 loggerExpression,
@@ -106,7 +120,10 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
                 inferLevel);
 
         if (review)
-            return ReviewAsync(solution, options);
+            return ReviewAsync(solution, options, injectLogger, loggerDependency);
+
+        if (injectLogger)
+            return ApplyWithLoggerInjectionAsync(solution, options, dryRun, loggerDependency, loggerField);
 
         return ConsoleLoggingCore.RunAsync(solution, options, dryRun);
     }
@@ -120,7 +137,35 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
             _ => throw new ArgumentException("Stream must be one of: all, stdout, stderr.", nameof(stream)),
         };
 
-    private static async Task ReviewAsync(Microsoft.CodeAnalysis.Solution solution, ConsoleLoggingOptions options)
+    private static async Task ApplyWithLoggerInjectionAsync(
+        Microsoft.CodeAnalysis.Solution solution,
+        ConsoleLoggingOptions options,
+        bool dryRun,
+        string loggerDependency,
+        string loggerField)
+    {
+        var originalSolution = solution;
+        var review = await ConsoleLoggingCore.AnalyzeAsync(solution, options);
+
+        foreach (var target in GetInjectionTargets(review, loggerDependency))
+        {
+            var result = await AddDependencyService.ApplyAsync(
+                solution,
+                target.TypeFullName,
+                target.DependencyType,
+                loggerField);
+            solution = result.Solution;
+        }
+
+        solution = await ConsoleLoggingCore.ApplyAsync(solution, options);
+        await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
+    }
+
+    private static async Task ReviewAsync(
+        Microsoft.CodeAnalysis.Solution solution,
+        ConsoleLoggingOptions options,
+        bool injectLogger,
+        string loggerDependency)
     {
         var review = await ConsoleLoggingCore.AnalyzeAsync(solution, options);
         var entries = review.Entries;
@@ -137,6 +182,14 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
         if (reviewCount > 0)
             RtConsole.WriteLine(RtOutputContext.Result, $"  needs-review: {reviewCount}");
 
+        if (injectLogger)
+        {
+            var targets = GetInjectionTargets(review, loggerDependency).ToList();
+            RtConsole.WriteLine(RtOutputContext.Result, $"  logger injections: {targets.Count}");
+            foreach (var target in targets.Take(20))
+                RtConsole.WriteLine(RtOutputContext.Result, $"    {target.TypeFullName}: {target.DependencyType}");
+        }
+
         foreach (var entry in entries.Where(e => e.NeedsReview).Take(20))
         {
             RtConsole.WriteLine(
@@ -144,4 +197,28 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
                 $"  REVIEW {entry.FilePath}({entry.Line}): {entry.Template}");
         }
     }
+
+    private static IEnumerable<LoggerInjectionTarget> GetInjectionTargets(
+        ConsoleLoggingReview review,
+        string dependencyTemplate)
+    {
+        return review.Entries
+            .Where(e => !string.IsNullOrWhiteSpace(e.TypeName)
+                && !string.IsNullOrWhiteSpace(e.TypeFullName))
+            .GroupBy(e => e.TypeFullName!, StringComparer.Ordinal)
+            .OrderBy(g => g.Key, StringComparer.Ordinal)
+            .Select(g =>
+            {
+                var entry = g.First();
+                return new LoggerInjectionTarget(
+                    entry.TypeFullName!,
+                    FormatDependencyType(dependencyTemplate, entry.TypeName!, entry.TypeFullName!));
+            });
+    }
+
+    private static string FormatDependencyType(string template, string typeName, string typeFullName) =>
+        template.Replace("{TypeName}", typeName, StringComparison.Ordinal)
+            .Replace("{TypeFullName}", typeFullName, StringComparison.Ordinal);
+
+    private sealed record LoggerInjectionTarget(string TypeFullName, string DependencyType);
 }

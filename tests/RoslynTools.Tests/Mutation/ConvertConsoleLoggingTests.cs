@@ -339,4 +339,88 @@ public class ConvertConsoleLoggingTests
         Assert.Contains("stderr: 1", output);
         Assert.Contains("needs-review: 1", output);
     }
+
+    [Fact]
+    public async Task Can_reuse_add_dependency_to_inject_logger_before_rewriting()
+    {
+        using var project = new AdhocProjectBuilder("LogApp");
+        project.AddSource("LogApp.cs", """
+            public interface ILogger<T>
+            {
+                void LogInformation(string message);
+            }
+
+            public class App
+            {
+                private readonly string _name;
+
+                public App(string name)
+                {
+                    _name = name;
+                }
+
+                public void Run()
+                {
+                    Console.Error.WriteLine("Starting");
+                }
+            }
+            """);
+        var (workspace, solution) = project.Build();
+
+        using (workspace)
+        {
+            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(
+                solution,
+                dryRun: false,
+                stream: "stderr",
+                injectLogger: true);
+        }
+
+        var content = await project.ReadSourceAsync("LogApp.cs");
+        Assert.Contains("private readonly ILogger<App> _logger;", content);
+        Assert.Contains("public App(", content);
+        Assert.Contains("ILogger<App> logger", content);
+        Assert.Contains("_logger = logger;", content);
+        Assert.Contains("_logger.LogInformation(\"Starting\")", content);
+    }
+
+    [Fact]
+    public async Task Review_reports_logger_injection_targets()
+    {
+        using var project = new AdhocProjectBuilder("LogApp");
+        project.AddSource("LogApp.cs", """
+            public class App
+            {
+                public void Run()
+                {
+                    Console.Error.WriteLine("Starting");
+                }
+            }
+            """);
+        var (workspace, solution) = project.Build();
+
+        using var stdout = new StringWriter();
+        var originalOut = Console.Out;
+        Console.SetOut(stdout);
+        try
+        {
+            using (workspace)
+            {
+                await ConvertConsoleLoggingCommand.ExecuteCoreAsync(
+                    solution,
+                    dryRun: false,
+                    stream: "stderr",
+                    review: true,
+                    injectLogger: true);
+            }
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+
+        var output = stdout.ToString();
+        Assert.Contains("logger injections: 1", output);
+        Assert.Contains("App: ILogger<App>", output);
+    }
 }
