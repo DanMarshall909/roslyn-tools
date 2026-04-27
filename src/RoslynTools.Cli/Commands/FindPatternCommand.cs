@@ -1,6 +1,7 @@
 using System.CommandLine;
 using System.Text.Json;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 
 namespace RoslynTools.Commands;
 
@@ -55,7 +56,7 @@ internal sealed class FindPatternCommand : IRtCommand
                 }
 
                 var output = new { matches };
-                Console.WriteLine(JsonSerializer.Serialize(output, JsonOptions));
+                StructuredOutput.Write(output, JsonOptions);
             }
         }, fileOpt, startLineOpt, endLineOpt, solutionOpt, scopeOpt);
 

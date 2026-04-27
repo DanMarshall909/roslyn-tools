@@ -1,7 +1,7 @@
 using System.CommandLine;
-using System.Text.Json;
 using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -59,7 +59,7 @@ internal sealed class FindImplementationsCommand : IRtCommand
                     ["implementations"] = implementations,
                 };
 
-                Console.WriteLine(JsonSerializer.Serialize(result, SymbolFormatter.DefaultJsonOptions));
+                StructuredOutput.Write(result, SymbolFormatter.DefaultJsonOptions);
             }
         },
         symbolArg, solutionOpt);

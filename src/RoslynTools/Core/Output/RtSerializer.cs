@@ -19,6 +19,9 @@ internal static class RtSerializer
             case OutputFormat.Llm:
                 LlmRenderer.Write(result, target);
                 break;
+            case OutputFormat.Yaml:
+                YamlRenderer.Write(result, target);
+                break;
             default:
                 TextRenderer.Write(result, target);
                 break;

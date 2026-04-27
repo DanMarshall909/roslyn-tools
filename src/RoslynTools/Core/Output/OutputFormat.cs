@@ -5,5 +5,6 @@ internal enum OutputFormat
     Text,
     Json,
     Markdown,
-    Llm
+    Llm,
+    Yaml
 }

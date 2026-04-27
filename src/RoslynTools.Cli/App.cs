@@ -63,6 +63,7 @@ internal static class App
         var jsonOpt = new Option<bool>("--json", "Emit results as JSON");
         var llmOpt = new Option<bool>("--llm", "Emit compact output for LLM consumption");
         var markdownOpt = new Option<bool>("--markdown", "Emit results as Markdown");
+        var yamlOpt = new Option<bool>("--yaml", "Emit results as YAML");
         var decisionsOpt = new Option<FileInfo?>(
             "--decisions",
             "Path to a YAML file recording disambiguation choices. "
@@ -70,6 +71,7 @@ internal static class App
         root.AddGlobalOption(jsonOpt);
         root.AddGlobalOption(llmOpt);
         root.AddGlobalOption(markdownOpt);
+        root.AddGlobalOption(yamlOpt);
         root.AddGlobalOption(decisionsOpt);
 
         return await new CommandLineBuilder(root)
@@ -77,9 +79,11 @@ internal static class App
             .AddMiddleware(async (context, next) =>
             {
                 var md = context.ParseResult.GetValueForOption(markdownOpt);
+                var yaml = context.ParseResult.GetValueForOption(yamlOpt);
                 var json = context.ParseResult.GetValueForOption(jsonOpt);
                 var llm = context.ParseResult.GetValueForOption(llmOpt);
                 RtContext.Format = md ? OutputFormat.Markdown
+                                 : yaml ? OutputFormat.Yaml
                                  : json ? OutputFormat.Json
                                  : llm ? OutputFormat.Llm
                                  : OutputFormat.Text;

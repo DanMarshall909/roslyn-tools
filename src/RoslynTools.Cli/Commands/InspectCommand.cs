@@ -1,6 +1,6 @@
 using System.CommandLine;
-using System.Text.Json;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -42,7 +42,7 @@ internal sealed class InspectCommand : IRtCommand
             {
                 var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, symbol, kind);
                 var result = InspectService.BuildInspection(sym, sln);
-                Console.WriteLine(JsonSerializer.Serialize(result, SymbolFormatter.DefaultJsonOptions));
+                StructuredOutput.Write(result, SymbolFormatter.DefaultJsonOptions);
             }
         },
         symbolArg, solutionOpt, kindOpt);

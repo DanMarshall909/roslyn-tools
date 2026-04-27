@@ -1,6 +1,6 @@
 using System.CommandLine;
-using System.Text.Json;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -46,7 +46,7 @@ internal sealed class OutlineCommand : IRtCommand
                 else
                     result = await OutlineService.OutlineNamespaceAsync(sln, target);
 
-                Console.WriteLine(JsonSerializer.Serialize(result, SymbolFormatter.DefaultJsonOptions));
+                StructuredOutput.Write(result, SymbolFormatter.DefaultJsonOptions);
             }
         },
         targetArg, solutionOpt);

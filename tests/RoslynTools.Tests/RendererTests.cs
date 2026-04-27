@@ -109,6 +109,66 @@ public sealed class RendererTests : IDisposable
         Assert.Contains("Bob", md);
     }
 
+    // ── YAML: includes Llm + Default + Detailed fields ────────────────────────────
+
+    [Fact]
+    public void YamlRenderer_includes_Llm_Default_and_Detailed_fields()
+    {
+        RtContext.Format = OutputFormat.Yaml;
+        var result = new FakeResult();
+        using var sw = new StringWriter();
+
+        RtSerializer.Write(result, sw);
+
+        var yaml = sw.ToString();
+        Assert.Contains("LlmField:", yaml);
+        Assert.Contains("DefaultField:", yaml);
+        Assert.Contains("DetailedField:", yaml);
+        Assert.Contains("llm-value", yaml);
+        Assert.Contains("default-value", yaml);
+        Assert.Contains("detailed-value", yaml);
+    }
+
+    [Fact]
+    public void YamlRenderer_renders_child_collection_as_list()
+    {
+        RtContext.Format = OutputFormat.Yaml;
+        var result = new FakeParent();
+        using var sw = new StringWriter();
+
+        RtSerializer.Write(result, sw);
+
+        var yaml = sw.ToString();
+        Assert.Contains("Children:", yaml);
+        Assert.Contains("Alice", yaml);
+        Assert.Contains("Bob", yaml);
+    }
+
+    [Fact]
+    public void YamlRenderer_omits_property_without_OutputField()
+    {
+        RtContext.Format = OutputFormat.Yaml;
+        var result = new FakeResult();
+        using var sw = new StringWriter();
+
+        RtSerializer.Write(result, sw);
+
+        Assert.DoesNotContain("untagged-value", sw.ToString());
+    }
+
+    [Fact]
+    public void YamlRenderer_renders_null_nested_IRtOutput_as_yaml_null()
+    {
+        RtContext.Format = OutputFormat.Yaml;
+        var result = new FakeWithNullChild();
+        using var sw = new StringWriter();
+
+        RtSerializer.Write(result, sw);
+
+        var yaml = sw.ToString();
+        Assert.Contains("Child:", yaml);
+    }
+
     // ── AC-9: Text rendering delegates to RenderText exactly once ─────────────────
 
     [Fact]

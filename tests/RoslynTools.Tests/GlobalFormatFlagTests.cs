@@ -60,6 +60,32 @@ public sealed class GlobalFormatFlagTests : IDisposable
         Assert.Equal(OutputFormat.Markdown, RtContext.Format);
     }
 
+    // ── --yaml sets Format to Yaml ────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Yaml_flag_sets_Format_to_Yaml()
+    {
+        await App.RunAsync(["dump-help", "--yaml"]);
+
+        Assert.Equal(OutputFormat.Yaml, RtContext.Format);
+    }
+
+    [Fact]
+    public async Task Markdown_takes_precedence_over_yaml_when_both_supplied()
+    {
+        await App.RunAsync(["dump-help", "--markdown", "--yaml"]);
+
+        Assert.Equal(OutputFormat.Markdown, RtContext.Format);
+    }
+
+    [Fact]
+    public async Task Yaml_takes_precedence_over_json_when_both_supplied()
+    {
+        await App.RunAsync(["dump-help", "--yaml", "--json"]);
+
+        Assert.Equal(OutputFormat.Yaml, RtContext.Format);
+    }
+
     // ── AC-7: --markdown wins over --json (precedence) ────────────────────────────
 
     [Fact]
