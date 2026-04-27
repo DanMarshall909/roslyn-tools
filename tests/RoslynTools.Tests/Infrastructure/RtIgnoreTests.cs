@@ -79,4 +79,34 @@ public class RtIgnoreTests
         Assert.True(ignore.IsIgnored(@"C:/code/roslyn-tools/src/RoslynTools/Commands/FooCommand.cs"));
         Assert.False(ignore.IsIgnored(@"C:/code/roslyn-tools/src/RoslynTools/Core/FooCore.cs"));
     }
+
+    [Fact]
+    public void Command_scoped_pattern_only_applies_to_that_command()
+    {
+        var ignore = LoadFromLines("list-imports:Generated/");
+
+        Assert.True(ignore.IsIgnored(@"C:/code/src/Generated/Foo.cs", "list-imports"));
+        Assert.False(ignore.IsIgnored(@"C:/code/src/Generated/Foo.cs", "find-unused"));
+        Assert.False(ignore.IsIgnored(@"C:/code/src/Generated/Foo.cs"));
+    }
+
+    [Fact]
+    public void Command_scoped_pattern_supports_command_wildcards()
+    {
+        var ignore = LoadFromLines("find-*:Generated/");
+
+        Assert.True(ignore.IsIgnored(@"C:/code/src/Generated/Foo.cs", "find-unused"));
+        Assert.True(ignore.IsIgnored(@"C:/code/src/Generated/Foo.cs", "find-duplicates"));
+        Assert.False(ignore.IsIgnored(@"C:/code/src/Generated/Foo.cs", "list-imports"));
+    }
+
+    [Fact]
+    public void Unscoped_pattern_still_applies_to_all_commands()
+    {
+        var ignore = LoadFromLines("Generated/");
+
+        Assert.True(ignore.IsIgnored(@"C:/code/src/Generated/Foo.cs", "list-imports"));
+        Assert.True(ignore.IsIgnored(@"C:/code/src/Generated/Foo.cs", "find-unused"));
+        Assert.True(ignore.IsIgnored(@"C:/code/src/Generated/Foo.cs"));
+    }
 }

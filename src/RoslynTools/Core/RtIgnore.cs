@@ -7,9 +7,9 @@ internal sealed class RtIgnore
 {
     private static readonly RtIgnore Empty = new([]);
 
-    private readonly string[] _patterns;
+    private readonly RtIgnorePattern[] _patterns;
 
-    private RtIgnore(string[] patterns) => _patterns = patterns;
+    private RtIgnore(RtIgnorePattern[] patterns) => _patterns = patterns;
 
     internal static RtIgnore Load(string? solutionDir)
     {
@@ -23,6 +23,7 @@ internal sealed class RtIgnore
         var patterns = File.ReadAllLines(path)
             .Select(l => l.Trim())
             .Where(l => l.Length > 0 && !l.StartsWith('#'))
+            .Select(ParsePattern)
             .ToArray();
 
         return patterns.Length == 0 ? Empty : new RtIgnore(patterns);
@@ -84,14 +85,24 @@ internal sealed class RtIgnore
 
     internal bool IsIgnored(string? absoluteFilePath)
     {
+        return IsIgnored(absoluteFilePath, commandName: null);
+    }
+
+    internal bool IsIgnored(string? absoluteFilePath, string? commandName)
+    {
         if (absoluteFilePath is null || _patterns.Length == 0)
             return false;
 
         // Normalise to forward slashes for consistent matching.
         var normalised = absoluteFilePath.Replace('\\', '/');
 
-        foreach (var raw in _patterns)
+        foreach (var entry in _patterns)
         {
+            if (!MatchesCommand(entry.CommandPattern, commandName))
+                continue;
+
+            var raw = entry.PathPattern;
+
             // Normalise pattern too.
             var pattern = raw.Replace('\\', '/').TrimEnd('/');
 
@@ -122,4 +133,34 @@ internal sealed class RtIgnore
 
         return false;
     }
+
+    private static RtIgnorePattern ParsePattern(string raw)
+    {
+        var separator = raw.IndexOf(':', StringComparison.Ordinal);
+        if (separator <= 0)
+            return new RtIgnorePattern(null, raw);
+
+        var commandPattern = raw[..separator].Trim();
+        var pathPattern = raw[(separator + 1)..].Trim();
+        if (commandPattern.Length == 0 || pathPattern.Length == 0)
+            return new RtIgnorePattern(null, raw);
+
+        return new RtIgnorePattern(commandPattern, pathPattern);
+    }
+
+    private static bool MatchesCommand(string? commandPattern, string? commandName)
+    {
+        if (commandPattern is null)
+            return true;
+
+        if (string.IsNullOrWhiteSpace(commandName))
+            return false;
+
+        return FileSystemName.MatchesSimpleExpression(
+            commandPattern,
+            commandName,
+            ignoreCase: true);
+    }
+
+    private sealed record RtIgnorePattern(string? CommandPattern, string PathPattern);
 }

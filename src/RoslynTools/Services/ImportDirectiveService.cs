@@ -27,7 +27,7 @@ internal static class ImportDirectiveService
         {
             foreach (var document in project.Documents)
             {
-                if (rtIgnore.IsIgnored(document.FilePath) || IsGeneratedOrIntermediate(document.FilePath))
+                if (rtIgnore.IsIgnored(document.FilePath, "list-imports") || IsGeneratedOrIntermediate(document.FilePath))
                     continue;
 
                 var root = await document.GetSyntaxRootAsync();

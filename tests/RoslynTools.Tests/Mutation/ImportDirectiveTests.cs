@@ -79,6 +79,28 @@ public class ImportDirectiveTests
     }
 
     [Fact]
+    public async Task Analyze_respects_command_scoped_rtignore_patterns()
+    {
+        using var project = new AdhocProjectBuilder("ImportApp");
+        project.AddSource("Ignored/IgnoredImports.cs", """
+            global using System;
+            """);
+        project.AddSource("GlobalUsings.cs", """
+            global using Xunit;
+            """);
+        var (workspace, solution) = project.Build();
+        File.WriteAllText(Path.Combine(project.ProjectDir, ".rtignore"), "list-imports:Ignored");
+
+        using (workspace)
+        {
+            var globals = await ImportDirectiveService.AnalyzeAsync(solution, "global");
+
+            var only = Assert.Single(globals);
+            Assert.Equal("Xunit", only.Name);
+        }
+    }
+
+    [Fact]
     public async Task Adds_static_import_to_existing_file()
     {
         using var project = new AdhocProjectBuilder("ImportApp");
