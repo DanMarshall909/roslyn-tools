@@ -75,8 +75,7 @@ internal static class MethodExtractorDuplicates
             else
             {
                 skipped++;
-                Console.Error.WriteLine(
-                    $"WARNING {match.File}:{match.Line}: {skipReason} — skipped");
+                RtLog.Warning("{File}:{Line}: {SkipReason} — skipped", match.File, match.Line, skipReason);
             }
         }
 

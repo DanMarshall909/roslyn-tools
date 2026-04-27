@@ -182,7 +182,7 @@ internal static class FindDuplicatesCore
             }
         }
 
-        Console.Error.WriteLine($"[find-duplicates] projects={projectCount} methods={methodCount} seeds={seeds.Count}");
+        RtLog.Info("[find-duplicates] projects={ProjectCount} methods={MethodCount} seeds={SeedCount}", projectCount, methodCount, seeds.Count);
 
         // Phase 2: bottom-up expansion.
         // Start with seed groups that meet MinOccurrences.
@@ -337,7 +337,7 @@ internal static class FindDuplicatesCore
             .OrderByDescending(g => g.Score)
             .ToList();
 
-        Console.Error.WriteLine($"[find-duplicates] groups={results.Count} after-suppression={filtered.Count}");
+        RtLog.Info("[find-duplicates] groups={GroupCount} after-suppression={FilteredCount}", results.Count, filtered.Count);
 
         return filtered;
     }

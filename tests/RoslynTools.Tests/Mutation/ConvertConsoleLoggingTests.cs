@@ -163,4 +163,72 @@ public class ConvertConsoleLoggingTests
         var content = await project.ReadSourceAsync("LogApp.cs");
         Assert.Equal(original, content);
     }
+
+    [Fact]
+    public async Task Can_rewrite_only_stderr_calls()
+    {
+        using var project = new AdhocProjectBuilder("LogApp");
+        project.AddSource("LogApp.cs", """
+            class App
+            {
+                void Run()
+                {
+                    Console.WriteLine("payload");
+                    Console.Error.WriteLine("diagnostic");
+                }
+            }
+            """);
+        var (workspace, solution) = project.Build();
+
+        using (workspace)
+        {
+            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(
+                solution,
+                dryRun: false,
+                stream: "stderr");
+        }
+
+        var content = await project.ReadSourceAsync("LogApp.cs");
+        Assert.Contains("Console.WriteLine(\"payload\")", content);
+        Assert.Contains("_logger.LogError(\"diagnostic\")", content);
+    }
+
+    [Fact]
+    public async Task Can_exclude_path_fragments()
+    {
+        using var project = new AdhocProjectBuilder("LogApp");
+        project.AddSource("Include.cs", """
+            class Include
+            {
+                void Run()
+                {
+                    Console.Error.WriteLine("include");
+                }
+            }
+            """);
+        project.AddSource("Exclude.cs", """
+            class Exclude
+            {
+                void Run()
+                {
+                    Console.Error.WriteLine("exclude");
+                }
+            }
+            """);
+        var (workspace, solution) = project.Build();
+
+        using (workspace)
+        {
+            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(
+                solution,
+                dryRun: false,
+                stream: "stderr",
+                excludePaths: ["Exclude.cs"]);
+        }
+
+        var included = await project.ReadSourceAsync("Include.cs");
+        var excluded = await project.ReadSourceAsync("Exclude.cs");
+        Assert.Contains("_logger.LogError(\"include\")", included);
+        Assert.Contains("Console.Error.WriteLine(\"exclude\")", excluded);
+    }
 }

@@ -50,16 +50,16 @@ internal static class AddDependencyService
         switch (injector.Status)
         {
             case DependencyInjectionStatus.ClassNotFound:
-                Console.Error.WriteLine($"Class '{typeName}' not found in solution.");
+                RtLog.Error("Class '{TypeName}' not found in solution.", typeName);
                 Environment.ExitCode = 1;
                 return;
 
             case DependencyInjectionStatus.AlreadyInjected:
-                Console.Error.WriteLine($"Dependency '{depType}' is already injected into '{target.Symbol.ToDisplayString(TypeDisplayFormat)}'.");
+                RtLog.Info("Dependency '{DepType}' is already injected into '{TargetType}'.", depType, target.Symbol.ToDisplayString(TypeDisplayFormat));
                 return;
 
             case DependencyInjectionStatus.Unsupported:
-                Console.Error.WriteLine(injector.ValidationError ??
+                RtLog.Error("{Message}", injector.ValidationError ??
                     $"Cannot inject '{depType}' into '{target.Symbol.ToDisplayString(TypeDisplayFormat)}'.");
                 Environment.ExitCode = 1;
                 return;
@@ -67,7 +67,7 @@ internal static class AddDependencyService
             case DependencyInjectionStatus.Applied:
                 solution = solution.WithDocumentSyntaxRoot(target.Document.Id, newRoot!);
                 await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
-                Console.Error.WriteLine($"Injected {depType} into {target.Symbol.ToDisplayString(TypeDisplayFormat)}.");
+                RtLog.Info("Injected {DepType} into {TargetType}.", depType, target.Symbol.ToDisplayString(TypeDisplayFormat));
                 return;
 
             default:
@@ -108,7 +108,7 @@ internal static class AddDependencyService
 
         if (matches.Count == 0)
         {
-            Console.Error.WriteLine($"Class '{typeName}' not found in solution.");
+            RtLog.Error("Class '{TypeName}' not found in solution.", typeName);
             Environment.ExitCode = 1;
             return null;
         }
@@ -118,7 +118,7 @@ internal static class AddDependencyService
             var candidateList = string.Join(", ", matches
                 .Select(m => m.Symbol.ToDisplayString(TypeDisplayFormat))
                 .Distinct(StringComparer.Ordinal));
-            Console.Error.WriteLine($"Class '{typeName}' is ambiguous across the loaded solution: {candidateList}. Pass a fully qualified type name.");
+            RtLog.Error("Class '{TypeName}' is ambiguous across the loaded solution: {CandidateList}. Pass a fully qualified type name.", typeName, candidateList);
             Environment.ExitCode = 1;
             return null;
         }

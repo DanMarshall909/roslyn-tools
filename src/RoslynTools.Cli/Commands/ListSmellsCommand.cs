@@ -42,7 +42,7 @@ internal sealed class ListSmellsCommand : IRtCommand
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
             using (workspace)
             {
-                Console.Error.WriteLine("Analyzing solution for code smells...");
+                RtLog.Info("Analyzing solution for code smells...");
 
                 var smells = await SmellAnalyzer.AnalyzeAsync(sln, maxClass, maxMethod, maxParams, scope);
 
@@ -61,7 +61,7 @@ internal sealed class ListSmellsCommand : IRtCommand
 
                 RtSerializer.Write(result);
 
-                Console.Error.WriteLine($"Found {smells.Count} smell(s).");
+                RtLog.Info("Found {Count} smell(s).", smells.Count);
             }
         }, solutionOpt, maxClassOpt, maxMethodOpt, maxParamsOpt, scopeOpt);
 

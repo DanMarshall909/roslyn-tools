@@ -45,15 +45,16 @@ internal static class ReplaceTypeService
             return;
         }
 
-        Console.Error.WriteLine(
-            $"Replaced DateTime.UtcNow/Now in {changedFiles} file(s). " +
-            $"Classes needing TimeProvider injection: {classesNeedingInjection.Distinct().Count()}");
+        RtLog.Info(
+            "Replaced DateTime.UtcNow/Now in {ChangedFileCount} file(s). Classes needing TimeProvider injection: {ClassCount}",
+            changedFiles,
+            classesNeedingInjection.Distinct().Count());
 
         await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
 
-        Console.Error.WriteLine("\n--- Manual review needed ---");
-        Console.Error.WriteLine("Verify constructor injection was added correctly in each class.");
-        Console.Error.WriteLine("Static classes and top-level statements need manual wiring.");
+        RtLog.Warning("\n--- Manual review needed ---");
+        RtLog.Warning("Verify constructor injection was added correctly in each class.");
+        RtLog.Warning("Static classes and top-level statements need manual wiring.");
     }
 
     internal sealed class DateTimeRewriter : CSharpSyntaxRewriter
@@ -127,8 +128,7 @@ internal static class ReplaceTypeService
 
             if (visited.Modifiers.Any(SyntaxKind.StaticKeyword))
             {
-                Console.Error.WriteLine(
-                    $"  MANUAL: static class '{visited.Identifier.Text}' uses _timeProvider but cannot accept constructor injection");
+                RtLog.Warning("Static class '{TypeName}' uses _timeProvider but cannot accept constructor injection.", visited.Identifier.Text);
                 return visited;
             }
 

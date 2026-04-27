@@ -47,7 +47,7 @@ internal static class MakeSealedCore
 
         if (classSymbol.IsAbstract)
         {
-            Console.Error.WriteLine("Cannot seal an abstract class.");
+            RtLog.Error("Cannot seal an abstract class.");
             return false;
         }
 

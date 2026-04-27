@@ -45,7 +45,7 @@ internal sealed class SafeDeleteCommand : IRtCommand
             }
             catch (InvalidOperationException ex)
             {
-                Console.Error.WriteLine($"Error: {ex.Message}");
+                RtLog.Error("Error: {Message}", ex.Message);
                 Environment.ExitCode = 1;
             }
         }, symbolOpt, kindOpt, solutionOpt, dryRunOpt);

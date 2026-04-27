@@ -62,7 +62,7 @@ internal sealed class ChangeSignatureCommand : IRtCommand
                 }
                 catch (InvalidOperationException ex)
                 {
-                    Console.Error.WriteLine($"Error: {ex.Message}");
+                    RtLog.Error("Error: {Message}", ex.Message);
                     context.ExitCode = 1;
                     return;
                 }
@@ -106,7 +106,7 @@ internal sealed class ChangeSignatureCommand : IRtCommand
                 }
                 catch (InvalidOperationException ex)
                 {
-                    Console.Error.WriteLine($"Error: {ex.Message}");
+                    RtLog.Error("Error: {Message}", ex.Message);
                     context.ExitCode = 1;
                     return;
                 }
@@ -152,7 +152,7 @@ internal sealed class ChangeSignatureCommand : IRtCommand
                 }
                 catch (InvalidOperationException ex)
                 {
-                    Console.Error.WriteLine($"Error: {ex.Message}");
+                    RtLog.Error("Error: {Message}", ex.Message);
                     context.ExitCode = 1;
                 }
             }
@@ -197,7 +197,7 @@ internal sealed class ChangeSignatureCommand : IRtCommand
                 }
                 catch (InvalidOperationException ex)
                 {
-                    Console.Error.WriteLine($"Error: {ex.Message}");
+                    RtLog.Error("Error: {Message}", ex.Message);
                     context.ExitCode = 1;
                 }
             }

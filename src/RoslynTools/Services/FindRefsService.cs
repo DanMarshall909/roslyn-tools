@@ -14,7 +14,7 @@ internal static class FindRefsService
     {
         var sym = await SymbolLocator.FindSymbolAsync(sln, symbol, kind);
 
-        Console.Error.WriteLine($"Finding references to '{sym.ToDisplayString()}'...");
+        RtLog.Info("Finding references to '{Symbol}'...", sym.ToDisplayString());
 
         var referencedSymbols = await SymbolFinder.FindReferencesAsync(sym, sln);
         var references = new List<ReferenceResult>();

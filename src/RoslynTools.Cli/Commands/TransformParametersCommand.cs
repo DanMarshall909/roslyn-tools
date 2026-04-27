@@ -47,7 +47,7 @@ internal sealed class TransformParametersCommand : IRtCommand
                 }
                 catch (InvalidOperationException ex)
                 {
-                    Console.Error.WriteLine($"Error: {ex.Message}");
+                    RtLog.Error("Error: {Message}", ex.Message);
                     Environment.ExitCode = 1;
                 }
             }

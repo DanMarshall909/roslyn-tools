@@ -15,7 +15,7 @@ internal static class RenameService
     {
         var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, symbol, kind);
 
-        Console.Error.WriteLine($"Renaming '{sym.ToDisplayString()}' -> '{newName}'...");
+        RtLog.Info("Renaming '{Symbol}' -> '{NewName}'...", sym.ToDisplayString(), newName);
 
         var options = new SymbolRenameOptions(
             RenameOverloads: false,

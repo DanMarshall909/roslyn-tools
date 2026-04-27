@@ -50,7 +50,7 @@ internal static class TransformParametersCore
         string newTypeName,
         bool dryRun)
     {
-        Console.Error.WriteLine($"Transforming parameters of '{methodSpec}' → record '{newTypeName}'...");
+        RtLog.Info("Transforming parameters of '{MethodSpec}' → record '{NewTypeName}'...", methodSpec, newTypeName);
         var originalSln = sln;
 
         var (methodSymbol, doc) = await FindMethodAsync(sln, methodSpec);
@@ -92,7 +92,7 @@ internal static class TransformParametersCore
         string existingTypeFqn,
         bool dryRun)
     {
-        Console.Error.WriteLine($"Transforming parameters of '{methodSpec}' → existing type '{existingTypeFqn}'...");
+        RtLog.Info("Transforming parameters of '{MethodSpec}' → existing type '{ExistingTypeFqn}'...", methodSpec, existingTypeFqn);
         var originalSln = sln;
 
         var (methodSymbol, doc) = await FindMethodAsync(sln, methodSpec);

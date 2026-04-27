@@ -14,7 +14,7 @@ internal static class ReplaceCallCore
         var methodName = ParseMethodName(from);
         var methodSymbol = await SymbolLocator.FindSymbolByFqnAsync(solution, from, "method");
 
-        Console.Error.WriteLine($"Finding invocations of '{methodSymbol.ToDisplayString()}'...");
+        RtLog.Info("Finding invocations of '{Method}'...", methodSymbol.ToDisplayString());
 
         var referencedSymbols = await SymbolFinder.FindReferencesAsync(methodSymbol, solution);
         var locationsByDocument = await FindInvocationSitesAsync(referencedSymbols);
@@ -26,7 +26,7 @@ internal static class ReplaceCallCore
         }
 
         var totalCallSites = locationsByDocument.Values.Sum(l => l.Count);
-        Console.Error.WriteLine($"Found {totalCallSites} call site(s). Replacing '{methodName}' → '{to}'...");
+        RtLog.Info("Found {TotalCallSites} call site(s). Replacing '{MethodName}' → '{To}'...", totalCallSites, methodName, to);
 
         foreach (var (docId, locations) in locationsByDocument)
         {

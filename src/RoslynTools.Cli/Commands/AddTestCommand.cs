@@ -55,7 +55,7 @@ internal sealed class AddTestCommand : IRtCommand
     {
         if (name == null && acs == null)
         {
-            Console.Error.WriteLine("Error: either --name or --acs is required.");
+            RtLog.Error("Error: either --name or --acs is required.");
             Environment.ExitCode = 1;
             return;
         }

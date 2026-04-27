@@ -15,7 +15,7 @@ internal static class FindCallersService
     {
         var methodSymbol = await SymbolLocator.FindSymbolAsync(sln, symbol, "method");
 
-        Console.Error.WriteLine($"Finding callers of '{methodSymbol.ToDisplayString()}'...");
+        RtLog.Info("Finding callers of '{Method}'...", methodSymbol.ToDisplayString());
 
         var referencedSymbols = await SymbolFinder.FindReferencesAsync(methodSymbol, sln);
         var callers = new List<CallerResult>();
@@ -63,7 +63,7 @@ internal static class FindCallersService
             }
         }
 
-        Console.Error.WriteLine($"Found {callers.Count} caller(s) of '{methodSymbol.Name}'.");
+        RtLog.Info("Found {Count} caller(s) of '{Name}'.", callers.Count, methodSymbol.Name);
 
         return new FindCallersResult
         {

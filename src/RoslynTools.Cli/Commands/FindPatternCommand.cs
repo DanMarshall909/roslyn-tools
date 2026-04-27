@@ -41,7 +41,7 @@ internal sealed class FindPatternCommand : IRtCommand
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
             using (workspace)
             {
-                Console.Error.WriteLine($"Searching for pattern at {file}:{startLine}–{endLine}…");
+                RtLog.Info("Searching for pattern at {File}:{StartLine}–{EndLine}…", file, startLine, endLine);
                 List<PatternMatch> matches;
                 try
                 {
@@ -49,7 +49,7 @@ internal sealed class FindPatternCommand : IRtCommand
                 }
                 catch (InvalidOperationException ex)
                 {
-                    Console.Error.WriteLine($"Error: {ex.Message}");
+                    RtLog.Error("Error: {Message}", ex.Message);
                     Environment.ExitCode = 1;
                     return;
                 }

@@ -16,7 +16,7 @@ internal static class MakeStaticCore
         var blockingReason = await CheckSafetyAsync(methodSymbol);
         if (blockingReason != null)
         {
-            Console.Error.WriteLine($"Cannot make static: {blockingReason}");
+            RtLog.Error("Cannot make static: {BlockingReason}", blockingReason);
             return 1;
         }
 

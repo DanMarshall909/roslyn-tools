@@ -10,7 +10,16 @@ namespace RoslynTools.Core;
 internal sealed record ConsoleLoggingOptions(
     string LoggerExpression,
     string InformationMethod,
-    string ErrorMethod);
+    string ErrorMethod,
+    ConsoleLoggingStream Stream,
+    IReadOnlyList<string> ExcludePaths);
+
+internal enum ConsoleLoggingStream
+{
+    All,
+    Stdout,
+    Stderr,
+}
 
 internal static class ConsoleLoggingCore
 {
@@ -28,6 +37,9 @@ internal static class ConsoleLoggingCore
                 if (root is null)
                     continue;
 
+                if (ShouldExclude(document.FilePath, options.ExcludePaths))
+                    continue;
+
                 var rewriter = new ConsoleLoggingRewriter(options);
                 var newRoot = rewriter.Visit(root);
                 if (newRoot is not null && !ReferenceEquals(root, newRoot))
@@ -38,6 +50,18 @@ internal static class ConsoleLoggingCore
         await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
     }
 
+    private static bool ShouldExclude(string? filePath, IReadOnlyList<string> excludePaths)
+    {
+        if (string.IsNullOrWhiteSpace(filePath) || excludePaths.Count == 0)
+            return false;
+
+        var normalizedPath = filePath.Replace('\\', '/');
+        return excludePaths.Any(exclude =>
+            normalizedPath.Contains(
+                exclude.Replace('\\', '/'),
+                StringComparison.OrdinalIgnoreCase));
+    }
+
     private sealed class ConsoleLoggingRewriter(ConsoleLoggingOptions options) : CSharpSyntaxRewriter
     {
         public override SyntaxNode? VisitInvocationExpression(InvocationExpressionSyntax node)
@@ -45,6 +69,9 @@ internal static class ConsoleLoggingCore
             var visited = (InvocationExpressionSyntax)base.VisitInvocationExpression(node)!;
 
             if (!TryGetConsoleKind(visited, out var isError))
+                return visited;
+
+            if (!ShouldRewriteStream(isError))
                 return visited;
 
             var methodName = isError ? options.ErrorMethod : options.InformationMethod;
@@ -57,6 +84,14 @@ internal static class ConsoleLoggingCore
 
             return replacement.WithTriviaFrom(visited);
         }
+
+        private bool ShouldRewriteStream(bool isError) =>
+            options.Stream switch
+            {
+                ConsoleLoggingStream.Stdout => !isError,
+                ConsoleLoggingStream.Stderr => isError,
+                _ => true,
+            };
 
         private static bool TryGetConsoleKind(InvocationExpressionSyntax invocation, out bool isError)
         {
@@ -118,11 +153,30 @@ internal static class ConsoleLoggingCore
             var args = new List<ArgumentSyntax>
             {
                 SyntaxFactory.Argument(StringLiteral(converted.Template))
-                    .WithTriviaFrom(firstArg)
             };
 
             args.AddRange(converted.Arguments.Select(SyntaxFactory.Argument));
-            return SyntaxFactory.ArgumentList(SyntaxFactory.SeparatedList(args));
+            return SyntaxFactory.ArgumentList(CreateArgumentList(args));
+        }
+
+        private static SeparatedSyntaxList<ArgumentSyntax> CreateArgumentList(List<ArgumentSyntax> args)
+        {
+            if (args.Count == 0)
+                return SyntaxFactory.SeparatedList<ArgumentSyntax>();
+
+            var nodesAndSeparators = new List<SyntaxNodeOrToken>();
+            for (int i = 0; i < args.Count; i++)
+            {
+                nodesAndSeparators.Add(args[i]);
+                if (i < args.Count - 1)
+                {
+                    nodesAndSeparators.Add(
+                        SyntaxFactory.Token(SyntaxKind.CommaToken)
+                            .WithTrailingTrivia(SyntaxFactory.Space));
+                }
+            }
+
+            return SyntaxFactory.SeparatedList<ArgumentSyntax>(nodesAndSeparators);
         }
 
         private static ConvertedMessage ConvertMessageExpression(

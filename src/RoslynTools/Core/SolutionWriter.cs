@@ -49,7 +49,7 @@ internal static class SolutionWriter
 
                 if (string.IsNullOrEmpty(filePath))
                 {
-                    Console.Error.WriteLine($"WARNING: Added document '{newDoc.Name}' has no file path — skipped.");
+                    RtLog.Warning("Added document '{Name}' has no file path — skipped.", newDoc.Name);
                     continue;
                 }
 

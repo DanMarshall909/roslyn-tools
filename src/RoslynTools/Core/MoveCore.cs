@@ -30,9 +30,12 @@ internal static class MoveCore
             return;
         }
 
-        Console.Error.WriteLine(
-            $"Rewriting '{sourceNamespace}' -> '{targetNamespace}': " +
-            $"{declarationFiles.Count} declaration file(s), {changedFiles} total file(s) changed.");
+        RtLog.Info(
+            "Rewriting '{SourceNamespace}' -> '{TargetNamespace}': {DeclarationFileCount} declaration file(s), {ChangedFileCount} total file(s) changed.",
+            sourceNamespace,
+            targetNamespace,
+            declarationFiles.Count,
+            changedFiles);
 
         await SolutionWriter.ApplyChangesAsync(originalSolution, updated, dryRun);
 
@@ -50,7 +53,7 @@ internal static class MoveCore
         var sym = await SymbolLocator.FindTypeByFqnAsync(sln, fqn);
         var oldNamespace = sym.ContainingNamespace.ToDisplayString();
 
-        Console.Error.WriteLine($"Moving '{sym.ToDisplayString()}' from '{oldNamespace}' to '{targetNamespace}'...");
+        RtLog.Info("Moving '{TypeName}' from '{OldNamespace}' to '{TargetNamespace}'...", sym.ToDisplayString(), oldNamespace, targetNamespace);
 
         var (declarationFiles, projectDir, rootNamespace) = CollectDeclarationPaths(sln, sym);
 

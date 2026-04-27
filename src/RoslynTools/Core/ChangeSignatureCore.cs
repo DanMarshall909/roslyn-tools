@@ -329,8 +329,7 @@ internal static class ChangeSignatureCore
                 {
                     // Not an invocation — likely a method group, nameof, or attribute.
                     // The signature change may break this site; warn so the user can inspect.
-                    Console.Error.WriteLine(
-                        $"  Warning: reference at {loc.Location} is not an invocation and was not rewritten automatically. Inspect manually.");
+                    RtLog.Warning("Reference at {Location} is not an invocation and was not rewritten automatically. Inspect manually.", loc.Location);
                     continue;
                 }
 

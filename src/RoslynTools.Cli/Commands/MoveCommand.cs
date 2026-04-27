@@ -40,13 +40,13 @@ internal sealed class MoveCommand : IRtCommand
         {
             if (type == null && nsFrom == null)
             {
-                Console.Error.WriteLine("Error: either --type or --namespace is required.");
+                RtLog.Error("Error: either --type or --namespace is required.");
                 return;
             }
 
             if (type != null && nsFrom != null)
             {
-                Console.Error.WriteLine("Error: --type and --namespace are mutually exclusive.");
+                RtLog.Error("Error: --type and --namespace are mutually exclusive.");
                 return;
             }
 

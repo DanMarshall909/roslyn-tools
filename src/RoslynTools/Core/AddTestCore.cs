@@ -20,7 +20,7 @@ internal static class AddTestCore
 
         if (!found)
         {
-            Console.Error.WriteLine($"Class '{className}' not found in solution.");
+            RtLog.Error("Class '{ClassName}' not found in solution.", className);
             Environment.ExitCode = 1;
             return;
         }
@@ -55,7 +55,7 @@ internal static class AddTestCore
 
                 if (classDecl == null) continue;
 
-                Console.Error.WriteLine($"Found '{className}' in {doc.FilePath}");
+                RtLog.Info("Found '{ClassName}' in {FilePath}", className, doc.FilePath);
 
                 var updatedSln = ApplyChangesToDocument(sln, doc, classDecl, className, name, acs, nestedClass);
                 return (true, updatedSln);

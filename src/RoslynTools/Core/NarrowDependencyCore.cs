@@ -69,7 +69,7 @@ internal static class NarrowDependencyCore
         PrintReport(narrowResult, newInterfaceName, newFileCreated, existingNarrow, dryRun);
 
         // Apply or preview
-        Console.Error.WriteLine($"Applying narrow-dependency '{interfaceSymbol.Name}' → '{newInterfaceName}'...");
+        RtLog.Info("Applying narrow-dependency '{Name}' → '{NewInterfaceName}'...", interfaceSymbol.Name, newInterfaceName);
         await SolutionWriter.ApplyChangesAsync(solution, updatedSolution, dryRun);
     }
 

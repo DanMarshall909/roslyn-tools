@@ -43,7 +43,7 @@ internal static class FixNamespaceService
         var currentNamespace = GetDeclaredNamespace(syntaxRoot);
         if (currentNamespace == null)
         {
-            Console.Error.WriteLine($"No namespace declaration found in '{filePath}'. Nothing to fix.");
+            RtLog.Info("No namespace declaration found in '{FilePath}'. Nothing to fix.", filePath);
             return;
         }
 
@@ -53,9 +53,11 @@ internal static class FixNamespaceService
             return;
         }
 
-        Console.Error.WriteLine(
-            $"Fixing namespace in '{Path.GetFileName(filePath)}': " +
-            $"'{currentNamespace}' -> '{expectedNamespace}'");
+        RtLog.Info(
+            "Fixing namespace in '{FileName}': '{CurrentNamespace}' -> '{ExpectedNamespace}'",
+            Path.GetFileName(filePath),
+            currentNamespace,
+            expectedNamespace);
 
         var nsRewriter = new NamespaceDeclarationRenamer(currentNamespace, expectedNamespace);
         var newRoot = nsRewriter.Visit(syntaxRoot);

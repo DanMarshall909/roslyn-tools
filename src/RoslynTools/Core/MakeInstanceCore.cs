@@ -16,7 +16,7 @@ internal static class MakeInstanceCore
         var methodSymbol = await FindStaticMethodAsync(sln, typeName, methodName)
             ?? throw new InvalidOperationException($"Static method '{methodSpec}' not found in solution.");
 
-        Console.Error.WriteLine($"Found method '{methodSymbol.ToDisplayString()}'. Collecting call sites...");
+        RtLog.Info("Found method '{Method}'. Collecting call sites...", methodSymbol.ToDisplayString());
 
         var refs = await SymbolFinder.FindReferencesAsync(methodSymbol, sln);
 
@@ -27,7 +27,7 @@ internal static class MakeInstanceCore
             .ToDictionary(g => g.Key, g => g.Select(l => l.Location.SourceSpan).ToList());
 
         int total = locationsByDoc.Values.Sum(l => l.Count);
-        Console.Error.WriteLine($"Found {total} call site(s). Analysing reachability...");
+        RtLog.Info("Found {Total} call site(s). Analysing reachability...", total);
 
         // Find the document containing the method declaration
         var declLocation = methodSymbol.Locations.FirstOrDefault(l => l.IsInSource)
@@ -123,14 +123,14 @@ internal static class MakeInstanceCore
 
             if (reachability.Kind == ReachableInstanceKind.None)
             {
-                Console.Error.WriteLine($"WARNING: {filePath}:{lineNum}: no reachable instance — skipped");
+                RtLog.Warning("{FilePath}:{LineNum}: no reachable instance — skipped", filePath, lineNum);
                 skipped.Add((filePath, lineNum, "no reachable instance"));
                 continue;
             }
 
             if (reachability.Kind == ReachableInstanceKind.Ambiguous)
             {
-                Console.Error.WriteLine($"WARNING: {filePath}:{lineNum}: ambiguous reachable instance — skipped");
+                RtLog.Warning("{FilePath}:{LineNum}: ambiguous reachable instance — skipped", filePath, lineNum);
                 skipped.Add((filePath, lineNum, "ambiguous reachable instance"));
                 continue;
             }

@@ -47,7 +47,7 @@ internal sealed class FindImplementationsCommand : IRtCommand
                     throw new InvalidOperationException($"'{symbol}' is not a type (found {sym.Kind}).");
 
                 if (typeSymbol.TypeKind != TypeKind.Interface && !typeSymbol.IsAbstract)
-                    Console.Error.WriteLine($"Warning: '{symbol}' is not an interface or abstract class. Searching for derived types.");
+                    RtLog.Warning("'{Symbol}' is not an interface or abstract class. Searching for derived types.", symbol);
 
                 var implementations = await FindImplementationsService.FindAsync(sln, typeSymbol);
 

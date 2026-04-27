@@ -14,7 +14,7 @@ internal static class ConvertToRecordCore
 
         if (classSymbol.IsRecord)
         {
-            Console.Error.WriteLine($"'{typeName}' is already a record.");
+            RtLog.Info("'{TypeName}' is already a record.", typeName);
             return;
         }
 
@@ -33,7 +33,7 @@ internal static class ConvertToRecordCore
 
         sln = await ApplyRecordReplacementAsync(sln, docId, syntaxRef, recordDecl);
 
-        Console.Error.WriteLine($"Converting '{typeName}' to a positional record...");
+        RtLog.Info("Converting '{TypeName}' to a positional record...", typeName);
         await SolutionWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
     }
 
@@ -96,9 +96,7 @@ internal static class ConvertToRecordCore
         if (mutableProps.Count > 0)
         {
             var names = string.Join(", ", mutableProps.Select(p => p.Identifier.Text));
-            Console.Error.WriteLine(
-                $"WARNING: '{typeName}' has mutable auto-properties ({names}). " +
-                "They will remain as regular properties in the record body.");
+            RtLog.Warning("'{TypeName}' has mutable auto-properties ({PropertyNames}). They will remain as regular properties in the record body.", typeName, names);
         }
 
         var membersToRemove = BuildMembersToRemove(allMembers, initProps);

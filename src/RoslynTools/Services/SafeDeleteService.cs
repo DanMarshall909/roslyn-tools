@@ -14,7 +14,7 @@ internal static class SafeDeleteService
             ? await SymbolLocator.FindSymbolByFqnAsync(sln, symbol, kind)
             : await SymbolLocator.FindSymbolAsync(sln, symbol, kind);
 
-        Console.Error.WriteLine($"Checking references for '{sym.ToDisplayString()}'...");
+        RtLog.Info("Checking references for '{Symbol}'...", sym.ToDisplayString());
 
         var referencedSymbols = await SymbolFinder.FindReferencesAsync(sym, sln);
 
@@ -79,7 +79,7 @@ internal static class SafeDeleteService
         if (doc == null)
             throw new InvalidOperationException($"Cannot find document for '{sym.Name}'.");
 
-        Console.Error.WriteLine($"Deleting '{sym.ToDisplayString()}' from {doc.FilePath}...");
+        RtLog.Info("Deleting '{Symbol}' from {FilePath}...", sym.ToDisplayString(), doc.FilePath);
 
         var editor = await DocumentEditor.CreateAsync(doc);
         editor.RemoveNode(nodeToRemove);

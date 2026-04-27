@@ -16,14 +16,14 @@ internal static class InlineMethodService
         var methodSymbol = await SymbolLocator.FindMethodInTypeAsync(sln, typeName, methodName);
         if (methodSymbol == null)
         {
-            Console.Error.WriteLine($"Error: Method '{methodName}' not found in type '{typeName}'.");
+            RtLog.Error("Error: Method '{MethodName}' not found in type '{TypeName}'.", methodName, typeName);
             return;
         }
 
         var bodyExpression = GetInlinableBodyExpression(methodSymbol);
         if (bodyExpression == null)
         {
-            Console.Error.WriteLine("Error: inline-method only supports expression-bodied and single-return block methods.");
+            RtLog.Error("Error: inline-method only supports expression-bodied and single-return block methods.");
             return;
         }
 
@@ -38,7 +38,7 @@ internal static class InlineMethodService
         var declDocId = SymbolDocumentLocator.FindDocumentId(sln, methodSymbol);
         if (declDocId == null)
         {
-            Console.Error.WriteLine($"Error: Cannot locate source document for '{methodName}'.");
+            RtLog.Error("Error: Cannot locate source document for '{MethodName}'.", methodName);
             return;
         }
 

@@ -32,7 +32,7 @@ internal static class ImplementInterfaceCore
         }
 
         sln = await ApplyStubsAsync(sln, typeName, docId, classSymbol, unimplementedMembers);
-        Console.Error.WriteLine($"Adding {unimplementedMembers.Count} stub(s) to '{typeName}'...");
+        RtLog.Info("Adding {Count} stub(s) to '{TypeName}'...", unimplementedMembers.Count, typeName);
         await SolutionWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
     }
 

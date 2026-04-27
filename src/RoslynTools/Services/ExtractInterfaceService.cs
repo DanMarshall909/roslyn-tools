@@ -75,7 +75,7 @@ internal static class ExtractInterfaceService
             interfaceSourceText,
             filePath: interfaceFilePath);
 
-        Console.Error.WriteLine($"Extracting interface '{interfaceName}' from '{classSymbol.Name}'...");
+        RtLog.Info("Extracting interface '{InterfaceName}' from '{Name}'...", interfaceName, classSymbol.Name);
         await SolutionWriter.ApplyChangesAsync(originalSln, finalSolution, dryRun);
     }
 

@@ -57,8 +57,7 @@ internal sealed class ExtractMethodCommand : IRtCommand
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
             using (workspace)
             {
-                Console.Error.WriteLine(
-                    $"Extracting lines {startLine}–{endLine} of '{file}' → '{newName}'...");
+                RtLog.Info("Extracting lines {StartLine}–{EndLine} of '{File}' → '{NewName}'...", startLine, endLine, file, newName);
 
                 Solution newSln;
                 try
@@ -75,7 +74,7 @@ internal sealed class ExtractMethodCommand : IRtCommand
                 }
                 catch (InvalidOperationException ex)
                 {
-                    Console.Error.WriteLine($"Error: {ex.Message}");
+                    RtLog.Error("Error: {Message}", ex.Message);
                     ctx.ExitCode = 1;
                     return;
                 }

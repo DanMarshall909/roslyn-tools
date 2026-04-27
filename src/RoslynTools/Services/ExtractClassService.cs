@@ -125,8 +125,7 @@ internal static class ExtractClassService
             newSourceText,
             filePath: newFilePath);
 
-        Console.Error.WriteLine(
-            $"Extracting '{string.Join(", ", selection.Names.OrderBy(n => n, StringComparer.Ordinal))}' from '{target.Symbol.ToDisplayString(TypeDisplayFormat)}' into '{newTypeName}'...");
+        RtLog.Info("Extracting '{MemberNames}' from '{TargetType}' into '{NewTypeName}'...", string.Join(", ", selection.Names.OrderBy(n => n, StringComparer.Ordinal)), target.Symbol.ToDisplayString(TypeDisplayFormat), newTypeName);
         await SolutionWriter.ApplyChangesAsync(originalSolution, finalSolution, dryRun);
     }
 
@@ -420,7 +419,7 @@ internal static class ExtractClassService
 
     internal static void ReportValidationError(string message)
     {
-        Console.Error.WriteLine(message);
+        RtLog.Error("{Message}", message);
         Environment.ExitCode = 1;
     }
 
