@@ -1,7 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.FindSymbols;
-using RoslynTools.Commands.Results;
 using RoslynTools.Core;
+using RoslynTools.Services.Results;
 
 namespace RoslynTools.Services;
 

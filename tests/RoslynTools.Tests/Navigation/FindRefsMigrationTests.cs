@@ -1,6 +1,6 @@
 using System.Text.Json;
-using RoslynTools.Commands.Results;
 using RoslynTools.Core.Output;
+using RoslynTools.Services.Results;
 
 namespace RoslynTools.Tests.Navigation;
 

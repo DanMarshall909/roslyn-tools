@@ -1,6 +1,6 @@
 using RoslynTools.Core.Output;
 
-namespace RoslynTools.Commands.Results;
+namespace RoslynTools.Services.Results;
 
 internal sealed record ReferenceResult : IRtOutput
 {

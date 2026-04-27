@@ -1,7 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using RoslynTools.Commands;
 using RoslynTools.Models;
+using RoslynTools.Services;
 
 namespace RoslynTools.Core;
 
@@ -259,7 +259,7 @@ internal static class AnalyzeInterfaceCore
     {
         return node.AncestorsAndSelf()
             .OfType<InvocationExpressionSyntax>()
-            .Any(FindCallersCommand.IsNameofExpression);
+            .Any(FindCallersService.IsNameofExpression);
     }
 
     private static ConsumerAccumulator GetOrAddConsumer(

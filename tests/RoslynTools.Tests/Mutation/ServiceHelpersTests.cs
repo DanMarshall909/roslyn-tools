@@ -14,8 +14,8 @@ public class ServiceHelpersTests
 
     [Theory]
     [InlineData("C:/proj/src/Services/Foo.cs", "C:/proj/src", "MyApp", "MyApp.Services")]
-    [InlineData("C:/proj/src/Foo.cs",          "C:/proj/src", "MyApp", "MyApp")]
-    [InlineData("C:/proj/src/A/B/C/Foo.cs",    "C:/proj/src", "MyApp", "MyApp.A.B.C")]
+    [InlineData("C:/proj/src/Foo.cs", "C:/proj/src", "MyApp", "MyApp")]
+    [InlineData("C:/proj/src/A/B/C/Foo.cs", "C:/proj/src", "MyApp", "MyApp.A.B.C")]
     public void ComputeExpectedNamespace_derives_from_folder_path(
         string filePath, string projectDir, string assemblyName, string expected)
     {
@@ -55,9 +55,9 @@ public class ServiceHelpersTests
 
     [Theory]
     [InlineData("IEmailService", "_emailService")]
-    [InlineData("IFoo",          "_foo")]
-    [InlineData("EmailService",  "_emailService")]
-    [InlineData("Abc",           "_abc")]
+    [InlineData("IFoo", "_foo")]
+    [InlineData("EmailService", "_emailService")]
+    [InlineData("Abc", "_abc")]
     public void DeriveFieldName_strips_leading_I_for_interfaces(string depType, string expected)
     {
         Assert.Equal(expected, AddDependencyService.DeriveFieldName(depType));
@@ -67,7 +67,7 @@ public class ServiceHelpersTests
     public void NormalizeTypeName_strips_global_prefix()
     {
         Assert.Equal("Foo.Bar", AddDependencyService.NormalizeTypeName("global::Foo.Bar"));
-        Assert.Equal("Foo",     AddDependencyService.NormalizeTypeName("  Foo  "));
+        Assert.Equal("Foo", AddDependencyService.NormalizeTypeName("  Foo  "));
     }
 
     // ── ExtractClassService ───────────────────────────────────────────────
@@ -75,9 +75,9 @@ public class ServiceHelpersTests
     [Fact]
     public void ExtractClass_DeriveFieldName_returns_camelCase_with_underscore()
     {
-        Assert.Equal("_myHelper",   ExtractClassService.DeriveFieldName("MyHelper"));
+        Assert.Equal("_myHelper", ExtractClassService.DeriveFieldName("MyHelper"));
         Assert.Equal("_dependency", ExtractClassService.DeriveFieldName(""));
-        Assert.Equal("_a",          ExtractClassService.DeriveFieldName("A"));
+        Assert.Equal("_a", ExtractClassService.DeriveFieldName("A"));
     }
 
     [Fact]
@@ -91,8 +91,8 @@ public class ServiceHelpersTests
     {
         var text = ExtractClassService.BuildNewClassText(
             namespaceName: "MyApp",
-            newTypeName:   "Helper",
-            isStatic:      true,
+            newTypeName: "Helper",
+            isStatic: true,
             membersToExtract: []);
 
         Assert.Contains("namespace MyApp;", text);
@@ -104,8 +104,8 @@ public class ServiceHelpersTests
     {
         var text = ExtractClassService.BuildNewClassText(
             namespaceName: "",
-            newTypeName:   "Helper",
-            isStatic:      false,
+            newTypeName: "Helper",
+            isStatic: false,
             membersToExtract: []);
 
         Assert.DoesNotContain("namespace", text);
@@ -121,8 +121,8 @@ public class ServiceHelpersTests
         var text = ExtractInterfaceService.BuildInterfaceText(
             namespaceName: "MyApp",
             interfaceName: "IFoo",
-            methods:        [],
-            properties:     []);
+            methods: [],
+            properties: []);
 
         Assert.Contains("namespace MyApp;", text);
         Assert.Contains("public interface IFoo", text);
@@ -134,8 +134,8 @@ public class ServiceHelpersTests
         var text = ExtractInterfaceService.BuildInterfaceText(
             namespaceName: "",
             interfaceName: "IFoo",
-            methods:        [],
-            properties:     []);
+            methods: [],
+            properties: []);
 
         Assert.DoesNotContain("namespace", text);
         Assert.Contains("public interface IFoo", text);

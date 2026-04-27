@@ -1,4 +1,5 @@
 using System.CommandLine;
+using RoslynTools.Core;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
