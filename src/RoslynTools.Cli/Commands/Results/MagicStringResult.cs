@@ -1,0 +1,81 @@
+using RoslynTools.Core.Output;
+using RoslynTools.Services;
+
+namespace RoslynTools.Commands.Results;
+
+internal sealed record MagicStringOccurrenceResult : IRtOutput
+{
+    [OutputField(OutputLevel.Llm, "filePath")]
+    public required string FilePath { get; init; }
+
+    [OutputField(OutputLevel.Default, "line")]
+    public required int Line { get; init; }
+
+    [OutputField(OutputLevel.Default, "typeName")]
+    public string? TypeName { get; init; }
+
+    [OutputField(OutputLevel.Default, "memberName")]
+    public string? MemberName { get; init; }
+
+    public void RenderText(TextWriter writer)
+    {
+        var owner = TypeName is null ? string.Empty : $" {TypeName}.{MemberName}";
+        writer.Write($"{FilePath}:{Line}{owner}");
+    }
+}
+
+internal sealed record MagicStringGroupResult : IRtOutput
+{
+    [OutputField(OutputLevel.Llm, "value")]
+    public required string Value { get; init; }
+
+    [OutputField(OutputLevel.Default, "count")]
+    public required int Count { get; init; }
+
+    [OutputField(OutputLevel.Default, "occurrences")]
+    public required IReadOnlyList<MagicStringOccurrenceResult> Occurrences { get; init; }
+
+    public void RenderText(TextWriter writer)
+    {
+        writer.WriteLine($"{Count,3}  \"{Value}\"");
+        foreach (var occurrence in Occurrences)
+        {
+            writer.Write("     ");
+            occurrence.RenderText(writer);
+            writer.WriteLine();
+        }
+    }
+}
+
+internal sealed record MagicStringResult : IRtOutput
+{
+    [OutputField(OutputLevel.Llm, "groups")]
+    public required IReadOnlyList<MagicStringGroupResult> Groups { get; init; }
+
+    public void RenderText(TextWriter writer)
+    {
+        for (var i = 0; i < Groups.Count; i++)
+        {
+            Groups[i].RenderText(writer);
+            if (i < Groups.Count - 1)
+                writer.WriteLine();
+        }
+    }
+
+    internal static MagicStringResult FromGroups(IEnumerable<MagicStringGroup> groups) =>
+        new()
+        {
+            Groups = groups.Select(g => new MagicStringGroupResult
+            {
+                Value = g.Value,
+                Count = g.Count,
+                Occurrences = g.Occurrences.Select(o => new MagicStringOccurrenceResult
+                {
+                    FilePath = o.FilePath,
+                    Line = o.Line,
+                    TypeName = o.TypeName,
+                    MemberName = o.MemberName,
+                }).ToList(),
+            }).ToList(),
+        };
+}
