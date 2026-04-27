@@ -953,6 +953,56 @@ public class ExtractMethodTests
     //  Helpers
     // ──────────────────────────────────────────────────────────────────────────
 
+    [Fact]
+    public async Task Rewrites_duplicate_assignment_occurrences_with_the_return_value()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("A.cs", """
+            namespace TestApp;
+
+            public class A
+            {
+                public void Source(string user)
+                {
+                    var uri = "otpauth://" + user;
+                    Register(uri);
+                }
+
+                public void Duplicate(string name)
+                {
+                    var otpauthUri = "otpauth://" + name;
+                    Register(otpauthUri);
+                }
+
+                private void Register(string value)
+                {
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var newSln = await MethodExtractor.ExtractAsync(
+                sln,
+                FilePath(project, "A.cs"),
+                "BuildOtpAuthUri",
+                startLine: 7,
+                endLine: 7,
+                replaceDuplicates: true);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+        }
+
+        var content = await project.ReadSourceAsync("A.cs");
+        var duplicateBody = GetMethodBody(content, "Duplicate");
+
+        Assert.Contains("var otpauthUri = BuildOtpAuthUri(name);", duplicateBody);
+        Assert.Contains("Register(otpauthUri);", duplicateBody);
+        Assert.DoesNotContain(
+            "BuildOtpAuthUri(name);",
+            duplicateBody.Replace("var otpauthUri = BuildOtpAuthUri(name);", "", StringComparison.Ordinal));
+    }
+
     /// <summary>
     /// Naively extracts the body of the first method with the given name from C# source.
     /// Good enough for assertions — not a full parser.

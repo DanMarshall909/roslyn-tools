@@ -148,4 +148,40 @@ public class ListSmellsTests
             Assert.Contains(smellsCustom, s => s.SmellType == "LargeClass" && s.TypeName == "MediumClass");
         }
     }
+
+    [Fact]
+    public async Task Scope_matches_namespace_prefix()
+    {
+        using var project = new AdhocProjectBuilder();
+
+        var largeClassLines = new System.Text.StringBuilder();
+        largeClassLines.AppendLine("namespace RoslynTools.Commands;");
+        largeClassLines.AppendLine("public class FatCommand {");
+        for (int i = 0; i < 55; i++) largeClassLines.AppendLineF($"    public int Prop{i} {{ get; set; }}");
+        largeClassLines.AppendLine("}");
+        project.AddSource("FatCommand.cs", largeClassLines.ToString());
+
+        project.AddSource("Other.cs", """
+            namespace OtherNamespace;
+
+            public class OtherCommand
+            {
+                public int Id { get; set; }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var smells = await SmellAnalyzer.AnalyzeAsync(
+                sln,
+                maxClassLines: 50,
+                maxMethodLines: 40,
+                maxParams: 7,
+                scope: "RoslynTools.Commands");
+
+            Assert.Contains(smells, s => s.TypeName == "FatCommand");
+            Assert.DoesNotContain(smells, s => s.TypeName == "OtherCommand");
+        }
+    }
 }

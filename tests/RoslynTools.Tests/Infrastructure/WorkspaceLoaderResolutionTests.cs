@@ -144,16 +144,32 @@ public class WorkspaceLoaderResolutionTests
     }
 
     [Fact]
-    public async Task Explicit_slnx_path_is_accepted_and_attempted()
+    public async Task Explicit_slnx_path_uses_sibling_sln_when_available()
+    {
+        using var project = new WorkspaceLoaderTestProject();
+        var sln = project.AddSolution("", "RoslynTools", "RoslynToolsProject");
+        var slnxPath = Path.Combine(project.RootDir, "RoslynTools.slnx");
+        File.WriteAllText(slnxPath, "{}");
+
+        var (workspace, solution) = await WorkspaceLoader.LoadAsync(slnxPath);
+
+        using (workspace)
+        {
+            Assert.Equal(sln.SolutionPath, solution.FilePath);
+            Assert.Contains(solution.Projects, p => p.Name == sln.ProjectName);
+        }
+    }
+
+    [Fact]
+    public async Task Explicit_slnx_path_reports_clear_error_when_no_sibling_sln_exists()
     {
         using var project = new WorkspaceLoaderTestProject();
         var slnxPath = Path.Combine(project.RootDir, "RoslynTools.slnx");
         File.WriteAllText(slnxPath, "{}");
 
-        // .slnx is now passed through to MSBuildWorkspace — it should fail during load
-        // (invalid content), not with a "unsupported format" pre-check error.
-        var ex = await Assert.ThrowsAnyAsync<Exception>(() => WorkspaceLoader.LoadAsync(slnxPath));
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => WorkspaceLoader.LoadAsync(slnxPath));
 
-        Assert.DoesNotContain("unsupported format", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("MSBuildWorkspace does not support .slnx", ex.Message);
+        Assert.Contains("RoslynTools.sln", ex.Message);
     }
 }

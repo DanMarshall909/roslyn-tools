@@ -59,7 +59,8 @@ internal static class MethodExtractor
             bodyStartLine,
             bodyEndLine,
             newMethodName,
-            orderedParams);
+            orderedParams,
+            returnVars);
     }
 
     /// <summary>

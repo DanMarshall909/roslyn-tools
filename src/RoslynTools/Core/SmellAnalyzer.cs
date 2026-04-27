@@ -42,8 +42,11 @@ internal static class SmellAnalyzer
 
                 foreach (var typeDecl in typeDeclarations)
                 {
-                    if (!MatchesScope(typeDecl.Identifier.Text, scope))
+                    if (!MatchesScope(GetTypeScopeName(typeDecl), scope)
+                        && !MatchesScope(project.Name, scope))
+                    {
                         continue;
+                    }
 
                     var largeClass = LargeClassRule.Check(typeDecl, filePath, maxClassLines);
                     if (largeClass is not null)
@@ -67,5 +70,27 @@ internal static class SmellAnalyzer
             return true;
 
         return typeName.StartsWith(scope, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetTypeScopeName(TypeDeclarationSyntax typeDecl)
+    {
+        var names = new Stack<string>();
+        names.Push(typeDecl.Identifier.Text);
+
+        for (var parent = typeDecl.Parent; parent is not null; parent = parent.Parent)
+        {
+            switch (parent)
+            {
+                case TypeDeclarationSyntax containingType:
+                    names.Push(containingType.Identifier.Text);
+                    break;
+                case FileScopedNamespaceDeclarationSyntax fileScopedNamespace:
+                    return fileScopedNamespace.Name + "." + string.Join(".", names);
+                case NamespaceDeclarationSyntax namespaceDeclaration:
+                    return namespaceDeclaration.Name + "." + string.Join(".", names);
+            }
+        }
+
+        return string.Join(".", names);
     }
 }

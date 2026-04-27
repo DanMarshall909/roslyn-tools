@@ -127,7 +127,17 @@ internal static class WorkspaceLoader
 
     private static string ResolveExplicitSolutionPath(string solutionPath)
     {
-        return Path.GetFullPath(solutionPath);
+        var resolvedPath = Path.GetFullPath(solutionPath);
+        if (!resolvedPath.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase))
+            return resolvedPath;
+
+        var siblingSln = Path.ChangeExtension(resolvedPath, ".sln");
+        if (File.Exists(siblingSln))
+            return siblingSln;
+
+        throw new InvalidOperationException(
+            $"MSBuildWorkspace does not support .slnx files in this environment. "
+            + $"Pass the equivalent .sln file instead: {siblingSln}");
     }
 
     private static string? ResolveRepoDefaultPath(DirectoryInfo currentDirectory)

@@ -21,7 +21,8 @@ internal static class MethodExtractorDuplicates
         int newMethodStartLine,
         int newMethodEndLine,
         string newMethodName,
-        IReadOnlyList<ISymbol> orderedParameters)
+        IReadOnlyList<ISymbol> orderedParameters,
+        IReadOnlyList<ISymbol> returnVars)
     {
         // Find all structural matches using the extracted body as the pattern
         var matches = await PatternMatcher.FindMatchesAsync(
@@ -63,7 +64,8 @@ internal static class MethodExtractorDuplicates
                 currentSln,
                 match,
                 newMethodName,
-                orderedParameters);
+                orderedParameters,
+                returnVars);
 
             if (success)
             {
@@ -88,7 +90,8 @@ internal static class MethodExtractorDuplicates
         Solution solution,
         PatternMatch match,
         string newMethodName,
-        IReadOnlyList<ISymbol> orderedParameters)
+        IReadOnlyList<ISymbol> orderedParameters,
+        IReadOnlyList<ISymbol> returnVars)
     {
         // Build argument list by mapping parameter names through the substitution map
         var args = new List<string>();
@@ -124,10 +127,8 @@ internal static class MethodExtractorDuplicates
         if (matchedStatements.Count == 0)
             return (false, null, "matched statements not found in document");
 
-        // Build replacement call site
-        var argStr = string.Join(", ", args);
         var leadingTrivia = matchedStatements[0].GetLeadingTrivia();
-        var callStmt = SyntaxFactory.ParseStatement($"{newMethodName}({argStr});")
+        var callStmt = BuildReplacementCallSite(newMethodName, args, returnVars, match)
             .WithLeadingTrivia(leadingTrivia)
             .WithTrailingTrivia(SyntaxFactory.LineFeed);
 
@@ -147,6 +148,33 @@ internal static class MethodExtractorDuplicates
         var updatedSln = solution.WithDocumentSyntaxRoot(doc.Id, newRoot);
         return (true, updatedSln, string.Empty);
     }
+
+    private static StatementSyntax BuildReplacementCallSite(
+        string newMethodName,
+        IReadOnlyList<string> args,
+        IReadOnlyList<ISymbol> returnVars,
+        PatternMatch match)
+    {
+        var argStr = string.Join(", ", args);
+        var call = $"{newMethodName}({argStr})";
+
+        if (returnVars.Count == 0)
+            return SyntaxFactory.ParseStatement($"{call};");
+
+        if (returnVars.Count == 1)
+        {
+            var returnName = MapSymbolName(returnVars[0], match);
+            return SyntaxFactory.ParseStatement($"var {returnName} = {call};");
+        }
+
+        var returnNames = string.Join(", ", returnVars.Select(v => MapSymbolName(v, match)));
+        return SyntaxFactory.ParseStatement($"var ({returnNames}) = {call};");
+    }
+
+    private static string MapSymbolName(ISymbol symbol, PatternMatch match) =>
+        match.Substitutions.TryGetValue(symbol.Name, out var substituted)
+            ? substituted
+            : symbol.Name;
 
     /// <summary>
     /// Heuristically determines if a value string is a literal (number, string, bool, char, null)
