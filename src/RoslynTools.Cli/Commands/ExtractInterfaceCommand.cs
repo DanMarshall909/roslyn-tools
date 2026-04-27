@@ -12,14 +12,14 @@ internal sealed class ExtractInterfaceCommand : IRtCommand
         Name: "extract-interface",
         Mutates: true,
         JsonOutput: false,
-        Category: "Mutation",
+        Category: "refactor",
         Aliases: ["ei"],
         WhenToUse: "Generating an IXxx interface from an existing class's public members and updating the class declaration to implement it. Use this before injecting a service as a dependency, or when introducing a seam for testing.",
         Examples:
         [
-            "rt extract-interface --type BookingService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt ei --type EmailSender --output-dir src/Interfaces --dry-run",
-            "rt extract-interface --type HeroApiClient --namespace ProjectX.Core.Abstractions --solution RoslynTools.slnx",
+            "rt refactor extract-interface --type BookingService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt refactor ei --type EmailSender --output-dir src/Interfaces --dry-run",
+            "rt refactor extract-interface --type HeroApiClient --namespace ProjectX.Core.Abstractions --solution RoslynTools.slnx",
         ]
     );
 

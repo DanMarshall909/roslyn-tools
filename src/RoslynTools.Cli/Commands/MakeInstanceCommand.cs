@@ -11,13 +11,13 @@ internal sealed class MakeInstanceCommand : IRtCommand
         Name: "make-instance",
         Mutates: true,
         JsonOutput: false,
-        Category: "Mutation — structure",
+        Category: "refactor",
         Aliases: ["mns"],
         WhenToUse: "Converting a static method to an instance method. Removes the `static` modifier from the declaration and rewrites `Type.Method(...)` call sites to `instance.Method(...)` where an instance is reachable (local variable, field, or parameter of the correct type). Call sites with no reachable instance are warned and left unchanged.",
         Examples:
         [
-            "rt make-instance --method OrderService.Validate --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt mns --method MathHelper.Compute --dry-run --solution RoslynTools.slnx",
+            "rt refactor make-instance --method OrderService.Validate --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt refactor mns --method MathHelper.Compute --dry-run --solution RoslynTools.slnx",
         ]
     );
 

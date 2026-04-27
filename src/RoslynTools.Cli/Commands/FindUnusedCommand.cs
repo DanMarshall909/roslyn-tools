@@ -14,14 +14,14 @@ internal sealed class FindUnusedCommand : IRtCommand
         Name: "find-unused",
         Mutates: false,
         JsonOutput: false,
-        Category: "Navigation",
+        Category: "inspect",
         Aliases: ["unused"],
         WhenToUse: "Identifying dead code — types and methods with zero references in the solution — before a safe-delete pass or ahead of a major refactor. Use --scope to focus on a specific namespace and filter noise from generated or test code.",
         Examples:
         [
-            "rt find-unused --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt unused --scope ProjectX.Core --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt find-unused --scope types --solution RoslynTools.slnx",
+            "rt inspect find-unused --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt inspect unused --scope ProjectX.Core --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt inspect find-unused --scope types --solution RoslynTools.slnx",
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );

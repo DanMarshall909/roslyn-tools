@@ -12,14 +12,14 @@ internal sealed class ExtractStringConstantCommand : IRtCommand
         Name: "extract-string-constant",
         Mutates: true,
         JsonOutput: false,
-        Category: "Mutation",
+        Category: "refactor",
         Aliases: ["esc"],
         WhenToUse: "Replacing a repeated string literal inside one containing type with a named private const string. Use find-magic-strings first to locate the file and line.",
         Examples:
         [
-            "rt extract-string-constant --file src/App/Foo.cs --line 42 --name DefaultStatus --solution C:\\code\\app\\App.sln",
-            "rt esc --file tests/FooTests.cs --line 18 --name ExpectedMessage --dry-run --solution RoslynTools.slnx",
-            "rt extract-string-constant --file src/Domain/Order.cs --line 27 --name SubmittedStatus --solution RoslynTools.slnx",
+            "rt refactor extract-string-constant --file src/App/Foo.cs --line 42 --name DefaultStatus --solution C:\\code\\app\\App.sln",
+            "rt refactor esc --file tests/FooTests.cs --line 18 --name ExpectedMessage --dry-run --solution RoslynTools.slnx",
+            "rt refactor extract-string-constant --file src/Domain/Order.cs --line 27 --name SubmittedStatus --solution RoslynTools.slnx",
         ]
     );
 

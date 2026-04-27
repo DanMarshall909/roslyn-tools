@@ -13,14 +13,14 @@ internal sealed class InspectCommand : IRtCommand
         Name: "inspect",
         Mutates: false,
         JsonOutput: true,
-        Category: "Navigation",
+        Category: "inspect",
         Aliases: null,
         WhenToUse: "Getting a detailed JSON description of a symbol's shape — members, base types, interfaces, constructors, locations — without opening the file. Ideal for agents that need to understand a type's surface area before planning a refactor.",
         Examples:
         [
-            "rt inspect BookingService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt inspect ProjectX.Core.Services.IEmailService --kind type --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt inspect IRtCommand --solution RoslynTools.slnx",
+            "rt inspect inspect BookingService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt inspect inspect ProjectX.Core.Services.IEmailService --kind type --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt inspect inspect IRtCommand --solution RoslynTools.slnx",
         ]
     );
 

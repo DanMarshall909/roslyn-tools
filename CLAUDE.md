@@ -62,18 +62,26 @@ Never weaken an assertion to make a mutant "die" — that's score fraud. The val
 
 After modifying or adding any command, test it against a real solution before marking work complete. Use the roslyn-tools solution itself (`RoslynTools.slnx`) as the default target — it's small enough to load fast but has enough types/members to exercise the commands.
 
+**Command groups.** Every command lives under one of three top-level groups (`rt <group> <command>`):
+
+- `rt inspect <cmd>` — read-only, point at a single symbol or file (`inspect`, `outline`, `find-refs`, `find-callers`, `find-impl`, `find-unused`, `find-pattern`)
+- `rt analyze <cmd>` — read-only, broader codebase scans (`circular-deps`, `dependency-graph`, `analyze-interface`, `find-duplicates`, `find-magic-strings`, `list-imports`, `list-smells`)
+- `rt refactor <cmd>` — mutations (`rename`, `move`, `extract-*`, `inline-method`, `make-*`, `replace-*`, `convert-*`, `add-*`, etc.)
+
+The unqualified form `rt <cmd>` still works for any unambiguous name (i.e. all names except `inspect`, which clashes with the group). Examples below use the canonical nested form.
+
 **Smoke test matrix** — run each applicable command after changes:
 ```powershell
 # Read-only commands (safe, run freely)
-rt inspect "RoslynTools.Core.WorkspaceLoader" --solution RoslynTools.slnx
-rt outline src/RoslynTools/Core/SymbolLocator.cs --solution RoslynTools.slnx
-rt find-refs --symbol WorkspaceLoader --solution RoslynTools.slnx
-rt find-impl "System.CommandLine.Command" --solution RoslynTools.slnx
+rt inspect inspect "RoslynTools.Core.WorkspaceLoader" --solution RoslynTools.slnx
+rt inspect outline src/RoslynTools/Core/SymbolLocator.cs --solution RoslynTools.slnx
+rt inspect find-refs --symbol WorkspaceLoader --solution RoslynTools.slnx
+rt inspect find-impl "System.CommandLine.Command" --solution RoslynTools.slnx
 
 # Mutation commands (use --dry-run only against self)
-rt rename "RoslynTools.Models.SymbolMatch.DisplayName" NewName --solution RoslynTools.slnx --dry-run
-rt move --type RoslynTools.Models.SymbolMatch --to-namespace RoslynTools.Core.Models --solution RoslynTools.slnx --dry-run
-rt extract-method src/RoslynTools/Core/SolutionWriter.cs PrintDiffBlock --start-line 72 --end-line 98 --solution RoslynTools.slnx --dry-run
+rt refactor rename "RoslynTools.Models.SymbolMatch.DisplayName" NewName --solution RoslynTools.slnx --dry-run
+rt refactor move --type RoslynTools.Models.SymbolMatch --to-namespace RoslynTools.Core.Models --solution RoslynTools.slnx --dry-run
+rt refactor extract-method src/RoslynTools/Core/SolutionWriter.cs PrintDiffBlock --start-line 72 --end-line 98 --solution RoslynTools.slnx --dry-run
 ```
 
 **What to check:**
@@ -84,8 +92,8 @@ rt extract-method src/RoslynTools/Core/SolutionWriter.cs PrintDiffBlock --start-
 
 **For ProjectX testing** (larger, slower — use when relevant):
 ```powershell
-rt inspect "ProjectX.Service.Services.ServiceController" --solution "C:\code\libraries\ProjectX.Libraries.sln"
-rt find-refs --symbol BookingsService --solution "C:\code\libraries\ProjectX.Libraries.sln"
+rt inspect inspect "ProjectX.Service.Services.ServiceController" --solution "C:\code\libraries\ProjectX.Libraries.sln"
+rt inspect find-refs --symbol BookingsService --solution "C:\code\libraries\ProjectX.Libraries.sln"
 ```
 
 ## Commands
@@ -104,7 +112,7 @@ Every class in `src/RoslynTools/Commands/` ending with `Command` MUST implement 
 
 When you:
 
-- **Add a command** — create `FooCommand.cs` as `internal sealed class FooCommand : IRtCommand`, supply static `Info` + `Build()`, and you're done. The registry and `docs/COMMANDS.md` pick it up automatically on next build.
+- **Add a command** — create `FooCommand.cs` as `internal sealed class FooCommand : IRtCommand`, supply static `Info` + `Build()`, and you're done. `Info.Category` MUST be one of `"inspect"`, `"analyze"`, or `"refactor"` — `App.RunAsync` throws at startup otherwise. The registry and `docs/COMMANDS.md` pick it up automatically on next build.
 - **Rename a command** — update `Info.Name` to match the `new Command("new-name", ...)` first arg.
 - **Add / remove / rename a flag** — update `Info.Examples` so it reflects real invocations.
 - **Change mutation or output semantics** — update `Info.Mutates` (writes files? true) and `Info.JsonOutput` (stdout is JSON? true) accordingly.

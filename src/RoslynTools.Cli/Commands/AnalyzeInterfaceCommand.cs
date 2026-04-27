@@ -14,13 +14,13 @@ internal sealed class AnalyzeInterfaceCommand : IRtCommand
         Name: "analyze-interface",
         Mutates: false,
         JsonOutput: true,
-        Category: "Analysis",
+        Category: "analyze",
         WhenToUse: "Grouping interface consumers by the exact interface members they use so interface-segregation work can be driven by evidence instead of raw reference dumps. Use --scope to focus on one namespace or project, and --json for automation-friendly output.",
         Examples:
         [
-            "rt analyze-interface ProjectX.Core.IEmailSender --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt analyze-interface IEmailSender --scope ProjectX.Core --solution RoslynTools.slnx",
-            "rt analyze-interface ProjectX.Core.IEmailSender --json --solution RoslynTools.slnx",
+            "rt analyze analyze-interface ProjectX.Core.IEmailSender --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt analyze analyze-interface IEmailSender --scope ProjectX.Core --solution RoslynTools.slnx",
+            "rt analyze analyze-interface ProjectX.Core.IEmailSender --json --solution RoslynTools.slnx",
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]);
 

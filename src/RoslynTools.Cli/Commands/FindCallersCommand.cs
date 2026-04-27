@@ -14,14 +14,14 @@ internal sealed class FindCallersCommand : IRtCommand
         Name: "find-callers",
         Mutates: false,
         JsonOutput: false,
-        Category: "Navigation",
+        Category: "inspect",
         Aliases: ["callers"],
         WhenToUse: "Finding all invocation sites of a method before renaming or deleting it, or to understand the blast radius of a signature change. Unlike find-refs, this filters to true call sites only, excluding nameof() and other non-invocation references.",
         Examples:
         [
-            "rt find-callers --symbol SendEmail --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt callers --symbol ProcessPayment --include-tests --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt find-callers --symbol BuildGraphAsync --solution RoslynTools.slnx",
+            "rt inspect find-callers --symbol SendEmail --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt inspect callers --symbol ProcessPayment --include-tests --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt inspect find-callers --symbol BuildGraphAsync --solution RoslynTools.slnx",
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );

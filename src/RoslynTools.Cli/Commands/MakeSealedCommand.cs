@@ -12,14 +12,14 @@ internal sealed class MakeSealedCommand : IRtCommand
         Name: "make-sealed",
         Mutates: true,
         JsonOutput: false,
-        Category: "Mutation",
+        Category: "refactor",
         Aliases: ["ms"],
         WhenToUse: "Adding the sealed modifier to a class that has no derived types in the solution. Sealing classes improves runtime dispatch performance and communicates design intent. The command verifies no derived classes exist before modifying, making it safe to run without a prior manual check.",
         Examples:
         [
-            "rt make-sealed --type BookingValidator --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt ms --type CsvFormatter --dry-run",
-            "rt make-sealed --type RtCommandInfo --solution RoslynTools.slnx",
+            "rt refactor make-sealed --type BookingValidator --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt refactor ms --type CsvFormatter --dry-run",
+            "rt refactor make-sealed --type RtCommandInfo --solution RoslynTools.slnx",
         ]
     );
     // Stryker restore all

@@ -14,14 +14,14 @@ internal sealed class FindMagicStringsCommand : IRtCommand
         Name: "find-magic-strings",
         Mutates: false,
         JsonOutput: false,
-        Category: "Analysis",
+        Category: "analyze",
         Aliases: ["magic-strings"],
         WhenToUse: "Finding repeated string literals that should probably be named constants before cleanup or domain refactoring. Generated files, const string declarations, and .rtignore matches are skipped.",
         Examples:
         [
-            "rt find-magic-strings --solution RoslynTools.slnx",
-            "rt magic-strings --min-length 4 --min-occurrences 3 --solution C:\\code\\app\\App.sln",
-            "rt find-magic-strings --json --solution RoslynTools.slnx",
+            "rt analyze find-magic-strings --solution RoslynTools.slnx",
+            "rt analyze magic-strings --min-length 4 --min-occurrences 3 --solution C:\\code\\app\\App.sln",
+            "rt analyze find-magic-strings --json --solution RoslynTools.slnx",
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );

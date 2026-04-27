@@ -12,14 +12,14 @@ internal sealed class AddNullChecksCommand : IRtCommand
         Name: "add-null-checks",
         Mutates: true,
         JsonOutput: false,
-        Category: "Mutation",
+        Category: "refactor",
         Aliases: ["anc"],
         WhenToUse: "Retrofitting ArgumentNullException.ThrowIfNull guards onto reference-type parameters in an existing method. Prefer this over a manual edit when a method has several parameters and you want to skip any that are already guarded or are nullable (annotated with ?).",
         Examples:
         [
-            "rt add-null-checks --type BookingService --method CreateBooking --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt anc --type OrderProcessor --method Process --dry-run",
-            "rt add-null-checks --type ReportController --method Generate --solution RoslynTools.slnx",
+            "rt refactor add-null-checks --type BookingService --method CreateBooking --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt refactor anc --type OrderProcessor --method Process --dry-run",
+            "rt refactor add-null-checks --type ReportController --method Generate --solution RoslynTools.slnx",
         ]
     );
 

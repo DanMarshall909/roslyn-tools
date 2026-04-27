@@ -15,13 +15,13 @@ internal sealed class FindPatternCommand : IRtCommand
         Name: "find-pattern",
         Mutates: false,
         JsonOutput: true,
-        Category: "Navigation & inspection",
+        Category: "inspect",
         Aliases: ["fp"],
         WhenToUse: "Find every location in the solution that structurally matches a given line range — same SyntaxKind tree shape, only identifier and literal values differ. Useful for spotting duplicated logic even when variable names differ.",
         Examples:
         [
-            "rt find-pattern --file src/Services/BookingService.cs --start-line 42 --end-line 50 --solution RoslynTools.slnx",
-            "rt fp --file src/Controllers/AdminController.cs --start-line 110 --end-line 125 --scope RoslynTools.Core --solution RoslynTools.slnx",
+            "rt inspect find-pattern --file src/Services/BookingService.cs --start-line 42 --end-line 50 --solution RoslynTools.slnx",
+            "rt inspect fp --file src/Controllers/AdminController.cs --start-line 110 --end-line 125 --scope RoslynTools.Core --solution RoslynTools.slnx",
         ]
     );
 

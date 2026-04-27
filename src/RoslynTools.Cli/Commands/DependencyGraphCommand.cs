@@ -12,14 +12,14 @@ internal sealed class DependencyGraphCommand : IRtCommand
         Name: "dependency-graph",
         Mutates: false,
         JsonOutput: true,
-        Category: "Analysis",
+        Category: "analyze",
         Aliases: ["depgraph"],
         WhenToUse: "Visualising the type-level dependency graph for a solution or a specific root type, to understand coupling before a large refactor. Use --format dot to pipe into Graphviz, or --format json for programmatic consumption. Use --type + --depth to focus on a single type's fan-out.",
         Examples:
         [
-            "rt dependency-graph --solution C:\\code\\libraries\\ProjectX.Libraries.sln --scope ProjectX.Core",
-            "rt depgraph --type BookingService --depth 2 --solution RoslynTools.slnx",
-            "rt dependency-graph --format dot --solution RoslynTools.slnx | dot -Tsvg -o deps.svg",
+            "rt analyze dependency-graph --solution C:\\code\\libraries\\ProjectX.Libraries.sln --scope ProjectX.Core",
+            "rt analyze depgraph --type BookingService --depth 2 --solution RoslynTools.slnx",
+            "rt analyze dependency-graph --format dot --solution RoslynTools.slnx | dot -Tsvg -o deps.svg",
         ],
         KnownIssues:
         [

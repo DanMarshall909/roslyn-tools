@@ -14,14 +14,14 @@ internal sealed class FindImplementationsCommand : IRtCommand
         Name: "find-impl",
         Mutates: false,
         JsonOutput: true,
-        Category: "Navigation",
+        Category: "inspect",
         Aliases: ["impls"],
         WhenToUse: "Discovering all concrete implementations of an interface or derived classes of an abstract base, across the entire solution. Useful before making a breaking change to a contract, or to verify a new interface has been wired up everywhere expected.",
         Examples:
         [
-            "rt find-impl IEmailService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt impls ProjectX.Core.Services.IBookingRepository --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt find-impl IRtCommand --solution RoslynTools.slnx",
+            "rt inspect find-impl IEmailService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt inspect impls ProjectX.Core.Services.IBookingRepository --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt inspect find-impl IRtCommand --solution RoslynTools.slnx",
         ]
     );
 

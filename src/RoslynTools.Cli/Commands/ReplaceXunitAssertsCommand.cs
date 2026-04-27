@@ -11,14 +11,14 @@ internal sealed class ReplaceXunitAssertsCommand : IRtCommand
         Name: "replace-xunit-asserts",
         Mutates: true,
         JsonOutput: false,
-        Category: "Mutation",
+        Category: "refactor",
         Aliases: ["rxa"],
         WhenToUse: "Migrating Xunit Assert calls in tests to Shouldly's fluent assertion style. Defaults to review mode; pass --apply to write changes.",
         Examples:
         [
-            "rt replace-xunit-asserts --solution RoslynTools.slnx",
-            "rt rxa --apply --solution C:\\code\\app\\App.sln",
-            "rt replace-xunit-asserts --dry-run --solution C:\\code\\app\\App.sln",
+            "rt refactor replace-xunit-asserts --solution RoslynTools.slnx",
+            "rt refactor rxa --apply --solution C:\\code\\app\\App.sln",
+            "rt refactor replace-xunit-asserts --dry-run --solution C:\\code\\app\\App.sln",
         ],
         KnownIssues:
         [

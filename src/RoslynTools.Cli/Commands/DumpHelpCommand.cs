@@ -21,10 +21,13 @@ internal static class DumpHelpCommand
 
         cmd.SetHandler(() =>
         {
+            var snapshot = App.Commands
+                .Select(e => (Cmd: e.Build(), e.Info))
+                .ToList();
             if (Console.IsOutputRedirected)
-                Console.Out.Write(RenderMarkdown(App.Commands));
+                Console.Out.Write(RenderMarkdown(snapshot));
             else
-                RenderColoured(App.Commands);
+                RenderColoured(snapshot);
         });
 
         return cmd;
@@ -45,17 +48,28 @@ internal static class DumpHelpCommand
             .GroupBy(e => e.Info.Category)
             .OrderBy(g => CategoryOrder(g.Key));
 
+        sb.AppendLine("Commands are filed under one of three groups: `inspect`, `analyze`, `refactor`. Invoke either way:");
+        sb.AppendLine();
+        sb.AppendLine("```bash");
+        sb.AppendLine("rt <group> <command> [args...]   # canonical form");
+        sb.AppendLine("rt <command> [args...]           # root shortcut (all unambiguous names)");
+        sb.AppendLine("```");
+        sb.AppendLine();
+
         sb.AppendLine("## Contents");
         sb.AppendLine();
         foreach (var group in byCategory)
         {
-            sb.AppendLineF($"- **{group.Key}** — {string.Join(", ", group.OrderBy(e => e.Info.Name).Select(e => $"[`{e.Info.Name}`](#{Anchor(e.Info.Name)}){(e.Info.Aliases is { Length: > 0 } a ? $" ({string.Join("/", a)})" : "")}"))}");
+            var desc = App.GroupDescriptions.TryGetValue(group.Key, out var d) ? d : "";
+            sb.AppendLineF($"- **`rt {group.Key}`** — {desc}");
+            sb.AppendLineF($"  - {string.Join(", ", group.OrderBy(e => e.Info.Name).Select(e => $"[`{e.Info.Name}`](#{Anchor(e.Info.Name)}){(e.Info.Aliases is { Length: > 0 } a ? $" ({string.Join("/", a)})" : "")}"))}");
         }
         sb.AppendLine();
 
         foreach (var group in byCategory)
         {
-            sb.AppendLineF($"## {group.Key}");
+            var desc = App.GroupDescriptions.TryGetValue(group.Key, out var d) ? d : "";
+            sb.AppendLineF($"## `rt {group.Key}` — {desc}");
             sb.AppendLine();
 
             foreach (var (c, info) in group.OrderBy(e => e.Info.Name))
@@ -131,9 +145,11 @@ internal static class DumpHelpCommand
 
         foreach (var group in byCategory)
         {
+            var desc = App.GroupDescriptions.TryGetValue(group.Key, out var d) ? d : "";
             Console.ForegroundColor = CategoryColour(group.Key);
-            Console.WriteLine($"  {group.Key.ToUpperInvariant()}");
+            Console.Write($"  rt {group.Key}");
             Console.ForegroundColor = ConsoleColor.DarkGray;
+            Console.WriteLine($"   {desc}");
             Console.WriteLine("  " + new string('\u2500', 52));
             Console.ResetColor();
 
@@ -165,20 +181,18 @@ internal static class DumpHelpCommand
 
     private static ConsoleColor CategoryColour(string category) => category switch
     {
-        "Navigation" => ConsoleColor.Cyan,
-        "Analysis" => ConsoleColor.Yellow,
-        "Mutation" => ConsoleColor.Magenta,
-        "Meta" => ConsoleColor.DarkGray,
+        "inspect" => ConsoleColor.Cyan,
+        "analyze" => ConsoleColor.Yellow,
+        "refactor" => ConsoleColor.Magenta,
         _ => ConsoleColor.White,
     };
 
     private static int CategoryOrder(string category) => category switch
     {
-        "Navigation" => 0,
-        "Analysis" => 1,
-        "Mutation" => 2,
-        "Meta" => 3,
-        _ => 4,
+        "inspect" => 0,
+        "analyze" => 1,
+        "refactor" => 2,
+        _ => 3,
     };
 
     private static string Anchor(string name) => name.ToLowerInvariant().Replace(' ', '-');

@@ -12,14 +12,14 @@ internal sealed class ExtractMethodCommand : IRtCommand
         Name: "extract-method",
         Mutates: true,
         JsonOutput: false,
-        Category: "Mutation",
+        Category: "refactor",
         Aliases: ["em"],
         WhenToUse: "Pulling a consecutive range of statements out of a long method body into a new private method. Specify the line range from the source file; the command infers parameter and return types from context. Use --after/--before to control insertion point.",
         Examples:
         [
-            "rt extract-method src/Services/BookingService.cs ValidateBooking --start-line 42 --end-line 58 --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt em src/Controllers/AdminController.cs BuildCsvRow --start-line 110 --end-line 125 --dry-run",
-            "rt extract-method src/RoslynTools/Commands/RenameCommand.cs BuildOptions --start-line 30 --end-line 45 --after Build --solution RoslynTools.slnx",
+            "rt refactor extract-method src/Services/BookingService.cs ValidateBooking --start-line 42 --end-line 58 --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt refactor em src/Controllers/AdminController.cs BuildCsvRow --start-line 110 --end-line 125 --dry-run",
+            "rt refactor extract-method src/RoslynTools/Commands/RenameCommand.cs BuildOptions --start-line 30 --end-line 45 --after Build --solution RoslynTools.slnx",
         ]
     );
 

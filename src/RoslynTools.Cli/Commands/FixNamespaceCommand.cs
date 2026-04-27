@@ -12,14 +12,14 @@ internal sealed class FixNamespaceCommand : IRtCommand
         Name: "fix-namespace",
         Mutates: true,
         JsonOutput: false,
-        Category: "Mutation",
+        Category: "refactor",
         Aliases: ["fns"],
         WhenToUse: "Correcting a file's namespace declaration to match its folder path after moving files, or when a file was created in the wrong location. Also updates any using directives in other files that imported the old namespace.",
         Examples:
         [
-            "rt fix-namespace --file src/Services/BookingService.cs --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt fns --file src/RoslynTools/Commands/RenameCommand.cs --dry-run",
-            "rt fix-namespace --file src/Domain/Order.cs --solution RoslynTools.slnx",
+            "rt refactor fix-namespace --file src/Services/BookingService.cs --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt refactor fns --file src/RoslynTools/Commands/RenameCommand.cs --dry-run",
+            "rt refactor fix-namespace --file src/Domain/Order.cs --solution RoslynTools.slnx",
         ]
     );
 

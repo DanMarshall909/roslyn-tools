@@ -36,12 +36,25 @@ public class CommandExampleTests
     {
         var root = new RootCommand("Roslyn-based C# refactoring tool");
 
-        foreach (var (cmd, _) in App.Commands)
-            root.AddCommand(cmd);
+        var groups = App.GroupDescriptions.ToDictionary(
+            kv => kv.Key,
+            kv => new Command(kv.Key, kv.Value),
+            StringComparer.Ordinal);
+
+        foreach (var (build, info) in App.Commands)
+        {
+            groups[info.Category].AddCommand(build());
+            if (!groups.ContainsKey(info.Name))
+                root.AddCommand(build());
+        }
+
+        foreach (var group in groups.Values)
+            root.AddCommand(group);
 
         root.AddGlobalOption(new Option<bool>("--json", "Emit results as JSON"));
         root.AddGlobalOption(new Option<bool>("--llm", "Emit compact output for LLM consumption"));
         root.AddGlobalOption(new Option<bool>("--markdown", "Emit results as Markdown"));
+        root.AddGlobalOption(new Option<bool>("--yaml", "Emit results as YAML"));
 
         return new CommandLineBuilder(root)
             .UseDefaults()

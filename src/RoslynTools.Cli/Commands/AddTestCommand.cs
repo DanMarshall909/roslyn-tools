@@ -11,14 +11,14 @@ internal sealed class AddTestCommand : IRtCommand
         Name: "add-test",
         Mutates: true,
         JsonOutput: false,
-        Category: "Mutation",
+        Category: "refactor",
         Aliases: ["at"],
         WhenToUse: "Appending xUnit [Fact] stub methods to an existing test class — either a single named test or a batch from semicolon-separated acceptance criteria. Eliminates the boilerplate of writing throw-stub test shells by hand and optionally groups ACs into a nested class.",
         Examples:
         [
-            "rt add-test --class BookingServiceTests --name Returns_404_When_Not_Found --solution RoslynTools.slnx",
-            "rt at --class OrderTests --acs \"Returns total;Applies discount;Rejects empty cart\" --nested-class WhenCalculatingTotal",
-            "rt add-test --class PaymentTests --acs \"Charges card;Sends receipt\" --file tests/PaymentTests.cs --dry-run",
+            "rt refactor add-test --class BookingServiceTests --name Returns_404_When_Not_Found --solution RoslynTools.slnx",
+            "rt refactor at --class OrderTests --acs \"Returns total;Applies discount;Rejects empty cart\" --nested-class WhenCalculatingTotal",
+            "rt refactor add-test --class PaymentTests --acs \"Charges card;Sends receipt\" --file tests/PaymentTests.cs --dry-run",
         ]
     );
 

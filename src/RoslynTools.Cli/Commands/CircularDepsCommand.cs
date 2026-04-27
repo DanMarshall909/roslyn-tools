@@ -15,14 +15,14 @@ internal sealed class CircularDepsCommand : IRtCommand
         Name: "circular-deps",
         Mutates: false,
         JsonOutput: false,
-        Category: "Analysis",
+        Category: "analyze",
         Aliases: ["cdeps"],
         WhenToUse: "Detecting circular namespace dependencies in a solution before a refactor, or after adding new inter-namespace references. Use --scope to limit analysis to your domain namespaces and ignore third-party noise.",
         Examples:
         [
-            "rt circular-deps --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt cdeps --scope ProjectX.Core --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt circular-deps --solution RoslynTools.slnx --scope RoslynTools",
+            "rt analyze circular-deps --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt analyze cdeps --scope ProjectX.Core --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt analyze circular-deps --solution RoslynTools.slnx --scope RoslynTools",
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );

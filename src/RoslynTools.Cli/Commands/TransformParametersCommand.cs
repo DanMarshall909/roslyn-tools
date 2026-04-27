@@ -11,14 +11,14 @@ internal sealed class TransformParametersCommand : IRtCommand
         Name: "transform-parameters",
         Mutates: true,
         JsonOutput: false,
-        Category: "Mutation — symbol & namespace",
+        Category: "refactor",
         Aliases: ["tp"],
         WhenToUse: "Introduce a Parameter Object: extract a method's parameters into a new record and update all call sites. Useful when a method has 3+ parameters that logically belong together.",
         Examples:
         [
-            "rt transform-parameters --method OrderService.PlaceOrder --new-type PlaceOrderArgs --solution MySolution.sln",
-            "rt tp --method BookingService.Create --new-type CreateBookingArgs --dry-run",
-            "rt transform-parameters --method Calculator.Add --existing-type MyApp.AddArgs --solution RoslynTools.slnx --dry-run",
+            "rt refactor transform-parameters --method OrderService.PlaceOrder --new-type PlaceOrderArgs --solution MySolution.sln",
+            "rt refactor tp --method BookingService.Create --new-type CreateBookingArgs --dry-run",
+            "rt refactor transform-parameters --method Calculator.Add --existing-type MyApp.AddArgs --solution RoslynTools.slnx --dry-run",
         ]
     );
 

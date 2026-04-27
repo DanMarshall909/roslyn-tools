@@ -42,19 +42,57 @@ internal static class App
     }
 
     /// <summary>
+    /// The three top-level groups under which every command is filed. Each command's
+    /// <see cref="RtCommandInfo.Category"/> must equal one of these keys exactly — checked
+    /// at startup in <see cref="RunAsync"/>.
+    /// </summary>
+    internal static readonly IReadOnlyDictionary<string, string> GroupDescriptions = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["inspect"] = "Read-only: examine a single symbol or file",
+        ["analyze"] = "Read-only: scan for cross-cutting issues",
+        ["refactor"] = "Mutations: rename, move, extract, replace, modify",
+    };
+
+    /// <summary>
     /// Registry of every <see cref="IRtCommand"/> in this assembly, with its <see cref="RtCommandInfo"/>.
     /// Discovered via reflection — add a new command by creating a class that implements
-    /// <see cref="IRtCommand"/>; no edit to this file required.
+    /// <see cref="IRtCommand"/>; no edit to this file required. Each entry's <c>Build</c> is
+    /// a factory that produces a fresh <see cref="Command"/> per call, so the same command can
+    /// be added to multiple parents (root shortcut + category group).
     /// </summary>
-    internal static IReadOnlyList<(Command Cmd, RtCommandInfo Info)> Commands { get; } = Discover();
+    internal static IReadOnlyList<(Func<Command> Build, RtCommandInfo Info)> Commands { get; } = Discover();
 
     internal static async Task<int> RunAsync(string[] args)
     {
         var root = new RootCommand("Roslyn-based C# refactoring tool");
 
-        foreach (var (cmd, _) in Commands)
+        var groups = GroupDescriptions.ToDictionary(
+            kv => kv.Key,
+            kv => new Command(kv.Key, kv.Value),
+            StringComparer.Ordinal);
+
+        foreach (var (build, info) in Commands)
         {
-            root.AddCommand(cmd);
+            if (!groups.TryGetValue(info.Category, out var group))
+            {
+                throw new InvalidOperationException(
+                    $"Command '{info.Name}' has Category='{info.Category}'. Must be one of: "
+                    + string.Join(", ", groups.Keys) + ".");
+            }
+
+            // Always available under the category group: `rt <group> <name>`.
+            group.AddCommand(build());
+
+            // Also expose at root as a shortcut when the name doesn't collide with a group name.
+            if (!groups.ContainsKey(info.Name))
+            {
+                root.AddCommand(build());
+            }
+        }
+
+        foreach (var group in groups.Values)
+        {
+            root.AddCommand(group);
         }
 
         // Hidden meta-command, not part of the public registry (does not implement IRtCommand).
@@ -119,7 +157,7 @@ internal static class App
             .InvokeAsync(args);
     }
 
-    private static List<(Command, RtCommandInfo)> Discover()
+    private static List<(Func<Command>, RtCommandInfo)> Discover()
     {
         const BindingFlags staticFlags = BindingFlags.Static | BindingFlags.Public;
 
@@ -128,7 +166,7 @@ internal static class App
             .OrderBy(t => t.Name, StringComparer.Ordinal)
             .ToArray();
 
-        var list = new List<(Command, RtCommandInfo)>(implementers.Length);
+        var list = new List<(Func<Command>, RtCommandInfo)>(implementers.Length);
         foreach (var type in implementers)
         {
             var build = type.GetMethod("Build", staticFlags)
@@ -139,9 +177,8 @@ internal static class App
                            ?? throw new InvalidOperationException(
                                $"{type.Name} implements IRtCommand but exposes no public static Info property.");
 
-            var cmd = (Command)build.Invoke(null, null)!;
             var info = (RtCommandInfo)infoProp.GetValue(null)!;
-            list.Add((cmd, info));
+            list.Add((() => (Command)build.Invoke(null, null)!, info));
         }
 
         return list;

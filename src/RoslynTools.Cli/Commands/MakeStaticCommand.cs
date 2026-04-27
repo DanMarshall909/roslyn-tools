@@ -11,16 +11,16 @@ internal sealed class MakeStaticCommand : IRtCommand
         Name: "make-static",
         Mutates: true,
         JsonOutput: false,
-        Category: "Mutation — structure",
+        Category: "refactor",
         Aliases: ["mst"],
         WhenToUse: "Converting an instance method to static when it has no instance-state dependencies. "
             + "Validates safety (no 'this', no instance field/property access, not virtual/override/abstract) "
             + "before modifying and rewrites all call sites from instance.Method() to Type.Method().",
         Examples:
         [
-            "rt make-static --method OrderValidator.Validate --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt mst --method MathHelper.Clamp --dry-run",
-            "rt make-static --method SymbolLocator.ParseSpec --solution RoslynTools.slnx",
+            "rt refactor make-static --method OrderValidator.Validate --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt refactor mst --method MathHelper.Clamp --dry-run",
+            "rt refactor make-static --method SymbolLocator.ParseSpec --solution RoslynTools.slnx",
         ]
     );
 

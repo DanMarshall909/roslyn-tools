@@ -12,15 +12,15 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
         Name: "convert-console-logging",
         Mutates: true,
         JsonOutput: false,
-        Category: "Mutation",
+        Category: "refactor",
         Aliases: ["ccl"],
         WhenToUse: "Migrating Console.Write/WriteLine and Console.Error.Write/WriteLine calls to logger calls while preserving messages as structured templates where possible. Use this after the target logger dependency already exists, or pair it with add-dependency.",
         Examples:
         [
-            "rt convert-console-logging --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt ccl --inject-logger --solution C:\\code\\app\\App.sln",
-            "rt ccl --inject-logger --apply --solution C:\\code\\app\\App.sln",
-            "rt convert-console-logging --stream all --logger _log --information-method Info --warning-method Warn --error-method Error --dry-run --solution C:\\code\\app\\App.sln",
+            "rt refactor convert-console-logging --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt refactor ccl --inject-logger --solution C:\\code\\app\\App.sln",
+            "rt refactor ccl --inject-logger --apply --solution C:\\code\\app\\App.sln",
+            "rt refactor convert-console-logging --stream all --logger _log --information-method Info --warning-method Warn --error-method Error --dry-run --solution C:\\code\\app\\App.sln",
         ],
         KnownIssues:
         [
