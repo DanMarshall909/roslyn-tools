@@ -86,7 +86,7 @@ internal static class WorkspaceLoader
         if (diagnostics.Count == 0)
             return;
 
-        var sink = DiagnosticSinkOverride.Value ?? Console.Error;
+        var sink = DiagnosticSinkOverride.Value ?? (fatal ? Console.Error : Console.Out);
         sink.WriteLine("---");
         sink.WriteLine(fatal ? "[workspace-failures]" : "[workspace-warnings]");
         foreach (var d in diagnostics)

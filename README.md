@@ -16,10 +16,10 @@ Requires .NET 8 SDK or later. After install, `rt` is on your PATH.
 dotnet build RoslynTools.slnx
 
 # Run without installing
-dotnet run --project src/RoslynTools/RoslynTools.csproj -- <command> [options]
+dotnet run --project src/RoslynTools.Cli/RoslynTools.Cli.csproj -- <command> [options]
 
 # Publish as single exe (Windows)
-dotnet publish src/RoslynTools/RoslynTools.csproj -c Release -r win-x64
+dotnet publish src/RoslynTools.Cli/RoslynTools.Cli.csproj -c Release -r win-x64 --self-contained false
 ```
 
 ## Commands

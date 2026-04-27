@@ -23,7 +23,7 @@ internal static class MsBuildBootstrap
         }
         catch (DllNotFoundException ex)
         {
-            Console.Error.WriteLine($"[MsBuildBootstrap] MSBuildLocator.RegisterDefaults failed ({ex.Message}); falling back to manual SDK discovery.");
+            Console.Out.WriteLine($"[MsBuildBootstrap] MSBuildLocator.RegisterDefaults failed ({ex.Message}); falling back to manual SDK discovery.");
         }
 
         var sdkPath = FindLatestDotnetSdkPath();

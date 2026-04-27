@@ -4,7 +4,8 @@ Guidance for agentic coding tools working in `C:\code\roslyn-tools`.
 ## Project Overview
 - Stack: C# on .NET 8 (`net8.0`).
 - Solution: `RoslynTools.slnx`.
-- Main project: `src/RoslynTools/RoslynTools.csproj`.
+- Main CLI project: `src/RoslynTools.Cli/RoslynTools.Cli.csproj`.
+- Core library project: `src/RoslynTools/RoslynTools.csproj`.
 - App type: CLI (`OutputType=Exe`) using `System.CommandLine`.
 - Nullable reference types: enabled.
 - Implicit usings: enabled.
@@ -14,7 +15,7 @@ Guidance for agentic coding tools working in `C:\code\roslyn-tools`.
   - `src/RoslynTools/Models`: small model types.
 
 ## Command reference
-**Run `rt dump-help` to view the full command reference** (or `dotnet run --project src/RoslynTools/RoslynTools.csproj -- dump-help` without publishing). For an agent-friendly pre-loaded reference, load the `use-rt` skill. See `CLAUDE.md` → "Command metadata contract" for the workflow when adding or changing a command.
+**Run `rt dump-help` to view the full command reference** (or `dotnet run --project src/RoslynTools.Cli/RoslynTools.Cli.csproj -- dump-help` without publishing). For an agent-friendly pre-loaded reference, load the `use-rt` skill. See `CLAUDE.md` → "Command metadata contract" for the workflow when adding or changing a command.
 
 ## Cursor and Copilot Rules
 No repository-specific rule files were found:
@@ -50,11 +51,11 @@ dotnet build "RoslynTools.slnx" -c Release
 ```
 Build only CLI project:
 ```powershell
-dotnet build "src/RoslynTools/RoslynTools.csproj"
+dotnet build "src/RoslynTools.Cli/RoslynTools.Cli.csproj"
 ```
 Run CLI help locally:
 ```powershell
-dotnet run --project "src/RoslynTools/RoslynTools.csproj" -- --help
+dotnet run --project "src/RoslynTools.Cli/RoslynTools.Cli.csproj" -- --help
 ```
 
 ## Lint and Formatting
