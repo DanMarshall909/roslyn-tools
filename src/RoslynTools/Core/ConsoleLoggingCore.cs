@@ -10,9 +10,11 @@ namespace RoslynTools.Core;
 internal sealed record ConsoleLoggingOptions(
     string LoggerExpression,
     string InformationMethod,
+    string WarningMethod,
     string ErrorMethod,
     ConsoleLoggingStream Stream,
-    IReadOnlyList<string> ExcludePaths);
+    IReadOnlyList<string> ExcludePaths,
+    bool InferLevel);
 
 internal enum ConsoleLoggingStream
 {
@@ -23,6 +25,29 @@ internal enum ConsoleLoggingStream
 
 internal static class ConsoleLoggingCore
 {
+    internal static async Task<ConsoleLoggingReview> AnalyzeAsync(Solution solution, ConsoleLoggingOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        var review = new ConsoleLoggingReview();
+
+        foreach (var project in solution.Projects)
+        {
+            foreach (var document in project.Documents)
+            {
+                var root = await document.GetSyntaxRootAsync();
+                if (root is null || ShouldExclude(document.FilePath, options.ExcludePaths))
+                    continue;
+
+                var analyzer = new ConsoleLoggingAnalyzer(options, document.FilePath ?? document.Name);
+                analyzer.Visit(root);
+                review.AddRange(analyzer.Entries);
+            }
+        }
+
+        return review;
+    }
+
     internal static async Task RunAsync(Solution solution, ConsoleLoggingOptions options, bool dryRun)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -74,13 +99,18 @@ internal static class ConsoleLoggingCore
             if (!ShouldRewriteStream(isError))
                 return visited;
 
-            var methodName = isError ? options.ErrorMethod : options.InformationMethod;
+            var converted = BuildMessage(visited.ArgumentList);
+            var level = options.InferLevel
+                ? InferLevel(converted.Template, isError)
+                : isError ? ConsoleLoggingLevel.Error : ConsoleLoggingLevel.Information;
+            var methodName = GetMethodName(options, level);
+
             var replacement = SyntaxFactory.InvocationExpression(
                 SyntaxFactory.MemberAccessExpression(
                     SyntaxKind.SimpleMemberAccessExpression,
                     SyntaxFactory.ParseExpression(options.LoggerExpression),
                     SyntaxFactory.IdentifierName(methodName)),
-                BuildArgumentList(visited.ArgumentList));
+                BuildArgumentList(converted));
 
             return replacement.WithTriviaFrom(visited);
         }
@@ -93,7 +123,7 @@ internal static class ConsoleLoggingCore
                 _ => true,
             };
 
-        private static bool TryGetConsoleKind(InvocationExpressionSyntax invocation, out bool isError)
+        internal static bool TryGetConsoleKind(InvocationExpressionSyntax invocation, out bool isError)
         {
             isError = false;
 
@@ -140,16 +170,51 @@ internal static class ConsoleLoggingCore
             expression is IdentifierNameSyntax identifier
             && identifier.Identifier.ValueText == "System";
 
-        private static ArgumentListSyntax BuildArgumentList(ArgumentListSyntax original)
+        private static string GetMethodName(ConsoleLoggingOptions options, ConsoleLoggingLevel level) =>
+            level switch
+            {
+                ConsoleLoggingLevel.Warning => options.WarningMethod,
+                ConsoleLoggingLevel.Error => options.ErrorMethod,
+                _ => options.InformationMethod,
+            };
+
+        internal static ConsoleLoggingLevel InferLevel(string template, bool isError)
+        {
+            if (!isError)
+                return ConsoleLoggingLevel.Information;
+
+            var trimmed = template.TrimStart();
+            if (trimmed.StartsWith("warning", StringComparison.OrdinalIgnoreCase)
+                || trimmed.StartsWith("[warning]", StringComparison.OrdinalIgnoreCase))
+            {
+                return ConsoleLoggingLevel.Warning;
+            }
+
+            if (trimmed.StartsWith("error", StringComparison.OrdinalIgnoreCase)
+                || trimmed.StartsWith("[error]", StringComparison.OrdinalIgnoreCase)
+                || trimmed.StartsWith("cannot ", StringComparison.OrdinalIgnoreCase)
+                || trimmed.StartsWith("failed ", StringComparison.OrdinalIgnoreCase)
+                || trimmed.StartsWith("failed:", StringComparison.OrdinalIgnoreCase)
+                || trimmed.StartsWith("fatal", StringComparison.OrdinalIgnoreCase))
+            {
+                return ConsoleLoggingLevel.Error;
+            }
+
+            return ConsoleLoggingLevel.Information;
+        }
+
+        internal static ConvertedMessage BuildMessage(ArgumentListSyntax original)
         {
             if (original.Arguments.Count == 0)
-                return SyntaxFactory.ArgumentList(SyntaxFactory.SingletonSeparatedList(
-                    SyntaxFactory.Argument(StringLiteral(""))));
+                return new ConvertedMessage("", []);
 
             var firstArg = original.Arguments[0];
             var remainingArgs = original.Arguments.Skip(1).ToList();
-            var converted = ConvertMessageExpression(firstArg.Expression, remainingArgs);
+            return ConvertMessageExpression(firstArg.Expression, remainingArgs);
+        }
 
+        private static ArgumentListSyntax BuildArgumentList(ConvertedMessage converted)
+        {
             var args = new List<ArgumentSyntax>
             {
                 SyntaxFactory.Argument(StringLiteral(converted.Template))
@@ -300,10 +365,10 @@ internal static class ConsoleLoggingCore
             var raw = expression switch
             {
                 IdentifierNameSyntax identifier => identifier.Identifier.ValueText,
-                MemberAccessExpressionSyntax memberAccess => memberAccess.Name.Identifier.ValueText,
+                MemberAccessExpressionSyntax memberAccess => CreateMemberAccessPlaceholderName(memberAccess),
                 InvocationExpressionSyntax invocation
                     when invocation.Expression is MemberAccessExpressionSyntax memberAccess
-                    => memberAccess.Name.Identifier.ValueText,
+                    => CreateInvocationPlaceholderName(memberAccess),
                 InvocationExpressionSyntax invocation
                     when invocation.Expression is IdentifierNameSyntax identifier
                     => identifier.Identifier.ValueText,
@@ -327,6 +392,40 @@ internal static class ConsoleLoggingCore
             return builder.ToString();
         }
 
+        private static string CreateMemberAccessPlaceholderName(MemberAccessExpressionSyntax memberAccess)
+        {
+            var memberName = memberAccess.Name.Identifier.ValueText;
+            if (memberName == "Message"
+                && memberAccess.Expression is IdentifierNameSyntax identifier
+                && identifier.Identifier.ValueText is "ex" or "exception")
+            {
+                return "ErrorMessage";
+            }
+
+            return memberName;
+        }
+
+        private static string CreateInvocationPlaceholderName(MemberAccessExpressionSyntax memberAccess)
+        {
+            var methodName = memberAccess.Name.Identifier.ValueText;
+            if (methodName == "ToDisplayString")
+                return "Symbol";
+
+            if (methodName == "GetFileName"
+                && memberAccess.Expression.ToString() == "Path")
+            {
+                return "FileName";
+            }
+
+            if (methodName == "Join"
+                && memberAccess.Expression.ToString() == "string")
+            {
+                return "JoinedValues";
+            }
+
+            return methodName;
+        }
+
         private static string EscapeTemplateText(string text) =>
             text.Replace("{", "{{", StringComparison.Ordinal)
                 .Replace("}", "}}", StringComparison.Ordinal);
@@ -338,4 +437,65 @@ internal static class ConsoleLoggingCore
     }
 
     private readonly record struct ConvertedMessage(string Template, List<ExpressionSyntax> Arguments);
+
+    private sealed class ConsoleLoggingAnalyzer(ConsoleLoggingOptions options, string filePath) : CSharpSyntaxWalker
+    {
+        public List<ConsoleLoggingReviewEntry> Entries { get; } = [];
+
+        public override void VisitInvocationExpression(InvocationExpressionSyntax node)
+        {
+            if (ConsoleLoggingRewriter.TryGetConsoleKind(node, out var isError)
+                && ShouldRewriteStream(isError))
+            {
+                var message = ConsoleLoggingRewriter.BuildMessage(node.ArgumentList);
+                var level = options.InferLevel
+                    ? ConsoleLoggingRewriter.InferLevel(message.Template, isError)
+                    : isError ? ConsoleLoggingLevel.Error : ConsoleLoggingLevel.Information;
+
+                var line = node.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+                Entries.Add(new ConsoleLoggingReviewEntry(
+                    filePath,
+                    line,
+                    isError ? "stderr" : "stdout",
+                    level,
+                    message.Template,
+                    message.Template.Contains("{Value}", StringComparison.Ordinal)));
+            }
+
+            base.VisitInvocationExpression(node);
+        }
+
+        private bool ShouldRewriteStream(bool isError) =>
+            options.Stream switch
+            {
+                ConsoleLoggingStream.Stdout => !isError,
+                ConsoleLoggingStream.Stderr => isError,
+                _ => true,
+            };
+    }
+}
+
+internal enum ConsoleLoggingLevel
+{
+    Information,
+    Warning,
+    Error,
+}
+
+internal sealed record ConsoleLoggingReviewEntry(
+    string FilePath,
+    int Line,
+    string Stream,
+    ConsoleLoggingLevel Level,
+    string Template,
+    bool NeedsReview);
+
+internal sealed class ConsoleLoggingReview
+{
+    private readonly List<ConsoleLoggingReviewEntry> _entries = [];
+
+    internal IReadOnlyList<ConsoleLoggingReviewEntry> Entries => _entries;
+
+    internal void AddRange(IEnumerable<ConsoleLoggingReviewEntry> entries) =>
+        _entries.AddRange(entries);
 }

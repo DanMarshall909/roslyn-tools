@@ -53,9 +53,71 @@ public class ConvertConsoleLoggingTests
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
-        Assert.Contains("_logger.LogError(\"failed: {Message}\"", content);
+        Assert.Contains("_logger.LogError(\"failed: {ErrorMessage}\"", content);
         Assert.Contains("ex.Message", content);
-        Assert.Contains("_logger.LogError(\"retrying\")", content);
+        Assert.Contains("_logger.LogInformation(\"retrying\")", content);
+    }
+
+    [Fact]
+    public async Task Uses_domain_oriented_placeholder_names_for_common_expressions()
+    {
+        using var project = new AdhocProjectBuilder("LogApp");
+        project.AddSource("LogApp.cs", """
+            class App
+            {
+                void Run(Symbol symbol, string path)
+                {
+                    Console.Error.WriteLine($"Found {symbol.ToDisplayString()} in {Path.GetFileName(path)}");
+                }
+            }
+            class Symbol
+            {
+                public string ToDisplayString() => "";
+            }
+            """);
+        var (workspace, solution) = project.Build();
+
+        using (workspace)
+        {
+            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(
+                solution,
+                dryRun: false,
+                stream: "stderr");
+        }
+
+        var content = await project.ReadSourceAsync("LogApp.cs");
+        Assert.Contains("\"Found {Symbol} in {FileName}\"", content);
+    }
+
+    [Fact]
+    public async Task Infers_warning_and_info_levels_for_stderr_calls()
+    {
+        using var project = new AdhocProjectBuilder("LogApp");
+        project.AddSource("LogApp.cs", """
+            class App
+            {
+                void Run()
+                {
+                    Console.Error.WriteLine("Warning: skipped item");
+                    Console.Error.WriteLine("Finding matches...");
+                    Console.Error.WriteLine("Error: failed");
+                }
+            }
+            """);
+        var (workspace, solution) = project.Build();
+
+        using (workspace)
+        {
+            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(
+                solution,
+                dryRun: false,
+                stream: "stderr");
+        }
+
+        var content = await project.ReadSourceAsync("LogApp.cs");
+        Assert.Contains("_logger.LogWarning(\"Warning: skipped item\")", content);
+        Assert.Contains("_logger.LogInformation(\"Finding matches...\")", content);
+        Assert.Contains("_logger.LogError(\"Error: failed\")", content);
     }
 
     [Fact]
@@ -190,7 +252,7 @@ public class ConvertConsoleLoggingTests
 
         var content = await project.ReadSourceAsync("LogApp.cs");
         Assert.Contains("Console.WriteLine(\"payload\")", content);
-        Assert.Contains("_logger.LogError(\"diagnostic\")", content);
+        Assert.Contains("_logger.LogInformation(\"diagnostic\")", content);
     }
 
     [Fact]
@@ -228,7 +290,53 @@ public class ConvertConsoleLoggingTests
 
         var included = await project.ReadSourceAsync("Include.cs");
         var excluded = await project.ReadSourceAsync("Exclude.cs");
-        Assert.Contains("_logger.LogError(\"include\")", included);
+        Assert.Contains("_logger.LogInformation(\"include\")", included);
         Assert.Contains("Console.Error.WriteLine(\"exclude\")", excluded);
+    }
+
+    [Fact]
+    public async Task Review_summarizes_matches_without_modifying_files()
+    {
+        using var project = new AdhocProjectBuilder("LogApp");
+        project.AddSource("LogApp.cs", """
+            class App
+            {
+                void Run(object value)
+                {
+                    Console.WriteLine(value);
+                    Console.Error.WriteLine("Warning: skipped");
+                }
+            }
+            """);
+        var (workspace, solution) = project.Build();
+        var original = await project.ReadSourceAsync("LogApp.cs");
+
+        using var stdout = new StringWriter();
+        var originalOut = Console.Out;
+        Console.SetOut(stdout);
+        try
+        {
+            using (workspace)
+            {
+                await ConvertConsoleLoggingCommand.ExecuteCoreAsync(
+                    solution,
+                    dryRun: false,
+                    stream: "all",
+                    review: true);
+            }
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+
+        var content = await project.ReadSourceAsync("LogApp.cs");
+        Assert.Equal(original, content);
+
+        var output = stdout.ToString();
+        Assert.Contains("console logging review: 2 call site(s)", output);
+        Assert.Contains("stdout: 1", output);
+        Assert.Contains("stderr: 1", output);
+        Assert.Contains("needs-review: 1", output);
     }
 }
