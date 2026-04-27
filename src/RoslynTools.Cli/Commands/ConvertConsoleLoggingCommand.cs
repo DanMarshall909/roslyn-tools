@@ -17,10 +17,10 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
         WhenToUse: "Migrating Console.Write/WriteLine and Console.Error.Write/WriteLine calls to logger calls while preserving messages as structured templates where possible. Use this after the target logger dependency already exists, or pair it with add-dependency.",
         Examples:
         [
-            "rt convert-console-logging --solution C:\\code\\libraries\\ProjectX.Libraries.sln --review",
+            "rt convert-console-logging --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt ccl --inject-logger --solution C:\\code\\app\\App.sln",
-            "rt ccl --logger _logger --solution RoslynTools.slnx",
-            "rt convert-console-logging --stream all --logger _log --information-method Info --warning-method Warn --error-method Error --solution C:\\code\\app\\App.sln",
+            "rt ccl --inject-logger --apply --solution C:\\code\\app\\App.sln",
+            "rt convert-console-logging --stream all --logger _log --information-method Info --warning-method Warn --error-method Error --dry-run --solution C:\\code\\app\\App.sln",
         ],
         KnownIssues:
         [
@@ -43,14 +43,15 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
             AllowMultipleArgumentsPerToken = true,
         };
         var noInferLevelOpt = new Option<bool>("--no-infer-level", "Disable warning/info/error inference and map stderr to the error method");
-        var reviewOpt = new Option<bool>("--review", "Summarize matching call sites without writing files or printing a full diff");
+        var applyOpt = new Option<bool>("--apply", "Write changes to disk. Without this, the command prints a review summary.");
+        var reviewOpt = new Option<bool>("--review", "Summarize matching call sites without writing files or printing a full diff. This is the default mode.");
         var injectLoggerOpt = new Option<bool>("--inject-logger", "Inject the logger dependency into each containing class before rewriting call sites");
         var loggerDependencyOpt = new Option<string>("--logger-dependency", () => "ILogger<{TypeName}>", "Logger dependency type template; supports {TypeName} and {TypeFullName}");
         var loggerFieldOpt = new Option<string>("--logger-field", () => "_logger", "Logger field name passed to add-dependency");
 
         var cmd = new Command("convert-console-logging", "Convert Console.Write/WriteLine calls to logger calls");
         cmd.AddAlias("ccl");
-        cmd.AddAll(solutionOpt, dryRunOpt, loggerOpt, informationMethodOpt, warningMethodOpt, errorMethodOpt, streamOpt, excludeOpt, noInferLevelOpt, reviewOpt, injectLoggerOpt, loggerDependencyOpt, loggerFieldOpt);
+        cmd.AddAll(solutionOpt, dryRunOpt, loggerOpt, informationMethodOpt, warningMethodOpt, errorMethodOpt, streamOpt, excludeOpt, noInferLevelOpt, applyOpt, reviewOpt, injectLoggerOpt, loggerDependencyOpt, loggerFieldOpt);
 
         cmd.SetHandler(async context =>
         {
@@ -64,6 +65,7 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
                 context.ParseResult.GetValueForOption(streamOpt)!,
                 context.ParseResult.GetValueForOption(excludeOpt) ?? [],
                 !context.ParseResult.GetValueForOption(noInferLevelOpt),
+                context.ParseResult.GetValueForOption(applyOpt),
                 context.ParseResult.GetValueForOption(reviewOpt),
                 context.ParseResult.GetValueForOption(injectLoggerOpt),
                 context.ParseResult.GetValueForOption(loggerDependencyOpt)!,
@@ -83,6 +85,7 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
         string stream,
         string[] excludePaths,
         bool inferLevel,
+        bool apply,
         bool review,
         bool injectLogger,
         string loggerDependency,
@@ -91,7 +94,7 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
         var (workspace, solution) = await WorkspaceLoader.LoadAsync(solutionPath);
         using (workspace)
         {
-            await ExecuteCoreAsync(solution, dryRun, loggerExpression, informationMethod, warningMethod, errorMethod, stream, excludePaths, inferLevel, review, injectLogger, loggerDependency, loggerField);
+            await ExecuteCoreAsync(solution, dryRun, loggerExpression, informationMethod, warningMethod, errorMethod, stream, excludePaths, inferLevel, apply, review, injectLogger, loggerDependency, loggerField);
         }
     }
 
@@ -105,6 +108,7 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
         string stream = "all",
         string[]? excludePaths = null,
         bool inferLevel = true,
+        bool apply = false,
         bool review = false,
         bool injectLogger = false,
         string loggerDependency = "ILogger<{TypeName}>",
@@ -119,7 +123,7 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
                 excludePaths ?? [],
                 inferLevel);
 
-        if (review)
+        if (review || (!apply && !dryRun))
             return ReviewAsync(solution, options, injectLogger, loggerDependency);
 
         if (injectLogger)

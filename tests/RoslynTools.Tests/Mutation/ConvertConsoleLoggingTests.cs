@@ -22,7 +22,7 @@ public class ConvertConsoleLoggingTests
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, dryRun: false);
+            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, dryRun: false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -49,7 +49,7 @@ public class ConvertConsoleLoggingTests
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, dryRun: false);
+            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, dryRun: false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -82,7 +82,8 @@ public class ConvertConsoleLoggingTests
             await ConvertConsoleLoggingCommand.ExecuteCoreAsync(
                 solution,
                 dryRun: false,
-                stream: "stderr");
+                stream: "stderr",
+                apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -111,7 +112,8 @@ public class ConvertConsoleLoggingTests
             await ConvertConsoleLoggingCommand.ExecuteCoreAsync(
                 solution,
                 dryRun: false,
-                stream: "stderr");
+                stream: "stderr",
+                apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -137,7 +139,7 @@ public class ConvertConsoleLoggingTests
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, dryRun: false);
+            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, dryRun: false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -163,7 +165,7 @@ public class ConvertConsoleLoggingTests
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, dryRun: false);
+            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, dryRun: false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -194,7 +196,8 @@ public class ConvertConsoleLoggingTests
                 dryRun: false,
                 loggerExpression: "_log",
                 informationMethod: "Info",
-                errorMethod: "Error");
+                errorMethod: "Error",
+                apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -227,6 +230,45 @@ public class ConvertConsoleLoggingTests
     }
 
     [Fact]
+    public async Task Default_mode_reviews_without_modifying_files()
+    {
+        using var project = new AdhocProjectBuilder("LogApp");
+        project.AddSource("LogApp.cs", """
+            class App
+            {
+                void Run()
+                {
+                    Console.Error.WriteLine("Starting");
+                }
+            }
+            """);
+        var (workspace, solution) = project.Build();
+        var original = await project.ReadSourceAsync("LogApp.cs");
+
+        using var stdout = new StringWriter();
+        var originalOut = Console.Out;
+        Console.SetOut(stdout);
+        try
+        {
+            using (workspace)
+            {
+                await ConvertConsoleLoggingCommand.ExecuteCoreAsync(
+                    solution,
+                    dryRun: false,
+                    stream: "stderr");
+            }
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+
+        var content = await project.ReadSourceAsync("LogApp.cs");
+        Assert.Equal(original, content);
+        Assert.Contains("console logging review: 1 call site(s)", stdout.ToString());
+    }
+
+    [Fact]
     public async Task Can_rewrite_only_stderr_calls()
     {
         using var project = new AdhocProjectBuilder("LogApp");
@@ -247,7 +289,8 @@ public class ConvertConsoleLoggingTests
             await ConvertConsoleLoggingCommand.ExecuteCoreAsync(
                 solution,
                 dryRun: false,
-                stream: "stderr");
+                stream: "stderr",
+                apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -285,7 +328,8 @@ public class ConvertConsoleLoggingTests
                 solution,
                 dryRun: false,
                 stream: "stderr",
-                excludePaths: ["Exclude.cs"]);
+                excludePaths: ["Exclude.cs"],
+                apply: true);
         }
 
         var included = await project.ReadSourceAsync("Include.cs");
@@ -373,6 +417,7 @@ public class ConvertConsoleLoggingTests
                 solution,
                 dryRun: false,
                 stream: "stderr",
+                apply: true,
                 injectLogger: true);
         }
 
