@@ -52,9 +52,9 @@ internal sealed class DecisionStore
             entries.Add(entry);
     }
 
-    public bool AnyPending => entries.Any(e => e.Choose is null);
-
     public int PendingCount => entries.Count(e => e.Choose is null);
+
+    public bool AnyPending => PendingCount > 0;
 
     public void Save(string path)
     {
