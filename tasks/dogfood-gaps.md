@@ -20,6 +20,7 @@
 ## dependency-graph gap (2026-04-18)
 
 - Graph edges only track fields, method params/returns, base types, and interfaces — misses local variable usages inside method bodies. Command classes (static, no fields) appear as isolated nodes even when they use WorkspaceLoader/SolutionWriter internally. Fix: add body-level IdentifierNameSyntax walk to find local variable type references.
+  - **FIXED 2026-04-27**: `DependencyGraphCore` now collects body-level dependencies via `CollectBodyDependenciesAsync` — walks `BaseMethodDeclarationSyntax` bodies/expression-bodies and resolves both `SimpleNameSyntax` references and `BaseObjectCreationExpressionSyntax` types via `SemanticModel`. Added `Returns_local_variable_dependencies` regression test.
 
 ## extract-method --replace-duplicates known issues (US-016, 2026-04-19)
 
@@ -33,7 +34,9 @@
 ## inline-method known issues (US-002, 2026-04-17)
 
 - Method removal after inlining scopes by identifier text only — will remove wrong method if same name appears in different class in same file. Fix: scope to containing TypeDeclarationSyntax by type name + param count.
+  - **FIXED 2026-04-27**: `InlineMethodService.TransformDocument` now stamps the rewritten target declaration with a `SyntaxAnnotation` and resolves it back via `GetAnnotatedNodes` for removal — eliminates name-based collision entirely. Added `Removes_only_the_method_in_the_target_type_when_name_collides` regression test.
 - ParameterSubstitutor does not parenthesize substituted arguments — `Double(a+b)` inlines as `a+b*2` not `(a+b)*2`. Fix: wrap non-trivial argument expressions in ParenthesizedExpressionSyntax.
+  - **FIXED 2026-04-27**: `ParameterSubstitutor.VisitIdentifierName` now wraps replacement expressions in `ParenthesizedExpressionSyntax` when the substitution is a binary/conditional/assignment/unary/cast/`is`-pattern/`await`/lambda/range expression. Added `Parenthesises_compound_arguments_to_preserve_precedence` regression test.
 - 2026-04-18: outline TourStore.Auth namespace with --solution flag — System.ArgumentNullException at BuildHostProcessManager.CreateDotNetCoreBuildHostStartInfo; rt needs DOTNET_SDK or MSBuild path set when invoked outside solution directory context
   - **FIXED 2026-04-18**: root cause was single-file publish. Roslyn's BuildHostProcessManager uses `typeof(...).Assembly.Location` which is empty for bundled managed assemblies, so `Path.Combine(null, "BuildHost-netcore", ...)` threw. Added `<IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>` to the publish PropertyGroup — restores Assembly.Location by extracting bundled content to a temp dir on startup. Verified via `cmd //c rt.cmd inspect/list-smells --solution ...`.
 - 2026-04-19: rt find-duplicates --solution RoslynTools.slnx — MSBuildWorkspace does not support .slnx format; fixed with transparent .sln sibling fallback in WorkspaceLoader

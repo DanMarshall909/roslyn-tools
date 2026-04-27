@@ -101,6 +101,8 @@ internal static class InlineMethodService
         foreach (var inv in callInvocations) nodesToReplace.Add(inv);
         if (targetDecl != null) nodesToReplace.Add(targetDecl);
 
+        var targetAnnotation = new SyntaxAnnotation("inline-method-target");
+
         var result = root.ReplaceNodes(nodesToReplace, (original, rewritten) =>
         {
             if (original is InvocationExpressionSyntax invOrig &&
@@ -118,17 +120,16 @@ internal static class InlineMethodService
             }
 
             if (targetDecl != null && ReferenceEquals(original, targetDecl))
-                return rewritten;
+                return rewritten.WithAdditionalAnnotations(targetAnnotation);
 
             return rewritten;
         });
 
         if (targetDecl != null)
         {
-            var declNode = result
-                .DescendantNodes()
+            var declNode = result.GetAnnotatedNodes(targetAnnotation)
                 .OfType<MethodDeclarationSyntax>()
-                .FirstOrDefault(m => m.Identifier.Text == methodSymbol.Name);
+                .FirstOrDefault();
 
             if (declNode != null)
                 result = result.RemoveNode(declNode, SyntaxRemoveOptions.KeepNoTrivia)!;
@@ -180,8 +181,25 @@ internal static class InlineMethodService
         public override SyntaxNode? VisitIdentifierName(IdentifierNameSyntax node)
         {
             if (_substitution.TryGetValue(node.Identifier.Text, out var replacement))
-                return replacement.WithTriviaFrom(node);
+            {
+                var safe = NeedsParens(replacement)
+                    ? SyntaxFactory.ParenthesizedExpression(replacement.WithoutTrivia())
+                    : replacement;
+                return safe.WithTriviaFrom(node);
+            }
             return base.VisitIdentifierName(node);
         }
+
+        private static bool NeedsParens(ExpressionSyntax expr) => expr is
+            BinaryExpressionSyntax or
+            ConditionalExpressionSyntax or
+            AssignmentExpressionSyntax or
+            PrefixUnaryExpressionSyntax or
+            PostfixUnaryExpressionSyntax or
+            CastExpressionSyntax or
+            IsPatternExpressionSyntax or
+            AwaitExpressionSyntax or
+            LambdaExpressionSyntax or
+            RangeExpressionSyntax;
     }
 }

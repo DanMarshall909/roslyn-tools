@@ -19,11 +19,6 @@ internal sealed class InlineMethodCommand : IRtCommand
         [
             "rt inline-method --type MathHelper --method Double --solution RoslynTools.slnx",
             "rt im --type OrderService --method GetTotal --dry-run --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-        ],
-        KnownIssues:
-        [
-            "Method removal after inlining matches by identifier text only — removes the wrong method when the same name exists in a different class in the same file. Fix: scope to containing TypeDeclarationSyntax by type name and parameter count. See ai-improvements row #8.",
-            "ParameterSubstitutor does not parenthesise substituted arguments — `Double(a+b)` inlines as `a+b*2` instead of `(a+b)*2`. Fix: wrap non-trivial argument expressions in ParenthesizedExpressionSyntax. See ai-improvements row #9.",
         ]
     );
 

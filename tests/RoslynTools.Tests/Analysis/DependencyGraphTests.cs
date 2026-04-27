@@ -120,4 +120,32 @@ public class DependencyGraphTests
             Assert.DoesNotContain("C", nodes);
         }
     }
+
+    // Bug: tasks/dogfood-gaps.md:22 — graph edges miss local-variable type uses
+    [Fact]
+    public async Task Returns_local_variable_dependencies()
+    {
+        using var proj = new AdhocProjectBuilder("GraphApp");
+        proj.AddSource("Types.cs", """
+            class A
+            {
+                void Use() { var b = new B(); b.Ping(); }
+            }
+            class B { public void Ping() { } }
+            """);
+        var (workspace, sln) = proj.Build();
+        using (workspace)
+        {
+            var json = await DependencyGraphCommand.BuildGraphAsync(
+                sln, typeName: null, depth: null, format: "json", scope: null);
+
+            using var doc = JsonDocument.Parse(json);
+            var edges = doc.RootElement.GetProperty("edges").EnumerateArray()
+                .Select(e => (From: e.GetProperty("from").GetString()!,
+                              To: e.GetProperty("to").GetString()!))
+                .ToList();
+
+            Assert.Contains(edges, e => e.From == "A" && e.To == "B");
+        }
+    }
 }

@@ -6,7 +6,7 @@
 
   // dotnet.unitTests extension (formulahendry.dotnet-test-explorer), if installed.
   "dotnet-test-explorer.testProjectPath": "tests/RoslynTools.Tests/RoslynTools.Tests.csproj",
-  "dotnet-test-explorer.autoWatch": false,
+  "dotnet-test-explorer.autoWatch": true,
   "dotnet-test-explorer.showCodeLens": true,
 
   // Keep file-watcher noise low — the TestOutput dir churns during test runs.

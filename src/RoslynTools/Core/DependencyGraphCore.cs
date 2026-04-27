@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace RoslynTools.Core;
 
@@ -19,6 +20,7 @@ internal static class DependencyGraphCore
         var allTypes = await CollectSourceTypesAsync(sln);
 
         var sourceTypeByName = BuildSourceTypeIndex(allTypes);
+        var bodyDeps = await CollectBodyDependenciesAsync(sln, allTypes);
 
         IEnumerable<INamedTypeSymbol> typesToGraph = allTypes;
         if (scope != null)
@@ -35,12 +37,12 @@ internal static class DependencyGraphCore
                     ? "digraph { }"
                     : JsonSerializer.Serialize(new { nodes = Array.Empty<string>(), edges = Array.Empty<object>() }, SymbolFormatter.DefaultJsonOptions);
 
-            var (nodes, edges) = BuildBfsGraph(root, depth, allTypes, sourceTypeByName);
+            var (nodes, edges) = BuildBfsGraph(root, depth, allTypes, sourceTypeByName, bodyDeps);
             return SerializeGraph(nodes, edges, format);
         }
         else
         {
-            var (nodes, edges) = BuildFullGraph(typesToGraph, allTypes, sourceTypeByName);
+            var (nodes, edges) = BuildFullGraph(typesToGraph, allTypes, sourceTypeByName, bodyDeps);
             return SerializeGraph(nodes, edges, format);
         }
     }
@@ -92,7 +94,8 @@ internal static class DependencyGraphCore
     private static (HashSet<string> Nodes, List<(string From, string To)> Edges) BuildFullGraph(
         IEnumerable<INamedTypeSymbol> typesToGraph,
         List<INamedTypeSymbol> allTypes,
-        Dictionary<string, INamedTypeSymbol> sourceTypeByName)
+        Dictionary<string, INamedTypeSymbol> sourceTypeByName,
+        Dictionary<INamedTypeSymbol, List<INamedTypeSymbol>> bodyDeps)
     {
         var nodes = new HashSet<string>(StringComparer.Ordinal);
         var edgeSet = new HashSet<(string, string)>();
@@ -103,7 +106,7 @@ internal static class DependencyGraphCore
             var fromName = GetDisplayName(type);
             nodes.Add(fromName);
 
-            foreach (var dep in GetDependencies(type))
+            foreach (var dep in GetDependencies(type, bodyDeps))
             {
                 if (!IsSourceType(dep, sourceTypeByName))
                     continue;
@@ -124,7 +127,8 @@ internal static class DependencyGraphCore
         INamedTypeSymbol rootType,
         int? maxDepth,
         List<INamedTypeSymbol> allTypes,
-        Dictionary<string, INamedTypeSymbol> sourceTypeByName)
+        Dictionary<string, INamedTypeSymbol> sourceTypeByName,
+        Dictionary<INamedTypeSymbol, List<INamedTypeSymbol>> bodyDeps)
     {
         var nodes = new HashSet<string>(StringComparer.Ordinal);
         var edgeSet = new HashSet<(string, string)>();
@@ -143,7 +147,7 @@ internal static class DependencyGraphCore
             if (maxDepth.HasValue && currentDepth >= maxDepth.Value)
                 continue;
 
-            ExpandBfsNode(current, currentDepth, sourceTypeByName, nodes, edgeSet, edges, visited, queue);
+            ExpandBfsNode(current, currentDepth, sourceTypeByName, bodyDeps, nodes, edgeSet, edges, visited, queue);
         }
 
         return (nodes, edges);
@@ -153,6 +157,7 @@ internal static class DependencyGraphCore
         INamedTypeSymbol current,
         int currentDepth,
         Dictionary<string, INamedTypeSymbol> sourceTypeByName,
+        Dictionary<INamedTypeSymbol, List<INamedTypeSymbol>> bodyDeps,
         HashSet<string> nodes,
         HashSet<(string, string)> edgeSet,
         List<(string From, string To)> edges,
@@ -160,7 +165,7 @@ internal static class DependencyGraphCore
         Queue<(INamedTypeSymbol Type, int Depth)> queue)
     {
         var fromName = GetDisplayName(current);
-        foreach (var dep in GetDependencies(current))
+        foreach (var dep in GetDependencies(current, bodyDeps))
         {
             if (!IsSourceType(dep, sourceTypeByName))
                 continue;
@@ -177,7 +182,9 @@ internal static class DependencyGraphCore
         }
     }
 
-    private static IEnumerable<INamedTypeSymbol> GetDependencies(INamedTypeSymbol type)
+    private static IEnumerable<INamedTypeSymbol> GetDependencies(
+        INamedTypeSymbol type,
+        Dictionary<INamedTypeSymbol, List<INamedTypeSymbol>> bodyDeps)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
 
@@ -192,6 +199,71 @@ internal static class DependencyGraphCore
         foreach (var dep in GetMethodDependencies(type))
             if (seen.Add(dep.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
                 yield return dep;
+
+        if (bodyDeps.TryGetValue(type, out var locals))
+        {
+            foreach (var dep in locals)
+                if (seen.Add(dep.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
+                    yield return dep;
+        }
+    }
+
+    private static async Task<Dictionary<INamedTypeSymbol, List<INamedTypeSymbol>>> CollectBodyDependenciesAsync(
+        Solution sln,
+        List<INamedTypeSymbol> sourceTypes)
+    {
+        var result = new Dictionary<INamedTypeSymbol, List<INamedTypeSymbol>>(SymbolEqualityComparer.Default);
+
+        foreach (var type in sourceTypes)
+        {
+            var deps = new List<INamedTypeSymbol>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+
+            foreach (var method in type.GetMembers().OfType<IMethodSymbol>())
+            {
+                foreach (var syntaxRef in method.DeclaringSyntaxReferences)
+                {
+                    var node = await syntaxRef.GetSyntaxAsync();
+                    if (node is not BaseMethodDeclarationSyntax decl)
+                        continue;
+
+                    SyntaxNode? body = decl.Body ?? (SyntaxNode?)decl.ExpressionBody;
+                    if (body == null)
+                        continue;
+
+                    var doc = sln.GetDocument(node.SyntaxTree);
+                    if (doc == null)
+                        continue;
+                    var model = await doc.GetSemanticModelAsync();
+                    if (model == null)
+                        continue;
+
+                    foreach (var name in body.DescendantNodes().OfType<SimpleNameSyntax>())
+                    {
+                        if (model.GetSymbolInfo(name).Symbol is INamedTypeSymbol named &&
+                            ExtractNamedType(named) is { } resolved &&
+                            seen.Add(resolved.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
+                        {
+                            deps.Add(resolved);
+                        }
+                    }
+
+                    foreach (var oce in body.DescendantNodes().OfType<BaseObjectCreationExpressionSyntax>())
+                    {
+                        if (ExtractNamedType(model.GetTypeInfo(oce).Type) is { } resolved &&
+                            seen.Add(resolved.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
+                        {
+                            deps.Add(resolved);
+                        }
+                    }
+                }
+            }
+
+            if (deps.Count > 0)
+                result[type] = deps;
+        }
+
+        return result;
     }
 
     private static IEnumerable<INamedTypeSymbol> GetInheritanceDependencies(INamedTypeSymbol type)

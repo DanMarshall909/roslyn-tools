@@ -179,4 +179,66 @@ public class InlineMethodTests
         var afterContent = await project.ReadSourceAsync("MathHelper.cs");
         Assert.Equal(originalContent, afterContent);
     }
+
+    // Bug: tasks/dogfood-gaps.md:35 — method removal matches by identifier text only.
+    // Order matters: OtherHelper is declared first so a name-only search hits it before MathHelper.
+    [Fact]
+    public async Task Removes_only_the_method_in_the_target_type_when_name_collides()
+    {
+        using var project = new AdhocProjectBuilder("MathApp");
+        project.AddSource("MathHelper.cs", """
+            namespace MathApp;
+
+            public class OtherHelper
+            {
+                public int Double(int x) => x + x;
+            }
+
+            public class MathHelper
+            {
+                public static int Double(int x) => x * 2;
+            }
+
+            public class Calc
+            {
+                void Run() { var a = MathHelper.Double(5); }
+            }
+            """);
+        var (workspace, sln) = project.Build();
+
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await InlineMethodCommand.ExecuteAsync("MathHelper", "Double", "ignored", dryRun: false);
+
+        var content = await project.ReadSourceAsync("MathHelper.cs");
+        Assert.DoesNotContain("public static int Double", content);
+        Assert.Contains("public int Double(int x) => x + x;", content);
+    }
+
+    // Bug: tasks/dogfood-gaps.md:36 — substituted compound args not parenthesised.
+    // Without parens "3 + 4 * 2" = 11 (wrong precedence). With parens "(3 + 4) * 2" = 14.
+    [Fact]
+    public async Task Parenthesises_compound_arguments_to_preserve_precedence()
+    {
+        using var project = new AdhocProjectBuilder("MathApp");
+        project.AddSource("MathHelper.cs", """
+            namespace MathApp;
+
+            public class MathHelper
+            {
+                public static int Double(int x) => x * 2;
+            }
+
+            public class Calc
+            {
+                int Run() => MathHelper.Double(3 + 4);
+            }
+            """);
+        var (workspace, sln) = project.Build();
+
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await InlineMethodCommand.ExecuteAsync("MathHelper", "Double", "ignored", dryRun: false);
+
+        var content = await project.ReadSourceAsync("MathHelper.cs");
+        Assert.Contains("(3 + 4) * 2", content);
+    }
 }
