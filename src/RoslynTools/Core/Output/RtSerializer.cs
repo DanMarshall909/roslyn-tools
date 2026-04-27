@@ -6,7 +6,7 @@ internal static class RtSerializer
 {
     internal static void Write(IRtOutput result, TextWriter? writer = null)
     {
-        var target = writer ?? Console.Out;
+        var target = writer ?? RtConsole.Out;
 
         switch (RtContext.Format)
         {
