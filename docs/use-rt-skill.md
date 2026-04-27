@@ -9,7 +9,7 @@ user-invocable: true
 `rt` is a Roslyn-powered C# refactoring CLI. Run from `C:\code\roslyn-tools\` using `rt.cmd`.
 
 > **Before using rt.cmd**: the wrapper runs the published binary — publish first if recently changed:
-> `dotnet publish src/RoslynTools/RoslynTools.csproj -c Release -r win-x64 --self-contained false`
+> `dotnet publish src/RoslynTools.Cli/RoslynTools.Cli.csproj -c Release -r win-x64 --self-contained false`
 
 ## Solution paths
 

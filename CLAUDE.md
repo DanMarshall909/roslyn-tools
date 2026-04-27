@@ -17,7 +17,7 @@ This applies to work in *any* repo under `C:\code\`. The whole point of this too
 ```powershell
 dotnet build "RoslynTools.slnx"                                          # build
 dotnet build "RoslynTools.slnx" -c Release                               # release build
-dotnet run --project "src/RoslynTools/RoslynTools.csproj" -- --help       # run with args
+dotnet run --project "src/RoslynTools.Cli/RoslynTools.Cli.csproj" -- --help # run with args
 dotnet format "RoslynTools.slnx" --verify-no-changes                     # check formatting
 dotnet format "RoslynTools.slnx"                                         # fix formatting
 ```
@@ -25,7 +25,7 @@ dotnet format "RoslynTools.slnx"                                         # fix f
 Wrapper scripts `rt.cmd` / `rt.ps1` run the built executable directly. **Always publish before using `rt.cmd`** — it runs the published binary, not the build output:
 
 ```powershell
-dotnet publish src/RoslynTools/RoslynTools.csproj -c Release -r win-x64 --self-contained false
+dotnet publish src/RoslynTools.Cli/RoslynTools.Cli.csproj -c Release -r win-x64 --self-contained false
 ```
 
 ```powershell
@@ -94,7 +94,7 @@ rt find-refs --symbol BookingsService --solution "C:\code\libraries\ProjectX.Lib
 ```powershell
 rt dump-help
 # or without publishing:
-dotnet run --project src/RoslynTools/RoslynTools.csproj -- dump-help
+dotnet run --project src/RoslynTools.Cli/RoslynTools.Cli.csproj -- dump-help
 ```
 The build also writes this output to `docs/COMMANDS.md` locally (gitignored) as a convenience — do not commit it. For an agent-friendly pre-loaded reference, load the `use-rt` skill.
 
@@ -112,7 +112,7 @@ When you:
 
 After any change:
 
-1. `dotnet build src/RoslynTools/RoslynTools.csproj` — this regenerates the local `docs/COMMANDS.md`.
+1. `dotnet build src/RoslynTools.Cli/RoslynTools.Cli.csproj` — this regenerates the local `docs/COMMANDS.md`.
 2. Run `rt dump-help` — verify the output matches your intent.
 3. Commit the source change only (`docs/COMMANDS.md` is gitignored).
 
