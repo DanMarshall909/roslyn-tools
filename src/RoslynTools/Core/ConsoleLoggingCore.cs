@@ -1,0 +1,287 @@
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Globalization;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+
+namespace RoslynTools.Core;
+
+internal sealed record ConsoleLoggingOptions(
+    string LoggerExpression,
+    string InformationMethod,
+    string ErrorMethod);
+
+internal static class ConsoleLoggingCore
+{
+    internal static async Task RunAsync(Solution solution, ConsoleLoggingOptions options, bool dryRun)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        var originalSolution = solution;
+
+        foreach (var project in solution.Projects)
+        {
+            foreach (var document in project.Documents)
+            {
+                var root = await document.GetSyntaxRootAsync();
+                if (root is null)
+                    continue;
+
+                var rewriter = new ConsoleLoggingRewriter(options);
+                var newRoot = rewriter.Visit(root);
+                if (newRoot is not null && !ReferenceEquals(root, newRoot))
+                    solution = solution.WithDocumentSyntaxRoot(document.Id, newRoot);
+            }
+        }
+
+        await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
+    }
+
+    private sealed class ConsoleLoggingRewriter(ConsoleLoggingOptions options) : CSharpSyntaxRewriter
+    {
+        public override SyntaxNode? VisitInvocationExpression(InvocationExpressionSyntax node)
+        {
+            var visited = (InvocationExpressionSyntax)base.VisitInvocationExpression(node)!;
+
+            if (!TryGetConsoleKind(visited, out var isError))
+                return visited;
+
+            var methodName = isError ? options.ErrorMethod : options.InformationMethod;
+            var replacement = SyntaxFactory.InvocationExpression(
+                SyntaxFactory.MemberAccessExpression(
+                    SyntaxKind.SimpleMemberAccessExpression,
+                    SyntaxFactory.ParseExpression(options.LoggerExpression),
+                    SyntaxFactory.IdentifierName(methodName)),
+                BuildArgumentList(visited.ArgumentList));
+
+            return replacement.WithTriviaFrom(visited);
+        }
+
+        private static bool TryGetConsoleKind(InvocationExpressionSyntax invocation, out bool isError)
+        {
+            isError = false;
+
+            if (invocation.Expression is not MemberAccessExpressionSyntax methodAccess)
+                return false;
+
+            var methodName = methodAccess.Name.Identifier.ValueText;
+            if (methodName is not ("WriteLine" or "Write"))
+                return false;
+
+            return TryGetConsoleTarget(methodAccess.Expression, out isError);
+        }
+
+        private static bool TryGetConsoleTarget(ExpressionSyntax expression, out bool isError)
+        {
+            isError = false;
+
+            if (expression is IdentifierNameSyntax identifier
+                && identifier.Identifier.ValueText == "Console")
+            {
+                return true;
+            }
+
+            if (expression is MemberAccessExpressionSyntax memberAccess)
+            {
+                if (memberAccess.Name.Identifier.ValueText == "Error"
+                    && TryGetConsoleTarget(memberAccess.Expression, out _))
+                {
+                    isError = true;
+                    return true;
+                }
+
+                if (memberAccess.Name.Identifier.ValueText == "Console"
+                    && IsSystemExpression(memberAccess.Expression))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool IsSystemExpression(ExpressionSyntax expression) =>
+            expression is IdentifierNameSyntax identifier
+            && identifier.Identifier.ValueText == "System";
+
+        private static ArgumentListSyntax BuildArgumentList(ArgumentListSyntax original)
+        {
+            if (original.Arguments.Count == 0)
+                return SyntaxFactory.ArgumentList(SyntaxFactory.SingletonSeparatedList(
+                    SyntaxFactory.Argument(StringLiteral(""))));
+
+            var firstArg = original.Arguments[0];
+            var remainingArgs = original.Arguments.Skip(1).ToList();
+            var converted = ConvertMessageExpression(firstArg.Expression, remainingArgs);
+
+            var args = new List<ArgumentSyntax>
+            {
+                SyntaxFactory.Argument(StringLiteral(converted.Template))
+                    .WithTriviaFrom(firstArg)
+            };
+
+            args.AddRange(converted.Arguments.Select(SyntaxFactory.Argument));
+            return SyntaxFactory.ArgumentList(SyntaxFactory.SeparatedList(args));
+        }
+
+        private static ConvertedMessage ConvertMessageExpression(
+            ExpressionSyntax expression,
+            IReadOnlyList<ArgumentSyntax> remainingArgs)
+        {
+            if (expression is InterpolatedStringExpressionSyntax interpolated)
+                return ConvertInterpolatedString(interpolated);
+
+            if (TryConvertConcatenation(expression, out var concatenated))
+                return concatenated;
+
+            if (expression is LiteralExpressionSyntax literal
+                && literal.IsKind(SyntaxKind.StringLiteralExpression))
+            {
+                var template = literal.Token.ValueText;
+                var args = remainingArgs.Select(a => a.Expression).ToList();
+                if (args.Count > 0)
+                    template = ConvertCompositeFormat(template, args);
+
+                return new ConvertedMessage(template, args);
+            }
+
+            return new ConvertedMessage("{Value}", [expression.WithoutTrivia()]);
+        }
+
+        private static ConvertedMessage ConvertInterpolatedString(InterpolatedStringExpressionSyntax interpolated)
+        {
+            var template = new StringBuilder();
+            var args = new List<ExpressionSyntax>();
+
+            foreach (var content in interpolated.Contents)
+            {
+                if (content is InterpolatedStringTextSyntax text)
+                {
+                    template.Append(EscapeTemplateText(text.TextToken.ValueText));
+                    continue;
+                }
+
+                if (content is InterpolationSyntax interpolation)
+                {
+                    var name = CreatePlaceholderName(interpolation.Expression, args.Count);
+                    template.Append('{').Append(name);
+                    if (interpolation.FormatClause is not null)
+                        template.Append(':').Append(interpolation.FormatClause.FormatStringToken.ValueText);
+                    template.Append('}');
+                    args.Add(interpolation.Expression.WithoutTrivia());
+                }
+            }
+
+            return new ConvertedMessage(template.ToString(), args);
+        }
+
+        private static bool TryConvertConcatenation(ExpressionSyntax expression, out ConvertedMessage converted)
+        {
+            var parts = new List<ExpressionSyntax>();
+            FlattenAdditions(expression, parts);
+
+            if (parts.Count <= 1 || !parts.Any(IsStringLiteral))
+            {
+                converted = default;
+                return false;
+            }
+
+            var template = new StringBuilder();
+            var args = new List<ExpressionSyntax>();
+
+            foreach (var part in parts)
+            {
+                if (part is LiteralExpressionSyntax literal
+                    && literal.IsKind(SyntaxKind.StringLiteralExpression))
+                {
+                    template.Append(EscapeTemplateText(literal.Token.ValueText));
+                    continue;
+                }
+
+                var name = CreatePlaceholderName(part, args.Count);
+                template.Append('{').Append(name).Append('}');
+                args.Add(part.WithoutTrivia());
+            }
+
+            converted = new ConvertedMessage(template.ToString(), args);
+            return true;
+        }
+
+        private static void FlattenAdditions(ExpressionSyntax expression, List<ExpressionSyntax> parts)
+        {
+            if (expression is BinaryExpressionSyntax binary
+                && binary.IsKind(SyntaxKind.AddExpression))
+            {
+                FlattenAdditions(binary.Left, parts);
+                FlattenAdditions(binary.Right, parts);
+                return;
+            }
+
+            parts.Add(expression);
+        }
+
+        private static bool IsStringLiteral(ExpressionSyntax expression) =>
+            expression is LiteralExpressionSyntax literal
+            && literal.IsKind(SyntaxKind.StringLiteralExpression);
+
+        private static string ConvertCompositeFormat(string template, List<ExpressionSyntax> args)
+        {
+            return Regex.Replace(
+                template,
+                @"\{(?<index>\d+)(?<format>:[^{}]+)?\}",
+                match =>
+                {
+                    var index = int.Parse(match.Groups["index"].Value, CultureInfo.InvariantCulture);
+                    if (index < 0 || index >= args.Count)
+                        return match.Value;
+
+                    var name = CreatePlaceholderName(args[index], index);
+                    return "{" + name + match.Groups["format"].Value + "}";
+                });
+        }
+
+        private static string CreatePlaceholderName(ExpressionSyntax expression, int index)
+        {
+            var raw = expression switch
+            {
+                IdentifierNameSyntax identifier => identifier.Identifier.ValueText,
+                MemberAccessExpressionSyntax memberAccess => memberAccess.Name.Identifier.ValueText,
+                InvocationExpressionSyntax invocation
+                    when invocation.Expression is MemberAccessExpressionSyntax memberAccess
+                    => memberAccess.Name.Identifier.ValueText,
+                InvocationExpressionSyntax invocation
+                    when invocation.Expression is IdentifierNameSyntax identifier
+                    => identifier.Identifier.ValueText,
+                _ => $"Value{index + 1}"
+            };
+
+            var builder = new StringBuilder();
+            foreach (var ch in raw)
+            {
+                if (char.IsLetterOrDigit(ch) || ch == '_')
+                    builder.Append(ch);
+            }
+
+            if (builder.Length == 0)
+                return $"Value{index + 1}";
+
+            if (char.IsDigit(builder[0]))
+                builder.Insert(0, "Value");
+
+            builder[0] = char.ToUpperInvariant(builder[0]);
+            return builder.ToString();
+        }
+
+        private static string EscapeTemplateText(string text) =>
+            text.Replace("{", "{{", StringComparison.Ordinal)
+                .Replace("}", "}}", StringComparison.Ordinal);
+
+        private static LiteralExpressionSyntax StringLiteral(string value) =>
+            SyntaxFactory.LiteralExpression(
+                SyntaxKind.StringLiteralExpression,
+                SyntaxFactory.Literal(value));
+    }
+
+    private readonly record struct ConvertedMessage(string Template, List<ExpressionSyntax> Arguments);
+}
