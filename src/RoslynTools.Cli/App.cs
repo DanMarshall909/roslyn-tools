@@ -5,6 +5,7 @@ using System.CommandLine.Parsing;
 using System.Reflection;
 using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Core.Decisions;
 using RoslynTools.Core.Output;
 
 namespace RoslynTools;
@@ -62,9 +63,14 @@ internal static class App
         var jsonOpt = new Option<bool>("--json", "Emit results as JSON");
         var llmOpt = new Option<bool>("--llm", "Emit compact output for LLM consumption");
         var markdownOpt = new Option<bool>("--markdown", "Emit results as Markdown");
+        var decisionsOpt = new Option<FileInfo?>(
+            "--decisions",
+            "Path to a YAML file recording disambiguation choices. "
+            + "If unanswered entries exist (or new ones surface), rt writes them and exits 2.");
         root.AddGlobalOption(jsonOpt);
         root.AddGlobalOption(llmOpt);
         root.AddGlobalOption(markdownOpt);
+        root.AddGlobalOption(decisionsOpt);
 
         return await new CommandLineBuilder(root)
             .UseDefaults()
@@ -77,7 +83,33 @@ internal static class App
                                  : json ? OutputFormat.Json
                                  : llm ? OutputFormat.Llm
                                  : OutputFormat.Text;
-                await next(context);
+
+                var decisionsFile = context.ParseResult.GetValueForOption(decisionsOpt);
+                if (decisionsFile is not null)
+                {
+                    DecisionContext.Store = DecisionStore.Load(decisionsFile.FullName);
+                    try
+                    {
+                        await next(context);
+                    }
+                    catch (DecisionsRequiredException)
+                    {
+                        var store = DecisionContext.Store!;
+                        store.Save(decisionsFile.FullName);
+                        Console.Error.WriteLine(
+                            $"wrote {store.PendingCount} pending decision(s) to {decisionsFile.FullName}; "
+                            + "resolve `choose:` fields and re-run.");
+                        context.ExitCode = 2;
+                    }
+                    finally
+                    {
+                        DecisionContext.Store = null;
+                    }
+                }
+                else
+                {
+                    await next(context);
+                }
             }, MiddlewareOrder.Configuration)
             .Build()
             .InvokeAsync(args);

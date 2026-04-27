@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
+using RoslynTools.Core.Decisions;
 using RoslynTools.Models;
 
 namespace RoslynTools.Core;
@@ -193,6 +194,10 @@ internal static class SymbolLocator
 
     private static ISymbol Disambiguate(List<SymbolMatch> matches, string name)
     {
+        var store = DecisionContext.Store;
+        if (store is not null)
+            return DisambiguateViaStore(matches, name, store);
+
         Console.WriteLine($"\nMultiple symbols match '{name}':");
         for (int i = 0; i < matches.Count; i++)
         {
@@ -216,6 +221,37 @@ internal static class SymbolLocator
                 return matches[choice].Symbol;
             Console.WriteLine("  Invalid selection, try again.");
         }
+    }
+
+    private static ISymbol DisambiguateViaStore(List<SymbolMatch> matches, string name, DecisionStore store)
+    {
+        var id = $"ambig-{name}-{matches.Count}";
+
+        if (store.TryGetAnswer(id, out var choice))
+        {
+            if (choice < 0 || choice >= matches.Count)
+            {
+                throw new InvalidOperationException(
+                    $"Invalid choice for {id}: {choice}. Expected 0-{matches.Count - 1}.");
+            }
+            return matches[choice].Symbol;
+        }
+
+        var entry = new DecisionEntry
+        {
+            Id = id,
+            Q = $"{matches.Count} symbols match '{name}'",
+            Options = new Dictionary<int, string>(matches.Count),
+        };
+        for (int i = 0; i < matches.Count; i++)
+        {
+            var m = matches[i];
+            entry.Options[i] = $"{m.Symbol.Kind,-12} {m.DisplayName,-60} ({m.ProjectName})";
+        }
+        store.Add(entry);
+
+        throw new DecisionsRequiredException(
+            $"Multiple symbols match '{name}'; resolve in decisions file and re-run.");
     }
 
     private static SymbolFilter KindToFilter(string? kind) => kind switch

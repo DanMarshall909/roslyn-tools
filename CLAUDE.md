@@ -132,9 +132,10 @@ Core/
   IRtCommand                         # compile-time contract: static RtCommandInfo Info + Command Build()
   RtCommandInfo                      # metadata record used by DumpHelpCommand
   WorkspaceLoader                    # open .sln/.slnx via MSBuildWorkspace
-  SymbolLocator                      # find symbols by name/FQN, interactive disambiguation
+  SymbolLocator                      # find symbols by name/FQN; interactive prompt or --decisions YAML
   SolutionWriter                     # apply changes or print unified diff (dry-run)
   MethodExtractor                    # extract-method core logic (dataflow, call site, method builder)
+  Decisions/                         # AI-driven disambiguation: DecisionEntry/Store/Context + exit code 2
 
 MsBuildBootstrap                     # locate & register MSBuild SDK (top-level, runs before App)
 
@@ -178,6 +179,22 @@ All issues from the April 2026 audit have been resolved.
 - **Mutation commands**: plain text to stdout
 - **All commands**: diagnostics/progress to stderr
 
+## Exit codes
+
+- `0` — success
+- `1` — error
+- `2` — decisions required (see `--decisions` below)
+
+## --decisions \<path>
+
+Global flag. When a command would prompt for symbol disambiguation (multiple matches for a name), passing `--decisions <path.yaml>` makes the prompt machine-driven instead:
+
+1. First run with empty/missing file: `rt` writes pending entries to YAML and exits **2**. No mutations.
+2. Fill `choose:` with the option index in the YAML.
+3. Re-run the same command: `rt` reads answers, runs without prompting.
+
+YAML schema is one entry per pending decision: `{ id, q, options: { 0: "...", 1: "..." }, choose: <int> }`. Schema lives at `src/RoslynTools/Core/Decisions/`.
+
 ## Dependencies
 
 | Package | Purpose |
@@ -187,3 +204,4 @@ All issues from the April 2026 audit have been resolved.
 | `Microsoft.CodeAnalysis.Workspaces.MSBuild` (4.9.2) | Load solutions |
 | `Microsoft.CodeAnalysis.CSharp.Workspaces` (4.9.2) | C# syntax/semantic analysis |
 | `DiffPlex` (1.7.1) | Unified diff output for --dry-run |
+| `YamlDotNet` (16.2.1) | Read/write `--decisions` files |
