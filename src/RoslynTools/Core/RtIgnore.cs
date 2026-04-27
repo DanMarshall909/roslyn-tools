@@ -28,8 +28,59 @@ internal sealed class RtIgnore
         return patterns.Length == 0 ? Empty : new RtIgnore(patterns);
     }
 
-    internal static RtIgnore ForSolution(Solution solution) =>
-        Load(Path.GetDirectoryName(solution.FilePath));
+    internal static RtIgnore ForSolution(Solution solution)
+    {
+        var solutionDir = Path.GetDirectoryName(solution.FilePath);
+        if (!string.IsNullOrWhiteSpace(solutionDir))
+            return Load(solutionDir);
+
+        return Load(InferSolutionDirectory(solution));
+    }
+
+    private static string? InferSolutionDirectory(Solution solution)
+    {
+        var projectDirectories = solution.Projects
+            .Select(p => p.FilePath)
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(p => Path.GetDirectoryName(p!))
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(p => p!)
+            .ToList();
+
+        if (projectDirectories.Count == 0)
+            return null;
+
+        var common = projectDirectories[0];
+        foreach (var directory in projectDirectories.Skip(1))
+            common = GetCommonDirectory(common, directory);
+
+        return common;
+    }
+
+    private static string GetCommonDirectory(string left, string right)
+    {
+        var leftParts = Path.GetFullPath(left)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var rightParts = Path.GetFullPath(right)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        var count = Math.Min(leftParts.Length, rightParts.Length);
+        var commonParts = new List<string>();
+        for (var i = 0; i < count; i++)
+        {
+            if (!string.Equals(leftParts[i], rightParts[i], StringComparison.OrdinalIgnoreCase))
+                break;
+
+            commonParts.Add(leftParts[i]);
+        }
+
+        if (commonParts.Count == 0)
+            return Path.GetPathRoot(left) ?? left;
+
+        return string.Join(Path.DirectorySeparatorChar, commonParts);
+    }
 
     internal bool IsIgnored(string? absoluteFilePath)
     {
