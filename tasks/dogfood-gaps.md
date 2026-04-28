@@ -1,5 +1,7 @@
 # Dogfood Gaps
 
+- 2026-04-28: `rt ccl --solution RoslynTools.slnx` was blocked by a regression in commit `2a45e6d` ("fix dogfood correctness gaps", 2026-04-27) which re-added the `.slnx` rejection that prior commits `aeb5ebe` (2026-04-21) and `03dcbfe` (Roslyn 5.3.0 upgrade, 2026-04-19) had removed. Roslyn 5.3 supports `.slnx` natively; the rejection was unnecessary.
+  - **FIXED 2026-04-28** on `ralph/logging-v2`: removed the rejection block from `WorkspaceLoader.ResolveExplicitSolutionPath`, restoring pass-through behaviour. Updated the test pair (`Explicit_slnx_path_uses_sibling_sln_when_available` + `Explicit_slnx_path_reports_clear_error_when_no_sibling_sln_exists`) back to the pre-regression `Explicit_slnx_path_is_accepted_and_attempted` shape.
 - 2026-04-21: `rt list-smells --scope RoslynTools.Commands --solution RoslynTools.slnx` returned empty silently — expected smell findings for fat command classes with mixed responsibilities
   - **FIXED 2026-04-27**: `SmellAnalyzer` scope matching now considers namespace-qualified type names and project names instead of only simple type names. Added namespace-prefix regression coverage.
 - 2026-04-21: `rt introduce-record` simulated in session ralph/sessions/2026-04-21-change-signature-2.md — extracts a record type from method parameter names/types; needed for RenameParameterRequest
