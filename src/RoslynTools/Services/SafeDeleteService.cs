@@ -51,7 +51,7 @@ internal static class SafeDeleteService
         if (trueRefs.Count > 0)
         {
             foreach (var (filePath, line, lineText) in trueRefs)
-                Console.WriteLine($"{filePath}({line}): {lineText}");
+                RtConsole.WriteLine(RtOutputContext.Result, $"{filePath}({line}): {lineText}");
 
             throw new InvalidOperationException(
                 $"Cannot delete '{sym.Name}': it has {trueRefs.Count} reference(s).");

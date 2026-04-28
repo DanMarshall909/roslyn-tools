@@ -215,9 +215,9 @@ internal static class MakeInstanceCore
     private static void PrintSummary(int total, List<(string file, int line, string reason)> skipped)
     {
         int rewritten = total - skipped.Count;
-        Console.WriteLine($"\nSummary: {total} call site(s) found, {rewritten} rewritten, {skipped.Count} skipped.");
+        RtConsole.WriteLine(RtOutputContext.Result, $"\nSummary: {total} call site(s) found, {rewritten} rewritten, {skipped.Count} skipped.");
 
         foreach (var (file, line, reason) in skipped)
-            Console.WriteLine($"  SKIPPED {file}:{line} — {reason}");
+            RtConsole.WriteLine(RtOutputContext.Result, $"  SKIPPED {file}:{line} — {reason}");
     }
 }

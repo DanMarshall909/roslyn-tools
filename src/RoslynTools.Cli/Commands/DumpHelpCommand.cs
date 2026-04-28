@@ -21,8 +21,8 @@ internal static class DumpHelpCommand
 
         cmd.SetHandler(() =>
         {
-            if (Console.IsOutputRedirected)
-                Console.Out.Write(RenderMarkdown(App.Commands));
+            if (RtConsole.IsOutputRedirected)
+                RtConsole.Write(RtOutputContext.Result, RenderMarkdown(App.Commands));
             else
                 RenderColoured(App.Commands);
         });
@@ -124,42 +124,31 @@ internal static class DumpHelpCommand
             .OrderBy(g => CategoryOrder(g.Key))
             .ToList();
 
-        Console.ForegroundColor = ConsoleColor.White;
-        Console.WriteLine($"rt Commands  ({registry.Count} total)");
-        Console.ResetColor();
-        Console.WriteLine();
+        RtConsole.WriteLine(RtOutputContext.Ui, $"rt Commands  ({registry.Count} total)", ConsoleColor.White);
+        RtConsole.WriteLine(RtOutputContext.Ui);
 
         foreach (var group in byCategory)
         {
-            Console.ForegroundColor = CategoryColour(group.Key);
-            Console.WriteLine($"  {group.Key.ToUpperInvariant()}");
-            Console.ForegroundColor = ConsoleColor.DarkGray;
-            Console.WriteLine("  " + new string('\u2500', 52));
-            Console.ResetColor();
+            RtConsole.WriteLine(RtOutputContext.Ui, $"  {group.Key.ToUpperInvariant()}", CategoryColour(group.Key));
+            RtConsole.WriteLine(RtOutputContext.Ui, "  " + new string('\u2500', 52), ConsoleColor.DarkGray);
 
             foreach (var (c, info) in group.OrderBy(e => e.Info.Name))
             {
-                Console.ForegroundColor = ConsoleColor.White;
-                Console.Write($"  {info.Name}");
+                RtConsole.Write(RtOutputContext.Ui, $"  {info.Name}", ConsoleColor.White);
 
                 if (info.Aliases is { Length: > 0 })
                 {
-                    Console.ForegroundColor = ConsoleColor.DarkGray;
-                    Console.Write($"  ({string.Join(", ", info.Aliases)})");
+                    RtConsole.Write(RtOutputContext.Ui, $"  ({string.Join(", ", info.Aliases)})", ConsoleColor.DarkGray);
                 }
 
-                Console.ForegroundColor = info.Mutates ? ConsoleColor.DarkRed : ConsoleColor.DarkGreen;
-                Console.Write(info.Mutates ? "  writes" : "  read-only");
+                RtConsole.Write(RtOutputContext.Ui, info.Mutates ? "  writes" : "  read-only",
+                    info.Mutates ? ConsoleColor.DarkRed : ConsoleColor.DarkGreen);
 
-                Console.ResetColor();
-                Console.WriteLine();
-
-                Console.ForegroundColor = ConsoleColor.Gray;
-                Console.WriteLine($"    {c.Description}");
-                Console.ResetColor();
+                RtConsole.WriteLine(RtOutputContext.Ui);
+                RtConsole.WriteLine(RtOutputContext.Ui, $"    {c.Description}", ConsoleColor.Gray);
             }
 
-            Console.WriteLine();
+            RtConsole.WriteLine(RtOutputContext.Ui);
         }
     }
 

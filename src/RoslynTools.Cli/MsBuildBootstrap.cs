@@ -1,4 +1,5 @@
 using Microsoft.Build.Locator;
+using RoslynTools.Core;
 
 namespace RoslynTools;
 
@@ -23,7 +24,7 @@ internal static class MsBuildBootstrap
         }
         catch (DllNotFoundException ex)
         {
-            Console.Out.WriteLine($"[MsBuildBootstrap] MSBuildLocator.RegisterDefaults failed ({ex.Message}); falling back to manual SDK discovery.");
+            RtLog.Warning("[MsBuildBootstrap] MSBuildLocator.RegisterDefaults failed ({Message}); falling back to manual SDK discovery.", ex.Message);
         }
 
         var sdkPath = FindLatestDotnetSdkPath();

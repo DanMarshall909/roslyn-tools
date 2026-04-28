@@ -86,11 +86,31 @@ internal static class WorkspaceLoader
         if (diagnostics.Count == 0)
             return;
 
-        var sink = DiagnosticSinkOverride.Value ?? (fatal ? Console.Error : Console.Out);
-        sink.WriteLine("---");
-        sink.WriteLine(fatal ? "[workspace-failures]" : "[workspace-warnings]");
-        foreach (var d in diagnostics)
-            sink.WriteLine($"  {d.Kind}: {d.Message}");
+        // Legacy test-hook: if DiagnosticSinkOverride is set, write there directly.
+        var legacySink = DiagnosticSinkOverride.Value;
+        if (legacySink is not null)
+        {
+            legacySink.WriteLine("---");
+            legacySink.WriteLine(fatal ? "[workspace-failures]" : "[workspace-warnings]");
+            foreach (var d in diagnostics)
+                legacySink.WriteLine($"  {d.Kind}: {d.Message}");
+            return;
+        }
+
+        if (fatal)
+        {
+            RtLog.Error("---");
+            RtLog.Error("[workspace-failures]");
+            foreach (var d in diagnostics)
+                RtLog.Error("  {Kind}: {Message}", d.Kind, d.Message);
+        }
+        else
+        {
+            RtLog.Warning("---");
+            RtLog.Warning("[workspace-warnings]");
+            foreach (var d in diagnostics)
+                RtLog.Warning("  {Kind}: {Message}", d.Kind, d.Message);
+        }
     }
 
     private static string ResolveSolutionPath(string? solutionPath)

@@ -41,7 +41,7 @@ internal static class MakeSealedCore
     {
         if (classSymbol.IsSealed)
         {
-            Console.WriteLine($"Class {typeName} is already sealed.");
+            RtConsole.WriteLine(RtOutputContext.Result, $"Class {typeName} is already sealed.");
             return false;
         }
 

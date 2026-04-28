@@ -49,7 +49,7 @@ internal static class FixNamespaceService
 
         if (currentNamespace == expectedNamespace)
         {
-            Console.WriteLine($"Namespace already correct: {expectedNamespace}");
+            RtConsole.WriteLine(RtOutputContext.Result, $"Namespace already correct: {expectedNamespace}");
             return;
         }
 

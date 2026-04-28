@@ -1,4 +1,5 @@
 using RoslynTools;
+using RoslynTools.Core;
 
 internal static class Program
 {
@@ -11,7 +12,7 @@ internal static class Program
         {
             // Force UTF-8 so em-dashes and other Unicode in RtCommandInfo strings survive
             // `cmd > file` redirection on Windows (default console encoding is often cp1252).
-            Console.OutputEncoding = System.Text.Encoding.UTF8;
+            RtConsole.SetOutputEncoding(System.Text.Encoding.UTF8);
             return await App.RunAsync(args);
         }
 
