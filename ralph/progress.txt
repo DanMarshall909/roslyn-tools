@@ -1,9 +1,9 @@
 roslyn-tools Backlog
 ====================
-Branch: ralph/change-signature
-PRD: prd.json (10 user stories)
+Branch: ralph/logging-v2
+PRD: prd.json (11 user stories)
 Date Started: 2026-04-20
-Current Status: 10/11 stories complete (91%)
+Current Status: 11/11 stories complete (100%)
 
 Previous backlog (ralph/output-layer, 8/8 complete)
 archived to: ralph/archive/2026-04-20-output-layer/
@@ -20,7 +20,8 @@ COMPLETED STORIES
 [x] US-223: narrow-dependency refactor workflow for interface segregation
 [x] US-224: extract-class safety validation and dependency-injection reuse
 [x] US-225: make-instance reachability ambiguity and scope-awareness hardening
+[x] US-226: replace ad hoc Console.WriteLine usage with a shared logging abstraction
 
 PENDING STORIES
 ===============
-[ ] US-226: replace ad hoc Console.WriteLine usage with a shared logging abstraction
+(none — backlog complete)
