@@ -1,6 +1,6 @@
 {
   "project": "roslyn-tools",
-  "branchName": "ralph/change-signature",
+  "branchName": "ralph/logging-v2",
   "description": "A mixed backlog covering `change-signature` sub-commands plus dogfood-driven workspace-loading, diagnostic-output, interface-segregation, and mutation-safety improvements for `rt`. Stories are ordered so the original change-signature work lands first, followed by infrastructure and analysis improvements uncovered during real repo usage.",
   "userStories": [
     {
