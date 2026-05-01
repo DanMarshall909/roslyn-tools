@@ -64,16 +64,16 @@ After modifying or adding any command, test it against a real solution before ma
 
 **Command groups.** Every command lives under one of three top-level groups (`rt <group> <command>`):
 
-- `rt inspect <cmd>` — read-only, point at a single symbol or file (`inspect`, `outline`, `find-refs`, `find-callers`, `find-impl`, `find-unused`, `find-pattern`)
+- `rt inspect <cmd>` — read-only, point at a single symbol or file (`describe`, `outline`, `find-refs`, `find-callers`, `find-impl`, `find-unused`, `find-pattern`)
 - `rt analyze <cmd>` — read-only, broader codebase scans (`circular-deps`, `dependency-graph`, `analyze-interface`, `find-duplicates`, `find-magic-strings`, `list-imports`, `list-smells`)
 - `rt refactor <cmd>` — mutations (`rename`, `move`, `extract-*`, `inline-method`, `make-*`, `replace-*`, `convert-*`, `add-*`, etc.)
 
-The unqualified form `rt <cmd>` still works for any unambiguous name (i.e. all names except `inspect`, which clashes with the group). Examples below use the canonical nested form.
+The unqualified form `rt <cmd>` is also accepted for every command (no name collides with a group). Examples below use the canonical nested form.
 
 **Smoke test matrix** — run each applicable command after changes:
 ```powershell
 # Read-only commands (safe, run freely)
-rt inspect inspect "RoslynTools.Core.WorkspaceLoader" --solution RoslynTools.slnx
+rt inspect describe "RoslynTools.Core.WorkspaceLoader" --solution RoslynTools.slnx
 rt inspect outline src/RoslynTools/Core/SymbolLocator.cs --solution RoslynTools.slnx
 rt inspect find-refs --symbol WorkspaceLoader --solution RoslynTools.slnx
 rt inspect find-impl "System.CommandLine.Command" --solution RoslynTools.slnx
@@ -92,7 +92,7 @@ rt refactor extract-method src/RoslynTools/Core/SolutionWriter.cs PrintDiffBlock
 
 **For ProjectX testing** (larger, slower — use when relevant):
 ```powershell
-rt inspect inspect "ProjectX.Service.Services.ServiceController" --solution "C:\code\libraries\ProjectX.Libraries.sln"
+rt inspect describe "ProjectX.Service.Services.ServiceController" --solution "C:\code\libraries\ProjectX.Libraries.sln"
 rt inspect find-refs --symbol BookingsService --solution "C:\code\libraries\ProjectX.Libraries.sln"
 ```
 

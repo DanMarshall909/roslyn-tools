@@ -17,16 +17,16 @@ Every command lives under one of three top-level groups. Either form works:
 
 ```
 rt <group> <command> [args...]   # canonical, e.g. rt refactor extract-method ...
-rt <command> [args...]           # root shortcut (works for any unambiguous name)
+rt <command> [args...]           # root shortcut — works for every command name
 ```
 
 | Group | Purpose |
 |---|---|
-| `rt inspect` | Read-only: examine a single symbol or file (`inspect`, `outline`, `find-refs`, `find-callers`, `find-impl`, `find-unused`, `find-pattern`) |
+| `rt inspect` | Read-only: examine a single symbol or file (`describe`, `outline`, `find-refs`, `find-callers`, `find-impl`, `find-unused`, `find-pattern`) |
 | `rt analyze` | Read-only: scan for cross-cutting issues (`circular-deps`, `dependency-graph`, `analyze-interface`, `find-duplicates`, `find-magic-strings`, `list-imports`, `list-smells`) |
 | `rt refactor` | Mutations (`rename`, `move`, `extract-*`, `inline-method`, `make-*`, `replace-*`, `convert-*`, `add-*`, etc.) |
 
-The only name collision is `inspect` (group vs. command); use `rt inspect inspect <symbol>` when you need that command. Every other name resolves at the root.
+No command name collides with a group, so the root shortcut works for every command.
 
 ## Solution paths
 
