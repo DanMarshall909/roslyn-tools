@@ -496,4 +496,145 @@ public class ConvertConsoleLoggingTests
         Assert.Contains("logger injections: 1", output);
         Assert.Contains("App: ILogger<App>", output);
     }
+
+    // US-001: string.Format decomposition tests
+
+    [Fact]
+    public async Task StringFormat_single_arg_becomes_named_placeholder()
+    {
+        // AC#7a: Console.WriteLine(string.Format("x={0}", x))
+        using var project = new AdhocProjectBuilder("LogApp");
+        project.AddSource("LogApp.cs", """
+            class App
+            {
+                void Run(int x)
+                {
+                    Console.WriteLine(string.Format("x={0}", x));
+                }
+            }
+            """);
+        var (workspace, solution) = project.Build();
+
+        using (workspace)
+        {
+            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, dryRun: false, apply: true);
+        }
+
+        var content = await project.ReadSourceAsync("LogApp.cs");
+        Assert.DoesNotContain("string.Format", content);
+        Assert.DoesNotContain("{Value}", content);
+        Assert.Contains("_logger.LogInformation(\"x={X}\", x)", content);
+    }
+
+    [Fact]
+    public async Task StringFormat_two_args_with_Console_Write_becomes_named_placeholders()
+    {
+        // AC#7b: Console.Write with two string.Format args
+        using var project = new AdhocProjectBuilder("LogApp");
+        project.AddSource("LogApp.cs", """
+            class App
+            {
+                void Run(string name, int count)
+                {
+                    Console.Write(string.Format("Hello {0}, count={1}", name, count));
+                }
+            }
+            """);
+        var (workspace, solution) = project.Build();
+
+        using (workspace)
+        {
+            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, dryRun: false, apply: true);
+        }
+
+        var content = await project.ReadSourceAsync("LogApp.cs");
+        Assert.DoesNotContain("string.Format", content);
+        Assert.DoesNotContain("{Value}", content);
+        Assert.Contains("_logger.LogInformation(\"Hello {Name}, count={Count}\"", content);
+        Assert.Contains("name", content);
+        Assert.Contains("count", content);
+    }
+
+    [Fact]
+    public async Task StringFormat_with_no_args_treated_as_plain_string()
+    {
+        // AC#7c: string.Format with no args (constant string) → plain string
+        using var project = new AdhocProjectBuilder("LogApp");
+        project.AddSource("LogApp.cs", """
+            class App
+            {
+                void Run()
+                {
+                    Console.WriteLine(string.Format("hello world"));
+                }
+            }
+            """);
+        var (workspace, solution) = project.Build();
+
+        using (workspace)
+        {
+            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, dryRun: false, apply: true);
+        }
+
+        var content = await project.ReadSourceAsync("LogApp.cs");
+        Assert.DoesNotContain("string.Format", content);
+        Assert.Contains("_logger.LogInformation(\"hello world\")", content);
+    }
+
+    [Fact]
+    public async Task StringFormat_with_IFormatProvider_degrades_gracefully()
+    {
+        // AC#7d: string.Format(IFormatProvider, string, params) — first arg is not a string literal
+        // Expect graceful degradation: falls back to {Value} wrapping the entire string.Format call
+        using var project = new AdhocProjectBuilder("LogApp");
+        project.AddSource("LogApp.cs", """
+            using System.Globalization;
+            class App
+            {
+                void Run(double price)
+                {
+                    Console.WriteLine(string.Format(CultureInfo.InvariantCulture, "price={0}", price));
+                }
+            }
+            """);
+        var (workspace, solution) = project.Build();
+
+        using (workspace)
+        {
+            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, dryRun: false, apply: true);
+        }
+
+        var content = await project.ReadSourceAsync("LogApp.cs");
+        // Falls back to {Value} wrapping the string.Format expression
+        Assert.Contains("{Value}", content);
+    }
+
+    [Fact]
+    public async Task Non_StringFormat_invocation_still_uses_Value_fallback()
+    {
+        // AC#7e: non-string.Format invocation as first arg → {Value} placeholder unchanged
+        using var project = new AdhocProjectBuilder("LogApp");
+        project.AddSource("LogApp.cs", """
+            class App
+            {
+                string GetMessage() => "hello";
+
+                void Run()
+                {
+                    Console.WriteLine(GetMessage());
+                }
+            }
+            """);
+        var (workspace, solution) = project.Build();
+
+        using (workspace)
+        {
+            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, dryRun: false, apply: true);
+        }
+
+        var content = await project.ReadSourceAsync("LogApp.cs");
+        Assert.DoesNotContain("Console.WriteLine", content);
+        Assert.Contains("{Value}", content);
+        Assert.Contains("GetMessage()", content);
+    }
 }
