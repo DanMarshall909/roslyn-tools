@@ -4,10 +4,11 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
+using RoslynTools.Core;
 
-namespace RoslynTools.Core;
+namespace RoslynTools.Services;
 
-internal static class NarrowDependencyCore
+internal static class NarrowDependencyService
 {
     internal static async Task ExecuteAsync(
         Solution solution,

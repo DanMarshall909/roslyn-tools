@@ -1,4 +1,5 @@
 using RoslynTools.Core;
+using RoslynTools.Services;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -42,7 +43,7 @@ public class TransformParametersTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            await TransformParametersCore.RunAsync(sln, "OrderService.PlaceOrder", "PlaceOrderArgs", null, dryRun: false);
+            await TransformParametersService.RunAsync(sln, "OrderService.PlaceOrder", "PlaceOrderArgs", null, dryRun: false);
         }
 
         var serviceContent = await project.ReadSourceAsync("OrderService.cs");
@@ -87,7 +88,7 @@ public class TransformParametersTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            await TransformParametersCore.RunAsync(sln, "Greeter.Greet", "GreetArgs", null, dryRun: false);
+            await TransformParametersService.RunAsync(sln, "Greeter.Greet", "GreetArgs", null, dryRun: false);
         }
 
         var content = await project.ReadSourceAsync("Greeter.cs");
@@ -122,7 +123,7 @@ public class TransformParametersTests
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                TransformParametersCore.RunAsync(sln, "Parser.TryParse", "ParseArgs", null, dryRun: false));
+                TransformParametersService.RunAsync(sln, "Parser.TryParse", "ParseArgs", null, dryRun: false));
 
             Assert.Contains("result", ex.Message);
             Assert.Contains("out/ref/in", ex.Message);
@@ -149,7 +150,7 @@ public class TransformParametersTests
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                TransformParametersCore.RunAsync(sln, "Modifier.Increment", "IncrementArgs", null, dryRun: false));
+                TransformParametersService.RunAsync(sln, "Modifier.Increment", "IncrementArgs", null, dryRun: false));
 
             Assert.Contains("counter", ex.Message);
         }
@@ -200,7 +201,7 @@ public class TransformParametersTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            await TransformParametersCore.RunAsync(sln, "Calculator.Add", "AddArgs", null, dryRun: false);
+            await TransformParametersService.RunAsync(sln, "Calculator.Add", "AddArgs", null, dryRun: false);
         }
 
         var calcContent = await project.ReadSourceAsync("Calculator.cs");
@@ -242,7 +243,7 @@ public class TransformParametersTests
         var originalContent = await project.ReadSourceAsync("Service.cs");
         using (workspace)
         {
-            await TransformParametersCore.RunAsync(sln, "Service.Execute", "ExecuteArgs", null, dryRun: true);
+            await TransformParametersService.RunAsync(sln, "Service.Execute", "ExecuteArgs", null, dryRun: true);
         }
 
         var afterContent = await project.ReadSourceAsync("Service.cs");
@@ -270,7 +271,7 @@ public class TransformParametersTests
         using (workspace)
         {
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                TransformParametersCore.RunAsync(sln, "Dummy.NonExistentMethod", "Args", null, dryRun: false));
+                TransformParametersService.RunAsync(sln, "Dummy.NonExistentMethod", "Args", null, dryRun: false));
         }
     }
 
@@ -295,7 +296,7 @@ public class TransformParametersTests
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                TransformParametersCore.RunAsync(sln, "Empty.Run", "RunArgs", null, dryRun: false));
+                TransformParametersService.RunAsync(sln, "Empty.Run", "RunArgs", null, dryRun: false));
 
             Assert.Contains("no parameters", ex.Message);
         }
@@ -319,7 +320,7 @@ public class TransformParametersTests
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                TransformParametersCore.RunAsync(sln, "NoMethodSeparatorHere", "Args", null, dryRun: false));
+                TransformParametersService.RunAsync(sln, "NoMethodSeparatorHere", "Args", null, dryRun: false));
 
             Assert.Contains("TypeName.MethodName", ex.Message);
         }
@@ -365,7 +366,7 @@ public class TransformParametersTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            await TransformParametersCore.RunAsync(sln, "OrderService.PlaceOrder", null, "TestApp.OrderArgs", dryRun: false);
+            await TransformParametersService.RunAsync(sln, "OrderService.PlaceOrder", null, "TestApp.OrderArgs", dryRun: false);
         }
 
         var serviceContent = await project.ReadSourceAsync("OrderService.cs");
@@ -427,7 +428,7 @@ public class TransformParametersTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            await TransformParametersCore.RunAsync(sln, "SearchService.Search", null, "TestApp.SearchArgs", dryRun: false);
+            await TransformParametersService.RunAsync(sln, "SearchService.Search", null, "TestApp.SearchArgs", dryRun: false);
         }
 
         var serviceContent = await project.ReadSourceAsync("SearchService.cs");
@@ -476,7 +477,7 @@ public class TransformParametersTests
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                TransformParametersCore.RunAsync(sln, "PersonService.Register", null, "TestApp.IncompleteArgs", dryRun: false));
+                TransformParametersService.RunAsync(sln, "PersonService.Register", null, "TestApp.IncompleteArgs", dryRun: false));
 
             Assert.Contains("age", ex.Message);
             Assert.Contains("email", ex.Message);
@@ -510,7 +511,7 @@ public class TransformParametersTests
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                TransformParametersCore.RunAsync(sln, "MathService.Add", null, "TestApp.PartialArgs", dryRun: false));
+                TransformParametersService.RunAsync(sln, "MathService.Add", null, "TestApp.PartialArgs", dryRun: false));
 
             // 'y' is missing; 'x' is present
             Assert.Contains("y", ex.Message);
@@ -539,7 +540,7 @@ public class TransformParametersTests
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                TransformParametersCore.RunAsync(sln, "BothFlagsService.Do", "NewArgs", "TestApp.ExistingArgs", dryRun: false));
+                TransformParametersService.RunAsync(sln, "BothFlagsService.Do", "NewArgs", "TestApp.ExistingArgs", dryRun: false));
 
             Assert.Contains("mutually exclusive", ex.Message);
         }
@@ -566,7 +567,7 @@ public class TransformParametersTests
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                TransformParametersCore.RunAsync(sln, "NeitherService.Do", null, null, dryRun: false));
+                TransformParametersService.RunAsync(sln, "NeitherService.Do", null, null, dryRun: false));
 
             Assert.Contains("--new-type", ex.Message);
             Assert.Contains("--existing-type", ex.Message);

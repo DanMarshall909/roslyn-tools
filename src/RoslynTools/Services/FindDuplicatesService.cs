@@ -3,8 +3,9 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using RoslynTools.Core;
 
-namespace RoslynTools.Core;
+namespace RoslynTools.Services;
 
 internal sealed record FindDuplicatesOptions(
     int MinStatements = 3,
@@ -35,7 +36,7 @@ internal sealed record DuplicateGroup(
     string Extractability = "unknown",
     IReadOnlyList<ExtractabilityCheck>? Checks = null);
 
-internal static class FindDuplicatesCore
+internal static class FindDuplicatesService
 {
     // Boilerplate patterns excluded from duplicate reporting:
     //   - single `return;` or `return <expr>;`

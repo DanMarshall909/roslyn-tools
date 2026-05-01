@@ -1,5 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Core;
+using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
@@ -43,7 +44,7 @@ internal sealed class TransformParametersCommand : IRtCommand
             {
                 try
                 {
-                    await TransformParametersCore.RunAsync(sln, method, newType, existingType, dryRun);
+                    await TransformParametersService.RunAsync(sln, method, newType, existingType, dryRun);
                 }
                 catch (InvalidOperationException ex)
                 {

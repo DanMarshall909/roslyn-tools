@@ -2,10 +2,11 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
+using RoslynTools.Core;
 
-namespace RoslynTools.Core;
+namespace RoslynTools.Services;
 
-internal static class MakeStaticCore
+internal static class MakeStaticService
 {
     internal static async Task<int> RunAsync(Solution sln, string methodSpec, bool dryRun)
     {

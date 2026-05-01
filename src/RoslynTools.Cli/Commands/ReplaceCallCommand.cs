@@ -1,5 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Core;
+using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
@@ -49,7 +50,7 @@ internal sealed class ReplaceCallCommand : IRtCommand
         var (workspace, solution) = await WorkspaceLoader.LoadAsync(solutionPath);
         using (workspace)
         {
-            await ReplaceCallCore.RunAsync(solution, from, to, dryRun);
+            await ReplaceCallService.RunAsync(solution, from, to, dryRun);
         }
     }
 }

@@ -2,10 +2,11 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
+using RoslynTools.Core;
 
-namespace RoslynTools.Core;
+namespace RoslynTools.Services;
 
-internal static class MoveCore
+internal static class MoveService
 {
     // ──────────────────────────────────────────────────────────────
     //  Entry points
@@ -60,7 +61,12 @@ internal static class MoveCore
         // Capture references BEFORE the rewrite. After RewriteAllDeclarationsAsync, consumer
         // references that resolved through `using <oldNamespace>;` become unbound, and
         // SymbolFinder against the post-rewrite compilation can no longer find them.
-        var references = await SymbolFinder.FindReferencesAsync(sym, sln);
+        // Co-located types in the same file move with the namespace declaration, so capture
+        // references to all of them — not just the named target.
+        var movedTypes = await CollectCoLocatedTypesAsync(sln, (INamedTypeSymbol)sym);
+        var references = (await Task.WhenAll(movedTypes.Select(t => SymbolFinder.FindReferencesAsync(t, sln))))
+            .SelectMany(r => r)
+            .ToList();
 
         sln = await RewriteAllDeclarationsAsync(sln, sym, targetNamespace);
 
@@ -163,6 +169,35 @@ internal static class MoveCore
     // ──────────────────────────────────────────────────────────────
     //  Single-type helpers
     // ──────────────────────────────────────────────────────────────
+
+    private static async Task<List<INamedTypeSymbol>> CollectCoLocatedTypesAsync(
+        Solution sln, INamedTypeSymbol primary)
+    {
+        var trees = primary.DeclaringSyntaxReferences
+            .Select(r => r.SyntaxTree)
+            .ToHashSet();
+
+        var seen = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default) { primary };
+        var result = new List<INamedTypeSymbol> { primary };
+
+        foreach (var tree in trees)
+        {
+            var doc = sln.GetDocument(tree);
+            if (doc == null) continue;
+
+            var semanticModel = await doc.GetSemanticModelAsync();
+            if (semanticModel == null) continue;
+
+            var root = await tree.GetRootAsync();
+            foreach (var typeDecl in root.DescendantNodes().OfType<BaseTypeDeclarationSyntax>())
+            {
+                if (semanticModel.GetDeclaredSymbol(typeDecl) is INamedTypeSymbol named && seen.Add(named))
+                    result.Add(named);
+            }
+        }
+
+        return result;
+    }
 
     private static (List<string> Paths, string? ProjectDir, string? RootNamespace) CollectDeclarationPaths(
         Solution sln, ISymbol symbol)

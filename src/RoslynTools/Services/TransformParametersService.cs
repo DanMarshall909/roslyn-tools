@@ -3,8 +3,9 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using System.Collections.Immutable;
+using RoslynTools.Core;
 
-namespace RoslynTools.Core;
+namespace RoslynTools.Services;
 
 /// <summary>
 /// Core logic for the <c>transform-parameters</c> command.
@@ -13,7 +14,7 @@ namespace RoslynTools.Core;
 /// and updates every call site from <c>Foo(a, b, c)</c> to <c>Foo(new ParamObj(a, b, c))</c>.
 /// Also supports reusing an existing type via <c>--existing-type</c>.
 /// </summary>
-internal static class TransformParametersCore
+internal static class TransformParametersService
 {
     /// <summary>
     /// Entry point called by <see cref="RoslynTools.Commands.TransformParametersCommand"/>.

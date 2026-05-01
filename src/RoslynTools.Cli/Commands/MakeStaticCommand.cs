@@ -1,5 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Core;
+using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
@@ -47,7 +48,7 @@ internal sealed class MakeStaticCommand : IRtCommand
         var (workspace, sln) = await WorkspaceLoader.LoadAsync(solutionPath);
         using (workspace)
         {
-            var exitCode = await MakeStaticCore.RunAsync(sln, methodSpec, dryRun);
+            var exitCode = await MakeStaticService.RunAsync(sln, methodSpec, dryRun);
             if (exitCode != 0)
                 Environment.ExitCode = exitCode;
         }

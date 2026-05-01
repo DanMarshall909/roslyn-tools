@@ -1,5 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Core;
+using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
@@ -68,12 +69,12 @@ internal sealed class ReplaceXunitAssertsCommand : IRtCommand
             return;
         }
 
-        await ReplaceXunitAssertsCore.RunAsync(solution, dryRun);
+        await ReplaceXunitAssertsService.RunAsync(solution, dryRun);
     }
 
     private static async Task ReviewAsync(Microsoft.CodeAnalysis.Solution solution)
     {
-        var review = await ReplaceXunitAssertsCore.AnalyzeAsync(solution);
+        var review = await ReplaceXunitAssertsService.AnalyzeAsync(solution);
         var entries = review.Entries;
 
         RtConsole.WriteLine(RtOutputContext.Result, $"xunit assert review: {entries.Count} call site(s)");

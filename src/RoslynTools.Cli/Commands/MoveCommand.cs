@@ -1,5 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Core;
+using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
@@ -54,9 +55,9 @@ internal sealed class MoveCommand : IRtCommand
             using (workspace)
             {
                 if (nsFrom != null)
-                    await MoveCore.ExecuteNamespaceMoveAsync(workspace, sln, nsFrom, nsTo, moveFile, dryRun);
+                    await MoveService.ExecuteNamespaceMoveAsync(workspace, sln, nsFrom, nsTo, moveFile, dryRun);
                 else
-                    await MoveCore.ExecuteSingleTypeMoveAsync(workspace, sln, type!, nsTo, moveFile, dryRun);
+                    await MoveService.ExecuteSingleTypeMoveAsync(workspace, sln, type!, nsTo, moveFile, dryRun);
             }
         },
         solutionOpt, typeOpt, nsFromOpt, nsToOpt, dryRunOpt, moveFileOpt);

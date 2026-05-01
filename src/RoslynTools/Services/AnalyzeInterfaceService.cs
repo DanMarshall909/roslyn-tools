@@ -2,10 +2,11 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using RoslynTools.Models;
 using RoslynTools.Services;
+using RoslynTools.Core;
 
-namespace RoslynTools.Core;
+namespace RoslynTools.Services;
 
-internal static class AnalyzeInterfaceCore
+internal static class AnalyzeInterfaceService
 {
     internal static async Task<AnalyzeInterfaceReport> AnalyzeAsync(
         Solution solution,

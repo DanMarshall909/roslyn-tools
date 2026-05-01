@@ -2,10 +2,11 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using RoslynTools.Core;
 
-namespace RoslynTools.Core;
+namespace RoslynTools.Services;
 
-internal static class ImplementInterfaceCore
+internal static class ImplementInterfaceService
 {
     internal static async Task RunAsync(Solution sln, string typeName, string? interfaceName, bool dryRun)
     {

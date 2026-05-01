@@ -1,5 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Core;
+using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
@@ -63,7 +64,7 @@ internal sealed class AddTestCommand : IRtCommand
         var (workspace, sln) = await WorkspaceLoader.LoadAsync(solutionPath);
         using (workspace)
         {
-            await AddTestCore.RunAsync(sln, className, name, acs, nestedClass, filePath, dryRun);
+            await AddTestService.RunAsync(sln, className, name, acs, nestedClass, filePath, dryRun);
         }
     }
 
@@ -71,5 +72,5 @@ internal sealed class AddTestCommand : IRtCommand
     //  AC → C# identifier conversion (delegates to Core; kept here for tests)
     // ──────────────────────────────────────────────────────────────────────────
 
-    internal static string AcToMethodName(string ac) => AddTestCore.AcToMethodName(ac);
+    internal static string AcToMethodName(string ac) => AddTestService.AcToMethodName(ac);
 }

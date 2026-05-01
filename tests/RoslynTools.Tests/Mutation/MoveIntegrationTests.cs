@@ -1,4 +1,5 @@
 using RoslynTools.Core;
+using RoslynTools.Services;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -29,7 +30,7 @@ public class MoveIntegrationTests
 
         var (workspace, solution) = project.Build();
 
-        await MoveCore.ExecuteSingleTypeMoveAsync(
+        await MoveService.ExecuteSingleTypeMoveAsync(
             workspace,
             solution,
             fqn: "Foo.Target",
@@ -69,7 +70,7 @@ public class MoveIntegrationTests
 
         var (workspace, solution) = project.Build();
 
-        await MoveCore.ExecuteSingleTypeMoveAsync(
+        await MoveService.ExecuteSingleTypeMoveAsync(
             workspace,
             solution,
             fqn: "Foo.Target",
@@ -98,7 +99,7 @@ public class MoveIntegrationTests
 
         var (workspace, solution) = project.Build();
 
-        await MoveCore.ExecuteSingleTypeMoveAsync(
+        await MoveService.ExecuteSingleTypeMoveAsync(
             workspace,
             solution,
             fqn: "SampleProject.Foo.Movable",
@@ -108,5 +109,42 @@ public class MoveIntegrationTests
 
         Assert.False(project.SourceExists("Foo/Movable.cs"), "old folder should not contain the file");
         Assert.True(project.SourceExists("Bar/Movable.cs"), "file should be relocated to new folder");
+    }
+
+    [Fact]
+    public async Task SingleTypeMove_updates_consumers_of_co_located_types_in_the_moved_file()
+    {
+        const string movedFileSource = """
+            namespace Foo;
+            public class Target { }
+            public record CompanionDto(string Name);
+            """;
+
+        const string consumerSource = """
+            using Foo;
+            namespace App;
+            public class Consumer
+            {
+                public CompanionDto Build() => new("x");
+            }
+            """;
+
+        using var project = new AdhocProjectBuilder("CoLocatedSample")
+            .AddSource("MovedFile.cs", movedFileSource)
+            .AddSource("Consumer.cs", consumerSource);
+
+        var (workspace, solution) = project.Build();
+
+        await MoveService.ExecuteSingleTypeMoveAsync(
+            workspace,
+            solution,
+            fqn: "Foo.Target",
+            targetNamespace: "Bar",
+            moveFile: false,
+            dryRun: false);
+
+        var consumerAfter = await project.ReadSourceAsync("Consumer.cs");
+
+        Assert.Contains("using Bar;", consumerAfter);
     }
 }

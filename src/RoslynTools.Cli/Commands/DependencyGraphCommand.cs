@@ -1,6 +1,7 @@
 using System.CommandLine;
 using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
+using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
@@ -44,7 +45,7 @@ internal sealed class DependencyGraphCommand : IRtCommand
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
             using (workspace)
             {
-                var result = await DependencyGraphCore.BuildGraphAsync(sln, typeName, depth, format ?? "json", scope);
+                var result = await DependencyGraphService.BuildGraphAsync(sln, typeName, depth, format ?? "json", scope);
                 RtConsole.WriteLine(RtOutputContext.Result, result);
             }
         }, typeOpt, depthOpt, formatOpt, scopeOpt, solutionOpt);
@@ -54,7 +55,7 @@ internal sealed class DependencyGraphCommand : IRtCommand
 
     /// <summary>
     /// Builds a type-level dependency graph and returns it in the requested format.
-    /// Delegates to <see cref="DependencyGraphCore.BuildGraphAsync"/>.
+    /// Delegates to <see cref="DependencyGraphService.BuildGraphAsync"/>.
     /// </summary>
     internal static Task<string> BuildGraphAsync(
         Solution sln,
@@ -62,5 +63,5 @@ internal sealed class DependencyGraphCommand : IRtCommand
         int? depth,
         string format,
         string? scope) =>
-        DependencyGraphCore.BuildGraphAsync(sln, typeName, depth, format, scope);
+        DependencyGraphService.BuildGraphAsync(sln, typeName, depth, format, scope);
 }

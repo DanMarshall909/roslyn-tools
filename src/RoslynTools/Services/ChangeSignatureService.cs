@@ -4,10 +4,11 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Rename;
 using Microsoft.CodeAnalysis.Text;
+using RoslynTools.Core;
 
-namespace RoslynTools.Core;
+namespace RoslynTools.Services;
 
-internal static class ChangeSignatureCore
+internal static class ChangeSignatureService
 {
     internal static async Task<Solution> RenameParamAsync(
         Solution solution,

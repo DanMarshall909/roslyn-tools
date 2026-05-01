@@ -2,10 +2,11 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.CSharp;
+using RoslynTools.Core;
 
-namespace RoslynTools.Core;
+namespace RoslynTools.Services;
 
-internal static class ReplaceCallCore
+internal static class ReplaceCallService
 {
     internal static async Task RunAsync(Solution solution, string from, string to, bool dryRun)
     {

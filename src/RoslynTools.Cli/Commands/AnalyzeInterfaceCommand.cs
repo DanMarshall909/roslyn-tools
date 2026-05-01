@@ -3,6 +3,7 @@ using RoslynTools.Commands.Results;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Models;
+using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
@@ -44,7 +45,7 @@ internal sealed class AnalyzeInterfaceCommand : IRtCommand
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
             using (workspace)
             {
-                var report = await AnalyzeInterfaceCore.AnalyzeAsync(
+                var report = await AnalyzeInterfaceService.AnalyzeAsync(
                     sln,
                     interfaceSpec,
                     new AnalyzeInterfaceOptions(scope, includeTests, suggest));

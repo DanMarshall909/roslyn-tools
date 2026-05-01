@@ -6,6 +6,7 @@ using RoslynTools.Commands.Results;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Models;
+using RoslynTools.Services;
 
 namespace RoslynTools.Tests.Analysis;
 
@@ -30,7 +31,7 @@ public sealed class AnalyzeInterfaceTests : IDisposable
 
         using (workspace)
         {
-            var report = await AnalyzeInterfaceCore.AnalyzeAsync(
+            var report = await AnalyzeInterfaceService.AnalyzeAsync(
                 sln,
                 "Demo.Contracts.IWorker",
                 new AnalyzeInterfaceOptions());
@@ -67,7 +68,7 @@ public sealed class AnalyzeInterfaceTests : IDisposable
 
         using (workspace)
         {
-            var report = await AnalyzeInterfaceCore.AnalyzeAsync(
+            var report = await AnalyzeInterfaceService.AnalyzeAsync(
                 sln,
                 "Demo.Contracts.IWorker",
                 new AnalyzeInterfaceOptions());
@@ -86,7 +87,7 @@ public sealed class AnalyzeInterfaceTests : IDisposable
 
         using (workspace)
         {
-            var report = await AnalyzeInterfaceCore.AnalyzeAsync(
+            var report = await AnalyzeInterfaceService.AnalyzeAsync(
                 sln,
                 "Demo.Contracts.IWorker",
                 new AnalyzeInterfaceOptions());
@@ -109,7 +110,7 @@ public sealed class AnalyzeInterfaceTests : IDisposable
 
         using (workspace)
         {
-            var report = await AnalyzeInterfaceCore.AnalyzeAsync(
+            var report = await AnalyzeInterfaceService.AnalyzeAsync(
                 sln,
                 "Demo.Contracts.IWorker",
                 new AnalyzeInterfaceOptions());
@@ -131,7 +132,7 @@ public sealed class AnalyzeInterfaceTests : IDisposable
 
         using (workspace)
         {
-            var report = await AnalyzeInterfaceCore.AnalyzeAsync(
+            var report = await AnalyzeInterfaceService.AnalyzeAsync(
                 sln,
                 "Demo.Contracts.IWorker",
                 new AnalyzeInterfaceOptions());
@@ -149,7 +150,7 @@ public sealed class AnalyzeInterfaceTests : IDisposable
 
         using (workspace)
         {
-            var report = await AnalyzeInterfaceCore.AnalyzeAsync(
+            var report = await AnalyzeInterfaceService.AnalyzeAsync(
                 sln,
                 "Demo.Contracts.IWorker",
                 new AnalyzeInterfaceOptions(Scope: "Demo.App"));
@@ -167,7 +168,7 @@ public sealed class AnalyzeInterfaceTests : IDisposable
 
         using (workspace)
         {
-            var report = await AnalyzeInterfaceCore.AnalyzeAsync(
+            var report = await AnalyzeInterfaceService.AnalyzeAsync(
                 sln,
                 "Demo.Contracts.IWorker",
                 new AnalyzeInterfaceOptions());
@@ -255,7 +256,7 @@ public sealed class AnalyzeInterfaceTests : IDisposable
 
         using (workspace)
         {
-            var report = await AnalyzeInterfaceCore.AnalyzeAsync(
+            var report = await AnalyzeInterfaceService.AnalyzeAsync(
                 sln,
                 "Demo.Contracts.IWorker",
                 new AnalyzeInterfaceOptions(Suggest: true));
@@ -278,7 +279,7 @@ public sealed class AnalyzeInterfaceTests : IDisposable
 
         using (workspace)
         {
-            var report = await AnalyzeInterfaceCore.AnalyzeAsync(
+            var report = await AnalyzeInterfaceService.AnalyzeAsync(
                 sln,
                 "Demo.Contracts.IWorker",
                 new AnalyzeInterfaceOptions(Suggest: true));
@@ -299,7 +300,7 @@ public sealed class AnalyzeInterfaceTests : IDisposable
 
         using (workspace)
         {
-            var report = await AnalyzeInterfaceCore.AnalyzeAsync(
+            var report = await AnalyzeInterfaceService.AnalyzeAsync(
                 sln,
                 "Suggest.Contracts.IService",
                 new AnalyzeInterfaceOptions(Suggest: true));
@@ -321,7 +322,7 @@ public sealed class AnalyzeInterfaceTests : IDisposable
 
         using (workspace)
         {
-            var report = await AnalyzeInterfaceCore.AnalyzeAsync(
+            var report = await AnalyzeInterfaceService.AnalyzeAsync(
                 sln,
                 "Suggest.Contracts.IService",
                 new AnalyzeInterfaceOptions(Suggest: true));
@@ -340,7 +341,7 @@ public sealed class AnalyzeInterfaceTests : IDisposable
 
         using (workspace)
         {
-            var report = await AnalyzeInterfaceCore.AnalyzeAsync(
+            var report = await AnalyzeInterfaceService.AnalyzeAsync(
                 sln,
                 "Demo.Contracts.IWorker",
                 new AnalyzeInterfaceOptions(Suggest: false));
@@ -358,7 +359,7 @@ public sealed class AnalyzeInterfaceTests : IDisposable
 
         using (workspace)
         {
-            var report = await AnalyzeInterfaceCore.AnalyzeAsync(
+            var report = await AnalyzeInterfaceService.AnalyzeAsync(
                 sln,
                 "Suggest.Contracts.IService",
                 new AnalyzeInterfaceOptions(Suggest: true));
@@ -394,7 +395,7 @@ public sealed class AnalyzeInterfaceTests : IDisposable
 
         using (workspace)
         {
-            var report = await AnalyzeInterfaceCore.AnalyzeAsync(
+            var report = await AnalyzeInterfaceService.AnalyzeAsync(
                 sln,
                 "Suggest.Contracts.IService",
                 new AnalyzeInterfaceOptions(Suggest: true));

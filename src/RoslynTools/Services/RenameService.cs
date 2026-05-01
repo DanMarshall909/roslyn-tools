@@ -33,8 +33,20 @@ internal static class RenameService
         string? kind,
         bool dryRun)
     {
+        await RenameOneAsync(sln, symbol, newName, kind, dryRun);
+    }
+
+    private static async Task<Solution> RenameOneAsync(
+        Solution sln,
+        string symbol,
+        string newName,
+        string? kind,
+        bool dryRun)
+    {
         var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, symbol, kind);
         var fileRename = ComputeFileRename(sym, newName);
+
+        RtLog.Info("Renaming '{Symbol}' -> '{NewName}'...", sym.ToDisplayString(), newName);
 
         var newSln = await Renamer.RenameSymbolAsync(
             sln,
@@ -42,12 +54,12 @@ internal static class RenameService
             new SymbolRenameOptions(RenameOverloads: false, RenameInStrings: false, RenameInComments: false, RenameFile: false),
             newName);
 
-        RtLog.Info("Renaming '{Symbol}' -> '{NewName}'...", sym.ToDisplayString(), newName);
-
         await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun);
 
         if (fileRename is { } rename)
             ApplyFileRename(rename, dryRun);
+
+        return newSln;
     }
 
     private static (string OldPath, string NewPath)? ComputeFileRename(ISymbol sym, string newName)
@@ -106,9 +118,7 @@ internal static class RenameService
             if (string.IsNullOrWhiteSpace(row.OldFqn))
                 continue;
 
-            var newSln = await RenameAsync(currentSln, row.OldFqn, row.NewName!, kind: null);
-            await SolutionWriter.ApplyChangesAsync(currentSln, newSln, dryRun);
-            currentSln = newSln;
+            currentSln = await RenameOneAsync(currentSln, row.OldFqn, row.NewName!, kind: null, dryRun);
         }
     }
 

@@ -1,10 +1,11 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using RoslynTools.Core;
 
-namespace RoslynTools.Core;
+namespace RoslynTools.Services;
 
-internal static class ConvertToRecordCore
+internal static class ConvertToRecordService
 {
     internal static async Task RunAsync(Solution sln, string typeName, bool dryRun)
     {

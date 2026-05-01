@@ -2,6 +2,7 @@ using System.CommandLine;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
+using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
@@ -53,7 +54,7 @@ internal sealed class FindDuplicatesCommand : IRtCommand
             using (workspace)
             {
                 var options = new FindDuplicatesOptions(minStatements, minOccurrences, scope, includeTests, maxStatements);
-                var groups = await FindDuplicatesCore.RunAsync(sln, options);
+                var groups = await FindDuplicatesService.RunAsync(sln, options);
 
                 var solutionDir = sln.FilePath is not null
                     ? Path.GetDirectoryName(sln.FilePath)

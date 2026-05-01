@@ -4,6 +4,8 @@ using System.Globalization;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using RoslynTools.Core;
+using RoslynTools.Services;
 
 namespace RoslynTools.Core;
 

@@ -1,5 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Core;
+using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
@@ -58,7 +59,7 @@ internal sealed class NarrowDependencyCommand : IRtCommand
         var (workspace, sln) = await WorkspaceLoader.LoadAsync(solutionPath);
         using (workspace)
         {
-            await NarrowDependencyCore.ExecuteAsync(sln, sourceInterface, members, newInterfaceName, dryRun);
+            await NarrowDependencyService.ExecuteAsync(sln, sourceInterface, members, newInterfaceName, dryRun);
         }
     }
 }

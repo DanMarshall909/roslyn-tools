@@ -2,10 +2,11 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using RoslynTools.Core;
 
-namespace RoslynTools.Core;
+namespace RoslynTools.Services;
 
-internal static class DependencyGraphCore
+internal static class DependencyGraphService
 {
     /// <summary>
     /// Builds a type-level dependency graph and returns it in the requested format.

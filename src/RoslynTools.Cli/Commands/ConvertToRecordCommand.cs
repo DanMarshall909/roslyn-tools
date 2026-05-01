@@ -1,5 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Core;
+using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
@@ -45,7 +46,7 @@ internal sealed class ConvertToRecordCommand : IRtCommand
         var (workspace, sln) = await WorkspaceLoader.LoadAsync(solutionPath);
         using (workspace)
         {
-            await ConvertToRecordCore.RunAsync(sln, typeName, dryRun);
+            await ConvertToRecordService.RunAsync(sln, typeName, dryRun);
         }
     }
 }

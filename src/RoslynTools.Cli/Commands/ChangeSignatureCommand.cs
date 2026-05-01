@@ -1,5 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Core;
+using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
@@ -52,7 +53,7 @@ internal sealed class ChangeSignatureCommand : IRtCommand
             {
                 try
                 {
-                    var updatedSolution = await ChangeSignatureCore.RenameParamAsync(
+                    var updatedSolution = await ChangeSignatureService.RenameParamAsync(
                         loadedSolution,
                         methodSpec,
                         oldName,
@@ -97,7 +98,7 @@ internal sealed class ChangeSignatureCommand : IRtCommand
             {
                 try
                 {
-                    var updatedSolution = await ChangeSignatureCore.ReorderParamsAsync(
+                    var updatedSolution = await ChangeSignatureService.ReorderParamsAsync(
                         loadedSolution,
                         methodSpec,
                         newOrder);
@@ -142,7 +143,7 @@ internal sealed class ChangeSignatureCommand : IRtCommand
             {
                 try
                 {
-                    var updatedSolution = await ChangeSignatureCore.AddParamAsync(
+                    var updatedSolution = await ChangeSignatureService.AddParamAsync(
                         loadedSolution,
                         methodSpec,
                         paramSpec,
@@ -187,7 +188,7 @@ internal sealed class ChangeSignatureCommand : IRtCommand
             {
                 try
                 {
-                    var updatedSolution = await ChangeSignatureCore.RemoveParamAsync(
+                    var updatedSolution = await ChangeSignatureService.RemoveParamAsync(
                         loadedSolution,
                         methodSpec,
                         paramName,
