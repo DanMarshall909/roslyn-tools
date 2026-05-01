@@ -74,7 +74,26 @@ internal sealed class ExtractMethodCommand : IRtCommand
                 }
                 catch (InvalidOperationException ex)
                 {
-                    RtLog.Error("Error: {Message}", ex.Message);
+                    RtLog.Error("extract-method: {Message}", ex.Message);
+                    ctx.ExitCode = 1;
+                    return;
+                }
+                catch (ArgumentOutOfRangeException ex)
+                {
+                    RtLog.Error("extract-method: {Message}", ex.Message);
+                    ctx.ExitCode = 1;
+                    return;
+                }
+
+                // Command-layer guard: if the extraction produced no document changes,
+                // treat it as an error rather than silently exiting 0 with "No changes."
+                var changedCount = newSln.GetChanges(sln)
+                    .GetProjectChanges()
+                    .SelectMany(p => p.GetChangedDocuments())
+                    .Count();
+                if (changedCount == 0)
+                {
+                    RtLog.Error("extract-method: could not apply changes — no documents were modified. Verify the file path and line range.");
                     ctx.ExitCode = 1;
                     return;
                 }
