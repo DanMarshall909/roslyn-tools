@@ -3,6 +3,7 @@ using System.CommandLine.Builder;
 using System.CommandLine.Invocation;
 using System.CommandLine.Parsing;
 using System.Reflection;
+using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Core.Decisions;
@@ -62,7 +63,7 @@ internal static class App
     /// </summary>
     internal static IReadOnlyList<(Func<Command> Build, RtCommandInfo Info)> Commands { get; } = Discover();
 
-    internal static async Task<int> RunAsync(string[] args)
+    internal static async Task<int> RunAsync(string[] args, IServiceProvider? services = null)
     {
         var root = new RootCommand("Roslyn-based C# refactoring tool");
 
