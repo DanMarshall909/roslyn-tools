@@ -17,6 +17,6 @@ internal static class Bootstrap
     /// </summary>
     public static void RegisterServices(IServiceCollection services)
     {
-        // Placeholder — registrations added story by story in US-023+.
+        services.AddSingleton<Services.StaticClassInventoryService>();
     }
 }

@@ -124,7 +124,7 @@ public class StaticClassInventoryCommandTests
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var report = await StaticClassInventoryService.AnalyzeAsync(sln);
+            var report = await new StaticClassInventoryService().AnalyzeAsync(sln);
 
             var leaf = report.Classes.Single(c => c.Fqn.EndsWith("LeafService", StringComparison.Ordinal));
             Assert.Equal("leaf", leaf.MigrationDifficulty);
@@ -142,7 +142,7 @@ public class StaticClassInventoryCommandTests
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var report = await StaticClassInventoryService.AnalyzeAsync(sln);
+            var report = await new StaticClassInventoryService().AnalyzeAsync(sln);
 
             var mid = report.Classes.Single(c => c.Fqn.EndsWith("MidService", StringComparison.Ordinal));
             Assert.Equal("mid", mid.MigrationDifficulty);
@@ -160,7 +160,7 @@ public class StaticClassInventoryCommandTests
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var report = await StaticClassInventoryService.AnalyzeAsync(sln);
+            var report = await new StaticClassInventoryService().AnalyzeAsync(sln);
 
             var hub = report.Classes.Single(c => c.Fqn.EndsWith("HubService", StringComparison.Ordinal));
             Assert.Equal("hub", hub.MigrationDifficulty);
@@ -178,7 +178,7 @@ public class StaticClassInventoryCommandTests
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var report = await StaticClassInventoryService.AnalyzeAsync(sln);
+            var report = await new StaticClassInventoryService().AnalyzeAsync(sln);
 
             var isolated = report.Classes.Single(c => c.Fqn.EndsWith("IsolatedService", StringComparison.Ordinal));
             Assert.Equal("leaf", isolated.MigrationDifficulty);
@@ -196,7 +196,7 @@ public class StaticClassInventoryCommandTests
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var report = await StaticClassInventoryService.AnalyzeAsync(sln);
+            var report = await new StaticClassInventoryService().AnalyzeAsync(sln);
 
             var leaf = report.Classes.Single(c => c.Fqn.EndsWith("LeafService", StringComparison.Ordinal));
             Assert.Contains(leaf.CalledFromInstanceClasses, fqn => fqn.EndsWith("InstanceCaller", StringComparison.Ordinal));
@@ -211,7 +211,7 @@ public class StaticClassInventoryCommandTests
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var report = await StaticClassInventoryService.AnalyzeAsync(sln);
+            var report = await new StaticClassInventoryService().AnalyzeAsync(sln);
 
             var mid = report.Classes.Single(c => c.Fqn.EndsWith("MidService", StringComparison.Ordinal));
             Assert.Equal(2, mid.CalledFromStaticClasses.Count);
@@ -248,7 +248,7 @@ public class StaticClassInventoryCommandTests
             var (workspace, sln) = proj.Build();
             using (workspace)
             {
-                var report = await StaticClassInventoryService.AnalyzeAsync(sln);
+                var report = await new StaticClassInventoryService().AnalyzeAsync(sln);
                 var classList = report.Classes.ToList();
 
                 var leaf = classList.Single(c => c.Fqn.EndsWith("LeafService", StringComparison.Ordinal));
@@ -276,7 +276,7 @@ public class StaticClassInventoryCommandTests
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var report = await StaticClassInventoryService.AnalyzeAsync(sln);
+            var report = await new StaticClassInventoryService().AnalyzeAsync(sln);
 
             Assert.Equal(report.TotalStaticClasses, report.Classes.Count);
         }
@@ -304,7 +304,7 @@ public class StaticClassInventoryCommandTests
             var (workspace, sln) = proj.Build();
             using (workspace)
             {
-                var report = await StaticClassInventoryService.AnalyzeAsync(sln);
+                var report = await new StaticClassInventoryService().AnalyzeAsync(sln);
 
                 var cls = report.Classes.Single(c => c.Fqn.EndsWith("TwoMember", StringComparison.Ordinal));
                 Assert.Equal(2, cls.MemberCount);

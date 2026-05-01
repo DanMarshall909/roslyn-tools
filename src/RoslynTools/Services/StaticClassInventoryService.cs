@@ -1,12 +1,15 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using RoslynTools.Models;
 
 namespace RoslynTools.Services;
 
-internal static class StaticClassInventoryService
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class registered in DI per the static-to-instance migration (EP-006). CA1822 enforces the old static-when-stateless rule that conflicts with this direction; suppress per class until the migration completes and the rule is reviewed project-wide.")]
+internal sealed class StaticClassInventoryService
 {
-    internal static async Task<StaticClassInventoryReport> AnalyzeAsync(Solution solution)
+    internal async Task<StaticClassInventoryReport> AnalyzeAsync(Solution solution)
     {
         // 1. Collect all static class symbols across the solution.
         var staticClasses = new List<INamedTypeSymbol>();

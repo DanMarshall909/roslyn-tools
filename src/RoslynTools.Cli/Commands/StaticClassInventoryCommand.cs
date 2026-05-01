@@ -35,7 +35,7 @@ internal sealed class StaticClassInventoryCommand : IRtCommand
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
             using (workspace)
             {
-                var report = await StaticClassInventoryService.AnalyzeAsync(sln);
+                var report = await new StaticClassInventoryService().AnalyzeAsync(sln);
                 RtSerializer.Write(StaticClassInventoryResult.FromReport(report));
             }
         }, solutionOpt);
