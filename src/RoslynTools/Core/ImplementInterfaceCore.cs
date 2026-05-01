@@ -17,7 +17,7 @@ internal static class ImplementInterfaceCore
         var interfacesToImplement = await CollectInterfacesToImplementAsync(sln, classSymbol, interfaceName);
         if (interfacesToImplement.Count == 0)
         {
-            Console.WriteLine($"'{typeName}' does not implement any interfaces.");
+            RtConsole.WriteLine(RtOutputContext.Result, $"'{typeName}' does not implement any interfaces.");
             return;
         }
 
@@ -27,7 +27,7 @@ internal static class ImplementInterfaceCore
         var unimplementedMembers = CollectUnimplementedMembers(classSymbol, interfacesToImplement);
         if (unimplementedMembers.Count == 0)
         {
-            Console.WriteLine($"'{typeName}' already implements all interface members.");
+            RtConsole.WriteLine(RtOutputContext.Result, $"'{typeName}' already implements all interface members.");
             return;
         }
 
@@ -46,7 +46,7 @@ internal static class ImplementInterfaceCore
         var stubs = unimplementedMembers.Select(BuildStub).OfType<MemberDeclarationSyntax>().ToList();
         if (stubs.Count == 0)
         {
-            Console.WriteLine("No stubs to generate.");
+            RtConsole.WriteLine(RtOutputContext.Result, "No stubs to generate.");
             return sln;
         }
 

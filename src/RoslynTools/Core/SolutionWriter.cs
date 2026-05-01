@@ -35,7 +35,7 @@ internal static class SolutionWriter
                 {
                     var encoding = newText.Encoding ?? Encoding.UTF8;
                     File.WriteAllText(filePath, newText.ToString(), encoding);
-                    Console.WriteLine($"Updated: {filePath}");
+                    RtConsole.WriteLine(RtOutputContext.Result, $"Updated: {filePath}");
                 }
 
                 fileCount++;
@@ -55,9 +55,9 @@ internal static class SolutionWriter
 
                 if (dryRun)
                 {
-                    Console.WriteLine($"\n+++ {filePath} (new file)");
+                    RtConsole.WriteLine(RtOutputContext.Diff, $"\n+++ {filePath} (new file)");
                     foreach (var line in newText.Lines)
-                        Console.WriteLine($"+{line}");
+                        RtConsole.WriteLine(RtOutputContext.Diff, $"+{line}");
                 }
                 else
                 {
@@ -67,7 +67,7 @@ internal static class SolutionWriter
 
                     var encoding = newText.Encoding ?? Encoding.UTF8;
                     File.WriteAllText(filePath, newText.ToString(), encoding);
-                    Console.WriteLine($"Created: {filePath}");
+                    RtConsole.WriteLine(RtOutputContext.Result, $"Created: {filePath}");
                 }
 
                 fileCount++;
@@ -76,22 +76,22 @@ internal static class SolutionWriter
 
         if (fileCount == 0)
         {
-            Console.WriteLine("No changes.");
+            RtConsole.WriteLine(RtOutputContext.Result, "No changes.");
         }
         else if (dryRun)
         {
-            Console.WriteLine($"\n[dry-run] {fileCount} file(s) would be modified.");
+            RtConsole.WriteLine(RtOutputContext.Diff, $"\n[dry-run] {fileCount} file(s) would be modified.");
         }
         else
         {
-            Console.WriteLine($"\nDone. {fileCount} file(s) updated.");
+            RtConsole.WriteLine(RtOutputContext.Result, $"\nDone. {fileCount} file(s) updated.");
         }
     }
 
     internal static void PrintDiff(string oldText, string newText, string filePath)
     {
-        Console.WriteLine($"\n--- {filePath}");
-        Console.WriteLine($"+++ {filePath}");
+        RtConsole.WriteLine(RtOutputContext.Diff, $"\n--- {filePath}");
+        RtConsole.WriteLine(RtOutputContext.Diff, $"+++ {filePath}");
 
         var diffBuilder = new InlineDiffBuilder(new Differ());
         var diff = diffBuilder.BuildDiffModel(oldText, newText);
@@ -205,7 +205,7 @@ internal static class SolutionWriter
             }
         }
 
-        Console.WriteLine($"@@ -{entries[hunkStart].OldLine},{oldCount} +{entries[hunkStart].NewLine},{newCount} @@");
+        RtConsole.WriteLine(RtOutputContext.Diff, $"@@ -{entries[hunkStart].OldLine},{oldCount} +{entries[hunkStart].NewLine},{newCount} @@");
 
         for (int k = hunkStart; k < hunkEnd; k++)
         {
@@ -215,7 +215,7 @@ internal static class SolutionWriter
                 ChangeType.Deleted => "-",
                 _ => " "
             };
-            Console.WriteLine($"{prefix}{entries[k].Text}");
+            RtConsole.WriteLine(RtOutputContext.Diff, $"{prefix}{entries[k].Text}");
         }
     }
 }

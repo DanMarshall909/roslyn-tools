@@ -149,6 +149,34 @@ public class ConvertConsoleLoggingTests
     }
 
     [Fact]
+    public async Task Decomposes_interpolated_string_concatenated_with_literal_into_structured_template()
+    {
+        using var project = new AdhocProjectBuilder("LogApp");
+        project.AddSource("LogApp.cs", """
+            class App
+            {
+                void Run(int count, string name)
+                {
+                    Console.WriteLine($"Processed {count} item(s) for {name}; " + "see logs for details.");
+                }
+            }
+            """);
+        var (workspace, solution) = project.Build();
+
+        using (workspace)
+        {
+            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, dryRun: false, apply: true);
+        }
+
+        var content = await project.ReadSourceAsync("LogApp.cs");
+        Assert.Contains(
+            "_logger.LogInformation(\"Processed {Count} item(s) for {Name}; see logs for details.\", count, name)",
+            content);
+        Assert.DoesNotContain("{Value1}", content);
+        Assert.DoesNotContain("$\"", content);
+    }
+
+    [Fact]
     public async Task Converts_composite_format_strings_to_named_templates()
     {
         using var project = new AdhocProjectBuilder("LogApp");

@@ -21,7 +21,7 @@ internal static class ReplaceCallCore
 
         if (locationsByDocument.Count == 0)
         {
-            Console.WriteLine($"No calls to {from} found.");
+            RtConsole.WriteLine(RtOutputContext.Result, $"No calls to {from} found.");
             return;
         }
 

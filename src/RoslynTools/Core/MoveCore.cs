@@ -26,7 +26,7 @@ internal static class MoveCore
 
         if (changedFiles == 0)
         {
-            Console.WriteLine($"No types found in namespace '{sourceNamespace}'.");
+            RtConsole.WriteLine(RtOutputContext.Result, $"No types found in namespace '{sourceNamespace}'.");
             return;
         }
 
@@ -69,7 +69,7 @@ internal static class MoveCore
         if (moveFile && projectDir != null && rootNamespace != null)
             MoveSourceFiles(declarationFiles, projectDir, rootNamespace, oldNamespace, targetNamespace, dryRun);
         else if (!moveFile)
-            Console.WriteLine("\nNOTE: File path unchanged. Consider moving the source file to match the new namespace.");
+            RtConsole.WriteLine(RtOutputContext.Result, "\nNOTE: File path unchanged. Consider moving the source file to match the new namespace.");
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -155,7 +155,7 @@ internal static class MoveCore
         if (moveFile && projectDir != null && rootNamespace != null)
             MoveSourceFiles(declarationFiles, projectDir, rootNamespace, sourceNamespace, targetNamespace, dryRun);
         else if (!moveFile && declarationFiles.Count > 0)
-            Console.WriteLine("\nNOTE: File paths unchanged. Use --move-file to relocate declaration files.");
+            RtConsole.WriteLine(RtOutputContext.Result, "\nNOTE: File paths unchanged. Use --move-file to relocate declaration files.");
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -325,7 +325,7 @@ internal static class MoveCore
 
             if (!fileRelPath.StartsWith(oldRelDir, StringComparison.OrdinalIgnoreCase))
             {
-                Console.WriteLine($"WARNING: '{fileRelPath}' does not start with '{oldRelDir}' -- file not moved.");
+                RtConsole.WriteLine(RtOutputContext.Result, $"WARNING: '{fileRelPath}' does not start with '{oldRelDir}' -- file not moved.");
                 continue;
             }
 
@@ -335,13 +335,13 @@ internal static class MoveCore
 
             if (dryRun)
             {
-                Console.WriteLine($"[dry-run] Would move: {filePath} -> {newFilePath}");
+                RtConsole.WriteLine(RtOutputContext.Result, $"[dry-run] Would move: {filePath} -> {newFilePath}");
                 continue;
             }
 
             if (File.Exists(newFilePath))
             {
-                Console.WriteLine($"WARNING: Target already exists: {newFilePath} -- file not moved.");
+                RtConsole.WriteLine(RtOutputContext.Result, $"WARNING: Target already exists: {newFilePath} -- file not moved.");
                 continue;
             }
 
@@ -350,7 +350,7 @@ internal static class MoveCore
                 Directory.CreateDirectory(newDir);
 
             File.Move(filePath, newFilePath);
-            Console.WriteLine($"Moved: {filePath} -> {newFilePath}");
+            RtConsole.WriteLine(RtOutputContext.Result, $"Moved: {filePath} -> {newFilePath}");
         }
     }
 

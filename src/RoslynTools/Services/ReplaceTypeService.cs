@@ -41,7 +41,7 @@ internal static class ReplaceTypeService
 
         if (changedFiles == 0)
         {
-            Console.WriteLine("No DateTime.UtcNow or DateTime.Now usage found.");
+            RtConsole.WriteLine(RtOutputContext.Result, "No DateTime.UtcNow or DateTime.Now usage found.");
             return;
         }
 

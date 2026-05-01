@@ -313,7 +313,8 @@ internal static class ConsoleLoggingCore
             var parts = new List<ExpressionSyntax>();
             FlattenAdditions(expression, parts);
 
-            if (parts.Count <= 1 || !parts.Any(IsStringLiteral))
+            var hasStringPart = parts.Any(p => IsStringLiteral(p) || p is InterpolatedStringExpressionSyntax);
+            if (parts.Count <= 1 || !hasStringPart)
             {
                 converted = default;
                 return false;
@@ -328,6 +329,14 @@ internal static class ConsoleLoggingCore
                     && literal.IsKind(SyntaxKind.StringLiteralExpression))
                 {
                     template.Append(EscapeTemplateText(literal.Token.ValueText));
+                    continue;
+                }
+
+                if (part is InterpolatedStringExpressionSyntax interpolated)
+                {
+                    var inner = ConvertInterpolatedString(interpolated);
+                    template.Append(inner.Template);
+                    args.AddRange(inner.Arguments);
                     continue;
                 }
 

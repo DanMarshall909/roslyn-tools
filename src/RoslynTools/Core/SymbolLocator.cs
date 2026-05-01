@@ -198,17 +198,17 @@ internal static class SymbolLocator
         if (store is not null)
             return DisambiguateViaStore(matches, name, store);
 
-        Console.WriteLine($"\nMultiple symbols match '{name}':");
+        RtConsole.WriteLine(RtOutputContext.Interactive, $"\nMultiple symbols match '{name}':");
         for (int i = 0; i < matches.Count; i++)
         {
             var m = matches[i];
-            Console.WriteLine($"  [{i}]  {m.Symbol.Kind,-12} {m.DisplayName,-60} ({m.ProjectName})");
+            RtConsole.WriteLine(RtOutputContext.Interactive, $"  [{i}]  {m.Symbol.Kind,-12} {m.DisplayName,-60} ({m.ProjectName})");
         }
 
         while (true)
         {
-            Console.Write($"Enter number [0-{matches.Count - 1}]: ");
-            var rawInput = Console.ReadLine();
+            RtConsole.Write(RtOutputContext.Interactive, $"Enter number [0-{matches.Count - 1}]: ");
+            var rawInput = RtConsole.ReadLine();
             if (rawInput is null)
             {
                 throw new InvalidOperationException(
@@ -219,7 +219,7 @@ internal static class SymbolLocator
             var input = rawInput.Trim();
             if (int.TryParse(input, out int choice) && choice >= 0 && choice < matches.Count)
                 return matches[choice].Symbol;
-            Console.WriteLine("  Invalid selection, try again.");
+            RtConsole.WriteLine(RtOutputContext.Interactive, "  Invalid selection, try again.");
         }
     }
 

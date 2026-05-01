@@ -45,7 +45,7 @@ No command name collides with a group, so the root shortcut works for every comm
 | Move type to different namespace | `move --type Ns.Type --to-namespace Ns.New --solution …` |
 | Find all references to a symbol | `find-refs --symbol Name --solution …` |
 | Find all call sites of a method | `find-callers --symbol Method --solution …` |
-| See a type's shape (members, bases) | `inspect TypeName --solution …` |
+| See a type's shape (members, bases) | `describe TypeName --solution …` |
 | List all types/members in a file | `outline path/to/File.cs --solution …` |
 | Find all implementations of interface | `find-impl IFooInterface --solution …` |
 | Find dead code | `find-unused --solution …` |
@@ -81,7 +81,7 @@ No command name collides with a group, so the root shortcut works for every comm
 | `find-impl` | `impls` | read | JSON | symbol (positional) |
 | `find-refs` | — | read | text | `--symbol`, `--kind` |
 | `find-unused` | `unused` | read | text | `--scope` |
-| `inspect` | — | read | JSON | symbol (positional), `--kind` |
+| `describe` | — | read | JSON | symbol (positional), `--kind` |
 | `outline` | — | read | JSON | file or namespace (positional) |
 | `circular-deps` | `cdeps` | read | text | `--scope` |
 | `dependency-graph` | `depgraph` | read | JSON | `--scope`, `--type`, `--depth`, `--format dot` |
@@ -111,7 +111,7 @@ No command name collides with a group, so the root shortcut works for every comm
 
 ## Output conventions
 
-- **Read-only commands** (inspect, outline, find-impl, find-duplicates, find-pattern, dependency-graph): JSON to stdout — pipe to `jq` or parse directly
+- **Read-only commands** (describe, outline, find-impl, find-duplicates, find-pattern, dependency-graph): JSON to stdout — pipe to `jq` or parse directly
 - **Mutation commands** (rename, move, extract-*, etc.): plain text diff to stdout
 - **All commands**: diagnostics and progress to stderr; results to stdout
 

@@ -19,7 +19,7 @@ internal static class MakeAsyncService
 
         if (methodSymbol.IsAsync)
         {
-            Console.WriteLine("Method is already async.");
+            RtConsole.WriteLine(RtOutputContext.Result, "Method is already async.");
             return;
         }
 

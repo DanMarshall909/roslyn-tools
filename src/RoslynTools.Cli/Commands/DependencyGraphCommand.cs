@@ -45,7 +45,7 @@ internal sealed class DependencyGraphCommand : IRtCommand
             using (workspace)
             {
                 var result = await DependencyGraphCore.BuildGraphAsync(sln, typeName, depth, format ?? "json", scope);
-                Console.WriteLine(result);
+                RtConsole.WriteLine(RtOutputContext.Result, result);
             }
         }, typeOpt, depthOpt, formatOpt, scopeOpt, solutionOpt);
 

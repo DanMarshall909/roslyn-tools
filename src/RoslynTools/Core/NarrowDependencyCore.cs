@@ -511,29 +511,29 @@ internal static class NarrowDependencyCore
 
         if (reusedInterface is not null)
         {
-            Console.WriteLine($"{modeLabel}Reusing existing interface '{newInterfaceName}' — shape matches selected members.");
+            RtConsole.WriteLine(RtOutputContext.Result, $"{modeLabel}Reusing existing interface '{newInterfaceName}' — shape matches selected members.");
         }
         else
         {
-            Console.WriteLine($"{modeLabel}New interface '{newInterfaceName}' will be created.");
+            RtConsole.WriteLine(RtOutputContext.Result, $"{modeLabel}New interface '{newInterfaceName}' will be created.");
         }
 
         if (result.NarrowedConsumers.Count > 0)
         {
-            Console.WriteLine($"\n{modeLabel}Narrowed {result.NarrowedConsumers.Count} consumer(s):");
+            RtConsole.WriteLine(RtOutputContext.Result, $"\n{modeLabel}Narrowed {result.NarrowedConsumers.Count} consumer(s):");
             foreach (var consumer in result.NarrowedConsumers)
-                Console.WriteLine($"  - {consumer}");
+                RtConsole.WriteLine(RtOutputContext.Result, $"  - {consumer}");
 
-            Console.WriteLine(
+            RtConsole.WriteLine(RtOutputContext.Result,
                 $"\nNOTE: DI registration(s) for '{newInterfaceName}' must be updated manually. " +
                 "Register the concrete implementation against the new narrower interface in your composition root.");
         }
 
         if (result.SkippedConsumers.Count > 0)
         {
-            Console.WriteLine($"\n{modeLabel}Skipped {result.SkippedConsumers.Count} consumer(s):");
+            RtConsole.WriteLine(RtOutputContext.Result, $"\n{modeLabel}Skipped {result.SkippedConsumers.Count} consumer(s):");
             foreach (var (name, reason) in result.SkippedConsumers)
-                Console.WriteLine($"  - {name}: skipped ({reason})");
+                RtConsole.WriteLine(RtOutputContext.Result, $"  - {name}: skipped ({reason})");
         }
     }
 

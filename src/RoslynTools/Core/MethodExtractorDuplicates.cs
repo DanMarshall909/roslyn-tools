@@ -81,7 +81,7 @@ internal static class MethodExtractorDuplicates
             }
         }
 
-        Console.WriteLine($"matches found: {matches.Count}, replaced: {replaced}, skipped: {skipped}");
+        RtConsole.WriteLine(RtOutputContext.Result, $"matches found: {matches.Count}, replaced: {replaced}, skipped: {skipped}");
 
         return currentSln;
     }

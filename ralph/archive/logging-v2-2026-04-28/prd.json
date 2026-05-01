@@ -1,6 +1,6 @@
 {
   "project": "roslyn-tools",
-  "branchName": "ralph/change-signature",
+  "branchName": "ralph/logging-v2",
   "description": "A mixed backlog covering `change-signature` sub-commands plus dogfood-driven workspace-loading, diagnostic-output, interface-segregation, and mutation-safety improvements for `rt`. Stories are ordered so the original change-signature work lands first, followed by infrastructure and analysis improvements uncovered during real repo usage.",
   "userStories": [
     {
@@ -303,7 +303,9 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes with no formatting violations."
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
+      "resolution": "Migrated 21 files routing every direct Console.* call to the shared RtConsole/RtLog abstraction; ConsoleGateTests allowlist stays at the single legitimate exception (RtConsole.cs); StructuredLoggingTests passes across ~60 RtLog call sites with literal templates; LoggingRefactorTests substantively asserts stdout/stderr contracts for read-only, mutation-dry-run, and narrow-dependency commands; WorkspaceLoader.DiagnosticSinkOverride hook preserved. Side-fixes in batch: dee6c42 reverted .slnx pre-load rejection regressed in 2a45e6d; 50ac862 fixed rt ccl mangling of interpolated+literal concatenation (TDD cycle with 5fe5dc3). Build 0 warn/0 err; format clean.",
+      "resolvedAt": "2026-04-28",
       "notes": "Scope this to `src/RoslynTools` only; test fixture code that intentionally uses `Console.WriteLine` as sample input should remain untouched. Current candidates include `WorkspaceLoader`, `SolutionWriter`, `MsBuildBootstrap`, command progress/error paths, and core refactoring workflows such as `ConvertToRecordCore`, `MakeInstanceCore`, `MakeStaticCore`, `MoveCore`, `NarrowDependencyCore`, and `ReplaceCallCore`. Preserve existing stdout/stderr semantics for result payloads and dry-run diffs."
     }
   ]

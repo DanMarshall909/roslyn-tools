@@ -138,9 +138,10 @@ internal static class App
                     {
                         var store = DecisionContext.Store!;
                         store.Save(decisionsFile.FullName);
-                        Console.Error.WriteLine(
-                            $"wrote {store.PendingCount} pending decision(s) to {decisionsFile.FullName}; "
-                            + "resolve `choose:` fields and re-run.");
+                        RtLog.Warning(
+                            "wrote {PendingCount} pending decision(s) to {DecisionsFile}; resolve `choose:` fields and re-run.",
+                            store.PendingCount,
+                            decisionsFile.FullName);
                         context.ExitCode = 2;
                     }
                     finally

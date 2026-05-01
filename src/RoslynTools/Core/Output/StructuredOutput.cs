@@ -16,10 +16,10 @@ internal static class StructuredOutput
     {
         if (RtContext.Format == OutputFormat.Yaml)
         {
-            Console.Write(YamlSerializer.Serialize(data));
+            RtConsole.Write(RtOutputContext.Result, YamlSerializer.Serialize(data));
             return;
         }
 
-        Console.WriteLine(JsonSerializer.Serialize(data, jsonOptions));
+        RtConsole.WriteLine(RtOutputContext.Result, JsonSerializer.Serialize(data, jsonOptions));
     }
 }

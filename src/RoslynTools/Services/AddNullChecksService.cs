@@ -22,7 +22,7 @@ internal static class AddNullChecksService
         var methodSyntax = (MethodDeclarationSyntax)await syntaxRef.GetSyntaxAsync();
         if (methodSyntax.Body == null)
         {
-            Console.WriteLine("Method has no block body — skipped.");
+            RtConsole.WriteLine(RtOutputContext.Result, "Method has no block body — skipped.");
             return;
         }
 
@@ -34,7 +34,7 @@ internal static class AddNullChecksService
 
         if (eligibleParams.Count == 0)
         {
-            Console.WriteLine("No null checks needed.");
+            RtConsole.WriteLine(RtOutputContext.Result, "No null checks needed.");
             return;
         }
 
