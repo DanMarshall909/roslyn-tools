@@ -85,19 +85,6 @@ internal sealed class ExtractMethodCommand : IRtCommand
                     return;
                 }
 
-                // Command-layer guard: if the extraction produced no document changes,
-                // treat it as an error rather than silently exiting 0 with "No changes."
-                var changedCount = newSln.GetChanges(sln)
-                    .GetProjectChanges()
-                    .SelectMany(p => p.GetChangedDocuments())
-                    .Count();
-                if (changedCount == 0)
-                {
-                    RtLog.Error("extract-method: could not apply changes — no documents were modified. Verify the file path and line range.");
-                    ctx.ExitCode = 1;
-                    return;
-                }
-
                 await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun);
             }
         });
