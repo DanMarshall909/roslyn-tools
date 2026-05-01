@@ -3,5 +3,5 @@ param(
     [string[]] $Args
 )
 
-& "$PSScriptRoot\src\RoslynTools.Cli\bin\Release\net8.0\win-x64\publish\rt.exe" @Args
+& "$PSScriptRoot\src\RoslynTools.Cli\bin\Release\net8.0\rt.exe" @Args
 exit $LASTEXITCODE
