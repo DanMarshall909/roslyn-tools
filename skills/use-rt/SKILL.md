@@ -1,15 +1,14 @@
 ---
 name: use-rt
-description: "Reference guide for the rt Roslyn CLI tool (31 commands). Load this when performing C# refactoring, symbol navigation, or code analysis on any ProjectX or roslyn-tools solution. Triggers on: /use-rt, use rt, roslyn refactoring, rt command."
+description: "Reference guide for the rt Roslyn CLI tool — solution-wide C# rename, refactor, navigation, and analysis. Load this when performing any C# refactoring or symbol-navigation task. Triggers on: /use-rt, use rt, roslyn refactoring, rt command."
 user-invocable: true
 ---
 
 # rt — Roslyn CLI Reference
 
-`rt` is a Roslyn-powered C# refactoring CLI. Run from `C:\code\roslyn-tools\` using `rt.cmd`.
+`rt` is a Roslyn-powered C# refactoring CLI. It performs solution-wide refactoring (rename, move, extract-*, find-refs, etc.) using semantic analysis instead of text matching.
 
-> **Before using rt.cmd**: the wrapper runs the published binary — publish first if recently changed:
-> `dotnet publish src/RoslynTools.Cli/RoslynTools.Cli.csproj -c Release -r win-x64 --self-contained false`
+> **Install:** `dotnet tool install -g roslyn-tools-rt` (requires .NET 8 SDK or later). After install, `rt` is on your PATH.
 
 ## Command groups
 
@@ -26,16 +25,9 @@ rt <command> [args...]           # root shortcut — works for every command nam
 | `rt analyze` | Read-only: scan for cross-cutting issues (`circular-deps`, `dependency-graph`, `analyze-interface`, `find-duplicates`, `find-magic-strings`, `list-imports`, `list-smells`) |
 | `rt refactor` | Mutations (`rename`, `move`, `extract-*`, `inline-method`, `make-*`, `replace-*`, `convert-*`, `add-*`, etc.) |
 
-No command name collides with a group, so the root shortcut works for every command.
+## Solution targeting
 
-## Solution paths
-
-| Repo | `--solution` value |
-|---|---|
-| libraries | `C:\code\libraries\ProjectX.Libraries.sln` |
-| hero-platform | `C:\code\hero-platform\ProjectX.sln` |
-| azure-functions | `C:\code\azure-functions\ProjectX.AzureFunctions.sln` |
-| roslyn-tools (self) | `RoslynTools.slnx` (relative, from `C:\code\roslyn-tools\`) |
+Most commands need `--solution <path>`. If omitted, `rt` walks up from the current directory looking for a single `.sln` / `.slnx`. Pass an explicit path when there's ambiguity or when invoking from outside the repo.
 
 ## Decision guide
 
@@ -114,10 +106,11 @@ No command name collides with a group, so the root shortcut works for every comm
 - **Read-only commands** (describe, outline, find-impl, find-duplicates, find-pattern, dependency-graph): JSON to stdout — pipe to `jq` or parse directly
 - **Mutation commands** (rename, move, extract-*, etc.): plain text diff to stdout
 - **All commands**: diagnostics and progress to stderr; results to stdout
+- **Exit codes**: `0` success, `1` error, `2` decisions required (see `--decisions <path.yaml>`)
 
 ## Rules
 
 - Always pass `--dry-run` first for any mutation command, confirm the diff looks correct, then re-run without it
 - All commands support `--dry-run`
-- If `rt` fails or doesn't support the operation: do the work manually and append a line to `C:\code\roslyn-tools\tasks\dogfood-gaps.md`: `- YYYY-MM-DD: <what was attempted> — <why it failed>`
-- Never block on a failed `rt` call — log and carry on
+- The full, always-current command reference is `rt dump-help` (the binary itself is the source of truth)
+- Never block on a failed `rt` call — fall back to manual edits and continue

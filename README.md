@@ -10,6 +10,17 @@ dotnet tool install -g roslyn-tools-rt
 
 Requires .NET 8 SDK or later. After install, `rt` is on your PATH.
 
+## Use with Claude Code
+
+This repo ships a Claude Code plugin so the assistant knows when and how to invoke each command. Install:
+
+```sh
+/plugin marketplace add DanMarshall909/roslyn-tools
+/plugin install roslyn-tools
+```
+
+The plugin contains a single `use-rt` skill that loads on `/use-rt` or any prompt mentioning rt / Roslyn refactoring. The CLI itself (the `rt` binary above) must be installed separately — the skill describes what to invoke, `rt` does the work.
+
 ## Build from source
 
 ```sh
@@ -34,7 +45,7 @@ dotnet publish src/RoslynTools.Cli/RoslynTools.Cli.csproj -c Release -r win-x64 
 | `find-pattern` | `fp` | Find all locations structurally matching a given statement range (same SyntaxKind shape, identifiers/literals may differ) |
 | `find-unused` | `unused` | Report types and methods with zero references |
 | `find-duplicates` | `fd` | Report exact-clone code blocks repeated across the solution |
-| `inspect` | | Show type shape as JSON — members, bases, interfaces, locations |
+| `describe` | | Show type shape as JSON — members, bases, interfaces, locations |
 | `outline` | | List all types/members in a file or namespace as JSON |
 | `list-smells` | `smells` | Report large classes, long methods, over-injected constructors |
 | `circular-deps` | `cdeps` | Detect circular namespace dependencies |
@@ -314,13 +325,13 @@ rt make-async --type AgentService --method GetAgent --solution MySolution.sln [-
 rt fix-namespace --file src/Services/Agents/AgentService.cs --solution MySolution.sln
 ```
 
-### rename / move / find-refs / inspect / outline / find-impl
+### rename / move / find-refs / describe / outline / find-impl
 
 ```sh
 rt rename "MyApp.Services.UserService" "AccountService" --dry-run
 rt move --type "MyApp.Old.Customer" --to-namespace "MyApp.New" --move-file
 rt find-refs --symbol "BookingService"
-rt inspect "MyApp.Services.BookingService"
+rt describe "MyApp.Services.BookingService"
 rt outline "src/Models/Customer.cs"
 rt find-impl "MyApp.Interfaces.IRepository"
 ```

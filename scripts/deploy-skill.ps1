@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Deploy docs/use-rt-skill.md to an AI tool's skills folder.
+    Deploy skills/use-rt/SKILL.md to an AI tool's skills folder.
 
 .PARAMETER DestDir
     Target directory for the skill. Defaults to ~/.claude/skills/use-rt.
@@ -17,11 +17,11 @@ param(
     [string]$DestDir = "$env:USERPROFILE\.claude\skills\use-rt"
 )
 
-$source = Join-Path $PSScriptRoot "..\docs\use-rt-skill.md"
+$source = Join-Path $PSScriptRoot "..\skills\use-rt\SKILL.md"
 $dest   = Join-Path $DestDir "SKILL.md"
 
 if (-not (Test-Path $source)) {
-    Write-Error "Source not found: $source - run 'dotnet build RoslynTools.slnx' first."
+    Write-Error "Source not found: $source"
     exit 1
 }
 

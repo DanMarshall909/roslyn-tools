@@ -1,0 +1,11 @@
+{
+  "name": "roslyn-tools",
+  "version": "0.1.0",
+  "description": "rt — Roslyn-powered C# refactoring CLI. Solution-wide rename, extract-interface, find-refs, find-unused, dependency-graph, and 25+ more commands. Includes a use-rt skill so Claude knows when and how to invoke each command.",
+  "author": {
+    "name": "Dan Marshall",
+    "url": "https://github.com/DanMarshall909/roslyn-tools"
+  },
+  "homepage": "https://github.com/DanMarshall909/roslyn-tools",
+  "repository": "https://github.com/DanMarshall909/roslyn-tools"
+}
