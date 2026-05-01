@@ -1,7 +1,7 @@
 {
     "project": "roslyn-tools",
     "branchName": "ralph/dogfood-gaps-2026-05-01",
-    "description": "Backlog converting the unfixed entries in tasks/dogfood-gaps.md into executable stories for roslyn-tools. Themes: (a) bug fixes in existing refactor commands (string.Format decomposition in console-logging conversion, silent extract-method failure on conditional blocks, line-range drift in extract-method duplicates), (b) small logging/structure polish (migrate residual WARNING: prefixes to RtLog.Warning, thin out fat command shells, repair a non-bisectable commit), (c) new rt analyze commands for architecture / responsibility / interface-segregation work and dump-help normalization, (d) new rt refactor commands (introduce-record, extract-orchestrator, replace-pattern, move-method --to/--from-nested-class, narrow-dependency / extract-narrow-interface, extract-adapter precondition for static types), and (e) dev-experience tooling (CLI-invocation test scaffolding, dump-help --normalize, RtCommandInfo field audit, workspace auto-detection and diagnostics separation).",
+    "description": "Backlog converting the unfixed entries in tasks/dogfood-gaps.md into executable stories for roslyn-tools. Themes: (a) bug fixes in existing refactor commands (string.Format decomposition in console-logging conversion, silent extract-method failure on conditional blocks, line-range drift in extract-method duplicates), (b) small logging/structure polish (migrate residual WARNING: prefixes to RtLog.Warning, thin out fat command shells, repair a non-bisectable commit), (c) new rt analyze commands for architecture / responsibility / interface-segregation work and dump-help normalization, (d) new rt refactor commands (introduce-record, extract-orchestrator, replace-pattern, move-method --to/--from-nested-class, narrow-dependency / extract-narrow-interface, extract-adapter precondition for static types), (e) dev-experience tooling (CLI-invocation test scaffolding, dump-help --normalize, RtCommandInfo field audit, workspace auto-detection and diagnostics separation), and (f) static-to-instance migration: scaffold a DI host, build rt refactor destatic-class and rt analyze static-class-inventory, pilot on three leaf services, then sweep the remaining ~31 services in src/RoslynTools/Services/.",
     "idPrefix": "US",
     "epics": [
         {
@@ -33,6 +33,12 @@
             "title": "Tooling and developer experience",
             "description": "Improvements to test scaffolding (rt add-test --cli mode), thin-shell discipline (extract ExtractMethodHandler), bisect hygiene (repair commit 0445c01), and dump-help --normalize for snapshot stability.",
             "notes": "Items 12, 13, 14, 15 from the gap log."
+        },
+        {
+            "id": "EP-006",
+            "title": "Static-to-instance migration",
+            "description": "Move away from the static-class-everywhere pattern (~57% of src/ classes today, including all 34 services in src/RoslynTools/Services/). Set up a DI host in RoslynTools.Cli, build rt refactor destatic-class and rt analyze static-class-inventory, pilot the migration on three leaf services, then sweep the remaining ~31 services in batches. Eat-your-own-dog-food validation for the destatic tooling.",
+            "notes": "New direction set 2026-05-01. Unblocks several rt analyze/refactor commands that currently refuse or warn on static hosts (US-013, US-017, US-021). See memory: project_static_class_migration.md."
         }
     ],
     "userStories": [
@@ -303,6 +309,7 @@
                 "Edge case: interface FQN not found -> exit 1 with clear message",
                 "Add xUnit tests using a fixture interface with three members and three consumers each calling a different subset; assert membersUsed/membersUnused per consumer and unusedAcrossAllConsumers",
                 "Self-test: run against IRtCommand or another interface in roslyn-tools and inspect output for sanity",
+                "Static-class hosts (transitional): when the analysis encounters a static class as a consumer or implementer, emit a diagnostic note (e.g. `[INFO] static class \"<FQN>\" cannot consume an interface — skipped`) and continue. This is transitional behaviour during the static-to-instance migration (EP-006); do not over-invest in adapting the analysis to operate on static hosts",
                 "rt dump-help shows the new command and Info.Examples reflects the actual invocation",
                 "dotnet build \"RoslynTools.slnx\" passes with zero errors and zero new warnings",
                 "dotnet test \"tests/RoslynTools.Tests/RoslynTools.Tests.csproj\" -v minimal passes",
@@ -393,6 +400,7 @@
                 "When --strategy wrapper is passed against a non-static type, behave as if --strategy direct was passed (or document the ambiguity and exit 1 — pick one and document)",
                 "Add xUnit tests covering: (a) static type with default strategy -> exit 1 with expected message, (b) static type with --strategy wrapper -> wrapper class generated, (c) non-static type unchanged behaviour",
                 "Self-test: run against WorkspaceLoader (static) in RoslynTools.slnx — covers the original dogfood scenario",
+                "Transitional scope (EP-006): this command is an aid during the static-to-instance migration. Once that migration completes the static-type case becomes rare; scope `--strategy wrapper` to the dogfood scenario only and do not invest in deep semantic translation of static call sites",
                 "rt dump-help shows the new --strategy flag and Info.Examples reflects the actual invocation",
                 "dotnet build \"RoslynTools.slnx\" passes with zero errors and zero new warnings",
                 "dotnet test \"tests/RoslynTools.Tests/RoslynTools.Tests.csproj\" -v minimal passes",
@@ -486,6 +494,7 @@
                 "--dry-run emits a unified diff covering all affected files; without --dry-run, files are written",
                 "Add xUnit tests using fixtures from US-013/US-014 covering: (a) inheritance strategy, (b) auto-detected eligible consumers, (c) named-consumer-with-extra-members error, (d) DI registration injection (if a DI registration is in the fixture)",
                 "Self-test: run with --dry-run against IRtCommand or another small interface in RoslynTools.slnx, narrowing it for a single consumer",
+                "Static-class consumers (transitional): detect IsStatic on consumer types and emit a diagnostic (e.g. `[INFO] static class \"<FQN>\" cannot have constructor injection narrowed — skipped`); continue with non-static consumers. Transitional behaviour during the static-to-instance migration (EP-006) — the long-term expectation is that consumers become instance classes via destatic-class",
                 "rt dump-help shows the new command and Info.Examples reflects the actual invocation",
                 "dotnet build \"RoslynTools.slnx\" passes with zero errors and zero new warnings",
                 "dotnet test \"tests/RoslynTools.Tests/RoslynTools.Tests.csproj\" -v minimal passes",
@@ -494,6 +503,113 @@
             "priority": 21,
             "passes": false,
             "notes": "Affected files: src/RoslynTools/Commands/ExtractNarrowInterfaceCommand.cs (new), src/RoslynTools/Services/ExtractNarrowInterfaceService.cs (new), tests/RoslynTools.Tests/ExtractNarrowInterfaceCommandTests.cs (new). DEPENDS ON: US-013 (consumer/member-usage analysis is the natural input). Item 20 in the gap log. CONSERVATIVE: --add-di-registration is the most fragile part of the spec (requires recognising arbitrary DI patterns); if it does not fit the session, ship it as `[NotImplemented]` exiting 1 with a follow-up story rather than half-implement."
+        },
+        {
+            "id": "US-022",
+            "epicId": "EP-006",
+            "title": "Set up DI host in RoslynTools.Cli",
+            "description": "As a maintainer preparing for the static-to-instance migration, I want Microsoft.Extensions.Hosting + DI container scaffolded in RoslynTools.Cli's startup so that subsequent destatic refactors have a registration target and a place to thread injected dependencies through.",
+            "acceptanceCriteria": [
+                "Add Microsoft.Extensions.Hosting and Microsoft.Extensions.DependencyInjection packages to src/RoslynTools.Cli/RoslynTools.Cli.csproj — pin to versions compatible with .NET 8",
+                "Wire a Host builder in Program.cs that runs after MsBuildBootstrap.Register() and before App.RunAsync(args). Service registration lives in a single Bootstrap.RegisterServices(IServiceCollection) method in src/RoslynTools.Cli/Bootstrap.cs",
+                "Initial registrations: leave services as static for now (do not migrate yet) — the deliverable of this story is the scaffold, not the migration. Bootstrap.RegisterServices may be empty or contain only placeholder comments",
+                "App.RunAsync receives the IServiceProvider so command handlers can resolve services in subsequent stories. Existing commands continue to call static services unchanged — no behavioural diff",
+                "dump-help fast path remains untouched (still skips MSBuildBootstrap and the host)",
+                "Add xUnit test that builds the host and asserts Bootstrap.RegisterServices runs without throwing",
+                "Self-test: `rt inspect describe \"RoslynTools.Core.WorkspaceLoader\" --solution RoslynTools.slnx` continues to succeed, byte-for-byte identical to pre-change output (run before and diff)",
+                "dotnet build \"RoslynTools.slnx\" passes with zero errors and zero new warnings",
+                "dotnet test \"tests/RoslynTools.Tests/RoslynTools.Tests.csproj\" -v minimal passes",
+                "dotnet format \"RoslynTools.slnx\" --verify-no-changes passes"
+            ],
+            "priority": 22,
+            "passes": false,
+            "notes": "Affected files: src/RoslynTools.Cli/RoslynTools.Cli.csproj, src/RoslynTools.Cli/Program.cs, src/RoslynTools.Cli/Bootstrap.cs (new), src/RoslynTools.Cli/App.cs (signature change), tests/RoslynTools.Tests/BootstrapTests.cs (new). MUST PRECEDE: US-023 (destatic command depends on this for DI registration injection)."
+        },
+        {
+            "id": "US-023",
+            "epicId": "EP-006",
+            "title": "Add rt refactor destatic-class command",
+            "description": "As a developer migrating away from static-class-everywhere, I want rt refactor destatic-class <TypeFqn> --solution <sln> --dry-run to drop the static modifier from a class, make all members instance, generate a matching interface, register the class in DI, and rewrite all call sites to use injected references so that I can convert a service in one command rather than dozens of manual edits.",
+            "acceptanceCriteria": [
+                "Add src/RoslynTools/Commands/DestaticClassCommand.cs implementing IRtCommand with Info.Category = \"refactor\", Info.JsonOutput = false, Info.Mutates = true",
+                "Build() accepts: <TypeFqn> positional, --interface-name <name> (optional, defaults to I<TypeName>), --no-interface (skip interface generation), --no-di-registration (skip Bootstrap.RegisterServices update), --lifetime <singleton|scoped|transient> (default singleton), --solution, --dry-run",
+                "Behaviour for the target class: drop `static` from the class declaration, drop `static` from all members, generate a matching interface (unless --no-interface) with the public members, add a parameterless constructor (dependency-of-dependency rewrites are out of scope for v1)",
+                "Behaviour at call sites: for each consumer that is itself a non-static class, rewrite `FooService.Bar(...)` to `_fooService.Bar(...)`, add `IFooService _fooService` field, add the parameter to the constructor (creating one if absent). For consumers that are static classes, emit `[WARN] caller \"<FQN>\" is static — skipped; destatic the caller first` and leave that call site unchanged",
+                "DI registration: unless --no-di-registration, locate Bootstrap.RegisterServices (from US-022) and append the registration matching --lifetime",
+                "Edge case: type is already non-static -> exit 1 with explanatory message; type not found -> exit 1; type has a static constructor -> exit 1 with note that static constructors must be migrated manually first; Bootstrap.RegisterServices not found and --no-di-registration not set -> exit 1 telling the user to run US-022 first",
+                "Idempotency: running the command twice on the same type — second run exits 1 (already non-static)",
+                "--dry-run emits a unified diff covering the type, all consumers, and Bootstrap.RegisterServices; without --dry-run, all files are written. Both modes are byte-stable for the same input",
+                "Add xUnit tests covering: (a) simple static class with two non-static consumers, (b) static caller skipped with diagnostic, (c) idempotency, (d) --no-interface variant, (e) --no-di-registration variant, (f) --lifetime scoped",
+                "Self-test: run --dry-run against `RoslynTools.Services.InspectService` on RoslynTools.slnx and inspect the diff for sanity",
+                "rt dump-help shows the new command and Info.Examples reflects the actual invocation",
+                "dotnet build \"RoslynTools.slnx\" passes with zero errors and zero new warnings",
+                "dotnet test \"tests/RoslynTools.Tests/RoslynTools.Tests.csproj\" -v minimal passes",
+                "dotnet format \"RoslynTools.slnx\" --verify-no-changes passes"
+            ],
+            "priority": 23,
+            "passes": false,
+            "notes": "Affected files: src/RoslynTools/Commands/DestaticClassCommand.cs (new), src/RoslynTools/Services/DestaticClassService.cs (new), tests/RoslynTools.Tests/DestaticClassCommandTests.cs (new). DEPENDS ON: US-022 (DI host). CONSERVATIVE: v1 handles classes with no static-field state and no static-caller chain. Static-field migration and chained-caller rewrites surface during the pilot (US-025) and become follow-up stories rather than gating this one."
+        },
+        {
+            "id": "US-024",
+            "epicId": "EP-006",
+            "title": "Add rt analyze static-class-inventory command",
+            "description": "As a maintainer planning the static-to-instance migration, I want rt analyze static-class-inventory --solution <sln> to list every static class with call-site count, member count, and inbound static-class coupling so that I can sequence the migration leaves-first.",
+            "acceptanceCriteria": [
+                "Add src/RoslynTools/Commands/StaticClassInventoryCommand.cs implementing IRtCommand with Info.Category = \"analyze\", Info.JsonOutput = true, Info.Mutates = false",
+                "JSON output shape: `{ \"diagnostics\": [...], \"results\": { \"totalStaticClasses\": N, \"classes\": [ { \"fqn\": \"...\", \"file\": \"...\", \"memberCount\": N, \"callSiteCount\": N, \"calledFromStaticClasses\": [\"FQN\", ...], \"calledFromInstanceClasses\": [\"FQN\", ...], \"migrationDifficulty\": \"leaf|mid|hub\" } ] } }`",
+                "migrationDifficulty heuristic: leaf = called only from instance classes (safe to destatic now); mid = called from <=3 static classes; hub = called from >3 static classes (defer or migrate after the static callers)",
+                "Sort results by (migrationDifficulty asc, callSiteCount asc) so the easiest leaves come first in the output",
+                "Add xUnit tests using a fixture with a leaf service, a mid service, and a hub service; assert classification",
+                "Self-test: run against RoslynTools.slnx — should classify the ~34 services in src/RoslynTools/Services/ with sensible difficulty bands",
+                "rt dump-help shows the new command and Info.Examples reflects the actual invocation",
+                "dotnet build \"RoslynTools.slnx\" passes with zero errors and zero new warnings",
+                "dotnet test \"tests/RoslynTools.Tests/RoslynTools.Tests.csproj\" -v minimal passes",
+                "dotnet format \"RoslynTools.slnx\" --verify-no-changes passes"
+            ],
+            "priority": 24,
+            "passes": false,
+            "notes": "Affected files: src/RoslynTools/Commands/StaticClassInventoryCommand.cs (new), src/RoslynTools/Services/StaticClassInventoryService.cs (new), tests/RoslynTools.Tests/StaticClassInventoryCommandTests.cs (new). Independent of US-022/US-023 — read-only analysis, can be built first to inform sequencing of the pilot."
+        },
+        {
+            "id": "US-025",
+            "epicId": "EP-006",
+            "title": "Pilot static-to-instance migration on 3 leaf services",
+            "description": "As a maintainer validating the destatic tooling, I want to migrate three leaf services (selected from US-024 inventory output) from static to instance using rt refactor destatic-class so that the tool is exercised end-to-end including DI wiring, call-site rewrites, and the test suite remains green.",
+            "acceptanceCriteria": [
+                "Run `rt analyze static-class-inventory --solution RoslynTools.slnx` and pick the three lowest-difficulty leaves with the smallest call-site count. Document the choice in the commit message",
+                "For each chosen service: run `rt refactor destatic-class <FQN>` (without --dry-run), verify build + tests pass, commit. Each service is its own commit (per feedback_incremental_changes.md)",
+                "If destatic-class fails on any of the three services, that is a US-023 bug — fix the tool and resume; do not hand-edit around the gap (per feedback_dogfood_pause_on_gap.md)",
+                "After all three: dotnet build, dotnet test, dotnet format --verify-no-changes all pass on the resulting state",
+                "Update memory project_static_class_migration.md with current static-class count (was 69 at start of EP-006, expect ~66 after pilot) and any rough edges discovered during the pilot",
+                "Self-test the migrated services through the existing CLI: `rt inspect describe ...` and `rt inspect outline ...` continue to work byte-for-byte identical to pre-pilot output",
+                "dotnet build \"RoslynTools.slnx\" passes with zero errors and zero new warnings",
+                "dotnet test \"tests/RoslynTools.Tests/RoslynTools.Tests.csproj\" -v minimal passes",
+                "dotnet format \"RoslynTools.slnx\" --verify-no-changes passes"
+            ],
+            "priority": 25,
+            "passes": false,
+            "notes": "DEPENDS ON: US-022, US-023, US-024. Dogfood story — deliverable is three converted services AND a battle-tested destatic-class command. Expect to iterate on US-023 mid-story; that is the point."
+        },
+        {
+            "id": "US-026",
+            "epicId": "EP-006",
+            "title": "Sweep migration of remaining static services in batches",
+            "description": "As a maintainer completing the static-to-instance migration, I want to convert the remaining ~31 static service classes using the proven destatic-class tooling so that src/RoslynTools/Services/ contains zero static classes and DI is the standard pattern.",
+            "acceptanceCriteria": [
+                "Re-run `rt analyze static-class-inventory --solution RoslynTools.slnx` after the pilot. Group remaining services into 3–4 batches by migrationDifficulty (leaf -> mid -> hub)",
+                "Each batch is its own commit with a single `chore(destatic): batch N — <service-list>` message. Build + tests + format all pass at the end of each batch (commit-by-commit bisectability is required, per feedback_incremental_changes.md)",
+                "If destatic-class breaks on any service, pause the sweep, fix the tool (extension to US-023 or new follow-up story under EP-006), then resume — never hand-edit around the gap",
+                "After the sweep: zero `static class` declarations remain in src/RoslynTools/Services/. Verify with grep `^[a-z\\s]*static\\s+class` against src/RoslynTools/Services/ returning zero matches",
+                "Update project_static_class_migration.md with final static-class count and any patterns that emerged",
+                "Run rt analyze static-class-inventory once more and document remaining static-class hotspots outside Services/ (Commands/, Core/, etc.) — either log a follow-up story or close as out-of-scope for EP-006",
+                "dotnet build \"RoslynTools.slnx\" passes with zero errors and zero new warnings",
+                "dotnet test \"tests/RoslynTools.Tests/RoslynTools.Tests.csproj\" -v minimal passes",
+                "dotnet format \"RoslynTools.slnx\" --verify-no-changes passes"
+            ],
+            "priority": 26,
+            "passes": false,
+            "notes": "DEPENDS ON: US-025 (pilot must succeed first). Largest story by raw line count but lowest unit-of-effort because the tool does the work. Track per-batch progress in commits, not in additional stories."
         }
     ]
 }
