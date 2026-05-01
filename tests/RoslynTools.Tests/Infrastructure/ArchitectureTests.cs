@@ -20,21 +20,37 @@ public class ArchitectureTests
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             CreateNoWindow = true,
+            WorkingDirectory = FindSolutionRoot(),
         };
 
         // ACT: Run rt circular-deps
         using var process = Process.Start(psi)!;
+        var stdout = process.StandardOutput.ReadToEnd();
         process.WaitForExit();
 
-        // ASSERT: Expected cycle found via rt analysis (currently present):
-        // RoslynTools.Core -> RoslynTools.Services -> RoslynTools.Core
-        //
-        // This test INTENTIONALLY DOCUMENTS the problem using rt's own analysis.
-        // Fix: Refactor Services to break the cycle by:
-        //   1. Moving shared contracts to RoslynTools.Contracts namespace, or
-        //   2. Using dependency inversion (interfaces in Core, implementations in Services)
-        //
-        // For now, this test serves as living documentation of the architectural debt.
-        Assert.True(true, "Circular dependency confirmed by rt circular-deps. See code comment for fix strategy.");
+        // ASSERT: No circular dependency must exist between Core and Services.
+        // The cycle RoslynTools.Core -> RoslynTools.Services -> RoslynTools.Core
+        // has been eliminated. rt circular-deps should produce no output.
+        Assert.True(
+            !stdout.Contains("RoslynTools.Core -> RoslynTools.Services -> RoslynTools.Core",
+                StringComparison.Ordinal),
+            $"Circular dependency still exists: {stdout.Trim()}");
+        Assert.True(
+            string.IsNullOrWhiteSpace(stdout),
+            $"Unexpected circular dependencies found: {stdout.Trim()}");
+    }
+
+    private static string FindSolutionRoot()
+    {
+        // Walk up from the test assembly until we find RoslynTools.slnx
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "RoslynTools.slnx")))
+                return dir.FullName;
+            dir = dir.Parent;
+        }
+
+        throw new InvalidOperationException("Could not locate RoslynTools.slnx solution root.");
     }
 }
