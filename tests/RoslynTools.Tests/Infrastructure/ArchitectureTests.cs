@@ -30,14 +30,11 @@ public class ArchitectureTests
 
         // ASSERT: No circular dependency must exist between Core and Services.
         // The cycle RoslynTools.Core -> RoslynTools.Services -> RoslynTools.Core
-        // has been eliminated. rt circular-deps should produce no output.
+        // has been eliminated. rt circular-deps reports "No circular namespace dependencies found."
+        // when the solution is clean, or lists cycles (one per line) if they exist.
         Assert.True(
-            !stdout.Contains("RoslynTools.Core -> RoslynTools.Services -> RoslynTools.Core",
-                StringComparison.Ordinal),
+            !stdout.Contains("->", StringComparison.Ordinal),
             $"Circular dependency still exists: {stdout.Trim()}");
-        Assert.True(
-            string.IsNullOrWhiteSpace(stdout),
-            $"Unexpected circular dependencies found: {stdout.Trim()}");
     }
 
     private static string FindSolutionRoot()
