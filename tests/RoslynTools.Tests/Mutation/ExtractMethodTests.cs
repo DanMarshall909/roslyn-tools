@@ -1163,6 +1163,167 @@ public class ExtractMethodTests
         }
     }
 
+    // ──────────────────────────────────────────────────────────────────────────
+    //  --replace-duplicates: AC5 — overlapping match in the same file is skipped
+    //  with a warning; non-overlapping same-file matches are both replaced.
+    //
+    //  The overlap path is exercised via MethodExtractorDuplicates.ApplyMatchesAsync,
+    //  a test-seam overload that accepts a pre-built match list. Without that seam
+    //  the overlap guard cannot be triggered because PatternMatcher only returns
+    //  structurally-exact same-count matches (no subset matches). The test below
+    //  verifies the non-overlapping path emits zero warnings (baseline), and a
+    //  companion test verifies the warning IS emitted via the public test seam
+    //  on MethodExtractorDuplicates.
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Non_overlapping_same_file_duplicates_produce_no_warnings()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("A.cs", """
+            namespace TestApp;
+
+            public class A
+            {
+                public void Source()
+                {
+                    System.Console.WriteLine("hello");
+                    System.Console.WriteLine("world");
+                }
+
+                public void Dupe1()
+                {
+                    System.Console.WriteLine("hello");
+                    System.Console.WriteLine("world");
+                }
+            }
+            """);
+
+        var warnings = new List<string>();
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        using (RtLog.UseLogger(new CollectingLogger(warnings)))
+        {
+            var newSln = await MethodExtractor.ExtractAsync(
+                sln,
+                FilePath(project, "A.cs"),
+                "PrintMessages",
+                startLine: 7,
+                endLine: 8,
+                replaceDuplicates: true);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+        }
+
+        var content = await project.ReadSourceAsync("A.cs");
+        Assert.Contains("PrintMessages();", GetMethodBody(content, "Source"));
+        Assert.Contains("PrintMessages();", GetMethodBody(content, "Dupe1"));
+        // No overlapping ranges — no warning expected.
+        Assert.Empty(warnings);
+    }
+
+    [Fact]
+    public async Task Overlapping_match_emits_warning_and_is_skipped()
+    {
+        // Verify the overlap guard emits RtLog.Warning rather than silently discarding
+        // the match. We inject two PatternMatch objects with overlapping line ranges via
+        // MethodExtractorDuplicates.ApplyMatchesAsync (the test-seam overload). This
+        // test will be RED until that overload exists AND the guard emits a warning.
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("A.cs", """
+            namespace TestApp;
+
+            public class A
+            {
+                public void Method()
+                {
+                    System.Console.WriteLine("hello");
+                    System.Console.WriteLine("world");
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var newSln = await MethodExtractor.ExtractAsync(
+                sln,
+                FilePath(project, "A.cs"),
+                "PrintMessages",
+                startLine: 7,
+                endLine: 8);
+
+            // Synthesise two overlapping matches in A.cs: match A covers lines 7-8,
+            // match B also covers lines 7-8 (same range — maximally overlapping).
+            // Bottom-up order: match A (higher or equal line) processed first, range
+            // 7-8 claimed. Match B overlaps → should emit a warning, not silently skip.
+            var absPath = FilePath(project, "A.cs");
+            var matchA = new PatternMatch(absPath, Line: 7, EndLine: 8,
+                Substitutions: new Dictionary<string, string>(), Preview: "");
+            var matchB = new PatternMatch(absPath, Line: 7, EndLine: 8,
+                Substitutions: new Dictionary<string, string>(), Preview: "");
+
+            var warnings = new List<string>();
+            using (RtLog.UseLogger(new CollectingLogger(warnings)))
+            {
+                await MethodExtractorDuplicates.ApplyMatchesAsync(
+                    newSln,
+                    matches: [matchA, matchB],
+                    newMethodName: "PrintMessages",
+                    orderedParameters: [],
+                    returnVars: []);
+            }
+
+            // One match replaced, one skipped with a warning.
+            Assert.Single(warnings);
+            Assert.Contains("overlap", warnings[0], StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  --replace-duplicates: AC6 — match at the last line of a file does not throw
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Does_not_throw_when_duplicate_is_on_the_last_line_of_the_file()
+    {
+        // Regression guard: SelectStatementsInRange must not throw or miss statements
+        // when the matched block ends on the last content line of the file.
+        using var project = new AdhocProjectBuilder();
+        // Deliberately no trailing blank line after the closing brace so the last
+        // statement is as close to the end of the file as possible.
+        project.AddSource("A.cs", "namespace TestApp;\n\npublic class A\n{\n    public void Source()\n    {\n        System.Console.WriteLine(\"hello\");\n        System.Console.WriteLine(\"world\");\n    }\n\n    public void Dupe()\n    {\n        System.Console.WriteLine(\"hello\");\n        System.Console.WriteLine(\"world\");\n    }\n}");
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            // Must not throw — Dupe's statements are near the end of the file.
+            var newSln = await MethodExtractor.ExtractAsync(
+                sln,
+                FilePath(project, "A.cs"),
+                "PrintMessages",
+                startLine: 7,
+                endLine: 8,
+                replaceDuplicates: true);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+        }
+
+        var content = await project.ReadSourceAsync("A.cs");
+        Assert.Contains("PrintMessages();", GetMethodBody(content, "Dupe"));
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  Helpers
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private sealed class CollectingLogger(List<string> sink) : RoslynTools.Core.IRtLogger
+    {
+        public void Log(RoslynTools.Core.RtLogLevel level, string message)
+        {
+            if (level == RoslynTools.Core.RtLogLevel.Warning)
+                sink.Add(message);
+        }
+    }
+
     /// <summary>
     /// Naively extracts the body of the first method with the given name from C# source.
     /// Good enough for assertions — not a full parser.
