@@ -13,14 +13,14 @@ internal sealed class ListSmellsCommand : IRtCommand
         Name: "list-smells",
         Mutates: false,
         JsonOutput: false,
-        Category: "Analysis",
+        Category: "analyze",
         Aliases: ["smells"],
         WhenToUse: "Getting a prioritised list of code smells — oversized classes, long methods, and constructors with too many parameters — to guide a refactor session. Use --scope to focus on your domain code and skip generated or test noise.",
         Examples:
         [
-            "rt list-smells --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt smells --scope ProjectX.Core --max-class-lines 200 --max-method-lines 30 --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt list-smells --solution RoslynTools.slnx --max-params 5",
+            "rt analyze list-smells --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt analyze smells --scope ProjectX.Core --max-class-lines 200 --max-method-lines 30 --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt analyze list-smells --solution RoslynTools.slnx --max-params 5",
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );

@@ -11,14 +11,14 @@ internal sealed class ImplementInterfaceCommand : IRtCommand
         Name: "implement-interface",
         Mutates: true,
         JsonOutput: false,
-        Category: "Mutation",
+        Category: "refactor",
         Aliases: ["ii"],
         WhenToUse: "Generating throw-stub implementations for all unimplemented interface members in a class. Use after extract-interface or when a class is added to an interface's base list and needs skeleton stubs before real implementations are written.",
         Examples:
         [
-            "rt implement-interface --type BookingRepository --interface IBookingRepository --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt ii --type EmailSender --dry-run",
-            "rt implement-interface --type HeroApiClient --solution RoslynTools.slnx",
+            "rt refactor implement-interface --type BookingRepository --interface IBookingRepository --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt refactor ii --type EmailSender --dry-run",
+            "rt refactor implement-interface --type HeroApiClient --solution RoslynTools.slnx",
         ]
     );
 

@@ -12,14 +12,14 @@ internal sealed class AddDependencyCommand : IRtCommand
         Name: "add-dependency",
         Mutates: true,
         JsonOutput: false,
-        Category: "Mutation",
+        Category: "refactor",
         Aliases: ["ad"],
         WhenToUse: "Injecting a new constructor dependency into a class without manually editing the constructor and field declarations. Prefer this over a manual edit when the class has multiple constructors or when you want to be confident the field naming convention (_camelCase) is applied consistently.",
         Examples:
         [
-            "rt add-dependency --type BookingService --dependency IEmailService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt ad --type OrderController --dependency IPaymentGateway --field _payment --dry-run",
-            "rt add-dependency --type ReportGenerator --dependency IRepository --solution RoslynTools.slnx",
+            "rt refactor add-dependency --type BookingService --dependency IEmailService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt refactor ad --type OrderController --dependency IPaymentGateway --field _payment --dry-run",
+            "rt refactor add-dependency --type ReportGenerator --dependency IRepository --solution RoslynTools.slnx",
         ]
     );
 

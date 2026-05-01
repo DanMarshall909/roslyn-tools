@@ -12,14 +12,14 @@ internal sealed class MakeAsyncCommand : IRtCommand
         Name: "make-async",
         Mutates: true,
         JsonOutput: false,
-        Category: "Mutation",
+        Category: "refactor",
         Aliases: ["ma"],
         WhenToUse: "Converting a synchronous method to async Task<T> and updating its direct call sites with await, without manually hunting every invocation. Use --no-rename to skip the Async suffix when the call sites already have naming that makes async clear.",
         Examples:
         [
-            "rt make-async --type BookingService --method Save --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt ma --type EmailSender --method Send --no-rename --dry-run",
-            "rt make-async --type HeroApiClient --method FetchAvailability --solution RoslynTools.slnx",
+            "rt refactor make-async --type BookingService --method Save --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt refactor ma --type EmailSender --method Send --no-rename --dry-run",
+            "rt refactor make-async --type HeroApiClient --method FetchAvailability --solution RoslynTools.slnx",
         ]
     );
 

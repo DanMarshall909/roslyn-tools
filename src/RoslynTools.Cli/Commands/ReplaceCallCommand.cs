@@ -11,14 +11,14 @@ internal sealed class ReplaceCallCommand : IRtCommand
         Name: "replace-call",
         Mutates: true,
         JsonOutput: false,
-        Category: "Mutation",
+        Category: "refactor",
         Aliases: ["rc"],
         WhenToUse: "Replacing all invocations of a static method with a different method name across the solution. Use when renaming a utility method that isn't captured by a semantic rename (e.g. because callers use it via a static import or the old name needs to stay as an overload).",
         Examples:
         [
-            "rt replace-call --from Logger.Log --to LogInfo --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt rc --from DateHelper.UtcNow --to TimeProvider.GetUtcNow --dry-run --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt replace-call --from Console.WriteLine --to Logger.Info --solution RoslynTools.slnx",
+            "rt refactor replace-call --from Logger.Log --to LogInfo --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt refactor rc --from DateHelper.UtcNow --to TimeProvider.GetUtcNow --dry-run --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt refactor replace-call --from Console.WriteLine --to Logger.Info --solution RoslynTools.slnx",
         ]
     );
 

@@ -11,14 +11,14 @@ internal sealed class ConvertToRecordCommand : IRtCommand
         Name: "convert-to-record",
         Mutates: true,
         JsonOutput: false,
-        Category: "Mutation",
+        Category: "refactor",
         Aliases: ["ctr"],
         WhenToUse: "Converting a class with init-only properties to a positional record, automatically removing redundant Equals/GetHashCode overrides and == operators that the record synthesises. Best suited to immutable DTOs and value objects.",
         Examples:
         [
-            "rt convert-to-record --type BookingRequest --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt ctr --type Money --dry-run",
-            "rt convert-to-record --type ProductDto --solution RoslynTools.slnx",
+            "rt refactor convert-to-record --type BookingRequest --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt refactor ctr --type Money --dry-run",
+            "rt refactor convert-to-record --type ProductDto --solution RoslynTools.slnx",
         ]
     );
 

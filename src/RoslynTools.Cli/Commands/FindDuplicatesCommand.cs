@@ -13,18 +13,18 @@ internal sealed class FindDuplicatesCommand : IRtCommand
         Name: "find-duplicates",
         Mutates: false,
         JsonOutput: true,
-        Category: "Analysis — duplication",
+        Category: "analyze",
         Aliases: ["fd"],
         WhenToUse: "Discovering repeated code blocks (exact clones) across a solution before an extract-method pass. Use --min-statements to tune noise vs. signal, --min-occurrences to target the most-duplicated blocks, and --scope to focus on one subsystem.",
         Examples:
         [
-            "rt find-duplicates --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt fd --min-statements 5 --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt find-duplicates --min-statements 4 --min-occurrences 3 --solution RoslynTools.slnx",
-            "rt find-duplicates --scope MyApp.Services --solution RoslynTools.slnx",
-            "rt find-duplicates --include-tests --solution RoslynTools.slnx",
-            "rt find-duplicates --max-statements 20 --solution RoslynTools.slnx",
-            "rt find-duplicates --json --solution RoslynTools.slnx",
+            "rt analyze find-duplicates --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt analyze fd --min-statements 5 --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt analyze find-duplicates --min-statements 4 --min-occurrences 3 --solution RoslynTools.slnx",
+            "rt analyze find-duplicates --scope MyApp.Services --solution RoslynTools.slnx",
+            "rt analyze find-duplicates --include-tests --solution RoslynTools.slnx",
+            "rt analyze find-duplicates --max-statements 20 --solution RoslynTools.slnx",
+            "rt analyze find-duplicates --json --solution RoslynTools.slnx",
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );

@@ -11,14 +11,14 @@ internal sealed class NarrowDependencyCommand : IRtCommand
         Name: "narrow-dependency",
         Mutates: true,
         JsonOutput: false,
-        Category: "Mutation",
+        Category: "refactor",
         Aliases: ["nd"],
         WhenToUse: "Interface-segregation refactoring: extracts a named subset of an interface's members into a new narrower interface and rewrites consumers that only use that subset to depend on the narrower type. Consumers that require members outside the subset are left unchanged and reported. DI registration updates are reported as a manual follow-up.",
         Examples:
         [
-            "rt narrow-dependency IWideFacade --members Send --new-name ISender --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt nd IEmailService --members Send,SendBulk --new-name IEmailSender --solution RoslynTools.slnx --dry-run",
-            "rt narrow-dependency ProjectX.Core.IRepository --members GetById,GetAll --new-name IReadOnlyRepository --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt refactor narrow-dependency IWideFacade --members Send --new-name ISender --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt refactor nd IEmailService --members Send,SendBulk --new-name IEmailSender --solution RoslynTools.slnx --dry-run",
+            "rt refactor narrow-dependency ProjectX.Core.IRepository --members GetById,GetAll --new-name IReadOnlyRepository --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
         ]
     );
 

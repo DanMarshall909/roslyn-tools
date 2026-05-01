@@ -12,15 +12,15 @@ internal sealed class RenameCommand : IRtCommand
         Name: "rename",
         Mutates: true,
         JsonOutput: false,
-        Category: "Mutation",
+        Category: "refactor",
         Aliases: ["ren"],
         WhenToUse: "Renaming a C# symbol (type, method, property, field, namespace) and updating every reference across the solution. Prefer over grep+sed: rt uses Roslyn semantic rename so references that only bind by type inference are also updated, and string literals/comments are not accidentally rewritten. Use --csv to batch-apply a curated rename mapping file.",
         Examples:
         [
-            "rt rename OldTypeName NewTypeName --solution MySolution.sln",
-            "rt rename MyNs.MyType.OldProp NewProp --kind property --dry-run",
-            "rt rename --csv scripts/test-renames.csv --solution RoslynTools.slnx --dry-run",
-            "rt ren FooService BarService              # short alias, auto-detect solution",
+            "rt refactor rename OldTypeName NewTypeName --solution MySolution.sln",
+            "rt refactor rename MyNs.MyType.OldProp NewProp --kind property --dry-run",
+            "rt refactor rename --csv scripts/test-renames.csv --solution RoslynTools.slnx --dry-run",
+            "rt refactor ren FooService BarService              # short alias, auto-detect solution",
         ]
     );
 

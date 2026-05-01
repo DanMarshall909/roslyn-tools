@@ -5,22 +5,22 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
-internal sealed class InspectCommand : IRtCommand
+internal sealed class DescribeCommand : IRtCommand
 {
-    private InspectCommand() { }
+    private DescribeCommand() { }
 
     public static RtCommandInfo Info { get; } = new(
-        Name: "inspect",
+        Name: "describe",
         Mutates: false,
         JsonOutput: true,
-        Category: "Navigation",
+        Category: "inspect",
         Aliases: null,
         WhenToUse: "Getting a detailed JSON description of a symbol's shape — members, base types, interfaces, constructors, locations — without opening the file. Ideal for agents that need to understand a type's surface area before planning a refactor.",
         Examples:
         [
-            "rt inspect BookingService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt inspect ProjectX.Core.Services.IEmailService --kind type --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt inspect IRtCommand --solution RoslynTools.slnx",
+            "rt inspect describe BookingService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt inspect describe ProjectX.Core.Services.IEmailService --kind type --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt inspect describe IRtCommand --solution RoslynTools.slnx",
         ]
     );
 
@@ -30,7 +30,7 @@ internal sealed class InspectCommand : IRtCommand
         var solutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file");
         var kindOpt = new Option<string?>("--kind", "Symbol kind: type, method, property, field, namespace");
 
-        var cmd = new Command("inspect", "Show type shape: members, base types, interfaces, locations (JSON)")
+        var cmd = new Command("describe", "Show type shape: members, base types, interfaces, locations (JSON)")
         {
             symbolArg, solutionOpt, kindOpt
         };

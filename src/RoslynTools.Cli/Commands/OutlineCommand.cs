@@ -13,14 +13,14 @@ internal sealed class OutlineCommand : IRtCommand
         Name: "outline",
         Mutates: false,
         JsonOutput: true,
-        Category: "Navigation",
+        Category: "inspect",
         Aliases: null,
         WhenToUse: "Getting a JSON summary of all types and member signatures in a file or namespace without reading the raw source. Useful for agents to orient themselves in an unfamiliar module before planning a refactor, or to diff the public surface area across branches.",
         Examples:
         [
-            "rt outline src/backend/TourStore.Api/Controllers/Admin/AdminController.cs --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt outline ProjectX.Core.Services --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt outline RoslynTools.Commands --solution RoslynTools.slnx",
+            "rt inspect outline src/backend/TourStore.Api/Controllers/Admin/AdminController.cs --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt inspect outline ProjectX.Core.Services --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt inspect outline RoslynTools.Commands --solution RoslynTools.slnx",
         ]
     );
 

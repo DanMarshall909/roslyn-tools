@@ -12,13 +12,13 @@ internal sealed class InlineMethodCommand : IRtCommand
         Name: "inline-method",
         Mutates: true,
         JsonOutput: false,
-        Category: "Mutation",
+        Category: "refactor",
         Aliases: ["im"],
         WhenToUse: "Inlining a trivial helper method (expression-bodied or single-return block) at every call site and removing the method declaration. Best for one-liner wrappers that add no clarity — over-extracted private methods that obscure intent.",
         Examples:
         [
-            "rt inline-method --type MathHelper --method Double --solution RoslynTools.slnx",
-            "rt im --type OrderService --method GetTotal --dry-run --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt refactor inline-method --type MathHelper --method Double --solution RoslynTools.slnx",
+            "rt refactor im --type OrderService --method GetTotal --dry-run --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
         ]
     );
 
