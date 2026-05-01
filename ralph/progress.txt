@@ -1,0 +1,35 @@
+roslyn-tools
+Branch: ralph/dogfood-gaps-2026-05-01
+
+Current Status: 0/21 stories complete (0%)
+
+EP-001 — Bugs and quality fixes in existing commands (0/3)
+[ ] US-001 Fix string.Format() decomposition in console-logging conversion
+[ ] US-002 Fix silent failure in rt extract-method on conditional expression blocks
+[ ] US-003 Fix line-range drift in MethodExtractorDuplicates.ReplaceDuplicatesAsync
+
+EP-002 — Logging migration polish (0/1)
+[ ] US-004 Migrate MoveService WARNING messages to RtLog.Warning
+
+EP-003 — New rt analyze commands and inspection polish (0/7)
+[ ] US-007 Audit RtCommandInfo fields exposed in dump-help --json
+[ ] US-010 Auto-detect nearest solution when --solution is omitted
+[ ] US-011 Separate workspace diagnostics from results in --json output
+[ ] US-012 Add rt analyze responsibility-map command
+[ ] US-013 Add rt analyze interface member-usage command
+[ ] US-014 Add rt analyze why-type-needed and unused-members-on-interface sub-commands
+[ ] US-015 Add rt analyze architecture-verify command with config-driven rules
+
+EP-004 — New rt refactor commands (0/6)
+[ ] US-016 Add rt refactor introduce-record command
+[ ] US-017 Add precondition for static types in rt extract-adapter
+[ ] US-018 Add rt refactor extract-orchestrator command
+[ ] US-019 Add rt refactor replace-pattern general pattern-replace command
+[ ] US-020 Add rt refactor move-method --to-nested-class and --from-nested-class flags
+[ ] US-021 Add rt refactor narrow-dependency / extract-narrow-interface command
+
+EP-005 — Tooling and developer experience (0/4)
+[ ] US-005 Repair non-buildable commit 0445c01 via interactive rebase
+[ ] US-006 Extract ExtractMethodHandler.RunAsync to enforce thin-shell rule on ExtractMethodCommand
+[ ] US-008 Add rt dump-help --json --normalize for stable snapshots
+[ ] US-009 Add rt add-test --cli mode for CLI-invocation test scaffolding

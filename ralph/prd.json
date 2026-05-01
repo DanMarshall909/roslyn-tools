@@ -1,0 +1,499 @@
+{
+    "project": "roslyn-tools",
+    "branchName": "ralph/dogfood-gaps-2026-05-01",
+    "description": "Backlog converting the unfixed entries in tasks/dogfood-gaps.md into executable stories for roslyn-tools. Themes: (a) bug fixes in existing refactor commands (string.Format decomposition in console-logging conversion, silent extract-method failure on conditional blocks, line-range drift in extract-method duplicates), (b) small logging/structure polish (migrate residual WARNING: prefixes to RtLog.Warning, thin out fat command shells, repair a non-bisectable commit), (c) new rt analyze commands for architecture / responsibility / interface-segregation work and dump-help normalization, (d) new rt refactor commands (introduce-record, extract-orchestrator, replace-pattern, move-method --to/--from-nested-class, narrow-dependency / extract-narrow-interface, extract-adapter precondition for static types), and (e) dev-experience tooling (CLI-invocation test scaffolding, dump-help --normalize, RtCommandInfo field audit, workspace auto-detection and diagnostics separation).",
+    "idPrefix": "US",
+    "epics": [
+        {
+            "id": "EP-001",
+            "title": "Bugs and quality fixes in existing commands",
+            "description": "Fix verified defects in shipped commands: string.Format() decomposition gap in the console-logging converter, silent failure of extract-method on conditional expression blocks, and line-range drift in MethodExtractorDuplicates.ReplaceDuplicatesAsync when multiple matches share a file.",
+            "notes": "Items 1, 8, 11 from the gap log."
+        },
+        {
+            "id": "EP-002",
+            "title": "Logging migration polish",
+            "description": "Finish the RtConsole/RtLog migration by routing the residual WARNING:-prefixed messages in MoveService.cs through RtLog.Warning, while preserving stdout byte-stability for stable snapshots.",
+            "notes": "Item 2 from the gap log. Small but visible to stderr-grep consumers."
+        },
+        {
+            "id": "EP-003",
+            "title": "New rt analyze commands and inspection polish",
+            "description": "Add analyze-side commands surfaced during dogfooding: responsibility-map, architecture-verify, analyze-interface member-usage views, plus inspection-output polish (dump-help normalization, RtCommandInfo field audit, workspace auto-detection, separation of diagnostics from results).",
+            "notes": "Items 5, 7, 16, 17, 18, 19 from the gap log."
+        },
+        {
+            "id": "EP-004",
+            "title": "New rt refactor commands",
+            "description": "Add mutating refactors needed by recent dogfood sessions: introduce-record, extract-adapter precondition for static types, extract-orchestrator, generalised replace-pattern, move-method to/from nested classes, and narrow-dependency / extract-narrow-interface (consumers of EP-003 analysis output).",
+            "notes": "Items 3, 4, 6, 9, 10, 20 from the gap log."
+        },
+        {
+            "id": "EP-005",
+            "title": "Tooling and developer experience",
+            "description": "Improvements to test scaffolding (rt add-test --cli mode), thin-shell discipline (extract ExtractMethodHandler), bisect hygiene (repair commit 0445c01), and dump-help --normalize for snapshot stability.",
+            "notes": "Items 12, 13, 14, 15 from the gap log."
+        }
+    ],
+    "userStories": [
+        {
+            "id": "US-001",
+            "epicId": "EP-001",
+            "title": "Fix string.Format() decomposition in console-logging conversion",
+            "description": "As a developer running rt refactor convert-console-logging, I want string.Format(\"...\", args) used as the first argument to Console.Write/WriteLine to be decomposed into a structured ILogger message template with named placeholders so that converted logging keeps semantic placeholders instead of an opaque {Value} wrapping the entire call.",
+            "acceptanceCriteria": [
+                "Locate the console-logging conversion service (verify whether file is now src/RoslynTools/Services/ConsoleLoggingService.cs after the Core/ to Services/ rename, otherwise src/RoslynTools/Core/ConsoleLoggingCore.cs) and confirm before editing",
+                "Add a handler in ConvertMessageExpression that recognises an InvocationExpressionSyntax whose target is string.Format (System.String.Format) when used as the first argument to Console.Write / Console.WriteLine",
+                "Decompose the format string literal into the same structured template the existing literal-string path produces, preserving the order of arguments after the format string as message-template arguments",
+                "Support both the (string format, params object[] args) overload and (IFormatProvider, string, params object[]) overloads (the latter degrades gracefully or is rejected with a TODO comment)",
+                "Numeric placeholders ({0}, {1}, ...) are translated into named placeholders consistent with how the existing decomposer names parameters (e.g. {Arg0}, {Arg1}) — match existing naming convention if any, otherwise document the chosen scheme in code comments",
+                "Non-string.Format invocations passed as the first argument continue to fall back to the existing {Value} placeholder — no behaviour regression for unrelated code",
+                "Add xUnit tests under tests/RoslynTools.Tests/ covering: (a) Console.WriteLine(string.Format(\"x={0}\", x)), (b) Console.Write with two args, (c) string.Format with no args (constant string — should be treated as plain string), (d) string.Format with IFormatProvider overload, (e) negative case ensuring a non-string.Format invocation still uses the {Value} fallback",
+                "dotnet build \"RoslynTools.slnx\" passes with zero errors and zero new warnings",
+                "dotnet test \"tests/RoslynTools.Tests/RoslynTools.Tests.csproj\" -v minimal passes with all new and existing tests green",
+                "dotnet format \"RoslynTools.slnx\" --verify-no-changes passes"
+            ],
+            "priority": 1,
+            "passes": false,
+            "notes": "Affected files: src/RoslynTools/Services/ConsoleLoggingService.cs (verify exact path post-rename), tests/RoslynTools.Tests/<new ConsoleLoggingService tests file>. Bug, no live regression yet but pre-emptive. Conservative scope: only handle string.Format as direct first arg to Console.Write/WriteLine; nested expressions (e.g. ternary returning string.Format) remain on fallback path."
+        },
+        {
+            "id": "US-002",
+            "epicId": "EP-001",
+            "title": "Fix silent failure in rt extract-method on conditional expression blocks",
+            "description": "As a developer running rt refactor extract-method against a method containing ternary or conditional-expression statements, I want the command to either succeed or fail with a clear, actionable error so that I do not see exit 0 with no output and no file change.",
+            "acceptanceCriteria": [
+                "Reproduce the silent failure: write a fixture method roughly mirroring the AdminScrapingController.ParseAiImages shape (a ternary spanning a list/select projection) and run rt extract-method against it; capture exit code, stdout, stderr",
+                "Determine the root cause: either the line-range selection misses the statements, MethodExtractor returns an empty change set, or the SolutionWriter swallows it. Record findings in the commit message",
+                "If the cause is missing line-range argument support, add validation: when no explicit range is supplied and the heuristic fails, exit non-zero with a message like \"extract-method: could not infer statement range; pass --start-line and --end-line\"",
+                "If the cause is conditional-expression handling, extend the statement-selection / dataflow logic in src/RoslynTools/Services/MethodExtractor* to recurse into ConditionalExpressionSyntax / parenthesised conditional bodies",
+                "When extraction genuinely cannot succeed (e.g. crosses a yield-return boundary), exit code 1 with a single-line stderr diagnostic naming the obstruction; never exit 0 silently",
+                "Add an xUnit regression test using the reproducing fixture asserting either successful extraction or non-zero exit with the expected stderr message",
+                "Ensure no other extract-method tests regress — run the full filter `--filter \"FullyQualifiedName~ExtractMethod\"` and report timings",
+                "dotnet build \"RoslynTools.slnx\" passes with zero errors and zero new warnings",
+                "dotnet test \"tests/RoslynTools.Tests/RoslynTools.Tests.csproj\" -v minimal passes",
+                "dotnet format \"RoslynTools.slnx\" --verify-no-changes passes"
+            ],
+            "priority": 2,
+            "passes": false,
+            "notes": "Affected files: src/RoslynTools/Services/MethodExtractor.cs and friends, src/RoslynTools/Commands/ExtractMethodCommand.cs (only if validation surface changes), tests/RoslynTools.Tests/ExtractMethodTests.cs. Conservative interpretation: prefer the validation/error path over speculative AST work if root-cause analysis is inconclusive in one session — silent exit-0 is the bug to kill first."
+        },
+        {
+            "id": "US-003",
+            "epicId": "EP-001",
+            "title": "Fix line-range drift in MethodExtractorDuplicates.ReplaceDuplicatesAsync",
+            "description": "As a developer running rt extract-method --replace-duplicates against a file with multiple matches, I want every duplicate to be replaced correctly so that earlier replacements do not shift later line ranges and cause SelectStatementsInRange to pick the wrong statements.",
+            "acceptanceCriteria": [
+                "Add a regression test that constructs a file with three identical extractable blocks and asserts all three are replaced after a single ReplaceDuplicatesAsync call",
+                "Choose one of the three documented fix strategies and apply it: (a) sort matches per-file in descending start-line order then replace bottom-up, (b) re-run FindMatchesAsync between replacements, or (c) annotate matched nodes with SyntaxAnnotation and rewrite by annotation rather than line range. The chosen strategy is documented in the commit message",
+                "Cross-file behaviour is preserved: when matches span multiple files, the order they are processed across files does not affect correctness",
+                "Existing single-match path remains untouched and its tests stay green",
+                "Edge case: two matches that share a starting line (overlapping) are handled deterministically — either both replaced (if non-overlapping spans) or one rejected with a warning (if overlapping); behaviour documented in test",
+                "Edge case: a match whose line range spans across the file boundary or onto the last line of the file does not throw",
+                "dotnet build \"RoslynTools.slnx\" passes with zero errors and zero new warnings",
+                "dotnet test \"tests/RoslynTools.Tests/RoslynTools.Tests.csproj\" -v minimal passes",
+                "dotnet format \"RoslynTools.slnx\" --verify-no-changes passes"
+            ],
+            "priority": 3,
+            "passes": false,
+            "notes": "Affected files: src/RoslynTools/Services/MethodExtractorDuplicates.cs (verify post-rename), tests/RoslynTools.Tests/MethodExtractorDuplicatesTests.cs. From US-016 in the gap log. Recommend strategy (c) SyntaxAnnotation as the most robust, but accept (a) bottom-up if simpler."
+        },
+        {
+            "id": "US-004",
+            "epicId": "EP-002",
+            "title": "Migrate MoveService WARNING messages to RtLog.Warning",
+            "description": "As a maintainer cleaning up the RtConsole/RtLog migration, I want the two residual WARNING:-prefixed messages in MoveService.cs (formerly MoveCore.cs) routed through RtLog.Warning so that warning routing is consistent across the codebase and stderr-grep consumers see a uniform [WARNING] prefix.",
+            "acceptanceCriteria": [
+                "Locate the two WARNING: messages (formerly lines 328 and 344 of MoveCore.cs; verify exact lines in MoveService.cs after the rename)",
+                "Replace each `RtConsole.WriteLine(Result, \"WARNING: ...\")` call with `RtLog.Warning(\"...\")`, dropping the inline WARNING: prefix since RtLog.Warning prepends [WARNING]",
+                "Confirm the messages are now routed to stderr (matching RtLog.Warning's existing behaviour) and not stdout",
+                "Verify no test or downstream consumer parses the literal string `WARNING:` from MoveCommand stdout — search for `WARNING:` across tests/ and update any dependent assertion to match the new `[WARNING]` prefix on stderr",
+                "Add or update a MoveCommand test asserting (a) the warning text appears on stderr with the [WARNING] prefix and (b) stdout no longer contains the WARNING: prefix",
+                "dotnet build \"RoslynTools.slnx\" passes with zero errors and zero new warnings",
+                "dotnet test \"tests/RoslynTools.Tests/RoslynTools.Tests.csproj\" -v minimal passes",
+                "dotnet format \"RoslynTools.slnx\" --verify-no-changes passes"
+            ],
+            "priority": 4,
+            "passes": false,
+            "notes": "Affected files: src/RoslynTools/Services/MoveService.cs (verify), tests/RoslynTools.Tests/MoveCommandTests.cs (or equivalent). Item 2 in the gap log. Format change for stderr-grep consumers — call out in commit message and changelog."
+        },
+        {
+            "id": "US-005",
+            "epicId": "EP-005",
+            "title": "Repair non-buildable commit 0445c01 via interactive rebase",
+            "description": "As a maintainer who relies on git bisect, I want commit 0445c01 to build standalone so that bisect across the US-012/US-016 range does not fail spuriously.",
+            "acceptanceCriteria": [
+                "Confirm the failure: `git checkout 0445c01 && dotnet build \"RoslynTools.slnx\"` fails because MethodExtractor.ExtractAsync(replaceDuplicates: ...) does not yet exist",
+                "Plan the interactive rebase: identify the ExtractMethodCommand.cs hunk in 0445c01 that references the not-yet-added parameter and identify 31765bc as the commit where the parameter is added",
+                "Move the offending ExtractMethodCommand.cs hunk forward from 0445c01 into 31765bc, leaving 0445c01 with only US-012 changes that build standalone",
+                "After the rebase, verify both commits build: checkout 0445c01 -> dotnet build passes; checkout 31765bc -> dotnet build passes; checkout HEAD -> full test suite passes",
+                "Run a smoke bisect: `git bisect start HEAD <commit before 0445c01> -- src/RoslynTools/Services/MethodExtractor*.cs` then bisect run dotnet build to confirm no spurious failures across the range",
+                "Force-push only after a fast-forward dry-run on the dev branch confirms no other branches/PRs are based on the rewritten commits — if any are, document a coordination plan in the commit/PR description rather than rewriting unilaterally",
+                "dotnet build \"RoslynTools.slnx\" passes at HEAD with zero errors and zero new warnings",
+                "dotnet test \"tests/RoslynTools.Tests/RoslynTools.Tests.csproj\" -v minimal passes",
+                "dotnet format \"RoslynTools.slnx\" --verify-no-changes passes"
+            ],
+            "priority": 5,
+            "passes": false,
+            "notes": "Affected files: history rewrite of commits 0445c01 and 31765bc. From the gap log bisect-hazard entry. CONSERVATIVE: history rewrites are risky on shared branches — a session may end with the rebase staged but not pushed if any other branch is based on the affected commits. Document blockers and stop rather than coordinate force-pushes mid-session."
+        },
+        {
+            "id": "US-006",
+            "epicId": "EP-005",
+            "title": "Extract ExtractMethodHandler.RunAsync to enforce thin-shell rule on ExtractMethodCommand",
+            "description": "As a maintainer applying the \"Command ExecuteAsync ≤ 20 lines\" thin-shell rule, I want the ~40-line SetHandler lambda in ExtractMethodCommand pulled into a Services-side ExtractMethodHandler.RunAsync(ctx) helper so that the command class stays a thin CLI shell.",
+            "acceptanceCriteria": [
+                "Create src/RoslynTools/Services/ExtractMethodHandler.cs with `internal static class ExtractMethodHandler` exposing `RunAsync(ExtractMethodContext ctx)` (or equivalent record/struct carrying the parsed CLI args)",
+                "Move all logic currently in the SetHandler lambda into RunAsync, leaving the lambda body short — read options, build the context, await ExtractMethodHandler.RunAsync, return the int exit code",
+                "Lambda body is ≤ 20 lines (counted exclusive of brace lines per the team rule)",
+                "Define an ExtractMethodContext record (or similar) at the top of the new file capturing exactly the inputs the handler needs — no leakage of System.CommandLine types into the Services layer",
+                "Update existing ExtractMethodCommand tests if they reference internals; add at least one direct unit test for ExtractMethodHandler.RunAsync that bypasses the command-line layer",
+                "rt dump-help shows the same examples and Info as before (Info.Examples reflects actual invocation)",
+                "Output (stdout/stderr/exit code) is byte-stable across the refactor — confirm with a snapshot test or a before/after diff captured in the commit message",
+                "dotnet build \"RoslynTools.slnx\" passes with zero errors and zero new warnings",
+                "dotnet test \"tests/RoslynTools.Tests/RoslynTools.Tests.csproj\" -v minimal passes",
+                "dotnet format \"RoslynTools.slnx\" --verify-no-changes passes"
+            ],
+            "priority": 6,
+            "passes": false,
+            "notes": "Affected files: src/RoslynTools/Commands/ExtractMethodCommand.cs, src/RoslynTools/Services/ExtractMethodHandler.cs (new), tests/RoslynTools.Tests/. Item 12 in the gap log."
+        },
+        {
+            "id": "US-007",
+            "epicId": "EP-003",
+            "title": "Audit RtCommandInfo fields exposed in dump-help --json",
+            "description": "As a maintainer enforcing the external-action rule, I want every RtCommandInfo field either exposed in dump-help --json output or deleted as cruft so that no field is unobservable to external consumers.",
+            "acceptanceCriteria": [
+                "List every field of RtCommandInfo (Name, Category, Mutates, JsonOutput, Examples, KnownIssues, plus any others) and check whether each is currently included in DumpHelpCommand --json output",
+                "For each field not exposed, decide: expose it (preferred for Category, Mutates, JsonOutput) or delete it. Decision and rationale for each is documented in the commit message",
+                "Update DumpHelpCommand to serialise the agreed-upon set of fields under stable JSON keys (camelCase to match existing convention; verify by looking at current output)",
+                "Add an xUnit test asserting the JSON shape against a small sample command (one field per type — string, bool, string[]) — uses Verify.Xunit if already adopted in the project, otherwise a strict-equality assertion",
+                "Run rt dump-help --json against the full command set and confirm it parses as valid JSON (`| ConvertFrom-Json` round-trip)",
+                "Update any KnownIssues entries on commands that are now resolved by this change",
+                "rt dump-help shows the audited shape and Info.Examples reflects the actual invocation",
+                "dotnet build \"RoslynTools.slnx\" passes with zero errors and zero new warnings",
+                "dotnet test \"tests/RoslynTools.Tests/RoslynTools.Tests.csproj\" -v minimal passes",
+                "dotnet format \"RoslynTools.slnx\" --verify-no-changes passes"
+            ],
+            "priority": 7,
+            "passes": false,
+            "notes": "Affected files: src/RoslynTools/Core/RtCommandInfo.cs (verify path), src/RoslynTools/Commands/DumpHelpCommand.cs, tests/RoslynTools.Tests/DumpHelpCommandTests.cs. Item 16 in the gap log. Conservative default: expose rather than delete for ambiguous fields — deletion is reversible only by re-implementing."
+        },
+        {
+            "id": "US-008",
+            "epicId": "EP-005",
+            "title": "Add rt dump-help --json --normalize for stable snapshots",
+            "description": "As a maintainer using Verify.Xunit snapshots over dump-help output, I want a --normalize flag on dump-help --json that strips non-deterministic fields (version strings, absolute paths, build timestamps) so that snapshots stop churning across machines and builds.",
+            "acceptanceCriteria": [
+                "Add a `--normalize` boolean flag to DumpHelpCommand alongside the existing `--json` flag (use --normalize without --json -> error with explanatory message, or apply normalization to plain output too — pick one; document in Info.Examples)",
+                "When --normalize is set, the JSON output: (a) replaces absolute paths under cwd with relative paths, (b) replaces or omits any version field, (c) omits any timestamp field, (d) sorts arrays/object keys deterministically where ordering is not semantic",
+                "Run dump-help --json --normalize twice on the same machine and assert byte-for-byte identical output (same hash)",
+                "Run dump-help --json --normalize on Windows and (if reachable in CI) on Linux/macOS — output should match modulo line endings; document any platform-specific stripping",
+                "Add a Verify.Xunit (or assertion-based) snapshot test using --normalize, demonstrating stable output",
+                "Without --normalize, output is unchanged byte-for-byte (no behaviour regression)",
+                "rt dump-help shows the new flag and Info.Examples reflects the actual invocation including --normalize",
+                "dotnet build \"RoslynTools.slnx\" passes with zero errors and zero new warnings",
+                "dotnet test \"tests/RoslynTools.Tests/RoslynTools.Tests.csproj\" -v minimal passes",
+                "dotnet format \"RoslynTools.slnx\" --verify-no-changes passes"
+            ],
+            "priority": 8,
+            "passes": false,
+            "notes": "Affected files: src/RoslynTools/Commands/DumpHelpCommand.cs, tests/RoslynTools.Tests/DumpHelpCommandTests.cs. Item 15 in the gap log. DEPENDS ON: US-007 (audit settles which fields exist in --json before normalisation rules are written)."
+        },
+        {
+            "id": "US-009",
+            "epicId": "EP-005",
+            "title": "Add rt add-test --cli mode for CLI-invocation test scaffolding",
+            "description": "As a developer adding a new rt command, I want rt add-test --cli <CommandClass> to scaffold a CLI-invocation test class that runs `Command.Parse(...).InvokeAsync(...)` and asserts on stdout/stderr/exit-code so that my new command gets coverage for required-arg-missing, help output, and a dry-run happy-path without me hand-writing boilerplate.",
+            "acceptanceCriteria": [
+                "Add `--cli` flag to AddTestCommand; when set, scaffolding emits a test class targeting CLI invocation rather than Core/Service unit tests",
+                "Generated class includes at minimum three test methods: (a) RequiredArgsMissing_ReturnsNonZeroExit, (b) HelpFlag_PrintsHelpAndExitsZero, (c) DryRun_HappyPath_ReturnsZeroAndProducesExpectedDiff",
+                "Generated tests use Command.Parse(...).InvokeAsync(...) (or the project's equivalent harness if one exists — search for existing patterns first)",
+                "Stdout/stderr capture uses TextWriter / TextReader redirection that survives parallel xUnit runs (or marks the class non-parallel if the harness is process-global)",
+                "Generated file path: tests/RoslynTools.Tests/Cli/<CommandName>CliTests.cs (verify Cli/ subfolder convention by looking at existing layout — fall back to flat tests/RoslynTools.Tests/ if no Cli/ folder exists)",
+                "Without --cli, AddTestCommand behaviour is unchanged (regression coverage on existing scaffolding tests)",
+                "Self-test: run `rt add-test --cli ExtractMethodCommand --dry-run`, capture diff, assert it includes the three test methods and compiles when applied to a scratch branch",
+                "rt dump-help shows --cli flag and Info.Examples reflects the actual invocation",
+                "dotnet build \"RoslynTools.slnx\" passes with zero errors and zero new warnings",
+                "dotnet test \"tests/RoslynTools.Tests/RoslynTools.Tests.csproj\" -v minimal passes",
+                "dotnet format \"RoslynTools.slnx\" --verify-no-changes passes"
+            ],
+            "priority": 9,
+            "passes": false,
+            "notes": "Affected files: src/RoslynTools/Commands/AddTestCommand.cs, src/RoslynTools/Services/AddTestService.cs (or similar — verify), tests/RoslynTools.Tests/AddTestCommandTests.cs. Item 14 in the gap log."
+        },
+        {
+            "id": "US-010",
+            "epicId": "EP-003",
+            "title": "Auto-detect nearest solution when --solution is omitted",
+            "description": "As a developer running any rt command from inside a repo, I want the command to auto-detect the nearest .sln/.slnx (walking up from cwd) when --solution is not passed so that I do not have to type the path on every invocation, falling back to a clear error naming the expected file.",
+            "acceptanceCriteria": [
+                "Add solution auto-detection helper to src/RoslynTools/Services/ (or extend WorkspaceLoader) — walks up from cwd looking for *.slnx then *.sln, returns the nearest, or null if none found",
+                "Wire the helper into the WorkspaceLoader entry point so every command picks up auto-detection without per-command code changes",
+                "When auto-detection succeeds, emit a stderr line `[INFO] Using solution: <relative path>` (relative to cwd) so the user sees what was picked",
+                "When auto-detection fails, exit code 1 with a stderr message naming the expected files: `error: no .slnx or .sln found in <cwd> or any parent. Pass --solution <path>.`",
+                "When --solution is passed explicitly, skip auto-detection and honour the passed path (no behaviour change)",
+                "Optional .rtconfig support is OUT OF SCOPE for this story — file an explicit follow-up if needed; conservative scope keeps the story to one session",
+                "Update all command-tests that previously required --solution to verify they still pass when --solution is passed; add new tests for the auto-detect path (cwd inside repo with a single .slnx) and the failure path (cwd in /tmp)",
+                "rt dump-help notes the auto-detection behaviour in either the global help section or each command's --solution help text",
+                "dotnet build \"RoslynTools.slnx\" passes with zero errors and zero new warnings",
+                "dotnet test \"tests/RoslynTools.Tests/RoslynTools.Tests.csproj\" -v minimal passes",
+                "dotnet format \"RoslynTools.slnx\" --verify-no-changes passes"
+            ],
+            "priority": 10,
+            "passes": false,
+            "notes": "Affected files: src/RoslynTools/Services/WorkspaceLoader.cs, src/RoslynTools/Commands/* (only --solution help text), tests/RoslynTools.Tests/WorkspaceLoaderTests.cs (new), tests/RoslynTools.Tests/Cli/<command>Tests.cs. Item 17 in the gap log. CONSERVATIVE: .rtconfig is split out — adds config-file format and parser surface that won't fit one session."
+        },
+        {
+            "id": "US-011",
+            "epicId": "EP-003",
+            "title": "Separate workspace diagnostics from results in --json output",
+            "description": "As a developer running an rt analyze/inspect command in --json mode, I want non-fatal workspace warnings (NuGet audit warnings, locked obj/dll files) to appear under a separate `diagnostics:` key rather than mixed into results so that I can pipe results into jq without filtering noise.",
+            "acceptanceCriteria": [
+                "Pick a single helper (likely in WorkspaceLoader or a new RtDiagnosticsCollector) that captures non-fatal Roslyn workspace diagnostics during load",
+                "Top-level --json envelope across all read-only commands is `{ \"diagnostics\": [ ... ], \"results\": <command-specific> }` — `diagnostics` is always present (empty array if none), `results` shape is unchanged",
+                "Each diagnostic item has at minimum: `severity` (info/warning/error), `message`, `source` (e.g. \"workspace-load\", \"nuget-audit\", \"file-lock\")",
+                "When --json is not set, diagnostics are written to stderr in their existing form — no behaviour change for plain-text consumers",
+                "Apply the envelope to at least three representative read-only commands (e.g. inspect describe, inspect find-refs, analyze dependency-graph) and add tests for each",
+                "Add a test that loads a workspace producing at least one warning (e.g. a project with a deliberately broken NuGet reference in a fixture) and asserts the warning appears under diagnostics with empty/normal results",
+                "rt dump-help notes the envelope shape in either global help or per-command help; Info.Examples updated where appropriate",
+                "dotnet build \"RoslynTools.slnx\" passes with zero errors and zero new warnings",
+                "dotnet test \"tests/RoslynTools.Tests/RoslynTools.Tests.csproj\" -v minimal passes",
+                "dotnet format \"RoslynTools.slnx\" --verify-no-changes passes"
+            ],
+            "priority": 11,
+            "passes": false,
+            "notes": "Affected files: src/RoslynTools/Services/WorkspaceLoader.cs, src/RoslynTools/Services/SymbolFormatter.cs (or similar JSON envelope helper), src/RoslynTools/Commands/* (per-command JSON serialisation), tests/RoslynTools.Tests/. Item 18 in the gap log. CONSERVATIVE: rolling out across all read-only commands at once may exceed one session — apply to three representative commands and file a follow-up to extend coverage."
+        },
+        {
+            "id": "US-012",
+            "epicId": "EP-003",
+            "title": "Add rt analyze responsibility-map command",
+            "description": "As a developer hunting SoC violations in fat command/handler classes, I want rt analyze responsibility-map <type> --solution <sln> to classify the type's members by AST pattern (parsing, business logic, IO, presentation) and output a heatmap-style JSON summary so that I can target the worst offenders for refactoring.",
+            "acceptanceCriteria": [
+                "Add new src/RoslynTools/Commands/ResponsibilityMapCommand.cs implementing IRtCommand with Info.Category = \"analyze\", Info.JsonOutput = true, Info.Mutates = false",
+                "Build() registers the command under the analyze group and accepts a positional <type> (FQN) plus the global --solution",
+                "Classification rules — at minimum: (a) parsing — methods invoking string.Split / Regex / int.Parse / JsonSerializer.Deserialize, (b) IO — methods invoking File.* / Directory.* / Process.Start / HttpClient.*, (c) presentation — methods invoking Console.* / RtConsole.* / ILogger.* / RtLog.*, (d) business — anything else. Each rule documented in code comment",
+                "JSON output shape: `{ \"diagnostics\": [...], \"results\": { \"type\": \"FQN\", \"members\": [ { \"name\": \"...\", \"kind\": \"method\", \"categories\": [\"parsing\",\"io\"], \"locationPath\": \"...\", \"line\": 42 } ], \"summary\": { \"parsing\": 3, \"businessLogic\": 5, \"io\": 2, \"presentation\": 1 } } }`",
+                "Members with multiple categories are reported under each (no double-counting in summary; summary counts unique members per category)",
+                "Edge cases: type not found -> exit 1 with clear message; type has no members -> empty members array, all-zero summary, exit 0",
+                "Add xUnit tests using a fixture with one method per category plus one mixed-category method; assert classification and summary",
+                "Self-test: run against ChangeSignatureCommand on RoslynTools.slnx and inspect output for sanity (member count > 0, categories non-empty)",
+                "rt dump-help shows the new command and Info.Examples reflects the actual invocation",
+                "dotnet build \"RoslynTools.slnx\" passes with zero errors and zero new warnings",
+                "dotnet test \"tests/RoslynTools.Tests/RoslynTools.Tests.csproj\" -v minimal passes",
+                "dotnet format \"RoslynTools.slnx\" --verify-no-changes passes"
+            ],
+            "priority": 12,
+            "passes": false,
+            "notes": "Affected files: src/RoslynTools/Commands/ResponsibilityMapCommand.cs (new), src/RoslynTools/Services/ResponsibilityMapService.cs (new), tests/RoslynTools.Tests/ResponsibilityMapCommandTests.cs (new). Item 5 in the gap log."
+        },
+        {
+            "id": "US-013",
+            "epicId": "EP-003",
+            "title": "Add rt analyze interface member-usage command",
+            "description": "As a developer doing interface-segregation work, I want rt analyze interface <fqn> --solution <sln> to produce a consumer-by-consumer member-usage view so that I can see which members each consumer actually calls and identify candidates for narrower interfaces.",
+            "acceptanceCriteria": [
+                "Add new src/RoslynTools/Commands/AnalyzeInterfaceCommand.cs implementing IRtCommand with Info.Category = \"analyze\", Info.JsonOutput = true, Info.Mutates = false",
+                "Build() registers the command under the analyze group as `interface` (so `rt analyze interface <fqn>`), positional <fqn>, plus --solution",
+                "JSON output shape: `{ \"diagnostics\": [...], \"results\": { \"interface\": \"FQN\", \"consumers\": [ { \"consumer\": \"FQN\", \"membersUsed\": [\"MemberA\",\"MemberB\"], \"membersUnused\": [\"MemberC\"], \"locations\": [{\"file\":\"...\",\"line\":N}] } ], \"unusedAcrossAllConsumers\": [\"MemberD\"] } }`",
+                "Consumer detection: any type that takes the interface as a constructor parameter, field, property, method parameter, or local — covers DI-injected and direct-use cases",
+                "Member usage detection: usages within the consumer that resolve (via SemanticModel) to one of the interface's members through that injected reference",
+                "Edge case: interface has zero implementations / zero consumers -> empty consumers array, full member list under unusedAcrossAllConsumers, exit 0",
+                "Edge case: interface FQN not found -> exit 1 with clear message",
+                "Add xUnit tests using a fixture interface with three members and three consumers each calling a different subset; assert membersUsed/membersUnused per consumer and unusedAcrossAllConsumers",
+                "Self-test: run against IRtCommand or another interface in roslyn-tools and inspect output for sanity",
+                "rt dump-help shows the new command and Info.Examples reflects the actual invocation",
+                "dotnet build \"RoslynTools.slnx\" passes with zero errors and zero new warnings",
+                "dotnet test \"tests/RoslynTools.Tests/RoslynTools.Tests.csproj\" -v minimal passes",
+                "dotnet format \"RoslynTools.slnx\" --verify-no-changes passes"
+            ],
+            "priority": 13,
+            "passes": false,
+            "notes": "Affected files: src/RoslynTools/Commands/AnalyzeInterfaceCommand.cs (new), src/RoslynTools/Services/AnalyzeInterfaceService.cs (new), tests/RoslynTools.Tests/AnalyzeInterfaceCommandTests.cs (new). Item 19 in the gap log. CONSERVATIVE: the gap log mentions sub-commands `why-type-needed` and `unused-members-on-interface` — split into US-014 to keep this story sized for one session."
+        },
+        {
+            "id": "US-014",
+            "epicId": "EP-003",
+            "title": "Add rt analyze why-type-needed and unused-members-on-interface sub-commands",
+            "description": "As a developer following up the analyze-interface output, I want rt analyze why-type-needed <interface> <consumer> and rt analyze unused-members-on-interface <interface> --within <project> so that I can drill into a single consumer's reason for needing the interface and scope unused-member analysis to a single project.",
+            "acceptanceCriteria": [
+                "Add src/RoslynTools/Commands/WhyTypeNeededCommand.cs (analyze category, JSON output, no mutate) — positional <interface> <consumer>, returns the exact members and call sites the consumer uses",
+                "Add src/RoslynTools/Commands/UnusedMembersOnInterfaceCommand.cs (analyze category, JSON output, no mutate) — positional <interface> with --within <project> filter; returns members not called by any consumer in that project",
+                "Reuse the AnalyzeInterfaceService from US-013 — these sub-commands are filtered/projected views of the same underlying analysis",
+                "JSON shapes: why-type-needed -> `{ \"diagnostics\": [...], \"results\": { \"consumer\": \"FQN\", \"membersUsed\": [...], \"locations\": [...] } }`; unused-members-on-interface -> `{ \"diagnostics\": [...], \"results\": { \"project\": \"...\", \"unusedMembers\": [...] } }`",
+                "Edge cases: consumer does not depend on interface -> empty result with diagnostic note, exit 0; project does not contain interface or consumers -> empty result, exit 0; consumer or interface FQN not found -> exit 1",
+                "Add xUnit tests for both commands using fixtures from US-013",
+                "rt dump-help shows both new commands and Info.Examples reflects the actual invocations",
+                "dotnet build \"RoslynTools.slnx\" passes with zero errors and zero new warnings",
+                "dotnet test \"tests/RoslynTools.Tests/RoslynTools.Tests.csproj\" -v minimal passes",
+                "dotnet format \"RoslynTools.slnx\" --verify-no-changes passes"
+            ],
+            "priority": 14,
+            "passes": false,
+            "notes": "Affected files: src/RoslynTools/Commands/WhyTypeNeededCommand.cs (new), src/RoslynTools/Commands/UnusedMembersOnInterfaceCommand.cs (new), tests/RoslynTools.Tests/. DEPENDS ON: US-013 (reuses AnalyzeInterfaceService). Item 19 sub-commands in the gap log."
+        },
+        {
+            "id": "US-015",
+            "epicId": "EP-003",
+            "title": "Add rt analyze architecture-verify command with config-driven rules",
+            "description": "As a developer enforcing layering, I want rt analyze architecture-verify --rules <path> to validate the codebase against declared boundary rules (e.g. \"Commands may not reference Microsoft.CodeAnalysis directly\") so that violations are reported with file/line locations.",
+            "acceptanceCriteria": [
+                "Add src/RoslynTools/Commands/ArchitectureVerifyCommand.cs implementing IRtCommand with Info.Category = \"analyze\", Info.JsonOutput = true, Info.Mutates = false",
+                "Add a YAML rule schema (re-using YamlDotNet already in the project): `rules: [ { id, fromNamespace, mustNotReference: [<namespace>...] } ]`. Schema file lives at src/RoslynTools/Services/Architecture/RuleSchema.cs (or similar)",
+                "Default rules path: `.rtarch.yaml` at the solution root if --rules is not passed; if neither flag nor default exists, exit 1 with explanatory message",
+                "JSON output shape: `{ \"diagnostics\": [...], \"results\": { \"rulesEvaluated\": N, \"violations\": [ { \"ruleId\": \"...\", \"violatingType\": \"FQN\", \"violatingFile\": \"...\", \"line\": N, \"referencedNamespace\": \"...\" } ] } }`",
+                "Exit code: 0 if zero violations, 1 if violations found (so it can be wired into CI as a gate)",
+                "Edge cases: rules file missing -> exit 1 with \"no rules file found\"; rules file empty/no rules -> exit 0 with empty violations and a diagnostic note; malformed YAML -> exit 1 with parse error including line number",
+                "Bootstrap a sample rules file at .rtarch.yaml committed in the repo encoding at least: `Commands must not reference Microsoft.CodeAnalysis directly` (the analyze-interface lesson)",
+                "Add xUnit tests with fixture rules + fixture violations across at least three rule types (banned namespace, banned type, banned project reference)",
+                "rt dump-help shows the new command and Info.Examples reflects the actual invocation",
+                "dotnet build \"RoslynTools.slnx\" passes with zero errors and zero new warnings",
+                "dotnet test \"tests/RoslynTools.Tests/RoslynTools.Tests.csproj\" -v minimal passes",
+                "dotnet format \"RoslynTools.slnx\" --verify-no-changes passes"
+            ],
+            "priority": 15,
+            "passes": false,
+            "notes": "Affected files: src/RoslynTools/Commands/ArchitectureVerifyCommand.cs (new), src/RoslynTools/Services/Architecture/* (new), tests/RoslynTools.Tests/ArchitectureVerifyCommandTests.cs (new), .rtarch.yaml (new, committed). Item 7 in the gap log."
+        },
+        {
+            "id": "US-016",
+            "epicId": "EP-004",
+            "title": "Add rt refactor introduce-record command",
+            "description": "As a developer with a long method signature, I want rt refactor introduce-record --method <symbol> --record-name <name> --solution <sln> to extract a record type from selected parameter names/types so that I can collapse the parameter list and update all call sites.",
+            "acceptanceCriteria": [
+                "Add src/RoslynTools/Commands/IntroduceRecordCommand.cs implementing IRtCommand with Info.Category = \"refactor\", Info.JsonOutput = false, Info.Mutates = true",
+                "Build() registers the command and accepts: --method <symbol-fqn-with-method>, --record-name <Name>, --record-namespace <ns> (optional, defaults to method's containing namespace), --parameters <comma-separated list> (optional, defaults to all parameters), --solution, --dry-run",
+                "Behaviour: emits a new file <RecordName>.cs with `internal record <RecordName>(<Type1> <Param1>, ...)`, rewrites the method to take a single `<RecordName> request` parameter, rewrites all call sites to construct `new <RecordName>(...)` from existing arguments",
+                "Parameter ordering in the record matches the method's parameter order (consistent with the team's first-reference rule for extract-method? — verify against MEMORY.md feedback_tdd_and_style and follow whichever convention is established; document the chosen convention in the commit message)",
+                "Edge case: method has zero parameters -> exit 1 with explanatory message; method is overloaded and FQN ambiguous -> use the existing decisions/disambiguation flow (exit 2)",
+                "Edge case: --parameters references a name not on the method -> exit 1 with the typo highlighted",
+                "--dry-run emits a unified diff to stdout; without --dry-run, files are written. Both modes pass byte-stable output for the same input (same hash)",
+                "Add xUnit tests covering: (a) full-parameter extraction with two call sites, (b) subset --parameters, (c) zero-parameter error, (d) ambiguous FQN -> exit 2",
+                "Self-test: run against a method in RoslynTools.slnx with --dry-run and inspect the diff",
+                "rt dump-help shows the new command and Info.Examples reflects the actual invocation",
+                "dotnet build \"RoslynTools.slnx\" passes with zero errors and zero new warnings",
+                "dotnet test \"tests/RoslynTools.Tests/RoslynTools.Tests.csproj\" -v minimal passes",
+                "dotnet format \"RoslynTools.slnx\" --verify-no-changes passes"
+            ],
+            "priority": 16,
+            "passes": false,
+            "notes": "Affected files: src/RoslynTools/Commands/IntroduceRecordCommand.cs (new), src/RoslynTools/Services/IntroduceRecordService.cs (new), tests/RoslynTools.Tests/IntroduceRecordCommandTests.cs (new). Item 3 in the gap log."
+        },
+        {
+            "id": "US-017",
+            "epicId": "EP-004",
+            "title": "Add precondition for static types in rt extract-adapter",
+            "description": "As a developer running rt refactor extract-adapter against a static class, I want either a clear refusal (\"static class cannot directly implement an interface — use --strategy wrapper\") or an automatic wrapper-class fallback so that the command does not block silently.",
+            "acceptanceCriteria": [
+                "Locate ExtractAdapterCommand and its service; add a precondition check that detects ITypeSymbol.IsStatic on the source type",
+                "Default behaviour when source is static: exit 1 with stderr `error: cannot extract adapter from static type '<FQN>': static types cannot implement interfaces. Re-run with --strategy wrapper to generate a non-static wrapper that delegates to the static type.`",
+                "Add `--strategy <direct|wrapper>` option (default `direct`); when `wrapper` is selected and source is static, generate `internal sealed class <SourceName>Wrapper : I<SourceName> { /* delegates to static methods */ }`, otherwise behave as today",
+                "When --strategy direct is explicitly passed against a static type, still exit 1 (do not silently skip the request)",
+                "When --strategy wrapper is passed against a non-static type, behave as if --strategy direct was passed (or document the ambiguity and exit 1 — pick one and document)",
+                "Add xUnit tests covering: (a) static type with default strategy -> exit 1 with expected message, (b) static type with --strategy wrapper -> wrapper class generated, (c) non-static type unchanged behaviour",
+                "Self-test: run against WorkspaceLoader (static) in RoslynTools.slnx — covers the original dogfood scenario",
+                "rt dump-help shows the new --strategy flag and Info.Examples reflects the actual invocation",
+                "dotnet build \"RoslynTools.slnx\" passes with zero errors and zero new warnings",
+                "dotnet test \"tests/RoslynTools.Tests/RoslynTools.Tests.csproj\" -v minimal passes",
+                "dotnet format \"RoslynTools.slnx\" --verify-no-changes passes"
+            ],
+            "priority": 17,
+            "passes": false,
+            "notes": "Affected files: src/RoslynTools/Commands/ExtractAdapterCommand.cs, src/RoslynTools/Services/ExtractAdapterService.cs, tests/RoslynTools.Tests/. Item 4 in the gap log."
+        },
+        {
+            "id": "US-018",
+            "epicId": "EP-004",
+            "title": "Add rt refactor extract-orchestrator command",
+            "description": "As a developer thinning fat command Build() handlers, I want rt refactor extract-orchestrator --command <CommandClass> --orchestrator-name <Name> --solution <sln> to pull the SetHandler lambda body into a named orchestrator class in Services/ so that the command class meets the ≤20-lines thin-shell rule.",
+            "acceptanceCriteria": [
+                "Add src/RoslynTools/Commands/ExtractOrchestratorCommand.cs implementing IRtCommand with Info.Category = \"refactor\", Info.JsonOutput = false, Info.Mutates = true",
+                "Build() accepts: --command <CommandClass FQN>, --orchestrator-name <Name> (optional, defaults to <CommandName>Handler), --target-folder (optional, defaults to src/RoslynTools/Services/), --solution, --dry-run",
+                "Behaviour: detects the SetHandler lambda within the named command's Build() method, lifts the lambda body into a new internal static class `<Name>` with `public static Task<int> RunAsync(<Name>Context ctx)`, generates a record/struct `<Name>Context` capturing exactly the inputs the lambda used, rewrites the lambda to read options, build the context, await RunAsync, return exit code",
+                "Lifted lambda body is replaced with ≤20 lines (counted exclusive of brace lines per team convention)",
+                "Edge case: command has no SetHandler call -> exit 1 with explanatory message; command not found -> exit 1; orchestrator name collides with existing type -> exit 1 with conflict description",
+                "--dry-run emits a unified diff covering both the command file and the new orchestrator file; without --dry-run, both files are written",
+                "Add xUnit tests using a fixture command class with a moderately complex SetHandler lambda; assert lambda is shortened, orchestrator file is created, byte-stable output between two dry-runs",
+                "Self-test: run with --dry-run against ChangeSignatureCommand on RoslynTools.slnx and inspect the diff",
+                "rt dump-help shows the new command and Info.Examples reflects the actual invocation",
+                "dotnet build \"RoslynTools.slnx\" passes with zero errors and zero new warnings",
+                "dotnet test \"tests/RoslynTools.Tests/RoslynTools.Tests.csproj\" -v minimal passes",
+                "dotnet format \"RoslynTools.slnx\" --verify-no-changes passes"
+            ],
+            "priority": 18,
+            "passes": false,
+            "notes": "Affected files: src/RoslynTools/Commands/ExtractOrchestratorCommand.cs (new), src/RoslynTools/Services/ExtractOrchestratorService.cs (new), tests/RoslynTools.Tests/ExtractOrchestratorCommandTests.cs (new). Item 6 in the gap log. RELATED TO: US-006 (manual extraction of ExtractMethodHandler) — once this command exists it could be used dogfood-style on remaining fat commands."
+        },
+        {
+            "id": "US-019",
+            "epicId": "EP-004",
+            "title": "Add rt refactor replace-pattern general pattern-replace command",
+            "description": "As a developer doing cross-cutting renames or API migrations (e.g. Console.Error.WriteLine -> ILogger calls), I want rt refactor replace-pattern --from <syntax-pattern> --to <syntax-pattern> --solution <sln> --dry-run so that I can preview and apply structural replacements without writing throwaway scripts.",
+            "acceptanceCriteria": [
+                "Add src/RoslynTools/Commands/ReplacePatternCommand.cs implementing IRtCommand with Info.Category = \"refactor\", Info.JsonOutput = false, Info.Mutates = true",
+                "Build() accepts: --from <pattern-string>, --to <pattern-string>, --within <project-or-folder> (optional), --solution, --dry-run",
+                "Pattern syntax: support placeholder captures `$1`, `$2`, ... in --from referenced from --to. At minimum support InvocationExpressionSyntax patterns like `Console.Error.WriteLine($1)` -> `_logger.LogWarning($1)`. Document the supported subset in xml-doc on the command class",
+                "Implementation strategy: parse --from as a syntax tree fragment (using SyntaxFactory.ParseExpression), walk the solution finding structurally matching nodes via SyntaxNodeMatcher (new helper), produce replacements by substituting captures into --to",
+                "Edge case: --from is unparseable -> exit 1 with parse error including position; --to references a capture not declared in --from -> exit 1 with explanatory message; zero matches -> exit 0 with stderr note `[INFO] no matches found` and no file changes",
+                "--dry-run emits a unified diff per affected file; without --dry-run, files are written",
+                "Self-test: run with --dry-run replacing `Console.Error.WriteLine($1)` -> `RtLog.Warning($1)` against RoslynTools.slnx and inspect output",
+                "Add xUnit tests covering: (a) no captures, literal-to-literal, (b) one capture, (c) two captures with reordering ($2 before $1 in --to), (d) unparseable --from -> exit 1, (e) zero matches -> exit 0 with note, (f) --within scoping",
+                "rt dump-help shows the new command and Info.Examples reflects the actual invocation",
+                "dotnet build \"RoslynTools.slnx\" passes with zero errors and zero new warnings",
+                "dotnet test \"tests/RoslynTools.Tests/RoslynTools.Tests.csproj\" -v minimal passes",
+                "dotnet format \"RoslynTools.slnx\" --verify-no-changes passes"
+            ],
+            "priority": 19,
+            "passes": false,
+            "notes": "Affected files: src/RoslynTools/Commands/ReplacePatternCommand.cs (new), src/RoslynTools/Services/ReplacePatternService.cs (new), src/RoslynTools/Services/SyntaxNodeMatcher.cs (new helper), tests/RoslynTools.Tests/ReplacePatternCommandTests.cs (new). Item 9 in the gap log. CONSERVATIVE: structural pattern matching is a large surface; this story scopes it to InvocationExpressionSyntax with named captures. Member access, method declarations, and other shapes can be added in follow-ups."
+        },
+        {
+            "id": "US-020",
+            "epicId": "EP-004",
+            "title": "Add rt refactor move-method --to-nested-class and --from-nested-class flags",
+            "description": "As a developer organising tests by behaviour (e.g. grouping `[Fact]` methods into `When_X` inner classes), I want rt refactor move-method --to-nested-class <name> [--create-if-missing] and the inverse --from-nested-class so that I can restructure methods into and out of nested classes without manual edits.",
+            "acceptanceCriteria": [
+                "Extend src/RoslynTools/Commands/MoveMethodCommand.cs (or add it if it does not exist) with --to-nested-class <name>, --from-nested-class, --create-if-missing flags",
+                "--to-nested-class <name>: moves the named method into a nested class on the same containing type. If --create-if-missing is set and the nested class does not exist, create it; otherwise exit 1 with explanatory message",
+                "--from-nested-class: moves the named method up one level out of its current nested class into the containing type. If the method is not already in a nested class, exit 1",
+                "Both flags reuse existing rt move semantics for visibility, references, and call-site rewrites — call sites change only if access modifiers require it (e.g. private method moved into nested class becomes accessible through the nesting relationship)",
+                "Edge cases: method does not exist -> exit 1; nested class name collides with existing member -> exit 1; method has dependencies on private fields of the containing class that are not accessible from the nested class -> exit 1 with the dependency listed",
+                "--dry-run emits a unified diff; without --dry-run, file is written",
+                "Add xUnit tests covering: (a) move into existing nested class, (b) move into new nested class with --create-if-missing, (c) move into new nested class without --create-if-missing -> exit 1, (d) move out of nested class, (e) move out when method is not nested -> exit 1, (f) private-field-dependency error",
+                "Self-test: run against a test class in tests/RoslynTools.Tests/ with --dry-run, demonstrating the When_X grouping pattern",
+                "rt dump-help shows the new flags and Info.Examples reflects the actual invocations",
+                "dotnet build \"RoslynTools.slnx\" passes with zero errors and zero new warnings",
+                "dotnet test \"tests/RoslynTools.Tests/RoslynTools.Tests.csproj\" -v minimal passes",
+                "dotnet format \"RoslynTools.slnx\" --verify-no-changes passes"
+            ],
+            "priority": 20,
+            "passes": false,
+            "notes": "Affected files: src/RoslynTools/Commands/MoveMethodCommand.cs (extend or new), src/RoslynTools/Services/MoveMethodService.cs, tests/RoslynTools.Tests/MoveMethodCommandTests.cs. Item 10 in the gap log."
+        },
+        {
+            "id": "US-021",
+            "epicId": "EP-004",
+            "title": "Add rt refactor narrow-dependency / extract-narrow-interface command",
+            "description": "As a developer following up on rt analyze interface output, I want rt refactor extract-narrow-interface --interface <fqn> --members <comma-list> --new-interface <fqn> --solution <sln> --dry-run to extract selected members into a new narrower interface and narrow constructor parameter and field types in consumers so that I can implement Interface Segregation safely.",
+            "acceptanceCriteria": [
+                "Add src/RoslynTools/Commands/ExtractNarrowInterfaceCommand.cs implementing IRtCommand with Info.Category = \"refactor\", Info.JsonOutput = false, Info.Mutates = true",
+                "Build() accepts: --interface <fqn>, --members <comma-list>, --new-interface <fqn>, --narrow-consumers <comma-list-of-consumer-fqns> (optional, defaults to all consumers using only the listed members), --add-di-registration (optional), --solution, --dry-run",
+                "Behaviour: (a) generates the new interface file with the listed members, (b) makes the original interface inherit from it (or duplicates members — pick one strategy and document; inheriting is preferred), (c) for each named consumer (or auto-detected eligible consumer), changes its constructor parameter and field type from the original interface to the new one, (d) if --add-di-registration is set, scans for typical DI registration patterns (`services.AddScoped<IFoo, Foo>()`) and adds a forwarding registration `services.AddScoped<INarrowFoo>(sp => sp.GetRequiredService<IFoo>())`",
+                "Edge case: --members references a member not on --interface -> exit 1 with the missing member listed",
+                "Edge case: a named consumer in --narrow-consumers actually uses members not in --members -> exit 1 with usage breakdown (consumer, extra members) so the user can adjust",
+                "Edge case: --new-interface FQN already exists -> exit 1 with conflict description",
+                "--dry-run emits a unified diff covering all affected files; without --dry-run, files are written",
+                "Add xUnit tests using fixtures from US-013/US-014 covering: (a) inheritance strategy, (b) auto-detected eligible consumers, (c) named-consumer-with-extra-members error, (d) DI registration injection (if a DI registration is in the fixture)",
+                "Self-test: run with --dry-run against IRtCommand or another small interface in RoslynTools.slnx, narrowing it for a single consumer",
+                "rt dump-help shows the new command and Info.Examples reflects the actual invocation",
+                "dotnet build \"RoslynTools.slnx\" passes with zero errors and zero new warnings",
+                "dotnet test \"tests/RoslynTools.Tests/RoslynTools.Tests.csproj\" -v minimal passes",
+                "dotnet format \"RoslynTools.slnx\" --verify-no-changes passes"
+            ],
+            "priority": 21,
+            "passes": false,
+            "notes": "Affected files: src/RoslynTools/Commands/ExtractNarrowInterfaceCommand.cs (new), src/RoslynTools/Services/ExtractNarrowInterfaceService.cs (new), tests/RoslynTools.Tests/ExtractNarrowInterfaceCommandTests.cs (new). DEPENDS ON: US-013 (consumer/member-usage analysis is the natural input). Item 20 in the gap log. CONSERVATIVE: --add-di-registration is the most fragile part of the spec (requires recognising arbitrary DI patterns); if it does not fit the session, ship it as `[NotImplemented]` exiting 1 with a follow-up story rather than half-implement."
+        }
+    ]
+}
