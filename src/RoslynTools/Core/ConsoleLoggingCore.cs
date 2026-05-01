@@ -269,6 +269,9 @@ internal static class ConsoleLoggingCore
             if (TryConvertConcatenation(expression, out var concatenated))
                 return concatenated;
 
+            if (TryConvertStringFormat(expression, out var formatted))
+                return formatted;
+
             if (expression is LiteralExpressionSyntax literal
                 && literal.IsKind(SyntaxKind.StringLiteralExpression))
             {
@@ -281,6 +284,80 @@ internal static class ConsoleLoggingCore
             }
 
             return new ConvertedMessage("{Value}", [expression.WithoutTrivia()]);
+        }
+
+        // Recognises string.Format("...", arg0, arg1, ...) syntactically (no semantic model needed).
+        // Supports the (string format, params object[] args) overload only.
+        // The (IFormatProvider, string, params object[]) overload degrades gracefully by returning
+        // false so the caller falls through to the {Value} fallback — the provider arg can't be
+        // dropped without changing semantics, and we have no way to materialise it into the logger call.
+        // TODO: support IFormatProvider overload if needed (e.g. strip provider and warn).
+        private static bool TryConvertStringFormat(ExpressionSyntax expression, out ConvertedMessage converted)
+        {
+            converted = default;
+
+            if (expression is not InvocationExpressionSyntax invocation)
+                return false;
+
+            if (!IsStringFormatTarget(invocation.Expression))
+                return false;
+
+            var formatArgs = invocation.ArgumentList.Arguments;
+            if (formatArgs.Count == 0)
+                return false;
+
+            // Basic overload: first arg is the format literal.
+            if (formatArgs[0].Expression is LiteralExpressionSyntax formatLiteral
+                && formatLiteral.IsKind(SyntaxKind.StringLiteralExpression))
+            {
+                var template = formatLiteral.Token.ValueText;
+                var args = formatArgs.Skip(1).Select(a => a.Expression.WithoutTrivia()).ToList();
+                if (args.Count > 0)
+                    template = ConvertCompositeFormat(template, args);
+
+                converted = new ConvertedMessage(template, args);
+                return true;
+            }
+
+            // IFormatProvider overload or unknown — degrade gracefully.
+            return false;
+        }
+
+        // Returns true when the expression is the Format member on string / String / System.String.
+        private static bool IsStringFormatTarget(ExpressionSyntax expression)
+        {
+            if (expression is not MemberAccessExpressionSyntax memberAccess)
+                return false;
+
+            if (memberAccess.Name.Identifier.ValueText != "Format")
+                return false;
+
+            var receiver = memberAccess.Expression;
+
+            // string.Format
+            if (receiver is PredefinedTypeSyntax predefined
+                && predefined.Keyword.IsKind(SyntaxKind.StringKeyword))
+            {
+                return true;
+            }
+
+            // String.Format
+            if (receiver is IdentifierNameSyntax identifier
+                && identifier.Identifier.ValueText == "String")
+            {
+                return true;
+            }
+
+            // System.String.Format
+            if (receiver is MemberAccessExpressionSyntax outerAccess
+                && outerAccess.Name.Identifier.ValueText == "String"
+                && outerAccess.Expression is IdentifierNameSyntax systemIdentifier
+                && systemIdentifier.Identifier.ValueText == "System")
+            {
+                return true;
+            }
+
+            return false;
         }
 
         private static ConvertedMessage ConvertInterpolatedString(InterpolatedStringExpressionSyntax interpolated)
