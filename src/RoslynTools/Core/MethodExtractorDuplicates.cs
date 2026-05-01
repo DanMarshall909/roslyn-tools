@@ -32,16 +32,33 @@ internal static class MethodExtractorDuplicates
             newMethodEndLine,
             scope: null);
 
+        return await ApplyMatchesAsync(extractedSln, matches, newMethodName, orderedParameters, returnVars);
+    }
+
+    /// <summary>
+    /// Apply a pre-built match list, replacing each match with a call to
+    /// <paramref name="newMethodName"/>. Exposed as <c>internal</c> so tests can
+    /// inject synthetic match lists (including overlapping ones) to verify the
+    /// overlap-warning contract without going through the full MSBuild workspace.
+    /// </summary>
+    internal static async Task<Solution> ApplyMatchesAsync(
+        Solution solution,
+        IReadOnlyList<PatternMatch> matches,
+        string newMethodName,
+        IReadOnlyList<ISymbol> orderedParameters,
+        IReadOnlyList<ISymbol> returnVars)
+    {
         int replaced = 0;
         int skipped = 0;
-        var currentSln = extractedSln;
+        var currentSln = solution;
 
         // Process matches in an order that keeps line numbers stable as we rewrite.
         // - Group by file so cross-file matches don't affect each other.
         // - Within each file, apply replacements bottom-up (largest Line first) so earlier
-        //   line numbers stay correct when later ones shrink. Skip overlapping matches
-        //   within the same file — once a range is replaced, smaller start-line matches
-        //   whose end overlaps the replaced range are already consumed.
+        //   line numbers stay correct when later ones shrink.
+        // - Overlapping matches within the same file are skipped with a warning.
+        //   In practice PatternMatcher only returns exact same-count structural matches so
+        //   overlaps cannot arise from it; this guard is defensive for future callers.
         var orderedMatches = matches
             .GroupBy(m => Path.GetFullPath(m.File), StringComparer.OrdinalIgnoreCase)
             .SelectMany(g => g.OrderByDescending(m => m.Line));
@@ -56,7 +73,10 @@ internal static class MethodExtractorDuplicates
 
             if (ranges.Any(r => match.Line <= r.End && match.EndLine >= r.Start))
             {
-                // Overlaps a range we already replaced in this file — skip silently.
+                // Overlaps a range already replaced in this file — warn and skip.
+                skipped++;
+                RtLog.Warning("{File}:{Line}: line range {Start}-{End} overlaps an already-replaced range — skipped",
+                    match.File, match.Line, match.Line, match.EndLine);
                 continue;
             }
 
