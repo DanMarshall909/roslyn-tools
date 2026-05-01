@@ -1,5 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Core;
+using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
@@ -49,7 +50,7 @@ internal sealed class MakeSealedCommand : IRtCommand
         var (workspace, sln) = await WorkspaceLoader.LoadAsync(solutionPath);
         using (workspace)
         {
-            await MakeSealedCore.RunAsync(sln, typeName, dryRun);
+            await MakeSealedService.RunAsync(sln, typeName, dryRun);
         }
     }
 }

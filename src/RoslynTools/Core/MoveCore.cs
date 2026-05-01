@@ -57,12 +57,14 @@ internal static class MoveCore
 
         var (declarationFiles, projectDir, rootNamespace) = CollectDeclarationPaths(sln, sym);
 
+        // Capture references BEFORE the rewrite. After RewriteAllDeclarationsAsync, consumer
+        // references that resolved through `using <oldNamespace>;` become unbound, and
+        // SymbolFinder against the post-rewrite compilation can no longer find them.
+        var references = await SymbolFinder.FindReferencesAsync(sym, sln);
+
         sln = await RewriteAllDeclarationsAsync(sln, sym, targetNamespace);
 
-        var newFqn = targetNamespace + "." + sym.Name;
-        var updatedSym = await SymbolLocator.FindTypeByFqnAsync(sln, newFqn);
-
-        sln = await UpdateReferenceUsingsAsync(sln, updatedSym, oldNamespace, targetNamespace);
+        sln = await ApplyReferenceUsingsAsync(sln, references, oldNamespace, targetNamespace);
 
         await SolutionWriter.ApplyChangesAsync(workspace.CurrentSolution, sln, dryRun);
 
@@ -187,6 +189,8 @@ internal static class MoveCore
         ISymbol symbol,
         string targetNamespace)
     {
+        var oldNamespace = symbol.ContainingNamespace.ToDisplayString();
+
         foreach (var syntaxRef in symbol.DeclaringSyntaxReferences)
         {
             var doc = solution.GetDocument(syntaxRef.SyntaxTree);
@@ -200,21 +204,52 @@ internal static class MoveCore
             if (nsDecl == null) continue;
             if (nsDecl.Name.ToString() == targetNamespace) continue;
 
+            var needsOldNsUsing = await DocumentReferencesNamespaceAsync(doc, symbol, oldNamespace);
+
             var newNameNode = SyntaxFactory.ParseName(targetNamespace).WithTriviaFrom(nsDecl.Name);
             var newRoot = root.ReplaceNode(nsDecl, nsDecl.WithName(newNameNode));
+
+            if (needsOldNsUsing)
+            {
+                bool _ = false;
+                newRoot = EnsureTargetNamespaceUsing(newRoot, oldNamespace, ref _);
+            }
+
             solution = solution.WithDocumentSyntaxRoot(doc.Id, newRoot);
         }
 
         return solution;
     }
 
-    private static async Task<Solution> UpdateReferenceUsingsAsync(
+    private static async Task<bool> DocumentReferencesNamespaceAsync(
+        Document doc,
+        ISymbol movedSymbol,
+        string namespaceName)
+    {
+        var semanticModel = await doc.GetSemanticModelAsync();
+        if (semanticModel == null) return false;
+
+        var root = await doc.GetSyntaxRootAsync();
+        if (root == null) return false;
+
+        foreach (var nameNode in root.DescendantNodes().OfType<SimpleNameSyntax>())
+        {
+            var sym = semanticModel.GetSymbolInfo(nameNode).Symbol;
+            if (sym is not INamedTypeSymbol typeSymbol) continue;
+            if (SymbolEqualityComparer.Default.Equals(typeSymbol, movedSymbol)) continue;
+            if (typeSymbol.ContainingNamespace?.ToDisplayString() == namespaceName)
+                return true;
+        }
+
+        return false;
+    }
+
+    private static async Task<Solution> ApplyReferenceUsingsAsync(
         Solution solution,
-        ISymbol symbol,
+        IEnumerable<ReferencedSymbol> references,
         string oldNamespace,
         string targetNamespace)
     {
-        var references = await SymbolFinder.FindReferencesAsync(symbol, solution);
         var locationsByDoc = references
             .SelectMany(r => r.Locations)
             .GroupBy(loc => loc.Document.Id);

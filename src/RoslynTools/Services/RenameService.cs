@@ -33,8 +33,55 @@ internal static class RenameService
         string? kind,
         bool dryRun)
     {
-        var newSln = await RenameAsync(sln, symbol, newName, kind);
+        var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, symbol, kind);
+        var fileRename = ComputeFileRename(sym, newName);
+
+        var newSln = await Renamer.RenameSymbolAsync(
+            sln,
+            sym,
+            new SymbolRenameOptions(RenameOverloads: false, RenameInStrings: false, RenameInComments: false, RenameFile: false),
+            newName);
+
+        RtLog.Info("Renaming '{Symbol}' -> '{NewName}'...", sym.ToDisplayString(), newName);
+
         await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun);
+
+        if (fileRename is { } rename)
+            ApplyFileRename(rename, dryRun);
+    }
+
+    private static (string OldPath, string NewPath)? ComputeFileRename(ISymbol sym, string newName)
+    {
+        if (sym is not INamedTypeSymbol) return null;
+
+        var syntaxRef = sym.DeclaringSyntaxReferences.FirstOrDefault();
+        var filePath = syntaxRef?.SyntaxTree.FilePath;
+        if (string.IsNullOrEmpty(filePath)) return null;
+
+        var basename = Path.GetFileNameWithoutExtension(filePath);
+        if (!string.Equals(basename, sym.Name, StringComparison.Ordinal)) return null;
+
+        var dir = Path.GetDirectoryName(filePath)!;
+        var ext = Path.GetExtension(filePath);
+        return (filePath, Path.Combine(dir, newName + ext));
+    }
+
+    private static void ApplyFileRename((string OldPath, string NewPath) rename, bool dryRun)
+    {
+        if (dryRun)
+        {
+            RtConsole.WriteLine(RtOutputContext.Result, $"[dry-run] Would rename: {rename.OldPath} -> {rename.NewPath}");
+            return;
+        }
+
+        if (File.Exists(rename.NewPath))
+        {
+            RtLog.Warning("Target file already exists: {Path} — file not renamed.", rename.NewPath);
+            return;
+        }
+
+        File.Move(rename.OldPath, rename.NewPath);
+        RtConsole.WriteLine(RtOutputContext.Result, $"Renamed file: {rename.OldPath} -> {rename.NewPath}");
     }
 
     internal static async Task ExecuteBatchAsync(
