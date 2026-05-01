@@ -48,6 +48,18 @@ internal static class MethodExtractor
 
         var extractedSln = solution.WithDocumentSyntaxRoot(doc.Id, newRoot);
 
+        // Guard: the rewrite must have produced at least one changed document.
+        // A zero-change result would be silently swallowed by SolutionWriter
+        // (it prints "No changes." and exits 0), which is the silent-exit-0 bug (US-002).
+        var changedDocIds = extractedSln.GetChanges(solution)
+            .GetProjectChanges()
+            .SelectMany(p => p.GetChangedDocuments())
+            .ToList();
+        if (changedDocIds.Count == 0)
+            throw new InvalidOperationException(
+                "extract-method: internal error — the AST rewrite produced no document changes. " +
+                "This is a bug; please report it with the file and line range.");
+
         if (!replaceDuplicates)
             return extractedSln;
 

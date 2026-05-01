@@ -74,7 +74,13 @@ internal sealed class ExtractMethodCommand : IRtCommand
                 }
                 catch (InvalidOperationException ex)
                 {
-                    RtLog.Error("Error: {Message}", ex.Message);
+                    RtLog.Error("extract-method: {Message}", ex.Message);
+                    ctx.ExitCode = 1;
+                    return;
+                }
+                catch (ArgumentOutOfRangeException ex)
+                {
+                    RtLog.Error("extract-method: {Message}", ex.Message);
                     ctx.ExitCode = 1;
                     return;
                 }
