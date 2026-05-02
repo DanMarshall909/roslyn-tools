@@ -57,6 +57,36 @@
   - **FIXED 2026-04-27**: `MsBuildBootstrap` fallback diagnostics now write to stdout, and `WorkspaceLoader` routes non-fatal workspace diagnostics to stdout by default while keeping fatal load diagnostics on stderr. Added an external `rt.cmd --help` smoke test that asserts successful startup leaves stderr empty.
 - 2026-04-19: **Feature request: `rt move-method --to-nested-class <ClassName>`** (or extend `rt move`). During test reorganisation we needed to group `[Fact]`-annotated methods into `When_X` inner classes per the team's test naming convention. `rt rename` handles the per-method short-name change, but there's no way to restructure methods into nested classes. Fell back to manual file-by-file edits after the rename pass. Value: restructuring tests into business-scenario inner classes is a high-frequency refactor for TDD codebases. Proposed shape: `rt move-method <method_fqn> --to-nested-class <NestedName> [--create-if-missing] [--solution <path>]`. Should also handle the inverse (`--from-nested-class`) for cleanup.
 
+## Survey: Roslyn API leverage opportunities (2026-05-02)
+
+**Background:** US-029 identified that rt's `--replace-duplicates` feature lacked semantic validation. The fix (comparing string literals to ensure matches are truly equivalent) prevented data corruption. The user then asked: "can we utilise the existing extract method roslyn code as a step, then introduce parameters and use that at all call sites?" — suggesting that rt might benefit from leveraging Roslyn's built-in refactoring services more broadly.
+
+**Systematic survey completed 2026-05-02:** examined all 63 files using `Microsoft.CodeAnalysis` to understand which built-in Roslyn APIs rt currently uses and which custom implementations might have Roslyn equivalents.
+
+**Current Roslyn API usage (confirmed):**
+- ✅ `Microsoft.CodeAnalysis.Rename.Renamer.RenameSymbolAsync` — used by `RenameService` for rename refactoring (correct pattern: rt layer on top of Roslyn)
+- ✅ `Microsoft.CodeAnalysis.FindSymbols.SymbolFinder` — used in 15+ services (FindReferencesAsync, FindDerivedClassesAsync, FindImplementationsAsync, FindDeclarationsAsync) for symbol navigation (correct pattern)
+- ✅ Basic syntax tree APIs (parsing, walking via CSharpSyntaxWalker, rewriting via CSharpSyntaxRewriter) — used throughout for structural transformation
+
+**Roslyn Refactoring APIs NOT currently used (significant opportunity):**
+- ❌ `Microsoft.CodeAnalysis.Refactoring.ExtractMethodService` — rt implements custom `MethodExtractor` (Core/) instead
+- ❌ `Microsoft.CodeAnalysis.Refactoring` namespace broadly — no usage found
+- ❌ Roslyn's `InlineRefactoring` or inline method support — rt implements custom `InlineMethodService` instead
+- ❌ Built-in extract-class or similar class/interface extraction — rt implements custom `ExtractClassService` instead
+
+**High-value opportunity identified:** rt's extract-method feature (one of the most complex commands) is entirely custom. Roslyn provides `ExtractMethodService` which handles: signature inference, parameter ordering, return type inference, variable tracking for return values, and call-site generation. Using Roslyn's extract-method as the foundation (Step 1) and then adding rt-specific features like `--replace-duplicates` and the planned parameterization enhancement (Step 2) could reduce maintenance burden and leverage battle-tested Roslyn logic.
+
+**Proposal for future refactor (US-033, estimated 8-12 hours):**
+1. Audit which MethodExtractor responsibilities overlap with Roslyn's ExtractMethodService
+2. Prototype replacing MethodExtractor.ExtractAsync core logic with a wrapper around ExtractMethodService
+3. Layer rt's duplicate matching, semantic validation, and parameterization on top
+4. Regression test all 67 duplicate groups to ensure extraction quality doesn't regress
+5. If successful, apply same pattern to inline-method and extract-class commands
+
+**Related to US-029 parameterization:** Using Roslyn's extract-method as Step 1 means rt can focus solely on the parameterization layer (Step 2) without reimplementing signature inference. Estimated scope reduction: 2-3 hours instead of 4-6 hours for parameterization.
+
+**Not actionable yet:** This is a long-term architectural improvement. The current dogfood goal (extract 67 duplicates) is unblocked by semantic validation fix. Parameterization is scoped as a US-032 follow-up. This survey documents the opportunity for future work.
+
 ## dependency-graph gap (2026-04-18)
 
 - Graph edges only track fields, method params/returns, base types, and interfaces — misses local variable usages inside method bodies. Command classes (static, no fields) appear as isolated nodes even when they use WorkspaceLoader/SolutionWriter internally. Fix: add body-level IdentifierNameSyntax walk to find local variable type references.
