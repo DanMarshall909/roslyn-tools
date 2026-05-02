@@ -1,4 +1,4 @@
-using Microsoft.CodeAnalysis;
+﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -48,6 +48,64 @@ internal static class MethodExtractorDuplicates
         IReadOnlyList<ISymbol> orderedParameters,
         IReadOnlyList<ISymbol> returnVars)
     {
+        // Validate semantic equivalence: filter matches by string literal comparison
+        if (matches.Count > 0)
+        {
+            var patternMatch = matches[0];
+            var patternAbsPath = Path.GetFullPath(patternMatch.File);
+            var patternDoc = solution.Projects
+                .SelectMany(p => p.Documents)
+                .FirstOrDefault(d => string.Equals(d.FilePath, patternAbsPath, StringComparison.OrdinalIgnoreCase));
+
+            var patternStringLiterals = new HashSet<string>();
+            if (patternDoc != null)
+            {
+                var patternRoot = await patternDoc.GetSyntaxRootAsync();
+                if (patternRoot != null)
+                {
+                    var patternStatements = SelectStatementsInRange(patternRoot, patternMatch.Line, patternMatch.EndLine);
+                    patternStringLiterals = ExtractStringLiterals(patternStatements);
+                }
+            }
+
+            // Filter: keep only matches with identical string literals
+            var filteredMatches = new List<PatternMatch>();
+            foreach (var match in matches)
+            {
+                var matchAbsPath = Path.GetFullPath(match.File);
+                var matchDoc = solution.Projects
+                    .SelectMany(p => p.Documents)
+                    .FirstOrDefault(d => string.Equals(d.FilePath, matchAbsPath, StringComparison.OrdinalIgnoreCase));
+
+                if (matchDoc == null)
+                {
+                    filteredMatches.Add(match);
+                    continue;
+                }
+
+                var matchRoot = await matchDoc.GetSyntaxRootAsync();
+                if (matchRoot == null)
+                {
+                    filteredMatches.Add(match);
+                    continue;
+                }
+
+                var matchStatements = SelectStatementsInRange(matchRoot, match.Line, match.EndLine);
+                var matchStringLiterals = ExtractStringLiterals(matchStatements);
+
+                if (patternStringLiterals.SetEquals(matchStringLiterals))
+                {
+                    filteredMatches.Add(match);
+                }
+                else
+                {
+                    RtLog.Warning("{File}:{Line}: string literal semantic mismatch — skipped", match.File, match.Line);
+                }
+            }
+
+            matches = filteredMatches;
+        }
+
         int replaced = 0;
         int skipped = 0;
         var currentSln = solution;
@@ -73,9 +131,9 @@ internal static class MethodExtractorDuplicates
 
             if (ranges.Any(r => match.Line <= r.End && match.EndLine >= r.Start))
             {
-                // Overlaps a range already replaced in this file — warn and skip.
+                // Overlaps a range already replaced in this file â€” warn and skip.
                 skipped++;
-                RtLog.Warning("{File}:{Line}: line range {Start}-{End} overlaps an already-replaced range — skipped",
+                RtLog.Warning("{File}:{Line}: line range {Start}-{End} overlaps an already-replaced range â€” skipped",
                     match.File, match.Line, match.Line, match.EndLine);
                 continue;
             }
@@ -97,7 +155,7 @@ internal static class MethodExtractorDuplicates
             else
             {
                 skipped++;
-                RtLog.Warning("{File}:{Line}: {SkipReason} — skipped", match.File, match.Line, skipReason);
+                RtLog.Warning("{File}:{Line}: {SkipReason} â€” skipped", match.File, match.Line, skipReason);
             }
         }
 
@@ -118,13 +176,13 @@ internal static class MethodExtractorDuplicates
         foreach (var param in orderedParameters)
         {
             if (!match.Substitutions.TryGetValue(param.Name, out var substituted))
-                return (false, null, $"cannot map '{param.Name}' — no substitution found");
+                return (false, null, $"cannot map '{param.Name}' â€” no substitution found");
 
             // Check if the substituted value is a literal (not an identifier)
-            // Literals are things like "42", "\"hello\"", "true" — they won't be valid
+            // Literals are things like "42", "\"hello\"", "true" â€” they won't be valid
             // identifiers to pass as arguments and indicate the match can't be cleanly replaced.
             if (IsLiteralValue(substituted))
-                return (false, null, $"cannot map '{param.Name}' — substitution is a literal '{substituted}'");
+                return (false, null, $"cannot map '{param.Name}' â€” substitution is a literal '{substituted}'");
 
             args.Add(substituted);
         }
@@ -231,4 +289,44 @@ internal static class MethodExtractorDuplicates
                        && span.EndLinePosition.Line <= endLine - 1;
                })
                .ToList();
-}
+
+    /// <summary>
+    /// Extracts all string literal values from a list of statements.
+    /// </summary>
+    private static HashSet<string> ExtractStringLiterals(List<StatementSyntax> statements)
+    {
+        var literals = new HashSet<string>();
+        var visitor = new StringLiteralVisitor();
+        
+        foreach (var stmt in statements)
+        {
+            visitor.Visit(stmt);
+        }
+        
+        return visitor.Literals;
+    }
+
+    /// <summary>
+    /// Roslyn syntax walker that collects all string literal values.
+    /// </summary>
+    private class StringLiteralVisitor : CSharpSyntaxWalker
+    {
+        public HashSet<string> Literals { get; } = new();
+
+        public override void VisitLiteralExpression(LiteralExpressionSyntax node)
+        {
+            // Collect string literals (standard and UTF-8)
+            if (node.IsKind(SyntaxKind.StringLiteralExpression))
+            {
+                Literals.Add(node.Token.ValueText);
+            }
+            else if (node.IsKind(SyntaxKind.Utf8StringLiteralExpression))
+            {
+                Literals.Add(node.Token.ValueText);
+            }
+            base.VisitLiteralExpression(node);
+        }
+    }}
+
+
+
