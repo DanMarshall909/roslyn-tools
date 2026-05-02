@@ -11,8 +11,11 @@ namespace RoslynTools.Core;
 ///   parameterizable-inputs  — all occurrence substitution maps agree on symbol-vs-literal
 ///                             category for each placeholder; fails when one site has a
 ///                             literal where another has an identifier.
-///   single-output           — data-flow shows ≤1 variable flows out of each window;
-///                             warns when exactly 1 outward variable, fails when >1.
+///   single-output           — data-flow shows variables flowing out of each window;
+///                             warns when variables declared INSIDE the window flow out
+///                             (1 = return value, 2+ = tuple return via MethodExtractor);
+///                             fails when variables declared BEFORE the window are written
+///                             inside (unsafe — needs out-params or wider selection).
 ///   no-control-flow-escape  — no return/yield/goto/labelled-break inside the window.
 ///   no-ref-out-params       — no ref/out parameter usage inside the window.
 ///   consistent-captured-state — captured field/property set is identical across all
@@ -104,8 +107,14 @@ internal static class ExtractabilityAnalyzer
         IReadOnlyList<(IReadOnlyList<StatementSyntax> Window, SemanticModel Model, IReadOnlyDictionary<string, string>? SubstitutionMap)> occurrences)
     {
         // Run Roslyn DataFlowAnalysis on each occurrence's window.
-        // Count symbols that flow out (excluding those declared within the window).
-        var maxOut = 0;
+        // Count symbols that need to be returned from the extracted method:
+        //   - Variables declared BEFORE the window, written inside, and read after
+        //     (these are not extractable — they'd need out-params, not returns).
+        //   - Variables declared INSIDE the window and read after (tuple-returnable).
+        // MethodExtractor supports tuple returns for 2+ in-window outputs, so those
+        // count as "warn" (likely_extractable), not "fail" (discovery_only).
+        var maxUnsafeOut = 0;  // declared before window, written inside — not extractable
+        var maxTupleOut = 0;   // declared inside window, read after — tuple-returnable
 
         foreach (var (window, model, _) in occurrences)
         {
@@ -116,7 +125,6 @@ internal static class ExtractabilityAnalyzer
             if (flow == null || !flow.Succeeded)
                 continue;
 
-            // Variables declared inside the window don't count as outward outputs.
             var declaredInWindow = window
                 .SelectMany(s => s.DescendantNodesAndSelf())
                 .OfType<VariableDeclaratorSyntax>()
@@ -125,20 +133,35 @@ internal static class ExtractabilityAnalyzer
                 .Select(s => s!)
                 .ToHashSet(SymbolEqualityComparer.Default);
 
-            var outCount = flow.DataFlowsOut
+            // Variables that must flow out but were declared BEFORE — not tuple-safe.
+            var unsafeOut = flow.DataFlowsOut
                 .Count(sym => !declaredInWindow.Contains(sym));
 
-            if (outCount > maxOut)
-                maxOut = outCount;
+            // Variables declared IN the window that are read after — tuple-returnable.
+            var tupleOut = flow.DataFlowsOut
+                .Count(sym => declaredInWindow.Contains(sym));
+
+            if (unsafeOut > maxUnsafeOut)
+                maxUnsafeOut = unsafeOut;
+            if (tupleOut > maxTupleOut)
+                maxTupleOut = tupleOut;
         }
 
-        if (maxOut == 0)
+        // Variables declared before but mutated inside: not safe to extract as-is.
+        if (maxUnsafeOut > 0)
+            return new ExtractabilityCheck("single-output", "fail",
+                $"block writes to {maxUnsafeOut} variable(s) declared before the window; extend selection to include declarations");
+
+        if (maxTupleOut == 0)
             return new ExtractabilityCheck("single-output", "pass", null);
 
-        if (maxOut == 1)
-            return new ExtractabilityCheck("single-output", "warn", "block produces 1 outward variable; extractable with a return value");
+        if (maxTupleOut == 1)
+            return new ExtractabilityCheck("single-output", "warn",
+                "block produces 1 outward variable; extractable with a return value");
 
-        return new ExtractabilityCheck("single-output", "fail", $"block produces {maxOut} outward variables; would need tuple return or out-params");
+        // MethodExtractor generates tuple returns for 2+ outputs — warn, not fail.
+        return new ExtractabilityCheck("single-output", "warn",
+            $"block produces {maxTupleOut} outward variables; extractable with a tuple return");
     }
 
     // ── Check: no-control-flow-escape ────────────────────────────────────────────
