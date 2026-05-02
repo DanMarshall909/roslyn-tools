@@ -25,7 +25,17 @@ internal static class MoveMethodService
         var originalSolution = sln;
 
         // ── 1. Locate source method ───────────────────────────────────────────
-        var methodSymbol = await SymbolLocator.FindMethodBySpecAsync(sln, methodFqn);
+        IMethodSymbol methodSymbol;
+        try
+        {
+            methodSymbol = await SymbolLocator.FindMethodBySpecAsync(sln, methodFqn);
+        }
+        catch (InvalidOperationException ex)
+        {
+            RtLog.Error("Error: {Message}", ex.Message);
+            Environment.ExitCode = 1;
+            return false;
+        }
 
         // ── 2. Validate: must be static ───────────────────────────────────────
         if (!methodSymbol.IsStatic)
@@ -43,13 +53,17 @@ internal static class MoveMethodService
         {
             targetType = (INamedTypeSymbol)await SymbolLocator.FindTypeByFqnAsync(sln, targetTypeFqn);
         }
-        catch (InvalidOperationException) when (!createFile)
+        catch (InvalidOperationException)
         {
-            RtLog.Error(
-                "Error: Target type '{TargetType}' not found. Pass --create-file to create it.",
-                targetTypeFqn);
-            Environment.ExitCode = 1;
-            return false;
+            if (!createFile)
+            {
+                RtLog.Error(
+                    "Error: Target type '{TargetType}' not found. Pass --create-file to create it.",
+                    targetTypeFqn);
+                Environment.ExitCode = 1;
+                return false;
+            }
+            // createFile == true: proceed with targetType == null; new file will be created in step 9.
         }
 
         // ── 4. Validate: no name collision in target ──────────────────────────

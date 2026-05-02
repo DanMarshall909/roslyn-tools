@@ -1,3 +1,4 @@
+using System.IO;
 using RoslynTools.Core;
 using RoslynTools.Services;
 
@@ -166,10 +167,10 @@ public class MoveMethodTests
         }
     }
 
-    // ─── error: method not found → throws ─────────────────────────────────────
+    // ─── error: method not found → returns false ──────────────────────────────
 
     [Fact]
-    public async Task Throws_when_method_not_found()
+    public async Task Returns_false_when_method_not_found()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Source.cs", """
@@ -184,9 +185,10 @@ public class MoveMethodTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                MoveMethodService.RunAsync(
-                    sln, "App.Source.Missing", "App.Target", createFile: false, dryRun: false));
+            var result = await MoveMethodService.RunAsync(
+                sln, "App.Source.Missing", "App.Target", createFile: false, dryRun: false);
+
+            Assert.False(result);
         }
     }
 
@@ -212,6 +214,50 @@ public class MoveMethodTests
 
             Assert.False(result);
         }
+    }
+
+    // ─── happy-path: --create-file creates new target file ───────────────────
+
+    [Fact]
+    public async Task CreateFile_creates_new_file_with_moved_method()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Source.cs", """
+            namespace App;
+            public static class Source
+            {
+                public static int Add(int a, int b) => a + b;
+            }
+            """);
+        project.AddSource("Caller.cs", """
+            namespace App;
+            public class Caller { public int Run() => Source.Add(1, 2); }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var result = await MoveMethodService.RunAsync(
+                sln, "App.Source.Add", "App.NewUtils", createFile: true, dryRun: false);
+
+            Assert.True(result);
+        }
+
+        // Source no longer has Add
+        var src = await project.ReadSourceAsync("Source.cs");
+        Assert.DoesNotContain("Add", src);
+
+        // NewUtils.cs was created alongside Source.cs and contains Add
+        var newFilePath = Path.Combine(project.ProjectDir, "NewUtils.cs");
+        Assert.True(File.Exists(newFilePath));
+        var newFile = await File.ReadAllTextAsync(newFilePath);
+        Assert.Contains("class NewUtils", newFile);
+        Assert.Contains("Add", newFile);
+
+        // Caller was rewritten to use NewUtils.Add
+        var caller = await project.ReadSourceAsync("Caller.cs");
+        Assert.Contains("NewUtils.Add", caller);
+        Assert.DoesNotContain("Source.Add", caller);
     }
 
     // ─── error: name collision → returns false ────────────────────────────────
