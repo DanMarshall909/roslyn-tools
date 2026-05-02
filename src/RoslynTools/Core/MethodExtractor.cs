@@ -45,14 +45,14 @@ internal static class MethodExtractor
 
         // ── Standard extraction path (no control-flow escape) ─────────────────
         var flow = ValidateDataFlow(model, selected);
-        var (orderedParams, returnVars) = OrderParameters(flow, selected, model);
+        var (orderedParams, refParams, outParams, returnVars) = OrderParameters(flow, selected, model);
         var (containingMethod, containingType, isStatic) = FindContainingContext(selected);
 
         // ── 7. Build new method ───────────────────────────────────────────────
-        var newMethod = MethodExtractorBuilder.BuildNewMethod(newMethodName, orderedParams, returnVars, selected, model, isStatic);
+        var newMethod = MethodExtractorBuilder.BuildNewMethod(newMethodName, orderedParams, refParams, outParams, returnVars, selected, model, isStatic);
 
         // ── 8. Build call site ────────────────────────────────────────────────
-        var callSite = MethodExtractorBuilder.BuildCallSite(newMethodName, orderedParams, returnVars, selected.First());
+        var callSite = MethodExtractorBuilder.BuildCallSite(newMethodName, orderedParams, refParams, outParams, returnVars, selected.First());
 
         // ── 9. Splice call site into the original block ───────────────────────
         var newContainingMethod = SpliceCallSite(selected, callSite, containingMethod);
@@ -85,6 +85,8 @@ internal static class MethodExtractor
             bodyEndLine,
             newMethodName,
             orderedParams,
+            refParams,
+            outParams,
             returnVars);
     }
 
@@ -369,7 +371,7 @@ internal static class MethodExtractor
     }
 
     // ────────────────────────────────────────────────────────────────────────────
-    //  Step 4: data-flow analysis — reject variables that would need out-params
+    //  Step 4: data-flow analysis — classify modified outer locals as ref/out
     // ────────────────────────────────────────────────────────────────────────────
 
     private static DataFlowAnalysis ValidateDataFlow(SemanticModel model, List<StatementSyntax> selected)
@@ -378,6 +380,29 @@ internal static class MethodExtractor
         if (flow == null || !flow.Succeeded)
             throw new InvalidOperationException("Roslyn data-flow analysis failed for the selected range.");
 
+        // Variables declared inside the range that flow out are handled as return values.
+        // Variables declared OUTSIDE the range that are written inside and read after are
+        // ref/out parameters — no longer an error; classified in OrderParameters.
+        return flow;
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────
+    //  Step 5: classify symbols into in-params, ref-params, out-params, return-vars
+    //
+    //  Four disjoint categories:
+    //   orderedParams — DataFlowsIn symbols declared OUTSIDE the range that are
+    //                   NOT also written inside (pure inputs).
+    //   refParams     — declared OUTSIDE, appear in DataFlowsIn (read before write
+    //                   inside) AND in DataFlowsOut (written inside, read after).
+    //   outParams     — declared OUTSIDE, NOT in DataFlowsIn (never read before
+    //                   write inside) BUT in DataFlowsOut (written inside, read after).
+    //   returnVars    — declared INSIDE the range and flow out (tuple/single return).
+    // ────────────────────────────────────────────────────────────────────────────
+
+    private static (List<ISymbol> orderedParams, List<ISymbol> refParams, List<ISymbol> outParams, List<ISymbol> returnVars)
+        OrderParameters(DataFlowAnalysis flow, List<StatementSyntax> selected, SemanticModel model)
+    {
+        // Symbols declared inside the selection
         var declaredInRange = selected
             .SelectMany(s => s.DescendantNodesAndSelf())
             .OfType<VariableDeclaratorSyntax>()
@@ -386,27 +411,33 @@ internal static class MethodExtractor
             .Select(s => s!)
             .ToHashSet(SymbolEqualityComparer.Default);
 
-        var unsafeOut = flow.DataFlowsOut
-            .Where(sym => !declaredInRange.Contains(sym))
+        // DataFlowsOut contains both:
+        //   (a) vars declared inside that are used after — these become return values
+        //   (b) vars declared outside that are written inside and read after — ref/out params
+        var returnVars = flow.DataFlowsOut
+            .Where(sym => declaredInRange.Contains(sym))
             .ToList();
-        if (unsafeOut.Count > 0)
-        {
-            var names = string.Join(", ", unsafeOut.Select(s => s.Name));
-            throw new InvalidOperationException(
-                $"Cannot extract: variable(s) '{names}' are declared before the selection but " +
-                "written inside and read after. Extend the selection to include their declarations.");
-        }
 
-        return flow;
-    }
+        // Outer locals written inside and read after — must become ref or out params
+        var outerWrittenOut = flow.DataFlowsOut
+            .Where(sym => !declaredInRange.Contains(sym))
+            .ToHashSet(SymbolEqualityComparer.Default);
 
-    // ────────────────────────────────────────────────────────────────────────────
-    //  Step 5: sort DataFlowsIn by first reference position
-    // ────────────────────────────────────────────────────────────────────────────
+        // ref: outer local that also flows IN (was read inside before being written)
+        var refParams = outerWrittenOut
+            .Where(sym => flow.DataFlowsIn.Contains(sym, SymbolEqualityComparer.Default))
+            .ToList();
 
-    private static (List<ISymbol> orderedParams, List<ISymbol> returnVars)
-        OrderParameters(DataFlowAnalysis flow, List<StatementSyntax> selected, SemanticModel model)
-    {
+        // out: outer local that does NOT flow in (only written, not previously read inside)
+        var outParams = outerWrittenOut
+            .Where(sym => !flow.DataFlowsIn.Contains(sym, SymbolEqualityComparer.Default))
+            .ToList();
+
+        // Pure in-params: DataFlowsIn symbols that are NOT ref/out
+        var refOrOutSet = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+        foreach (var s in refParams) refOrOutSet.Add(s);
+        foreach (var s in outParams) refOrOutSet.Add(s);
+
         var seenParams = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
         var orderedParams = new List<ISymbol>();
 
@@ -417,14 +448,47 @@ internal static class MethodExtractor
         {
             var sym = model.GetSymbolInfo(ident).Symbol;
             if (sym == null) continue;
+            if (refOrOutSet.Contains(sym)) continue;  // handled as ref/out, not plain in
             var match = flow.DataFlowsIn.FirstOrDefault(
                 p => SymbolEqualityComparer.Default.Equals(p, sym));
             if (match != null && seenParams.Add(match))
                 orderedParams.Add(match);
         }
 
-        var returnVars = flow.DataFlowsOut.ToList();
-        return (orderedParams, returnVars);
+        // Order ref/out by first appearance in selected range
+        refParams = OrderByFirstAppearance(refParams, selected, model);
+        outParams = OrderByFirstAppearance(outParams, selected, model);
+
+        return (orderedParams, refParams, outParams, returnVars);
+    }
+
+    /// <summary>Orders a set of symbols by their first identifier occurrence in the selected range.</summary>
+    private static List<ISymbol> OrderByFirstAppearance(
+        List<ISymbol> symbols, List<StatementSyntax> selected, SemanticModel model)
+    {
+        if (symbols.Count <= 1) return symbols;
+
+        var symbolSet = new HashSet<ISymbol>(symbols, SymbolEqualityComparer.Default);
+        var seen = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+        var ordered = new List<ISymbol>();
+
+        foreach (var ident in selected
+            .SelectMany(s => s.DescendantNodesAndSelf())
+            .OfType<IdentifierNameSyntax>()
+            .OrderBy(id => id.SpanStart))
+        {
+            var sym = model.GetSymbolInfo(ident).Symbol;
+            if (sym == null) continue;
+            var match = symbolSet.FirstOrDefault(s => SymbolEqualityComparer.Default.Equals(s, sym));
+            if (match != null && seen.Add(match))
+                ordered.Add(match);
+        }
+
+        // Append any not found via identifier walk (shouldn't happen, but defensive)
+        foreach (var s in symbols)
+            if (seen.Add(s)) ordered.Add(s);
+
+        return ordered;
     }
 
     // ────────────────────────────────────────────────────────────────────────────

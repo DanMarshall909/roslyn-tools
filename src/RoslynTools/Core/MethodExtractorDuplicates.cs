@@ -12,6 +12,20 @@ namespace RoslynTools.Core;
 internal static class MethodExtractorDuplicates
 {
     /// <summary>
+    /// Backward-compatible overload (no ref/out params) for guard-extraction callers.
+    /// </summary>
+    internal static Task<Solution> ReplaceDuplicatesAsync(
+        Solution extractedSln,
+        string filePath,
+        int newMethodStartLine,
+        int newMethodEndLine,
+        string newMethodName,
+        IReadOnlyList<ISymbol> orderedParameters,
+        IReadOnlyList<ISymbol> returnVars)
+        => ReplaceDuplicatesAsync(extractedSln, filePath, newMethodStartLine, newMethodEndLine,
+            newMethodName, orderedParameters, [], [], returnVars);
+
+    /// <summary>
     /// After extraction, find all structural duplicates of the extracted body and replace
     /// them with calls to the new method. Emits warnings for skipped matches and a summary.
     /// </summary>
@@ -22,6 +36,8 @@ internal static class MethodExtractorDuplicates
         int newMethodEndLine,
         string newMethodName,
         IReadOnlyList<ISymbol> orderedParameters,
+        IReadOnlyList<ISymbol> refParams,
+        IReadOnlyList<ISymbol> outParams,
         IReadOnlyList<ISymbol> returnVars)
     {
         // Find all structural matches using the extracted body as the pattern
@@ -32,7 +48,7 @@ internal static class MethodExtractorDuplicates
             newMethodEndLine,
             scope: null);
 
-        return await ApplyMatchesAsync(extractedSln, filePath, newMethodStartLine, newMethodEndLine, matches, newMethodName, orderedParameters, returnVars);
+        return await ApplyMatchesAsync(extractedSln, filePath, newMethodStartLine, newMethodEndLine, matches, newMethodName, orderedParameters, refParams, outParams, returnVars);
     }
 
     /// <summary>
@@ -226,6 +242,20 @@ internal static class MethodExtractorDuplicates
         string newMethodName,
         IReadOnlyList<ISymbol> orderedParameters,
         IReadOnlyList<ISymbol> returnVars)
+        => await ApplyMatchesAsync(solution, filePath, sourceStartLine, sourceEndLine, matches,
+            newMethodName, orderedParameters, [], [], returnVars);
+
+    internal static async Task<Solution> ApplyMatchesAsync(
+        Solution solution,
+        string filePath,
+        int sourceStartLine,
+        int sourceEndLine,
+        IReadOnlyList<PatternMatch> matches,
+        string newMethodName,
+        IReadOnlyList<ISymbol> orderedParameters,
+        IReadOnlyList<ISymbol> refParams,
+        IReadOnlyList<ISymbol> outParams,
+        IReadOnlyList<ISymbol> returnVars)
     {
         // Phase 1: Analyze literal variations
         var (literalsByMatch, varyingLiteralPositions) = await AnalyzeLiteralVariationsAsync(solution, filePath, sourceStartLine, sourceEndLine, matches);
@@ -354,6 +384,8 @@ internal static class MethodExtractorDuplicates
                 match,
                 newMethodName,
                 orderedParameters,
+                refParams,
+                outParams,
                 returnVars,
                 varyingLiteralPositions,
                 matchLiterals,
@@ -384,6 +416,8 @@ internal static class MethodExtractorDuplicates
         PatternMatch match,
         string newMethodName,
         IReadOnlyList<ISymbol> orderedParameters,
+        IReadOnlyList<ISymbol> refParams,
+        IReadOnlyList<ISymbol> outParams,
         IReadOnlyList<ISymbol> returnVars,
         HashSet<int>? varyingLiteralPositions = null,
         List<string>? matchLiterals = null,
@@ -404,6 +438,20 @@ internal static class MethodExtractorDuplicates
                 return (false, null, $"cannot map '{param.Name}' -- substitution is a literal '{substituted}'");
 
             args.Add(substituted);
+        }
+
+        // Append ref arguments — map via substitution if available, else use canonical name
+        foreach (var param in refParams)
+        {
+            var name = match.Substitutions.TryGetValue(param.Name, out var sub) ? sub : param.Name;
+            args.Add($"ref {name}");
+        }
+
+        // Append out arguments — map via substitution if available, else use canonical name
+        foreach (var param in outParams)
+        {
+            var name = match.Substitutions.TryGetValue(param.Name, out var sub) ? sub : param.Name;
+            args.Add($"out {name}");
         }
 
         // Append literal values for parameterized literal duplicates (Phase 1)

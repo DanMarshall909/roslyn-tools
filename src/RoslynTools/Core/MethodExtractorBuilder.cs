@@ -13,13 +13,18 @@ internal static class MethodExtractorBuilder
     internal static MethodDeclarationSyntax BuildNewMethod(
         string name,
         IReadOnlyList<ISymbol> parameters,
+        IReadOnlyList<ISymbol> refParams,
+        IReadOnlyList<ISymbol> outParams,
         List<ISymbol> returnVars,
         List<StatementSyntax> bodyStatements,
         SemanticModel model,
         bool isStatic)
     {
         var modifiers = $"private{(isStatic ? " static" : "")}";
-        var paramStr = string.Join(", ", parameters.Select(p => $"{GetTypeName(p)} {p.Name}"));
+        var paramParts = parameters.Select(p => $"{GetTypeName(p)} {p.Name}")
+            .Concat(refParams.Select(p => $"ref {GetTypeName(p)} {p.Name}"))
+            .Concat(outParams.Select(p => $"out {GetTypeName(p)} {p.Name}"));
+        var paramStr = string.Join(", ", paramParts);
 
         string returnTypeStr;
         string returnStmtStr;
@@ -64,10 +69,15 @@ internal static class MethodExtractorBuilder
     internal static StatementSyntax BuildCallSite(
         string methodName,
         IReadOnlyList<ISymbol> parameters,
+        IReadOnlyList<ISymbol> refParams,
+        IReadOnlyList<ISymbol> outParams,
         List<ISymbol> returnVars,
         StatementSyntax firstExtracted)
     {
-        var argStr = string.Join(", ", parameters.Select(p => p.Name));
+        var argParts = parameters.Select(p => p.Name)
+            .Concat(refParams.Select(p => $"ref {p.Name}"))
+            .Concat(outParams.Select(p => $"out {p.Name}"));
+        var argStr = string.Join(", ", argParts);
 
         string stmtText;
         if (returnVars.Count == 0)

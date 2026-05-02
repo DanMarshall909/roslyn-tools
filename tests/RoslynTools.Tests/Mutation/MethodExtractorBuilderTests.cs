@@ -43,7 +43,7 @@ public sealed class MethodExtractorBuilderTests
     public void BuildCallSite_void_method_generates_simple_call()
     {
         var firstStmt = SyntaxFactory.ParseStatement("    int x = 1;");
-        var result = MethodExtractorBuilder.BuildCallSite("DoWork", [], [], firstStmt);
+        var result = MethodExtractorBuilder.BuildCallSite("DoWork", [], [], [], [], firstStmt);
         Assert.Contains("DoWork();", result.ToFullString());
     }
 
