@@ -1312,6 +1312,67 @@ public class ExtractMethodTests
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    //  --replace-duplicates with parameterization: differ only in string literals
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Parameterizes_duplicates_that_differ_only_in_string_literals()
+    {
+        using var project = new AdhocProjectBuilder();
+        // File A: contains the extraction target with string literal
+        project.AddSource("A.cs", """
+            namespace TestApp;
+
+            public class A
+            {
+                public void Process()
+                {
+                    System.Console.WriteLine("hello");
+                    System.Console.WriteLine("world");
+                }
+            }
+            """);
+        // File B: identical structure but different string literals
+        project.AddSource("B.cs", """
+            namespace TestApp;
+
+            public class B
+            {
+                public void Run()
+                {
+                    System.Console.WriteLine("goodbye");
+                    System.Console.WriteLine("universe");
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var newSln = await MethodExtractor.ExtractAsync(
+                sln,
+                FilePath(project, "A.cs"),
+                "PrintMessages",
+                startLine: 7,
+                endLine: 8,
+                replaceDuplicates: true);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+        }
+
+        var contentA = await project.ReadSourceAsync("A.cs");
+        var contentB = await project.ReadSourceAsync("B.cs");
+
+        // A has the extracted method with hardcoded string literals
+        Assert.Contains("private void PrintMessages(string line1, string line2)", contentA);
+        Assert.Contains("PrintMessages(\"hello\", \"world\");", contentA);
+
+        // B's duplicate was replaced with a call passing its string literal values
+        Assert.Contains("PrintMessages(\"goodbye\", \"universe\");", contentB);
+        // Original statements removed from B
+        Assert.DoesNotContain("Console.WriteLine(\"goodbye\")", GetMethodBody(contentB, "Run"));
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
     //  Helpers
     // ──────────────────────────────────────────────────────────────────────────
 
