@@ -37,17 +37,29 @@ internal static class DumpHelpCommand
     {
         var sb = new StringBuilder();
 
+        var byCategory = registry
+            .GroupBy(e => e.Info.Category)
+            .OrderBy(g => CategoryOrder(g.Key));
+
+        BuildHeader(sb, registry);
+        BuildContents(sb, byCategory);
+
+        foreach (var group in byCategory)
+        {
+            BuildGroupSection(sb, group);
+        }
+
+        return sb.ToString();
+    }
+
+    internal static void BuildHeader(StringBuilder sb, IReadOnlyList<(Command Cmd, RtCommandInfo Info)> registry)
+    {
         sb.AppendLine("# rt Commands");
         sb.AppendLine();
         sb.AppendLine("Auto-generated on every `dotnet build` from each command's static `RtCommandInfo Info` property. **Do not hand-edit.**");
         sb.AppendLine();
         sb.AppendLineF($"Total commands: **{registry.Count}**");
         sb.AppendLine();
-
-        var byCategory = registry
-            .GroupBy(e => e.Info.Category)
-            .OrderBy(g => CategoryOrder(g.Key));
-
         sb.AppendLine("Commands are filed under one of three groups: `inspect`, `analyze`, `refactor`. Invoke either way:");
         sb.AppendLine();
         sb.AppendLine("```bash");
@@ -55,7 +67,10 @@ internal static class DumpHelpCommand
         sb.AppendLine("rt <command> [args...]           # root shortcut (all unambiguous names)");
         sb.AppendLine("```");
         sb.AppendLine();
+    }
 
+    internal static void BuildContents(StringBuilder sb, IEnumerable<IGrouping<string, (Command Cmd, RtCommandInfo Info)>> byCategory)
+    {
         sb.AppendLine("## Contents");
         sb.AppendLine();
         foreach (var group in byCategory)
@@ -65,70 +80,73 @@ internal static class DumpHelpCommand
             sb.AppendLineF($"  - {string.Join(", ", group.OrderBy(e => e.Info.Name).Select(e => $"[`{e.Info.Name}`](#{Anchor(e.Info.Name)}){(e.Info.Aliases is { Length: > 0 } a ? $" ({string.Join("/", a)})" : "")}"))}");
         }
         sb.AppendLine();
+    }
 
-        foreach (var group in byCategory)
+    internal static void BuildGroupSection(StringBuilder sb, IGrouping<string, (Command Cmd, RtCommandInfo Info)> group)
+    {
+        var desc = App.GroupDescriptions.TryGetValue(group.Key, out var d) ? d : "";
+        sb.AppendLineF($"## `rt {group.Key}` — {desc}");
+        sb.AppendLine();
+
+        foreach (var (c, info) in group.OrderBy(e => e.Info.Name))
         {
-            var desc = App.GroupDescriptions.TryGetValue(group.Key, out var d) ? d : "";
-            sb.AppendLineF($"## `rt {group.Key}` — {desc}");
+            BuildCommandSection(sb, c, info);
+        }
+    }
+
+    internal static void BuildCommandSection(StringBuilder sb, Command c, RtCommandInfo info)
+    {
+        var shortDescription = c.Description ?? "(no description)";
+        sb.AppendLineF($"### {info.Name}");
+        sb.AppendLine();
+        sb.AppendLineF($"_{shortDescription}_");
+        sb.AppendLine();
+
+        var badges = new List<string>
+        {
+            info.Mutates ? "**Mutation** (writes files)" : "**Read-only**",
+            info.JsonOutput ? "JSON output" : "Plain-text output",
+        };
+        sb.AppendLine(string.Join(" | ", badges));
+        sb.AppendLine();
+
+        if (info.Aliases is { Length: > 0 })
+        {
+            sb.AppendLineF($"**Aliases:** {string.Join(", ", info.Aliases.Select(a => $"`{a}`"))}");
             sb.AppendLine();
-
-            foreach (var (c, info) in group.OrderBy(e => e.Info.Name))
-            {
-                var shortDescription = c.Description ?? "(no description)";
-                sb.AppendLineF($"### {info.Name}");
-                sb.AppendLine();
-                sb.AppendLineF($"_{shortDescription}_");
-                sb.AppendLine();
-
-                var badges = new List<string>
-                {
-                    info.Mutates ? "**Mutation** (writes files)" : "**Read-only**",
-                    info.JsonOutput ? "JSON output" : "Plain-text output",
-                };
-                sb.AppendLine(string.Join(" | ", badges));
-                sb.AppendLine();
-
-                if (info.Aliases is { Length: > 0 })
-                {
-                    sb.AppendLineF($"**Aliases:** {string.Join(", ", info.Aliases.Select(a => $"`{a}`"))}");
-                    sb.AppendLine();
-                }
-
-                sb.AppendLine("**When to use:**");
-                sb.AppendLine();
-                sb.AppendLine(info.WhenToUse);
-                sb.AppendLine();
-
-                if (info.Examples.Length > 0)
-                {
-                    sb.AppendLine("**Examples:**");
-                    sb.AppendLine();
-                    sb.AppendLine("```bash");
-                    foreach (var ex in info.Examples)
-                    {
-                        sb.AppendLine(ex);
-                    }
-                    sb.AppendLine("```");
-                    sb.AppendLine();
-                }
-
-                if (info.KnownIssues is { Length: > 0 })
-                {
-                    sb.AppendLine("**Known issues:**");
-                    sb.AppendLine();
-                    foreach (var issue in info.KnownIssues)
-                    {
-                        sb.AppendLineF($"- {issue}");
-                    }
-                    sb.AppendLine();
-                }
-
-                sb.AppendLine("---");
-                sb.AppendLine();
-            }
         }
 
-        return sb.ToString();
+        sb.AppendLine("**When to use:**");
+        sb.AppendLine();
+        sb.AppendLine(info.WhenToUse);
+        sb.AppendLine();
+
+        if (info.Examples.Length > 0)
+        {
+            sb.AppendLine("**Examples:**");
+            sb.AppendLine();
+            sb.AppendLine("```bash");
+            foreach (var ex in info.Examples)
+            {
+                sb.AppendLine(ex);
+            }
+            sb.AppendLine("```");
+            sb.AppendLine();
+        }
+
+        if (info.KnownIssues is { Length: > 0 })
+        {
+            sb.AppendLine("**Known issues:**");
+            sb.AppendLine();
+            foreach (var issue in info.KnownIssues)
+            {
+                sb.AppendLineF($"- {issue}");
+            }
+            sb.AppendLine();
+        }
+
+        sb.AppendLine("---");
+        sb.AppendLine();
     }
 
     internal static void RenderColoured(IReadOnlyList<(Command Cmd, RtCommandInfo Info)> registry)

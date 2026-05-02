@@ -99,19 +99,7 @@ internal static class App
         // Hidden meta-command, not part of the public registry (does not implement IRtCommand).
         root.AddCommand(DumpHelpCommand.Build());
 
-        var jsonOpt = new Option<bool>("--json", "Emit results as JSON");
-        var llmOpt = new Option<bool>("--llm", "Emit compact output for LLM consumption");
-        var markdownOpt = new Option<bool>("--markdown", "Emit results as Markdown");
-        var yamlOpt = new Option<bool>("--yaml", "Emit results as YAML");
-        var decisionsOpt = new Option<FileInfo?>(
-            "--decisions",
-            "Path to a YAML file recording disambiguation choices. "
-            + "If unanswered entries exist (or new ones surface), rt writes them and exits 2.");
-        root.AddGlobalOption(jsonOpt);
-        root.AddGlobalOption(llmOpt);
-        root.AddGlobalOption(markdownOpt);
-        root.AddGlobalOption(yamlOpt);
-        root.AddGlobalOption(decisionsOpt);
+        var (jsonOpt, llmOpt, markdownOpt, yamlOpt, decisionsOpt) = RegisterGlobalOptions(root);
 
         return await new CommandLineBuilder(root)
             .UseDefaults()
@@ -157,6 +145,25 @@ internal static class App
             }, MiddlewareOrder.Configuration)
             .Build()
             .InvokeAsync(args);
+    }
+
+    internal static (Option<bool> jsonOpt, Option<bool> llmOpt, Option<bool> markdownOpt, Option<bool> yamlOpt, Option<FileInfo?> decisionsOpt) RegisterGlobalOptions(RootCommand root)
+    {
+        var jsonOpt = new Option<bool>("--json", "Emit results as JSON");
+        var llmOpt = new Option<bool>("--llm", "Emit compact output for LLM consumption");
+        var markdownOpt = new Option<bool>("--markdown", "Emit results as Markdown");
+        var yamlOpt = new Option<bool>("--yaml", "Emit results as YAML");
+        var decisionsOpt = new Option<FileInfo?>(
+            "--decisions",
+            "Path to a YAML file recording disambiguation choices. "
+            + "If unanswered entries exist (or new ones surface), rt writes them and exits 2.");
+        root.AddGlobalOption(jsonOpt);
+        root.AddGlobalOption(llmOpt);
+        root.AddGlobalOption(markdownOpt);
+        root.AddGlobalOption(yamlOpt);
+        root.AddGlobalOption(decisionsOpt);
+
+        return (jsonOpt, llmOpt, markdownOpt, yamlOpt, decisionsOpt);
     }
 
     private static List<(Func<Command>, RtCommandInfo)> Discover()
