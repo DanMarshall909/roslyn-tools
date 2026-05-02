@@ -1,7 +1,7 @@
 roslyn-tools
 Branch: ralph/dogfood-gaps-2026-05-01
 
-Current Status: 6/43 stories complete (14%)
+Current Status: 6/44 stories complete (14%)
 
 EP-001 — Bugs and quality fixes in existing commands (3/3)
 [x] US-001 Fix string.Format() decomposition in console-logging conversion
@@ -61,5 +61,6 @@ EP-008 — Agent Readiness and Contract Hardening (0/7)
 [ ] US-041 Add rt fix-file-name command that renames a .cs file to match its primary type
 [ ] US-042 Output contract audit: migrate commands with JsonOutput:true to RtSerializer.Write pattern
 
-EP-009 — MCP Server (0/1)
-[ ] US-043 Design spike: create RoslynTools.Mcp project exposing rt inspect commands as MCP tools
+EP-009 — MCP Server (0/2)
+[ ] US-043 Add RtOperationParameters abstraction; adapt CLI and build rt mcp as the first two surfaces
+[ ] US-044 Add rt serve command — HTTP server with embedded web UI exposing all operations as REST API
