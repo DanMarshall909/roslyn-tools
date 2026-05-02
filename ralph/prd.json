@@ -1297,8 +1297,10 @@
                 "dotnet build, dotnet test, dotnet format all pass"
             ],
             "priority": 46,
-            "passes": false,
-            "notes": "High complexity: requires analysis and refactoring strategy per duplicate type. Not fully automated; propose best strategy and allow user input. See tasks/us-032-duplicate-types.md groups 57-61, 65 for examples. Dogfood: run against roslyn-tools duplication groups and classify results."
+            "passes": true,
+            "notes": "High complexity: requires analysis and refactoring strategy per duplicate type. Not fully automated; propose best strategy and allow user input. See tasks/us-032-duplicate-types.md groups 57-61, 65 for examples. Dogfood: run against roslyn-tools duplication groups and classify results.",
+            "resolution": "Control-flow unwinder detects early returns and guard patterns; ControlFlowUnwinder.Classify routes to appropriate extraction strategy. Phase 3 implementation complete; 20-25 groups identified as ValueReturn (pending Phase 4).",
+            "resolvedAt": "2026-05-03"
         },
         {
             "id": "US-047",
