@@ -1358,8 +1358,10 @@
                 "dotnet build, dotnet test, dotnet format all pass"
             ],
             "priority": 49,
-            "passes": false,
-            "notes": "High complexity: constraint inference and type-parameter-position detection require careful semantic analysis. Build on Phase 1-4 infrastructure. Dogfood: test against real codebases with collection/LINQ duplicate groups."
+            "passes": true,
+            "notes": "High complexity: constraint inference and type-parameter-position detection require careful semantic analysis. Build on Phase 1-4 infrastructure. Dogfood: test against real codebases with collection/LINQ duplicate groups.",
+            "resolution": "Generic type parameterization: TypeParameterVariationDetector classifies varying type-argument positions and generates methods with type parameters (T, T1, T2). Call sites emit type arguments MethodName<ConcreteType>(args). All 693 tests passing; 10-15 type-argument-differing groups now extractable.",
+            "resolvedAt": "2026-05-03"
         }
     ]
 }
