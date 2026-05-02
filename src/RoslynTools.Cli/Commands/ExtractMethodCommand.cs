@@ -20,6 +20,18 @@ internal sealed class ExtractMethodCommand : IRtCommand
             "rt refactor extract-method src/Services/BookingService.cs ValidateBooking --start-line 42 --end-line 58 --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt refactor em src/Controllers/AdminController.cs BuildCsvRow --start-line 110 --end-line 125 --dry-run",
             "rt refactor extract-method src/RoslynTools/Commands/RenameCommand.cs BuildOptions --start-line 30 --end-line 45 --after Build --solution RoslynTools.slnx",
+        ],
+        KnownIssues:
+        [
+            "--replace-duplicates generic type parameterization (US-049): type constraints are NOT inferred. " +
+            "When duplicates differ by user-defined generic type arguments (e.g. List<MyType> vs List<OtherType>), " +
+            "the extracted method gets <T> but no 'where T : ...' constraint is emitted. " +
+            "This means the generated method may not compile if the body calls type-specific members. " +
+            "Deferred: constraint inference requires semantic analysis of all member access on T across all call sites.",
+
+            "--replace-duplicates generic type parameterization: only user-defined type arguments (IdentifierNameSyntax) " +
+            "are detected as varying. Predefined keyword types (int, string, bool, etc.) produce a PatternMatcher " +
+            "structural mismatch so duplicates differing only in keyword types are not detected as generic candidates.",
         ]
     );
 

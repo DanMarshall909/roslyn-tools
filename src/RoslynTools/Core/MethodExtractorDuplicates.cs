@@ -52,8 +52,8 @@ internal static class MethodExtractorDuplicates
     }
 
     /// <summary>
-    /// Phase 2-4: Regenerate method signature with parameters and rewrite body for parameterized literals
-    /// and/or identifier variations.
+    /// Phase 2-4+6: Regenerate method signature with parameters and rewrite body for parameterized literals,
+    /// identifier variations, and generic type parameters.
     /// </summary>
     private static async Task<Solution> RegenerateForParameterizedVariationsAsync(
         Solution solution,
@@ -62,9 +62,10 @@ internal static class MethodExtractorDuplicates
         List<List<string>> literalsByMatch,
         HashSet<int> varyingLiteralPositions,
         List<string> patternIdentifiers,
-        HashSet<int> varyingIdentifierPositions)
+        HashSet<int> varyingIdentifierPositions,
+        IReadOnlyDictionary<string, string> typeParamMap)
     {
-        if (varyingLiteralPositions.Count == 0 && varyingIdentifierPositions.Count == 0)
+        if (varyingLiteralPositions.Count == 0 && varyingIdentifierPositions.Count == 0 && typeParamMap.Count == 0)
             return solution;
 
         if (literalsByMatch.Count == 0 && (varyingLiteralPositions.Count > 0))
@@ -89,12 +90,31 @@ internal static class MethodExtractorDuplicates
         if (methodDecl == null)
             return solution;
 
+        // Phase 6: Add type parameter list for generic type-arg variations
+        var newMethodDecl = methodDecl;
+        if (typeParamMap.Count > 0)
+        {
+            var typeParams = typeParamMap.Values
+                .Select(name => SyntaxFactory.TypeParameter(name))
+                .ToArray();
+            var typeParamList = SyntaxFactory.TypeParameterList(
+                SyntaxFactory.SeparatedList(typeParams));
+            newMethodDecl = newMethodDecl.WithTypeParameterList(typeParamList);
+        }
+
         // Add parameters for varying literal positions, then varying identifier positions
-        var newMethodDecl = AddParametersForVariations(methodDecl, varyingLiteralPositions, patternIdentifiers, varyingIdentifierPositions);
+        // (varyingIdentifierPositions here already excludes type-arg positions — they become type params above)
+        newMethodDecl = AddParametersForVariations(newMethodDecl, varyingLiteralPositions, patternIdentifiers, varyingIdentifierPositions);
 
         // Rewrite body to use parameter references for both literals and identifiers
         newMethodDecl = RewriteBodyForLiteralParameters(newMethodDecl, varyingLiteralPositions);
         newMethodDecl = RewriteBodyForIdentifierParameters(newMethodDecl, patternIdentifiers, varyingIdentifierPositions, varyingLiteralPositions.Count);
+
+        // Phase 6: Rewrite body to replace type-position identifiers with type parameter names
+        if (typeParamMap.Count > 0)
+        {
+            newMethodDecl = RewriteBodyForTypeParameters(newMethodDecl, typeParamMap);
+        }
 
         var newRoot = root.ReplaceNode(methodDecl, newMethodDecl);
         return solution.WithDocumentSyntaxRoot(doc.Id, newRoot);
@@ -171,6 +191,26 @@ internal static class MethodExtractorDuplicates
         }
 
         var rewriter = new IdentifierReplacementRewriter(identifierToParam);
+        var newBody = (BlockSyntax)rewriter.Visit(methodDecl.Body);
+        return methodDecl.WithBody(newBody);
+    }
+
+    /// <summary>
+    /// Phase 6: Rewrites the method body replacing type-position identifier names with
+    /// their assigned type parameter names (e.g. MyType -> T).
+    /// Uses the same IdentifierReplacementRewriter as Phase 2 since the replacement
+    /// is purely name-based — IdentifierNameSyntax nodes are replaced regardless of
+    /// whether they appear in type or value position.
+    /// </summary>
+    private static MethodDeclarationSyntax RewriteBodyForTypeParameters(
+        MethodDeclarationSyntax methodDecl,
+        IReadOnlyDictionary<string, string> typeParamMap)
+    {
+        if (methodDecl.Body == null || typeParamMap.Count == 0)
+            return methodDecl;
+
+        var rewriter = new IdentifierReplacementRewriter(
+            typeParamMap.ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal));
         var newBody = (BlockSyntax)rewriter.Visit(methodDecl.Body);
         return methodDecl.WithBody(newBody);
     }
@@ -265,11 +305,32 @@ internal static class MethodExtractorDuplicates
         var existingParamNames = orderedParameters.Select(p => p.Name).ToHashSet(StringComparer.Ordinal);
         var (patternIdentifiers, varyingIdentifierPositions) = await AnalyzeIdentifierVariationsAsync(solution, filePath, sourceStartLine, sourceEndLine, matches, existingParamNames);
 
-        // If there are any varying positions (literals or identifiers), regenerate method signature and body
+        // Phase 6: Classify varying identifier positions — type-arg positions become generic
+        // type parameters; value positions remain as ordinary value parameters.
+        var sourceAbsPath2 = Path.GetFullPath(filePath);
+        var sourceDoc2 = solution.Projects
+            .SelectMany(p => p.Documents)
+            .FirstOrDefault(d => string.Equals(d.FilePath, sourceAbsPath2, StringComparison.OrdinalIgnoreCase));
+        IReadOnlyList<StatementSyntax> sourceStatements = [];
+        if (sourceDoc2 != null)
+        {
+            var sourceRoot2 = await sourceDoc2.GetSyntaxRootAsync();
+            if (sourceRoot2 != null)
+                sourceStatements = SelectStatementsInRange(sourceRoot2, sourceStartLine, sourceEndLine);
+        }
+
+        var (typeParamNames, valueOnlyPositions) = TypeParameterVariationDetector.ClassifyVaryingPositions(
+            patternIdentifiers, varyingIdentifierPositions, sourceStatements);
+        var typeParamMap = TypeParameterVariationDetector.AssignTypeParameterNames(typeParamNames);
+
+        // Use only value positions for the value-parameter path — type positions are handled via type params
+        var effectiveIdentifierPositions = valueOnlyPositions;
+
+        // If there are any varying positions (literals, identifiers, or type params), regenerate method signature and body
         // Note: PatternMatcher excludes the source file, so matches only contains cross-file duplicates
         var currentSln = solution;
         var varyingPositions = varyingLiteralPositions; // keep for backward-compat reference below
-        if ((varyingLiteralPositions.Count > 0 || varyingIdentifierPositions.Count > 0) && matches.Count > 0)
+        if ((varyingLiteralPositions.Count > 0 || effectiveIdentifierPositions.Count > 0 || typeParamMap.Count > 0) && matches.Count > 0)
         {
             currentSln = await RegenerateForParameterizedVariationsAsync(
                 currentSln,
@@ -278,7 +339,8 @@ internal static class MethodExtractorDuplicates
                 literalsByMatch,
                 varyingLiteralPositions,
                 patternIdentifiers,
-                varyingIdentifierPositions);
+                effectiveIdentifierPositions,
+                typeParamMap);
         }
 
         // Validate semantic equivalence: filter matches by string literal comparison
@@ -327,8 +389,8 @@ internal static class MethodExtractorDuplicates
                 var matchStatements = SelectStatementsInRange(matchRoot, match.Line, match.EndLine);
                 var matchStringLiterals = ExtractStringLiterals(matchStatements);
 
-                // If parameterizing (literals or identifiers), accept matches with differences at varying positions
-                if (varyingLiteralPositions.Count > 0 || varyingIdentifierPositions.Count > 0 || patternStringLiterals.SetEquals(matchStringLiterals))
+                // If parameterizing (literals, identifiers, or type params), accept matches with differences at varying positions
+                if (varyingLiteralPositions.Count > 0 || effectiveIdentifierPositions.Count > 0 || typeParamMap.Count > 0 || patternStringLiterals.SetEquals(matchStringLiterals))
                 {
                     filteredMatches.Add(match);
                 }
@@ -390,7 +452,8 @@ internal static class MethodExtractorDuplicates
                 varyingLiteralPositions,
                 matchLiterals,
                 patternIdentifiers,
-                varyingIdentifierPositions);
+                effectiveIdentifierPositions,
+                typeParamMap);
 
             if (success)
             {
@@ -422,7 +485,8 @@ internal static class MethodExtractorDuplicates
         HashSet<int>? varyingLiteralPositions = null,
         List<string>? matchLiterals = null,
         List<string>? patternIdentifiers = null,
-        HashSet<int>? varyingIdentifierPositions = null)
+        HashSet<int>? varyingIdentifierPositions = null,
+        IReadOnlyDictionary<string, string>? typeParamMap = null)
     {
         // Build argument list by mapping parameter names through the substitution map
         var args = new List<string>();
@@ -502,8 +566,23 @@ internal static class MethodExtractorDuplicates
         if (matchedStatements.Count == 0)
             return (false, null, "matched statements not found in document");
 
+        // Phase 6: Build explicit type argument list for generic methods
+        // typeParamMap maps pattern type name -> type param name (e.g. "MyType" -> "T")
+        // We need to emit the match-site concrete types (e.g. "OtherType") in order
+        var typeArgs = new List<string>();
+        if (typeParamMap != null && typeParamMap.Count > 0)
+        {
+            foreach (var (patternTypeName, _) in typeParamMap)
+            {
+                var concreteType = match.Substitutions.TryGetValue(patternTypeName, out var sub)
+                    ? sub
+                    : patternTypeName;
+                typeArgs.Add(concreteType);
+            }
+        }
+
         var leadingTrivia = matchedStatements[0].GetLeadingTrivia();
-        var callStmt = BuildReplacementCallSite(newMethodName, args, returnVars, match)
+        var callStmt = BuildReplacementCallSite(newMethodName, args, typeArgs, returnVars, match)
             .WithLeadingTrivia(leadingTrivia)
             .WithTrailingTrivia(SyntaxFactory.LineFeed);
 
@@ -527,11 +606,15 @@ internal static class MethodExtractorDuplicates
     private static StatementSyntax BuildReplacementCallSite(
         string newMethodName,
         IReadOnlyList<string> args,
+        List<string> typeArgs,
         IReadOnlyList<ISymbol> returnVars,
         PatternMatch match)
     {
         var argStr = string.Join(", ", args);
-        var call = $"{newMethodName}({argStr})";
+        var typeArgSuffix = typeArgs.Count > 0
+            ? "<" + string.Join(", ", typeArgs) + ">"
+            : string.Empty;
+        var call = $"{newMethodName}{typeArgSuffix}({argStr})";
 
         if (returnVars.Count == 0)
             return SyntaxFactory.ParseStatement($"{call};");
