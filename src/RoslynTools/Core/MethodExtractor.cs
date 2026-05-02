@@ -10,6 +10,10 @@ internal static class MethodExtractor
     /// Extracts statements within <paramref name="startLine"/>–<paramref name="endLine"/> (1-based, inclusive)
     /// from the method that contains them, placing a new private method named <paramref name="newMethodName"/>
     /// at the specified position within the same type.
+    ///
+    /// If the selected statements form a guard clause (if (cond) return value;) the extractor
+    /// automatically unwraps the pattern: the new method returns bool and the call site becomes
+    /// <c>if (NewMethod(...)) return value;</c>.
     /// </summary>
     internal static async Task<Solution> ExtractAsync(
         Solution solution,
@@ -29,6 +33,17 @@ internal static class MethodExtractor
             throw new InvalidOperationException("--after and --before are mutually exclusive.");
 
         var (doc, root, model, selected) = await FindDocumentAndStatements(solution, filePath, startLine, endLine);
+
+        // ── Guard-pattern unwinding ───────────────────────────────────────────
+        var cfClass = ControlFlowUnwinder.Classify(selected);
+        if (cfClass.Strategy == ControlFlowStrategy.ExtractAsBoolGuard)
+        {
+            return await ExtractGuardAsync(
+                solution, doc, root, model, selected, newMethodName,
+                insertAfter, insertBefore, replaceDuplicates, filePath);
+        }
+
+        // ── Standard extraction path (no control-flow escape) ─────────────────
         var flow = ValidateDataFlow(model, selected);
         var (orderedParams, returnVars) = OrderParameters(flow, selected, model);
         var (containingMethod, containingType, isStatic) = FindContainingContext(selected);
@@ -49,8 +64,6 @@ internal static class MethodExtractor
         var extractedSln = solution.WithDocumentSyntaxRoot(doc.Id, newRoot);
 
         // Guard: the rewrite must have produced at least one changed document.
-        // A zero-change result would be silently swallowed by SolutionWriter
-        // (it prints "No changes." and exits 0), which is the silent-exit-0 bug (US-002).
         var changedDocIds = extractedSln.GetChanges(solution)
             .GetProjectChanges()
             .SelectMany(p => p.GetChangedDocuments())
@@ -73,6 +86,186 @@ internal static class MethodExtractor
             newMethodName,
             orderedParams,
             returnVars);
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────
+    //  Guard-pattern extraction: if (cond) return [value]; → bool NewMethod(params)
+    // ────────────────────────────────────────────────────────────────────────────
+
+    private static async Task<Solution> ExtractGuardAsync(
+        Solution solution,
+        Document doc,
+        SyntaxNode root,
+        SemanticModel model,
+        List<StatementSyntax> selected,
+        string newMethodName,
+        string? insertAfter,
+        string? insertBefore,
+        bool replaceDuplicates,
+        string filePath)
+    {
+        // The guard must be a single if-statement (could be 1 stmt or multi-stmt with void guards)
+        // For a single if-statement guard:
+        IfStatementSyntax? ifStmt = selected.Count == 1
+            ? selected[0] as IfStatementSyntax
+            : null;
+
+        if (ifStmt == null)
+        {
+            // Multi-statement void guard block — fall back to standard extraction error
+            throw new InvalidOperationException(
+                "Cannot extract statements that contain return statements. " +
+                "Multi-statement guard blocks with void returns are not yet auto-extractable.");
+        }
+
+        // Collect parameters that flow into the condition from outside
+        var flow = model.AnalyzeDataFlow(ifStmt);
+        var (containingMethod, containingType, isStatic) = FindContainingContext(selected);
+
+        // Get the parameters from the condition expression
+        var conditionIdentifiers = ifStmt.Condition
+            .DescendantNodesAndSelf()
+            .OfType<IdentifierNameSyntax>()
+            .Select(id => model.GetSymbolInfo(id).Symbol)
+            .OfType<IParameterSymbol>()
+            .Distinct<ISymbol>(SymbolEqualityComparer.Default)
+            .ToList();
+
+        // Also include local variables from DataFlowsIn
+        var flowAnalysis = model.AnalyzeDataFlow(ifStmt.Condition);
+        var dataFlowParams = flowAnalysis?.DataFlowsIn
+            .Where(s => s is IParameterSymbol or ILocalSymbol)
+            .ToList() ?? new List<ISymbol>();
+
+        // Order parameters by first appearance in condition
+        var seenParams = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+        var orderedParams = new List<ISymbol>();
+        foreach (var id in ifStmt.Condition
+            .DescendantNodesAndSelf()
+            .OfType<IdentifierNameSyntax>()
+            .OrderBy(id => id.SpanStart))
+        {
+            var sym = model.GetSymbolInfo(id).Symbol;
+            if (sym == null) continue;
+            var match = dataFlowParams.FirstOrDefault(
+                p => SymbolEqualityComparer.Default.Equals(p, sym));
+            if (match != null && seenParams.Add(match))
+                orderedParams.Add(match);
+        }
+
+        // Determine the return value from the guard body
+        var returnExpr = ExtractReturnExpression(ifStmt);
+
+        // Build the new bool-returning method:
+        // private [static] bool NewMethod(params) { return condition; }
+        var newMethod = BuildBoolGuardMethod(
+            newMethodName, orderedParams, ifStmt.Condition, isStatic, selected.First());
+
+        // Build the call site: if (NewMethod(args)) return value;
+        var callSite = BuildGuardCallSite(
+            newMethodName, orderedParams, returnExpr, selected.First());
+
+        // Splice call site into the original method
+        var newContainingMethod = SpliceCallSite(selected, callSite, containingMethod);
+
+        // Insert the new method
+        var finalType = InsertNewMethod(
+            containingType, containingMethod, newContainingMethod,
+            newMethod, insertAfter, insertBefore);
+
+        var newRoot = root.ReplaceNode(containingType, finalType);
+        var extractedSln = solution.WithDocumentSyntaxRoot(doc.Id, newRoot);
+
+        // Verify changes produced
+        var changedDocIds = extractedSln.GetChanges(solution)
+            .GetProjectChanges()
+            .SelectMany(p => p.GetChangedDocuments())
+            .ToList();
+        if (changedDocIds.Count == 0)
+            throw new InvalidOperationException(
+                "extract-method: guard extraction produced no document changes.");
+
+        if (!replaceDuplicates)
+            return extractedSln;
+
+        // Find and replace structural duplicates
+        var (bodyStartLine, bodyEndLine) = await FindNewMethodBodyRange(extractedSln, filePath, newMethodName);
+        var emptyReturnVars = new List<ISymbol>();
+        return await MethodExtractorDuplicates.ReplaceDuplicatesAsync(
+            extractedSln,
+            filePath,
+            bodyStartLine,
+            bodyEndLine,
+            newMethodName,
+            orderedParams,
+            emptyReturnVars);
+    }
+
+    /// <summary>
+    /// Extracts the return expression (or null for void returns) from a guard if-statement.
+    /// </summary>
+    private static ExpressionSyntax? ExtractReturnExpression(IfStatementSyntax ifStmt)
+    {
+        if (ifStmt.Statement is ReturnStatementSyntax ret)
+            return ret.Expression;
+
+        if (ifStmt.Statement is BlockSyntax block)
+        {
+            var retStmt = block.Statements
+                .OfType<ReturnStatementSyntax>()
+                .FirstOrDefault();
+            return retStmt?.Expression;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Builds a bool-returning method that extracts the guard condition:
+    /// <c>private [static] bool Name(params) { return condition; }</c>
+    /// </summary>
+    private static MethodDeclarationSyntax BuildBoolGuardMethod(
+        string name,
+        List<ISymbol> parameters,
+        ExpressionSyntax condition,
+        bool isStatic,
+        StatementSyntax anchorStmt)
+    {
+        var modifiers = $"private{(isStatic ? " static" : "")}";
+        var paramStr = string.Join(", ", parameters.Select(p => $"{MethodExtractorBuilder.GetTypeName(p)} {p.Name}"));
+        var memberIndent = MethodExtractorBuilder.MemberIndentOf(anchorStmt);
+        var bodyIndent = MethodExtractorBuilder.IndentOf(anchorStmt);
+        var condText = condition.ToFullString().Trim();
+        var methodText = $"{modifiers} bool {name}({paramStr})\n{memberIndent}{{\n{bodyIndent}return {condText};\n{memberIndent}}}";
+
+        var method = (MethodDeclarationSyntax)(SyntaxFactory.ParseMemberDeclaration(methodText)
+            ?? throw new InvalidOperationException("Failed to parse the generated guard method."));
+
+        return method.WithLeadingTrivia(
+            SyntaxFactory.LineFeed,
+            SyntaxFactory.Whitespace(memberIndent));
+    }
+
+    /// <summary>
+    /// Builds the call site for a guard extraction:
+    /// <c>if (NewMethod(args)) return value;</c>
+    /// </summary>
+    private static StatementSyntax BuildGuardCallSite(
+        string methodName,
+        List<ISymbol> parameters,
+        ExpressionSyntax? returnExpr,
+        StatementSyntax anchorStmt)
+    {
+        var argStr = string.Join(", ", parameters.Select(p => p.Name));
+        string stmtText;
+        if (returnExpr == null)
+            stmtText = $"if ({methodName}({argStr})) return;";
+        else
+            stmtText = $"if ({methodName}({argStr})) return {returnExpr.ToFullString().Trim()};";
+
+        return SyntaxFactory.ParseStatement(stmtText)
+            .WithLeadingTrivia(anchorStmt.GetLeadingTrivia())
+            .WithTrailingTrivia(SyntaxFactory.LineFeed);
     }
 
     /// <summary>
@@ -162,10 +355,15 @@ internal static class MethodExtractor
             throw new InvalidOperationException(
                 "Selected statements span multiple blocks. Extend or narrow the range to a single block.");
 
-        // Bail on embedded returns — the semantics are too complex for a first pass
-        if (selected.Any(s => s.DescendantNodesAndSelf().OfType<ReturnStatementSyntax>().Any()))
+        // Check for control-flow patterns: guard patterns are handled above in ExtractAsync.
+        // Reject other return patterns here (will be caught after Classify in ExtractAsync).
+        var cfClass = ControlFlowUnwinder.Classify(selected);
+        if (cfClass.Strategy != ControlFlowStrategy.ExtractAsBoolGuard
+            && selected.Any(s => s.DescendantNodesAndSelf().OfType<ReturnStatementSyntax>().Any()))
+        {
             throw new InvalidOperationException(
                 "Cannot extract statements that contain return statements.");
+        }
 
         return (doc, root, model, selected);
     }
@@ -180,8 +378,6 @@ internal static class MethodExtractor
         if (flow == null || !flow.Succeeded)
             throw new InvalidOperationException("Roslyn data-flow analysis failed for the selected range.");
 
-        // Compute which symbols are declared within the extracted range (syntax-level check,
-        // avoids relying on DataFlowAnalysis.VariablesDeclaredWithin which is absent in some builds).
         var declaredInRange = selected
             .SelectMany(s => s.DescendantNodesAndSelf())
             .OfType<VariableDeclaratorSyntax>()
@@ -190,8 +386,6 @@ internal static class MethodExtractor
             .Select(s => s!)
             .ToHashSet(SymbolEqualityComparer.Default);
 
-        // Variables declared outside the range but written inside and read after are
-        // not safely extractable without out-parameters — reject and guide the user.
         var unsafeOut = flow.DataFlowsOut
             .Where(sym => !declaredInRange.Contains(sym))
             .ToList();
@@ -294,13 +488,10 @@ internal static class MethodExtractor
         string? insertAfter,
         string? insertBefore)
     {
-        // Annotate the updated containing method so we can locate it by identity after ReplaceNode,
-        // instead of relying on string/trivia comparisons that may differ across tree rewrites.
         var methodAnnotation = new SyntaxAnnotation();
         var annotatedNewContainingMethod = updatedContainingMethod.WithAdditionalAnnotations(methodAnnotation);
         var updatedType = containingType.ReplaceNode(originalContainingMethod, annotatedNewContainingMethod);
 
-        // Locate the anchor member in the updated type for placement
         MemberDeclarationSyntax anchorMember;
         bool afterAnchor;
 
@@ -315,7 +506,6 @@ internal static class MethodExtractor
         }
         else
         {
-            // Default: after the (updated) containing method — found via annotation to avoid trivia mismatches
             anchorMember = updatedType.Members
                 .FirstOrDefault(m => m.HasAnnotation(methodAnnotation))
                 ?? updatedType.Members.Last();

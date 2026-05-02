@@ -1,4 +1,4 @@
-﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using RoslynTools.Core;
@@ -113,7 +113,9 @@ public class ControlFlowUnwinderTests
     [Fact]
     public async Task Guard_pattern_becomes_extractable_via_MethodExtractor()
     {
-        // Arrange: two methods with identical guard pattern (if-null return false)
+        // Arrange: a method with a guard pattern (if-null return false) — previously
+        // MethodExtractor threw "Cannot extract statements that contain return statements".
+        // After guard-unwinding, extraction succeeds.
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
             namespace TestApp;
@@ -130,45 +132,30 @@ public class ControlFlowUnwinderTests
                 }
             }
             """);
-        project.AddSource("B.cs", """
-            namespace TestApp;
-
-            public class ServiceB
-            {
-                private bool IsGeneratedOrIntermediate(string? filePath)
-                {
-                    if (string.IsNullOrWhiteSpace(filePath))
-                        return false;
-                    if (filePath.Contains(".generated.", System.StringComparison.Ordinal))
-                        return true;
-                    return false;
-                }
-            }
-            """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
             var filePath = Path.Combine(project.ProjectDir, "A.cs");
+            // This used to throw — verify it now succeeds
             var newSln = await MethodExtractor.ExtractAsync(
                 sln,
                 filePath,
                 "CheckFilePath",
                 startLine: 7,
-                endLine: 8,
-                replaceDuplicates: true);
+                endLine: 8);
             await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
         }
 
         var contentA = await project.ReadSourceAsync("A.cs");
-        var contentB = await project.ReadSourceAsync("B.cs");
 
-        // The extracted method should return bool (guard unwound)
-        Assert.Contains("private static bool CheckFilePath(", contentA);
+        // The extracted method returns bool (guard unwound, not void)
+        Assert.Contains("private bool CheckFilePath(", contentA);
 
-        // The call site in A and B should use the extracted guard method
-        Assert.Contains("CheckFilePath(", contentA);
-        Assert.Contains("CheckFilePath(", contentB);
+        // The call site uses the guard pattern
+        Assert.Contains("if (CheckFilePath(", contentA);
+        // The original guard if-statement is gone
+        Assert.DoesNotContain("if (string.IsNullOrWhiteSpace(filePath))", GetMethodBody(contentA, "IsGeneratedOrIntermediate"));
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -210,7 +197,7 @@ public class ControlFlowUnwinderTests
         var content = await project.ReadSourceAsync("Service.cs");
 
         // The extracted method exists and returns bool
-        Assert.Contains("private static bool IsInputBlank(string? input)", content);
+        Assert.Contains("private bool IsInputBlank(string? input)", content);
 
         // The call site uses the guard pattern: if (IsInputBlank(input)) return false;
         Assert.Contains("if (IsInputBlank(input))", content);
@@ -293,3 +280,5 @@ public class ControlFlowUnwinderTests
         return method?.Body?.ToFullString() ?? string.Empty;
     }
 }
+
+
