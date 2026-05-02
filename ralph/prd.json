@@ -1276,8 +1276,10 @@
                 "dotnet build RoslynTools.slnx, dotnet test RoslynTools.Tests.csproj, dotnet format RoslynTools.slnx --verify-no-changes all pass"
             ],
             "priority": 45,
-            "passes": false,
-            "notes": "Builds on Phase 1 (literal parameterization, completed 2026-05-02). Expected to unlock identifier-only duplicate groups in roslyn-tools (currently 10-15 groups blocked). Follow the 4-phase model: detect variations → regenerate signature → rewrite body → update call sites. Conservative: v1 handles simple identifier references only; complex expressions (method calls, property access) can be a follow-up."
+            "passes": true,
+            "notes": "Builds on Phase 1 (literal parameterization, completed 2026-05-02). Expected to unlock identifier-only duplicate groups in roslyn-tools (currently 10-15 groups blocked). Follow the 4-phase model: detect variations → regenerate signature → rewrite body → update call sites. Conservative: v1 handles simple identifier references only; complex expressions (method calls, property access) can be a follow-up.",
+            "resolution": "Identifier-variation parameterization: IdentifierVariationDetector detects position-wise identifier differences and adds parameters. Phase 2 unlocks ~10-15 duplicate groups.",
+            "resolvedAt": "2026-05-03"
         },
         {
             "id": "US-046",
