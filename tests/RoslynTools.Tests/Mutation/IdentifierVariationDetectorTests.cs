@@ -1,3 +1,5 @@
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using RoslynTools.Core;
 
 namespace RoslynTools.Tests.Mutation;
@@ -105,5 +107,84 @@ public class IdentifierVariationDetectorTests
 
         Assert.Single(varyingPositions);
         Assert.Contains(0, varyingPositions);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  v1 scope filter: member-access expression side and invocation targets
+    //  are excluded so 'object' parameters are not generated for them
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void ExtractOrderedIdentifiers_skips_member_access_expression_side()
+    {
+        // _svc.DoWork() — _svc is the expression side of member access; must be skipped
+        // Console.WriteLine is a member access but Console is a type, not parameterizable
+        // The only bare identifier is the argument (none here, so result is empty)
+        const string code = """
+            class C {
+                void M() {
+                    _svc.DoWork();
+                }
+            }
+            """;
+        var tree = CSharpSyntaxTree.ParseText(code);
+        var method = tree.GetRoot()
+            .DescendantNodes()
+            .OfType<MethodDeclarationSyntax>()
+            .First();
+        var statements = method.Body!.Statements;
+
+        var identifiers = IdentifierVariationDetector.ExtractOrderedIdentifiers(statements);
+
+        // _svc must NOT appear — it's the expression side of a MemberAccessExpression
+        Assert.DoesNotContain("_svc", identifiers);
+    }
+
+    [Fact]
+    public void ExtractOrderedIdentifiers_skips_invocation_target()
+    {
+        // DirectCall() — DirectCall is the direct invocation target; must be skipped
+        const string code = """
+            class C {
+                void M() {
+                    DirectCall();
+                }
+            }
+            """;
+        var tree = CSharpSyntaxTree.ParseText(code);
+        var method = tree.GetRoot()
+            .DescendantNodes()
+            .OfType<MethodDeclarationSyntax>()
+            .First();
+        var statements = method.Body!.Statements;
+
+        var identifiers = IdentifierVariationDetector.ExtractOrderedIdentifiers(statements);
+
+        // DirectCall must NOT appear — it's a direct invocation target
+        Assert.DoesNotContain("DirectCall", identifiers);
+    }
+
+    [Fact]
+    public void ExtractOrderedIdentifiers_includes_bare_argument_identifiers()
+    {
+        // Console.WriteLine(_fieldA) — _fieldA is a bare argument, must be included
+        const string code = """
+            class C {
+                void M() {
+                    System.Console.WriteLine(_fieldA);
+                }
+            }
+            """;
+        var tree = CSharpSyntaxTree.ParseText(code);
+        var method = tree.GetRoot()
+            .DescendantNodes()
+            .OfType<MethodDeclarationSyntax>()
+            .First();
+        var statements = method.Body!.Statements;
+
+        var identifiers = IdentifierVariationDetector.ExtractOrderedIdentifiers(statements);
+
+        // _fieldA IS a bare argument — it should be included
+        Assert.Contains("_fieldA", identifiers);
     }
 }

@@ -97,17 +97,19 @@ internal static class MethodExtractorDuplicates
         {
             var paramName = "param" + pos.ToString(System.Globalization.CultureInfo.InvariantCulture);
             var newParam = SyntaxFactory.Parameter(SyntaxFactory.Identifier(paramName))
-                .WithType(SyntaxFactory.ParseTypeName("string"));
+                .WithType(SyntaxFactory.ParseTypeName("string")
+                    .WithTrailingTrivia(SyntaxFactory.Space));
             currentParams.Add(newParam);
         }
 
-        // Add object parameters for varying identifier positions (using the identifier name as parameter name)
+        // Add object parameters for varying identifier positions
         int identParamOffset = varyingLiteralPositions.Count;
         foreach (var pos in varyingIdentifierPositions.OrderBy(p => p))
         {
             var paramName = "param" + (identParamOffset + pos).ToString(System.Globalization.CultureInfo.InvariantCulture);
             var newParam = SyntaxFactory.Parameter(SyntaxFactory.Identifier(paramName))
-                .WithType(SyntaxFactory.ParseTypeName("object"));
+                .WithType(SyntaxFactory.ParseTypeName("object")
+                    .WithTrailingTrivia(SyntaxFactory.Space));
             currentParams.Add(newParam);
         }
 
