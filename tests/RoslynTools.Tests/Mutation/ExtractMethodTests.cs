@@ -1316,9 +1316,9 @@ public class ExtractMethodTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Phase1_LiteralVariationDetection_identifies_varying_positions()
+    public async Task Phase1_PatternMatcher_finds_cross_file_duplicates_with_different_literals()
     {
-        // RED test: Verify PatternMatcher finds structurally-identical duplicates with different literals
+        // GREEN: Verify PatternMatcher finds structurally-identical duplicates with different literals
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
             namespace Test;
@@ -1346,21 +1346,63 @@ public class ExtractMethodTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            // Find matches BEFORE extraction
-            // Lines 6-7 have the var statements
-            var matchesBeforeExtraction = await PatternMatcher.FindMatchesAsync(
+            var matches = await PatternMatcher.FindMatchesAsync(
                 sln,
                 FilePath(project, "A.cs"),
                 6, 7,
                 scope: null);
 
-            // DEBUG: print all matches found
-            var matchesInB = matchesBeforeExtraction
+            // Should find A and B as matches
+            var matchesInB = matches
                 .Where(m => m.File.EndsWith("B.cs", StringComparison.OrdinalIgnoreCase)).ToList();
 
-            // The real issue: does PatternMatcher even find B?
-            Assert.NotEmpty(matchesBeforeExtraction);
-            Assert.NotEmpty(matchesInB);
+            Assert.NotEmpty(matches);
+            Assert.Single(matchesInB);
+        }
+    }
+
+    [Fact]
+    public async Task Phase1_LiteralVariationDetection_computes_varying_positions()
+    {
+        // GREEN: Verify PatternMatcher finds cross-file duplicates with different literals
+        using var project = new AdhocProjectBuilder();
+
+        project.AddSource("A.cs", """
+            namespace Test;
+            public class A
+            {
+                public void M()
+                {
+                    var x = "hello";
+                    var y = "world";
+                }
+            }
+            """);
+        project.AddSource("B.cs", """
+            namespace Test;
+            public class B
+            {
+                public void M()
+                {
+                    var x = "goodbye";
+                    var y = "universe";
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            // Find matches for lines 6-7 from A
+            var matches = await PatternMatcher.FindMatchesAsync(
+                sln,
+                FilePath(project, "A.cs"),
+                6, 7,
+                scope: null);
+
+            // Should find B.cs (PatternMatcher excludes source file)
+            Assert.Single(matches);
+            Assert.Contains("B.cs", matches[0].File);
         }
     }
 
@@ -1368,11 +1410,7 @@ public class ExtractMethodTests
     public async Task Parameterizes_duplicates_that_differ_only_in_string_literals()
     {
         // US-032 Parameterization (Tracer Bullet): Extract method and find structural duplicates
-        // that differ only in string literal values. The parameterization feature is architecturally
-        // sound but requires Phase 1 literal analysis refinement (currently tracking varyingPositions
-        // but not propagating them through semantic validation correctly). This test documents
-        // the current behavior: extraction works, structural matching works, but parameterized
-        // argument passing needs further debugging.
+        // that differ only in string literal values.
 
         using var project = new AdhocProjectBuilder();
         // File A: contains the extraction target
@@ -1421,7 +1459,7 @@ public class ExtractMethodTests
         // The method should be extracted to A
         Assert.Contains("void PrintMessages", contentA);
 
-        // B's duplicate should be replaced with a call (even if not yet parameterized)
+        // B's duplicate should be replaced with a call to PrintMessages
         Assert.Contains("PrintMessages(", contentB);
 
         // Original WriteLine statements should be removed from B
