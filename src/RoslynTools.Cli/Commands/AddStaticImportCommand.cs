@@ -27,8 +27,8 @@ internal sealed class AddStaticImportCommand : IRtCommand
     {
         var fileOpt = new Option<string>("--file", "Path to the .cs file to update") { IsRequired = true };
         var typeOpt = new Option<string>("--type", "Fully qualified type to import statically") { IsRequired = true };
-        var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
-        var dryRunOpt = new Option<bool>("--dry-run", "Preview without writing");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption();
+        var dryRunOpt = CommandOptionFactory.CreateDryRunOption();
 
         var cmd = new Command("add-static-import", "Add a using static directive to a file");
         cmd.AddAlias("asi");

@@ -29,8 +29,8 @@ internal sealed class MakeSealedCommand : IRtCommand
     public static Command Build()
     {
         var typeOpt = new Option<string>("--type", "Class to seal") { IsRequired = true };
-        var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
-        var dryRunOpt = new Option<bool>("--dry-run", "Preview without writing");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption();
+        var dryRunOpt = CommandOptionFactory.CreateDryRunOption();
 
         var cmd = new Command("make-sealed", "Add the sealed modifier to a class that has no derived types");
         cmd.AddAlias("ms");

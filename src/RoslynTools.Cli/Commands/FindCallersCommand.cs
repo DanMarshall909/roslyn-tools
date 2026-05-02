@@ -29,8 +29,8 @@ internal sealed class FindCallersCommand : IRtCommand
     public static Command Build()
     {
         var symbolOpt = new Option<string>("--symbol", "Method name to find callers of") { IsRequired = true };
-        var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
-        var includeTestsOpt = new Option<bool>("--include-tests", "Include test projects in results");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption();
+        var includeTestsOpt = CommandOptionFactory.CreateIncludeTestsOption();
 
         var cmd = new Command("find-callers", "Find all invocation sites for a method");
         cmd.AddAlias("callers");

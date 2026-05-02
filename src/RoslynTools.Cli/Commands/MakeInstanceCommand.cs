@@ -25,8 +25,8 @@ internal sealed class MakeInstanceCommand : IRtCommand
     public static Command Build()
     {
         var methodOpt = new Option<string>("--method", "Fully-qualified method to convert: Type.Method") { IsRequired = true };
-        var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
-        var dryRunOpt = new Option<bool>("--dry-run", "Preview without writing");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption();
+        var dryRunOpt = CommandOptionFactory.CreateDryRunOption();
 
         var cmd = new Command("make-instance", "Remove static from a method and rewrite call sites to use an instance");
         cmd.AddAlias("mns");

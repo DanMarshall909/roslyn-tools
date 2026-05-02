@@ -27,8 +27,8 @@ internal sealed class AddNullChecksCommand : IRtCommand
     {
         var typeOpt = new Option<string>("--type", "Class containing the method") { IsRequired = true };
         var methodOpt = new Option<string>("--method", "Method name to add null checks to") { IsRequired = true };
-        var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
-        var dryRunOpt = new Option<bool>("--dry-run", "Preview without writing");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption();
+        var dryRunOpt = CommandOptionFactory.CreateDryRunOption();
 
         var cmd = new Command("add-null-checks", "Insert ArgumentNullException.ThrowIfNull guards for reference-type parameters");
         cmd.AddAlias("anc");

@@ -28,8 +28,8 @@ internal sealed class ExtractStringConstantCommand : IRtCommand
         var fileOpt = new Option<string>("--file", "Path to the .cs file containing the literal") { IsRequired = true };
         var lineOpt = new Option<int>("--line", "Line number of the string literal to extract") { IsRequired = true };
         var nameOpt = new Option<string>("--name", "Constant name to create") { IsRequired = true };
-        var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
-        var dryRunOpt = new Option<bool>("--dry-run", "Preview without writing");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption();
+        var dryRunOpt = CommandOptionFactory.CreateDryRunOption();
 
         var cmd = new Command("extract-string-constant", "Extract a string literal into a private const string");
         cmd.AddAlias("esc");

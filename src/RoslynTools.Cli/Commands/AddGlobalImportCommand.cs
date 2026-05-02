@@ -25,10 +25,10 @@ internal sealed class AddGlobalImportCommand : IRtCommand
 
     public static Command Build()
     {
-        var fileOpt = new Option<string>("--file", "Path to the existing .cs imports file to update") { IsRequired = true };
-        var namespaceOpt = new Option<string>("--namespace", "Namespace to import globally") { IsRequired = true };
-        var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
-        var dryRunOpt = new Option<bool>("--dry-run", "Preview without writing");
+        var fileOpt = CommandOptionFactory.CreateFileOption();
+        var namespaceOpt = CommandOptionFactory.CreateNamespaceOption();
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption();
+        var dryRunOpt = CommandOptionFactory.CreateDryRunOption();
 
         var cmd = new Command("add-global-import", "Add a global using directive to an existing file");
         cmd.AddAlias("agi");

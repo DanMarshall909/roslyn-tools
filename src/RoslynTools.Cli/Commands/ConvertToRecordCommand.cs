@@ -25,9 +25,9 @@ internal sealed class ConvertToRecordCommand : IRtCommand
 
     public static Command Build()
     {
-        var typeOpt = new Option<string>("--type", "Class to convert to a record") { IsRequired = true };
-        var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
-        var dryRunOpt = new Option<bool>("--dry-run", "Preview without writing");
+        var typeOpt = CommandOptionFactory.CreateTypeOption();
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption();
+        var dryRunOpt = CommandOptionFactory.CreateDryRunOption();
 
         var cmd = new Command("convert-to-record", "Convert a class to a record type with positional parameters");
         cmd.AddAlias("ctr");

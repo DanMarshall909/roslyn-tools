@@ -1,0 +1,228 @@
+category,feature,value,development_complexity,notes
+Agent/tool contract,rt capabilities,95,25,Machine-readable command discovery for agents
+Agent/tool contract,rt schema <command>,92,30,JSON Schema for reliable command invocation
+Agent/tool contract,stable JSON schemas for every command,95,45,Foundation for automation and MCP use
+Agent/tool contract,compact --llm output,90,35,Token-efficient output for LLM callers
+Agent/tool contract,machine-readable diagnostics,94,40,Structured failures warnings and ambiguities
+Agent/tool contract,command metadata discovery,88,30,Supports tool registration and command routing
+Agent/tool contract,rt command-help --llm <command>,75,20,Compact command help for LLM context
+Agent/tool contract,MCP wrapper/server,96,55,Strongest agent-integration feature
+Agent/tool contract,decision file workflow,90,45,Prevents agents guessing ambiguous choices
+Agent/tool contract,rt resolve-decision,70,35,Non-interactive decision file updates
+Agent/tool contract,rt ambiguity-report,72,25,List unresolved ambiguities from prior run
+Safety/execution,rt preview <command...>,92,35,First-class dry-run wrapper
+Safety/execution,rt apply-patchset <file>,72,60,Apply deterministic patchsets after review
+Safety/execution,rt operation-log,90,45,Audit trail for mutating operations
+Safety/execution,rt undo <operation-id>,92,65,Trust feature for automated refactors
+Safety/execution,rt checkpoint create,88,35,Create named rollback point
+Safety/execution,rt checkpoint restore,88,45,Restore named rollback point
+Safety/execution,rt doctor,85,30,Checks SDK MSBuild solution repo state
+Safety/execution,rt verify,95,45,Runs build tests analyzers with structured output
+Safety/execution,rt semantic-diff,90,65,Symbol/member-level before-after diff
+Safety/execution,rt api-diff,88,60,Public API compatibility context
+Safety/execution,rt public-api <project>,84,45,Emit externally visible API surface
+Safety/execution,rt binary-compat,65,80,Binary compatibility checks for libraries
+Safety/execution,rt package-impact,70,65,NuGet/package impact analysis
+Safety/execution,rt impacted-symbols --from-diff,86,50,Map git diff to symbols
+Safety/execution,rt affected-projects --symbol/--file/--diff,86,45,Target validation runs
+Safety/execution,rt affected-tests --symbol/--file/--diff,90,65,Fast test selection
+Safety/execution,rt reflection-risks,88,55,Detect string/reflection risks before rename/delete
+Safety/execution,rt generated-code-map,75,40,Avoid mutating generated code
+Safety/execution,rt symbol-id <symbol>,78,35,Canonical symbol identity
+Safety/execution,rt disambiguate <query>,78,35,Return candidates without choosing
+Existing-command hardening,clean routine error handling,96,25,No unhandled stack traces for expected failures
+Existing-command hardening,consistent exit codes,96,30,Critical automation contract
+Existing-command hardening,no stack traces for user-input failures,94,25,Agent-safe failure behaviour
+Existing-command hardening,--dry-run everywhere,96,55,Required for trust and review
+Existing-command hardening,operation facts output,82,40,Emit exact operations not advice
+Existing-command hardening,normalised stdout/stderr discipline,93,25,Prevents automation breakage
+Architecture analysis,rt architecture-verify --rules rules.yml,90,60,Validate explicit dependency rules
+Architecture analysis,rt architecture-map,78,45,Project/namespace dependency graph
+Architecture analysis,rt boundary-violations --rules rules.yml,88,55,Find forbidden dependencies
+Architecture analysis,rt cycle-details,76,40,Exact edges and symbols for cycles
+Architecture analysis,rt module-extract-plan,70,70,Facts for extracting module/project
+Architecture analysis,rt dependency-inversion,72,65,Find concrete dependency issues
+Architecture analysis,rt concrete-dependencies <scope>,82,45,Find concrete constructor/field deps
+Architecture analysis,rt constructor-dependencies <type>,72,30,List injected deps and usage
+Architecture analysis,rt ownership-map,62,45,Group files/types by boundaries
+Architecture analysis,rt entrypoints,74,45,List controllers endpoints jobs handlers
+Architecture analysis,rt responsibility-map,72,70,Detect mixed-concern types
+Architecture analysis,rt public-surface-count,65,25,Count public types/members
+Architecture refactor,rt extract-port,78,75,Clean Architecture interface extraction
+Architecture refactor,rt enforce-internals,76,65,Make public types internal where safe
+Architecture refactor,rt split-interface,88,75,Extract explicit interface members
+Architecture refactor,rt split-class-by-members,78,80,Move explicit members to new type
+Architecture refactor,rt extract-orchestrator,75,80,Move explicit body/range into orchestrator
+Architecture refactor,rt extract-adapter,85,75,Wrap static/external APIs for testability
+Architecture refactor,rt register-service,85,50,Add DI registration
+Architecture refactor,rt inject-service,76,60,Constructor/field/DI helper
+Architecture refactor,rt replace-new-with-factory,72,75,Replace direct construction with factory
+Code hygiene fix,rt fix-file-name,88,35,Rename file to match primary type
+Code hygiene fix,rt move-type-to-file,88,55,Split co-located types into files
+Code hygiene fix,rt fix-usings,90,55,Add remove sort usings after refactors
+Code hygiene fix,rt remove-unused-usings,75,30,Mechanical cleanup
+Code hygiene fix,rt remove-dead-code,78,60,Safe-delete explicit unused symbols
+Code hygiene fix,rt fix-nullability,72,85,Nullable annotations/guards with strict rules
+Code hygiene fix,rt one-type-per-file,78,55,Enforce one primary type per file
+Refactoring primitives,rt move-method,88,80,Move explicit method to target type
+Refactoring primitives,rt move-member,80,85,Move method/property/field
+Refactoring primitives,rt extract-conditional,86,60,Extract boolean expression
+Refactoring primitives,rt invert-if --as-guard,78,65,Convert selected if to guard clause
+Refactoring primitives,rt flatten-guards,72,75,Apply selected guard transformations
+Refactoring primitives,rt split-method,74,70,Workflow around repeated extract-method
+Refactoring primitives,rt introduce-parameter-object,76,70,Extract parameters into request/record
+Refactoring primitives,rt introduce-record,74,65,Create record from selected data shape
+Refactoring primitives,rt replace-switch-with-strategy,62,90,High-ceremony legacy refactor
+TDD/test discovery,rt test-outline,92,35,List test structure facts/theories/traits
+TDD/test discovery,rt test-map,90,65,Map production symbols to tests
+TDD/test discovery,rt find-tests <symbol>,94,55,Find tests related to symbol
+TDD/test discovery,rt test-gaps,78,55,Report public methods without direct test refs
+TDD/test discovery,rt coverage-map,88,55,Map coverage report to symbols
+TDD/test discovery,rt coverage-gaps <symbol>,86,60,List uncovered branches/methods
+TDD/test discovery,rt coverage-delta,80,45,Compare coverage before/after
+TDD/test discovery,rt mutation-map,86,60,Map Stryker surviving mutants to code
+TDD/test discovery,rt mutation-targets,78,45,List weakly-tested mutation targets
+TDD/test scaffolding,rt create-test-class,88,45,Create test class in correct namespace/project
+TDD/test scaffolding,rt add-fact,92,40,Insert xUnit Fact skeleton
+TDD/test scaffolding,rt add-theory,82,45,Insert Theory skeleton
+TDD/test scaffolding,rt add-inline-data,75,35,Append InlineData
+TDD/test scaffolding,rt add-test-case,90,45,Insert test skeleton in explicit class
+TDD/test scaffolding,rt add-failing-test,82,40,Insert deliberate red placeholder
+TDD/test scaffolding,rt add-cli-test,95,55,Dogfood command invocation tests
+TDD/test scaffolding,rt add-cli-error-test,95,55,Test exit code stderr no stack trace
+TDD/test scaffolding,rt add-cli-dry-run-test,84,55,Test dry-run contract
+TDD/test scaffolding,rt add-cli-json-test,86,55,Test JSON contract
+TDD/test scaffolding,rt add-golden-file-test,78,50,Snapshot/approval test skeleton
+TDD/test scaffolding,rt add-mutant-killing-test,75,55,Skeleton linked to surviving mutant
+TDD/test scaffolding,rt add-test-helper,65,45,Add helper to test class
+TDD/test scaffolding,rt add-test-builder,78,65,Create builder for domain type
+TDD/test scaffolding,rt test-data-class,72,65,Create fixture/test data class
+TDD/red-green loop,rt red-check,94,35,Require specified test failure
+TDD/red-green loop,rt green-check,94,35,Require specified test pass
+TDD/red-green loop,rt assert-red,92,40,Expected failure reason
+TDD/red-green loop,rt assert-green,92,35,Expected pass
+TDD/red-green loop,rt assert-no-extra-failures,84,45,Detect unrelated failures
+TDD/red-green loop,rt test-run --changed,82,60,Run tests affected by diff
+TDD/red-green loop,rt test-run --symbol <symbol>,82,60,Run tests mapped to symbol
+TDD/red-green loop,rt test-result --json <trx/xml>,90,40,Normalize runner output
+TDD/red-green loop,rt tdd begin,70,35,Checkpoint/log start of loop
+TDD/red-green loop,rt tdd red,78,30,Wrapper over red-check
+TDD/red-green loop,rt tdd green,78,30,Wrapper over green-check
+TDD/red-green loop,rt tdd refactor,72,35,Wrapper over verify
+TDD/red-green loop,rt tdd status,78,40,Compact loop state
+TDD/red-green loop,rt tdd end,60,25,Close loop entry
+TDD/test refactor,rt rename-test,86,45,Rename method and display name
+TDD/test refactor,rt move-test,86,65,Move test method
+TDD/test refactor,rt group-tests,76,70,Move selected tests into nested class
+TDD/test refactor,rt split-test-class,76,70,Move tests into new class
+TDD/test refactor,rt rename-test-class,75,50,Rename class and file
+TDD/test refactor,rt fix-test-display-names,80,45,Align display names with convention
+TDD/test refactor,rt test-traits,62,35,Add/remove Trait attributes
+TDD/test refactor,rt test-fixture-extract,72,75,Extract setup/helper code
+TDD/test refactor,rt test-builder-extract,76,80,Extract object construction builder
+TDD/output stability,rt normalize-cli-output,90,40,Normalize volatile CLI output
+TDD/output stability,rt verify-cli-contract,92,55,Contract tests for help args outputs errors
+TDD/output stability,rt snapshot-update,62,40,Update approval snapshots
+Complexity analysis,rt complexity,90,45,Report complexity metrics
+Complexity analysis,rt complexity-hotspots,88,45,Rank high-complexity code
+Complexity analysis,rt complexity-delta,86,55,Before/after complexity comparison
+Complexity analysis,rt complexity-gate,84,45,CI threshold gate
+Complexity analysis,rt complexity-map,72,50,Complexity by namespace/project/folder
+Complexity metrics,cyclomatic complexity,82,35,Standard branch/path metric
+Complexity metrics,cognitive complexity,86,55,Readability complexity
+Complexity metrics,NPath complexity,72,55,Path explosion metric
+Complexity metrics,nesting depth,82,35,Detect deep nesting
+Complexity metrics,boolean expression complexity,74,45,Complex condition metric
+Complexity metrics,parameter count metric,68,25,Long signature smell
+Complexity metrics,constructor dependency count,72,30,Over-injection metric
+Complexity metrics,fan-in/fan-out,70,55,Coupling pressure
+Complexity metrics,depth of inheritance,55,35,Inheritance complexity
+Complexity metrics,generic arity,45,25,API complexity
+Complexity metrics,public surface count,65,30,API maintenance load
+Complexity maps,rt nesting-map <method>,86,45,Nested block line ranges
+Complexity maps,rt branch-map <method>,84,45,Branch point map
+Complexity maps,rt condition-map <method>,76,45,Boolean expression map
+Complexity maps,rt extraction-candidates <method>,96,75,Safest high-value complexity helper
+Complexity maps,rt side-effect-map <method>,88,70,Mutation/assignment/await map
+Complexity maps,rt variable-lifetime-map <method>,90,70,Local variable lifetime/capture map
+Complexity refactor,rt extract-conditional,86,60,Predicate extraction
+Complexity refactor,rt invert-if --as-guard,78,65,Guard clause refactor
+Complexity refactor,rt flatten-guards,72,75,Multiple guard transforms
+Complexity refactor,rt split-method,74,70,Repeated extraction workflow
+Complexity refactor,rt split-class-by-members,78,80,Move selected members to new type
+Performance analysis,rt perf-scan,88,50,Static performance smell scan
+Performance analysis,rt perf-hotspots,72,55,Rule-based expensive-looking methods
+Performance analysis,rt allocation-scan,86,55,Avoidable allocation detection
+Performance analysis,rt async-scan,90,55,Blocking waits async void missing cancellation
+Performance analysis,rt linq-scan,88,50,High-risk LINQ patterns
+Performance analysis,rt ef-scan,88,70,Common EF Core query issues
+Performance analysis,rt collection-scan,76,55,Lookup and collection inefficiencies
+Performance analysis,rt regex-scan,72,45,Regex construction/timeout issues
+Performance analysis,rt logging-perf-scan,72,50,Expensive logging patterns
+Performance analysis,rt serialization-scan,70,55,JsonSerializerOptions and serialization smells
+Performance analysis,rt span-candidate-scan,50,55,Report substring/span candidates
+Performance fixes,rt replace-count-with-any,88,40,Safe LINQ existence fix
+Performance fixes,rt replace-any-negation,86,40,Count equals zero to !Any
+Performance fixes,rt replace-linq-first,84,45,Where().FirstOrDefault to FirstOrDefault(predicate)
+Performance fixes,rt remove-redundant-tolist,74,65,Remove safe materialization
+Performance fixes,rt replace-linq,62,80,Convert LINQ chain to loop
+Performance fixes,rt cache-regex,76,60,Move regex to static readonly
+Performance fixes,rt add-regex-timeout,78,45,Add Regex timeout
+Performance fixes,rt cache-json-options,72,55,Cache serializer options
+Performance fixes,rt optimize-string-building,76,65,String concat loop to StringBuilder
+Performance fixes,rt replace-string-concat-loop,76,65,Explicit string concat loop replacement
+Performance fixes,rt add-logger-guard,66,60,Guard expensive log argument construction
+Performance fixes,rt replace-list-contains-with-hashset,72,75,Repeated list lookup to HashSet
+Performance fixes,rt add-cancellation-token,86,85,Thread CancellationToken through explicit chain
+Performance fixes,rt add-configure-await,55,50,Policy-dependent library transform
+Performance fixes,rt replace-reflection-call,45,90,Advanced reflection optimisation
+EF Core,rt ef-query-map,88,70,List query/materialization/tracking facts
+EF Core,rt ef-premature-materialization,86,65,Detect ToList before filtering/projection
+EF Core,rt ef-tracking-scan,76,60,Find no-tracking candidates
+EF Core,rt ef-include-scan,70,70,Suspicious Include chains
+EF Core,rt ef-savechanges-map,72,55,Transaction and SaveChanges map
+EF Core,rt add-as-no-tracking,76,60,Explicit AsNoTracking insertion
+EF Core,rt move-filter-before-materialize,78,85,Move filters before materialization
+Benchmark tooling,rt add-benchmark,78,55,BenchmarkDotNet skeleton
+Benchmark tooling,rt benchmark-map,84,50,Map benchmark results to symbols
+Benchmark tooling,rt benchmark-delta,82,55,Compare benchmark reports
+Benchmark tooling,rt perf-baseline,72,45,Store baseline
+Benchmark tooling,rt perf-gate,76,50,Fail on regression thresholds
+Runtime profiling,rt trace-map,82,75,Map dotnet-trace/speedscope to symbols
+Runtime profiling,rt gc-map,72,70,Summarise GC/allocation pressure
+Runtime profiling,rt flamegraph-symbols,76,70,Map flamegraph frames to source
+Runtime profiling,rt profile-delta,68,80,Compare runtime profiles
+rt self-performance,workspace cache,98,70,Avoid repeated MSBuild load
+rt self-performance,symbol index cache,94,70,Speed repeated symbol operations
+rt self-performance,incremental invalidation,90,80,Re-index only changed files
+rt self-performance,rt daemon start,96,85,Warm Roslyn workspace/server mode
+rt self-performance,rt daemon status,80,45,Report daemon/cache state
+rt self-performance,rt daemon stop,65,25,Stop warm server
+rt self-performance,rt warmup --solution App.sln,90,55,Preload/index solution
+rt self-performance,rt cache-status,72,35,Debug cache state
+rt self-performance,rt cache-clear,70,25,Clear stale cache
+rt self-performance,rt self-profile <command...>,90,45,Measure command phase timings
+rt self-performance,rt self-benchmark,72,55,Benchmark core operations
+rt self-performance,cancellation/timeouts,92,35,Prevent hung agent calls
+rt self-performance,quiet progress mode,88,30,Keep JSON clean
+Recipes/workflows,recipe static-to-di,94,80,High-value static service migration
+Recipes/workflows,recipe interface-segregation,92,85,Analyze split/narrow update verify
+Recipes/workflows,recipe timeprovider-migration,82,70,Replace direct time with TimeProvider
+Recipes/workflows,recipe logging-migration,80,70,Console logging to structured logging
+Recipes/workflows,recipe clean-architecture-boundaries,84,85,Detect and repair layer violations
+Recipes/workflows,recipe controller-thinning,78,85,Extract handlers/services from controllers
+Recipes/workflows,recipe command-shell-thinning,82,80,Move CLI logic into services/core
+Recipes/workflows,recipe test-modernisation,82,75,Assertion migration and test organisation
+Recipes/workflows,recipe dead-code-removal,78,75,Find risk-check safe-delete verify
+Recipes/workflows,recipe namespace-hygiene,90,65,Namespaces filenames one-type-per-file usings
+Commercial packaging,paid recipe packs,90,45,Best commercial boundary
+Commercial packaging,CI/PR guardrail mode,92,70,Validate AI-generated PRs
+Commercial packaging,AI-safe migration audit,90,35,Service offer for validation
+Commercial packaging,enterprise support/custom recipes,82,55,Natural paid model
+Commercial packaging,FOSS core,95,25,Adoption and trust strategy
+Commercial packaging,proprietary advanced recipes,78,55,Possible later monetisation
+JVM equivalent,OpenRewrite adapter,70,75,JVM recipe execution layer
+JVM equivalent,JDTLS adapter,68,80,Java symbol/navigation backend
+JVM equivalent,JVM MCP server,72,80,Agent interface for Java tooling
+JVM equivalent,Gradle/Maven loader,70,85,Required JVM project support
+JVM equivalent,Spring Boot migration recipes,76,85,High-value but separate product line

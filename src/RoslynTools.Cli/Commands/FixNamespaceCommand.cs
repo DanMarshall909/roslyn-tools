@@ -26,8 +26,8 @@ internal sealed class FixNamespaceCommand : IRtCommand
     public static Command Build()
     {
         var fileOpt = new Option<string>("--file", "Path to the .cs file to fix") { IsRequired = true };
-        var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
-        var dryRunOpt = new Option<bool>("--dry-run", "Preview without writing");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption();
+        var dryRunOpt = CommandOptionFactory.CreateDryRunOption();
 
         var cmd = new Command("fix-namespace", "Align a file's namespace declaration to its folder path");
         cmd.AddAlias("fns");

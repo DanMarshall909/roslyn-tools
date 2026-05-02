@@ -28,8 +28,8 @@ internal sealed class NarrowDependencyCommand : IRtCommand
         var interfaceArg = new Argument<string>("interface", "Source interface to extract members from");
         var membersOpt = new Option<string[]>("--members", "Comma-separated or repeated member names to extract") { IsRequired = true, AllowMultipleArgumentsPerToken = true };
         var newNameOpt = new Option<string>("--new-name", "Name for the new narrower interface") { IsRequired = true };
-        var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
-        var dryRunOpt = new Option<bool>("--dry-run", "Preview without writing");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption();
+        var dryRunOpt = CommandOptionFactory.CreateDryRunOption();
 
         var cmd = new Command("narrow-dependency", "Extract a member subset into a new interface and narrow consumers that only use that subset");
         cmd.AddAlias("nd");

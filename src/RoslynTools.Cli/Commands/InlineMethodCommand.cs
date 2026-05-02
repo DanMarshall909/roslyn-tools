@@ -26,8 +26,8 @@ internal sealed class InlineMethodCommand : IRtCommand
     {
         var typeOpt = new Option<string>("--type", "Class containing the method to inline") { IsRequired = true };
         var methodOpt = new Option<string>("--method", "Method name to inline at all call sites") { IsRequired = true };
-        var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
-        var dryRunOpt = new Option<bool>("--dry-run", "Preview without writing");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption();
+        var dryRunOpt = CommandOptionFactory.CreateDryRunOption();
 
         var cmd = new Command("inline-method", "Inline a method by replacing all call sites with the method body");
         cmd.AddAlias("im");

@@ -28,8 +28,8 @@ internal sealed class MakeStaticCommand : IRtCommand
     public static Command Build()
     {
         var methodOpt = new Option<string>("--method", "Method to convert: <Type>.<Method>") { IsRequired = true };
-        var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
-        var dryRunOpt = new Option<bool>("--dry-run", "Preview without writing");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption();
+        var dryRunOpt = CommandOptionFactory.CreateDryRunOption();
 
         var cmd = new Command("make-static", "Convert an instance method to static when it has no instance-state dependencies");
         cmd.AddAlias("mst");
