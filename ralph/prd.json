@@ -57,6 +57,12 @@
             "title": "MCP Server",
             "description": "Create RoslynTools.Mcp project exposing rt commands as native MCP tools for Claude Code and other MCP-compatible clients, with workspace loaded once per session for fast repeated calls.",
             "notes": "Architecture is ready: 40+ services with clean Solution→Result signatures, zero CLI coupling. Zero service-layer changes needed. Depends on EP-008 for contract stability."
+        },
+        {
+            "id": "EP-010",
+            "title": "Extract-Method Parameterization Enhancements (Phases 2-5)",
+            "description": "Extend rt refactor extract-method --replace-duplicates to handle duplicate code blocks differing in identifier names, control flow patterns, tuple returns, generic types, and out/ref parameters. Phase 1 (string literal parameterization) is complete; Phases 2-5 unlock ~55 additional duplicate groups across real codebases.",
+            "notes": "Phase 1 (literal parameterization) completed 2026-05-02. Roadmap: Phase 2 (identifiers, ~10-15 groups), Phase 3 (control flow, ~20-25 groups), Phase 4 (tuple returns, ~2-3 groups), Phase 5 (generic types, ~10-15 groups). Total potential: 85-90% of all duplicates extractable. See tasks/us-032-duplicate-types.md for detailed analysis and examples."
         }
     ],
     "userStories": [
@@ -1253,6 +1259,99 @@
             "passes": false,
             "epicId": "EP-009",
             "notes": "ASP.NET Core minimal API. Workspace loaded once at startup, kept alive as singleton. Endpoints: GET /api/capabilities (same shape as rt capabilities --json), POST /api/execute ({command, params, dryRun}), GET /api/status, GET / (embedded web UI). Web UI: vanilla JS, no NPM, embedded resource, auto-generates forms from RtOperationParameters, dry-run diff viewer with colored lines, Preview+Apply workflow. DEPENDS ON: US-043 (RtOperationParameters must be populated on describe/find-refs/rename for the form generation). Affected files: src/RoslynTools/Commands/ServeCommand.cs (new), src/RoslynTools/Services/ServeService.cs (new), embedded UI resources, tests/RoslynTools.Tests/ServeCommandTests.cs (new)."
+        },
+        {
+            "id": "US-045",
+            "epicId": "EP-010",
+            "title": "Extract-method: Parameterize identifier variations (Phase 2)",
+            "description": "As a developer with duplicates differing in variable/parameter/field names, I want rt refactor extract-method --replace-duplicates to detect identifier-only variations and parameterize them as additional method parameters so that I can consolidate ~10-15 additional duplicate groups beyond Phase 1 (string literals).",
+            "acceptanceCriteria": [
+                "Add IdentifierVariationDetector to analyze duplicates for position-wise identifier differences (e.g. var optA vs var optB, methodX vs methodY)",
+                "Extend MethodExtractorDuplicates to detect identifier positions and call sites the same way literal parameterization does (Phase 1-4 model)",
+                "Extend method signature generation to add parameters for identifier variations: void Method(string stringParam0, IOption optionParam, ...)",
+                "Implement IdentifierReplacementRewriter (similar to LiteralReplacementRewriter) to replace varying identifiers with parameter names in method body",
+                "Extend call-site rewriting to pass identifier values as arguments (e.g. Method(\"value\", optA, ...) vs Method(\"value\", optB, ...))",
+                "Add xUnit tests: duplicates differing in one identifier, multiple identifiers, mixed literal+identifier variations",
+                "Verify ~10-15 roslyn-tools duplicate groups now become extractable",
+                "dotnet build RoslynTools.slnx, dotnet test RoslynTools.Tests.csproj, dotnet format RoslynTools.slnx --verify-no-changes all pass"
+            ],
+            "priority": 45,
+            "passes": false,
+            "notes": "Builds on Phase 1 (literal parameterization, completed 2026-05-02). Expected to unlock identifier-only duplicate groups in roslyn-tools (currently 10-15 groups blocked). Follow the 4-phase model: detect variations → regenerate signature → rewrite body → update call sites. Conservative: v1 handles simple identifier references only; complex expressions (method calls, property access) can be a follow-up."
+        },
+        {
+            "id": "US-046",
+            "epicId": "EP-010",
+            "title": "Extract-method: Unwind control flow for extraction (Phase 3)",
+            "description": "As a developer with duplicates containing early returns/breaks/continues, I want rt refactor extract-method --replace-duplicates to detect and refactor control-flow patterns (guard clauses, early exits) so that I can consolidate ~20-25 additional duplicate groups that are currently blocked by control flow.",
+            "acceptanceCriteria": [
+                "Analyze the ~20-25 control-flow-blocked groups in tasks/us-032-duplicate-types.md and categorize by pattern (early return, break, continue, labeled break, ternary chains)",
+                "Design a ControlFlowUnwinder that detects return/break/continue statements and proposes refactoring strategies: (a) extract as nested method returning bool for guard pattern, (b) extract with modified return type, (c) extract to separate orchestrator method",
+                "Implement ControlFlowUnwinder and integrate with MethodExtractorDuplicates to offer multiple extraction modes when control flow is detected",
+                "For simple guard patterns (if-return), auto-unwrap and extract without user intervention; for complex patterns, log alternatives and let user choose",
+                "Extend call sites to handle the new return types when extraction produces a method returning bool for guard purposes",
+                "Add xUnit tests: early return (one duplicate), early return + other output (multiple patterns), break in loop (nested), ternary chains",
+                "Verify ~20-25 roslyn-tools groups now become extractable or are logged with proposed alternatives",
+                "dotnet build, dotnet test, dotnet format all pass"
+            ],
+            "priority": 46,
+            "passes": false,
+            "notes": "High complexity: requires analysis and refactoring strategy per duplicate type. Not fully automated; propose best strategy and allow user input. See tasks/us-032-duplicate-types.md groups 57-61, 65 for examples. Dogfood: run against roslyn-tools duplication groups and classify results."
+        },
+        {
+            "id": "US-047",
+            "epicId": "EP-010",
+            "title": "Extract-method: Support tuple returns (Phase 4)",
+            "description": "As a developer with duplicates that produce multiple output variables, I want rt refactor extract-method --replace-duplicates to detect multiple outputs and generate methods returning tuples so that I can consolidate ~2-3 additional duplicate groups.",
+            "acceptanceCriteria": [
+                "Extend MethodExtractor to detect when a code block assigns to 2+ local variables that are used after extraction (multi-output blocks)",
+                "Generate method signature with tuple return: (OutputType1, OutputType2) MethodName(...) or var (var1, var2) = MethodName(...) assignment at call sites",
+                "Use TupleTypeSyntax and TupleExpressionSyntax to build the tuple return and tuple deconstruction at call sites",
+                "Call sites rewritten to: var (var1, var2) = ExtractedMethod(...) instead of extracting separate statements",
+                "Add xUnit tests: 2-output block, 3-output block, output used in different ways (reassignment, parameter passing, field assignment)",
+                "Verify ~2-3 roslyn-tools groups (currently blocked by multiple outputs) now become extractable",
+                "dotnet build, dotnet test, dotnet format all pass"
+            ],
+            "priority": 47,
+            "passes": false,
+            "notes": "Medium complexity. Roslyn supports tuple syntax natively. See tasks/us-032-duplicate-types.md group 62 (TransformParametersService) for a concrete example. Test on a real codebase to verify tuple deconstruction syntax is correct."
+        },
+        {
+            "id": "US-048",
+            "epicId": "EP-010",
+            "title": "Extract-method: Support out/ref parameters (Phase 5)",
+            "description": "As a developer with methods modifying local variables via ref/out semantics, I want rt refactor extract-method --replace-duplicates to detect modified variables and generate methods with out/ref parameters so that I can consolidate ~5-10 additional duplicate groups.",
+            "acceptanceCriteria": [
+                "Extend MethodExtractor dataflow analysis to detect when a code block modifies a variable that is used after extraction (ref parameter pattern)",
+                "Generate method signature with out parameters: void MethodName(out OutputType result, ...) for modified locals",
+                "Extend call sites to pass variables by ref: MethodName(out result, ...)",
+                "Detect preference: out vs ref (ref is safer for already-initialized vars; out is required for uninitialized)",
+                "Add xUnit tests: single out parameter, multiple ref parameters, mixed in+ref+out parameters",
+                "Verify ~5-10 roslyn-tools groups now become extractable",
+                "dotnet build, dotnet test, dotnet format all pass"
+            ],
+            "priority": 48,
+            "passes": false,
+            "notes": "Medium complexity. Build on MethodExtractor's existing dataflow analysis (used for return-value detection). Conservative: v1 handles simple value types and reference types; mutable struct semantics edge cases can be a follow-up."
+        },
+        {
+            "id": "US-049",
+            "epicId": "EP-010",
+            "title": "Extract-method: Support generic type parameterization (Phase 6)",
+            "description": "As a developer with duplicates differing only in generic type arguments (List<T> vs Dictionary<T>, IEnumerable<T> vs IAsyncEnumerable<T>), I want rt refactor extract-method --replace-duplicates to detect type-parameter variations and generate generic methods so that I can consolidate ~10-15 additional duplicate groups.",
+            "acceptanceCriteria": [
+                "Analyze the ~10-15 type-parameter-blocked groups in tasks/us-032-duplicate-types.md and identify generic patterns (List<T> vs Dict<T>, sync vs async collections, different generic constraints)",
+                "Design GenericParameterDetector to identify type-positions that vary across duplicates and propose generic type parameter names (T, TKey, TValue, etc.)",
+                "Generate generic method signature: TResult MethodName<T, TKey>(List<T> input, ...) where constraints match the extracted pattern",
+                "Implement constraint inference: detect use of generic methods/properties and infer necessary where clauses (T : IEnumerable, etc.)",
+                "Extend call sites to pass type arguments: MethodName<int>(intList, ...) or MethodName<string, object>(dict, ...)",
+                "Add xUnit tests: single type parameter, multiple type parameters with constraints, nested generics",
+                "Verify ~10-15 roslyn-tools groups now become extractable",
+                "dotnet build, dotnet test, dotnet format all pass"
+            ],
+            "priority": 49,
+            "passes": false,
+            "notes": "High complexity: constraint inference and type-parameter-position detection require careful semantic analysis. Build on Phase 1-4 infrastructure. Dogfood: test against real codebases with collection/LINQ duplicate groups."
         }
     ]
 }
