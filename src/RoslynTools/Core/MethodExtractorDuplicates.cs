@@ -32,7 +32,7 @@ internal static class MethodExtractorDuplicates
             newMethodEndLine,
             scope: null);
 
-        return await ApplyMatchesAsync(extractedSln, matches, newMethodName, orderedParameters, returnVars);
+        return await ApplyMatchesAsync(extractedSln, filePath, newMethodStartLine, newMethodEndLine, matches, newMethodName, orderedParameters, returnVars);
     }
 
     /// <summary>
@@ -138,22 +138,25 @@ internal static class MethodExtractorDuplicates
     /// </summary>
     internal static async Task<Solution> ApplyMatchesAsync(
         Solution solution,
+        string filePath,
+        int sourceStartLine,
+        int sourceEndLine,
         IReadOnlyList<PatternMatch> matches,
         string newMethodName,
         IReadOnlyList<ISymbol> orderedParameters,
         IReadOnlyList<ISymbol> returnVars)
     {
         // Phase 1: Analyze literal variations
-        var (literalsByMatch, varyingPositions) = await AnalyzeLiteralVariationsAsync(solution, matches);
+        var (literalsByMatch, varyingPositions) = await AnalyzeLiteralVariationsAsync(solution, filePath, sourceStartLine, sourceEndLine, matches);
 
         // If there are varying literals, regenerate method signature and body
+        // Note: PatternMatcher excludes the source file, so matches only contains cross-file duplicates
         var currentSln = solution;
-        if (varyingPositions.Count > 0 && matches.Count > 1)
+        if (varyingPositions.Count > 0 && matches.Count > 0)
         {
-            var firstMatch = matches[0];
             currentSln = await RegenerateForParameterizedLiteralsAsync(
                 currentSln,
-                firstMatch.File,
+                filePath,
                 newMethodName,
                 literalsByMatch,
                 varyingPositions);
@@ -251,8 +254,10 @@ internal static class MethodExtractorDuplicates
             }
 
             var matchIndex = matches.ToList().IndexOf(match);
-            var matchLiterals = matchIndex >= 0 && matchIndex < literalsByMatch.Count
-                ? literalsByMatch[matchIndex]
+            // literalsByMatch[0] is source file, literalsByMatch[1..] are cross-file matches
+            var matchLiteralIndex = matchIndex + 1;
+            var matchLiterals = matchLiteralIndex >= 0 && matchLiteralIndex < literalsByMatch.Count
+                ? literalsByMatch[matchLiteralIndex]
                 : new List<string>();
 
             var (success, updatedSln, skipReason) = await TryReplaceMatchAsync(
@@ -443,19 +448,34 @@ internal static class MethodExtractorDuplicates
     /// Returns (literalsByMatch, varyingPositions).
     /// </summary>
     private static async Task<(List<List<string>>, HashSet<int>)>
-        AnalyzeLiteralVariationsAsync(Solution solution, IReadOnlyList<PatternMatch> matches)
+        AnalyzeLiteralVariationsAsync(Solution solution, string sourceFilePath, int sourceStartLine, int sourceEndLine, IReadOnlyList<PatternMatch> matches)
     {
-        if (matches.Count == 0)
-            return (new(), new());
+        // Extract source file's literals from the extracted method range
+        var sourceAbsPath = Path.GetFullPath(sourceFilePath);
+        var sourceDoc = solution.Projects
+            .SelectMany(p => p.Documents)
+            .FirstOrDefault(d => string.Equals(d.FilePath, sourceAbsPath, StringComparison.OrdinalIgnoreCase));
 
-        var literalsByMatch = new List<List<string>>();
+        var patternLiterals = new List<string>();
+        if (sourceDoc != null)
+        {
+            var sourceRoot = await sourceDoc.GetSyntaxRootAsync();
+            if (sourceRoot != null)
+            {
+                var sourceStatements = SelectStatementsInRange(sourceRoot, sourceStartLine, sourceEndLine);
+                patternLiterals = ExtractOrderedLiterals(sourceStatements);
+            }
+        }
+
+        var literalsByMatch = new List<List<string>> { patternLiterals };
+
+        // Add literals from each cross-file match
         foreach (var match in matches)
         {
             var orderedLiterals = await ExtractLiteralsFromMatchAsync(solution, match);
             literalsByMatch.Add(orderedLiterals);
         }
 
-        var patternLiterals = literalsByMatch.Count > 0 ? literalsByMatch[0] : new();
         var varyingPositions = new HashSet<int>();
 
         for (int pos = 0; pos < patternLiterals.Count; pos++)

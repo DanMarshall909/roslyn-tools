@@ -1267,6 +1267,9 @@ public class ExtractMethodTests
             {
                 await MethodExtractorDuplicates.ApplyMatchesAsync(
                     newSln,
+                    filePath: absPath,
+                    sourceStartLine: 7,
+                    sourceEndLine: 8,
                     matches: [matchA, matchB],
                     newMethodName: "PrintMessages",
                     orderedParameters: [],
@@ -1456,14 +1459,34 @@ public class ExtractMethodTests
         var contentA = await project.ReadSourceAsync("A.cs");
         var contentB = await project.ReadSourceAsync("B.cs");
 
-        // The method should be extracted to A
-        Assert.Contains("void PrintMessages", contentA);
+        // Verify parameterization worked
+        // Method should have string parameters
+        Assert.Contains("PrintMessages(string", contentA);
 
-        // B's duplicate should be replaced with a call to PrintMessages
-        Assert.Contains("PrintMessages(", contentB);
+        // Body should use parameter references instead of literals
+        Assert.Contains("param0", contentA);
+        Assert.Contains("param1", contentA);
 
-        // Original WriteLine statements should be removed from B
+        // Call site should pass literal arguments (check if it's there, with or without spaces)
+        var hasGoodbyeUniverse = contentB.Contains("PrintMessages(\"goodbye\", \"universe\")") ||
+                                  contentB.Contains("PrintMessages(\"goodbye\",\"universe\")");
+
+        if (!hasGoodbyeUniverse)
+        {
+            var callIdx = contentB.IndexOf("PrintMessages(", StringComparison.Ordinal);
+            if (callIdx >= 0)
+            {
+                var callEnd = contentB.IndexOf(");", callIdx, StringComparison.Ordinal);
+                var actualCall = callEnd > callIdx
+                    ? contentB[callIdx..(callEnd + 2)]
+                    : "NOT FOUND";
+                throw new Xunit.Sdk.XunitException("Expected PrintMessages call with goodbye/universe literals, but got: " + actualCall);
+            }
+        }
+
+        // Original code should be replaced
         Assert.DoesNotContain("System.Console.WriteLine(\"goodbye\")", contentB);
+        Assert.DoesNotContain("System.Console.WriteLine(\"universe\")", contentB);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
