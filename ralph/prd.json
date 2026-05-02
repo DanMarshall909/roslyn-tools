@@ -1337,8 +1337,10 @@
                 "dotnet build, dotnet test, dotnet format all pass"
             ],
             "priority": 48,
-            "passes": false,
-            "notes": "Medium complexity. Build on MethodExtractor's existing dataflow analysis (used for return-value detection). Conservative: v1 handles simple value types and reference types; mutable struct semantics edge cases can be a follow-up."
+            "passes": true,
+            "notes": "Medium complexity. Build on MethodExtractor's existing dataflow analysis (used for return-value detection). Conservative: v1 handles simple value types and reference types; mutable struct semantics edge cases can be a follow-up.",
+            "resolution": "out/ref parameter support: MethodExtractor.ValidateDataFlow reclassified to distinguish out (write-only outer locals) from ref (read-then-written outer locals). Call sites emit ref/out keywords. --replace-duplicates threads params through duplicate sites; 5-10 groups now extractable.",
+            "resolvedAt": "2026-05-03"
         },
         {
             "id": "US-049",
