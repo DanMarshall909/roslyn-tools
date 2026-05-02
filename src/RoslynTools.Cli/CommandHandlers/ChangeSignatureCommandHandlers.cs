@@ -24,12 +24,12 @@ internal static class ChangeSignatureCommandHandlers
                     newName);
 
                 await SolutionWriter.ApplyChangesAsync(loadedSolution, updatedSolution, dryRun);
-                return 0;
+                return CommandHandlerConstants.SuccessExitCode;
             }
             catch (InvalidOperationException ex)
             {
                 RtLog.Error("Error: {Message}", ex.Message);
-                return 1;
+                return CommandHandlerConstants.ErrorExitCode;
             }
         }
     }
@@ -51,12 +51,12 @@ internal static class ChangeSignatureCommandHandlers
                     newOrder);
 
                 await SolutionWriter.ApplyChangesAsync(loadedSolution, updatedSolution, dryRun);
-                return 0;
+                return CommandHandlerConstants.SuccessExitCode;
             }
             catch (InvalidOperationException ex)
             {
                 RtLog.Error("Error: {Message}", ex.Message);
-                return 1;
+                return CommandHandlerConstants.ErrorExitCode;
             }
         }
     }
@@ -80,12 +80,12 @@ internal static class ChangeSignatureCommandHandlers
                     after);
 
                 await SolutionWriter.ApplyChangesAsync(loadedSolution, updatedSolution, dryRun);
-                return 0;
+                return CommandHandlerConstants.SuccessExitCode;
             }
             catch (InvalidOperationException ex)
             {
                 RtLog.Error("Error: {Message}", ex.Message);
-                return 1;
+                return CommandHandlerConstants.ErrorExitCode;
             }
         }
     }
@@ -109,12 +109,12 @@ internal static class ChangeSignatureCommandHandlers
                     force);
 
                 await SolutionWriter.ApplyChangesAsync(loadedSolution, updatedSolution, dryRun);
-                return 0;
+                return CommandHandlerConstants.SuccessExitCode;
             }
             catch (InvalidOperationException ex)
             {
                 RtLog.Error("Error: {Message}", ex.Message);
-                return 1;
+                return CommandHandlerConstants.ErrorExitCode;
             }
         }
     }
