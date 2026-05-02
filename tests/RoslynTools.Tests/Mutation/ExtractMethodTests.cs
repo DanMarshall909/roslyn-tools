@@ -1693,6 +1693,160 @@ public class ExtractMethodTests
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    //  US-048: out/ref parameters — single out parameter
+    //  Variable declared BEFORE the range, only WRITTEN inside, READ after → out
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Generates_out_parameter_for_uninitialized_outer_local_written_inside()
+    {
+        // `result` is declared before the selection but written (not read) inside,
+        // then read after → should become an `out` parameter, not throw.
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Calculator.cs", """
+            namespace TestApp;
+
+            public class Calculator
+            {
+                public int Compute(int x)
+                {
+                    int result;
+                    result = x * 2;
+                    return result;
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            // Extract line 8: `result = x * 2;` — writes outer local `result`
+            var newSln = await MethodExtractor.ExtractAsync(
+                sln,
+                FilePath(project, "Calculator.cs"),
+                "ComputeResult",
+                startLine: 8,
+                endLine: 8);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+        }
+
+        var content = await project.ReadSourceAsync("Calculator.cs");
+
+        // Extracted method must have an `out` parameter for `result`
+        Assert.Contains("out int result", content);
+        // Call site must pass `out result`
+        Assert.Contains("out result", content);
+        // The extracted method body must assign the out param
+        Assert.Contains("result = x * 2;", GetMethodBody(content, "ComputeResult"));
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  US-048: out/ref parameters — multiple ref parameters
+    //  Variables declared BEFORE the range, READ then WRITTEN inside → ref
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Generates_ref_parameters_for_outer_locals_read_and_written_inside()
+    {
+        // `total` and `count` are declared before the range, READ inside
+        // (used in the computation) AND WRITTEN inside (reassigned) → ref parameters.
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Accumulator.cs", """
+            namespace TestApp;
+
+            public class Accumulator
+            {
+                public void Accumulate(int x, int y)
+                {
+                    int total = 0;
+                    int count = 0;
+                    total = total + x;
+                    count = count + 1;
+                    total = total + y;
+                    count = count + 1;
+                    System.Console.WriteLine(total + count);
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            // Extract lines 9-12: reads and writes both `total` and `count`
+            var newSln = await MethodExtractor.ExtractAsync(
+                sln,
+                FilePath(project, "Accumulator.cs"),
+                "AddBoth",
+                startLine: 9,
+                endLine: 12);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+        }
+
+        var content = await project.ReadSourceAsync("Accumulator.cs");
+
+        // Both outer locals must become ref parameters
+        Assert.Contains("ref int total", content);
+        Assert.Contains("ref int count", content);
+        // Call site must pass ref arguments
+        Assert.Contains("ref total", content);
+        Assert.Contains("ref count", content);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  US-048: out/ref parameters — mixed in + ref + out parameters
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Generates_mixed_in_ref_and_out_parameters()
+    {
+        // `x`     — method parameter flowing in  → normal `in` parameter
+        // `total` — declared before, read+written → ref parameter
+        // `label` — declared before, only written → out parameter
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Processor.cs", """
+            namespace TestApp;
+
+            public class Processor
+            {
+                public void Process(int x)
+                {
+                    int total = 5;
+                    string label;
+                    total = total + x;
+                    label = "value:" + x.ToString();
+                    System.Console.WriteLine(total);
+                    System.Console.WriteLine(label);
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            // Extract lines 9-10: uses `x` (in-param), reads+writes `total` (ref), writes `label` (out)
+            var newSln = await MethodExtractor.ExtractAsync(
+                sln,
+                FilePath(project, "Processor.cs"),
+                "UpdateState",
+                startLine: 9,
+                endLine: 10);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+        }
+
+        var content = await project.ReadSourceAsync("Processor.cs");
+
+        // Normal in-parameter for `x`
+        Assert.Contains("int x", content);
+        // ref for `total` (read before written)
+        Assert.Contains("ref int total", content);
+        // out for `label` (only written, not read first)
+        Assert.Contains("out string label", content);
+        // Call site wiring
+        Assert.Contains("ref total", content);
+        Assert.Contains("out label", content);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
     //  Helpers
     // ──────────────────────────────────────────────────────────────────────────
 
