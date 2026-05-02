@@ -1490,6 +1490,209 @@ public class ExtractMethodTests
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    //  US-047: Tuple returns — 3-output block
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Returns_a_three_element_tuple()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Calculator.cs", """
+            namespace TestApp;
+
+            public class Calculator
+            {
+                public void GetAll(int x)
+                {
+                    var a = x + 1;
+                    var b = x * 2;
+                    var c = x - 1;
+                    System.Console.WriteLine(a);
+                    System.Console.WriteLine(b);
+                    System.Console.WriteLine(c);
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            // Extract lines 7-9: a, b, c computed — all used after
+            var newSln = await MethodExtractor.ExtractAsync(
+                sln,
+                FilePath(project, "Calculator.cs"),
+                "ComputeAll",
+                startLine: 7,
+                endLine: 9);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+        }
+
+        var content = await project.ReadSourceAsync("Calculator.cs");
+        // Three-element tuple return type
+        Assert.Contains("(int", content);
+        Assert.Contains("ComputeAll(x)", content);
+        // Deconstruction at call site
+        Assert.Contains("var (a, b, c) = ComputeAll(x);", content);
+        // Extracted method returns the tuple
+        Assert.Contains("return (a, b, c);", GetMethodBody(content, "ComputeAll"));
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  US-047: Tuple returns — output used via reassignment after extraction
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Returns_tuple_when_output_is_later_reassigned()
+    {
+        // The variable `result` is declared inside the extracted range, but later
+        // reassigned. Reassignment counts as "used after" so it must flow out as
+        // a return value (the reassignment is a write, but the variable's lifetime
+        // starts inside the block and continues outside).
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Service.cs", """
+            namespace TestApp;
+
+            public class Service
+            {
+                public int Process(int x, int y)
+                {
+                    var sum = x + y;
+                    var product = x * y;
+                    sum = sum + product;
+                    return sum;
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            // Extract lines 7-8: sum and product declared; both referenced on line 9
+            var newSln = await MethodExtractor.ExtractAsync(
+                sln,
+                FilePath(project, "Service.cs"),
+                "ComputeParts",
+                startLine: 7,
+                endLine: 8);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+        }
+
+        var content = await project.ReadSourceAsync("Service.cs");
+        // Both outputs must flow out as tuple
+        Assert.Contains("var (sum, product) = ComputeParts(x, y);", content);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  US-047: Tuple returns — output passed as argument after extraction
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Returns_tuple_when_output_is_passed_as_argument()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Service.cs", """
+            namespace TestApp;
+
+            public class Service
+            {
+                public void Run(int n)
+                {
+                    var doubled = n * 2;
+                    var tripled = n * 3;
+                    System.Console.WriteLine(doubled);
+                    System.Console.WriteLine(tripled);
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            // Extract lines 7-8: doubled and tripled used as arguments on lines 9-10
+            var newSln = await MethodExtractor.ExtractAsync(
+                sln,
+                FilePath(project, "Service.cs"),
+                "ComputeMultiples",
+                startLine: 7,
+                endLine: 8);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+        }
+
+        var content = await project.ReadSourceAsync("Service.cs");
+        // Tuple deconstruction at call site
+        Assert.Contains("var (doubled, tripled) = ComputeMultiples(n);", content);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  US-047: Tuple returns + --replace-duplicates
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Replaces_tuple_return_duplicates_with_deconstruction_call()
+    {
+        // When a block has 2 outputs and --replace-duplicates is set, duplicate sites
+        // must be rewritten to `var (v1, v2) = Method(...)` — not as a bare call
+        // or single-variable assignment.
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("A.cs", """
+            namespace TestApp;
+
+            public class A
+            {
+                public void Source(int x)
+                {
+                    var lo = x - 1;
+                    var hi = x + 1;
+                    System.Console.WriteLine(lo);
+                    System.Console.WriteLine(hi);
+                }
+            }
+            """);
+        project.AddSource("B.cs", """
+            namespace TestApp;
+
+            public class B
+            {
+                public void Source(int n)
+                {
+                    var lo = n - 1;
+                    var hi = n + 1;
+                    System.Console.WriteLine(lo);
+                    System.Console.WriteLine(hi);
+                }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var newSln = await MethodExtractor.ExtractAsync(
+                sln,
+                FilePath(project, "A.cs"),
+                "ComputeBounds",
+                startLine: 7,
+                endLine: 8,
+                replaceDuplicates: true);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+        }
+
+        var contentA = await project.ReadSourceAsync("A.cs");
+        var contentB = await project.ReadSourceAsync("B.cs");
+
+        // A: extracted method with tuple return
+        Assert.Contains("private", contentA);
+        Assert.Contains("ComputeBounds(", contentA);
+        // A call site uses deconstruction
+        Assert.Contains("var (lo, hi) = ComputeBounds(", contentA);
+
+        // B: duplicate replaced with tuple deconstruction
+        Assert.Contains("var (lo, hi) = ComputeBounds(", contentB);
+        // Original statements removed from B
+        Assert.DoesNotContain("var lo = n - 1;", contentB);
+        Assert.DoesNotContain("var hi = n + 1;", contentB);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
     //  Helpers
     // ──────────────────────────────────────────────────────────────────────────
 
