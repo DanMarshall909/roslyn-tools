@@ -1838,6 +1838,66 @@ public class FindDuplicatesTests
         }
     }
 
+    // ── US-047: Multi-output blocks are likely_extractable (tuple returns supported) ─
+
+    [Fact]
+    public async Task Multi_output_block_is_likely_extractable_not_discovery_only()
+    {
+        // MethodExtractor supports tuple returns for 2+ outward variables.
+        // The single-output check must return "warn" (not "fail") so groups
+        // with multi-output blocks surface as likely_extractable, not discovery_only.
+        //
+        // Design: the ONLY duplicate across the two methods is the 2-statement compute
+        // block. The surrounding code is intentionally different so the wider window is
+        // not itself a duplicate — the 2-stmt group is not suppressed.
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("A.cs", """
+            namespace TestApp;
+
+            public class ServiceA
+            {
+                public void ProcessA(int x)
+                {
+                    var lo = x - 1;
+                    var hi = x + 1;
+                    System.Console.WriteLine(lo + hi);
+                }
+
+                public void ProcessB(int n)
+                {
+                    var lo = n - 1;
+                    var hi = n + 1;
+                    Consume(lo, hi);
+                }
+
+                private static void Consume(int a, int b) { }
+            }
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions(MinStatements: 2));
+
+            // The 2-statement compute block (var lo / var hi) is the only duplicate;
+            // the callers differ so no larger window is a duplicate, so the 2-stmt group
+            // survives suppression.
+            Assert.NotEmpty(groups);
+            var multiOutputGroup = groups[0];
+
+            // Verify this is indeed the compute block
+            Assert.Equal(2, multiOutputGroup.StatementCount);
+
+            // The single-output check must be warn (tuple-extractable), not fail
+            var soCheck = multiOutputGroup.Checks?.FirstOrDefault(c => c.Name == "single-output");
+            Assert.NotNull(soCheck);
+            Assert.Equal("warn", soCheck!.Status);
+
+            // Overall extractability must not be discovery_only
+            Assert.NotEqual("discovery_only", multiOutputGroup.Extractability);
+        }
+    }
+
     private static string CaptureText(IReadOnlyList<DuplicateGroup> groups)
     {
         var sw = new System.IO.StringWriter();
