@@ -5,6 +5,9 @@ namespace RoslynTools.Tests.Mutation;
 /// <summary>
 /// Integration tests for US-045 Phase 2: identifier-variation parameterization.
 /// Verify that --replace-duplicates detects and parameterizes identifier-only differences.
+///
+/// v1 scope: bare identifier references only (e.g. passed as arguments).
+/// Member access on varying identifiers (e.g. _svc.Method()) is Phase 3+.
 /// </summary>
 public class IdentifierParameterizationTests
 {
@@ -12,15 +15,16 @@ public class IdentifierParameterizationTests
         => Path.Combine(project.ProjectDir, relativePath);
 
     // ──────────────────────────────────────────────────────────────────────────
-    //  AC2/AC3: Single varying identifier → new parameter added
+    //  AC2/AC3: Single varying identifier -> new parameter added
+    //  Pattern: bare identifier passed as argument
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
     public async Task Parameterizes_single_varying_identifier()
     {
-        // File A extracts: uses _serviceA
-        // File B's duplicate uses _serviceB
-        // Expected: extracted method gets parameter for _serviceA/_serviceB
+        // File A extracts: uses _serviceA as bare argument
+        // File B's duplicate uses _serviceB as bare argument
+        // Expected: extracted method gets a parameter for the varying identifier
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
             namespace TestApp;
@@ -31,8 +35,8 @@ public class IdentifierParameterizationTests
 
                 public void Process()
                 {
-                    var result = _serviceA.Length;
-                    System.Console.WriteLine(result);
+                    System.Console.WriteLine(_serviceA);
+                    System.Console.WriteLine("done");
                 }
             }
             """);
@@ -45,8 +49,8 @@ public class IdentifierParameterizationTests
 
                 public void Process()
                 {
-                    var result = _serviceB.Length;
-                    System.Console.WriteLine(result);
+                    System.Console.WriteLine(_serviceB);
+                    System.Console.WriteLine("done");
                 }
             }
             """);
@@ -67,23 +71,23 @@ public class IdentifierParameterizationTests
         var contentA = await project.ReadSourceAsync("A.cs");
         var contentB = await project.ReadSourceAsync("B.cs");
 
-        // Method has a parameter for the varying identifier
+        // Extracted method exists in A
         Assert.Contains("DoWork(", contentA);
-        // B should have a call with _serviceB passed as the argument
+        // B's call site passes _serviceB as the argument
         Assert.Contains("DoWork(", contentB);
         Assert.Contains("_serviceB", contentB);
         // B's original statements replaced
-        Assert.DoesNotContain("var result = _serviceB.Length;", contentB);
+        Assert.DoesNotContain("System.Console.WriteLine(_serviceB)", contentB);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    //  AC3: Multiple varying identifiers → multiple parameters
+    //  AC3: Multiple varying identifiers -> multiple parameters
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
     public async Task Parameterizes_multiple_varying_identifiers()
     {
-        // A uses _readerA and _writerA; B uses _readerB and _writerB
+        // A uses _readerA and _writerA as bare arguments; B uses _readerB and _writerB
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
             namespace TestApp;
@@ -95,9 +99,9 @@ public class IdentifierParameterizationTests
 
                 public void Execute()
                 {
-                    var r = _readerA.Length;
-                    var w = _writerA.Length;
-                    System.Console.WriteLine(r + w);
+                    System.Console.WriteLine(_readerA);
+                    System.Console.WriteLine(_writerA);
+                    System.Console.WriteLine("ok");
                 }
             }
             """);
@@ -111,9 +115,9 @@ public class IdentifierParameterizationTests
 
                 public void Execute()
                 {
-                    var r = _readerB.Length;
-                    var w = _writerB.Length;
-                    System.Console.WriteLine(r + w);
+                    System.Console.WriteLine(_readerB);
+                    System.Console.WriteLine(_writerB);
+                    System.Console.WriteLine("ok");
                 }
             }
             """);
@@ -134,25 +138,25 @@ public class IdentifierParameterizationTests
         var contentA = await project.ReadSourceAsync("A.cs");
         var contentB = await project.ReadSourceAsync("B.cs");
 
-        // Method signature should have parameters for both varying identifiers
+        // Extracted method exists in A
         Assert.Contains("RunPipeline(", contentA);
-        // B's call should pass B's identifiers
+        // B's call site passes B's identifiers
         Assert.Contains("_readerB", contentB);
         Assert.Contains("_writerB", contentB);
         // Original statements removed from B
-        Assert.DoesNotContain("var r = _readerB.Length;", contentB);
+        Assert.DoesNotContain("System.Console.WriteLine(_readerB)", contentB);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    //  AC4: Mixed literal + identifier variations → both parameterized
+    //  AC4: Mixed literal + identifier variations -> both parameterized
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
     public async Task Parameterizes_mixed_literal_and_identifier_variations()
     {
-        // A: Console.WriteLine("hello"); Console.WriteLine(_fieldA.Length.ToString());
-        // B: Console.WriteLine("goodbye"); Console.WriteLine(_fieldB.Length.ToString());
-        // Both string literal AND identifier differ → both parameterized
+        // A: Console.WriteLine("hello"); Console.WriteLine(_fieldA)
+        // B: Console.WriteLine("goodbye"); Console.WriteLine(_fieldB)
+        // Both the string literal AND the bare identifier differ -> both parameterized
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
             namespace TestApp;
@@ -199,13 +203,13 @@ public class IdentifierParameterizationTests
         var contentA = await project.ReadSourceAsync("A.cs");
         var contentB = await project.ReadSourceAsync("B.cs");
 
-        // Method should have parameters
+        // Extracted method exists in A with parameters
         Assert.Contains("DoPrint(", contentA);
-        // B's call uses B's identifier and the different literal
+        // B's call site passes B's identifier and the different literal
         Assert.Contains("DoPrint(", contentB);
         Assert.Contains("_fieldB", contentB);
         Assert.Contains("goodbye", contentB);
-        // Original statements removed
+        // Original statements removed from B
         Assert.DoesNotContain("System.Console.WriteLine(\"goodbye\")", contentB);
         Assert.DoesNotContain("System.Console.WriteLine(_fieldB)", contentB);
     }

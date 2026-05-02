@@ -107,8 +107,16 @@ internal static class IdentifierVariationDetector
                 or "char" or "uint" or "ulong" or "ushort" or "sbyte" or "nint" or "nuint")
                 return;
 
-            // Skip names that are method call targets (already covered as method arguments)
-            // — include them, the substitution map will tell us if they're varying
+            // v1 scope: skip identifiers that are the expression side of member access
+            // (e.g. _service in _service.Method() or _field.Prop). These require type
+            // inference to parameterize correctly; complex expressions are Phase 3+.
+            if (node.Parent is MemberAccessExpressionSyntax ma && ma.Expression == node)
+                return;
+
+            // Skip identifiers that are direct invocation targets (e.g. Method())
+            if (node.Parent is InvocationExpressionSyntax inv && inv.Expression == node)
+                return;
+
             Identifiers.Add(name);
         }
     }
