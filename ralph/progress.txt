@@ -1,12 +1,12 @@
 roslyn-tools
 Branch: ralph/dogfood-gaps-2026-05-01
 
-Current Status: 0/26 stories complete (0%)
+Current Status: 6/42 stories complete (14%)
 
-EP-001 — Bugs and quality fixes in existing commands (0/3)
-[ ] US-001 Fix string.Format() decomposition in console-logging conversion
-[ ] US-002 Fix silent failure in rt extract-method on conditional expression blocks
-[ ] US-003 Fix line-range drift in MethodExtractorDuplicates.ReplaceDuplicatesAsync
+EP-001 — Bugs and quality fixes in existing commands (3/3)
+[x] US-001 Fix string.Format() decomposition in console-logging conversion
+[x] US-002 Fix silent failure in rt extract-method on conditional expression blocks
+[x] US-003 Fix line-range drift in MethodExtractorDuplicates.ReplaceDuplicatesAsync
 
 EP-002 — Logging migration polish (0/1)
 [ ] US-004 Migrate MoveService WARNING messages to RtLog.Warning
@@ -34,9 +34,31 @@ EP-005 — Tooling and developer experience (0/4)
 [ ] US-008 Add rt dump-help --json --normalize for stable snapshots
 [ ] US-009 Add rt add-test --cli mode for CLI-invocation test scaffolding
 
-EP-006 — Static-to-instance migration (0/5)
-[ ] US-022 Set up DI host in RoslynTools.Cli
+EP-006 — Static-to-instance migration (2/5)
+[x] US-022 Set up DI host in RoslynTools.Cli
 [ ] US-023 Add rt refactor destatic-class command
-[ ] US-024 Add rt analyze static-class-inventory command
+[x] US-024 Add rt analyze static-class-inventory command
 [ ] US-025 Pilot static-to-instance migration on 3 leaf services
 [ ] US-026 Sweep migration of remaining static services in batches
+
+EP-007 — Code Quality Refactor (May 2026) (1/9)
+[ ] US-027 Break circular dependency between Core and Services namespaces
+[ ] US-028 Extract duplicate Option declarations across 12 Command.Build() methods
+[ ] US-029 Extract remaining 67 duplicate code groups using rt extract-method
+[ ] US-030 Refactor ChangeSignatureService (733 lines) into smaller, single-responsibility classes
+[ ] US-031 Refactor NarrowDependencyService (540 lines) to extract interface analysis from rewriting
+[ ] US-032 Thin ChangeSignatureCommand.Build() from 191 lines to enforce thin-shell rule
+[ ] US-033 Thin App.RunAsync (95 lines) and DumpHelpCommand.RenderMarkdown (97 lines)
+[ ] US-034 Review and remove 120+ unused symbols across codebase
+[x] US-035 Add rt refactor move-method command to relocate static methods between classes
+
+EP-008 — Agent Readiness and Contract Hardening (0/7)
+[ ] US-036 Add rt capabilities command that emits machine-readable command registry as JSON
+[ ] US-037 Add RtExitCodes constants and harden App.RunAsync to eliminate unhandled stack traces
+[ ] US-038 Add rt verify command that wraps dotnet build and dotnet test and emits structured JSON
+[ ] US-039 Add rt test-outline command that lists test classes, methods, and attributes via Roslyn
+[ ] US-040 Add rt find-tests command that finds tests referencing a production symbol
+[ ] US-041 Add rt fix-file-name command that renames a .cs file to match its primary type
+[ ] US-042 Output contract audit: migrate commands with JsonOutput:true to RtSerializer.Write pattern
+
+EP-009 — MCP Server (0/0)

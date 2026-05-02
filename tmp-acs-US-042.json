@@ -1,0 +1,20 @@
+[
+  "An audit document or commit message lists every command where RtCommandInfo.JsonOutput == true OR SupportedFormats contains OutputFormat.Json",
+  "For each audited command, the handler writes output exclusively through RtSerializer.Write(result, context) — no Console.WriteLine of formatted text in JSON mode",
+  "Each audited command has a result DTO type defined (e.g. FooCommandResult) used as the input to RtSerializer.Write",
+  "Commands previously emitting raw text in JSON mode now produce parseable JSON validated by System.Text.Json.JsonDocument.Parse in tests",
+  "Commands that did NOT actually emit JSON have their RtCommandInfo updated: JsonOutput set to false AND OutputFormat.Json removed from SupportedFormats",
+  "ListSmellsCommand pattern is preserved as the canonical reference",
+  "DumpHelpCommand is explicitly excluded from this audit (handled by US-007/US-008)",
+  "Workspace diagnostic envelope is explicitly excluded (handled by US-011)",
+  "Each migrated command has a snapshot or shape-assertion test asserting the JSON envelope shape",
+  "Each migrated command's text/markdown/llm/yaml outputs (if any) continue to work via RtSerializer.Write",
+  "A meta-test in tests/RoslynTools.Tests asserts: for every command with JsonOutput==true, invoking it with --json against a fixture produces output parseable as JSON",
+  "A meta-test asserts: every command exposing OutputFormat.Json in SupportedFormats produces parseable JSON when --json is set",
+  "No command has JsonOutput==true while emitting non-JSON text in JSON mode",
+  "Diagnostics/progress continue to go to stderr; only the structured result goes to stdout",
+  "Existing command tests are updated where they previously asserted on raw text in JSON mode",
+  "dotnet build RoslynTools.slnx passes",
+  "dotnet test RoslynTools.slnx passes",
+  "dotnet format RoslynTools.slnx --verify-no-changes passes"
+]
