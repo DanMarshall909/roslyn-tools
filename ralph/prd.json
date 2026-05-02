@@ -810,7 +810,9 @@
         "dotnet format RoslynTools.slnx --verify-no-changes passes"
       ],
       "priority": 35,
-      "passes": false,
+      "passes": true,
+      "resolution": "rt refactor move-method command implemented. Moves static methods between classes with automatic call-site rewriting. Handles errors gracefully (non-static, not-found, collision). Closes dogfood gap from US-030/US-031. 9/9 tests pass.",
+      "resolvedAt": "2026-05-02",
       "notes": "Affected files: src/RoslynTools/Commands/MoveMethodCommand.cs (new), src/RoslynTools/Services/MoveMethodService.cs (new), tests/RoslynTools.Tests/MoveMethodCommandTests.cs (new). Dogfood gap discovered during US-030 and US-031 refactors where hand-editing was needed to move static methods between extracted service classes. Conservative: v1 handles static methods only; instance method relocation can be a follow-up."
     }
   ]
