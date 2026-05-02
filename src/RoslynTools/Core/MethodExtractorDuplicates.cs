@@ -307,29 +307,14 @@ internal static class MethodExtractorDuplicates
 
         // Phase 6: Classify varying identifier positions — type-arg positions become generic
         // type parameters; value positions remain as ordinary value parameters.
-        var sourceAbsPath2 = Path.GetFullPath(filePath);
-        var sourceDoc2 = solution.Projects
-            .SelectMany(p => p.Documents)
-            .FirstOrDefault(d => string.Equals(d.FilePath, sourceAbsPath2, StringComparison.OrdinalIgnoreCase));
-        IReadOnlyList<StatementSyntax> sourceStatements = [];
-        if (sourceDoc2 != null)
-        {
-            var sourceRoot2 = await sourceDoc2.GetSyntaxRootAsync();
-            if (sourceRoot2 != null)
-                sourceStatements = SelectStatementsInRange(sourceRoot2, sourceStartLine, sourceEndLine);
-        }
-
-        var (typeParamNames, valueOnlyPositions) = TypeParameterVariationDetector.ClassifyVaryingPositions(
+        var sourceStatements = await LoadSourceStatementsAsync(solution, filePath, sourceStartLine, sourceEndLine);
+        var (typeParamNames, effectiveIdentifierPositions) = TypeParameterVariationDetector.ClassifyVaryingPositions(
             patternIdentifiers, varyingIdentifierPositions, sourceStatements);
         var typeParamMap = TypeParameterVariationDetector.AssignTypeParameterNames(typeParamNames);
-
-        // Use only value positions for the value-parameter path — type positions are handled via type params
-        var effectiveIdentifierPositions = valueOnlyPositions;
 
         // If there are any varying positions (literals, identifiers, or type params), regenerate method signature and body
         // Note: PatternMatcher excludes the source file, so matches only contains cross-file duplicates
         var currentSln = solution;
-        var varyingPositions = varyingLiteralPositions; // keep for backward-compat reference below
         if ((varyingLiteralPositions.Count > 0 || effectiveIdentifierPositions.Count > 0 || typeParamMap.Count > 0) && matches.Count > 0)
         {
             currentSln = await RegenerateForParameterizedVariationsAsync(
@@ -656,6 +641,23 @@ internal static class MethodExtractorDuplicates
         if (value.StartsWith('\'')) return true;
 
         return false;
+    }
+
+    /// <summary>
+    /// Loads the statements in the given line range from the source file document.
+    /// Returns an empty list if the document or syntax root cannot be resolved.
+    /// </summary>
+    private static async Task<IReadOnlyList<StatementSyntax>> LoadSourceStatementsAsync(
+        Solution solution, string filePath, int startLine, int endLine)
+    {
+        var absPath = Path.GetFullPath(filePath);
+        var doc = solution.Projects
+            .SelectMany(p => p.Documents)
+            .FirstOrDefault(d => string.Equals(d.FilePath, absPath, StringComparison.OrdinalIgnoreCase));
+        if (doc == null)
+            return [];
+        var root = await doc.GetSyntaxRootAsync();
+        return root == null ? [] : SelectStatementsInRange(root, startLine, endLine);
     }
 
     private static List<StatementSyntax> SelectStatementsInRange(SyntaxNode root, int startLine, int endLine)
