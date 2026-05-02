@@ -1,4 +1,5 @@
 using System.CommandLine;
+using RoslynTools.Commands.CommandHandlers;
 using RoslynTools.Core;
 using RoslynTools.Services;
 
@@ -28,8 +29,8 @@ internal sealed class ChangeSignatureCommand : IRtCommand
         var methodSpecArg = new Argument<string>("methodSpec", "Method spec, e.g. MyApp.Services.OrderService.PlaceOrder");
         var oldNameArg = new Argument<string>("oldName", "Existing parameter name.");
         var newNameArg = new Argument<string>("newName", "Replacement parameter name.");
-        var solutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file. Defaults to the single solution in current directory.");
-        var dryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk.");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption();
+        var dryRunOpt = CommandOptionFactory.CreateDryRunOption();
 
         var renameParam = new Command("rename-param", "Rename a method parameter and update named-argument call sites.")
         {
@@ -48,33 +49,14 @@ internal sealed class ChangeSignatureCommand : IRtCommand
             var solution = context.ParseResult.GetValueForOption(solutionOpt);
             var dryRun = context.ParseResult.GetValueForOption(dryRunOpt);
 
-            var (workspace, loadedSolution) = await WorkspaceLoader.LoadAsync(solution);
-            using (workspace)
-            {
-                try
-                {
-                    var updatedSolution = await ChangeSignatureService.RenameParamAsync(
-                        loadedSolution,
-                        methodSpec,
-                        oldName,
-                        newName);
-
-                    await SolutionWriter.ApplyChangesAsync(loadedSolution, updatedSolution, dryRun);
-                }
-                catch (InvalidOperationException ex)
-                {
-                    RtLog.Error("Error: {Message}", ex.Message);
-                    context.ExitCode = 1;
-                    return;
-                }
-            }
+            context.ExitCode = await ChangeSignatureCommandHandlers.RenameParamAsync(methodSpec, oldName, newName, solution, dryRun);
         });
 
         // ── reorder ────────────────────────────────────────────────────────────
         var reorderMethodSpecArg = new Argument<string>("methodSpec", "Method spec, e.g. MyApp.Services.OrderService.PlaceOrder");
         var orderArg = new Argument<string>("order", "Comma-separated new parameter order: indices (\"2,0,1\") or names (\"c,a,b\").");
-        var reorderSolutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file. Defaults to the single solution in current directory.");
-        var reorderDryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk.");
+        var reorderSolutionOpt = CommandOptionFactory.CreateSolutionOption();
+        var reorderDryRunOpt = CommandOptionFactory.CreateDryRunOption();
 
         var reorder = new Command("reorder", "Reorder method parameters and update all call sites.")
         {
@@ -92,34 +74,15 @@ internal sealed class ChangeSignatureCommand : IRtCommand
             var dryRun = context.ParseResult.GetValueForOption(reorderDryRunOpt);
 
             var newOrder = orderRaw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-            var (workspace, loadedSolution) = await WorkspaceLoader.LoadAsync(solution);
-            using (workspace)
-            {
-                try
-                {
-                    var updatedSolution = await ChangeSignatureService.ReorderParamsAsync(
-                        loadedSolution,
-                        methodSpec,
-                        newOrder);
-
-                    await SolutionWriter.ApplyChangesAsync(loadedSolution, updatedSolution, dryRun);
-                }
-                catch (InvalidOperationException ex)
-                {
-                    RtLog.Error("Error: {Message}", ex.Message);
-                    context.ExitCode = 1;
-                    return;
-                }
-            }
+            context.ExitCode = await ChangeSignatureCommandHandlers.ReorderAsync(methodSpec, newOrder, solution, dryRun);
         });
 
         // ── add-param ──────────────────────────────────────────────────────────
         var addMethodSpecArg = new Argument<string>("methodSpec", "Method spec, e.g. MyApp.Services.OrderService.PlaceOrder");
         var paramSpecArg = new Argument<string>("paramSpec", "Parameter declaration, e.g. \"int timeout = 30\"");
         var afterOpt = new Option<string?>("--after", "Insert the new parameter immediately after this existing parameter name.");
-        var addSolutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file. Defaults to the single solution in current directory.");
-        var addDryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk.");
+        var addSolutionOpt = CommandOptionFactory.CreateSolutionOption();
+        var addDryRunOpt = CommandOptionFactory.CreateDryRunOption();
 
         var addParam = new Command("add-param", "Add a parameter to a method signature (must have a default value).")
         {
@@ -138,33 +101,15 @@ internal sealed class ChangeSignatureCommand : IRtCommand
             var solution = context.ParseResult.GetValueForOption(addSolutionOpt);
             var dryRun = context.ParseResult.GetValueForOption(addDryRunOpt);
 
-            var (workspace, loadedSolution) = await WorkspaceLoader.LoadAsync(solution);
-            using (workspace)
-            {
-                try
-                {
-                    var updatedSolution = await ChangeSignatureService.AddParamAsync(
-                        loadedSolution,
-                        methodSpec,
-                        paramSpec,
-                        after);
-
-                    await SolutionWriter.ApplyChangesAsync(loadedSolution, updatedSolution, dryRun);
-                }
-                catch (InvalidOperationException ex)
-                {
-                    RtLog.Error("Error: {Message}", ex.Message);
-                    context.ExitCode = 1;
-                }
-            }
+            context.ExitCode = await ChangeSignatureCommandHandlers.AddParamAsync(methodSpec, paramSpec, after, solution, dryRun);
         });
 
         // ── remove-param ───────────────────────────────────────────────────────
         var removeMethodSpecArg = new Argument<string>("methodSpec", "Method spec, e.g. MyApp.Services.OrderService.PlaceOrder");
         var paramNameArg = new Argument<string>("paramName", "Name of the parameter to remove.");
         var forceOpt = new Option<bool>("--force", "Remove even if the parameter has no default value.");
-        var removeSolutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file. Defaults to the single solution in current directory.");
-        var removeDryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk.");
+        var removeSolutionOpt = CommandOptionFactory.CreateSolutionOption();
+        var removeDryRunOpt = CommandOptionFactory.CreateDryRunOption();
 
         var removeParam = new Command("remove-param", "Remove a parameter from a method signature and update all call sites.")
         {
@@ -183,25 +128,7 @@ internal sealed class ChangeSignatureCommand : IRtCommand
             var solution = context.ParseResult.GetValueForOption(removeSolutionOpt);
             var dryRun = context.ParseResult.GetValueForOption(removeDryRunOpt);
 
-            var (workspace, loadedSolution) = await WorkspaceLoader.LoadAsync(solution);
-            using (workspace)
-            {
-                try
-                {
-                    var updatedSolution = await ChangeSignatureService.RemoveParamAsync(
-                        loadedSolution,
-                        methodSpec,
-                        paramName,
-                        force);
-
-                    await SolutionWriter.ApplyChangesAsync(loadedSolution, updatedSolution, dryRun);
-                }
-                catch (InvalidOperationException ex)
-                {
-                    RtLog.Error("Error: {Message}", ex.Message);
-                    context.ExitCode = 1;
-                }
-            }
+            context.ExitCode = await ChangeSignatureCommandHandlers.RemoveParamAsync(methodSpec, paramName, force, solution, dryRun);
         });
 
         var command = new Command("change-signature", "Change method signatures.")

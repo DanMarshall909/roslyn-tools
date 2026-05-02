@@ -5,7 +5,7 @@ namespace RoslynTools.Commands.CommandHandlers;
 
 internal static class ChangeSignatureCommandHandlers
 {
-    internal static async Task RenameParamAsync(
+    internal static async Task<int> RenameParamAsync(
         string methodSpec,
         string oldName,
         string newName,
@@ -24,15 +24,17 @@ internal static class ChangeSignatureCommandHandlers
                     newName);
 
                 await SolutionWriter.ApplyChangesAsync(loadedSolution, updatedSolution, dryRun);
+                return 0;
             }
             catch (InvalidOperationException ex)
             {
                 RtLog.Error("Error: {Message}", ex.Message);
+                return 1;
             }
         }
     }
 
-    internal static async Task ReorderAsync(
+    internal static async Task<int> ReorderAsync(
         string methodSpec,
         string[] newOrder,
         string? solution,
@@ -49,15 +51,17 @@ internal static class ChangeSignatureCommandHandlers
                     newOrder);
 
                 await SolutionWriter.ApplyChangesAsync(loadedSolution, updatedSolution, dryRun);
+                return 0;
             }
             catch (InvalidOperationException ex)
             {
                 RtLog.Error("Error: {Message}", ex.Message);
+                return 1;
             }
         }
     }
 
-    internal static async Task AddParamAsync(
+    internal static async Task<int> AddParamAsync(
         string methodSpec,
         string paramSpec,
         string? after,
@@ -76,15 +80,17 @@ internal static class ChangeSignatureCommandHandlers
                     after);
 
                 await SolutionWriter.ApplyChangesAsync(loadedSolution, updatedSolution, dryRun);
+                return 0;
             }
             catch (InvalidOperationException ex)
             {
                 RtLog.Error("Error: {Message}", ex.Message);
+                return 1;
             }
         }
     }
 
-    internal static async Task RemoveParamAsync(
+    internal static async Task<int> RemoveParamAsync(
         string methodSpec,
         string paramName,
         bool force,
@@ -103,10 +109,12 @@ internal static class ChangeSignatureCommandHandlers
                     force);
 
                 await SolutionWriter.ApplyChangesAsync(loadedSolution, updatedSolution, dryRun);
+                return 0;
             }
             catch (InvalidOperationException ex)
             {
                 RtLog.Error("Error: {Message}", ex.Message);
+                return 1;
             }
         }
     }
