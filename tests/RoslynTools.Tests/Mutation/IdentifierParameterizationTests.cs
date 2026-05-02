@@ -78,6 +78,13 @@ public class IdentifierParameterizationTests
         Assert.Contains("_serviceB", contentB);
         // B's original statements replaced
         Assert.DoesNotContain("System.Console.WriteLine(_serviceB)", contentB);
+
+        // KNOWN BUG (pre-existing, logged in tasks/dogfood-gaps.md 2026-05-03):
+        // The source-file (A.cs) call site is NOT updated when new parameters are added.
+        // After parameterization DoWork() should become DoWork(_serviceA), but PatternMatcher
+        // excludes the source file so TryReplaceMatchAsync never runs for A's own usage.
+        // The assertion below would correctly catch a fix when it ships:
+        //   Assert.Contains("DoWork(_serviceA)", contentA);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
