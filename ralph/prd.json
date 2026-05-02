@@ -1317,8 +1317,10 @@
                 "dotnet build, dotnet test, dotnet format all pass"
             ],
             "priority": 47,
-            "passes": false,
-            "notes": "Medium complexity. Roslyn supports tuple syntax natively. See tasks/us-032-duplicate-types.md group 62 (TransformParametersService) for a concrete example. Test on a real codebase to verify tuple deconstruction syntax is correct."
+            "passes": true,
+            "notes": "Medium complexity. Roslyn supports tuple syntax natively. See tasks/us-032-duplicate-types.md group 62 (TransformParametersService) for a concrete example. Test on a real codebase to verify tuple deconstruction syntax is correct.",
+            "resolution": "Multi-output blocks now extractable via tuple returns. Fixed ExtractabilityAnalyzer.CheckSingleOutput to distinguish in-window-declared outputs (tuple-returnable, warn) from pre-window variables (require out-params, fail). Infrastructure from US-032 leveraged; 2-3 groups now labeled likely_extractable.",
+            "resolvedAt": "2026-05-03"
         },
         {
             "id": "US-048",
