@@ -1,3 +1,3 @@
 @echo off
-"%~dp0src\RoslynTools.Cli\bin\Release\net8.0\rt.exe" %*
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0rt.ps1" %*
 exit /b %ERRORLEVEL%
