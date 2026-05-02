@@ -1370,9 +1370,12 @@ public class FindDuplicatesTests
     }
 
     [Fact]
-    public async Task Group_with_return_inside_block_is_discovery_only_with_no_control_flow_escape_fail()
+    public async Task Group_with_return_inside_block_is_likely_extractable_with_no_control_flow_escape_warn()
     {
-        // A 3-statement block where one of the statements is a return — extractability should fail.
+        // A 3-statement block ending with a return value is a ValueReturn pattern.
+        // ControlFlowUnwinder classifies it as ExtractWithReturnType — extractable by
+        // inferring the return type. The check is warn (not fail), so the group is
+        // likely_extractable rather than discovery_only.
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
             namespace TestApp;
@@ -1402,11 +1405,11 @@ public class FindDuplicatesTests
 
             Assert.NotEmpty(groups);
             var g = groups.First(g => g.StatementCount == 3);
-            Assert.Equal("discovery_only", g.Extractability);
+            Assert.Equal("likely_extractable", g.Extractability);
             Assert.NotNull(g.Checks);
-            var failCheck = g.Checks.FirstOrDefault(c => c.Name == "no-control-flow-escape");
-            Assert.NotNull(failCheck);
-            Assert.Equal("fail", failCheck.Status);
+            var cfCheck = g.Checks.FirstOrDefault(c => c.Name == "no-control-flow-escape");
+            Assert.NotNull(cfCheck);
+            Assert.Equal("warn", cfCheck.Status);
         }
     }
 
