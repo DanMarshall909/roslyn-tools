@@ -790,6 +790,28 @@
       "priority": 34,
       "passes": false,
       "notes": "Affected files: src/RoslynTools/**/*.cs, tests/RoslynTools.Tests/**/*.cs (widespread). Use rt safe-delete extensively. Conservative: retain symbols with any doubt; deleting is harder to undo than adding a comment."
+    },
+    {
+      "id": "US-035",
+      "epicId": "EP-007",
+      "title": "Add rt refactor move-method command to relocate static methods between classes",
+      "description": "As a developer refactoring fat service classes, I want rt refactor move-method <fqn> --to-type <target> [--create-file] to move a static method from one class to another, rewriting all call sites, so that I can extract helper logic without hand-editing the relocation.",
+      "acceptanceCriteria": [
+        "Add src/RoslynTools/Commands/MoveMethodCommand.cs implementing IRtCommand with Info.Category = \"refactor\", Info.JsonOutput = false, Info.Mutates = true",
+        "Build() accepts: <method-fqn> positional, --to-type <target-class-fqn>, --create-file (optional, creates target type if missing), --solution, --dry-run",
+        "Behaviour: move the named static method from its current class into the target class, rewrite all call sites from SourceClass.MethodName(...) to TargetClass.MethodName(...), handle visibility (make method internal in target if it was static in source)",
+        "Edge case: method is non-static -> exit 1 with message (only static methods supported in v1); method not found -> exit 1; target class not found and --create-file not set -> exit 1; target class already has a member with that name -> exit 1 with conflict description",
+        "--dry-run emits a unified diff; without --dry-run, files are written. Both modes are byte-stable for the same input",
+        "Add xUnit tests covering: (a) move static method with one call site, (b) move with multiple call sites across files, (c) method not found -> exit 1, (d) non-static method -> exit 1, (e) target class not found without --create-file -> exit 1",
+        "Self-test: run --dry-run moving a helper method from one service to another in RoslynTools.slnx and inspect the diff for sanity",
+        "rt dump-help shows the new command and Info.Examples reflects the actual invocation",
+        "dotnet build RoslynTools.slnx passes with zero errors and zero new warnings",
+        "dotnet test RoslynTools.Tests.csproj -v minimal passes with all tests green",
+        "dotnet format RoslynTools.slnx --verify-no-changes passes"
+      ],
+      "priority": 35,
+      "passes": false,
+      "notes": "Affected files: src/RoslynTools/Commands/MoveMethodCommand.cs (new), src/RoslynTools/Services/MoveMethodService.cs (new), tests/RoslynTools.Tests/MoveMethodCommandTests.cs (new). Dogfood gap discovered during US-030 and US-031 refactors where hand-editing was needed to move static methods between extracted service classes. Conservative: v1 handles static methods only; instance method relocation can be a follow-up."
     }
   ]
 }
