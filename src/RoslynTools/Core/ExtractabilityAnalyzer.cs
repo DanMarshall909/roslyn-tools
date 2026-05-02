@@ -156,20 +156,15 @@ internal static class ExtractabilityAnalyzer
 
         if (flow.ReturnStatements.Any())
         {
-            // Consult ControlFlowUnwinder — if the pattern has a known extraction strategy,
-            // downgrade from hard-fail to warn so the group surfaces as likely_extractable.
+            // Consult ControlFlowUnwinder — if the pattern is a guard (if-return), it can be
+            // auto-extracted as a bool method. Only downgrade to warn for patterns MethodExtractor
+            // already knows how to handle; leave all others as fail so the status is honest.
             var cfClass = ControlFlowUnwinder.Classify(window);
-            return cfClass.Strategy switch
-            {
-                ControlFlowStrategy.ExtractAsBoolGuard =>
-                    new ExtractabilityCheck("no-control-flow-escape", "warn",
-                        "guard pattern (if-return) is extractable via control-flow unwinding"),
-                ControlFlowStrategy.ExtractWithReturnType =>
-                    new ExtractabilityCheck("no-control-flow-escape", "warn",
-                        $"block returns a value; extractable by inferring return type ({cfClass.Description})"),
-                _ =>
-                    new ExtractabilityCheck("no-control-flow-escape", "fail", "block contains a return statement"),
-            };
+            if (cfClass.Strategy == ControlFlowStrategy.ExtractAsBoolGuard)
+                return new ExtractabilityCheck("no-control-flow-escape", "warn",
+                    "guard pattern (if-return) is extractable via control-flow unwinding");
+
+            return new ExtractabilityCheck("no-control-flow-escape", "fail", "block contains a return statement");
         }
 
         if (flow.ExitPoints.Any())

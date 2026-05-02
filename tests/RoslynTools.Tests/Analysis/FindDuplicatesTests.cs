@@ -1370,12 +1370,12 @@ public class FindDuplicatesTests
     }
 
     [Fact]
-    public async Task Group_with_return_inside_block_is_likely_extractable_with_no_control_flow_escape_warn()
+    public async Task Group_with_return_inside_block_is_discovery_only_with_no_control_flow_escape_fail()
     {
-        // A 3-statement block ending with a return value is a ValueReturn pattern.
-        // ControlFlowUnwinder classifies it as ExtractWithReturnType — extractable by
-        // inferring the return type. The check is warn (not fail), so the group is
-        // likely_extractable rather than discovery_only.
+        // A 3-statement block where one of the statements is a return — extractability should fail.
+        // ValueReturn (trailing return with a value) is not yet supported by MethodExtractor;
+        // only ExtractAsBoolGuard (single guard if-return) is wired up. Until ExtractWithReturnType
+        // is implemented, value-return groups must remain discovery_only so the status is honest.
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
             namespace TestApp;
@@ -1405,11 +1405,11 @@ public class FindDuplicatesTests
 
             Assert.NotEmpty(groups);
             var g = groups.First(g => g.StatementCount == 3);
-            Assert.Equal("likely_extractable", g.Extractability);
+            Assert.Equal("discovery_only", g.Extractability);
             Assert.NotNull(g.Checks);
-            var cfCheck = g.Checks.FirstOrDefault(c => c.Name == "no-control-flow-escape");
-            Assert.NotNull(cfCheck);
-            Assert.Equal("warn", cfCheck.Status);
+            var failCheck = g.Checks.FirstOrDefault(c => c.Name == "no-control-flow-escape");
+            Assert.NotNull(failCheck);
+            Assert.Equal("fail", failCheck.Status);
         }
     }
 
@@ -1780,36 +1780,36 @@ public class FindDuplicatesTests
     [Fact]
     public async Task Guard_return_group_is_likely_extractable_not_discovery_only()
     {
-        // Arrange: two methods that are structurally identical guard-return blocks.
-        // The only control-flow escape is `if (cond) return false;` — a guard pattern
-        // that ControlFlowUnwinder classifies as ExtractAsBoolGuard.
-        // Previously, CheckNoControlFlowEscape returned "fail" for any return statement,
-        // making the group discovery_only. After AC #7 wire-up it should be likely_extractable.
+        // Arrange: two methods whose only duplicate block is a single guard clause:
+        //   if (string.IsNullOrWhiteSpace(input)) return false;
+        // ControlFlowUnwinder classifies a single if-return as ExtractAsBoolGuard.
+        // The no-control-flow-escape check must return "warn" (not "fail") so the group
+        // surfaces as likely_extractable rather than discovery_only.
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
             namespace TestApp;
 
             public class ServiceA
             {
-                public bool IsGeneratedOrIntermediate(string? filePath)
+                public bool ValidateAndProcess(string? input)
                 {
-                    if (string.IsNullOrWhiteSpace(filePath))
+                    if (string.IsNullOrWhiteSpace(input))
                         return false;
-                    if (filePath.Contains(".g.cs", System.StringComparison.Ordinal))
-                        return true;
-                    return false;
+                    System.Console.WriteLine(input);
+                    System.Console.WriteLine(input.Length);
+                    return true;
                 }
             }
 
             public class ServiceB
             {
-                public bool IsGeneratedOrIntermediate(string? filePath)
+                public bool CheckAndLog(string? value)
                 {
-                    if (string.IsNullOrWhiteSpace(filePath))
+                    if (string.IsNullOrWhiteSpace(value))
                         return false;
-                    if (filePath.Contains(".g.cs", System.StringComparison.Ordinal))
-                        return true;
-                    return false;
+                    int len = value.Length;
+                    System.Console.WriteLine(len * 2);
+                    return true;
                 }
             }
             """);
@@ -1819,17 +1819,19 @@ public class FindDuplicatesTests
         {
             var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions(MinStatements: 1));
 
-            // Find the group that contains the guard clause `if (IsNullOrWhiteSpace...) return false`
+            // The single guard clause `if (IsNullOrWhiteSpace...) return false;` is a
+            // 1-statement duplicate group. It must surface as likely_extractable.
             var guardGroup = groups.FirstOrDefault(g =>
-                g.Extractability == "likely_extractable" ||
-                g.Extractability == "extractable");
+                g.FullBlock.Contains("IsNullOrWhiteSpace") &&
+                (g.Extractability == "likely_extractable" || g.Extractability == "extractable"));
 
             Assert.NotNull(guardGroup);
 
-            // The no-control-flow-escape check must be warn (not fail) for the guard pattern
+            // The no-control-flow-escape check must be warn for ExtractAsBoolGuard
             var cfCheck = guardGroup.Checks?.FirstOrDefault(c => c.Name == "no-control-flow-escape");
             Assert.NotNull(cfCheck);
-            Assert.NotEqual("fail", cfCheck!.Status);
+            Assert.Equal("warn", cfCheck!.Status);
+            Assert.Contains("guard pattern", cfCheck.Detail, StringComparison.OrdinalIgnoreCase);
 
             // Overall extractability must not be discovery_only
             Assert.NotEqual("discovery_only", guardGroup.Extractability);
