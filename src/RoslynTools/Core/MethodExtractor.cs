@@ -23,7 +23,7 @@ internal static class MethodExtractor
         int endLine,
         string? insertAfter = null,
         string? insertBefore = null,
-        bool replaceDuplicates = false)
+        bool replaceDuplicates = true)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(startLine, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(endLine, 1);
