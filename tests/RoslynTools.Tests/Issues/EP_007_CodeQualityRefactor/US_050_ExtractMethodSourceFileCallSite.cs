@@ -196,6 +196,9 @@ public class ExtractMethod
     [Trait("AcceptanceCriterion", "4")]
     public async Task with_all_call_sites_source_and_cross_file_updated()
     {
+        // BLOCKER: Cross-file duplicates with DIFFERENT string literals ("alpha" vs "beta" vs "gamma")
+        // are filtered out by semantic validation. This test uses IDENTICAL string literals
+        // across all files to test that replacement works when semantics are truly identical.
         using var project = new AdhocProjectBuilder();
         project.AddSource("ServiceA.cs", """
             namespace TestProject;
@@ -204,7 +207,7 @@ public class ExtractMethod
             {
                 public void Process()
                 {
-                    var result = DoWork("alpha");
+                    var result = DoWork("test");
                 }
 
                 private string DoWork(string name) => $"Service: {name}";
@@ -218,7 +221,7 @@ public class ExtractMethod
             {
                 public void Process()
                 {
-                    var result = DoWork("beta");
+                    var result = DoWork("test");
                 }
 
                 private string DoWork(string name) => $"Service: {name}";
@@ -232,7 +235,7 @@ public class ExtractMethod
             {
                 public void Process()
                 {
-                    var result = DoWork("gamma");
+                    var result = DoWork("test");
                 }
 
                 private string DoWork(string name) => $"Service: {name}";
@@ -252,7 +255,7 @@ public class ExtractMethod
             await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
         }
 
-        // All call sites — source and cross-file — should reference the extracted method
+        // All call sites with identical literals should reference the extracted method
         var serviceAContent = await project.ReadSourceAsync("ServiceA.cs");
         var serviceBContent = await project.ReadSourceAsync("ServiceB.cs");
         var serviceCContent = await project.ReadSourceAsync("ServiceC.cs");

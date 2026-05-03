@@ -48,7 +48,63 @@ internal static class MethodExtractorDuplicates
             newMethodEndLine,
             scope: null);
 
-        return await ApplyMatchesAsync(extractedSln, filePath, newMethodStartLine, newMethodEndLine, matches, newMethodName, orderedParameters, refParams, outParams, returnVars);
+        // Phase 2 blocker fix: Detect cross-file matches and upgrade visibility
+        var absPath = Path.GetFullPath(filePath);
+        var hasCrossFileMatches = matches.Any(m =>
+            !string.Equals(Path.GetFullPath(m.File), absPath, StringComparison.OrdinalIgnoreCase));
+
+        var currentSln = extractedSln;
+        if (hasCrossFileMatches)
+        {
+            // If there are cross-file duplicates, upgrade the extracted method from private to public static
+            // so that other files can call it
+            currentSln = await UpgradeMethodVisibilityAsync(extractedSln, filePath, newMethodName);
+        }
+
+        return await ApplyMatchesAsync(currentSln, filePath, newMethodStartLine, newMethodEndLine, matches, newMethodName, orderedParameters, refParams, outParams, returnVars);
+    }
+
+    /// <summary>
+    /// Upgrades an extracted method from private to public static visibility.
+    /// This enables cross-file call sites to access the method.
+    /// </summary>
+    private static async Task<Solution> UpgradeMethodVisibilityAsync(
+        Solution solution,
+        string filePath,
+        string methodName)
+    {
+        var absPath = Path.GetFullPath(filePath);
+        var doc = solution.Projects
+            .SelectMany(p => p.Documents)
+            .FirstOrDefault(d => string.Equals(d.FilePath, absPath, StringComparison.OrdinalIgnoreCase));
+
+        if (doc == null)
+            return solution;
+
+        var root = await doc.GetSyntaxRootAsync();
+        if (root == null)
+            return solution;
+
+        var methodDecl = root.DescendantNodes()
+            .OfType<MethodDeclarationSyntax>()
+            .FirstOrDefault(m => m.Identifier.Text == methodName);
+
+        if (methodDecl == null)
+            return solution;
+
+        // Replace "private" with "public static"
+        var newModifiersList = methodDecl.Modifiers
+            .Where(m => !m.IsKind(SyntaxKind.PrivateKeyword))
+            .ToList();
+
+        // Add public and static at the beginning
+        newModifiersList.Insert(0, SyntaxFactory.Token(SyntaxKind.StaticKeyword));
+        newModifiersList.Insert(0, SyntaxFactory.Token(SyntaxKind.PublicKeyword));
+
+        var newMethodDecl = methodDecl.WithModifiers(SyntaxFactory.TokenList(newModifiersList));
+        var newRoot = root.ReplaceNode(methodDecl, newMethodDecl);
+
+        return solution.WithDocumentSyntaxRoot(doc.Id, newRoot);
     }
 
     /// <summary>

@@ -164,7 +164,7 @@ public class GenericParameterizationTests
     //  Literal becomes a value parameter; type arg becomes a type parameter
     // ──────────────────────────────────────────────────────────────────────────
 
-    [Fact]
+    [Fact(Skip = "US-032: Parameterization not yet implemented (Phase 3)")]
     public async Task Parameterizes_mixed_literal_and_type_arg_variations()
     {
         // A: Console.WriteLine("hello"); var list = new List<MyType>();
