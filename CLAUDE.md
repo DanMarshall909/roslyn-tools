@@ -172,6 +172,31 @@ See `AGENTS.md` for detailed style guidelines. Key points:
 - Diagnostics to stderr, results to stdout
 - C# 11+ features OK (nullable enabled, implicit usings)
 
+## Design Philosophy: Pragmatic Refactoring Over Architectural Purity
+
+**Core principle:** Consolidate duplicates only when they genuinely solve real problems. Do not apply design patterns for their own sake.
+
+**Pattern-driven consolidation:**
+- Patterns (Factory, Builder, Strategy, etc.) are a **lens** for recognizing refactoring opportunities, not mandates
+- When duplicates emerge (detected via `rt analyze find-duplicates`), ask: "Does this duplication cause real maintenance pain?"
+- Apply a pattern **if and only if** it simplifies the code, not because Gang of Four says it's elegant
+- Example: Multiple commands creating `new Option<string>(name, help) { IsRequired = true }` → **Factory Method** naturally emerges as the solution. Create `CommandOptionFactory.CreateStringOption()` because it eliminates real duplication, not for theoretical purity.
+
+**Workflow for duplication discovery:**
+1. Run `rt analyze find-duplicates --solution RoslynTools.slnx` to identify candidates
+2. Examine high-scoring groups (>4 occurrences, score >5)
+3. Ask: Is this duplication causing problems? (maintenance burden, inconsistency, bug vectors?)
+4. If yes, look for the minimal consolidation pattern that solves it
+5. Implement the pattern only if it's simpler than the alternative
+
+**Anti-pattern:** Do not:
+- Apply Builder pattern to command construction just because the Go4 book suggests it
+- Introduce Strategy pattern because there are "multiple algorithms" (there are in any large system)
+- Create abstract factories or complex hierarchies to avoid writing similar code twice
+- Add indirection layers for code that appears in only 2–3 places
+
+**Trust the duplication detector, not theories.** If `find-duplicates` reports a group with 8+ occurrences, that's a signal. If it reports 2 occurrences, wait for 3–5 before consolidating.
+
 ## Known Issues
 
 All issues from the April 2026 audit have been resolved.
