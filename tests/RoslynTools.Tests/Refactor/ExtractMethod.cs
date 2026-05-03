@@ -9,7 +9,7 @@ public class ExtractMethod
 
     [Fact]
     [Trait("Concern", "SourceFileCallSite")]
-    public async Task with_source_file_first_occurrence_call_site_updated()
+    public async Task with_source_file_as_first_occurrence_updates_call_site()
     {
         // Setup: Create two files with identical method patterns
         using var project = new AdhocProjectBuilder();
@@ -132,7 +132,7 @@ public class ExtractMethod
     [Fact]
     [Trait("Concern", "CrossFileCallSites")]
     [Trait("Category", "Regression")]
-    public async Task with_cross_file_call_sites_still_updated_correctly()
+    public async Task with_cross_file_duplicates_still_get_updated()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("ServiceA.cs", """
@@ -184,7 +184,7 @@ public class ExtractMethod
     [Fact]
     [Trait("Concern", "SourceFileCallSite")]
     [Trait("Concern", "CrossFileCallSites")]
-    public async Task with_all_call_sites_source_and_cross_file_updated()
+    public async Task with_multiple_files_all_call_sites_get_updated()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("ServiceA.cs", """
