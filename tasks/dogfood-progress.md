@@ -243,3 +243,73 @@ The test failure suggests the nullable annotation fix needs broader testing or h
 2. **Implement parameterization (US-032)** → 3-5 hours of implementation + testing
 3. **Accept limitations** → Document which groups can/cannot be extracted and why
 
+---
+
+## Session 2026-05-03 (Continued Further) — US-032 Parameterization Investigation
+
+**Status:** ATTEMPTED, ARCHITECTURAL LIMITS DISCOVERED
+
+### Approach Taken:
+1. Removed the `returnVarNamesMatch` safeguard from MethodExtractorDuplicates.cs line 318
+2. Tested Group 1 extraction with `--replace-duplicates` flag
+3. Built and ran against actual code
+
+### What Happened:
+The `--replace-duplicates` flag attempted parameterization and generated broken code:
+
+**Generated method (in AddNullChecksCommand only):**
+```csharp
+private static (Option<string> methodOpt, Option<string?> solutionOpt, Option<bool> dryRunOpt, Command cmd) 
+    CreateOptionMethodDryRun(string param0, string param1, string param3, string param4, string param5, object param7)
+{
+    var methodOpt = new Option<string>(param0, param1) { IsRequired = true };
+    var solutionOpt = CommandOptionFactory.CreateSolutionOption();
+    var dryRunOpt = CommandOptionFactory.CreateDryRunOption();
+    var cmd = new Command(param3, param4);
+    cmd.AddAlias(param5);
+    return (methodOpt, solutionOpt, dryRunOpt, cmd);
+}
+```
+
+**Generated call sites (across 9 files, but method only exists in 1 file!):**
+```csharp
+// In AddStaticImportCommand:
+var (typeOpt, solutionOpt, dryRunOpt, cmd) = CreateOptionMethodDryRun("--type", "Fully qualified type...", ...);
+
+// In FindCallersCommand (with WRONG method reference):
+var (symbolOpt, solutionOpt, includeTestsOpt, cmd) = CreateOptionMethodDryRun("--symbol", ..., CreateIncludeTestsOption);
+```
+
+### Root Cause - Architectural Limitation:
+The `--replace-duplicates` feature is designed for **within-class** method extraction (like extracting a helper method in the same class). When applied to cross-file duplicates:
+
+1. **Method exists only in source file** - The extracted method `CreateOptionMethodDryRun()` is created as `private static` in AddNullChecksCommand
+2. **Call sites in other files can't access it** - AddStaticImportCommand can't call a private method from AddNullChecksCommand
+3. **Parameterization generates invalid references** - Code tries to pass `CreateIncludeTestsOption` (a non-existent method reference) as a parameter
+4. **Cross-file method sharing not supported** - Would require extracting to a shared utils class (CommandOptionFactory), but rt doesn't have logic to:
+   - Detect that method should be shared across files
+   - Auto-extract to a shared location
+   - Update all call sites to use the new method from the shared class
+
+### Why This is Unfixable Without Major Refactor:
+- **Current design:** extract-method creates method in source file only
+- **What's needed:** cross-file method merging, shared utils class detection, multi-file method signatures
+- **Effort:** This would require redesigning how `--replace-duplicates` works with cross-file matches (10-20+ hours)
+
+### Verification:
+- Removed `returnVarNamesMatch` check ✅ (allows parameterization to attempt)
+- All 699 tests pass with the safeguard removed ✅
+- Parameterization attempt creates broken code ❌ (61 compilation errors)
+- Core issue: method doesn't exist in call site files ❌
+
+### Conclusion:
+**US-032 Parameterization cannot be completed without architectural changes to how rt handles cross-file method references in --replace-duplicates.**
+
+Groups 1-15 (65+ occurrences) remain blocked. The safeguard was protecting against code generation that breaks in multi-file scenarios, not a limitation to work around.
+
+### Revised Path Forward:
+1. **Re-enable the safeguard** (restore `returnVarNamesMatch` check)
+2. **Document the constraint** in dogfood-gaps.md
+3. **Focus on within-class duplicates** (Groups that have all matches in same file/class)
+4. **Accept 67-group goal is not achievable** with current rt architecture
+
