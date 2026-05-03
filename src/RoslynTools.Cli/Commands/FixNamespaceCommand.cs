@@ -25,7 +25,7 @@ internal sealed class FixNamespaceCommand : IRtCommand
 
     public static Command Build()
     {
-        var fileOpt = new Option<string>("--file", "Path to the .cs file to fix") { IsRequired = true };
+        var fileOpt = CommandOptionFactory.CreateStringOption("--file", "Path to the .cs file to fix");
         var solutionOpt = CommandOptionFactory.CreateSolutionOption();
         var dryRunOpt = CommandOptionFactory.CreateDryRunOption();
 
@@ -44,3 +44,4 @@ internal sealed class FixNamespaceCommand : IRtCommand
     internal static Task ExecuteAsync(string filePath, string? solutionPath, bool dryRun) =>
         FixNamespaceService.ExecuteAsync(filePath, solutionPath, dryRun);
 }
+

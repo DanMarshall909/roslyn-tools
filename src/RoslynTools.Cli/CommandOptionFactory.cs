@@ -21,4 +21,8 @@ internal static class CommandOptionFactory
 
     public static Option<bool> CreateIncludeTestsOption()
         => new("--include-tests", "Include test projects in results");
+
+    /// <summary>Creates a required string option with custom name and help text.</summary>
+    public static Option<string> CreateStringOption(string name, string helpText)
+        => new(name, helpText) { IsRequired = true };
 }

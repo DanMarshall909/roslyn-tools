@@ -25,9 +25,9 @@ internal sealed class ExtractStringConstantCommand : IRtCommand
 
     public static Command Build()
     {
-        var fileOpt = new Option<string>("--file", "Path to the .cs file containing the literal") { IsRequired = true };
+        var fileOpt = CommandOptionFactory.CreateStringOption("--file", "Path to the .cs file containing the literal");
         var lineOpt = new Option<int>("--line", "Line number of the string literal to extract") { IsRequired = true };
-        var nameOpt = new Option<string>("--name", "Constant name to create") { IsRequired = true };
+        var nameOpt = CommandOptionFactory.CreateStringOption("--name", "Constant name to create");
         var solutionOpt = CommandOptionFactory.CreateSolutionOption();
         var dryRunOpt = CommandOptionFactory.CreateDryRunOption();
 
@@ -47,3 +47,4 @@ internal sealed class ExtractStringConstantCommand : IRtCommand
         return cmd;
     }
 }
+

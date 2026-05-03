@@ -24,7 +24,7 @@ internal sealed class MakeInstanceCommand : IRtCommand
 
     public static Command Build()
     {
-        var methodOpt = new Option<string>("--method", "Fully-qualified method to convert: Type.Method") { IsRequired = true };
+        var methodOpt = CommandOptionFactory.CreateStringOption("--method", "Fully-qualified method to convert: Type.Method");
         var solutionOpt = CommandOptionFactory.CreateSolutionOption();
         var dryRunOpt = CommandOptionFactory.CreateDryRunOption();
 
@@ -49,3 +49,4 @@ internal sealed class MakeInstanceCommand : IRtCommand
         }
     }
 }
+

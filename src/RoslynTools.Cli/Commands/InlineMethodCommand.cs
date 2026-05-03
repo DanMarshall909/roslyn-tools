@@ -24,8 +24,8 @@ internal sealed class InlineMethodCommand : IRtCommand
 
     public static Command Build()
     {
-        var typeOpt = new Option<string>("--type", "Class containing the method to inline") { IsRequired = true };
-        var methodOpt = new Option<string>("--method", "Method name to inline at all call sites") { IsRequired = true };
+        var typeOpt = CommandOptionFactory.CreateStringOption("--type", "Class containing the method to inline");
+        var methodOpt = CommandOptionFactory.CreateStringOption("--method", "Method name to inline at all call sites");
         var solutionOpt = CommandOptionFactory.CreateSolutionOption();
         var dryRunOpt = CommandOptionFactory.CreateDryRunOption();
 
@@ -48,3 +48,4 @@ internal sealed class InlineMethodCommand : IRtCommand
             await InlineMethodService.RunAsync(sln, typeName, methodName, dryRun);
     }
 }
+

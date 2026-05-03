@@ -27,7 +27,7 @@ internal sealed class MakeStaticCommand : IRtCommand
 
     public static Command Build()
     {
-        var methodOpt = new Option<string>("--method", "Method to convert: <Type>.<Method>") { IsRequired = true };
+        var methodOpt = CommandOptionFactory.CreateStringOption("--method", "Method to convert: <Type>.<Method>");
         var solutionOpt = CommandOptionFactory.CreateSolutionOption();
         var dryRunOpt = CommandOptionFactory.CreateDryRunOption();
 
@@ -54,3 +54,4 @@ internal sealed class MakeStaticCommand : IRtCommand
         }
     }
 }
+
