@@ -29,6 +29,12 @@ dotnet test "RoslynTools.slnx" -v minimal
 dotnet test "tests/RoslynTools.Tests/RoslynTools.Tests.csproj" -v minimal --filter "FullyQualifiedName~TypeName"
 ```
 
+## Test Organization and Naming
+
+@C:\code\ai-rules\test-naming.md
+
+Tests are organized by `rt` command category (Inspect/Analyze/Refactor), not by issue/ticket. See the guide above for naming conventions (`with_<scenario>_<outcome>`), trait grouping by concern, and test discovery patterns.
+
 ## Verification Checklist
 
 After any code change, run both:
