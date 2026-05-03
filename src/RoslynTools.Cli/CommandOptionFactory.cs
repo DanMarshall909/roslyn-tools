@@ -25,4 +25,8 @@ internal static class CommandOptionFactory
     /// <summary>Creates a required string option with custom name and help text.</summary>
     public static Option<string> CreateStringOption(string name, string helpText)
         => new(name, helpText) { IsRequired = true };
+
+    /// <summary>Creates an optional nullable string option with custom name and help text.</summary>
+    public static Option<string?> CreateNullableStringOption(string name, string helpText)
+        => new(name, helpText);
 }
