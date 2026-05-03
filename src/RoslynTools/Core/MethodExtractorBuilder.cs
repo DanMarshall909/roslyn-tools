@@ -44,7 +44,8 @@ internal static class MethodExtractorBuilder
         else
         {
             // Stryker disable all
-            var tupleTypes = string.Join(", ", returnVars.Select(v => $"{GetTypeName(v)} {v.Name}"));
+            // For tuple returns, all elements are always initialized before return, so remove nullable annotations
+            var tupleTypes = string.Join(", ", returnVars.Select(v => $"{RemoveNullableAnnotation(GetTypeName(v))} {v.Name}"));
             returnTypeStr = $"({tupleTypes})";
             var tupleValues = string.Join(", ", returnVars.Select(v => v.Name));
             returnStmtStr = "\n" + IndentOf(bodyStatements[^1]) + $"return ({tupleValues});";
@@ -107,6 +108,12 @@ internal static class MethodExtractorBuilder
             // Stryker restore all
         };
         return type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+    }
+
+    /// <summary>Removes trailing '?' nullable annotation from a type name string.</summary>
+    internal static string RemoveNullableAnnotation(string typeName)
+    {
+        return typeName.EndsWith('?') ? typeName[..^1] : typeName;
     }
 
     /// <summary>Returns the leading whitespace string of a statement (body-level indent).</summary>
