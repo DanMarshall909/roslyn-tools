@@ -312,10 +312,16 @@ internal static class MethodExtractorDuplicates
             patternIdentifiers, varyingIdentifierPositions, sourceStatements);
         var typeParamMap = TypeParameterVariationDetector.AssignTypeParameterNames(typeParamNames);
 
+        // Check if return variable names differ across matches (indicates incompatible structure)
+        // In that case, skip parameterization entirely — variable renaming requires synthetic code generation
+        // that the current system doesn't support.
+        var returnVarNamesMatch = CheckReturnVariableNamesConsistent(solution, filePath, sourceStartLine, sourceEndLine, matches, returnVars);
+
         // If there are any varying positions (literals, identifiers, or type params), regenerate method signature and body
         // Note: PatternMatcher excludes the source file, so matches only contains cross-file duplicates
+        // ALSO: Only attempt parameterization if return variable names are consistent (no synthetic renaming needed)
         var currentSln = solution;
-        if ((varyingLiteralPositions.Count > 0 || effectiveIdentifierPositions.Count > 0 || typeParamMap.Count > 0) && matches.Count > 0)
+        if (returnVarNamesMatch && (varyingLiteralPositions.Count > 0 || effectiveIdentifierPositions.Count > 0 || typeParamMap.Count > 0) && matches.Count > 0)
         {
             currentSln = await RegenerateForParameterizedVariationsAsync(
                 currentSln,
@@ -692,6 +698,39 @@ internal static class MethodExtractorDuplicates
     /// Phase 1: Analyzes literal variations across all matches.
     /// Returns (literalsByMatch, varyingPositions).
     /// </summary>
+    /// <summary>
+    /// Checks if all matches use the same return variable names as the source pattern.
+    /// Parameterization that requires renaming return variables (e.g., methodOpt->typeOpt)
+    /// requires synthetic code generation and is not currently supported.
+    /// </summary>
+    private static bool CheckReturnVariableNamesConsistent(
+        Solution solution, string sourceFilePath, int sourceStartLine, int sourceEndLine,
+        IReadOnlyList<PatternMatch> matches, IReadOnlyList<ISymbol> returnVars)
+    {
+        if (matches.Count == 0 || returnVars.Count == 0)
+            return true;
+
+        // Get the source variable names
+        var sourceVarNames = new HashSet<string>(returnVars.Select(v => v.Name), StringComparer.Ordinal);
+
+        // Check each match: the substitution map should map source names to the same names
+        // If any source var name maps to a different name in a match, return false
+        foreach (var match in matches)
+        {
+            foreach (var varName in sourceVarNames)
+            {
+                if (match.Substitutions.TryGetValue(varName, out var mappedName))
+                {
+                    // If the variable is renamed (e.g., methodOpt -> typeOpt), return false
+                    if (!varName.Equals(mappedName, StringComparison.Ordinal))
+                        return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
     private static async Task<(List<List<string>>, HashSet<int>)>
         AnalyzeLiteralVariationsAsync(Solution solution, string sourceFilePath, int sourceStartLine, int sourceEndLine, IReadOnlyList<PatternMatch> matches)
     {
