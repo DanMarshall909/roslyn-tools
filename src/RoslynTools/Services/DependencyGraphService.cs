@@ -98,9 +98,7 @@ internal static class DependencyGraphService
         Dictionary<string, INamedTypeSymbol> sourceTypeByName,
         Dictionary<INamedTypeSymbol, List<INamedTypeSymbol>> bodyDeps)
     {
-        var nodes = new HashSet<string>(StringComparer.Ordinal);
-        var edgeSet = new HashSet<(string, string)>();
-        var edges = new List<(string From, string To)>();
+        var (nodes, edgeSet, edges) = CreateStringHashSet();
 
         foreach (var type in typesToGraph)
         {
@@ -124,6 +122,14 @@ internal static class DependencyGraphService
         return (nodes, edges);
     }
 
+    private static (HashSet<string> nodes, HashSet<(string, string)> edgeSet, List<(string From, string To)> edges) CreateStringHashSet()
+    {
+        var nodes = new HashSet<string>(StringComparer.Ordinal);
+        var edgeSet = new HashSet<(string, string)>();
+        var edges = new List<(string From, string To)>();
+
+        return (nodes, edgeSet, edges);
+    }
     private static (HashSet<string> Nodes, List<(string From, string To)> Edges) BuildBfsGraph(
         INamedTypeSymbol rootType,
         int? maxDepth,
@@ -131,9 +137,7 @@ internal static class DependencyGraphService
         Dictionary<string, INamedTypeSymbol> sourceTypeByName,
         Dictionary<INamedTypeSymbol, List<INamedTypeSymbol>> bodyDeps)
     {
-        var nodes = new HashSet<string>(StringComparer.Ordinal);
-        var edgeSet = new HashSet<(string, string)>();
-        var edges = new List<(string From, string To)>();
+        var (nodes, edgeSet, edges) = CreateStringHashSet();
         var queue = new Queue<(INamedTypeSymbol Type, int Depth)>();
         var visited = new HashSet<string>(StringComparer.Ordinal);
 
