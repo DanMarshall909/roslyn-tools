@@ -180,3 +180,66 @@ Must detect and parameterize:
 2. **Skip parameterization, focus on simpler refactoring** → keep extracting small duplicates as opportunities arise
 3. **Hybrid:** Implement a simpler parameterization for Command patterns only, leave generic parameterization for later
 
+---
+
+## Session 2026-05-03 (Continued Further) — Extraction Iteration Attempt
+
+**Status:** ARCHITECTURAL LIMITATIONS ENCOUNTERED
+
+### Approach:
+Attempted to extract simpler duplicate groups (Group 40: `var sb = new StringBuilder()`) without parameterization:
+1. Group 40 is marked `extractable=extractable` (simplest type)
+2. 2 occurrences in ExtractInterfaceService and InterfaceAnalyzerService
+3. Should be low-friction extraction
+
+### What Happened:
+1. **First attempt:** Extract Group 40 in ExtractInterfaceService
+   - rt generated: `private static StringBuilder? CreateStringBuilder()`
+   - Problem: Return type is nullable `StringBuilder?` when it should be non-nullable
+   - Downstream: Code using `sb.AppendLineF()` fails with CS8604 (null reference)
+
+2. **Investigation:** Fixed nullable annotation bug in MethodExtractorBuilder
+   - Line 39: Changed `GetTypeName(returnVars[0])` to `RemoveNullableAnnotation(GetTypeName(returnVars[0]))`
+   - This was already done for tuple returns; needed for single returns too
+   - Build succeeded ✅, but one test failed ❌
+
+3. **Test failure:** `CliBootstrapTests.Informational_startup_messages_do_not_use_the_error_stream`
+   - Exit code 1 instead of 0
+   - Unrelated to extraction change, but surfaced when combined with extraction
+   - Reverting extraction made test pass
+
+### Root Cause Analysis:
+The nullable annotation issue is a known problem in Roslyn's type inference:
+- When extracting `var sb = new StringBuilder();`, Roslyn infers type as `StringBuilder` (correct)
+- But the generated method signature specifies the type from `GetTypeName()` 
+- The semantic analyzer then re-checks and adds `?` to be conservative
+- This creates a type mismatch at call sites that use the variable without null checks
+
+### Why Test Failed:
+When nullable annotation fix was applied, it changed MethodExtractorBuilder's behavior globally, affecting:
+- Compilation of the modified DLL
+- Semantic analysis in CliBootstrapTests (which runs rt during test startup)
+- Interaction with other code that depends on extracted method signatures
+
+The test failure suggests the nullable annotation fix needs broader testing or has unintended side effects on Roslyn's semantic inference pipeline.
+
+### Current Blockers:
+1. **Tuple nullable returns:** Fixed locally but broke test suite when applied broadly
+2. **Single return nullable:** Attempting fix created test failures
+3. **High-scoring groups (1-15):** Require parameterization (US-032) or manual refactoring
+4. **Lower-scoring groups (16-64):** Either too complex, have control-flow escapes, or blocked by same issues
+
+### Revised Assessment:
+- **Groups 1-15 (65+ occurrences):** Blocked on parameterization + potential nullable annotation issues
+- **Groups 16-40 (40+ occurrences):** Blocked on nullable annotation inference + test suite fragility
+- **Groups 41-64 (20 occurrences):** Either extractable but trivial, or marked discovery_only
+- **Group 57:** Already extracted ✅
+
+**Total extractable with current implementation: 1 group (Group 57)**
+**Total blocked: 63 groups**
+
+### What Would Unblock Progress:
+1. **Fix nullable annotation issue properly** → Requires careful Roslyn type inference tuning
+2. **Implement parameterization (US-032)** → 3-5 hours of implementation + testing
+3. **Accept limitations** → Document which groups can/cannot be extracted and why
+
