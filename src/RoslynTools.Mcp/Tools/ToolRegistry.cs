@@ -28,7 +28,7 @@ internal sealed class ToolRegistry
         };
     }
 
-    private ToolDefinition CreateFindRefsToolDef() => new(
+    private static ToolDefinition CreateFindRefsToolDef() => new(
         name: "find_refs",
         description: "Find all references to a symbol in a solution",
         inputSchema: JsonSchemaBuilder.Object(
@@ -37,11 +37,9 @@ internal sealed class ToolRegistry
             {
                 ["symbol"] = JsonSchemaBuilder.String("Full name or simple name of the symbol to find"),
                 ["solution"] = JsonSchemaBuilder.String("Path to .sln or .slnx file"),
-                ["scope"] = JsonSchemaBuilder.EnumSchema("public", "internal", "private", "all"),
-                ["includeTests"] = JsonSchemaBuilder.Boolean("Include test projects"),
             }));
 
-    private ToolDefinition CreateRenameToolDef() => new(
+    private static ToolDefinition CreateRenameToolDef() => new(
         name: "rename_symbol",
         description: "Rename a symbol across the solution (with dry-run safety)",
         inputSchema: JsonSchemaBuilder.Object(
@@ -51,20 +49,14 @@ internal sealed class ToolRegistry
                 ["oldName"] = JsonSchemaBuilder.String("Current name of the symbol"),
                 ["newName"] = JsonSchemaBuilder.String("New name for the symbol"),
                 ["solution"] = JsonSchemaBuilder.String("Path to .sln or .slnx file"),
-                ["scope"] = JsonSchemaBuilder.EnumSchema("public", "internal", "private", "all"),
-                ["dryRun"] = JsonSchemaBuilder.Boolean("Preview changes without writing (default: true)"),
-                ["returnDiff"] = JsonSchemaBuilder.Boolean("Include unified diff in response (default: true)"),
-                ["apply"] = JsonSchemaBuilder.Boolean("Actually apply changes (default: false)"),
+                ["apply"] = JsonSchemaBuilder.Boolean("Write changes to disk (default: false — dry-run)"),
             }));
 
     private async Task<ToolResult> InvokeFindRefs(JsonElement args, CancellationToken ct)
     {
-        var scope = args.TryGetProperty("scope", out var s) ? s.GetString() : "all";
         var req = new FindReferencesRequest(
             Symbol: args.GetProperty("symbol").GetString()!,
-            Solution: args.GetProperty("solution").GetString()!,
-            Scope: scope ?? "all",
-            IncludeTests: args.TryGetProperty("includeTests", out var t) && t.GetBoolean());
+            Solution: args.GetProperty("solution").GetString()!);
 
         var handler = new FindReferencesHandler();
         var result = await handler.HandleAsync(req, ct);
@@ -73,14 +65,10 @@ internal sealed class ToolRegistry
 
     private async Task<ToolResult> InvokeRename(JsonElement args, CancellationToken ct)
     {
-        var scope = args.TryGetProperty("scope", out var s) ? s.GetString() : "all";
         var req = new RenameSymbolRequest(
             OldName: args.GetProperty("oldName").GetString()!,
             NewName: args.GetProperty("newName").GetString()!,
             Solution: args.GetProperty("solution").GetString()!,
-            Scope: scope ?? "all",
-            DryRun: args.TryGetProperty("dryRun", out var dr) ? dr.GetBoolean() : true,
-            ReturnDiff: args.TryGetProperty("returnDiff", out var rd) ? rd.GetBoolean() : true,
             Apply: args.TryGetProperty("apply", out var ap) && ap.GetBoolean());
 
         var handler = new RenameSymbolHandler();
@@ -89,39 +77,34 @@ internal sealed class ToolRegistry
     }
 }
 
-internal sealed record ToolDefinition(string name, string description, JsonSchema inputSchema);
+internal sealed record ToolDefinition(string name, string description, Dictionary<string, object> inputSchema);
 internal sealed record ToolResult(bool isError, string content);
-
-internal sealed class JsonSchema
-{
-    public required string Type { get; init; }
-    public string? Description { get; init; }
-    public Dictionary<string, JsonSchema>? Properties { get; init; }
-    public string[]? Required { get; init; }
-    public string[]? EnumValues { get; init; }
-}
 
 internal static class JsonSchemaBuilder
 {
-    public static JsonSchema Object(
+    public static Dictionary<string, object> Object(
         string[]? required = null,
-        Dictionary<string, JsonSchema>? properties = null) =>
-        new()
-        {
-            Type = "object",
-            Required = required,
-            Properties = properties ?? new(),
-        };
+        Dictionary<string, Dictionary<string, object>>? properties = null)
+    {
+        var schema = new Dictionary<string, object> { ["type"] = "object" };
+        if (properties is { Count: > 0 })
+            schema["properties"] = properties;
+        if (required is { Length: > 0 })
+            schema["required"] = required;
+        return schema;
+    }
 
-    public static JsonSchema String(string description = "") =>
-        new() { Type = "string", Description = description };
+    public static Dictionary<string, object> String(string description = "")
+        => Scalar("string", description);
 
-    public static JsonSchema Number(string description = "") =>
-        new() { Type = "number", Description = description };
+    public static Dictionary<string, object> Boolean(string description = "")
+        => Scalar("boolean", description);
 
-    public static JsonSchema Boolean(string description = "") =>
-        new() { Type = "boolean", Description = description };
-
-    public static JsonSchema EnumSchema(params string[] values) =>
-        new() { Type = "string", EnumValues = values };
+    private static Dictionary<string, object> Scalar(string type, string description)
+    {
+        var schema = new Dictionary<string, object> { ["type"] = type };
+        if (!string.IsNullOrEmpty(description))
+            schema["description"] = description;
+        return schema;
+    }
 }

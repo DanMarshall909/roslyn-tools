@@ -32,6 +32,8 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="RoslynTools.Tests" />
+    <InternalsVisibleTo Include="RoslynTools.Mcp" />
+    <InternalsVisibleTo Include="RoslynTools.Tests.Mcp" />
   </ItemGroup>
   <ItemGroup>
 <PackageReference Include="System.CommandLine" />

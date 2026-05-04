@@ -1,5 +1,7 @@
 # Dogfood Gaps
 
+- **2026-05-05: `rt inspect outline` throws on files with no types** — files containing only top-level statements (e.g. `src/RoslynTools.Mcp/Program.cs`) cause `OutlineService.OutlineFileAsync` to throw `InvalidOperationException("No types found in file: ...")`. Should exit 0 with empty array `[]` instead. Hit while reviewing MCP server during EP-006 prep; the rt-first gate then blocks downstream Read because outline never succeeded. Workaround: fall back to `Grep` to read the file. Fix location: `src/RoslynTools/Services/OutlineService.cs:41`.
+
 - **2026-05-04: PHASE 3 COMPLETE (Parameterization for Mixed Variations)** — US-032 Phase 3 Parameterization is complete and production-ready. All 5 parameterization tests pass:
   - String literal parameterization ✓ (Phase 2: `Console.WriteLine("hello")` vs `Console.WriteLine("goodbye")` → `PrintMessages(string msg)`)
   - Single identifier parameterization ✓ (Phase 2: `_serviceA` vs `_serviceB` → `DoWork(string service)`)

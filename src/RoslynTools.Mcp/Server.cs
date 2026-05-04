@@ -1,10 +1,16 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using RoslynTools.Mcp.Tools;
 
 namespace RoslynTools.Mcp;
 
 internal sealed class Server
 {
+    private static readonly JsonSerializerOptions SerializerOptions = new()
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    };
+
     private readonly ToolRegistry _toolRegistry;
     private readonly TextReader _input;
     private readonly TextWriter _output;
@@ -24,6 +30,8 @@ internal sealed class Server
             if (line == null)
                 break;
 
+            JsonElement idElement = default;
+
             try
             {
                 using var doc = JsonDocument.Parse(line);
@@ -33,76 +41,58 @@ internal sealed class Server
                     !request.TryGetProperty("method", out var methodProp) ||
                     !request.TryGetProperty("id", out var idProp))
                 {
-                    await SendErrorAsync(-32700, "Invalid Request");
+                    await SendErrorAsync(idElement, -32700, "Invalid Request");
                     continue;
                 }
 
+                idElement = idProp.Clone();
                 var method = methodProp.GetString();
-                var id = idProp.GetInt32();
 
                 var response = method switch
                 {
-                    "initialize" => HandleInitialize(id),
-                    "tools/list" => HandleListTools(id),
-                    "tools/call" => await HandleCallToolAsync(request, id, cancellationToken),
-                    _ => CreateErrorResponse(id, -32601, $"Method not found: {method}")
+                    "initialize" => HandleInitialize(idElement),
+                    "tools/list" => HandleListTools(idElement),
+                    "tools/call" => await HandleCallToolAsync(request, idElement, cancellationToken),
+                    _ => CreateErrorResponse(idElement, -32601, $"Method not found: {method}")
                 };
 
                 await SendResponseAsync(response);
             }
             catch (Exception ex)
             {
-                await SendErrorAsync(-32603, $"Internal error: {ex.Message}");
+                await SendErrorAsync(idElement, -32603, $"Internal error: {ex.Message}");
             }
         }
     }
 
-    private object HandleInitialize(int id)
+    private object HandleInitialize(JsonElement id)
     {
         return new
         {
             jsonrpc = "2.0",
-            id = id,
+            id,
             result = new
             {
                 protocolVersion = "2024-11-05",
-                capabilities = new
-                {
-                    tools = new object()
-                },
-                serverInfo = new
-                {
-                    name = "roslyn-tools-mcp",
-                    version = "1.0.0"
-                }
+                capabilities = new { tools = new { } },
+                serverInfo = new { name = "roslyn-tools-mcp", version = "1.0.0" }
             }
         };
     }
 
-    private object HandleListTools(int id)
+    private object HandleListTools(JsonElement id)
     {
-        var tools = _toolRegistry.GetTools();
-        var toolObjects = tools.Select(tool => new
-        {
-            name = tool.name,
-            description = tool.description,
-            inputSchema = tool.inputSchema
-        }).ToArray();
-
         return new
         {
             jsonrpc = "2.0",
-            id = id,
-            result = new
-            {
-                tools = toolObjects
-            }
+            id,
+            result = new { tools = _toolRegistry.GetTools() }
         };
     }
 
     private async Task<object> HandleCallToolAsync(
         JsonElement request,
-        int id,
+        JsonElement id,
         CancellationToken cancellationToken)
     {
         if (!request.TryGetProperty("params", out var paramsProp))
@@ -120,63 +110,36 @@ internal sealed class Server
 
         var result = await _toolRegistry.InvokeAsync(toolName, argsProp, cancellationToken);
 
-        if (result.isError)
-        {
-            return new
-            {
-                jsonrpc = "2.0",
-                id = id,
-                result = new
-                {
-                    type = "text",
-                    text = $"Error: {result.content}"
-                }
-            };
-        }
-
         return new
         {
             jsonrpc = "2.0",
-            id = id,
+            id,
             result = new
             {
-                type = "text",
-                text = result.content
+                content = new[] { new { type = "text", text = result.content } },
+                isError = result.isError
             }
         };
     }
 
-    private object CreateErrorResponse(int id, int code, string message)
+    private static object CreateErrorResponse(JsonElement id, int code, string message)
     {
         return new
         {
             jsonrpc = "2.0",
-            id = id,
-            error = new
-            {
-                code = code,
-                message = message
-            }
+            id,
+            error = new { code, message }
         };
     }
 
-    private async Task SendErrorAsync(int code, string message)
+    private async Task SendErrorAsync(JsonElement id, int code, string message)
     {
-        var error = new
-        {
-            jsonrpc = "2.0",
-            error = new
-            {
-                code = code,
-                message = message
-            }
-        };
-        await SendResponseAsync(error);
+        await SendResponseAsync(CreateErrorResponse(id, code, message));
     }
 
     private async Task SendResponseAsync(object response)
     {
-        var json = JsonSerializer.Serialize(response);
+        var json = JsonSerializer.Serialize(response, SerializerOptions);
         await _output.WriteLineAsync(json);
     }
 }

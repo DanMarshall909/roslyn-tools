@@ -1,4 +1,6 @@
+using RoslynTools.Core;
 using RoslynTools.Mcp.Schemas;
+using RoslynTools.Services;
 
 namespace RoslynTools.Mcp.Handlers;
 
@@ -8,13 +10,26 @@ internal sealed class RenameSymbolHandler
         RenameSymbolRequest request,
         CancellationToken cancellationToken = default)
     {
-        // TODO: Implement rename using RenameService
-        await Task.Delay(0, cancellationToken);
-        return new RenameSymbolResult(
-            ChangedFiles: 0,
-            Diff: null,
-            Applied: false);
+        var (workspace, sln) = await WorkspaceLoader.LoadAsync(request.Solution);
+        using (workspace)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var newSln = await RenameService.RenameAsync(sln, request.OldName, request.NewName, kind: null);
+
+            var changedFiles = newSln.GetChanges(sln)
+                .GetProjectChanges()
+                .SelectMany(p => p.GetChangedDocuments())
+                .Count();
+
+            if (request.Apply)
+            {
+                await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+                return new RenameSymbolResult(ChangedFiles: changedFiles, Applied: true);
+            }
+
+            return new RenameSymbolResult(ChangedFiles: changedFiles, Applied: false);
+        }
     }
 }
 
-internal sealed record RenameSymbolResult(int ChangedFiles, string? Diff, bool Applied);
+internal sealed record RenameSymbolResult(int ChangedFiles, bool Applied);
