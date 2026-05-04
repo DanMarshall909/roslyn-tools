@@ -27,7 +27,7 @@ internal sealed class AddDependencyCommand : IRtCommand
     {
         var typeOpt = new Option<string>("--type", "Target class name") { IsRequired = true };
         var depOpt = new Option<string>("--dependency", "Dependency type to inject (e.g. IEmailService)") { IsRequired = true };
-        var fieldOpt = new Option<string?>("--field", "Field name override (default: derived from type)");
+        var fieldOpt = CommandOptionFactory.CreateFieldOption("--field", "Field name override (default: derived from type)");
         var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
         var dryRunOpt = new Option<bool>("--dry-run", "Preview without writing");
 
