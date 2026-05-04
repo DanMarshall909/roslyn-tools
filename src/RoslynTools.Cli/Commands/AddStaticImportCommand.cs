@@ -26,7 +26,7 @@ internal sealed class AddStaticImportCommand : IRtCommand
     public static Command Build()
     {
         var fileOpt = CommandOptionFactory.CreateStringOption("--file", "Path to the .cs file to update");
-        var typeOpt = CommandOptionFactory.CreateStringOption("--type", "Fully qualified type to import statically");
+        var typeOpt = CommandOptionFactory.CreateTypeOption("--type", "Fully qualified type to import statically");
         var solutionOpt = CommandOptionFactory.CreateSolutionOption();
         var dryRunOpt = CommandOptionFactory.CreateDryRunOption();
 

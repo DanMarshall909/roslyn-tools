@@ -163,3 +163,20 @@
 **Impact**: Can't complete Group 1 deduplication without manual edits.
 
 **Suggestion**: Add `rt refactor replace-pattern` or extend `replace-call` to support `--if-arg <index> <value>` filtering.
+
+## Missing: Pattern-based constructor replacement
+
+**Scenario**: Group 2 deduplication requires replacing `new Option<string?>("--field", helpText)` constructor calls with `CreateFieldOption(helpText)` across 6 files.
+
+**Gap**: `rt refactor` lacks a command to:
+- Match constructor invocations (not just method calls)
+- Filter based on argument values
+- Transform arguments during replacement
+
+**Workarounds**:
+- `replace-call` only works for method calls, not constructors
+- Would need separate `replace-constructor` or generic `replace-pattern` command
+
+**Impact**: Can't complete Group 2 deduplication without manual edits.
+
+**Suggestion**: Add `rt refactor replace-new` for constructor patterns, or implement generic pattern-based replacement.

@@ -28,7 +28,7 @@ internal sealed class MakeSealedCommand : IRtCommand
     // Stryker disable all
     public static Command Build()
     {
-        var typeOpt = CommandOptionFactory.CreateStringOption("--type", "Class to seal");
+        var typeOpt = CommandOptionFactory.CreateTypeOption("--type", "Class to seal");
         var solutionOpt = CommandOptionFactory.CreateSolutionOption();
         var dryRunOpt = CommandOptionFactory.CreateDryRunOption();
 

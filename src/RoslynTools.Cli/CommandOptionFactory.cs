@@ -41,4 +41,28 @@ internal static class CommandOptionFactory
             throw new ArgumentException($"Expected '--method' but got '{optionName}'", nameof(optionName));
         return CreateMethodOption(helpText);
     }
+
+    /// <summary>Creates a required --field option with custom help text.</summary>
+    public static Option<string?> CreateFieldOption(string helpText)
+        => new("--field", helpText);
+
+    /// <summary>Overload supporting refactored code that still passes the option name.</summary>
+    public static Option<string?> CreateFieldOption(string optionName, string helpText)
+    {
+        if (optionName != "--field")
+            throw new ArgumentException($"Expected '--field' but got '{optionName}'", nameof(optionName));
+        return CreateFieldOption(helpText);
+    }
+
+    /// <summary>Creates a required --type option with custom help text.</summary>
+    public static Option<string> CreateTypeOption(string helpText)
+        => new("--type", helpText) { IsRequired = true };
+
+    /// <summary>Overload supporting refactored code that still passes the option name.</summary>
+    public static Option<string> CreateTypeOption(string optionName, string helpText)
+    {
+        if (optionName != "--type")
+            throw new ArgumentException($"Expected '--type' but got '{optionName}'", nameof(optionName));
+        return CreateTypeOption(helpText);
+    }
 }

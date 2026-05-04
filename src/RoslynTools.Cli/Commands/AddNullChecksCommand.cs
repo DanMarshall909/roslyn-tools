@@ -25,7 +25,7 @@ internal sealed class AddNullChecksCommand : IRtCommand
 
     public static Command Build()
     {
-        var typeOpt = CommandOptionFactory.CreateStringOption("--type", "Class containing the method");
+        var typeOpt = CommandOptionFactory.CreateTypeOption("--type", "Class containing the method");
         var methodOpt = CommandOptionFactory.CreateMethodOption("--method", "Method name to add null checks to");
         var solutionOpt = CommandOptionFactory.CreateSolutionOption();
         var dryRunOpt = CommandOptionFactory.CreateDryRunOption();
