@@ -6,6 +6,7 @@ internal sealed record DaemonRequest(
     string RequestId,
     string[] Args,
     GitState GitState,
+    string? WorkingDirectory = null,
     string? Stdin = null);
 
 internal sealed record GitState(

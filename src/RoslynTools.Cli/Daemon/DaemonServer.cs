@@ -1,6 +1,9 @@
 using System.IO.Pipes;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using RoslynTools;
 using RoslynTools.Core;
 
 namespace RoslynTools.Daemon;
@@ -9,8 +12,10 @@ internal static class DaemonServer
 {
     internal const string PipeName = "rt-daemon";
 
-    internal static async Task<int> RunAsync(CancellationToken cancellationToken = default)
+    internal static async Task<int> RunAsync()
     {
+        Directory.CreateDirectory(DaemonState.StateDir);
+
         using var pipe = new NamedPipeServerStream(
             PipeName,
             PipeDirection.InOut,
@@ -18,7 +23,7 @@ internal static class DaemonServer
             transmissionMode: PipeTransmissionMode.Byte,
             options: PipeOptions.Asynchronous);
 
-        // Write state file only after pipe is listening — client polls for this file.
+        // Write state file immediately after pipe creation so `rt daemon start` sees it fast.
         DaemonState.Write(new DaemonStateFile(
             Pid: Environment.ProcessId,
             PipeName: PipeName,
@@ -31,13 +36,27 @@ internal static class DaemonServer
 
         RtLog.Info("[rt-daemon] PID {Pid} listening on \\\\.\\pipe\\{PipeName}", Environment.ProcessId, PipeName);
 
+        // Initialize MSBuild and DI after writing state file — startup signals readiness
+        // before the slower MSBuild registration completes. Clients connecting during init
+        // block on WaitForConnectionAsync (called below) until init finishes.
+        MsBuildBootstrap.Register();
+        using var host = Host.CreateDefaultBuilder()
+            .ConfigureServices(Bootstrap.RegisterServices)
+            .Build();
+        var services = host.Services;
+        CancellationToken cancellationToken = default;
+
         var stopping = false;
         while (!stopping && !cancellationToken.IsCancellationRequested)
         {
             await pipe.WaitForConnectionAsync(cancellationToken);
             try
             {
-                stopping = await HandleRequestAsync(pipe, cancellationToken);
+                stopping = await HandleRequestAsync(pipe, services, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                RtLog.Error("[rt-daemon] unhandled exception in request loop: {Message}", ex.Message);
             }
             finally
             {
@@ -49,7 +68,7 @@ internal static class DaemonServer
         return 0;
     }
 
-    private static async Task<bool> HandleRequestAsync(NamedPipeServerStream pipe, CancellationToken ct)
+    private static async Task<bool> HandleRequestAsync(NamedPipeServerStream pipe, IServiceProvider services, CancellationToken ct)
     {
         // leaveOpen: true — pipe stream outlives the reader/writer wrappers
         using var reader = new StreamReader(pipe, Encoding.UTF8, leaveOpen: true);
@@ -78,10 +97,36 @@ internal static class DaemonServer
             return true;
         }
 
-        // Stage 1 will route arbitrary args through App.RunAsync here.
-        await RespondAsync(writer, new DaemonResponse(request.RequestId, "stderr",
-            Data: "[rt-daemon] command routing not yet implemented (Stage 0)\n"));
-        await RespondAsync(writer, new DaemonResponse(request.RequestId, "exit", Code: 1));
+        if (request.WorkingDirectory is not null)
+            Directory.SetCurrentDirectory(request.WorkingDirectory);
+
+        var pipeConsole = new DaemonPipeConsole(writer, request.RequestId);
+        int exitCode;
+        try
+        {
+            Environment.ExitCode = 0;
+            using (RtConsole.UseConsole(pipeConsole))
+                exitCode = await App.RunAsync(request.Args, services);
+            exitCode = Math.Max(exitCode, Environment.ExitCode);
+        }
+        catch (IOException)
+        {
+            // Client disconnected mid-stream — daemon continues.
+            return false;
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                await RespondAsync(writer, new DaemonResponse(request.RequestId, "stderr",
+                    Data: $"[rt-daemon] unhandled exception: {ex.Message}\n"));
+            }
+            catch (IOException) { }
+            exitCode = 1;
+        }
+
+        try { await RespondAsync(writer, new DaemonResponse(request.RequestId, "exit", Code: exitCode)); }
+        catch (IOException) { }
         return false;
     }
 

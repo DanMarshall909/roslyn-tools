@@ -30,17 +30,28 @@ internal static class DaemonClient
             return null;
         }
 
+        using var pipe = new NamedPipeClientStream(".", state.PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
         try
         {
-            using var pipe = new NamedPipeClientStream(".", state.PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(2));
             await pipe.ConnectAsync(cts.Token);
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or IOException)
+        {
+            RtLog.Warning("[rt] Could not connect to daemon — falling back to in-process.");
+            DaemonState.Remove();
+            return null;
+        }
 
+        // Connected — IO errors past this point don't mean the daemon is dead.
+        try
+        {
             var request = new DaemonRequest(
                 RequestId: Guid.NewGuid().ToString("N")[..8],
                 Args: args,
-                GitState: GetGitState());
+                GitState: GetGitState(),
+                WorkingDirectory: Directory.GetCurrentDirectory());
 
             var writer = new StreamWriter(pipe, Encoding.UTF8, leaveOpen: true) { AutoFlush = true };
             await writer.WriteLineAsync(JsonSerializer.Serialize(request, DaemonProtocol.JsonOpts).AsMemory(), ct);
@@ -66,8 +77,7 @@ internal static class DaemonClient
         }
         catch (Exception ex) when (ex is OperationCanceledException or IOException)
         {
-            RtLog.Warning("[rt] Could not connect to daemon — falling back to in-process.");
-            DaemonState.Remove();
+            // Server disconnected after sending exit — daemon is still alive, don't remove state.
             return null;
         }
     }

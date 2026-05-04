@@ -36,7 +36,7 @@ internal static class Program
             .ConfigureServices(Bootstrap.RegisterServices)
             .Build();
 
-        return await App.RunAsync(args, host.Services);
+        return await App.RunAsync(args, host.Services, [DaemonCommand.Build()]);
     }
 
     private static bool IsDaemonCommand(string[] args) =>
