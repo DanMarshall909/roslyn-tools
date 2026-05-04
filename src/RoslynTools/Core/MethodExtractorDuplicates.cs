@@ -354,7 +354,7 @@ internal static class MethodExtractorDuplicates
         IReadOnlyList<ISymbol> returnVars)
     {
         // Phase 1: Analyze literal variations
-        var (literalsByMatch, varyingLiteralPositions) = await AnalyzeLiteralVariationsAsync(solution, filePath, sourceStartLine, sourceEndLine, matches);
+        var (literalsByMatch, varyingLiteralPositions) = await AnalyzeLiteralVariationsAsync(solution, filePath, newMethodName, matches);
 
         // Phase 2: Analyze identifier variations using PatternMatch.Substitutions.
         // Exclude identifiers already covered by orderedParameters (the existing method params).
@@ -719,20 +719,60 @@ internal static class MethodExtractorDuplicates
         if (doc == null)
             return [];
         var root = await doc.GetSyntaxRootAsync();
-        return root == null ? [] : SelectStatementsInRange(root, startLine, endLine);
+        if (root == null)
+            return [];
+
+        // Get statements by line range, being careful about line number conversions
+        var allStmts = root.DescendantNodes()
+            .OfType<StatementSyntax>()
+            .Where(s => s.Parent is BlockSyntax)
+            .ToList();
+
+        var result = new List<StatementSyntax>();
+        foreach (var stmt in allStmts)
+        {
+            var span = stmt.GetLocation().GetLineSpan();
+            // Check if statement falls within [startLine, endLine] (1-based)
+            // Convert to 1-based for comparison: statement at 0-based LinePosition.Line N has 1-based line = N+1
+            int stmtStartLine1Based = span.StartLinePosition.Line + 1;
+            int stmtEndLine1Based = span.EndLinePosition.Line + 1;
+
+            if (stmtStartLine1Based >= startLine && stmtStartLine1Based <= endLine)
+            {
+                result.Add(stmt);
+            }
+        }
+        return result;
     }
 
     private static List<StatementSyntax> SelectStatementsInRange(SyntaxNode root, int startLine, int endLine)
-        => root.DescendantNodes()
+    {
+        var allStmts = root.DescendantNodes()
                .OfType<StatementSyntax>()
                .Where(s => s.Parent is BlockSyntax)
-               .Where(s =>
-               {
-                   var span = s.GetLocation().GetLineSpan();
-                   return span.StartLinePosition.Line >= startLine - 1
-                       && span.EndLinePosition.Line <= endLine - 1;
-               })
                .ToList();
+
+        RtLog.Warning("SelectStatementsInRange: looking for lines {Start}-{End}, found {Total} block-level statements", startLine, endLine, allStmts.Count);
+
+        var result = new List<StatementSyntax>();
+        foreach (var stmt in allStmts)
+        {
+            var span = stmt.GetLocation().GetLineSpan();
+            int stmtStartLine1Based = span.StartLinePosition.Line + 1;
+            int stmtEndLine1Based = span.EndLinePosition.Line + 1;
+
+            bool matches = stmtStartLine1Based >= startLine && stmtStartLine1Based <= endLine;
+            RtLog.Warning("  Statement at lines {Start1Based}-{End1Based} (1-based): matches={Matches}", stmtStartLine1Based, stmtEndLine1Based, matches);
+
+            if (matches)
+            {
+                result.Add(stmt);
+            }
+        }
+
+        RtLog.Warning("SelectStatementsInRange: returning {Count} statements", result.Count);
+        return result;
+    }
 
     /// <summary>
     /// Extracts all string literal values from a list of statements.
@@ -788,9 +828,9 @@ internal static class MethodExtractorDuplicates
     }
 
     private static async Task<(List<List<string>>, HashSet<int>)>
-        AnalyzeLiteralVariationsAsync(Solution solution, string sourceFilePath, int sourceStartLine, int sourceEndLine, IReadOnlyList<PatternMatch> matches)
+        AnalyzeLiteralVariationsAsync(Solution solution, string sourceFilePath, string newMethodName, IReadOnlyList<PatternMatch> matches)
     {
-        // Extract source file's literals from the extracted method range
+        // Extract source file's literals directly from the newly extracted method
         var sourceAbsPath = Path.GetFullPath(sourceFilePath);
         var sourceDoc = solution.Projects
             .SelectMany(p => p.Documents)
@@ -802,8 +842,22 @@ internal static class MethodExtractorDuplicates
             var sourceRoot = await sourceDoc.GetSyntaxRootAsync();
             if (sourceRoot != null)
             {
-                var sourceStatements = SelectStatementsInRange(sourceRoot, sourceStartLine, sourceEndLine);
-                patternLiterals = ExtractOrderedLiterals(sourceStatements);
+                // Find the method directly by name instead of using line numbers
+                var newMethod = sourceRoot.DescendantNodes()
+                    .OfType<MethodDeclarationSyntax>()
+                    .FirstOrDefault(m => m.Identifier.Text == newMethodName);
+
+                if (newMethod?.Body != null)
+                {
+                    var sourceStatements = newMethod.Body.Statements
+                        .Where(s => s is not ReturnStatementSyntax)
+                        .ToList();
+
+                    if (sourceStatements.Count == 0)
+                        sourceStatements = newMethod.Body.Statements.ToList();
+
+                    patternLiterals = ExtractOrderedLiterals(sourceStatements);
+                }
             }
         }
 
@@ -813,6 +867,7 @@ internal static class MethodExtractorDuplicates
         foreach (var match in matches)
         {
             var orderedLiterals = await ExtractLiteralsFromMatchAsync(solution, match);
+            RtLog.Warning("AnalyzeLiteralVariations: match at {File}:{Line} has {Count} literals", match.File, match.Line, orderedLiterals.Count);
             literalsByMatch.Add(orderedLiterals);
         }
 
@@ -827,11 +882,13 @@ internal static class MethodExtractorDuplicates
                 if (pos >= matchLiterals.Count || matchLiterals[pos] != patternValue)
                 {
                     varyingPositions.Add(pos);
+                    RtLog.Warning("AnalyzeLiteralVariations: position {Pos} varies", pos);
                     break;
                 }
             }
         }
 
+        RtLog.Warning("AnalyzeLiteralVariations: found {Count} varying positions", varyingPositions.Count);
         return (literalsByMatch, varyingPositions);
     }
 

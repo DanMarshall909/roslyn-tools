@@ -1409,7 +1409,7 @@ public class ExtractMethodTests
         }
     }
 
-    [Fact(Skip = "US-032: Parameterization not yet implemented (Phase 3). Semantic validation filters duplicates with different literals.")]
+    [Fact]
     public async Task Parameterizes_duplicates_that_differ_only_in_string_literals()
     {
         // US-032 Parameterization (Tracer Bullet): Extract method and find structural duplicates
