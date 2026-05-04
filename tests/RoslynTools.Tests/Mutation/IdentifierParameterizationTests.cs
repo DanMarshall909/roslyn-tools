@@ -158,7 +158,7 @@ public class IdentifierParameterizationTests
     //  AC4: Mixed literal + identifier variations -> both parameterized
     // ──────────────────────────────────────────────────────────────────────────
 
-    [Fact(Skip = "US-032: Parameterization not yet implemented (Phase 3)")]
+    [Fact]
     public async Task Parameterizes_mixed_literal_and_identifier_variations()
     {
         // A: Console.WriteLine("hello"); Console.WriteLine(_fieldA)

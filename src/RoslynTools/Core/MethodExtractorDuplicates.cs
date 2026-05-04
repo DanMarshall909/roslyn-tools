@@ -450,6 +450,15 @@ internal static class MethodExtractorDuplicates
             matches = filteredMatches;
         }
 
+        // After parameterization, update the source file's original call site with the new parameters
+        if (returnVarNamesMatch && (varyingLiteralPositions.Count > 0 || effectiveIdentifierPositions.Count > 0 || typeParamMap.Count > 0))
+        {
+            currentSln = await UpdateSourceFileCallSiteAsync(
+                currentSln, filePath, newMethodName, sourceStartLine, sourceEndLine,
+                literalsByMatch, varyingLiteralPositions,
+                patternIdentifiers, effectiveIdentifierPositions, typeParamMap);
+        }
+
         int replaced = 0;
         int skipped = 0;
 
@@ -752,8 +761,6 @@ internal static class MethodExtractorDuplicates
                .Where(s => s.Parent is BlockSyntax)
                .ToList();
 
-        RtLog.Warning("SelectStatementsInRange: looking for lines {Start}-{End}, found {Total} block-level statements", startLine, endLine, allStmts.Count);
-
         var result = new List<StatementSyntax>();
         foreach (var stmt in allStmts)
         {
@@ -762,7 +769,6 @@ internal static class MethodExtractorDuplicates
             int stmtEndLine1Based = span.EndLinePosition.Line + 1;
 
             bool matches = stmtStartLine1Based >= startLine && stmtStartLine1Based <= endLine;
-            RtLog.Warning("  Statement at lines {Start1Based}-{End1Based} (1-based): matches={Matches}", stmtStartLine1Based, stmtEndLine1Based, matches);
 
             if (matches)
             {
@@ -770,7 +776,6 @@ internal static class MethodExtractorDuplicates
             }
         }
 
-        RtLog.Warning("SelectStatementsInRange: returning {Count} statements", result.Count);
         return result;
     }
 
@@ -867,7 +872,6 @@ internal static class MethodExtractorDuplicates
         foreach (var match in matches)
         {
             var orderedLiterals = await ExtractLiteralsFromMatchAsync(solution, match);
-            RtLog.Warning("AnalyzeLiteralVariations: match at {File}:{Line} has {Count} literals", match.File, match.Line, orderedLiterals.Count);
             literalsByMatch.Add(orderedLiterals);
         }
 
@@ -882,13 +886,11 @@ internal static class MethodExtractorDuplicates
                 if (pos >= matchLiterals.Count || matchLiterals[pos] != patternValue)
                 {
                     varyingPositions.Add(pos);
-                    RtLog.Warning("AnalyzeLiteralVariations: position {Pos} varies", pos);
                     break;
                 }
             }
         }
 
-        RtLog.Warning("AnalyzeLiteralVariations: found {Count} varying positions", varyingPositions.Count);
         return (literalsByMatch, varyingPositions);
     }
 
@@ -1011,6 +1013,88 @@ internal static class MethodExtractorDuplicates
         var varyingPositions = IdentifierVariationDetector.FindVaryingPositions(patternIdentifiers, matchSubstitutions);
 
         return (patternIdentifiers, varyingPositions);
+    }
+
+    /// <summary>
+    /// After parameterization, update the source file's original call site with parameterized arguments.
+    /// The extraction process replaces the original statements with a call to the new method.
+    /// When parameterization adds parameters, this call site must be updated to pass those arguments.
+    /// </summary>
+    private static async Task<Solution> UpdateSourceFileCallSiteAsync(
+        Solution solution,
+        string filePath,
+        string newMethodName,
+        int originalStartLine,
+        int originalEndLine,
+        List<List<string>> literalsByMatch,
+        HashSet<int> varyingLiteralPositions,
+        List<string> patternIdentifiers,
+        HashSet<int> varyingIdentifierPositions,
+        IReadOnlyDictionary<string, string> typeParamMap)
+    {
+        var absPath = Path.GetFullPath(filePath);
+        var doc = solution.Projects
+            .SelectMany(p => p.Documents)
+            .FirstOrDefault(d => string.Equals(d.FilePath, absPath, StringComparison.OrdinalIgnoreCase));
+
+        if (doc == null)
+            return solution;
+
+        var root = await doc.GetSyntaxRootAsync();
+        if (root == null)
+            return solution;
+
+        // Find the method call near the original extraction line (it should be there now)
+        // Search for invocation expressions matching the new method name
+        var callSites = root.DescendantNodes()
+            .OfType<InvocationExpressionSyntax>()
+            .Where(inv => inv.Expression is IdentifierNameSyntax id && id.Identifier.Text == newMethodName)
+            .ToList();
+
+        if (callSites.Count == 0)
+            return solution;
+
+        // Build the argument list using the same logic as TryReplaceMatchAsync
+        var patternLiterals = literalsByMatch[0]; // Source file literals
+        var arguments = new List<ExpressionSyntax>();
+
+        // Add arguments for each varying position
+        foreach (int pos in varyingLiteralPositions.Union(varyingIdentifierPositions).OrderBy(p => p))
+        {
+            ExpressionSyntax arg;
+
+            if (varyingLiteralPositions.Contains(pos))
+            {
+                // Literal position: use the source file's literal value
+                var literalValue = patternLiterals[pos];
+                arg = SyntaxFactory.LiteralExpression(
+                    SyntaxKind.StringLiteralExpression,
+                    SyntaxFactory.Literal(literalValue));
+            }
+            else
+            {
+                // Identifier position: use the source file's identifier
+                var identifierName = patternIdentifiers[pos - varyingLiteralPositions.Count];
+                arg = SyntaxFactory.IdentifierName(identifierName);
+            }
+
+            arguments.Add(arg);
+        }
+
+        // If there are parameterized arguments, replace the first invocation with an updated version
+        if (arguments.Count > 0 && callSites.Count > 0)
+        {
+            var originalCall = callSites[0];
+            var newArgList = SyntaxFactory.ArgumentList(
+                SyntaxFactory.SeparatedList(arguments.Select(arg => SyntaxFactory.Argument(arg))));
+
+            var newCall = originalCall.WithArgumentList(newArgList);
+            var newRoot = root.ReplaceNode(originalCall, newCall);
+
+            return solution.WithDocumentSyntaxRoot(doc.Id, newRoot);
+        }
+
+        return solution;
     }
 }
 
