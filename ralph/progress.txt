@@ -1,7 +1,7 @@
 roslyn-tools
 Branch: ralph/dogfood-gaps-2026-05-01
 
-Current Status: 6/44 stories complete (14%)
+Current Status: 11/53 stories complete (21%)
 
 EP-001 — Bugs and quality fixes in existing commands (3/3)
 [x] US-001 Fix string.Format() decomposition in console-logging conversion
@@ -11,7 +11,7 @@ EP-001 — Bugs and quality fixes in existing commands (3/3)
 EP-002 — Logging migration polish (0/1)
 [ ] US-004 Migrate MoveService WARNING messages to RtLog.Warning
 
-EP-003 — New rt analyze commands and inspection polish (0/7)
+EP-003 — New rt analyze commands and inspection polish (0/8)
 [ ] US-007 Audit RtCommandInfo fields exposed in dump-help --json
 [ ] US-010 Auto-detect nearest solution when --solution is omitted
 [ ] US-011 Separate workspace diagnostics from results in --json output
@@ -19,6 +19,7 @@ EP-003 — New rt analyze commands and inspection polish (0/7)
 [ ] US-013 Add rt analyze interface member-usage command
 [ ] US-014 Add rt analyze why-type-needed and unused-members-on-interface sub-commands
 [ ] US-015 Add rt analyze architecture-verify command with config-driven rules
+[ ] US-053 Add rt inspect list-methods command for agent method discovery
 
 EP-004 — New rt refactor commands (0/6)
 [ ] US-016 Add rt refactor introduce-record command
@@ -63,4 +64,16 @@ EP-008 — Agent Readiness and Contract Hardening (0/7)
 
 EP-009 — MCP Server (0/2)
 [ ] US-043 Add RtOperationParameters abstraction; adapt CLI and build rt mcp as the first two surfaces
-[ ] US-044 Add rt serve command — HTTP server with embedded web UI exposing all operations as REST API
+[ ] US-044 Add rt serve command â€” HTTP server with embedded web UI exposing all operations as REST API
+
+EP-010 — Extract-Method Parameterization Enhancements (Phases 2-5) (5/5)
+[x] US-045 Extract-method: Parameterize identifier variations (Phase 2)
+[x] US-046 Extract-method: Unwind control flow for extraction (Phase 3)
+[x] US-047 Extract-method: Support tuple returns (Phase 4)
+[x] US-048 Extract-method: Support out/ref parameters (Phase 5)
+[x] US-049 Extract-method: Support generic type parameterization (Phase 6)
+
+Loose stories
+[ ] US-050 Fix extract-method source-file call site not updated with parameterized arguments (Phase 2 follow-up)
+[ ] US-051 Harden rt refactor extract-class: rewrite external call sites, preserve access modifiers, fix indentation
+[ ] US-052 Add rt refactor remove-unused-usings command
