@@ -1,4 +1,5 @@
 using System.CommandLine;
+using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
@@ -36,16 +37,17 @@ internal sealed class FindRefsCommand : IRtCommand
             solutionOpt, symbolOpt, kindOpt
         };
 
-        cmd.SetHandler(async (solution, symbol, kind) =>
+        cmd.SetHandler(async ctx =>
         {
-            var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
-            using (workspace)
-            {
-                var result = await FindRefsService.FindAsync(sln, symbol, kind);
-                RtSerializer.Write(result);
-            }
-        },
-        solutionOpt, symbolOpt, kindOpt);
+            var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
+            var symbol = ctx.ParseResult.GetValueForOption(symbolOpt)!;
+            var kind = ctx.ParseResult.GetValueForOption(kindOpt);
+            var sp = ctx.BindingContext.GetService<IServiceProvider>();
+            var loader = sp?.GetService<WorkspaceLoader>() ?? new WorkspaceLoader();
+            var sln = await loader.GetSolutionAsync(solution);
+            var result = await FindRefsService.FindAsync(sln, symbol, kind);
+            RtSerializer.Write(result);
+        });
 
         return cmd;
     }

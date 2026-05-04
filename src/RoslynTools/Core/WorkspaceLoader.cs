@@ -3,23 +3,19 @@ using Microsoft.CodeAnalysis.MSBuild;
 
 namespace RoslynTools.Core;
 
-internal static class WorkspaceLoader
+internal sealed class WorkspaceLoader : IDisposable
 {
-    /// <summary>
-    /// Test hook: if set, <see cref="LoadAsync"/> returns this pair instead of opening MSBuild.
-    /// AsyncLocal so parallel xunit test methods don't clobber each other. Never read or written by production code.
-    /// </summary>
+    private MSBuildWorkspace? _workspace;
+
+    // ── Test hooks ──────────────────────────────────────────────────────────
+
+    // AsyncLocal so parallel xunit test methods don't clobber each other.
     internal static AsyncLocal<(Workspace Workspace, Solution Solution)?> Override { get; } = new();
 
-    /// <summary>
-    /// Test hook: redirects diagnostic output away from <see cref="Console.Error"/> when set.
-    /// AsyncLocal so parallel xunit tests don't clobber each other.
-    /// </summary>
+    // AsyncLocal so parallel xunit tests don't clobber each other.
     internal static AsyncLocal<TextWriter?> DiagnosticSinkOverride { get; } = new();
 
-    /// <summary>
-    /// Test-only scope: installs an override for the duration of the returned IDisposable, then clears it.
-    /// </summary>
+    // Test-only scope: installs an override for the duration of the returned IDisposable.
     internal static IDisposable UseOverride(Workspace workspace, Solution solution)
     {
         Override.Value = (workspace, solution);
@@ -31,11 +27,50 @@ internal static class WorkspaceLoader
         public void Dispose() => Override.Value = null;
     }
 
+    // ── Instance API (DI path) ───────────────────────────────────────────────
+
+    /// <summary>
+    /// Load and return the solution. The instance retains the workspace — do not dispose it
+    /// from the call site. The workspace is disposed when this <see cref="WorkspaceLoader"/>
+    /// is disposed (i.e. when the DI container tears down).
+    /// </summary>
+    internal async Task<Solution> GetSolutionAsync(string? solutionPath)
+    {
+        if (Override.Value is { } o)
+            return o.Solution;
+
+        var (workspace, solution) = await LoadCoreAsync(solutionPath);
+        _workspace?.Dispose();
+        _workspace = workspace;
+        return solution;
+    }
+
+    public void Dispose()
+    {
+        _workspace?.Dispose();
+        _workspace = null;
+    }
+
+    // ── Static API (backward-compat for not-yet-migrated commands) ──────────
+
+    /// <summary>
+    /// Loads a fresh workspace and solution. Caller owns the returned workspace and must
+    /// dispose it. Prefer the DI-injected <see cref="WorkspaceLoader"/> and
+    /// <see cref="GetSolutionAsync"/> for new code.
+    /// </summary>
     internal static async Task<(Workspace Workspace, Solution Solution)> LoadAsync(string? solutionPath)
     {
         if (Override.Value is { } o)
             return (o.Workspace, o.Solution);
 
+        var (workspace, solution) = await LoadCoreAsync(solutionPath);
+        return (workspace, solution);
+    }
+
+    // ── Shared load logic ───────────────────────────────────────────────────
+
+    private static async Task<(MSBuildWorkspace Workspace, Solution Solution)> LoadCoreAsync(string? solutionPath)
+    {
         solutionPath = ResolveSolutionPath(solutionPath);
 
         if (!File.Exists(solutionPath))
@@ -49,7 +84,7 @@ internal static class WorkspaceLoader
         });
 
         var diagnostics = new List<WorkspaceDiagnostic>();
-        var subscription = workspace.RegisterWorkspaceFailedHandler(e =>
+        workspace.RegisterWorkspaceFailedHandler(e =>
         {
             lock (diagnostics) diagnostics.Add(e.Diagnostic);
         });
@@ -86,7 +121,6 @@ internal static class WorkspaceLoader
         if (diagnostics.Count == 0)
             return;
 
-        // Legacy test-hook: if DiagnosticSinkOverride is set, write there directly.
         var legacySink = DiagnosticSinkOverride.Value;
         if (legacySink is not null)
         {
@@ -146,9 +180,7 @@ internal static class WorkspaceLoader
     }
 
     private static string ResolveExplicitSolutionPath(string solutionPath)
-    {
-        return Path.GetFullPath(solutionPath);
-    }
+        => Path.GetFullPath(solutionPath);
 
     private static string? ResolveRepoDefaultPath(DirectoryInfo currentDirectory)
     {
@@ -181,5 +213,4 @@ internal static class WorkspaceLoader
             throw new InvalidOperationException(
                 $"Repository solution default '.rt-solution' in '{repoRoot}' points to '{configuredPath}', which does not exist.");
     }
-
 }

@@ -17,6 +17,7 @@ internal static class Bootstrap
     /// </summary>
     public static void RegisterServices(IServiceCollection services)
     {
+        services.AddSingleton<Core.WorkspaceLoader>();
         services.AddSingleton<Services.StaticClassInventoryService>();
     }
 }

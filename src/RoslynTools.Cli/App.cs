@@ -8,8 +8,6 @@ using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Core.Decisions;
 using RoslynTools.Core.Output;
-using RoslynTools.Daemon;
-
 namespace RoslynTools;
 
 internal static class App
@@ -64,7 +62,7 @@ internal static class App
     /// </summary>
     internal static IReadOnlyList<(Func<Command> Build, RtCommandInfo Info)> Commands { get; } = Discover();
 
-    internal static async Task<int> RunAsync(string[] args, IServiceProvider? services = null)
+    internal static async Task<int> RunAsync(string[] args, IServiceProvider? services = null, IReadOnlyList<Command>? additionalCommands = null)
     {
         var root = new RootCommand("Roslyn-based C# refactoring tool");
 
@@ -100,13 +98,20 @@ internal static class App
         // Hidden meta-command, not part of the public registry (does not implement IRtCommand).
         root.AddCommand(DumpHelpCommand.Build());
 
-        // Daemon lifecycle — orthogonal to inspect/analyze/refactor taxonomy.
-        root.AddCommand(DaemonCommand.Build());
+        if (additionalCommands is not null)
+            foreach (var cmd in additionalCommands)
+                root.AddCommand(cmd);
 
         var (jsonOpt, llmOpt, markdownOpt, yamlOpt, decisionsOpt) = RegisterGlobalOptions(root);
 
         return await new CommandLineBuilder(root)
             .UseDefaults()
+            .AddMiddleware((context, next) =>
+            {
+                if (services is not null)
+                    context.BindingContext.AddService<IServiceProvider>(_ => services);
+                return next(context);
+            }, MiddlewareOrder.Default)
             .AddMiddleware(async (context, next) =>
             {
                 var md = context.ParseResult.GetValueForOption(markdownOpt);
