@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using Microsoft.CodeAnalysis;
 
@@ -9,7 +10,14 @@ namespace RoslynTools.Core;
 /// </summary>
 internal static class SymbolFormatter
 {
-    internal static readonly JsonSerializerOptions DefaultJsonOptions = new() { WriteIndented = true };
+    // UnsafeRelaxedJsonEscaping renders &lt; and &gt; as the actual `<` and `>` characters
+    // instead of < / >, so generic types like Task<int> stay readable in CLI
+    // output. Safe here because we emit to stdout, not into HTML pages.
+    internal static readonly JsonSerializerOptions DefaultJsonOptions = new()
+    {
+        WriteIndented = true,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    };
 
     /// <summary>
     /// Returns a list of source-location dictionaries (file + line) for the given symbol.
@@ -32,7 +40,9 @@ internal static class SymbolFormatter
 
     /// <summary>
     /// Returns a list of member dictionaries for the given named type.
-    /// When <paramref name="includeStaticFlag"/> is true each entry includes an "isStatic" key.
+    /// Each entry includes "lineFrom" / "lineTo" pulled from the symbol's first source location
+    /// (1-indexed; null when the symbol has no source location, e.g. compiler-generated members).
+    /// When <paramref name="includeStaticFlag"/> is true each entry also includes an "isStatic" key.
     /// </summary>
     internal static List<Dictionary<string, object?>> ExtractMembers(
         INamedTypeSymbol type,
@@ -42,18 +52,36 @@ internal static class SymbolFormatter
             .Where(m => !m.IsImplicitlyDeclared)
             .Select(m =>
             {
+                var (lineFrom, lineTo) = GetSourceLineRange(m);
                 var entry = new Dictionary<string, object?>
                 {
                     ["name"] = m.Name,
                     ["kind"] = m.Kind.ToString(),
                     ["signature"] = m.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
                     ["accessibility"] = m.DeclaredAccessibility.ToString(),
+                    ["lineFrom"] = lineFrom,
+                    ["lineTo"] = lineTo,
                 };
                 if (includeStaticFlag)
                     entry["isStatic"] = m.IsStatic;
                 return entry;
             })
             .ToList();
+    }
+
+    /// <summary>
+    /// Returns the 1-indexed start and end line of the symbol's first declaration. Uses
+    /// <see cref="ISymbol.DeclaringSyntaxReferences"/> rather than <see cref="ISymbol.Locations"/>
+    /// because Locations point only at the identifier token (so end == start), whereas the
+    /// declaring syntax node spans the entire declaration including its body.
+    /// Both values are null when the symbol has no source declaration (compiler-generated, etc.).
+    /// </summary>
+    internal static (int? LineFrom, int? LineTo) GetSourceLineRange(ISymbol symbol)
+    {
+        var syntaxRef = symbol.DeclaringSyntaxReferences.FirstOrDefault();
+        if (syntaxRef is null) return (null, null);
+        var span = syntaxRef.GetSyntax().GetLocation().GetLineSpan();
+        return (span.StartLinePosition.Line + 1, span.EndLinePosition.Line + 1);
     }
 
     /// <summary>

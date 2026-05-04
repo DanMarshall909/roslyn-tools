@@ -89,18 +89,71 @@ internal static class OutlineService
 
     internal static Dictionary<string, object?> BuildTypeOutline(INamedTypeSymbol type)
     {
+        var (lineFrom, lineTo) = SymbolFormatter.GetSourceLineRange(type);
         var outline = new Dictionary<string, object?>
         {
             ["name"] = type.Name,
             ["fqn"] = type.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
             ["kind"] = type.TypeKind.ToString(),
             ["accessibility"] = type.DeclaredAccessibility.ToString(),
+            ["lineFrom"] = lineFrom,
+            ["lineTo"] = lineTo,
         };
 
         SymbolFormatter.AddTypeHierarchyInfo(outline, type);
 
-        outline["members"] = SymbolFormatter.ExtractMembers(type, includeStaticFlag: false);
+        // Group members by kind, then accessibility, to save tokens (kind/accessibility appear
+        // once per group instead of on every member). Each member entry strips those redundant
+        // keys but keeps name + signature + lineFrom/lineTo.
+        outline["members"] = GroupMembersByKindAndAccessibility(
+            SymbolFormatter.ExtractMembers(type, includeStaticFlag: false));
 
         return outline;
+    }
+
+    // C# convention order — Field > Property > Event > Method > NamedType (nested types last).
+    // Anything not in this list (rare — e.g. ErrorType) sorts alphabetically at the end.
+    private static readonly string[] KindOrder = ["Field", "Property", "Event", "Method", "NamedType"];
+
+    // Public-first; private last. Mirrors how a reader scans an unfamiliar type.
+    private static readonly string[] AccessibilityOrder =
+        ["Public", "Internal", "ProtectedOrInternal", "Protected", "ProtectedAndInternal", "Private", "NotApplicable"];
+
+    private static Dictionary<string, object?> GroupMembersByKindAndAccessibility(
+        List<Dictionary<string, object?>> members)
+    {
+        var grouped = new Dictionary<string, object?>(StringComparer.Ordinal);
+
+        var byKind = members
+            .GroupBy(m => (string)m["kind"]!)
+            .OrderBy(g => Array.IndexOf(KindOrder, g.Key) is var i && i < 0 ? int.MaxValue : i)
+            .ThenBy(g => g.Key, StringComparer.Ordinal);
+
+        foreach (var kindGroup in byKind)
+        {
+            var byAcc = kindGroup
+                .GroupBy(m => (string)m["accessibility"]!)
+                .OrderBy(g => Array.IndexOf(AccessibilityOrder, g.Key) is var i && i < 0 ? int.MaxValue : i)
+                .ThenBy(g => g.Key, StringComparer.Ordinal);
+
+            var accessibilityBucket = new Dictionary<string, object?>(StringComparer.Ordinal);
+            foreach (var accGroup in byAcc)
+            {
+                var stripped = accGroup
+                    .Select(m =>
+                    {
+                        // Drop kind/accessibility — they're now the dict keys above.
+                        var copy = new Dictionary<string, object?>(m, StringComparer.Ordinal);
+                        copy.Remove("kind");
+                        copy.Remove("accessibility");
+                        return copy;
+                    })
+                    .ToList();
+                accessibilityBucket[accGroup.Key] = stripped;
+            }
+            grouped[kindGroup.Key] = accessibilityBucket;
+        }
+
+        return grouped;
     }
 }

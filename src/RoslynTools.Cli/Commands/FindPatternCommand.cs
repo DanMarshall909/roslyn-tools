@@ -9,7 +9,8 @@ internal sealed class FindPatternCommand : IRtCommand
 {
     private FindPatternCommand() { }
 
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    // Use the shared options so generic type names like List<int> render as `<` not `<`.
+    private static JsonSerializerOptions JsonOptions => SymbolFormatter.DefaultJsonOptions;
 
     public static RtCommandInfo Info { get; } = new(
         Name: "find-pattern",
