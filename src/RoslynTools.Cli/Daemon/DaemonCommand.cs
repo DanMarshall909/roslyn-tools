@@ -1,5 +1,7 @@
 using System.CommandLine;
+using System.CommandLine.Invocation;
 using System.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 
 namespace RoslynTools.Daemon;
@@ -12,6 +14,7 @@ internal static class DaemonCommand
         cmd.AddCommand(BuildStart());
         cmd.AddCommand(BuildStop());
         cmd.AddCommand(BuildStatus());
+        cmd.AddCommand(BuildLogs());
         return cmd;
     }
 
@@ -27,6 +30,14 @@ internal static class DaemonCommand
                 return;
             }
 
+            // No (valid) state file. Before spawning, see if an orphan daemon already owns
+            // the pipe — spawning a second one would just crash on the pipe-bind check.
+            if (await DaemonClient.IsPipeReachableAsync())
+            {
+                RtLog.Warning("A daemon is already running but its state file is missing. Run `rt daemon stop` first.");
+                return;
+            }
+
             var exe = Environment.ProcessPath
                       ?? throw new InvalidOperationException(
                           "Cannot locate rt executable — use a published binary to start the daemon.");
@@ -37,8 +48,9 @@ internal static class DaemonCommand
                 CreateNoWindow = true,
             });
 
-            // Poll until daemon.json appears — the server writes it atomically after the pipe is ready.
-            var deadline = DateTimeOffset.UtcNow.AddSeconds(5);
+            // Poll until daemon.json appears — the server writes it after MSBuild + DI init,
+            // so its presence is a real readiness signal, not just "process spawned".
+            var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
             while (DateTimeOffset.UtcNow < deadline)
             {
                 await Task.Delay(100);
@@ -50,7 +62,7 @@ internal static class DaemonCommand
                 }
             }
 
-            RtLog.Warning("Daemon did not start within 5 seconds.");
+            RtLog.Warning("Daemon did not start within 10 seconds.");
         });
         return cmd;
     }
@@ -58,10 +70,34 @@ internal static class DaemonCommand
     private static Command BuildStop()
     {
         var cmd = new Command("stop", "Stop the running daemon");
-        cmd.SetHandler(async () =>
+        cmd.SetHandler(async (InvocationContext ctx) =>
         {
+            var sp = ctx.BindingContext.GetService<IServiceProvider>();
+            var client = sp?.GetService<DaemonClient>();
             var state = DaemonState.TryRead();
-            if (state is null) { RtLog.Info("No daemon running."); return; }
+
+            // Always try a clean pipe-based stop first — works for both tracked daemons and
+            // orphans (state file missing but process alive). TrySendDirectAsync ignores state.
+            // Only treat exit code 0 as success; anything else (e.g. a BOM-mismatched daemon
+            // returning 1 on deserialize failure) means the daemon is broken — fall through
+            // to the kill-by-PID path below.
+            if (client is not null)
+            {
+                var exitCode = await client.TrySendDirectAsync(["stop"]);
+                if (exitCode == 0)
+                {
+                    await WaitForProcessExitAsync(state?.Pid);
+                    DaemonState.Remove();
+                    RtLog.Info("Daemon stopped.");
+                    return;
+                }
+            }
+
+            if (state is null)
+            {
+                RtLog.Info("No daemon running.");
+                return;
+            }
 
             if (!DaemonState.IsAlive(state))
             {
@@ -70,18 +106,19 @@ internal static class DaemonCommand
                 return;
             }
 
-            // Try clean protocol shutdown (works when versions match).
-            var exitCode = await DaemonClient.TrySendAsync(["stop"]);
-            if (exitCode is not null) { RtLog.Info("Daemon stopped."); return; }
-
-            // Fall back to kill by PID (version mismatch, stale pipe, etc.).
+            // State file present, process alive, pipe didn't respond — kill by PID.
             try
             {
                 using var proc = Process.GetProcessById(state.Pid);
+                using var killCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
                 proc.Kill();
+                await proc.WaitForExitAsync(killCts.Token);
                 RtLog.Info("Daemon (PID {Pid}) killed.", state.Pid);
             }
-            catch { RtLog.Warning("Could not kill PID {Pid}.", state.Pid); }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException)
+            {
+                RtLog.Warning("Could not kill PID {Pid}: {Reason}.", state.Pid, ex.Message);
+            }
 
             DaemonState.Remove();
         });
@@ -102,13 +139,44 @@ internal static class DaemonCommand
 
             RtLog.Info("Daemon:   {Status}", status);
             RtLog.Info("PID:      {Pid}", state.Pid);
-            RtLog.Info("Pipe:     {Pipe}", @"\\.\pipe\" + state.PipeName);
+            RtLog.Info("Pipe:     {Pipe}", DaemonEncoding.DisplayPipePath(state.PipeName));
             RtLog.Info("Uptime:   {Hours}h {Minutes}m {Seconds}s", (int)uptime.TotalHours, uptime.Minutes, uptime.Seconds);
             if (state.Solution is not null) RtLog.Info("Solution: {Solution}", state.Solution);
             RtLog.Info("Version:  {Version}", state.RtVersion);
 
             if (!alive)
                 RtLog.Warning("State file exists but process is not running.");
+        });
+        return cmd;
+    }
+
+    // Waits up to 5 seconds for the given PID to exit. Returns silently if the PID is unknown,
+    // already gone, or doesn't exit in time — caller will report success based on its own
+    // protocol-level signal (the daemon ACK'd the stop). The wait matters because the daemon's
+    // exe is the SAME file rt clients run from; rebuilds racing the daemon's actual exit see
+    // "file in use" errors.
+    private static async Task WaitForProcessExitAsync(int? pid)
+    {
+        if (pid is null) return;
+        try
+        {
+            using var proc = Process.GetProcessById(pid.Value);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await proc.WaitForExitAsync(cts.Token);
+        }
+        catch (ArgumentException) { /* already gone */ }
+        catch (OperationCanceledException) { /* timed out — caller still reports success */ }
+    }
+
+    private static Command BuildLogs()
+    {
+        var cmd = new Command("logs", "Print the daemon activity log");
+        cmd.SetHandler(() =>
+        {
+            if (!File.Exists(DaemonState.LogFile)) { RtLog.Info("No daemon log found."); return; }
+            using var fs = new FileStream(DaemonState.LogFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var reader = new StreamReader(fs, System.Text.Encoding.UTF8);
+            RtConsole.Write(RtOutputContext.Result, reader.ReadToEnd());
         });
         return cmd;
     }

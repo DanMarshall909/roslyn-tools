@@ -20,6 +20,7 @@ internal static class DaemonState
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".rt");
 
     private static readonly string StateFile = Path.Combine(StateDir, "daemon.json");
+    internal static readonly string LogFile = Path.Combine(StateDir, "daemon.log");
 
     private static readonly JsonSerializerOptions WriteOpts = new()
     {

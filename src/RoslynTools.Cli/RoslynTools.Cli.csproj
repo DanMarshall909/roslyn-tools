@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>rt</AssemblyName>
     <RootNamespace>RoslynTools</RootNamespace>
+    <NoWarn>$(NoWarn);CA1822</NoWarn>
     <!-- dotnet tool packaging -->
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>rt</ToolCommandName>
@@ -33,7 +34,7 @@
     <InternalsVisibleTo Include="RoslynTools.Tests" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="System.CommandLine" />
+<PackageReference Include="System.CommandLine" />
     <PackageReference Include="Microsoft.Build.Locator" />
     <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
@@ -44,16 +45,12 @@
     <ProjectReference Include="..\RoslynTools\RoslynTools.csproj" />
   </ItemGroup>
 
-  <Target Name="FormatChanged"
-          AfterTargets="Build"
-          Condition="'$(Configuration)' == 'Debug' AND '$(FormatChanged)' != 'false' AND '$(RuntimeIdentifier)' == ''">
+  <Target Name="FormatChanged" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug' AND '$(FormatChanged)' != 'false' AND '$(RuntimeIdentifier)' == ''">
     <PropertyGroup>
       <SolutionPath>$(MSBuildProjectDirectory)\..\..\RoslynTools.slnx</SolutionPath>
       <FormatScript>$(MSBuildProjectDirectory)\..\..\scripts\format-changed.ps1</FormatScript>
     </PropertyGroup>
-    <Exec Command="powershell -NoProfile -NonInteractive -File &quot;$(FormatScript)&quot; -Solution &quot;$(SolutionPath)&quot;"
-          EchoOff="true"
-          ContinueOnError="true" />
+    <Exec Command="powershell -NoProfile -NonInteractive -File &quot;$(FormatScript)&quot; -Solution &quot;$(SolutionPath)&quot;" EchoOff="true" ContinueOnError="true" />
   </Target>
 
   <!-- Run rt analysis commands. Not wired to AfterBuild — invoke explicitly:
@@ -64,35 +61,25 @@
       <SolutionPath>$(MSBuildProjectDirectory)\..\..\RoslynTools.slnx</SolutionPath>
     </PropertyGroup>
     <Message Importance="high" Text="=== rt find-unused ===" />
-    <Exec Command="dotnet &quot;$(RtDll)&quot; find-unused --solution &quot;$(SolutionPath)&quot;"
-          ContinueOnError="true" />
+    <Exec Command="dotnet &quot;$(RtDll)&quot; find-unused --solution &quot;$(SolutionPath)&quot;" ContinueOnError="true" />
     <Message Importance="high" Text="=== rt list-smells ===" />
-    <Exec Command="dotnet &quot;$(RtDll)&quot; list-smells --solution &quot;$(SolutionPath)&quot;"
-          ContinueOnError="true" />
+    <Exec Command="dotnet &quot;$(RtDll)&quot; list-smells --solution &quot;$(SolutionPath)&quot;" ContinueOnError="true" />
   </Target>
 
-  <Target Name="DeployRtSkill"
-          AfterTargets="Build"
-          Condition="'$(Configuration)' == 'Debug' AND '$(DeployRtSkill)' != 'false' AND '$(RuntimeIdentifier)' == ''">
+  <Target Name="DeployRtSkill" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug' AND '$(DeployRtSkill)' != 'false' AND '$(RuntimeIdentifier)' == ''">
     <PropertyGroup>
       <RtSkillsDir Condition="'$(RtSkillsDir)' == ''">$(USERPROFILE)\.claude\skills\use-rt</RtSkillsDir>
       <DeploySkillScript>$(MSBuildProjectDirectory)\..\..\scripts\deploy-skill.ps1</DeploySkillScript>
     </PropertyGroup>
-    <Exec Command="powershell -NoProfile -NonInteractive -File &quot;$(DeploySkillScript)&quot; -DestDir &quot;$(RtSkillsDir)&quot;"
-          EchoOff="true"
-          ContinueOnError="true" />
+    <Exec Command="powershell -NoProfile -NonInteractive -File &quot;$(DeploySkillScript)&quot; -DestDir &quot;$(RtSkillsDir)&quot;" EchoOff="true" ContinueOnError="true" />
   </Target>
 
-  <Target Name="GenerateCommandsMd"
-          AfterTargets="Build"
-          Condition="'$(Configuration)' == 'Debug' AND '$(GenerateCommandsMd)' != 'false' AND '$(RuntimeIdentifier)' == ''">
+  <Target Name="GenerateCommandsMd" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug' AND '$(GenerateCommandsMd)' != 'false' AND '$(RuntimeIdentifier)' == ''">
     <PropertyGroup>
       <RtExecutable>$(OutputPath)rt.dll</RtExecutable>
       <CommandsMdPath>$(MSBuildProjectDirectory)\..\..\docs\COMMANDS.md</CommandsMdPath>
     </PropertyGroup>
-    <Exec Command="dotnet &quot;$(RtExecutable)&quot; dump-help &gt; &quot;$(CommandsMdPath)&quot;"
-          EchoOff="true"
-          ContinueOnError="false" />
+    <Exec Command="dotnet &quot;$(RtExecutable)&quot; dump-help &gt; &quot;$(CommandsMdPath)&quot;" EchoOff="true" ContinueOnError="false" />
     <Message Importance="high" Text="Regenerated $(CommandsMdPath) from command registry." />
   </Target>
 </Project>

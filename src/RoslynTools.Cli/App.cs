@@ -111,7 +111,7 @@ internal static class App
                 if (services is not null)
                     context.BindingContext.AddService<IServiceProvider>(_ => services);
                 return next(context);
-            }, MiddlewareOrder.Default)
+            })
             .AddMiddleware(async (context, next) =>
             {
                 var md = context.ParseResult.GetValueForOption(markdownOpt);

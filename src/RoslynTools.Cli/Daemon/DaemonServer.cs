@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO.Pipes;
 using System.Text;
 using System.Text.Json;
@@ -16,14 +17,56 @@ internal static class DaemonServer
     {
         Directory.CreateDirectory(DaemonState.StateDir);
 
-        using var pipe = new NamedPipeServerStream(
-            PipeName,
-            PipeDirection.InOut,
-            maxNumberOfServerInstances: 1,
-            transmissionMode: PipeTransmissionMode.Byte,
-            options: PipeOptions.Asynchronous);
+        // Open the log file FIRST. The daemon process is spawned with CreateNoWindow=true
+        // so Console.Out/Error go nowhere — the log file is the only durable record of
+        // bind failures, init failures, and normal lifecycle events. FileShare.ReadWrite so
+        // `rt daemon logs` (and a tail tool) can read while we hold it, and a competing
+        // daemon can also append cleanly without locking us out.
+        var logStream = new FileStream(DaemonState.LogFile, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
+        await using var log = new StreamWriter(logStream, Encoding.UTF8) { AutoFlush = true };
+        await log.WriteLineAsync($"[{Now()}] daemon starting PID {Environment.ProcessId}");
 
-        // Write state file immediately after pipe creation so `rt daemon start` sees it fast.
+        NamedPipeServerStream pipe;
+        try
+        {
+            pipe = new NamedPipeServerStream(
+                PipeName,
+                PipeDirection.InOut,
+                maxNumberOfServerInstances: 1,
+                transmissionMode: PipeTransmissionMode.Byte,
+                options: PipeOptions.Asynchronous);
+        }
+        catch (IOException ex)
+        {
+            await log.WriteLineAsync($"[{Now()}] FATAL pipe bind failed: {ex.Message} — another daemon already owns the pipe.");
+            return 1;
+        }
+
+        using var pipeOwn = pipe;
+
+        using var cts = new CancellationTokenSource();
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => { try { cts.Cancel(); } catch { } };
+        Console.CancelKeyPress += (_, e) => { e.Cancel = true; try { cts.Cancel(); } catch { } };
+
+        // Initialize MSBuild and DI BEFORE writing the state file. `rt daemon start` polls
+        // the state file as the readiness signal — writing it earlier would make it report
+        // "ready" while the daemon was still loading MSBuild, and any request landing in that
+        // window would block on ConnectAsync (pipe bound, but WaitForConnectionAsync not yet
+        // called) and silently fall back to in-process.
+        IHost host;
+        try
+        {
+            MsBuildBootstrap.Register();
+            host = Host.CreateDefaultBuilder()
+                .ConfigureServices(Bootstrap.RegisterServices)
+                .Build();
+        }
+        catch (Exception ex)
+        {
+            await log.WriteLineAsync($"[{Now()}] FATAL initializing services: {ex}");
+            return 1;
+        }
+
         DaemonState.Write(new DaemonStateFile(
             Pid: Environment.ProcessId,
             PipeName: PipeName,
@@ -34,52 +77,69 @@ internal static class DaemonServer
             StartedAt: DateTimeOffset.UtcNow,
             RtVersion: DaemonState.CurrentVersion()));
 
-        RtLog.Info("[rt-daemon] PID {Pid} listening on \\\\.\\pipe\\{PipeName}", Environment.ProcessId, PipeName);
+        await log.WriteLineAsync($"[{Now()}] daemon ready");
+        RtLog.Info("[rt-daemon] PID {Pid} listening on {Pipe}", Environment.ProcessId, DaemonEncoding.DisplayPipePath(PipeName));
 
-        // Initialize MSBuild and DI after writing state file — startup signals readiness
-        // before the slower MSBuild registration completes. Clients connecting during init
-        // block on WaitForConnectionAsync (called below) until init finishes.
-        MsBuildBootstrap.Register();
-        using var host = Host.CreateDefaultBuilder()
-            .ConfigureServices(Bootstrap.RegisterServices)
-            .Build();
-        var services = host.Services;
-        CancellationToken cancellationToken = default;
-
-        var stopping = false;
-        while (!stopping && !cancellationToken.IsCancellationRequested)
+        using (host)
         {
-            await pipe.WaitForConnectionAsync(cancellationToken);
-            try
+            var services = host.Services;
+
+            var stopping = false;
+            while (!stopping && !cts.IsCancellationRequested)
             {
-                stopping = await HandleRequestAsync(pipe, services, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                RtLog.Error("[rt-daemon] unhandled exception in request loop: {Message}", ex.Message);
-            }
-            finally
-            {
-                pipe.Disconnect();
+                try
+                {
+                    await pipe.WaitForConnectionAsync(cts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+
+                try
+                {
+                    stopping = await HandleRequestAsync(pipe, services, log, cts.Token);
+                }
+                catch (Exception ex)
+                {
+                    RtLog.Error("[rt-daemon] unhandled exception in request loop: {Message}", ex.Message);
+                    await log.WriteLineAsync($"[{Now()}] ERROR {ex.GetType().Name}: {ex.Message}");
+                }
+                finally
+                {
+                    if (pipe.IsConnected) pipe.Disconnect();
+                }
             }
         }
 
+        await log.WriteLineAsync($"[{Now()}] daemon stopped");
         DaemonState.Remove();
         return 0;
     }
 
-    private static async Task<bool> HandleRequestAsync(NamedPipeServerStream pipe, IServiceProvider services, CancellationToken ct)
+    private static async Task<bool> HandleRequestAsync(NamedPipeServerStream pipe, IServiceProvider services, StreamWriter log, CancellationToken ct)
     {
-        // leaveOpen: true — pipe stream outlives the reader/writer wrappers
-        using var reader = new StreamReader(pipe, Encoding.UTF8, leaveOpen: true);
-        var writer = new StreamWriter(pipe, Encoding.UTF8, leaveOpen: true) { AutoFlush = true };
+        // leaveOpen: true — pipe stream outlives the reader/writer wrappers.
+        // DaemonEncoding.NoBom is critical: Encoding.UTF8 emits a 3-byte BOM on first flush,
+        // and System.Text.Json on the receiving end rejects 0xEF as an invalid value.
+        using var reader = new StreamReader(pipe, DaemonEncoding.NoBom, detectEncodingFromByteOrderMarks: false, bufferSize: 1024, leaveOpen: true);
+        var writer = new StreamWriter(pipe, DaemonEncoding.NoBom, bufferSize: 1024, leaveOpen: true) { AutoFlush = true };
 
         var line = await reader.ReadLineAsync(ct);
         if (line is null) return false;
 
+        // Peek the raw bytes — invaluable when the request can't be parsed (BOM, encoding, etc.)
+        // because without this you only see "deserialize failed" with no context on what came in.
+        await log.WriteLineAsync($"[{Now()}] read {line.Length} chars: {(line.Length > 200 ? line[..200] + "..." : line)}");
+
         DaemonRequest? request;
         try { request = JsonSerializer.Deserialize<DaemonRequest>(line, DaemonProtocol.JsonOpts); }
-        catch { await RespondAsync(writer, new DaemonResponse("?", "exit", Code: 1)); return false; }
+        catch (Exception ex)
+        {
+            await log.WriteLineAsync($"[{Now()}] deserialize failed: {ex.Message}");
+            await RespondAsync(writer, new DaemonResponse("?", "exit", Code: 1));
+            return false;
+        }
 
         if (request is null) return false;
 
@@ -100,6 +160,10 @@ internal static class DaemonServer
         if (request.WorkingDirectory is not null)
             Directory.SetCurrentDirectory(request.WorkingDirectory);
 
+        var argsDisplay = string.Join(" ", request.Args);
+        await log.WriteLineAsync($"[{Now()}] → {argsDisplay}");
+        var sw = Stopwatch.StartNew();
+
         var pipeConsole = new DaemonPipeConsole(writer, request.RequestId);
         int exitCode;
         try
@@ -112,6 +176,7 @@ internal static class DaemonServer
         catch (IOException)
         {
             // Client disconnected mid-stream — daemon continues.
+            await log.WriteLineAsync($"[{Now()}] ← client disconnected after {sw.ElapsedMilliseconds}ms");
             return false;
         }
         catch (Exception ex)
@@ -125,10 +190,14 @@ internal static class DaemonServer
             exitCode = 1;
         }
 
+        await log.WriteLineAsync($"[{Now()}] ← exit {exitCode} in {sw.ElapsedMilliseconds}ms");
+
         try { await RespondAsync(writer, new DaemonResponse(request.RequestId, "exit", Code: exitCode)); }
         catch (IOException) { }
         return false;
     }
+
+    private static string Now() => DateTimeOffset.UtcNow.ToString("yyyy-MM-dd HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture);
 
     private static async Task RespondAsync(StreamWriter writer, DaemonResponse response)
         => await writer.WriteLineAsync(JsonSerializer.Serialize(response, DaemonProtocol.JsonOpts));

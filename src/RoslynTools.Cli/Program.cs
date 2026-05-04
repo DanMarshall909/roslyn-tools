@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using RoslynTools;
 using RoslynTools.Core;
@@ -22,19 +23,20 @@ internal static class Program
         if (args.Length > 0 && args[0] == "--daemon-serve")
             return await DaemonServer.RunAsync();
 
-        // Route through the daemon if one is running and this isn't a daemon lifecycle command.
-        if (!IsDaemonCommand(args) && !NoDaemon)
-        {
-            var exitCode = await DaemonClient.TrySendAsync(args);
-            if (exitCode is not null)
-                return exitCode.Value;
-        }
-
         MsBuildBootstrap.Register();
 
         using var host = Host.CreateDefaultBuilder(args)
             .ConfigureServices(Bootstrap.RegisterServices)
             .Build();
+
+        // Route through the daemon if one is running and this isn't a daemon lifecycle command.
+        if (!IsDaemonCommand(args) && !NoDaemon)
+        {
+            var client = host.Services.GetRequiredService<DaemonClient>();
+            var exitCode = await client.TrySendAsync(args);
+            if (exitCode is not null)
+                return exitCode.Value;
+        }
 
         return await App.RunAsync(args, host.Services, [DaemonCommand.Build()]);
     }
