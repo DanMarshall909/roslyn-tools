@@ -39,7 +39,7 @@ public class FindUnusedTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var results = await FindUnusedService.AnalyzeAsync(sln, "all");
+            var results = await FindUnusedService.AnalyzeAsync(sln);
             var names = results.Select(r => r.Name).ToList();
             Assert.Contains("UnusedMethod", names);
         }
@@ -75,7 +75,7 @@ public class FindUnusedTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var results = await FindUnusedService.AnalyzeAsync(sln, "all");
+            var results = await FindUnusedService.AnalyzeAsync(sln);
             var names = results.Select(r => r.Name).ToList();
             Assert.DoesNotContain("UsedMethod", names);
         }
@@ -111,7 +111,7 @@ public class FindUnusedTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var results = await FindUnusedService.AnalyzeAsync(sln, "all");
+            var results = await FindUnusedService.AnalyzeAsync(sln);
             var names = results.Select(r => r.Name).ToList();
             Assert.DoesNotContain("SerializableData", names);
         }
@@ -203,7 +203,7 @@ public class FindUnusedTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var results = await FindUnusedService.AnalyzeAsync(sln, "all");
+            var results = await FindUnusedService.AnalyzeAsync(sln);
             var names = results.Select(r => r.Name).ToList();
             Assert.DoesNotContain("Main", names);
         }

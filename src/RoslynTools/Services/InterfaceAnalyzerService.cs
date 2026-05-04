@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using RoslynTools.Core;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
