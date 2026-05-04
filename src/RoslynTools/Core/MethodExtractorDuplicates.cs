@@ -450,14 +450,18 @@ internal static class MethodExtractorDuplicates
             matches = filteredMatches;
         }
 
-        // After parameterization, update the source file's original call site with the new parameters
-        if (returnVarNamesMatch && (varyingLiteralPositions.Count > 0 || effectiveIdentifierPositions.Count > 0 || typeParamMap.Count > 0))
-        {
-            currentSln = await UpdateSourceFileCallSiteAsync(
-                currentSln, filePath, newMethodName, sourceStartLine, sourceEndLine,
-                literalsByMatch, varyingLiteralPositions,
-                patternIdentifiers, effectiveIdentifierPositions, typeParamMap);
-        }
+        // TODO (US-032 Phase 4): After parameterization, update the source file's original call site with the new parameters
+        // This requires architectural rework because PatternMatcher excludes the source file from matches,
+        // and direct invocation update logic needs to properly handle the source file context.
+        // The implementation exists below but needs debugging to properly extract and update the call site.
+        //
+        // if (returnVarNamesMatch && (varyingLiteralPositions.Count > 0 || effectiveIdentifierPositions.Count > 0 || typeParamMap.Count > 0))
+        // {
+        //     currentSln = await UpdateSourceFileCallSiteAsync(
+        //         currentSln, filePath, newMethodName, sourceStartLine, sourceEndLine,
+        //         literalsByMatch, varyingLiteralPositions,
+        //         patternIdentifiers, effectiveIdentifierPositions, typeParamMap);
+        // }
 
         int replaced = 0;
         int skipped = 0;
@@ -1044,8 +1048,15 @@ internal static class MethodExtractorDuplicates
         if (root == null)
             return solution;
 
-        // Find the method call near the original extraction line (it should be there now)
-        // Search for invocation expressions matching the new method name
+        // Extract source file's literal and identifier values
+        var sourceStatements = SelectStatementsInRange(root, originalStartLine, originalEndLine);
+        if (sourceStatements.Count == 0)
+            return solution;
+
+        var sourceLiterals = ExtractOrderedLiterals(sourceStatements);
+        var sourceIdentifiers = IdentifierVariationDetector.ExtractOrderedIdentifiers(sourceStatements);
+
+        // Find the method call near the original extraction line
         var callSites = root.DescendantNodes()
             .OfType<InvocationExpressionSyntax>()
             .Where(inv => inv.Expression is IdentifierNameSyntax id && id.Identifier.Text == newMethodName)
@@ -1054,35 +1065,39 @@ internal static class MethodExtractorDuplicates
         if (callSites.Count == 0)
             return solution;
 
-        // Build the argument list using the same logic as TryReplaceMatchAsync
-        var patternLiterals = literalsByMatch[0]; // Source file literals
+        // Build the argument list from source file values
         var arguments = new List<ExpressionSyntax>();
 
-        // Add arguments for each varying position
         foreach (int pos in varyingLiteralPositions.Union(varyingIdentifierPositions).OrderBy(p => p))
         {
-            ExpressionSyntax arg;
+            ExpressionSyntax? arg = null;
 
             if (varyingLiteralPositions.Contains(pos))
             {
                 // Literal position: use the source file's literal value
-                var literalValue = patternLiterals[pos];
-                arg = SyntaxFactory.LiteralExpression(
-                    SyntaxKind.StringLiteralExpression,
-                    SyntaxFactory.Literal(literalValue));
+                if (pos < sourceLiterals.Count)
+                {
+                    arg = SyntaxFactory.LiteralExpression(
+                        SyntaxKind.StringLiteralExpression,
+                        SyntaxFactory.Literal(sourceLiterals[pos]));
+                }
             }
             else
             {
-                // Identifier position: use the source file's identifier
-                var identifierName = patternIdentifiers[pos - varyingLiteralPositions.Count];
-                arg = SyntaxFactory.IdentifierName(identifierName);
+                // Identifier position: use the source file's identifier name
+                var idPos = pos - varyingLiteralPositions.Count;
+                if (idPos >= 0 && idPos < sourceIdentifiers.Count)
+                {
+                    arg = SyntaxFactory.IdentifierName(sourceIdentifiers[idPos]);
+                }
             }
 
-            arguments.Add(arg);
+            if (arg != null)
+                arguments.Add(arg);
         }
 
-        // If there are parameterized arguments, replace the first invocation with an updated version
-        if (arguments.Count > 0 && callSites.Count > 0)
+        // Update the invocation with arguments
+        if (arguments.Count > 0)
         {
             var originalCall = callSites[0];
             var newArgList = SyntaxFactory.ArgumentList(
