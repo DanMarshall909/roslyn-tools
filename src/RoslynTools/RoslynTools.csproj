@@ -7,6 +7,8 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="RoslynTools.Tests" />
+    <InternalsVisibleTo Include="RoslynTools.Mcp" />
+    <InternalsVisibleTo Include="RoslynTools.Tests.Mcp" />
     <InternalsVisibleTo Include="rt" />
   </ItemGroup>
   <ItemGroup>

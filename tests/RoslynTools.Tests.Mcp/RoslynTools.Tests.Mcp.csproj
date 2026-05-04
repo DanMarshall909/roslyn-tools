@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="FluentAssertions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/RoslynTools/RoslynTools.csproj" />
+    <ProjectReference Include="../../src/RoslynTools.Cli/RoslynTools.Cli.csproj" />
+    <ProjectReference Include="../../src/RoslynTools.Mcp/RoslynTools.Mcp.csproj" />
+    <ProjectReference Include="../RoslynTools.Tests/RoslynTools.Tests.csproj" />
+  </ItemGroup>
+
+</Project>
