@@ -27,7 +27,7 @@ internal sealed class MakeStaticCommand : IRtCommand
 
     public static Command Build()
     {
-        var methodOpt = CommandOptionFactory.CreateStringOption("--method", "Method to convert: <Type>.<Method>");
+        var methodOpt = CommandOptionFactory.CreateMethodOption("--method", "Method to convert: <Type>.<Method>");
         var solutionOpt = CommandOptionFactory.CreateSolutionOption();
         var dryRunOpt = CommandOptionFactory.CreateDryRunOption();
 

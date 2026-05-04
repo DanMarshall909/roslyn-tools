@@ -147,3 +147,19 @@
 - 2026-04-19: rt find-duplicates --solution RoslynTools.slnx — MSBuildWorkspace does not support .slnx format; fixed with transparent .sln sibling fallback in WorkspaceLoader
 - 2026-04-20: Mutation pilot on MakeSealedCommand (Stryker 4.14.1, 22.22% score, 20 survivors on 26 mutants) surfaced three rt gaps. (1) `rt add-test` currently scaffolds Core-level unit tests; there is no flag/mode to emit CLI-invocation tests that run `rt <cmd>` from the outside and assert on stdout/stderr/exit-code — which is exactly what the external-action testing rule demands. Fell back to hand-planning the test shape. Gap: add `rt add-test --cli <CommandClass>` that emits a test class calling the built `Command.Parse(...).InvokeAsync(...)` (or equivalent) and snapshotting the result — covers required-arg-missing, help output, dry-run happy-path. (2) `rt dump-help --json` output stability is unverified for snapshot testing; if it contains absolute paths or build timestamps, snapshots will churn. Gap: add `rt dump-help --json --normalize` that strips non-deterministic fields (version strings, absolute paths resolved against cwd) so Verify.Xunit snapshots stay stable across environments. (3) Several `RtCommandInfo` fields (`Category`, `Mutates`, `JsonOutput`) may not be exposed in `dump-help --json` output. By the external-action rule, a field no external consumer can observe is cruft. Gap: audit which `Info` fields `dump-help --json` exposes and either expose the rest or delete the dead fields. Pilot writeup: `tasks/mutation-pilot.md`.
 - 2026-04-20: Interface-segregation dogfood on tour-store showed that `rt inspect` and `rt find-refs` were useful for shape inspection, but they did not materially reduce the editing work. Pain points: (1) workspace loading still required manually discovering and passing `--solution src/backend/tour-store.sln`; for routine use `rt` should auto-detect the nearest solution, honor a repo-level default, or fail with a concrete next step. (2) exploration output mixed symbol results with non-fatal workspace diagnostics such as SixLabors.ImageSharp audit warnings and transient locked `obj`/`dll` files from concurrent builds; when semantic data is still available, those diagnostics should be separated and clearly marked non-fatal. (3) `find-refs` was too coarse for interface segregation: the missing bridge is a consumer-by-consumer member-usage view that answers "which interface members does this type actually call?" and can suggest a minimal narrower interface per consumer. (4) the highest-value refactor is still missing: extract selected members into a new interface, narrow constructor parameter and field types across consumers, and optionally add forwarding DI registrations. Example desired commands: `rt analyze-interface IStorageService`, `rt why-type-needed IStorageService PublicTwoFactorController`, `rt unused-members-on-interface IStorageService --within TourStore.Api`, and a "narrow dependency" refactor that updates consumers safely. Fell back to manual reasoning and edits.
+
+## Missing: Conditional argument-based refactoring
+
+**Scenario**: Group 1 duplicate extraction requires replacing calls to `CreateStringOption("--method", helpText)` with `CreateMethodOption(helpText)` across 4 command files.
+
+**Gap**: `rt refactor` lacks a command to:
+- Match method invocations by both method name AND specific argument values
+- Transform the call (removing one argument, shifting others)
+
+**Workarounds**: 
+- `replace-call` only replaces one static method with another (not conditional on args)
+- No pattern-matching / conditional replacement tool
+
+**Impact**: Can't complete Group 1 deduplication without manual edits.
+
+**Suggestion**: Add `rt refactor replace-pattern` or extend `replace-call` to support `--if-arg <index> <value>` filtering.

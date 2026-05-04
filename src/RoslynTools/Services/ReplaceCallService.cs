@@ -8,7 +8,7 @@ namespace RoslynTools.Services;
 
 internal static class ReplaceCallService
 {
-    internal static async Task RunAsync(Solution solution, string from, string to, bool dryRun)
+    internal static async Task RunAsync(Solution solution, string from, string to, bool dryRun, int? ifArgIndex = null, string? ifArgLiteral = null)
     {
         var originalSolution = solution;
 
@@ -18,7 +18,7 @@ internal static class ReplaceCallService
         RtLog.Info("Finding invocations of '{Method}'...", methodSymbol.ToDisplayString());
 
         var referencedSymbols = await SymbolFinder.FindReferencesAsync(methodSymbol, solution);
-        var locationsByDocument = await FindInvocationSitesAsync(referencedSymbols);
+        var locationsByDocument = await FindInvocationSitesAsync(referencedSymbols, ifArgIndex, ifArgLiteral);
 
         if (locationsByDocument.Count == 0)
         {
@@ -50,6 +50,23 @@ internal static class ReplaceCallService
         await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
     }
 
+    private static bool ArgumentMatchesFilter(InvocationExpressionSyntax invocation, int argIndex, string literal)
+    {
+        if (argIndex < 0 || argIndex >= invocation.ArgumentList.Arguments.Count)
+            return false;
+
+        var arg = invocation.ArgumentList.Arguments[argIndex];
+        if (arg.Expression is not LiteralExpressionSyntax lit)
+            return false;
+
+        if (lit.Kind() != SyntaxKind.StringLiteralExpression)
+            return false;
+
+        // Compare the literal value (removing surrounding quotes)
+        var literalText = lit.Token.ValueText;
+        return literalText == literal;
+    }
+
     private static string ParseMethodName(string from)
     {
         var lastDot = from.LastIndexOf('.');
@@ -57,7 +74,9 @@ internal static class ReplaceCallService
     }
 
     private static async Task<Dictionary<DocumentId, List<Location>>> FindInvocationSitesAsync(
-        IEnumerable<ReferencedSymbol> referencedSymbols)
+        IEnumerable<ReferencedSymbol> referencedSymbols,
+        int? ifArgIndex = null,
+        string? ifArgLiteral = null)
     {
         var locationsByDocument = new Dictionary<DocumentId, List<Location>>();
 
@@ -77,6 +96,13 @@ internal static class ReplaceCallService
 
                 if (invocation is null)
                     continue;
+
+                // Apply argument filter if specified
+                if (ifArgIndex.HasValue && ifArgLiteral is not null)
+                {
+                    if (!ArgumentMatchesFilter(invocation, ifArgIndex.Value, ifArgLiteral))
+                        continue;
+                }
 
                 if (!locationsByDocument.TryGetValue(doc.Id, out var locs))
                 {

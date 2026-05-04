@@ -123,6 +123,36 @@ public class ReplaceCallTests
         }
     }
 
+    [Fact]
+    public async Task With_if_arg_literal_only_replaces_matching_calls()
+    {
+        using var project = new AdhocProjectBuilder("FactoryApp");
+        project.AddSource("FactoryApp.cs", """
+            class Factory {
+              public static Option<string> CreateStringOption(string name, string help) => null;
+              public static Option<string> CreateMethodOption(string help) => null;
+            }
+            class App {
+              void Build() {
+                var methodOpt = Factory.CreateStringOption("--method", "Method to process");
+                var fileOpt = Factory.CreateStringOption("--file", "File to process");
+                var anotherMethod = Factory.CreateStringOption("--method", "Another method");
+              }
+            }
+            """);
+        var (workspace, sln) = project.Build();
+
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+            await ReplaceCallCommand.ExecuteAsync("Factory.CreateStringOption", "Factory.CreateMethodOption", "ignored", dryRun: false, ifArgIndex: 0, ifArgLiteral: "--method");
+
+        var content = await project.ReadSourceAsync("FactoryApp.cs");
+
+        // Should replace only the --method calls, not --file
+        Assert.Equal(2, CountOccurrences(content, "Factory.CreateMethodOption("));
+        Assert.Equal(1, CountOccurrences(content, "Factory.CreateStringOption(\"--file\""));
+        Assert.DoesNotContain("CreateStringOption(\"--method\"", content);
+    }
+
     private static int CountOccurrences(string text, string pattern)
     {
         int count = 0, idx = 0;

@@ -25,7 +25,7 @@ internal sealed class InlineMethodCommand : IRtCommand
     public static Command Build()
     {
         var typeOpt = CommandOptionFactory.CreateStringOption("--type", "Class containing the method to inline");
-        var methodOpt = CommandOptionFactory.CreateStringOption("--method", "Method name to inline at all call sites");
+        var methodOpt = CommandOptionFactory.CreateMethodOption("--method", "Method name to inline at all call sites");
         var solutionOpt = CommandOptionFactory.CreateSolutionOption();
         var dryRunOpt = CommandOptionFactory.CreateDryRunOption();
 

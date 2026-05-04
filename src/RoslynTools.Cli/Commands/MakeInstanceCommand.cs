@@ -24,7 +24,7 @@ internal sealed class MakeInstanceCommand : IRtCommand
 
     public static Command Build()
     {
-        var methodOpt = CommandOptionFactory.CreateStringOption("--method", "Fully-qualified method to convert: Type.Method");
+        var methodOpt = CommandOptionFactory.CreateMethodOption("--method", "Fully-qualified method to convert: Type.Method");
         var solutionOpt = CommandOptionFactory.CreateSolutionOption();
         var dryRunOpt = CommandOptionFactory.CreateDryRunOption();
 

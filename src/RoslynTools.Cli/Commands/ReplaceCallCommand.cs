@@ -29,28 +29,30 @@ internal sealed class ReplaceCallCommand : IRtCommand
         var toOpt = new Option<string>("--to", "New method name, e.g. LogInfo") { IsRequired = true };
         var solutionOpt = new Option<string?>("--solution", "Path to the .sln file");
         var dryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk");
+        var ifArgIndexOpt = new Option<int?>("--if-arg", "Filter: only replace calls where argument at this index matches --if-arg-literal");
+        var ifArgLiteralOpt = new Option<string?>("--if-arg-literal", "Filter: match this string literal value");
 
         var cmd = new Command("replace-call", "Replace all invocations of one static method with another")
         {
-            fromOpt, toOpt, solutionOpt, dryRunOpt
+            fromOpt, toOpt, solutionOpt, dryRunOpt, ifArgIndexOpt, ifArgLiteralOpt
         };
         cmd.AddAlias("rc");
 
-        cmd.SetHandler(async (from, to, solution, dryRun) =>
+        cmd.SetHandler(async (from, to, solution, dryRun, ifArgIndex, ifArgLiteral) =>
         {
-            await ExecuteAsync(from, to, solution, dryRun);
+            await ExecuteAsync(from, to, solution, dryRun, ifArgIndex, ifArgLiteral);
         },
-        fromOpt, toOpt, solutionOpt, dryRunOpt);
+        fromOpt, toOpt, solutionOpt, dryRunOpt, ifArgIndexOpt, ifArgLiteralOpt);
 
         return cmd;
     }
 
-    internal static async Task ExecuteAsync(string from, string to, string? solutionPath, bool dryRun)
+    internal static async Task ExecuteAsync(string from, string to, string? solutionPath, bool dryRun, int? ifArgIndex = null, string? ifArgLiteral = null)
     {
         var (workspace, solution) = await WorkspaceLoader.LoadAsync(solutionPath);
         using (workspace)
         {
-            await ReplaceCallService.RunAsync(solution, from, to, dryRun);
+            await ReplaceCallService.RunAsync(solution, from, to, dryRun, ifArgIndex, ifArgLiteral);
         }
     }
 }

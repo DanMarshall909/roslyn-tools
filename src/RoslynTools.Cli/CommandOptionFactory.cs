@@ -29,4 +29,16 @@ internal static class CommandOptionFactory
     /// <summary>Creates an optional nullable string option with custom name and help text.</summary>
     public static Option<string?> CreateNullableStringOption(string name, string helpText)
         => new(name, helpText);
+
+    /// <summary>Creates a required --method option with custom help text.</summary>
+    public static Option<string> CreateMethodOption(string helpText)
+        => new("--method", helpText) { IsRequired = true };
+
+    /// <summary>Overload supporting refactored code that still passes the option name (for backwards compat during refactoring).</summary>
+    public static Option<string> CreateMethodOption(string optionName, string helpText)
+    {
+        if (optionName != "--method")
+            throw new ArgumentException($"Expected '--method' but got '{optionName}'", nameof(optionName));
+        return CreateMethodOption(helpText);
+    }
 }
