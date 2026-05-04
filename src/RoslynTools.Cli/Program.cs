@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using RoslynTools;
 using RoslynTools.Core;
+using RoslynTools.Daemon;
 
 internal static class Program
 {
@@ -17,6 +18,18 @@ internal static class Program
             return await App.RunAsync(args);
         }
 
+        // Internal mode: spawned by `rt daemon start`, runs as the background pipe server.
+        if (args.Length > 0 && args[0] == "--daemon-serve")
+            return await DaemonServer.RunAsync();
+
+        // Route through the daemon if one is running and this isn't a daemon lifecycle command.
+        if (!IsDaemonCommand(args) && !NoDaemon)
+        {
+            var exitCode = await DaemonClient.TrySendAsync(args);
+            if (exitCode is not null)
+                return exitCode.Value;
+        }
+
         MsBuildBootstrap.Register();
 
         using var host = Host.CreateDefaultBuilder(args)
@@ -25,4 +38,10 @@ internal static class Program
 
         return await App.RunAsync(args, host.Services);
     }
+
+    private static bool IsDaemonCommand(string[] args) =>
+        args.Length > 0 && args[0] == "daemon";
+
+    private static bool NoDaemon =>
+        Environment.GetEnvironmentVariable("RT_NO_DAEMON") is "1" or "true";
 }

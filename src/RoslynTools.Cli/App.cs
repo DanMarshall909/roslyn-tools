@@ -8,6 +8,7 @@ using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Core.Decisions;
 using RoslynTools.Core.Output;
+using RoslynTools.Daemon;
 
 namespace RoslynTools;
 
@@ -98,6 +99,9 @@ internal static class App
 
         // Hidden meta-command, not part of the public registry (does not implement IRtCommand).
         root.AddCommand(DumpHelpCommand.Build());
+
+        // Daemon lifecycle — orthogonal to inspect/analyze/refactor taxonomy.
+        root.AddCommand(DaemonCommand.Build());
 
         var (jsonOpt, llmOpt, markdownOpt, yamlOpt, decisionsOpt) = RegisterGlobalOptions(root);
 
