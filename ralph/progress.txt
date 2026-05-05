@@ -1,7 +1,7 @@
 roslyn-tools
 Branch: ralph/dogfood-gaps-2026-05-01
 
-Current Status: 11/53 stories complete (21%)
+Current Status: 20/54 stories complete (37%)
 
 EP-001 — Bugs and quality fixes in existing commands (3/3)
 [x] US-001 Fix string.Format() decomposition in console-logging conversion
@@ -11,23 +11,24 @@ EP-001 — Bugs and quality fixes in existing commands (3/3)
 EP-002 — Logging migration polish (0/1)
 [ ] US-004 Migrate MoveService WARNING messages to RtLog.Warning
 
-EP-003 — New rt analyze commands and inspection polish (0/8)
+EP-003 — New rt analyze commands and inspection polish (2/8)
 [ ] US-007 Audit RtCommandInfo fields exposed in dump-help --json
-[ ] US-010 Auto-detect nearest solution when --solution is omitted
+[x] US-010 Auto-detect nearest solution when --solution is omitted
 [ ] US-011 Separate workspace diagnostics from results in --json output
 [ ] US-012 Add rt analyze responsibility-map command
-[ ] US-013 Add rt analyze interface member-usage command
+[x] US-013 Add rt analyze interface member-usage command
 [ ] US-014 Add rt analyze why-type-needed and unused-members-on-interface sub-commands
 [ ] US-015 Add rt analyze architecture-verify command with config-driven rules
 [ ] US-053 Add rt inspect list-methods command for agent method discovery
 
-EP-004 — New rt refactor commands (0/6)
+EP-004 — New rt refactor commands (1/7)
 [ ] US-016 Add rt refactor introduce-record command
 [ ] US-017 Add precondition for static types in rt extract-adapter
 [ ] US-018 Add rt refactor extract-orchestrator command
 [ ] US-019 Add rt refactor replace-pattern general pattern-replace command
 [ ] US-020 Add rt refactor move-method --to-nested-class and --from-nested-class flags
-[ ] US-021 Add rt refactor narrow-dependency / extract-narrow-interface command
+[x] US-021 Add rt refactor narrow-dependency / extract-narrow-interface command
+[ ] US-054 Add rt refactor migrate-to-ioptions command
 
 EP-005 — Tooling and developer experience (0/4)
 [ ] US-005 Repair non-buildable commit 0445c01 via interactive rebase
@@ -42,14 +43,14 @@ EP-006 — Static-to-instance migration (2/5)
 [ ] US-025 Pilot static-to-instance migration on 3 leaf services
 [ ] US-026 Sweep migration of remaining static services in batches
 
-EP-007 — Code Quality Refactor (May 2026) (1/9)
-[ ] US-027 Break circular dependency between Core and Services namespaces
-[ ] US-028 Extract duplicate Option declarations across 12 Command.Build() methods
+EP-007 — Code Quality Refactor (May 2026) (6/9)
+[x] US-027 Break circular dependency between Core and Services namespaces
+[x] US-028 Extract duplicate Option declarations across 12 Command.Build() methods
 [ ] US-029 Extract remaining 67 duplicate code groups using rt extract-method
-[ ] US-030 Refactor ChangeSignatureService (733 lines) into smaller, single-responsibility classes
-[ ] US-031 Refactor NarrowDependencyService (540 lines) to extract interface analysis from rewriting
+[x] US-030 Refactor ChangeSignatureService (733 lines) into smaller, single-responsibility classes
+[x] US-031 Refactor NarrowDependencyService (540 lines) to extract interface analysis from rewriting
 [ ] US-032 Thin ChangeSignatureCommand.Build() from 191 lines to enforce thin-shell rule
-[ ] US-033 Thin App.RunAsync (95 lines) and DumpHelpCommand.RenderMarkdown (97 lines)
+[x] US-033 Thin App.RunAsync (95 lines) and DumpHelpCommand.RenderMarkdown (97 lines)
 [ ] US-034 Review and remove 120+ unused symbols across codebase
 [x] US-035 Add rt refactor move-method command to relocate static methods between classes
 
@@ -74,6 +75,6 @@ EP-010 — Extract-Method Parameterization Enhancements (Phases 2-5) (5/5)
 [x] US-049 Extract-method: Support generic type parameterization (Phase 6)
 
 Loose stories
-[ ] US-050 Fix extract-method source-file call site not updated with parameterized arguments (Phase 2 follow-up)
+[x] US-050 Fix extract-method source-file call site not updated with parameterized arguments (Phase 2 follow-up)
 [ ] US-051 Harden rt refactor extract-class: rewrite external call sites, preserve access modifiers, fix indentation
 [ ] US-052 Add rt refactor remove-unused-usings command
