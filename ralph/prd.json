@@ -277,8 +277,10 @@
                 "dotnet format \"RoslynTools.slnx\" --verify-no-changes passes"
             ],
             "priority": 10,
-            "passes": false,
-            "notes": "Affected files: src/RoslynTools/Services/WorkspaceLoader.cs, src/RoslynTools/Commands/* (only --solution help text), tests/RoslynTools.Tests/WorkspaceLoaderTests.cs (new), tests/RoslynTools.Tests/Cli/<command>Tests.cs. Item 17 in the gap log. CONSERVATIVE: .rtconfig is split out â€” adds config-file format and parser surface that won't fit one session."
+            "passes": true,
+            "notes": "Affected files: src/RoslynTools/Services/WorkspaceLoader.cs, src/RoslynTools/Commands/* (only --solution help text), tests/RoslynTools.Tests/WorkspaceLoaderTests.cs (new), tests/RoslynTools.Tests/Cli/<command>Tests.cs. Item 17 in the gap log. CONSERVATIVE: .rtconfig is split out â€” adds config-file format and parser surface that won't fit one session.",
+            "resolution": "Duplicate of US-219 — solution auto-detection delivered in commit a0b2703 (WorkspaceLoader.cs walks up from cwd to find nearest .slnx/.sln; covered by WorkspaceLoaderResolutionTests.cs). PRD entry was redundant.",
+            "resolvedAt": "2026-05-05"
         },
         {
             "id": "US-011",
@@ -299,7 +301,7 @@
             ],
             "priority": 11,
             "passes": false,
-            "notes": "Affected files: src/RoslynTools/Services/WorkspaceLoader.cs, src/RoslynTools/Services/SymbolFormatter.cs (or similar JSON envelope helper), src/RoslynTools/Commands/* (per-command JSON serialisation), tests/RoslynTools.Tests/. Item 18 in the gap log. CONSERVATIVE: rolling out across all read-only commands at once may exceed one session â€” apply to three representative commands and file a follow-up to extend coverage."
+            "notes": "Affected files: src/RoslynTools/Services/WorkspaceLoader.cs, src/RoslynTools/Services/SymbolFormatter.cs (or similar JSON envelope helper), src/RoslynTools/Commands/* (per-command JSON serialisation), tests/RoslynTools.Tests/. Item 18 in the gap log. CONSERVATIVE: rolling out across all read-only commands at once may exceed one session â€” apply to three representative commands and file a follow-up to extend coverage.\n\n[2026-05-05] Partial: US-220 (0d584c0) separated workspace diagnostics from stderr success-path output. The full {diagnostics, results} JSON envelope across read-only commands (AC#2, AC#5) is not yet implemented."
         },
         {
             "id": "US-012",
@@ -346,8 +348,10 @@
                 "dotnet format \"RoslynTools.slnx\" --verify-no-changes passes"
             ],
             "priority": 13,
-            "passes": false,
-            "notes": "Affected files: src/RoslynTools/Commands/AnalyzeInterfaceCommand.cs (new), src/RoslynTools/Services/AnalyzeInterfaceService.cs (new), tests/RoslynTools.Tests/AnalyzeInterfaceCommandTests.cs (new). Item 19 in the gap log. CONSERVATIVE: the gap log mentions sub-commands `why-type-needed` and `unused-members-on-interface` â€” split into US-014 to keep this story sized for one session."
+            "passes": true,
+            "notes": "Affected files: src/RoslynTools/Commands/AnalyzeInterfaceCommand.cs (new), src/RoslynTools/Services/AnalyzeInterfaceService.cs (new), tests/RoslynTools.Tests/AnalyzeInterfaceCommandTests.cs (new). Item 19 in the gap log. CONSERVATIVE: the gap log mentions sub-commands `why-type-needed` and `unused-members-on-interface` â€” split into US-014 to keep this story sized for one session.",
+            "resolution": "Duplicate of US-221 — analyze-interface command delivered in 2b54cec (AnalyzeInterfaceCommand.cs + AnalyzeInterfaceCore.cs + 440-line test file). US-222 (b6e1313) added --suggest flag for narrowing suggestions.",
+            "resolvedAt": "2026-05-05"
         },
         {
             "id": "US-014",
@@ -531,8 +535,10 @@
                 "dotnet format \"RoslynTools.slnx\" --verify-no-changes passes"
             ],
             "priority": 21,
-            "passes": false,
-            "notes": "Affected files: src/RoslynTools/Commands/ExtractNarrowInterfaceCommand.cs (new), src/RoslynTools/Services/ExtractNarrowInterfaceService.cs (new), tests/RoslynTools.Tests/ExtractNarrowInterfaceCommandTests.cs (new). DEPENDS ON: US-013 (consumer/member-usage analysis is the natural input). Item 20 in the gap log. CONSERVATIVE: --add-di-registration is the most fragile part of the spec (requires recognising arbitrary DI patterns); if it does not fit the session, ship it as `[NotImplemented]` exiting 1 with a follow-up story rather than half-implement."
+            "passes": true,
+            "notes": "Affected files: src/RoslynTools/Commands/ExtractNarrowInterfaceCommand.cs (new), src/RoslynTools/Services/ExtractNarrowInterfaceService.cs (new), tests/RoslynTools.Tests/ExtractNarrowInterfaceCommandTests.cs (new). DEPENDS ON: US-013 (consumer/member-usage analysis is the natural input). Item 20 in the gap log. CONSERVATIVE: --add-di-registration is the most fragile part of the spec (requires recognising arbitrary DI patterns); if it does not fit the session, ship it as `[NotImplemented]` exiting 1 with a follow-up story rather than half-implement.",
+            "resolution": "Duplicate of US-223 — narrow-dependency command delivered in 6348232 (NarrowDependencyCommand.cs + NarrowDependencyCore.cs + Mutation/NarrowDependencyTests.cs). Same scope: subset extraction, consumer rewriting, mixed-usage skip.",
+            "resolvedAt": "2026-05-05"
         },
         {
             "id": "US-022",
@@ -662,8 +668,10 @@
                 "dotnet format RoslynTools.slnx --verify-no-changes passes"
             ],
             "priority": 27,
-            "passes": false,
-            "notes": "Affected files: src/RoslynTools/Core/*, src/RoslynTools/Services/*. Use rt refactor move and rename extensively. CRITICAL: blocks ArchitectureTests from passing."
+            "passes": true,
+            "notes": "Affected files: src/RoslynTools/Core/*, src/RoslynTools/Services/*. Use rt refactor move and rename extensively. CRITICAL: blocks ArchitectureTests from passing.",
+            "resolution": "Circular dep broken in commit 7e81d28 (red test c0097f0). ArchitectureTests.Core_and_Services_must_not_have_circular_dependency now passes.",
+            "resolvedAt": "2026-05-05"
         },
         {
             "id": "US-028",
@@ -683,8 +691,10 @@
                 "dotnet format RoslynTools.slnx --verify-no-changes passes"
             ],
             "priority": 28,
-            "passes": false,
-            "notes": "Affected files: src/RoslynTools.Cli/Commands/*.cs (12 files), src/RoslynTools.Cli/CommandOptionFactory.cs (new). Extractable duplication, high value. Largest single duplicate group."
+            "passes": true,
+            "notes": "Affected files: src/RoslynTools.Cli/Commands/*.cs (12 files), src/RoslynTools.Cli/CommandOptionFactory.cs (new). Extractable duplication, high value. Largest single duplicate group.",
+            "resolution": "12 duplicate Option declarations consolidated into CommandOptionFactory in commit 1cb6a90 (refactor: extract common Option declarations).",
+            "resolvedAt": "2026-05-05"
         },
         {
             "id": "US-029",
@@ -705,7 +715,7 @@
             ],
             "priority": 29,
             "passes": false,
-            "notes": "Affected files: src/RoslynTools/**/*.cs (widespread). This is a large refactoring; prefer batching into per-file or per-class sub-stories if one session exceeds time budget. rt extract-method --replace-duplicates is a primary tool here."
+            "notes": "Affected files: src/RoslynTools/**/*.cs (widespread). This is a large refactoring; prefer batching into per-file or per-class sub-stories if one session exceeds time budget. rt extract-method --replace-duplicates is a primary tool here.\n\n[2026-05-05] Blocker fixed in c6ff45e (semantic validation in --replace-duplicates); the 67-group extraction itself remains pending."
         },
         {
             "id": "US-030",
@@ -725,8 +735,10 @@
                 "dotnet format RoslynTools.slnx --verify-no-changes passes"
             ],
             "priority": 30,
-            "passes": false,
-            "notes": "Affected files: src/RoslynTools/Services/ChangeSignatureService.cs (split), src/RoslynTools/Services/ReorderParamsService.cs (new), src/RoslynTools/Services/AddParamService.cs (new), src/RoslynTools/Services/RemoveParamService.cs (new), tests/RoslynTools.Tests/Mutation/ChangeSignatureTests.cs. Large class refactor; ~4hr session expected."
+            "passes": true,
+            "notes": "Affected files: src/RoslynTools/Services/ChangeSignatureService.cs (split), src/RoslynTools/Services/ReorderParamsService.cs (new), src/RoslynTools/Services/AddParamService.cs (new), src/RoslynTools/Services/RemoveParamService.cs (new), tests/RoslynTools.Tests/Mutation/ChangeSignatureTests.cs. Large class refactor; ~4hr session expected.",
+            "resolution": "ChangeSignatureService (733 lines) split into focused single-responsibility classes in commit d99d689.",
+            "resolvedAt": "2026-05-05"
         },
         {
             "id": "US-031",
@@ -746,8 +758,10 @@
                 "dotnet format RoslynTools.slnx --verify-no-changes passes"
             ],
             "priority": 31,
-            "passes": false,
-            "notes": "Affected files: src/RoslynTools/Services/NarrowDependencyService.cs (split), src/RoslynTools/Services/InterfaceAnalyzerService.cs (new), src/RoslynTools/Services/ConsumerNarrowerService.cs (new), tests/RoslynTools.Tests/Mutation/NarrowDependencyTests.cs. Large class refactor; ~3hr session expected."
+            "passes": true,
+            "notes": "Affected files: src/RoslynTools/Services/NarrowDependencyService.cs (split), src/RoslynTools/Services/InterfaceAnalyzerService.cs (new), src/RoslynTools/Services/ConsumerNarrowerService.cs (new), tests/RoslynTools.Tests/Mutation/NarrowDependencyTests.cs. Large class refactor; ~3hr session expected.",
+            "resolution": "NarrowDependencyService (540 lines) split into InterfaceAnalyzerService + ConsumerNarrowerService — red 0e13d4c, feat 3b712ad, slim fa1740e.",
+            "resolvedAt": "2026-05-05"
         },
         {
             "id": "US-032",
@@ -767,7 +781,7 @@
             ],
             "priority": 32,
             "passes": false,
-            "notes": "Affected files: src/RoslynTools.Cli/Commands/ChangeSignatureCommand.cs, src/RoslynTools.Cli/CommandBuilders/ChangeSignatureCommandBuilder.cs (new), tests/RoslynTools.Tests/. Thin-shell rule enforcement. Can pair with other thin-shell tasks (App.RunAsync, DumpHelpCommand) in one session."
+            "notes": "Affected files: src/RoslynTools.Cli/Commands/ChangeSignatureCommand.cs, src/RoslynTools.Cli/CommandBuilders/ChangeSignatureCommandBuilder.cs (new), tests/RoslynTools.Tests/. Thin-shell rule enforcement. Can pair with other thin-shell tasks (App.RunAsync, DumpHelpCommand) in one session.\n\n[2026-05-05] Build() reduced 191→95 in d985bc2 (50% reduction via ChangeSignatureCommandHandlers); AC#4 (<20 lines) not yet met. Remaining: extract option-registration into ChangeSignatureCommandBuilder."
         },
         {
             "id": "US-033",
@@ -784,8 +798,10 @@
                 "dotnet format RoslynTools.slnx --verify-no-changes passes"
             ],
             "priority": 33,
-            "passes": false,
-            "notes": "Affected files: src/RoslynTools.Cli/App.cs, src/RoslynTools.Cli/Commands/DumpHelpCommand.cs, tests/RoslynTools.Tests/. One session can handle both methods."
+            "passes": true,
+            "notes": "Affected files: src/RoslynTools.Cli/App.cs, src/RoslynTools.Cli/Commands/DumpHelpCommand.cs, tests/RoslynTools.Tests/. One session can handle both methods.",
+            "resolution": "App.RunAsync and DumpHelpCommand.RenderMarkdown thinned via RegisterGlobalOptions/RenderMarkdown helpers — red cca38a3, refactor a5ceff2.",
+            "resolvedAt": "2026-05-05"
         },
         {
             "id": "US-034",
@@ -914,7 +930,7 @@
             "priority": 37,
             "passes": false,
             "epicId": "EP-008",
-            "notes": "Add static class RtExitCodes: Success=0, CommandFailure=1, DecisionsRequired=2, ValidationError=3, InternalError=10, VerificationFailed=4. Update App.RunAsync top-level exception handler. JSON-mode failures emit machine-readable envelope. --verbose flag for stack traces on InternalError. Affected files: src/RoslynTools/Core/RtExitCodes.cs (new), src/RoslynTools.Cli/App.cs."
+            "notes": "Add static class RtExitCodes: Success=0, CommandFailure=1, DecisionsRequired=2, ValidationError=3, InternalError=10, VerificationFailed=4. Update App.RunAsync top-level exception handler. JSON-mode failures emit machine-readable envelope. --verbose flag for stack traces on InternalError. Affected files: src/RoslynTools/Core/RtExitCodes.cs (new), src/RoslynTools.Cli/App.cs.\n\n[2026-05-05] Partial: 4cc5a1e added CommandHandlerConstants with Success/Error only (not the full RtExitCodes set: ValidationError, DecisionsRequired, InternalError). App.RunAsync hardening (try/catch for ArgumentException/InvalidOperationException) not yet done."
         },
         {
             "id": "US-038",
@@ -1192,7 +1208,7 @@
             "priority": 43,
             "passes": false,
             "epicId": "EP-009",
-            "notes": "Add internal sealed record RtParameter(string Name, string Description, string Type, bool Required, string? Default = null, string[]? Enum = null) to Core/. Add RtParameter[]? OperationParameters = null to RtCommandInfo. Populate for describe, find-refs, rename. rt mcp --solution X mode in RoslynTools.Cli (single binary). ModelContextProtocol NuGet (latest stable). Workspace as singleton IHostedService. MCP tool schemas derived from RtOperationParameters (not hand-coded). 3 tools: describe, find-refs, rename. Zero service-layer changes. Include claude_desktop_config.json example. DEPENDS ON: US-022 (DI host), US-036 (capabilities). CLI and MCP are the two first surfaces over the shared abstraction â€” US-044 (rt serve) is the third."
+            "notes": "Add internal sealed record RtParameter(string Name, string Description, string Type, bool Required, string? Default = null, string[]? Enum = null) to Core/. Add RtParameter[]? OperationParameters = null to RtCommandInfo. Populate for describe, find-refs, rename. rt mcp --solution X mode in RoslynTools.Cli (single binary). ModelContextProtocol NuGet (latest stable). Workspace as singleton IHostedService. MCP tool schemas derived from RtOperationParameters (not hand-coded). 3 tools: describe, find-refs, rename. Zero service-layer changes. Include claude_desktop_config.json example. DEPENDS ON: US-022 (DI host), US-036 (capabilities). CLI and MCP are the two first surfaces over the shared abstraction â€” US-044 (rt serve) is the third.\n\n[2026-05-05] Partial: MCP server shipped (3de338c, bbedbcf — RoslynTools.Mcp project with FindReferences + Rename handlers), but using hand-written Schemas/*Request.cs rather than generating from a shared RtParameter/RtCommandInfo.OperationParameters abstraction. The framework-agnostic abstraction (AC#1–4) is the remaining work."
         },
         {
             "id": "US-044",
@@ -1372,10 +1388,12 @@
                 "Cross-file call sites continue to be updated correctly",
                 "Regression test: extract method with parameterization where source file is one of the matches"
             ],
-            "passes": false,
+            "passes": true,
             "epic": "EP-007",
             "title": "Fix extract-method source-file call site not updated with parameterized arguments (Phase 2 follow-up)",
-            "notes": "Discovered during US-045/US-046 parameterization work (2026-05-03). Dry-run shows issue: +        DoWork(); in source-file where +        DoWork(_serviceA); expected."
+            "notes": "Discovered during US-045/US-046 parameterization work (2026-05-03). Dry-run shows issue: +        DoWork(); in source-file where +        DoWork(_serviceA); expected.",
+            "resolution": "replaceDuplicates default flipped to true in commit 1cd503e — source-file call sites now updated on extraction; red test cdf25fa, all 4 failing tests fixed with no regressions.",
+            "resolvedAt": "2026-05-05"
         },
         {
             "id": "US-051",
