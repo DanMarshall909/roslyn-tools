@@ -13,6 +13,8 @@ Style mirrors `dogfood-gaps.md`: one bullet per entry, `- YYYY-MM-DD: <pattern> 
 
 ## Multi-step sequences
 
+- 2026-05-05: New xunit test project scaffold requires two independent boilerplate items both silent until compile: `<NoWarn>$(NoWarn);CA1707</NoWarn>` in csproj (else CA1707 fires on `with_xxx_yyy` test names) and a `GlobalUsings.cs` with `global using Xunit;` (else `[Fact]` is `CS0246`). Burned 3 build cycles in MCP test scaffold. Proposed on 3rd recurrence: `scripts/new-test-project.sh <project-path>` that creates the csproj from a template and drops a starter GlobalUsings.cs.
+
 - 2026-04-23: Appending a story to `ralph/prd.json` via bash heredoc + `python -c` failed twice this session on `%` and `${...}` in content. Fell back to writing `ralph/_add-stories.py` then deleting it. Proposed: `ralph/scripts/append-story.py <yaml-file>` — reads a YAML story file (title, description, notes, ACs), auto-increments `id`/`priority`, writes to prd.json, regenerates `prd-visualization.html` in one step. Complements the existing `/add-tasks` skill.
 
 - 2026-04-23: Tour-store backend bounce done 4 times this session — `kill PID on :5000` → `dotnet build` → `source .env` → `dotnet run --urls http://localhost:5000 &` → poll `/api/locations` until 200. Each cycle repeated the same bash+PowerShell incantation. Proposed: `scripts/bounce-backend.sh` — single command, loads `.env`, waits for health-check, prints background task ID. Saves ~20 lines of inline tool calls per cycle.
