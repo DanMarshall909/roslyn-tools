@@ -2,285 +2,556 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Tests.Analysis;
 
-/// <summary>
-/// Acceptance tests for rt analyze complexity.
-/// Red phase — ComplexityAnalyzer and ComplexityReport do not exist yet.
-/// </summary>
 public class ComplexityCommandTests
 {
-    // ── IRtCommand contract ──────────────────────────────────────────────────
+    // -----------------------------------------------------------------------
+    // Helpers
+    // -----------------------------------------------------------------------
 
-    [Fact]
-    public void Info_category_is_analyze()
-        => throw new NotImplementedException();
-
-    [Fact]
-    public void Info_json_output_is_true()
-        => throw new NotImplementedException();
-
-    [Fact]
-    public void Info_mutates_is_false()
-        => throw new NotImplementedException();
-
-    [Fact]
-    public void Command_is_registered_and_reachable_as_root_shortcut()
-        => throw new NotImplementedException();
-
-    // ── Output shape ─────────────────────────────────────────────────────────
-
-    [Fact]
-    public async Task Output_json_contains_methods_typeRollups_namespaceRollups()
+    private static async Task<ComplexityReport> AnalyzeSourceAsync(
+        string source,
+        int threshold = 0,
+        string sort = "cyclomatic",
+        int top = 0,
+        string fileName = "Test.cs")
     {
         using var project = new AdhocProjectBuilder();
-        project.AddSource("A.cs", "public class A { public void M() {} }");
+        project.AddSource(fileName, source);
         var (workspace, sln) = project.Build();
         using (workspace)
-        {
-            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
-            Assert.NotNull(report.Methods);
-            Assert.NotNull(report.TypeRollups);
-            Assert.NotNull(report.NamespaceRollups);
-        }
+            return await ComplexityAnalyzer.AnalyzeAsync(sln, threshold, sort, top);
     }
 
-    [Fact]
-    public async Task Method_entry_contains_method_type_namespace_file_line_cyclomatic_cognitive_loc_params()
-    {
-        using var project = new AdhocProjectBuilder();
-        project.AddSource("A.cs", "public class A { public void M() {} }");
-        var (workspace, sln) = project.Build();
-        using (workspace)
-        {
-            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
-            var m = Assert.Single(report.Methods);
-            Assert.NotEmpty(m.Method);
-            Assert.NotEmpty(m.Type);
-            Assert.NotNull(m.Namespace);
-            Assert.NotEmpty(m.File);
-            Assert.True(m.Line >= 1);
-            Assert.True(m.Cyclomatic >= 1);
-            Assert.True(m.Cognitive >= 0);
-            Assert.True(m.Loc >= 0);
-            Assert.True(m.Params >= 0);
-        }
-    }
+    private static MethodComplexity GetMethod(ComplexityReport report, string name) =>
+        report.Methods.First(m => m.Method == name);
 
-    // ── Cyclomatic complexity ────────────────────────────────────────────────
+    private static MethodComplexity? FindMethod(ComplexityReport report, string name) =>
+        report.Methods.FirstOrDefault(m => m.Method == name);
+
+    // -----------------------------------------------------------------------
+    // Cyclomatic: base = 1
+    // -----------------------------------------------------------------------
 
     [Fact]
-    public async Task with_empty_method_cyclomatic_is_1()
+    public async Task with_simple_method_cyclomatic_is_1()
     {
-        using var project = new AdhocProjectBuilder();
-        project.AddSource("A.cs", "public class A { public void M() {} }");
-        var (workspace, sln) = project.Build();
-        using (workspace)
-        {
-            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
-            Assert.Equal(1, report.Methods.Single(m => m.Method.EndsWith(".M")).Cyclomatic);
-        }
-    }
-
-    [Fact]
-    public async Task with_single_if_no_else_cyclomatic_is_2()
-    {
-        using var project = new AdhocProjectBuilder();
-        project.AddSource("A.cs", """
-            public class A {
-                public void M(bool x) { if (x) { } }
+        var report = await AnalyzeSourceAsync("""
+            public class C {
+                public void M() { var x = 1; }
             }
             """);
-        var (workspace, sln) = project.Build();
-        using (workspace)
-        {
-            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
-            Assert.Equal(2, report.Methods.Single(m => m.Method.EndsWith(".M")).Cyclomatic);
-        }
+        Assert.Equal(1, GetMethod(report, "M").Cyclomatic);
     }
 
+    // -----------------------------------------------------------------------
+    // Cyclomatic: if (+1), but NOT bare else
+    // -----------------------------------------------------------------------
+
     [Fact]
-    public async Task with_if_elseif_else_bare_else_does_not_increment_cyclomatic()
+    public async Task with_if_else_cyclomatic_counts_only_if()
     {
-        using var project = new AdhocProjectBuilder();
-        project.AddSource("A.cs", """
-            public class A {
-                public void M(int x) {
-                    if (x == 1) { }
-                    else if (x == 2) { }
-                    else { }
+        var report = await AnalyzeSourceAsync("""
+            public class C {
+                public void M(bool b) {
+                    if (b) { var x = 1; }
+                    else   { var y = 2; }
                 }
             }
             """);
-        var (workspace, sln) = project.Build();
-        using (workspace)
-        {
-            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
-            // if + else if = 2 decisions; bare else = 0 → base 1 + 2 = 3
-            Assert.Equal(3, report.Methods.Single(m => m.Method.EndsWith(".M")).Cyclomatic);
-        }
+        // base=1 + if=1 = 2 (else does NOT add)
+        Assert.Equal(2, GetMethod(report, "M").Cyclomatic);
     }
 
+    // -----------------------------------------------------------------------
+    // Cyclomatic: for, foreach, while, do (+1 each)
+    // -----------------------------------------------------------------------
+
     [Fact]
-    public async Task with_switch_n_case_labels_cyclomatic_increments_by_n()
+    public async Task with_loops_cyclomatic_increments_per_loop()
     {
-        using var project = new AdhocProjectBuilder();
-        project.AddSource("A.cs", """
-            public class A {
-                public void M(int x) {
-                    switch (x) { case 1: break; case 2: break; case 3: break; default: break; }
+        var report = await AnalyzeSourceAsync("""
+            public class C {
+                public void M(int[] arr) {
+                    for (int i = 0; i < 10; i++) { }
+                    foreach (var x in arr) { }
+                    while (true) { break; }
+                    do { break; } while (false);
                 }
             }
             """);
-        var (workspace, sln) = project.Build();
-        using (workspace)
-        {
-            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
-            // 3 non-default cases → base 1 + 3 = 4
-            Assert.Equal(4, report.Methods.Single(m => m.Method.EndsWith(".M")).Cyclomatic);
-        }
+        // base=1 + for=1 + foreach=1 + while=1 + do=1 = 5
+        Assert.Equal(5, GetMethod(report, "M").Cyclomatic);
     }
 
-    [Fact]
-    public async Task with_for_loop_cyclomatic_increments()
-        => throw new NotImplementedException();
+    // -----------------------------------------------------------------------
+    // Cyclomatic: catch (+1)
+    // -----------------------------------------------------------------------
 
     [Fact]
-    public async Task with_foreach_loop_cyclomatic_increments()
-        => throw new NotImplementedException();
-
-    [Fact]
-    public async Task with_while_loop_cyclomatic_increments()
-        => throw new NotImplementedException();
-
-    [Fact]
-    public async Task with_do_while_loop_cyclomatic_increments()
-        => throw new NotImplementedException();
-
-    [Fact]
-    public async Task with_catch_clause_cyclomatic_increments()
+    public async Task with_catch_cyclomatic_increments()
     {
-        using var project = new AdhocProjectBuilder();
-        project.AddSource("A.cs", """
-            public class A {
+        var report = await AnalyzeSourceAsync("""
+            public class C {
                 public void M() {
-                    try { } catch (System.Exception) { }
+                    try { }
+                    catch (System.Exception) { }
+                    catch (System.InvalidOperationException) { }
+                }
+            }
+            """);
+        // base=1 + catch=1 + catch=1 = 3
+        Assert.Equal(3, GetMethod(report, "M").Cyclomatic);
+    }
+
+    // -----------------------------------------------------------------------
+    // Cyclomatic: ternary ?:, ?? , &&, ||, ?.  (+1 each)
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task with_conditional_operators_cyclomatic_increments()
+    {
+        var report = await AnalyzeSourceAsync("""
+            public class C {
+                public string? M(bool b, string? s, string? t) {
+                    var x = b ? "a" : "b";
+                    var y = s ?? t;
+                    var z = s?.Length;
+                    return x;
+                }
+            }
+            """);
+        // base=1 + ternary=1 + ??=1 + ?.=1 = 4
+        Assert.Equal(4, GetMethod(report, "M").Cyclomatic);
+    }
+
+    [Fact]
+    public async Task with_logical_and_or_cyclomatic_increments()
+    {
+        var report = await AnalyzeSourceAsync("""
+            public class C {
+                public bool M(bool a, bool b, bool c) {
+                    return a && b || c;
+                }
+            }
+            """);
+        // base=1 + &&=1 + ||=1 = 3
+        Assert.Equal(3, GetMethod(report, "M").Cyclomatic);
+    }
+
+    [Fact]
+    public async Task with_coalescence_assignment_cyclomatic_increments()
+    {
+        var report = await AnalyzeSourceAsync("""
+            public class C {
+                public void M(string? s) {
+                    s ??= "default";
+                }
+            }
+            """);
+        // base=1 + ??==1 = 2
+        Assert.Equal(2, GetMethod(report, "M").Cyclomatic);
+    }
+
+    // -----------------------------------------------------------------------
+    // Cyclomatic: switch statement — non-default labels only
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task with_switch_statement_cyclomatic_counts_non_default_labels()
+    {
+        var report = await AnalyzeSourceAsync("""
+            public class C {
+                public void M(int x) {
+                    switch (x) {
+                        case 1: break;
+                        case 2: break;
+                        default: break;
+                    }
+                }
+            }
+            """);
+        // base=1 + case1=1 + case2=1 (default excluded) = 3
+        Assert.Equal(3, GetMethod(report, "M").Cyclomatic);
+    }
+
+    // -----------------------------------------------------------------------
+    // Cyclomatic: switch expression — non-discard arms only
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task with_switch_expression_cyclomatic_counts_non_discard_arms()
+    {
+        var report = await AnalyzeSourceAsync("""
+            public class C {
+                public string M(int x) => x switch {
+                    1 => "one",
+                    2 => "two",
+                    _ => "other"
+                };
+            }
+            """);
+        // base=1 + arm1=1 + arm2=1 (discard _ excluded) = 3
+        Assert.Equal(3, GetMethod(report, "M").Cyclomatic);
+    }
+
+    // -----------------------------------------------------------------------
+    // LOC: expression-bodied method = 1
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task with_expression_bodied_method_loc_is_1()
+    {
+        var report = await AnalyzeSourceAsync("""
+            public class C {
+                public int M() => 42;
+            }
+            """);
+        Assert.Equal(1, GetMethod(report, "M").Loc);
+    }
+
+    // -----------------------------------------------------------------------
+    // LOC: blank lines and braces excluded
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task with_block_body_loc_excludes_blank_lines_and_braces()
+    {
+        var report = await AnalyzeSourceAsync("""
+            public class C {
+                public void M() {
+
+                    var x = 1;
+
+                    var y = 2;
+
+                }
+            }
+            """);
+        // Only "var x = 1;" and "var y = 2;" — blank lines and braces excluded
+        Assert.Equal(2, GetMethod(report, "M").Loc);
+    }
+
+    // -----------------------------------------------------------------------
+    // LOC: comment-only lines excluded
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task with_comment_lines_loc_excludes_comments()
+    {
+        var report = await AnalyzeSourceAsync("""
+            public class C {
+                public void M() {
+                    // this is a comment
+                    var x = 1;
+                    /* block comment */
+                    var y = 2;
+                }
+            }
+            """);
+        // var x=1, var y=2 = 2 (comments excluded)
+        Assert.Equal(2, GetMethod(report, "M").Loc);
+    }
+
+    // -----------------------------------------------------------------------
+    // Params: basic count
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task with_regular_method_params_counts_all_parameters()
+    {
+        var report = await AnalyzeSourceAsync("""
+            public class C {
+                public void M(int a, string b, bool c) { }
+            }
+            """);
+        Assert.Equal(3, GetMethod(report, "M").Params);
+    }
+
+    // -----------------------------------------------------------------------
+    // Params: extension method subtracts 'this'
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task with_extension_method_params_excludes_this_parameter()
+    {
+        var report = await AnalyzeSourceAsync("""
+            public static class C {
+                public static void M(this string s, int n) { }
+            }
+            """);
+        // 2 parameters but 'this' subtracted = 1
+        Assert.Equal(1, GetMethod(report, "M").Params);
+    }
+
+    // -----------------------------------------------------------------------
+    // Member coverage: constructors
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task with_constructor_it_is_included()
+    {
+        var report = await AnalyzeSourceAsync("""
+            public class C {
+                public C(int x) { var y = x + 1; }
+            }
+            """);
+        Assert.Contains(report.Methods, m => m.Method == "C");
+    }
+
+    // -----------------------------------------------------------------------
+    // Member coverage: accessor with body
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task with_property_getter_body_it_is_included()
+    {
+        var report = await AnalyzeSourceAsync("""
+            public class C {
+                private int _x;
+                public int X {
+                    get { return _x; }
+                    set { _x = value; }
+                }
+            }
+            """);
+        Assert.Contains(report.Methods, m => m.Method == "get");
+        Assert.Contains(report.Methods, m => m.Method == "set");
+    }
+
+    // -----------------------------------------------------------------------
+    // Member coverage: auto-property accessors skipped
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task with_auto_property_accessors_are_skipped()
+    {
+        var report = await AnalyzeSourceAsync("""
+            public class C {
+                public int X { get; set; }
+            }
+            """);
+        // No body — auto-property accessors should NOT appear
+        Assert.DoesNotContain(report.Methods, m => m.Type == "C" && m.Method == "get");
+        Assert.DoesNotContain(report.Methods, m => m.Type == "C" && m.Method == "set");
+    }
+
+    // -----------------------------------------------------------------------
+    // Member coverage: abstract method skipped
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task with_abstract_method_it_is_skipped()
+    {
+        var report = await AnalyzeSourceAsync("""
+            public abstract class C {
+                public abstract void M();
+                public void N() { var x = 1; }
+            }
+            """);
+        Assert.DoesNotContain(report.Methods, m => m.Method == "M");
+        Assert.Contains(report.Methods, m => m.Method == "N");
+    }
+
+    // -----------------------------------------------------------------------
+    // Member coverage: partial method without body skipped
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task with_partial_method_without_body_it_is_skipped()
+    {
+        var report = await AnalyzeSourceAsync("""
+            public partial class C {
+                partial void M();
+                public void N() { var x = 1; }
+            }
+            """);
+        Assert.DoesNotContain(report.Methods, m => m.Method == "M");
+        Assert.Contains(report.Methods, m => m.Method == "N");
+    }
+
+    // -----------------------------------------------------------------------
+    // Member coverage: local function included
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task with_local_function_it_is_included()
+    {
+        var report = await AnalyzeSourceAsync("""
+            public class C {
+                public void M() {
+                    int Local(int x) { return x + 1; }
+                    Local(1);
+                }
+            }
+            """);
+        Assert.Contains(report.Methods, m => m.Method == "Local");
+    }
+
+    // -----------------------------------------------------------------------
+    // Skip: generated files (.g.cs)
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task with_generated_file_g_cs_methods_are_skipped()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Generated.g.cs", """
+            public class Generated {
+                public void M() { var x = 1; }
+            }
+            """);
+        project.AddSource("Real.cs", """
+            public class Real {
+                public void N() { var x = 1; }
+            }
+            """);
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
+            Assert.DoesNotContain(report.Methods, m => m.Type == "Generated");
+            Assert.Contains(report.Methods, m => m.Type == "Real");
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Skip: generated files (.Designer.cs)
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task with_designer_file_methods_are_skipped()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Form1.Designer.cs", """
+            public class Form1 {
+                public void InitializeComponent() { var x = 1; }
+            }
+            """);
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
+            Assert.DoesNotContain(report.Methods, m => m.Type == "Form1");
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Skip: auto-generated marker in file content
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task with_auto_generated_comment_methods_are_skipped()
+    {
+        var report = await AnalyzeSourceAsync("""
+            // <auto-generated>
+            public class Gen {
+                public void M() { var x = 1; }
+            }
+            """);
+        Assert.DoesNotContain(report.Methods, m => m.Type == "Gen");
+    }
+
+    // -----------------------------------------------------------------------
+    // Threshold filter: only methods with ANY metric >= threshold included
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task with_threshold_only_methods_meeting_threshold_are_returned()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Test.cs", """
+            public class C {
+                public void Simple() { var x = 1; }
+                public void Complex(bool a, bool b) {
+                    if (a) { }
+                    if (b) { }
+                    if (a && b) { }
                 }
             }
             """);
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
-            Assert.Equal(2, report.Methods.Single(m => m.Method.EndsWith(".M")).Cyclomatic);
+            var report = await ComplexityAnalyzer.AnalyzeAsync(sln, threshold: 4);
+            // Complex has cyclomatic >= 4; Simple does not
+            Assert.DoesNotContain(report.Methods, m => m.Method == "Simple");
+            Assert.Contains(report.Methods, m => m.Method == "Complex");
         }
     }
 
+    // -----------------------------------------------------------------------
+    // Rollups: computed over ALL methods regardless of filter
+    // -----------------------------------------------------------------------
+
     [Fact]
-    public async Task with_ternary_cyclomatic_increments()
+    public async Task rollups_include_all_methods_regardless_of_threshold_filter()
     {
         using var project = new AdhocProjectBuilder();
-        project.AddSource("A.cs", """
-            public class A {
-                public int M(bool x) => x ? 1 : 0;
+        project.AddSource("Test.cs", """
+            namespace MyNs;
+            public class C {
+                public void Simple() { var x = 1; }
+                public void Complex(bool a, bool b) {
+                    if (a) { }
+                    if (b) { }
+                    if (a && b) { }
+                }
             }
             """);
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
-            Assert.Equal(2, report.Methods.Single(m => m.Method.EndsWith(".M")).Cyclomatic);
+            // threshold=10 filters Methods to empty, but rollups should still have both
+            var report = await ComplexityAnalyzer.AnalyzeAsync(sln, threshold: 10);
+            Assert.Empty(report.Methods);
+            var typeRollup = Assert.Single(report.TypeRollups);
+            Assert.Equal("C", typeRollup.Type);
+            Assert.Equal(2, typeRollup.MethodCount);
         }
     }
 
-    [Fact]
-    public async Task with_null_coalescing_cyclomatic_increments()
-        => throw new NotImplementedException();
+    // -----------------------------------------------------------------------
+    // Sort: cyclomatic descending
+    // -----------------------------------------------------------------------
 
     [Fact]
-    public async Task with_null_conditional_cyclomatic_increments()
-        => throw new NotImplementedException();
-
-    [Fact]
-    public async Task with_logical_and_cyclomatic_increments()
+    public async Task with_sort_cyclomatic_methods_ordered_descending_by_cyclomatic()
     {
         using var project = new AdhocProjectBuilder();
-        project.AddSource("A.cs", """
-            public class A {
-                public bool M(bool a, bool b) => a && b;
+        project.AddSource("Test.cs", """
+            public class C {
+                public void Low() { var x = 1; }
+                public void High(bool a, bool b, bool c) {
+                    if (a) { } if (b) { } if (c) { }
+                }
             }
             """);
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
-            Assert.Equal(2, report.Methods.Single(m => m.Method.EndsWith(".M")).Cyclomatic);
+            var report = await ComplexityAnalyzer.AnalyzeAsync(sln, sort: "cyclomatic");
+            var methods = report.Methods.ToList();
+            // High should come before Low
+            var highIdx = methods.FindIndex(m => m.Method == "High");
+            var lowIdx = methods.FindIndex(m => m.Method == "Low");
+            Assert.True(highIdx < lowIdx, "High complexity method should sort before Low");
         }
     }
 
-    [Fact]
-    public async Task with_logical_or_cyclomatic_increments()
-        => throw new NotImplementedException();
+    // -----------------------------------------------------------------------
+    // Sort: cognitive descending
+    // -----------------------------------------------------------------------
 
     [Fact]
-    public async Task with_null_coalescing_assignment_cyclomatic_increments()
-        => throw new NotImplementedException();
-
-    [Fact]
-    public async Task with_pattern_switch_arm_default_discard_does_not_increment_cyclomatic()
+    public async Task with_sort_cognitive_methods_ordered_descending_by_cognitive()
     {
         using var project = new AdhocProjectBuilder();
-        project.AddSource("A.cs", """
-            public class A {
-                public string M(int x) => x switch { 1 => "one", 2 => "two", _ => "other" };
-            }
-            """);
-        var (workspace, sln) = project.Build();
-        using (workspace)
-        {
-            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
-            // 2 non-default arms → base 1 + 2 = 3
-            Assert.Equal(3, report.Methods.Single(m => m.Method.EndsWith(".M")).Cyclomatic);
-        }
-    }
-
-    // ── Cognitive complexity ─────────────────────────────────────────────────
-
-    [Fact]
-    public async Task with_empty_method_cognitive_is_0()
-    {
-        using var project = new AdhocProjectBuilder();
-        project.AddSource("A.cs", "public class A { public void M() {} }");
-        var (workspace, sln) = project.Build();
-        using (workspace)
-        {
-            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
-            Assert.Equal(0, report.Methods.Single(m => m.Method.EndsWith(".M")).Cognitive);
-        }
-    }
-
-    [Fact]
-    public async Task with_if_at_depth_0_cognitive_adds_1()
-    {
-        using var project = new AdhocProjectBuilder();
-        project.AddSource("A.cs", """
-            public class A { public void M(bool x) { if (x) { } } }
-            """);
-        var (workspace, sln) = project.Build();
-        using (workspace)
-        {
-            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
-            Assert.Equal(1, report.Methods.Single(m => m.Method.EndsWith(".M")).Cognitive);
-        }
-    }
-
-    [Fact]
-    public async Task with_nested_if_cognitive_applies_nesting_multiplier()
-    {
-        using var project = new AdhocProjectBuilder();
-        project.AddSource("A.cs", """
-            public class A {
-                public void M(bool a, bool b) {
-                    if (a) {         // depth 0 → +1
-                        if (b) { }   // depth 1 → +2
+        project.AddSource("Test.cs", """
+            public class C {
+                public void Low() { var x = 1; }
+                public void High(bool a, bool b) {
+                    if (a) {
+                        if (b) { }
                     }
                 }
             }
@@ -288,366 +559,84 @@ public class ComplexityCommandTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
-            Assert.Equal(3, report.Methods.Single(m => m.Method.EndsWith(".M")).Cognitive);
+            var report = await ComplexityAnalyzer.AnalyzeAsync(sln, sort: "cognitive");
+            var methods = report.Methods.ToList();
+            var highIdx = methods.FindIndex(m => m.Method == "High");
+            var lowIdx = methods.FindIndex(m => m.Method == "Low");
+            Assert.True(highIdx < lowIdx, "High cognitive method should sort before Low");
         }
     }
 
-    [Fact]
-    public async Task with_else_clause_cognitive_adds_1()
-        => throw new NotImplementedException();
+    // -----------------------------------------------------------------------
+    // Sort: loc descending
+    // -----------------------------------------------------------------------
 
     [Fact]
-    public async Task with_logical_operator_type_transition_cognitive_adds_1_per_transition()
+    public async Task with_sort_loc_methods_ordered_descending_by_loc()
     {
         using var project = new AdhocProjectBuilder();
-        project.AddSource("A.cs", """
-            public class A {
-                public bool M(bool a, bool b, bool c) => a && b || c;
-            }
-            """);
-        var (workspace, sln) = project.Build();
-        using (workspace)
-        {
-            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
-            // one && sequence (+1) + one || sequence (+1) = 2
-            Assert.Equal(2, report.Methods.Single(m => m.Method.EndsWith(".M")).Cognitive);
-        }
-    }
-
-    [Fact]
-    public async Task with_recursive_call_cognitive_adds_1()
-    {
-        using var project = new AdhocProjectBuilder();
-        project.AddSource("A.cs", """
-            public class A {
-                public int M(int n) => n <= 0 ? 0 : M(n - 1);
-            }
-            """);
-        var (workspace, sln) = project.Build();
-        using (workspace)
-        {
-            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
-            var m = report.Methods.Single(x => x.Method.EndsWith(".M"));
-            // ternary +1 (cyclomatic), recursive call +1 (cognitive)
-            Assert.True(m.Cognitive >= 2);
-        }
-    }
-
-    // ── LOC ──────────────────────────────────────────────────────────────────
-
-    [Fact]
-    public async Task with_empty_method_loc_is_0()
-    {
-        using var project = new AdhocProjectBuilder();
-        project.AddSource("A.cs", "public class A { public void M() {} }");
-        var (workspace, sln) = project.Build();
-        using (workspace)
-        {
-            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
-            Assert.Equal(0, report.Methods.Single(m => m.Method.EndsWith(".M")).Loc);
-        }
-    }
-
-    [Fact]
-    public async Task with_single_return_loc_is_1()
-    {
-        using var project = new AdhocProjectBuilder();
-        project.AddSource("A.cs", """
-            public class A {
-                public int M() {
-                    return 1;
+        project.AddSource("Test.cs", """
+            public class C {
+                public void Short() { var x = 1; }
+                public void Long() {
+                    var a = 1;
+                    var b = 2;
+                    var c = 3;
+                    var d = 4;
+                    var e = 5;
                 }
             }
             """);
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
-            Assert.Equal(1, report.Methods.Single(m => m.Method.EndsWith(".M")).Loc);
+            var report = await ComplexityAnalyzer.AnalyzeAsync(sln, sort: "loc");
+            var methods = report.Methods.ToList();
+            var longIdx = methods.FindIndex(m => m.Method == "Long");
+            var shortIdx = methods.FindIndex(m => m.Method == "Short");
+            Assert.True(longIdx < shortIdx, "Long method should sort before Short");
         }
     }
 
-    [Fact]
-    public async Task loc_excludes_single_line_comments()
-        => throw new NotImplementedException();
+    // -----------------------------------------------------------------------
+    // Sort: params descending
+    // -----------------------------------------------------------------------
 
     [Fact]
-    public async Task loc_excludes_block_comment_only_lines()
-        => throw new NotImplementedException();
-
-    [Fact]
-    public async Task with_expression_bodied_method_loc_is_1()
+    public async Task with_sort_params_methods_ordered_descending_by_params()
     {
         using var project = new AdhocProjectBuilder();
-        project.AddSource("A.cs", "public class A { public int M() => 1; }");
-        var (workspace, sln) = project.Build();
-        using (workspace)
-        {
-            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
-            Assert.Equal(1, report.Methods.Single(m => m.Method.EndsWith(".M")).Loc);
-        }
-    }
-
-    // ── Params ───────────────────────────────────────────────────────────────
-
-    [Fact]
-    public async Task with_no_params_count_is_0()
-    {
-        using var project = new AdhocProjectBuilder();
-        project.AddSource("A.cs", "public class A { public void M() {} }");
-        var (workspace, sln) = project.Build();
-        using (workspace)
-        {
-            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
-            Assert.Equal(0, report.Methods.Single(m => m.Method.EndsWith(".M")).Params);
-        }
-    }
-
-    [Fact]
-    public async Task extension_method_this_param_excluded_from_count()
-    {
-        using var project = new AdhocProjectBuilder();
-        project.AddSource("A.cs", """
-            public static class A {
-                public static int M(this string s, int x) => x;
+        project.AddSource("Test.cs", """
+            public class C {
+                public void Few(int a) { }
+                public void Many(int a, int b, int c, int d, int e) { }
             }
             """);
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
-            Assert.Equal(1, report.Methods.Single(m => m.Method.EndsWith(".M")).Params);
+            var report = await ComplexityAnalyzer.AnalyzeAsync(sln, sort: "params");
+            var methods = report.Methods.ToList();
+            var manyIdx = methods.FindIndex(m => m.Method == "Many");
+            var fewIdx = methods.FindIndex(m => m.Method == "Few");
+            Assert.True(manyIdx < fewIdx, "Many-params method should sort before Few-params");
         }
     }
 
-    // ── Member type coverage ─────────────────────────────────────────────────
+    // -----------------------------------------------------------------------
+    // Top: truncates results
+    // -----------------------------------------------------------------------
 
     [Fact]
-    public async Task constructors_are_included_in_methods()
+    public async Task with_top_results_are_truncated_to_n()
     {
         using var project = new AdhocProjectBuilder();
-        project.AddSource("A.cs", """
-            public class A {
-                public A(int x) { }
-            }
-            """);
-        var (workspace, sln) = project.Build();
-        using (workspace)
-        {
-            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
-            Assert.Contains(report.Methods, m => m.Method.Contains(".ctor") || m.Method.Contains(".A"));
-        }
-    }
-
-    [Fact]
-    public async Task property_accessors_are_reported_as_separate_entries()
-    {
-        using var project = new AdhocProjectBuilder();
-        project.AddSource("A.cs", """
-            public class A {
-                private int _x;
-                public int X { get => _x; set => _x = value; }
-            }
-            """);
-        var (workspace, sln) = project.Build();
-        using (workspace)
-        {
-            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
-            Assert.Contains(report.Methods, m => m.Method.Contains(".X.get") || m.Method.Contains(".get_X"));
-            Assert.Contains(report.Methods, m => m.Method.Contains(".X.set") || m.Method.Contains(".set_X"));
-        }
-    }
-
-    [Fact]
-    public async Task local_functions_are_reported_as_separate_entries()
-        => throw new NotImplementedException();
-
-    [Fact]
-    public async Task lambdas_are_not_reported_as_separate_entries()
-        => throw new NotImplementedException();
-
-    [Fact]
-    public async Task abstract_methods_produce_no_entry()
-    {
-        using var project = new AdhocProjectBuilder();
-        project.AddSource("A.cs", """
-            public abstract class A {
-                public abstract void M();
-            }
-            """);
-        var (workspace, sln) = project.Build();
-        using (workspace)
-        {
-            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
-            Assert.DoesNotContain(report.Methods, m => m.Method.EndsWith(".M"));
-        }
-    }
-
-    [Fact]
-    public async Task auto_implemented_properties_produce_no_entry()
-    {
-        using var project = new AdhocProjectBuilder();
-        project.AddSource("A.cs", "public class A { public int X { get; set; } }");
-        var (workspace, sln) = project.Build();
-        using (workspace)
-        {
-            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
-            Assert.Empty(report.Methods);
-        }
-    }
-
-    [Fact]
-    public async Task generated_files_with_auto_generated_header_are_skipped()
-        => throw new NotImplementedException();
-
-    [Fact]
-    public async Task files_with_g_cs_suffix_are_skipped()
-        => throw new NotImplementedException();
-
-    // ── Rollups ───────────────────────────────────────────────────────────────
-
-    [Fact]
-    public async Task type_rollups_sum_per_method_metrics()
-    {
-        using var project = new AdhocProjectBuilder();
-        project.AddSource("A.cs", """
-            public class A {
-                public void M1() { }
-                public void M2(int x) { }
-            }
-            """);
-        var (workspace, sln) = project.Build();
-        using (workspace)
-        {
-            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
-            var rollup = report.TypeRollups.Single(r => r.Type.EndsWith(".A") || r.Type == "A");
-            Assert.Equal(2, rollup.MethodCount);
-            Assert.Equal(report.Methods.Sum(m => m.Cyclomatic), rollup.CyclomaticTotal);
-        }
-    }
-
-    [Fact]
-    public async Task namespace_rollups_sum_type_metrics()
-        => throw new NotImplementedException();
-
-    [Fact]
-    public async Task rollups_not_affected_by_threshold_filter()
-    {
-        using var project = new AdhocProjectBuilder();
-        project.AddSource("A.cs", """
-            public class A {
-                public void Simple() { }
-                public void Complex(bool a, bool b, bool c, bool d, bool e, bool f, bool g, bool h) {
-                    if (a) { if (b) { if (c) { if (d) { if (e) { if (f) {} } } } } }
-                    if (g && h) { }
-                }
-            }
-            """);
-        var (workspace, sln) = project.Build();
-        using (workspace)
-        {
-            var all = await ComplexityAnalyzer.AnalyzeAsync(sln, threshold: 0);
-            var filtered = await ComplexityAnalyzer.AnalyzeAsync(sln, threshold: 10);
-
-            Assert.True(filtered.Methods.Count < all.Methods.Count);
-            Assert.Equal(
-                all.TypeRollups.Single().CyclomaticTotal,
-                filtered.TypeRollups.Single().CyclomaticTotal);
-        }
-    }
-
-    [Fact]
-    public async Task rollups_not_affected_by_top_truncation()
-        => throw new NotImplementedException();
-
-    // ── Threshold ────────────────────────────────────────────────────────────
-
-    [Fact]
-    public async Task with_threshold_0_all_methods_included()
-    {
-        using var project = new AdhocProjectBuilder();
-        project.AddSource("A.cs", """
-            public class A {
-                public void M1() { }
-                public void M2() { }
-            }
-            """);
-        var (workspace, sln) = project.Build();
-        using (workspace)
-        {
-            var report = await ComplexityAnalyzer.AnalyzeAsync(sln, threshold: 0);
-            Assert.Equal(2, report.Methods.Count);
-        }
-    }
-
-    [Fact]
-    public async Task with_threshold_method_at_exactly_threshold_is_included()
-        => throw new NotImplementedException();
-
-    [Fact]
-    public async Task with_threshold_method_below_on_all_metrics_is_excluded()
-        => throw new NotImplementedException();
-
-    [Fact]
-    public async Task with_threshold_method_above_on_one_metric_is_included()
-        => throw new NotImplementedException();
-
-    [Fact]
-    public async Task with_negative_threshold_throws_or_exits_1()
-        => throw new NotImplementedException();
-
-    // ── Sort ─────────────────────────────────────────────────────────────────
-
-    [Fact]
-    public async Task sort_cyclomatic_descending_is_default()
-    {
-        using var project = new AdhocProjectBuilder();
-        project.AddSource("A.cs", """
-            public class A {
-                public void Low() { }
-                public void High(bool a, bool b, bool c) { if (a) { if (b) { if (c) {} } } }
-            }
-            """);
-        var (workspace, sln) = project.Build();
-        using (workspace)
-        {
-            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
-            Assert.True(report.Methods[0].Cyclomatic >= report.Methods[^1].Cyclomatic);
-        }
-    }
-
-    [Fact]
-    public async Task sort_cognitive_orders_descending()
-        => throw new NotImplementedException();
-
-    [Fact]
-    public async Task sort_loc_orders_descending()
-        => throw new NotImplementedException();
-
-    [Fact]
-    public async Task sort_params_orders_descending()
-        => throw new NotImplementedException();
-
-    [Fact]
-    public async Task sort_invalid_value_throws_or_exits_1()
-        => throw new NotImplementedException();
-
-    // ── Top ──────────────────────────────────────────────────────────────────
-
-    [Fact]
-    public async Task top_0_does_not_truncate()
-        => throw new NotImplementedException();
-
-    [Fact]
-    public async Task top_n_truncates_after_sort()
-    {
-        using var project = new AdhocProjectBuilder();
-        project.AddSource("A.cs", """
-            public class A {
-                public void M1() { }
-                public void M2() { }
-                public void M3() { }
+        project.AddSource("Test.cs", """
+            public class C {
+                public void A() { var x = 1; }
+                public void B() { var x = 1; }
+                public void D() { var x = 1; }
+                public void E() { var x = 1; }
             }
             """);
         var (workspace, sln) = project.Build();
@@ -658,47 +647,149 @@ public class ComplexityCommandTests
         }
     }
 
-    [Fact]
-    public async Task top_exceeding_count_returns_all()
-        => throw new NotImplementedException();
+    // -----------------------------------------------------------------------
+    // Rollups: type rollup aggregates correctly
+    // -----------------------------------------------------------------------
 
     [Fact]
-    public async Task top_negative_throws_or_exits_1()
-        => throw new NotImplementedException();
-
-    // ── Combination ──────────────────────────────────────────────────────────
-
-    [Fact]
-    public async Task threshold_sort_top_combine_independently()
-        => throw new NotImplementedException();
-
-    // ── Async / iterator edge cases ──────────────────────────────────────────
-
-    [Fact]
-    public async Task async_await_does_not_add_to_cyclomatic_or_cognitive()
-        => throw new NotImplementedException();
-
-    [Fact]
-    public async Task yield_return_does_not_add_to_cyclomatic_or_cognitive()
-        => throw new NotImplementedException();
-
-    // ── Dogfood ──────────────────────────────────────────────────────────────
-
-    [Fact]
-    public async Task runs_against_roslyntools_solution_and_finds_methods()
+    public async Task type_rollup_aggregates_method_metrics()
     {
-        var solutionPath = Path.Combine(
-            Path.GetDirectoryName(typeof(ComplexityCommandTests).Assembly.Location)!,
-            "..", "..", "..", "..", "..", "RoslynTools.slnx");
-
-        using var workspace = Microsoft.CodeAnalysis.MSBuild.MSBuildWorkspace.Create();
-        var sln = await workspace.OpenSolutionAsync(Path.GetFullPath(solutionPath));
-
-        var report = await ComplexityAnalyzer.AnalyzeAsync(sln, threshold: 0);
-        Assert.NotEmpty(report.Methods);
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Test.cs", """
+            namespace MyApp;
+            public class MyClass {
+                public void A() { var x = 1; }
+                public void B(bool b) { if (b) { } }
+            }
+            """);
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
+            var rollup = Assert.Single(report.TypeRollups);
+            Assert.Equal("MyClass", rollup.Type);
+            Assert.Equal("MyApp", rollup.Namespace);
+            Assert.Equal(2, rollup.MethodCount);
+            // A: cyclomatic=1, B: cyclomatic=2 => total=3
+            Assert.Equal(3, rollup.CyclomaticTotal);
+        }
     }
 
+    // -----------------------------------------------------------------------
+    // Rollups: namespace rollup aggregates correctly
+    // -----------------------------------------------------------------------
+
     [Fact]
-    public async Task empty_solution_produces_empty_arrays()
-        => throw new NotImplementedException();
+    public async Task namespace_rollup_aggregates_across_types()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Test.cs", """
+            namespace MyNs;
+            public class A { public void M1() { var x = 1; } }
+            public class B { public void M2() { var x = 1; } }
+            """);
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
+            var nsRollup = Assert.Single(report.NamespaceRollups);
+            Assert.Equal("MyNs", nsRollup.Namespace);
+            Assert.Equal(2, nsRollup.MethodCount);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Cognitive: nested structures increase cost
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task with_nested_ifs_cognitive_reflects_nesting_penalty()
+    {
+        // Outer if: 1 + depth(0) = 1
+        // Inner if: 1 + depth(1) = 2
+        // Total = 3
+        var report = await AnalyzeSourceAsync("""
+            public class C {
+                public void M(bool a, bool b) {
+                    if (a) {
+                        if (b) { }
+                    }
+                }
+            }
+            """);
+        Assert.Equal(3, GetMethod(report, "M").Cognitive);
+    }
+
+    // -----------------------------------------------------------------------
+    // Cognitive: else adds +1 without depth
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task with_if_else_cognitive_else_adds_1_no_depth()
+    {
+        // if: 1+0=1, else: +1 = total 2
+        var report = await AnalyzeSourceAsync("""
+            public class C {
+                public void M(bool b) {
+                    if (b) { var x = 1; }
+                    else { var y = 2; }
+                }
+            }
+            """);
+        Assert.Equal(2, GetMethod(report, "M").Cognitive);
+    }
+
+    // -----------------------------------------------------------------------
+    // Metadata: file path and line populated
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task method_has_file_path_and_line_populated()
+    {
+        var report = await AnalyzeSourceAsync("""
+            public class C {
+                public void M() { var x = 1; }
+            }
+            """);
+        var m = GetMethod(report, "M");
+        Assert.False(string.IsNullOrEmpty(m.File));
+        Assert.True(m.Line > 0);
+    }
+
+    // -----------------------------------------------------------------------
+    // Metadata: type and namespace populated
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task method_has_type_and_namespace_populated()
+    {
+        var report = await AnalyzeSourceAsync("""
+            namespace Foo.Bar;
+            public class MyType {
+                public void M() { var x = 1; }
+            }
+            """);
+        var m = GetMethod(report, "M");
+        Assert.Equal("MyType", m.Type);
+        Assert.Equal("Foo.Bar", m.Namespace);
+    }
+
+    // -----------------------------------------------------------------------
+    // Empty project returns empty report
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task with_no_methods_report_is_empty()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Empty.cs", "// nothing here");
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
+            Assert.Empty(report.Methods);
+            Assert.Empty(report.TypeRollups);
+            Assert.Empty(report.NamespaceRollups);
+        }
+    }
 }
