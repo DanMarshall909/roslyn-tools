@@ -1,5 +1,4 @@
 using System.CommandLine;
-using RoslynTools;
 
 namespace RoslynTools.Tests;
 

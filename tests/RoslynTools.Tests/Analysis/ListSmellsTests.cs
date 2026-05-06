@@ -1,4 +1,3 @@
-using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Tests.Analysis;

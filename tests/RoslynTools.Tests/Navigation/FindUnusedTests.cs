@@ -1,7 +1,3 @@
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.FindSymbols;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-using RoslynTools.Core;
 using RoslynTools.Services;
 
 namespace RoslynTools.Tests.Navigation;

@@ -1,4 +1,3 @@
-using RoslynTools;
 using RoslynTools.Core.Output;
 
 namespace RoslynTools.Tests;

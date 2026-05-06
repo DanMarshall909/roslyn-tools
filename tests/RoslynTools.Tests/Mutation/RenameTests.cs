@@ -1,4 +1,3 @@
-using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Rename;
 using RoslynTools.Commands;
 using RoslynTools.Core;

@@ -2,7 +2,6 @@ using FluentAssertions;
 using RoslynTools.Core;
 using RoslynTools.Mcp.Handlers;
 using RoslynTools.Mcp.Schemas;
-using RoslynTools.Tests;
 
 namespace RoslynTools.Tests.Mcp.Handlers;
 

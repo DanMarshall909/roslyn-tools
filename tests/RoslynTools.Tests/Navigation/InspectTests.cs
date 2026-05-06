@@ -1,4 +1,3 @@
-using System.Text.Json;
 using RoslynTools.Core;
 
 namespace RoslynTools.Tests.Navigation;

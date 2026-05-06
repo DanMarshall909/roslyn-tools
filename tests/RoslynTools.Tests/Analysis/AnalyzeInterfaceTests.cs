@@ -1,6 +1,4 @@
-using System.CommandLine;
 using System.Text.Json;
-using RoslynTools;
 using RoslynTools.Commands;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core;
