@@ -136,6 +136,31 @@ public sealed class AppRegistrationTests
         Assert.Empty(directUsages);
     }
 
+    [Fact]
+    public void Services_resolve_symbols_through_injected_services()
+    {
+        var repoRoot = FindRepoRoot();
+        var serviceFiles = Directory.EnumerateFiles(
+            Path.Combine(repoRoot, "src", "RoslynTools", "Services"),
+            "*.cs",
+            SearchOption.TopDirectoryOnly);
+
+        var directUsages = serviceFiles
+            .Where(path => !Path.GetFileName(path).Equals("SymbolResolutionService.cs", StringComparison.Ordinal))
+            .Where(path => !Path.GetFileName(path).Equals("DocumentLocatorService.cs", StringComparison.Ordinal))
+            .Where(path =>
+            {
+                var text = File.ReadAllText(path);
+                return text.Contains("SymbolLocator.", StringComparison.Ordinal)
+                       || text.Contains("SymbolDocumentLocator.", StringComparison.Ordinal);
+            })
+            .Select(path => Path.GetRelativePath(repoRoot, path))
+            .OrderBy(path => path, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Empty(directUsages);
+    }
+
     private static string FindRepoRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

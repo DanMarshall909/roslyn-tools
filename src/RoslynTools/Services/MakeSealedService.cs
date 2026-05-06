@@ -11,6 +11,7 @@ namespace RoslynTools.Services;
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
 internal class MakeSealedService : IRtService
 {
+    private readonly IDocumentLocatorService _documents;
     private readonly ILogger<MakeSealedService> _logger;
     private readonly ISolutionChangeWriter _solutionChangeWriter;
 
@@ -19,8 +20,11 @@ internal class MakeSealedService : IRtService
     {
     }
 
-    public MakeSealedService(ILogger<MakeSealedService> logger, ISolutionChangeWriter solutionChangeWriter)
+    public MakeSealedService(ILogger<MakeSealedService> logger, ISolutionChangeWriter solutionChangeWriter,
+        IDocumentLocatorService? documents = null)
     {
+        _documents = documents ?? new DocumentLocatorService();
+
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
     }
@@ -47,7 +51,7 @@ internal class MakeSealedService : IRtService
         var syntaxRef = classSymbol.DeclaringSyntaxReferences.FirstOrDefault()
             ?? throw new InvalidOperationException($"No source declaration found for '{typeName}'.");
 
-        var docId = SymbolDocumentLocator.FindDocumentId(sln, classSymbol)
+        var docId = _documents.FindDocumentId(sln, classSymbol)
             ?? throw new InvalidOperationException("Cannot locate source document for the target class.");
 
         return (classSymbol, syntaxRef, docId);

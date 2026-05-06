@@ -11,6 +11,7 @@ namespace RoslynTools.Services;
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
 internal class RemoveParamService : IRtService
 {
+    private readonly ISymbolResolutionService _symbols;
     private readonly ILogger<RemoveParamService> _logger;
     private readonly ParameterChangeHelper _parameterChangeHelper;
 
@@ -19,8 +20,11 @@ internal class RemoveParamService : IRtService
     {
     }
 
-    public RemoveParamService(ILogger<RemoveParamService> logger, ParameterChangeHelper parameterChangeHelper)
+    public RemoveParamService(ILogger<RemoveParamService> logger, ParameterChangeHelper parameterChangeHelper,
+        ISymbolResolutionService? symbols = null)
     {
+        _symbols = symbols ?? new SymbolResolutionService();
+
         _logger = logger;
         _parameterChangeHelper = parameterChangeHelper;
     }
@@ -31,7 +35,7 @@ internal class RemoveParamService : IRtService
         string paramName,
         bool force)
     {
-        var methodSymbol = await SymbolLocator.FindMethodBySpecAsync(solution, methodSpec);
+        var methodSymbol = await _symbols.FindMethodBySpecAsync(solution, methodSpec);
 
         // Validate parameter exists
         var paramIndex = -1;

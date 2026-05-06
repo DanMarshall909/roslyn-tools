@@ -12,6 +12,7 @@ namespace RoslynTools.Services;
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
 internal class ExtractInterfaceService : IRtService
 {
+    private readonly ISymbolResolutionService _symbols;
     private readonly ILogger<ExtractInterfaceService> _logger;
     private readonly ISolutionChangeWriter _solutionChangeWriter;
 
@@ -20,8 +21,11 @@ internal class ExtractInterfaceService : IRtService
     {
     }
 
-    public ExtractInterfaceService(ILogger<ExtractInterfaceService> logger, ISolutionChangeWriter solutionChangeWriter)
+    public ExtractInterfaceService(ILogger<ExtractInterfaceService> logger, ISolutionChangeWriter solutionChangeWriter,
+        ISymbolResolutionService? symbols = null)
     {
+        _symbols = symbols ?? new SymbolResolutionService();
+
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
     }
@@ -34,7 +38,7 @@ internal class ExtractInterfaceService : IRtService
     {
         var originalSln = sln;
 
-        var classSymbol = await SymbolLocator.FindSymbolAsync(sln, typeName, kind: "type") as INamedTypeSymbol
+        var classSymbol = await _symbols.FindSymbolAsync(sln, typeName, kind: "type") as INamedTypeSymbol
             ?? throw new InvalidOperationException($"'{typeName}' is not a named type.");
 
         if (classSymbol.TypeKind != TypeKind.Class)

@@ -8,6 +8,7 @@ namespace RoslynTools.Services;
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
 internal class ChangeSignatureService : IRtService
 {
+    private readonly ISymbolResolutionService _symbols;
     private readonly ReorderParamsService _reorderParams;
     private readonly AddParamService _addParam;
     private readonly RemoveParamService _removeParam;
@@ -20,8 +21,11 @@ internal class ChangeSignatureService : IRtService
     public ChangeSignatureService(
         ReorderParamsService reorderParams,
         AddParamService addParam,
-        RemoveParamService removeParam)
+        RemoveParamService removeParam,
+        ISymbolResolutionService? symbols = null)
     {
+        _symbols = symbols ?? new SymbolResolutionService();
+
         _reorderParams = reorderParams;
         _addParam = addParam;
         _removeParam = removeParam;
@@ -33,7 +37,7 @@ internal class ChangeSignatureService : IRtService
         string oldName,
         string newName)
     {
-        var methodSymbol = await SymbolLocator.FindMethodBySpecAsync(solution, methodSpec);
+        var methodSymbol = await _symbols.FindMethodBySpecAsync(solution, methodSpec);
 
         var parameter = methodSymbol.Parameters.FirstOrDefault(param => param.Name == oldName)
             ?? throw new InvalidOperationException(

@@ -11,6 +11,7 @@ namespace RoslynTools.Services;
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
 internal class ImplementInterfaceService : IRtService
 {
+    private readonly IDocumentLocatorService _documents;
     private readonly ILogger<ImplementInterfaceService> _logger;
     private readonly ISolutionChangeWriter _solutionChangeWriter;
 
@@ -19,8 +20,11 @@ internal class ImplementInterfaceService : IRtService
     {
     }
 
-    public ImplementInterfaceService(ILogger<ImplementInterfaceService> logger, ISolutionChangeWriter solutionChangeWriter)
+    public ImplementInterfaceService(ILogger<ImplementInterfaceService> logger, ISolutionChangeWriter solutionChangeWriter,
+        IDocumentLocatorService? documents = null)
     {
+        _documents = documents ?? new DocumentLocatorService();
+
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
     }
@@ -38,7 +42,7 @@ internal class ImplementInterfaceService : IRtService
             return;
         }
 
-        var docId = SymbolDocumentLocator.FindDocumentId(sln, classSymbol)
+        var docId = _documents.FindDocumentId(sln, classSymbol)
             ?? throw new InvalidOperationException("Cannot locate source document for the target class.");
 
         var unimplementedMembers = CollectUnimplementedMembers(classSymbol, interfacesToImplement);

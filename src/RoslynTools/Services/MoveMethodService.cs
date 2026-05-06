@@ -12,6 +12,8 @@ namespace RoslynTools.Services;
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
 internal class MoveMethodService : IRtService
 {
+    private readonly ISymbolResolutionService _symbols;
+    private readonly IDocumentLocatorService _documents;
     private readonly ILogger<MoveMethodService> _logger;
     private readonly ISolutionChangeWriter _solutionChangeWriter;
 
@@ -20,8 +22,13 @@ internal class MoveMethodService : IRtService
     {
     }
 
-    public MoveMethodService(ILogger<MoveMethodService> logger, ISolutionChangeWriter solutionChangeWriter)
+    public MoveMethodService(ILogger<MoveMethodService> logger, ISolutionChangeWriter solutionChangeWriter,
+        ISymbolResolutionService? symbols = null,
+        IDocumentLocatorService? documents = null)
     {
+        _symbols = symbols ?? new SymbolResolutionService();
+        _documents = documents ?? new DocumentLocatorService();
+
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
     }
@@ -44,7 +51,7 @@ internal class MoveMethodService : IRtService
         IMethodSymbol methodSymbol;
         try
         {
-            methodSymbol = await SymbolLocator.FindMethodBySpecAsync(sln, methodFqn);
+            methodSymbol = await _symbols.FindMethodBySpecAsync(sln, methodFqn);
         }
         catch (InvalidOperationException ex)
         {
@@ -67,7 +74,7 @@ internal class MoveMethodService : IRtService
         INamedTypeSymbol? targetType = null;
         try
         {
-            targetType = (INamedTypeSymbol)await SymbolLocator.FindTypeByFqnAsync(sln, targetTypeFqn);
+            targetType = (INamedTypeSymbol)await _symbols.FindTypeByFqnAsync(sln, targetTypeFqn);
         }
         catch (InvalidOperationException)
         {
@@ -108,7 +115,7 @@ internal class MoveMethodService : IRtService
             return false;
         }
 
-        var declDocId = SymbolDocumentLocator.FindDocumentId(sln, methodSymbol);
+        var declDocId = _documents.FindDocumentId(sln, methodSymbol);
         if (declDocId == null)
         {
             _logger.RtError("Error: Cannot locate document for '{MethodFqn}'.", methodFqn);
@@ -137,7 +144,7 @@ internal class MoveMethodService : IRtService
         // ── 7. Locate target type document ────────────────────────────────────
         DocumentId? targetDocId = null;
         if (targetType != null)
-            targetDocId = SymbolDocumentLocator.FindDocumentId(sln, targetType);
+            targetDocId = _documents.FindDocumentId(sln, targetType);
 
         // ── 8. Rewrite: remove method from source, insert into target, update call sites ──
         var targetClassName = targetTypeFqn.Contains('.')

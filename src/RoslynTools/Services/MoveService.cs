@@ -11,6 +11,7 @@ namespace RoslynTools.Services;
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
 internal class MoveService : IRtService
 {
+    private readonly ISymbolResolutionService _symbols;
     private readonly ILogger<MoveService> _logger;
     private readonly ISolutionChangeWriter _solutionChangeWriter;
 
@@ -19,8 +20,11 @@ internal class MoveService : IRtService
     {
     }
 
-    public MoveService(ILogger<MoveService> logger, ISolutionChangeWriter solutionChangeWriter)
+    public MoveService(ILogger<MoveService> logger, ISolutionChangeWriter solutionChangeWriter,
+        ISymbolResolutionService? symbols = null)
     {
+        _symbols = symbols ?? new SymbolResolutionService();
+
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
     }
@@ -67,7 +71,7 @@ internal class MoveService : IRtService
         bool moveFile,
         bool dryRun)
     {
-        var sym = await SymbolLocator.FindTypeByFqnAsync(sln, fqn);
+        var sym = await _symbols.FindTypeByFqnAsync(sln, fqn);
         var oldNamespace = sym.ContainingNamespace.ToDisplayString();
 
         _logger.RtInfo("Moving '{TypeName}' from '{OldNamespace}' to '{TargetNamespace}'...", sym.ToDisplayString(), oldNamespace, targetNamespace);

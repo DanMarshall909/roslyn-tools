@@ -12,6 +12,8 @@ namespace RoslynTools.Services;
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
 internal class InlineMethodService : IRtService
 {
+    private readonly ISymbolResolutionService _symbols;
+    private readonly IDocumentLocatorService _documents;
     private readonly ILogger<InlineMethodService> _logger;
     private readonly ISolutionChangeWriter _solutionChangeWriter;
 
@@ -20,8 +22,13 @@ internal class InlineMethodService : IRtService
     {
     }
 
-    public InlineMethodService(ILogger<InlineMethodService> logger, ISolutionChangeWriter solutionChangeWriter)
+    public InlineMethodService(ILogger<InlineMethodService> logger, ISolutionChangeWriter solutionChangeWriter,
+        ISymbolResolutionService? symbols = null,
+        IDocumentLocatorService? documents = null)
     {
+        _symbols = symbols ?? new SymbolResolutionService();
+        _documents = documents ?? new DocumentLocatorService();
+
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
     }
@@ -29,7 +36,7 @@ internal class InlineMethodService : IRtService
     {
         var originalSolution = sln;
 
-        var methodSymbol = await SymbolLocator.FindMethodInTypeAsync(sln, typeName, methodName);
+        var methodSymbol = await _symbols.FindMethodInTypeAsync(sln, typeName, methodName);
         if (methodSymbol == null)
         {
             _logger.RtError("Error: Method '{MethodName}' not found in type '{TypeName}'.", methodName, typeName);
@@ -51,7 +58,7 @@ internal class InlineMethodService : IRtService
             .GroupBy(loc => loc.Document.Id)
             .ToDictionary(g => g.Key, g => g.Select(l => l.Location.SourceSpan).ToList());
 
-        var declDocId = SymbolDocumentLocator.FindDocumentId(sln, methodSymbol);
+        var declDocId = _documents.FindDocumentId(sln, methodSymbol);
         if (declDocId == null)
         {
             _logger.RtError("Error: Cannot locate source document for '{MethodName}'.", methodName);

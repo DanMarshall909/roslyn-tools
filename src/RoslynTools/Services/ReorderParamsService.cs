@@ -11,6 +11,7 @@ namespace RoslynTools.Services;
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
 internal class ReorderParamsService : IRtService
 {
+    private readonly ISymbolResolutionService _symbols;
     private readonly ParameterChangeHelper _parameterChangeHelper;
 
     public ReorderParamsService()
@@ -18,8 +19,11 @@ internal class ReorderParamsService : IRtService
     {
     }
 
-    public ReorderParamsService(ParameterChangeHelper parameterChangeHelper)
+    public ReorderParamsService(ParameterChangeHelper parameterChangeHelper,
+        ISymbolResolutionService? symbols = null)
     {
+        _symbols = symbols ?? new SymbolResolutionService();
+
         _parameterChangeHelper = parameterChangeHelper;
     }
 
@@ -37,7 +41,7 @@ internal class ReorderParamsService : IRtService
         string methodSpec,
         string[] newOrder)
     {
-        var methodSymbol = await SymbolLocator.FindMethodBySpecAsync(solution, methodSpec);
+        var methodSymbol = await _symbols.FindMethodBySpecAsync(solution, methodSpec);
         var parameters = methodSymbol.Parameters;
         int paramCount = parameters.Length;
 

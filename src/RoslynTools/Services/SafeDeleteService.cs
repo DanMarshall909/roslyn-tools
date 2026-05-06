@@ -11,6 +11,7 @@ namespace RoslynTools.Services;
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
 internal class SafeDeleteService : IRtService
 {
+    private readonly ISymbolResolutionService _symbols;
     private readonly ILogger<SafeDeleteService> _logger;
     private readonly ISolutionChangeWriter _solutionChangeWriter;
 
@@ -19,8 +20,11 @@ internal class SafeDeleteService : IRtService
     {
     }
 
-    public SafeDeleteService(ILogger<SafeDeleteService> logger, ISolutionChangeWriter solutionChangeWriter)
+    public SafeDeleteService(ILogger<SafeDeleteService> logger, ISolutionChangeWriter solutionChangeWriter,
+        ISymbolResolutionService? symbols = null)
     {
+        _symbols = symbols ?? new SymbolResolutionService();
+
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
     }
@@ -106,13 +110,13 @@ internal class SafeDeleteService : IRtService
     private async Task<ISymbol> ResolveSymbolAsync(Solution sln, string symbol, string? kind)
     {
         if (symbol.Contains('.'))
-            return await SymbolLocator.FindSymbolByFqnAsync(sln, symbol, kind);
+            return await _symbols.FindSymbolByFqnAsync(sln, symbol, kind);
 
         if (kind is null)
         {
             try
             {
-                return await SymbolLocator.FindSymbolAsync(sln, symbol, "type");
+                return await _symbols.FindSymbolAsync(sln, symbol, "type");
             }
             catch (InvalidOperationException ex)
                 when (ex.Message.StartsWith($"No symbol named '{symbol}'", StringComparison.Ordinal))
@@ -121,7 +125,7 @@ internal class SafeDeleteService : IRtService
             }
         }
 
-        return await SymbolLocator.FindSymbolAsync(sln, symbol, kind);
+        return await _symbols.FindSymbolAsync(sln, symbol, kind);
     }
 
     internal SyntaxNode? FindDeclarationNode(SyntaxNode node) =>

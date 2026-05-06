@@ -10,6 +10,7 @@ namespace RoslynTools.Services;
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
 internal class RenameService : IRtService
 {
+    private readonly ISymbolResolutionService _symbols;
     private readonly ILogger<RenameService> _logger;
     private readonly ISolutionChangeWriter _solutionChangeWriter;
 
@@ -18,8 +19,11 @@ internal class RenameService : IRtService
     {
     }
 
-    public RenameService(ILogger<RenameService> logger, ISolutionChangeWriter solutionChangeWriter)
+    public RenameService(ILogger<RenameService> logger, ISolutionChangeWriter solutionChangeWriter,
+        ISymbolResolutionService? symbols = null)
     {
+        _symbols = symbols ?? new SymbolResolutionService();
+
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
     }
@@ -29,7 +33,7 @@ internal class RenameService : IRtService
         string newName,
         string? kind)
     {
-        var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, symbol, kind);
+        var sym = await _symbols.FindSymbolByFqnAsync(sln, symbol, kind);
 
         _logger.RtInfo("Renaming '{Symbol}' -> '{NewName}'...", sym.ToDisplayString(), newName);
 
@@ -59,7 +63,7 @@ internal class RenameService : IRtService
         string? kind,
         bool dryRun)
     {
-        var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, symbol, kind);
+        var sym = await _symbols.FindSymbolByFqnAsync(sln, symbol, kind);
         var fileRename = ComputeFileRename(sym, newName);
 
         _logger.RtInfo("Renaming '{Symbol}' -> '{NewName}'...", sym.ToDisplayString(), newName);

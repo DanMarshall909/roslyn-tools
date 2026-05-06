@@ -9,6 +9,7 @@ namespace RoslynTools.Services;
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
 internal class AnalyzeInterfaceService : IRtService
 {
+    private readonly ISymbolResolutionService _symbols;
     private readonly FindCallersService _findCallers;
 
     public AnalyzeInterfaceService()
@@ -16,8 +17,11 @@ internal class AnalyzeInterfaceService : IRtService
     {
     }
 
-    public AnalyzeInterfaceService(FindCallersService findCallers)
+    public AnalyzeInterfaceService(FindCallersService findCallers,
+        ISymbolResolutionService? symbols = null)
     {
+        _symbols = symbols ?? new SymbolResolutionService();
+
         _findCallers = findCallers;
     }
 
@@ -183,8 +187,8 @@ internal class AnalyzeInterfaceService : IRtService
     private async Task<INamedTypeSymbol> ResolveInterfaceAsync(Solution solution, string interfaceSymbolSpec)
     {
         var symbol = LooksFullyQualified(interfaceSymbolSpec)
-            ? await SymbolLocator.FindSymbolByFqnAsync(solution, interfaceSymbolSpec, "type")
-            : await SymbolLocator.FindSymbolAsync(solution, interfaceSymbolSpec, "type");
+            ? await _symbols.FindSymbolByFqnAsync(solution, interfaceSymbolSpec, "type")
+            : await _symbols.FindSymbolAsync(solution, interfaceSymbolSpec, "type");
 
         if (symbol is not INamedTypeSymbol namedType)
             throw new InvalidOperationException($"'{interfaceSymbolSpec}' is not a named type.");

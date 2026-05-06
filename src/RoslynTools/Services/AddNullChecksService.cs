@@ -9,6 +9,8 @@ namespace RoslynTools.Services;
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
 internal class AddNullChecksService : IRtService
 {
+    private readonly ISymbolResolutionService _symbols;
+    private readonly IDocumentLocatorService _documents;
     private readonly ISolutionChangeWriter _solutionChangeWriter;
 
     public AddNullChecksService()
@@ -16,15 +18,20 @@ internal class AddNullChecksService : IRtService
     {
     }
 
-    public AddNullChecksService(ISolutionChangeWriter solutionChangeWriter)
+    public AddNullChecksService(ISolutionChangeWriter solutionChangeWriter,
+        ISymbolResolutionService? symbols = null,
+        IDocumentLocatorService? documents = null)
     {
+        _symbols = symbols ?? new SymbolResolutionService();
+        _documents = documents ?? new DocumentLocatorService();
+
         _solutionChangeWriter = solutionChangeWriter;
     }
     internal async Task RunAsync(Solution sln, string typeName, string methodName, bool dryRun)
     {
         var originalSolution = sln;
 
-        var methodSymbol = await SymbolLocator.FindMethodInTypeAsync(sln, typeName, methodName);
+        var methodSymbol = await _symbols.FindMethodInTypeAsync(sln, typeName, methodName);
         if (methodSymbol == null)
             throw new InvalidOperationException($"Method '{methodName}' not found in type '{typeName}'.");
 
@@ -64,7 +71,7 @@ internal class AddNullChecksService : IRtService
         var newBody = methodSyntax.Body.WithStatements(updatedStatements);
         var newMethod = methodSyntax.WithBody(newBody);
 
-        var docId = SymbolDocumentLocator.FindDocumentId(sln, methodSymbol);
+        var docId = _documents.FindDocumentId(sln, methodSymbol);
         if (docId == null)
             throw new InvalidOperationException("Cannot locate source document for the target method.");
 

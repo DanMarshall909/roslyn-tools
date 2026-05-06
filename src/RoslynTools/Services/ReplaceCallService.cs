@@ -11,6 +11,7 @@ namespace RoslynTools.Services;
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
 internal class ReplaceCallService : IRtService
 {
+    private readonly ISymbolResolutionService _symbols;
     private readonly ILogger<ReplaceCallService> _logger;
     private readonly ISolutionChangeWriter _solutionChangeWriter;
 
@@ -19,8 +20,11 @@ internal class ReplaceCallService : IRtService
     {
     }
 
-    public ReplaceCallService(ILogger<ReplaceCallService> logger, ISolutionChangeWriter solutionChangeWriter)
+    public ReplaceCallService(ILogger<ReplaceCallService> logger, ISolutionChangeWriter solutionChangeWriter,
+        ISymbolResolutionService? symbols = null)
     {
+        _symbols = symbols ?? new SymbolResolutionService();
+
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
     }
@@ -29,7 +33,7 @@ internal class ReplaceCallService : IRtService
         var originalSolution = solution;
 
         var methodName = ParseMethodName(from);
-        var methodSymbol = await SymbolLocator.FindSymbolByFqnAsync(solution, from, "method");
+        var methodSymbol = await _symbols.FindSymbolByFqnAsync(solution, from, "method");
 
         _logger.RtInfo("Finding invocations of '{Method}'...", methodSymbol.ToDisplayString());
 

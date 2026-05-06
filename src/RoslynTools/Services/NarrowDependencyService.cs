@@ -11,6 +11,7 @@ namespace RoslynTools.Services;
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
 internal class NarrowDependencyService : IRtService
 {
+    private readonly ISymbolResolutionService _symbols;
     private readonly ILogger<NarrowDependencyService> _logger;
     private readonly ISolutionChangeWriter _solutionChangeWriter;
     private readonly InterfaceAnalyzerService _interfaceAnalyzer;
@@ -29,8 +30,11 @@ internal class NarrowDependencyService : IRtService
         ILogger<NarrowDependencyService> logger,
         InterfaceAnalyzerService interfaceAnalyzer,
         ConsumerNarrowerService consumerNarrower,
-        ISolutionChangeWriter solutionChangeWriter)
+        ISolutionChangeWriter solutionChangeWriter,
+        ISymbolResolutionService? symbols = null)
     {
+        _symbols = symbols ?? new SymbolResolutionService();
+
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
         _interfaceAnalyzer = interfaceAnalyzer;
@@ -128,8 +132,8 @@ internal class NarrowDependencyService : IRtService
     private async Task<INamedTypeSymbol> ResolveInterfaceAsync(Solution solution, string interfaceSpec)
     {
         var symbol = LooksFullyQualified(interfaceSpec)
-            ? await SymbolLocator.FindSymbolByFqnAsync(solution, interfaceSpec, "type")
-            : await SymbolLocator.FindSymbolAsync(solution, interfaceSpec, "type");
+            ? await _symbols.FindSymbolByFqnAsync(solution, interfaceSpec, "type")
+            : await _symbols.FindSymbolAsync(solution, interfaceSpec, "type");
 
         if (symbol is not INamedTypeSymbol namedType)
             throw new InvalidOperationException($"'{interfaceSpec}' is not a named type.");

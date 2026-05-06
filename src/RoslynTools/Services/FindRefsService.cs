@@ -10,6 +10,7 @@ namespace RoslynTools.Services;
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
 internal class FindRefsService : IRtService
 {
+    private readonly ISymbolResolutionService _symbols;
     private readonly ILogger<FindRefsService> _logger;
 
     public FindRefsService()
@@ -17,8 +18,11 @@ internal class FindRefsService : IRtService
     {
     }
 
-    public FindRefsService(ILogger<FindRefsService> logger)
+    public FindRefsService(ILogger<FindRefsService> logger,
+        ISymbolResolutionService? symbols = null)
     {
+        _symbols = symbols ?? new SymbolResolutionService();
+
         _logger = logger;
     }
     internal async Task<FindRefsResult> FindAsync(
@@ -26,7 +30,7 @@ internal class FindRefsService : IRtService
         string symbol,
         string? kind)
     {
-        var sym = await SymbolLocator.FindSymbolAsync(sln, symbol, kind);
+        var sym = await _symbols.FindSymbolAsync(sln, symbol, kind);
 
         _logger.RtInfo("Finding references to '{Symbol}'...", sym.ToDisplayString());
 
