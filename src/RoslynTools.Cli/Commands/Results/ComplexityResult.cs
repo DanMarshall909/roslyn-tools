@@ -1,17 +1,28 @@
+using System.Text.Encodings.Web;
+using System.Text.Json;
 using RoslynTools.Core.Output;
 
 namespace RoslynTools.Commands.Results;
 
 internal sealed record MethodComplexityItem : IRtOutput
 {
+    [OutputField(OutputLevel.Default, "method")]
     public required string Method { get; init; }
+    [OutputField(OutputLevel.Default, "type")]
     public required string Type { get; init; }
+    [OutputField(OutputLevel.Default, "namespace")]
     public required string Namespace { get; init; }
+    [OutputField(OutputLevel.Default, "file")]
     public required string File { get; init; }
+    [OutputField(OutputLevel.Default, "line")]
     public required int Line { get; init; }
+    [OutputField(OutputLevel.Default, "cyclomatic")]
     public required int Cyclomatic { get; init; }
+    [OutputField(OutputLevel.Default, "cognitive")]
     public required int Cognitive { get; init; }
+    [OutputField(OutputLevel.Default, "loc")]
     public required int Loc { get; init; }
+    [OutputField(OutputLevel.Default, "params")]
     public required int Params { get; init; }
 
     public void RenderText(TextWriter writer)
@@ -22,12 +33,19 @@ internal sealed record MethodComplexityItem : IRtOutput
 
 internal sealed record TypeRollupItem : IRtOutput
 {
+    [OutputField(OutputLevel.Default, "type")]
     public required string Type { get; init; }
+    [OutputField(OutputLevel.Default, "namespace")]
     public required string Namespace { get; init; }
+    [OutputField(OutputLevel.Default, "methodCount")]
     public required int MethodCount { get; init; }
+    [OutputField(OutputLevel.Default, "cyclomaticTotal")]
     public required int CyclomaticTotal { get; init; }
+    [OutputField(OutputLevel.Default, "cognitiveTotal")]
     public required int CognitiveTotal { get; init; }
+    [OutputField(OutputLevel.Default, "locTotal")]
     public required int LocTotal { get; init; }
+    [OutputField(OutputLevel.Default, "paramsTotal")]
     public required int ParamsTotal { get; init; }
 
     public void RenderText(TextWriter writer)
@@ -38,11 +56,17 @@ internal sealed record TypeRollupItem : IRtOutput
 
 internal sealed record NamespaceRollupItem : IRtOutput
 {
+    [OutputField(OutputLevel.Default, "namespace")]
     public required string Namespace { get; init; }
+    [OutputField(OutputLevel.Default, "methodCount")]
     public required int MethodCount { get; init; }
+    [OutputField(OutputLevel.Default, "cyclomaticTotal")]
     public required int CyclomaticTotal { get; init; }
+    [OutputField(OutputLevel.Default, "cognitiveTotal")]
     public required int CognitiveTotal { get; init; }
+    [OutputField(OutputLevel.Default, "locTotal")]
     public required int LocTotal { get; init; }
+    [OutputField(OutputLevel.Default, "paramsTotal")]
     public required int ParamsTotal { get; init; }
 
     public void RenderText(TextWriter writer)
@@ -51,11 +75,23 @@ internal sealed record NamespaceRollupItem : IRtOutput
     }
 }
 
-internal sealed record ComplexityResult : IRtOutput
+internal sealed record ComplexityResult : IRtOutput, IRtJsonOutput
 {
+    private static readonly JsonSerializerOptions CamelCaseOptions = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    };
+    [OutputField(OutputLevel.Default, "methods")]
     public IReadOnlyList<MethodComplexityItem> Methods { get; init; } = [];
+    [OutputField(OutputLevel.Default, "typeRollups")]
     public IReadOnlyList<TypeRollupItem> TypeRollups { get; init; } = [];
+    [OutputField(OutputLevel.Default, "namespaceRollups")]
     public IReadOnlyList<NamespaceRollupItem> NamespaceRollups { get; init; } = [];
+
+    public void RenderJson(TextWriter writer) =>
+        writer.Write(JsonSerializer.Serialize(this, CamelCaseOptions));
 
     public void RenderText(TextWriter writer)
     {

@@ -1,3 +1,4 @@
+using RoslynTools.Commands;
 using RoslynTools.Core;
 
 namespace RoslynTools.Tests.Analysis;
@@ -22,11 +23,12 @@ public class ComplexityCommandTests
             return await ComplexityAnalyzer.AnalyzeAsync(sln, threshold, sort, top);
     }
 
+    // Matches by exact FQN or by the suffix after the last dot (e.g. "M" matches "C.M")
     private static MethodComplexity GetMethod(ComplexityReport report, string name) =>
-        report.Methods.First(m => m.Method == name);
+        report.Methods.First(m => m.Method == name || m.Method.EndsWith("." + name, StringComparison.Ordinal));
 
     private static MethodComplexity? FindMethod(ComplexityReport report, string name) =>
-        report.Methods.FirstOrDefault(m => m.Method == name);
+        report.Methods.FirstOrDefault(m => m.Method == name || m.Method.EndsWith("." + name, StringComparison.Ordinal));
 
     // -----------------------------------------------------------------------
     // Cyclomatic: base = 1
@@ -295,7 +297,7 @@ public class ComplexityCommandTests
                 public C(int x) { var y = x + 1; }
             }
             """);
-        Assert.Contains(report.Methods, m => m.Method == "C");
+        Assert.Contains(report.Methods, m => m.Method.EndsWith(".C", StringComparison.Ordinal));
     }
 
     // -----------------------------------------------------------------------
@@ -314,8 +316,8 @@ public class ComplexityCommandTests
                 }
             }
             """);
-        Assert.Contains(report.Methods, m => m.Method == "get");
-        Assert.Contains(report.Methods, m => m.Method == "set");
+        Assert.Contains(report.Methods, m => m.Method.EndsWith(".X.get", StringComparison.Ordinal));
+        Assert.Contains(report.Methods, m => m.Method.EndsWith(".X.set", StringComparison.Ordinal));
     }
 
     // -----------------------------------------------------------------------
@@ -331,8 +333,8 @@ public class ComplexityCommandTests
             }
             """);
         // No body — auto-property accessors should NOT appear
-        Assert.DoesNotContain(report.Methods, m => m.Type == "C" && m.Method == "get");
-        Assert.DoesNotContain(report.Methods, m => m.Type == "C" && m.Method == "set");
+        Assert.DoesNotContain(report.Methods, m => m.Method.EndsWith(".X.get", StringComparison.Ordinal));
+        Assert.DoesNotContain(report.Methods, m => m.Method.EndsWith(".X.set", StringComparison.Ordinal));
     }
 
     // -----------------------------------------------------------------------
@@ -348,8 +350,8 @@ public class ComplexityCommandTests
                 public void N() { var x = 1; }
             }
             """);
-        Assert.DoesNotContain(report.Methods, m => m.Method == "M");
-        Assert.Contains(report.Methods, m => m.Method == "N");
+        Assert.DoesNotContain(report.Methods, m => m.Method.EndsWith(".M", StringComparison.Ordinal));
+        Assert.Contains(report.Methods, m => m.Method.EndsWith(".N", StringComparison.Ordinal));
     }
 
     // -----------------------------------------------------------------------
@@ -365,8 +367,8 @@ public class ComplexityCommandTests
                 public void N() { var x = 1; }
             }
             """);
-        Assert.DoesNotContain(report.Methods, m => m.Method == "M");
-        Assert.Contains(report.Methods, m => m.Method == "N");
+        Assert.DoesNotContain(report.Methods, m => m.Method.EndsWith(".M", StringComparison.Ordinal));
+        Assert.Contains(report.Methods, m => m.Method.EndsWith(".N", StringComparison.Ordinal));
     }
 
     // -----------------------------------------------------------------------
@@ -384,7 +386,7 @@ public class ComplexityCommandTests
                 }
             }
             """);
-        Assert.Contains(report.Methods, m => m.Method == "Local");
+        Assert.Contains(report.Methods, m => m.Method.EndsWith(".Local", StringComparison.Ordinal));
     }
 
     // -----------------------------------------------------------------------
@@ -474,8 +476,8 @@ public class ComplexityCommandTests
         {
             var report = await ComplexityAnalyzer.AnalyzeAsync(sln, threshold: 4);
             // Complex has cyclomatic >= 4; Simple does not
-            Assert.DoesNotContain(report.Methods, m => m.Method == "Simple");
-            Assert.Contains(report.Methods, m => m.Method == "Complex");
+            Assert.DoesNotContain(report.Methods, m => m.Method.EndsWith(".Simple", StringComparison.Ordinal));
+            Assert.Contains(report.Methods, m => m.Method.EndsWith(".Complex", StringComparison.Ordinal));
         }
     }
 
@@ -505,7 +507,7 @@ public class ComplexityCommandTests
             var report = await ComplexityAnalyzer.AnalyzeAsync(sln, threshold: 10);
             Assert.Empty(report.Methods);
             var typeRollup = Assert.Single(report.TypeRollups);
-            Assert.Equal("C", typeRollup.Type);
+            Assert.Equal("MyNs.C", typeRollup.Type);
             Assert.Equal(2, typeRollup.MethodCount);
         }
     }
@@ -532,8 +534,8 @@ public class ComplexityCommandTests
             var report = await ComplexityAnalyzer.AnalyzeAsync(sln, sort: "cyclomatic");
             var methods = report.Methods.ToList();
             // High should come before Low
-            var highIdx = methods.FindIndex(m => m.Method == "High");
-            var lowIdx = methods.FindIndex(m => m.Method == "Low");
+            var highIdx = methods.FindIndex(m => m.Method.EndsWith(".High", StringComparison.Ordinal));
+            var lowIdx = methods.FindIndex(m => m.Method.EndsWith(".Low", StringComparison.Ordinal));
             Assert.True(highIdx < lowIdx, "High complexity method should sort before Low");
         }
     }
@@ -561,8 +563,8 @@ public class ComplexityCommandTests
         {
             var report = await ComplexityAnalyzer.AnalyzeAsync(sln, sort: "cognitive");
             var methods = report.Methods.ToList();
-            var highIdx = methods.FindIndex(m => m.Method == "High");
-            var lowIdx = methods.FindIndex(m => m.Method == "Low");
+            var highIdx = methods.FindIndex(m => m.Method.EndsWith(".High", StringComparison.Ordinal));
+            var lowIdx = methods.FindIndex(m => m.Method.EndsWith(".Low", StringComparison.Ordinal));
             Assert.True(highIdx < lowIdx, "High cognitive method should sort before Low");
         }
     }
@@ -592,8 +594,8 @@ public class ComplexityCommandTests
         {
             var report = await ComplexityAnalyzer.AnalyzeAsync(sln, sort: "loc");
             var methods = report.Methods.ToList();
-            var longIdx = methods.FindIndex(m => m.Method == "Long");
-            var shortIdx = methods.FindIndex(m => m.Method == "Short");
+            var longIdx = methods.FindIndex(m => m.Method.EndsWith(".Long", StringComparison.Ordinal));
+            var shortIdx = methods.FindIndex(m => m.Method.EndsWith(".Short", StringComparison.Ordinal));
             Assert.True(longIdx < shortIdx, "Long method should sort before Short");
         }
     }
@@ -617,8 +619,8 @@ public class ComplexityCommandTests
         {
             var report = await ComplexityAnalyzer.AnalyzeAsync(sln, sort: "params");
             var methods = report.Methods.ToList();
-            var manyIdx = methods.FindIndex(m => m.Method == "Many");
-            var fewIdx = methods.FindIndex(m => m.Method == "Few");
+            var manyIdx = methods.FindIndex(m => m.Method.EndsWith(".Many", StringComparison.Ordinal));
+            var fewIdx = methods.FindIndex(m => m.Method.EndsWith(".Few", StringComparison.Ordinal));
             Assert.True(manyIdx < fewIdx, "Many-params method should sort before Few-params");
         }
     }
@@ -667,7 +669,7 @@ public class ComplexityCommandTests
         {
             var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
             var rollup = Assert.Single(report.TypeRollups);
-            Assert.Equal("MyClass", rollup.Type);
+            Assert.Equal("MyApp.MyClass", rollup.Type);
             Assert.Equal("MyApp", rollup.Namespace);
             Assert.Equal(2, rollup.MethodCount);
             // A: cyclomatic=1, B: cyclomatic=2 => total=3
@@ -770,7 +772,7 @@ public class ComplexityCommandTests
             }
             """);
         var m = GetMethod(report, "M");
-        Assert.Equal("MyType", m.Type);
+        Assert.Equal("Foo.Bar.MyType", m.Type);
         Assert.Equal("Foo.Bar", m.Namespace);
     }
 
@@ -790,6 +792,174 @@ public class ComplexityCommandTests
             Assert.Empty(report.Methods);
             Assert.Empty(report.TypeRollups);
             Assert.Empty(report.NamespaceRollups);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // IRtCommand contract
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public void Info_category_is_analyze() =>
+        Assert.Equal("analyze", ComplexityCommand.Info.Category);
+
+    [Fact]
+    public void Info_json_output_is_true() =>
+        Assert.True(ComplexityCommand.Info.JsonOutput);
+
+    [Fact]
+    public void Info_mutates_is_false() =>
+        Assert.False(ComplexityCommand.Info.Mutates);
+
+    // -----------------------------------------------------------------------
+    // CLI validation: invalid inputs return exit code 1
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task with_negative_threshold_returns_exit_code_1()
+    {
+        var exitCode = await ComplexityCommand.ExecuteAsync(null, threshold: -1, sort: "cyclomatic", top: 0);
+        Assert.Equal(1, exitCode);
+    }
+
+    [Fact]
+    public async Task with_negative_top_returns_exit_code_1()
+    {
+        var exitCode = await ComplexityCommand.ExecuteAsync(null, threshold: 0, sort: "cyclomatic", top: -1);
+        Assert.Equal(1, exitCode);
+    }
+
+    [Fact]
+    public async Task with_invalid_sort_returns_exit_code_1()
+    {
+        var exitCode = await ComplexityCommand.ExecuteAsync(null, threshold: 0, sort: "banana", top: 0);
+        Assert.Equal(1, exitCode);
+    }
+
+    // -----------------------------------------------------------------------
+    // Threshold: >= comparison (method at exactly threshold is included)
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task with_threshold_method_at_exact_threshold_is_included()
+    {
+        var report = await AnalyzeSourceAsync("""
+            public class C {
+                public void M(bool a, bool b) {
+                    if (a) { }
+                    if (b) { }
+                }
+            }
+            """);
+        // M: cyclomatic = 3 (base=1 + if=1 + if=1)
+        var unfiltered = report.Methods.First(m => m.Method.EndsWith(".M", StringComparison.Ordinal));
+        var cyclomaticValue = unfiltered.Cyclomatic;
+
+        var filtered = await AnalyzeSourceAsync("""
+            public class C {
+                public void M(bool a, bool b) {
+                    if (a) { }
+                    if (b) { }
+                }
+            }
+            """, threshold: 3);
+        // threshold == cyclomatic => method should be included (>= not >)
+        Assert.Contains(filtered.Methods, m => m.Method.EndsWith(".M", StringComparison.Ordinal));
+    }
+
+    // -----------------------------------------------------------------------
+    // Rollups unaffected by --top
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task rollups_include_all_methods_regardless_of_top()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Test.cs", """
+            namespace MyNs;
+            public class C {
+                public void A() { var x = 1; }
+                public void B() { var x = 1; }
+                public void D() { var x = 1; }
+            }
+            """);
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var report = await ComplexityAnalyzer.AnalyzeAsync(sln, top: 1);
+            // Methods truncated to 1, but rollup covers all 3
+            Assert.Single(report.Methods);
+            var typeRollup = Assert.Single(report.TypeRollups);
+            Assert.Equal(3, typeRollup.MethodCount);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Async/await does not inflate cyclomatic
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task async_await_does_not_inflate_cyclomatic()
+    {
+        var report = await AnalyzeSourceAsync("""
+            public class C {
+                public async System.Threading.Tasks.Task<int> M() {
+                    await System.Threading.Tasks.Task.Delay(0);
+                    return 1;
+                }
+            }
+            """);
+        // base=1 only — await adds no decision point
+        Assert.Equal(1, GetMethod(report, "M").Cyclomatic);
+    }
+
+    // -----------------------------------------------------------------------
+    // Yield does not inflate cyclomatic
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task yield_return_does_not_inflate_cyclomatic()
+    {
+        var report = await AnalyzeSourceAsync("""
+            public class C {
+                public System.Collections.Generic.IEnumerable<int> M() {
+                    yield return 1;
+                    yield return 2;
+                    yield break;
+                }
+            }
+            """);
+        // base=1 only — yield return/break add no decision point
+        Assert.Equal(1, GetMethod(report, "M").Cyclomatic);
+    }
+
+    // -----------------------------------------------------------------------
+    // Combined flags: threshold + sort + top each behave independently
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task combined_threshold_sort_top_each_behave_independently()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Test.cs", """
+            public class C {
+                public void Low() { var x = 1; }
+                public void Mid(bool a) { if (a) { } }
+                public void High(bool a, bool b, bool c) {
+                    if (a) { } if (b) { } if (c) { }
+                }
+            }
+            """);
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            // threshold=2 filters out Low (cyclomatic=1); sort=cyclomatic desc; top=1 keeps only High
+            var report = await ComplexityAnalyzer.AnalyzeAsync(sln, threshold: 2, sort: "cyclomatic", top: 1);
+            Assert.Single(report.Methods);
+            Assert.Contains(report.Methods, m => m.Method.EndsWith(".High", StringComparison.Ordinal));
+            // Rollups still cover all 3 methods
+            var rollup = Assert.Single(report.TypeRollups);
+            Assert.Equal(3, rollup.MethodCount);
         }
     }
 }

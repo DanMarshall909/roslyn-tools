@@ -1,4 +1,5 @@
 using System.CommandLine;
+using System.CommandLine.Invocation;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
@@ -25,7 +26,7 @@ internal sealed class ComplexityCommand : IRtCommand
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json]
     );
 
-    private static readonly string[] ValidSortValues = ["cyclomatic", "cognitive", "loc", "params"];
+    internal static readonly string[] ValidSortValues = ["cyclomatic", "cognitive", "loc", "params"];
 
     public static Command Build()
     {
@@ -38,77 +39,84 @@ internal sealed class ComplexityCommand : IRtCommand
         cmd.AddAlias("cx");
         cmd.AddAll(solutionOpt, thresholdOpt, sortOpt, topOpt);
 
-        cmd.SetHandler(async (solution, threshold, sort, top) =>
+        cmd.SetHandler(async (InvocationContext context) =>
         {
-            if (threshold < 0)
-            {
-                RtLog.Error("--threshold must be >= 0.");
-                Environment.Exit(1);
-                return;
-            }
-
-            if (top < 0)
-            {
-                RtLog.Error("--top must be >= 0.");
-                Environment.Exit(1);
-                return;
-            }
-
-            if (!ValidSortValues.Contains(sort, StringComparer.OrdinalIgnoreCase))
-            {
-                RtLog.Error("--sort must be one of: cyclomatic, cognitive, loc, params.");
-                Environment.Exit(1);
-                return;
-            }
-
-            var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
-            using (workspace)
-            {
-                RtLog.Info("Analyzing complexity...");
-
-                var report = await ComplexityAnalyzer.AnalyzeAsync(sln, threshold, sort, top);
-
-                var result = new ComplexityResult
-                {
-                    Methods = report.Methods.Select(m => new MethodComplexityItem
-                    {
-                        Method = m.Method,
-                        Type = m.Type,
-                        Namespace = m.Namespace,
-                        File = m.File,
-                        Line = m.Line,
-                        Cyclomatic = m.Cyclomatic,
-                        Cognitive = m.Cognitive,
-                        Loc = m.Loc,
-                        Params = m.Params,
-                    }).ToList(),
-                    TypeRollups = report.TypeRollups.Select(t => new TypeRollupItem
-                    {
-                        Type = t.Type,
-                        Namespace = t.Namespace,
-                        MethodCount = t.MethodCount,
-                        CyclomaticTotal = t.CyclomaticTotal,
-                        CognitiveTotal = t.CognitiveTotal,
-                        LocTotal = t.LocTotal,
-                        ParamsTotal = t.ParamsTotal,
-                    }).ToList(),
-                    NamespaceRollups = report.NamespaceRollups.Select(n => new NamespaceRollupItem
-                    {
-                        Namespace = n.Namespace,
-                        MethodCount = n.MethodCount,
-                        CyclomaticTotal = n.CyclomaticTotal,
-                        CognitiveTotal = n.CognitiveTotal,
-                        LocTotal = n.LocTotal,
-                        ParamsTotal = n.ParamsTotal,
-                    }).ToList(),
-                };
-
-                RtSerializer.Write(result);
-
-                RtLog.Info("Analyzed {Count} method(s).", report.Methods.Count);
-            }
-        }, solutionOpt, thresholdOpt, sortOpt, topOpt);
+            context.ExitCode = await ExecuteAsync(
+                context.ParseResult.GetValueForOption(solutionOpt),
+                context.ParseResult.GetValueForOption(thresholdOpt),
+                context.ParseResult.GetValueForOption(sortOpt)!,
+                context.ParseResult.GetValueForOption(topOpt));
+        });
 
         return cmd;
+    }
+
+    internal static async Task<int> ExecuteAsync(string? solution, int threshold, string sort, int top)
+    {
+        if (threshold < 0)
+        {
+            RtLog.Error("--threshold must be >= 0.");
+            return 1;
+        }
+
+        if (top < 0)
+        {
+            RtLog.Error("--top must be >= 0.");
+            return 1;
+        }
+
+        if (!ValidSortValues.Contains(sort, StringComparer.OrdinalIgnoreCase))
+        {
+            RtLog.Error("--sort must be one of: {Values}.", string.Join(", ", ValidSortValues));
+            return 1;
+        }
+
+        var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
+        using (workspace)
+        {
+            RtLog.Info("Analyzing complexity...");
+
+            var report = await ComplexityAnalyzer.AnalyzeAsync(sln, threshold, sort, top);
+
+            var result = new ComplexityResult
+            {
+                Methods = report.Methods.Select(m => new MethodComplexityItem
+                {
+                    Method = m.Method,
+                    Type = m.Type,
+                    Namespace = m.Namespace,
+                    File = m.File,
+                    Line = m.Line,
+                    Cyclomatic = m.Cyclomatic,
+                    Cognitive = m.Cognitive,
+                    Loc = m.Loc,
+                    Params = m.Params,
+                }).ToList(),
+                TypeRollups = report.TypeRollups.Select(t => new TypeRollupItem
+                {
+                    Type = t.Type,
+                    Namespace = t.Namespace,
+                    MethodCount = t.MethodCount,
+                    CyclomaticTotal = t.CyclomaticTotal,
+                    CognitiveTotal = t.CognitiveTotal,
+                    LocTotal = t.LocTotal,
+                    ParamsTotal = t.ParamsTotal,
+                }).ToList(),
+                NamespaceRollups = report.NamespaceRollups.Select(n => new NamespaceRollupItem
+                {
+                    Namespace = n.Namespace,
+                    MethodCount = n.MethodCount,
+                    CyclomaticTotal = n.CyclomaticTotal,
+                    CognitiveTotal = n.CognitiveTotal,
+                    LocTotal = n.LocTotal,
+                    ParamsTotal = n.ParamsTotal,
+                }).ToList(),
+            };
+
+            RtSerializer.Write(result);
+
+            RtLog.Info("Analyzed {Count} method(s).", report.Methods.Count);
+            return 0;
+        }
     }
 }

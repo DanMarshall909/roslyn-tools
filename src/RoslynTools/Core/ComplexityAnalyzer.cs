@@ -24,11 +24,6 @@ internal record ComplexityReport(
 
 internal static class ComplexityAnalyzer
 {
-    private static readonly HashSet<string> ValidSorts = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "cyclomatic", "cognitive", "loc", "params",
-    };
-
     internal static async Task<ComplexityReport> AnalyzeAsync(
         Solution solution,
         int threshold = 0,
@@ -138,7 +133,14 @@ internal static class ComplexityAnalyzer
                 if (accessorDecl.Body is null && accessorDecl.ExpressionBody is null)
                     continue;
 
-                var accessorName = accessorDecl.Keyword.Text; // get, set, init, add, remove
+                // Property/event name + accessor keyword: "X.get", "X.set", "X.init"
+                var memberName = accessorDecl.Parent?.Parent switch
+                {
+                    PropertyDeclarationSyntax prop => prop.Identifier.Text,
+                    EventDeclarationSyntax evt => evt.Identifier.Text,
+                    _ => "?",
+                };
+                var accessorName = $"{memberName}.{accessorDecl.Keyword.Text}";
                 mc = BuildMethodComplexity(accessorName, accessorDecl, filePath,
                     accessorDecl.Body, accessorDecl.ExpressionBody, parameterList: null,
                     isExtensionMethod: false);
@@ -183,7 +185,11 @@ internal static class ComplexityAnalyzer
         if (isExtensionMethod && paramCount > 0)
             paramCount--;
 
-        return new MethodComplexity(name, typeName, namespaceName, filePath, line,
+        // FQN: Namespace.Type (empty namespace → just Type)
+        var fqnType = string.IsNullOrEmpty(namespaceName) ? typeName : $"{namespaceName}.{typeName}";
+        var fqnMethod = $"{fqnType}.{name}";
+
+        return new MethodComplexity(fqnMethod, fqnType, namespaceName, filePath, line,
             cyclomatic, cognitive, loc, paramCount);
     }
 
@@ -546,21 +552,15 @@ internal static class ComplexityAnalyzer
 
     private static bool IsEntirelyInBlockComment(int lineStart, int lineLength, List<(int Start, int End)> ranges, string trimmed)
     {
-        // Line like " * some comment" inside a /* */ block
-        if (trimmed.StartsWith('*'))
-            return true;
-
         // Single-line block comment: /* ... */ with nothing else on the line
         if (trimmed.StartsWith("/*", StringComparison.Ordinal) && trimmed.EndsWith("*/", StringComparison.Ordinal))
             return true;
 
         // Line fully enclosed inside a multi-line block comment span.
-        // We search for the first non-whitespace char position to find where trimmed content starts.
-        var contentStart = lineStart + (lineLength - trimmed.Length);
         var contentEnd = lineStart + lineLength;
         foreach (var (start, end) in ranges)
         {
-            if (start <= contentStart && contentEnd <= end)
+            if (start <= lineStart && contentEnd <= end)
                 return true;
         }
 
