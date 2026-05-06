@@ -1,15 +1,12 @@
+using System.CommandLine;
+using RoslynTools;
+using RoslynTools.Commands;
+using RoslynTools.Core;
+
 namespace RoslynTools.Tests.Issues.EP_004_NewRtRefactorCommands;
 
 /// <summary>
 /// US-054: Add `rt refactor migrate-to-ioptions --section &lt;name&gt; --name &lt;T&gt;` command.
-///
-/// Slimmed Option A scope: POCO synthesis with type inference + DI registration
-/// insertion + read-site worklist for manual updates. Out of scope (file follow-ups
-/// after dogfooding if needed): --key mode, read-site rewrites, primary-ctor and
-/// record consumer support, multi-IOptions handling, --decisions YAML round-trip,
-/// --namespace and --project flags.
-///
-/// Estimate: ~250–400 LOC, ~4–6 hours.
 /// </summary>
 [Trait("Epic", "EP-004")]
 [Trait("Story", "US-054")]
@@ -18,120 +15,455 @@ public class MigrateToIOptions
     [Fact]
     [Trait("AcceptanceCriterion", "1")]
     [Trait("Concern", "PocoGeneration")]
-    public void with_section_run_writes_internal_sealed_poco_under_host_project()
-        => Assert.Fail("US-054 AC-1: POCO file is `internal sealed`, file-scoped namespace, init-only props, written under the project hosting the detected DI registration site.");
+    public async Task with_section_run_writes_internal_sealed_poco_under_host_project()
+    {
+        using var fixture = BuildFixture();
+
+        await RunMigrationAsync(fixture);
+
+        var options = await File.ReadAllTextAsync(Path.Combine(fixture.ProjectDir, "MyFeatureOptions.cs"));
+        Assert.Contains("namespace HostApp;", options);
+        Assert.Contains("internal sealed class MyFeatureOptions", options);
+        Assert.Contains("public string Endpoint { get; init; } = string.Empty;", options);
+    }
 
     [Fact]
     [Trait("AcceptanceCriterion", "2")]
     [Trait("Concern", "TypeInference")]
-    public void with_section_keys_types_inferred_from_getvalue_and_appsettings()
-        => Assert.Fail("US-054 AC-2: GetValue<T>(...) calls and appsettings.json value kinds drive POCO property primitive types (string, int, bool, etc.).");
+    public async Task with_section_keys_types_inferred_from_getvalue_and_appsettings()
+    {
+        using var fixture = BuildFixture();
+
+        await RunMigrationAsync(fixture);
+
+        var options = await File.ReadAllTextAsync(Path.Combine(fixture.ProjectDir, "MyFeatureOptions.cs"));
+        Assert.Contains("public bool Enabled { get; init; }", options);
+        Assert.Contains("public string Endpoint { get; init; } = string.Empty;", options);
+        Assert.Contains("public int RetryCount { get; init; }", options);
+    }
 
     [Fact]
     [Trait("AcceptanceCriterion", "3")]
     [Trait("Concern", "DIRegistration")]
-    public void with_section_run_inserts_services_configure_at_detected_di_site()
-        => Assert.Fail("US-054 AC-3: services.Configure<T>(configuration.GetSection(\"<section>\")) inserted exactly once at the detected DI site; registration file appears in stdout's changed list.");
+    public async Task with_section_run_inserts_services_configure_at_detected_di_site()
+    {
+        using var fixture = BuildFixture();
+
+        var output = await RunMigrationAsync(fixture);
+
+        var startup = await fixture.ReadSourceAsync("Startup.cs");
+        Assert.Equal(1, Count(startup, "services.Configure<MyFeatureOptions>(configuration.GetSection(\"MyFeature\"));"));
+        Assert.Contains(Path.Combine(fixture.ProjectDir, "Startup.cs"), output.Results);
+    }
+
+    [Fact]
+    [Trait("AcceptanceCriterion", "3")]
+    [Trait("Concern", "DIRegistration")]
+    public async Task with_builder_services_registration_preserves_the_full_services_expression()
+    {
+        using var fixture = BuildFixture(builderStyleRegistration: true);
+
+        await RunMigrationAsync(fixture);
+
+        var startup = await fixture.ReadSourceAsync("Startup.cs");
+        Assert.Contains("using HostApp;", startup);
+        Assert.Contains("builder.Services.Configure<MyFeatureOptions>(builder.Configuration.GetSection(\"MyFeature\"));", startup);
+    }
 
     [Fact]
     [Trait("AcceptanceCriterion", "4")]
     [Trait("Concern", "ConsumerWorklist")]
-    public void with_consuming_files_distributed_stdout_lists_them_sorted_by_path()
-        => Assert.Fail("US-054 AC-4: stdout prints worklist of consuming files (sorted by path, invariant culture). Command does NOT rewrite any read site.");
+    public async Task with_consuming_files_distributed_stdout_lists_them_sorted_by_path()
+    {
+        using var fixture = BuildFixture();
+
+        var output = await RunMigrationAsync(fixture);
+
+        var consumer = Path.Combine(fixture.ProjectDir, "Consumers", "FeatureReader.cs");
+        Assert.Contains(consumer, output.Results);
+        var worklist = output.Results
+            .SkipWhile(line => line != "Read-site worklist:")
+            .Skip(1)
+            .ToList();
+        Assert.Equal(worklist.OrderBy(x => x, StringComparer.InvariantCulture), worklist);
+    }
 
     [Fact]
     [Trait("AcceptanceCriterion", "5")]
     [Trait("Concern", "Validation")]
-    public void with_section_omitted_exits_one_with_stderr_message()
-        => Assert.Fail("US-054 AC-5: --section omitted → exit 1, stderr indicates --section is required.");
+    public async Task with_section_omitted_exits_one_with_stderr_message()
+    {
+        var output = new CollectingConsole();
+
+        using (RtConsole.UseConsole(output))
+        {
+            var exit = await MigrateToIOptionsCommand.ExecuteAsync(null, "MyFeatureOptions", "ignored", dryRun: false);
+            Assert.Equal(1, exit);
+        }
+
+        Assert.Contains(output.Diagnostics, m => m.Contains("--section is required", StringComparison.Ordinal));
+    }
 
     [Fact]
     [Trait("AcceptanceCriterion", "6")]
     [Trait("Concern", "Validation")]
-    public void with_name_omitted_exits_one_with_stderr_message()
-        => Assert.Fail("US-054 AC-6: --name omitted → exit 1, stderr indicates --name is required.");
+    public async Task with_name_omitted_exits_one_with_stderr_message()
+    {
+        var output = new CollectingConsole();
+
+        using (RtConsole.UseConsole(output))
+        {
+            var exit = await MigrateToIOptionsCommand.ExecuteAsync("MyFeature", null, "ignored", dryRun: false);
+            Assert.Equal(1, exit);
+        }
+
+        Assert.Contains(output.Diagnostics, m => m.Contains("--name is required", StringComparison.Ordinal));
+    }
 
     [Fact]
     [Trait("AcceptanceCriterion", "7")]
     [Trait("Concern", "Validation")]
-    public void with_name_not_pascalcase_exits_one_and_writes_no_files()
-        => Assert.Fail("US-054 AC-7: --name myfeatureoptions (not PascalCase) → exit 1, stderr says PascalCase required, no files written.");
+    public async Task with_name_not_pascalcase_exits_one_and_writes_no_files()
+    {
+        using var fixture = BuildFixture();
+        var output = new CollectingConsole();
+
+        using (RtConsole.UseConsole(output))
+        using (WorkspaceLoader.UseOverride(fixture.Workspace, fixture.Solution))
+        {
+            var exit = await MigrateToIOptionsCommand.ExecuteAsync("MyFeature", "myfeatureoptions", "ignored", dryRun: false);
+            Assert.Equal(1, exit);
+        }
+
+        Assert.False(File.Exists(Path.Combine(fixture.ProjectDir, "myfeatureoptions.cs")));
+        Assert.Contains(output.Diagnostics, m => m.Contains("PascalCase", StringComparison.Ordinal));
+    }
 
     [Fact]
     [Trait("AcceptanceCriterion", "8")]
     [Trait("Concern", "Validation")]
-    public void with_malformed_section_exits_one_and_writes_no_files()
-        => Assert.Fail("US-054 AC-8: --section \"\" or \":foo\" or \"foo::bar\" → exit 1, stderr describes malformed section, no files written.");
+    public async Task with_malformed_section_exits_one_and_writes_no_files()
+    {
+        using var fixture = BuildFixture();
+        var output = new CollectingConsole();
+
+        using (RtConsole.UseConsole(output))
+        using (WorkspaceLoader.UseOverride(fixture.Workspace, fixture.Solution))
+        {
+            var exit = await MigrateToIOptionsCommand.ExecuteAsync(":foo", "MyFeatureOptions", "ignored", dryRun: false);
+            Assert.Equal(1, exit);
+        }
+
+        Assert.False(File.Exists(Path.Combine(fixture.ProjectDir, "MyFeatureOptions.cs")));
+        Assert.Contains(output.Diagnostics, m => m.Contains("malformed", StringComparison.Ordinal));
+    }
 
     [Fact]
     [Trait("AcceptanceCriterion", "9")]
     [Trait("Concern", "Validation")]
-    public void with_name_collides_with_existing_type_exits_one_and_writes_no_files()
-        => Assert.Fail("US-054 AC-9: --name collides with an existing non-migration type in the target namespace → exit 1, stderr identifies the collision, no files written.");
+    public async Task with_name_collides_with_existing_type_exits_one_and_writes_no_files()
+    {
+        using var fixture = BuildFixture();
+        await File.WriteAllTextAsync(Path.Combine(fixture.ProjectDir, "MyFeatureOptions.cs"), "namespace HostApp; internal sealed class MyFeatureOptions { }");
+
+        var output = await RunMigrationAsync(fixture);
+
+        Assert.Equal(1, output.ExitCode);
+        Assert.Contains(output.Diagnostics, m => m.Contains("collision", StringComparison.Ordinal));
+    }
 
     [Fact]
     [Trait("AcceptanceCriterion", "10")]
     [Trait("Concern", "SolutionAutoDetect")]
-    public void with_solution_omitted_and_single_slnx_in_cwd_auto_detects()
-        => Assert.Fail("US-054 AC-10: --solution auto-detected when cwd contains exactly one .slnx/.sln (matches behaviour of other refactor commands).");
+    public async Task with_solution_omitted_and_single_slnx_in_cwd_auto_detects()
+    {
+        using var fixture = BuildFixture();
+
+        using (WorkspaceLoader.UseOverride(fixture.Workspace, fixture.Solution))
+        {
+            var exit = await MigrateToIOptionsCommand.ExecuteAsync("MyFeature", "MyFeatureOptions", null, dryRun: true);
+            Assert.Equal(0, exit);
+        }
+    }
 
     [Fact]
     [Trait("AcceptanceCriterion", "11")]
     [Trait("Concern", "ErrorHandling")]
-    public void with_workspace_load_failure_exits_one_with_no_unhandled_exception()
-        => Assert.Fail("US-054 AC-11: --solution NoSuch.slnx (or other load failure) → exit 1 + stderr describing failure; no unhandled exception escapes to the process boundary.");
+    public async Task with_workspace_load_failure_exits_one_with_no_unhandled_exception()
+    {
+        var output = new CollectingConsole();
+
+        using (RtConsole.UseConsole(output))
+        {
+            var exit = await MigrateToIOptionsCommand.ExecuteAsync("MyFeature", "MyFeatureOptions", "NoSuch.slnx", dryRun: false);
+            Assert.Equal(1, exit);
+        }
+
+        Assert.Contains(output.Diagnostics, m => m.Contains("Failed to load solution", StringComparison.Ordinal));
+    }
 
     [Fact]
     [Trait("AcceptanceCriterion", "12")]
     [Trait("Concern", "DIRegistration")]
-    public void with_zero_di_registration_sites_exits_one_with_no_writes()
-        => Assert.Fail("US-054 AC-12: zero candidate DI registration sites in the solution → exit 1 + stderr instructing the user to add a services.Configure entry-point manually; no files written.");
+    public async Task with_zero_di_registration_sites_exits_one_with_no_writes()
+    {
+        using var fixture = BuildFixture(includeRegistration: false);
+
+        var output = await RunMigrationAsync(fixture);
+
+        Assert.Equal(1, output.ExitCode);
+        Assert.False(File.Exists(Path.Combine(fixture.ProjectDir, "MyFeatureOptions.cs")));
+        Assert.Contains(output.Diagnostics, m => m.Contains("No DI registration site", StringComparison.Ordinal));
+    }
 
     [Fact]
     [Trait("AcceptanceCriterion", "13")]
     [Trait("Concern", "DIRegistration")]
-    public void with_multiple_di_registration_sites_picks_first_and_warns()
-        => Assert.Fail("US-054 AC-13: multiple candidate DI registration sites → first in deterministic order (path invariant culture, then line); stderr warns and lists all candidates.");
+    public async Task with_multiple_di_registration_sites_picks_first_and_warns()
+    {
+        using var fixture = BuildFixture(includeSecondRegistration: true);
+
+        var output = await RunMigrationAsync(fixture);
+
+        Assert.Equal(0, output.ExitCode);
+        Assert.Contains(output.Diagnostics, m => m.Contains("Multiple DI registration sites", StringComparison.Ordinal));
+    }
 
     [Fact]
     [Trait("AcceptanceCriterion", "14")]
     [Trait("Concern", "Idempotence")]
-    public void with_re_run_after_success_exits_zero_and_makes_no_changes()
-        => Assert.Fail("US-054 AC-14: re-run with identical args after a successful run → exit 0, no file changes, stdout reports the migration as already applied.");
+    public async Task with_re_run_after_success_exits_zero_and_makes_no_changes()
+    {
+        using var fixture = BuildFixture();
+        await RunMigrationAsync(fixture);
+        var before = await fixture.ReadSourceAsync("Startup.cs");
+
+        var output = await RunMigrationAsync(fixture);
+
+        Assert.Equal(0, output.ExitCode);
+        Assert.Equal(before, await fixture.ReadSourceAsync("Startup.cs"));
+        Assert.Contains(output.Results, m => m.Contains("already applied", StringComparison.Ordinal));
+    }
 
     [Fact]
     [Trait("AcceptanceCriterion", "15")]
     [Trait("Concern", "DryRun")]
-    public void with_dry_run_emits_diff_with_synthesized_poco_and_no_writes()
-        => Assert.Fail("US-054 AC-15: --dry-run on a fresh solution → DiffPlex unified diff to stdout including the synthesized POCO file as `+++ b/.../<T>.cs`; no files modified; stderr indicates dry-run mode.");
+    public async Task with_dry_run_emits_diff_with_synthesized_poco_and_no_writes()
+    {
+        using var fixture = BuildFixture();
+
+        var output = await RunMigrationAsync(fixture, dryRun: true);
+
+        Assert.Equal(0, output.ExitCode);
+        Assert.Contains(output.Results, m => m.Contains("+++ ", StringComparison.Ordinal) && m.Contains("MyFeatureOptions.cs", StringComparison.Ordinal));
+        Assert.False(File.Exists(Path.Combine(fixture.ProjectDir, "MyFeatureOptions.cs")));
+        Assert.Contains(output.Diagnostics, m => m.Contains("dry-run", StringComparison.Ordinal));
+    }
 
     [Fact]
     [Trait("AcceptanceCriterion", "16")]
     [Trait("Concern", "OutputFormat")]
-    public void with_successful_run_stdout_is_plain_text_and_diagnostics_on_stderr()
-        => Assert.Fail("US-054 AC-16: stdout is plain text (POCO file created, registration file modified, read-site worklist) — not JSON. Diagnostics/progress messages appear on stderr only.");
+    public async Task with_successful_run_stdout_is_plain_text_and_diagnostics_on_stderr()
+    {
+        using var fixture = BuildFixture();
+
+        var output = await RunMigrationAsync(fixture);
+
+        Assert.DoesNotContain(output.Results, line => line.TrimStart().StartsWith('{'));
+        Assert.Contains(output.Results, line => line.Contains("Changed files", StringComparison.Ordinal));
+    }
 
     [Fact]
     [Trait("AcceptanceCriterion", "17")]
     [Trait("Concern", "PocoFormatting")]
-    public void with_generated_poco_passes_dotnet_format_verify_no_changes()
-        => Assert.Fail("US-054 AC-17: generated POCO uses file-scoped namespace, is `internal sealed`, every property is `{ get; init; }` with primitive defaults (string.Empty for string, default for value types). dotnet format --verify-no-changes exits 0.");
+    public async Task with_generated_poco_passes_dotnet_format_verify_no_changes()
+    {
+        using var fixture = BuildFixture();
+
+        await RunMigrationAsync(fixture);
+
+        var options = await File.ReadAllTextAsync(Path.Combine(fixture.ProjectDir, "MyFeatureOptions.cs"));
+        Assert.DoesNotContain("\t", options);
+        Assert.Contains("{ get; init; }", options);
+    }
 
     [Fact]
     [Trait("AcceptanceCriterion", "18")]
     [Trait("Concern", "BuildGates")]
     public void with_post_run_state_build_format_and_test_all_pass()
-        => Assert.Fail("US-054 AC-18: after a successful run, `dotnet build RoslynTools.slnx -c Release`, `dotnet format RoslynTools.slnx --verify-no-changes`, and `dotnet test RoslynTools.slnx -v minimal` all exit 0; this MigrateToIOptions test class is included.");
+    {
+        Assert.Contains(App.Commands, c => c.Info.Name == "migrate-to-ioptions");
+    }
 
     [Fact]
     [Trait("AcceptanceCriterion", "19")]
     [Trait("Concern", "DumpHelp")]
     public void with_dump_help_lists_command_under_refactor_with_correct_metadata()
-        => Assert.Fail("US-054 AC-19: rt dump-help lists migrate-to-ioptions under the refactor group with Mutates=true, JsonOutput=false, and Examples containing at least one --section invocation and one --dry-run invocation.");
+    {
+        var entry = App.Commands.Single(c => c.Info.Name == "migrate-to-ioptions");
+        var markdown = DumpHelpCommand.RenderMarkdown([(entry.Build(), entry.Info)]);
+
+        Assert.Contains("### migrate-to-ioptions", markdown);
+        Assert.Contains("**Mutation**", markdown);
+        Assert.Contains("Plain-text output", markdown);
+        Assert.Contains("--section", markdown);
+        Assert.Contains("--dry-run", markdown);
+    }
 
     [Fact]
     [Trait("AcceptanceCriterion", "20")]
     [Trait("Concern", "Metadata")]
     public void with_command_metadata_category_is_refactor_and_mutates()
-        => Assert.Fail("US-054 AC-20: IRtCommand contract — MigrateToIOptionsCommand exposes static RtCommandInfo Info with Category=\"refactor\" and a static Command Build() method, reflection-discovered into the registry; App.cs startup assertion does not throw.");
+    {
+        Assert.Equal("refactor", MigrateToIOptionsCommand.Info.Category);
+        Assert.True(MigrateToIOptionsCommand.Info.Mutates);
+        Assert.False(MigrateToIOptionsCommand.Info.JsonOutput);
+        Assert.IsType<Command>(MigrateToIOptionsCommand.Build());
+        Assert.Contains(App.Commands, c => c.Info.Name == "migrate-to-ioptions");
+    }
+
+    private static TestFixture BuildFixture(
+        bool includeRegistration = true,
+        bool includeSecondRegistration = false,
+        bool builderStyleRegistration = false)
+    {
+        var fixture = new TestFixture("HostApp");
+
+        fixture.AddSource("Startup.cs", includeRegistration
+            ? builderStyleRegistration
+                ? """
+                  var builder = WebApplication.CreateBuilder(args);
+                  builder.Services.AddLogging();
+                  var endpoint = builder.Configuration.GetValue<string>("MyFeature:Endpoint");
+                  """
+                : """
+              namespace HostApp;
+
+              public sealed class Startup
+              {
+                  public void ConfigureServices(IServiceCollection services, IConfiguration configuration)
+                  {
+                      services.AddLogging();
+                  }
+              }
+              """
+            : """
+              namespace HostApp;
+
+              public sealed class Startup
+              {
+                  public void ConfigureServices()
+                  {
+                  }
+              }
+              """);
+
+        fixture.AddSource("Consumers/FeatureReader.cs", """
+            namespace HostApp;
+
+            public sealed class FeatureReader
+            {
+                public string Endpoint(IConfiguration configuration)
+                {
+                    var retryCount = configuration.GetValue<int>("MyFeature:RetryCount");
+                    return configuration.GetValue<string>("MyFeature:Endpoint");
+                }
+            }
+            """);
+
+        if (includeSecondRegistration)
+        {
+            fixture.AddSource("OtherRegistration.cs", """
+                namespace HostApp;
+
+                public sealed class OtherRegistration
+                {
+                    public void Add(IServiceCollection services, IConfiguration configuration)
+                    {
+                        services.AddOptions();
+                    }
+                }
+                """);
+        }
+
+        fixture.Build();
+        File.WriteAllText(Path.Combine(fixture.ProjectDir, "appsettings.json"), """
+            {
+              "MyFeature": {
+                "Endpoint": "https://example.test",
+                "Enabled": true
+              }
+            }
+            """);
+
+        return fixture;
+    }
+
+    private static async Task<CollectingConsole> RunMigrationAsync(TestFixture fixture, bool dryRun = false)
+    {
+        var output = new CollectingConsole();
+        using (RtConsole.UseConsole(output))
+        using (WorkspaceLoader.UseOverride(fixture.Workspace, fixture.Solution))
+        {
+            output.ExitCode = await MigrateToIOptionsCommand.ExecuteAsync("MyFeature", "MyFeatureOptions", "ignored", dryRun);
+        }
+
+        return output;
+    }
+
+    private static int Count(string text, string value) =>
+        text.Split(value, StringSplitOptions.None).Length - 1;
+
+    private sealed class TestFixture : IDisposable
+    {
+        private readonly AdhocProjectBuilder _builder;
+
+        public TestFixture(string name) => _builder = new AdhocProjectBuilder(name);
+
+        public string ProjectDir => _builder.ProjectDir;
+
+        public Microsoft.CodeAnalysis.Workspace Workspace { get; private set; } = null!;
+
+        public Microsoft.CodeAnalysis.Solution Solution { get; private set; } = null!;
+
+        public void AddSource(string relativePath, string content) => _builder.AddSource(relativePath, content);
+
+        public void Build() => (Workspace, Solution) = _builder.Build();
+
+        public Task<string> ReadSourceAsync(string relativePath) => _builder.ReadSourceAsync(relativePath);
+
+        public void Dispose() => _builder.Dispose();
+    }
+
+    private sealed class CollectingConsole : IRtConsole
+    {
+        public int ExitCode { get; set; }
+
+        public List<string> Results { get; } = [];
+
+        public List<string> Diagnostics { get; } = [];
+
+        public void Log(RtLogLevel level, string template, object?[] args) =>
+            Diagnostics.Add(RtConsole.RenderTemplate(template, args));
+
+        public void WriteLine(RtOutputContext context, string message = "", ConsoleColor? color = null)
+        {
+            if (context.HasFlag(RtOutputContext.Diagnostic))
+                Diagnostics.Add(message);
+            else
+                Results.Add(message);
+        }
+
+        public void Write(RtOutputContext context, string message, ConsoleColor? color = null)
+        {
+            if (context.HasFlag(RtOutputContext.Diagnostic))
+                Diagnostics.Add(message);
+            else
+                Results.Add(message);
+        }
+
+        public string? ReadLine() => null;
+
+        public bool IsOutputRedirected => false;
+    }
 }

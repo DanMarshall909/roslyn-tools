@@ -14,7 +14,7 @@ internal sealed class FindReferencesHandler
         using (workspace)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var refs = await new FindRefsService().FindAsync(sln, request.Symbol, kind: null);
+            var refs = await RtServiceProvider.Get<FindRefsService>().FindAsync(sln, request.Symbol, kind: null);
             return new FindReferencesResult(Symbol: refs.SymbolName, ReferencesCount: refs.References.Count);
         }
     }

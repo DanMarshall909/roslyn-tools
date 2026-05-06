@@ -8,9 +8,9 @@ public class CliBootstrapTests
     public async Task Informational_startup_messages_do_not_use_the_error_stream()
     {
         var repoRoot = FindRepoRoot();
-        var rtCmd = Path.Combine(repoRoot, "rt.cmd");
+        var rtDll = Path.Combine(repoRoot, "src", "RoslynTools.Cli", "bin", "Debug", "net8.0", "rt.dll");
 
-        var result = await RunAsync(rtCmd, "--help", repoRoot);
+        var result = await RunAsync("dotnet", $"\"{rtDll}\" --help", repoRoot);
 
         Assert.Equal(0, result.ExitCode);
         Assert.Contains("Usage:", result.Stdout);

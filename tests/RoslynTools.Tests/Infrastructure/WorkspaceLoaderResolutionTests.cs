@@ -155,4 +155,20 @@ public class WorkspaceLoaderResolutionTests
         Assert.DoesNotContain("unsupported format", ex.Message, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("MSBuildWorkspace does not support .slnx", ex.Message);
     }
+
+    [Fact]
+    public async Task Single_slnx_file_is_auto_detected()
+    {
+        using var project = new WorkspaceLoaderTestProject();
+        var slnxPath = Path.Combine(project.RootDir, "RoslynTools.slnx");
+        File.WriteAllText(slnxPath, "{}");
+
+        using (project.UseCurrentDirectory(project.RootDir))
+        {
+            var ex = await Assert.ThrowsAnyAsync<Exception>(() => WorkspaceLoader.LoadAsync(null));
+
+            Assert.DoesNotContain("No .sln/.slnx", ex.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("MSBuildWorkspace does not support .slnx", ex.Message);
+        }
+    }
 }
