@@ -59,7 +59,7 @@ internal sealed class NarrowDependencyCommand : IRtCommand
         var (workspace, sln) = await WorkspaceLoader.LoadAsync(solutionPath);
         using (workspace)
         {
-            await new NarrowDependencyService().ExecuteAsync(sln, sourceInterface, members, newInterfaceName, dryRun);
+            await RtServiceProvider.Get<NarrowDependencyService>().ExecuteAsync(sln, sourceInterface, members, newInterfaceName, dryRun);
         }
     }
 }

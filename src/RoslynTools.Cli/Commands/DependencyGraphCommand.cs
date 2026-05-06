@@ -45,7 +45,7 @@ internal sealed class DependencyGraphCommand : IRtCommand
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
             using (workspace)
             {
-                var result = await new DependencyGraphService().BuildGraphAsync(sln, typeName, depth, format ?? "json", scope);
+                var result = await RtServiceProvider.Get<DependencyGraphService>().BuildGraphAsync(sln, typeName, depth, format ?? "json", scope);
                 RtConsole.WriteLine(RtOutputContext.Result, result);
             }
         }, typeOpt, depthOpt, formatOpt, scopeOpt, solutionOpt);
@@ -63,5 +63,5 @@ internal sealed class DependencyGraphCommand : IRtCommand
         int? depth,
         string format,
         string? scope) =>
-        new DependencyGraphService().BuildGraphAsync(sln, typeName, depth, format, scope);
+        RtServiceProvider.Get<DependencyGraphService>().BuildGraphAsync(sln, typeName, depth, format, scope);
 }

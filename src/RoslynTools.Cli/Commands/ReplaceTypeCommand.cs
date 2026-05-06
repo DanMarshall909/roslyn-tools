@@ -39,7 +39,7 @@ internal sealed class ReplaceTypeCommand : IRtCommand
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
             using (workspace)
             {
-                await new ReplaceTypeService().RunAsync(sln, dryRun);
+                await RtServiceProvider.Get<ReplaceTypeService>().RunAsync(sln, dryRun);
             }
         },
         solutionOpt, dryRunOpt);

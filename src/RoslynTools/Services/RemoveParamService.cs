@@ -1,8 +1,8 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
-using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
@@ -10,6 +10,18 @@ namespace RoslynTools.Services;
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
 internal class RemoveParamService
 {
+    private readonly ParameterChangeHelper _parameterChangeHelper;
+
+    public RemoveParamService()
+        : this(new ParameterChangeHelper())
+    {
+    }
+
+    public RemoveParamService(ParameterChangeHelper parameterChangeHelper)
+    {
+        _parameterChangeHelper = parameterChangeHelper;
+    }
+
     internal async Task<Solution> RemoveParamAsync(
         Solution solution,
         string methodSpec,
@@ -58,7 +70,7 @@ internal class RemoveParamService
 
             var sourceText = await document.GetTextAsync();
 
-            var paramList = ParameterChangeHelper.GetParameterList(syntaxNode);
+            var paramList = _parameterChangeHelper.GetParameterList(syntaxNode);
             if (paramList is null)
                 continue;
 

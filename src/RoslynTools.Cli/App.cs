@@ -7,6 +7,7 @@ using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Core.Decisions;
 using RoslynTools.Core.Output;
+
 namespace RoslynTools;
 
 internal static class App
@@ -129,7 +130,8 @@ internal static class App
                     DecisionContext.Store = DecisionStore.Load(decisionsFile.FullName);
                     try
                     {
-                        await next(context);
+                        using (RtServiceProvider.Use(services))
+                            await next(context);
                     }
                     catch (DecisionsRequiredException)
                     {
@@ -148,7 +150,8 @@ internal static class App
                 }
                 else
                 {
-                    await next(context);
+                    using (RtServiceProvider.Use(services))
+                        await next(context);
                 }
             }, MiddlewareOrder.Configuration)
             .Build()

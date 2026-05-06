@@ -39,7 +39,7 @@ internal sealed class AddGlobalImportCommand : IRtCommand
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
             using (workspace)
             {
-                await new ImportDirectiveService().AddGlobalUsingAsync(sln, file, ns, dryRun);
+                await RtServiceProvider.Get<ImportDirectiveService>().AddGlobalUsingAsync(sln, file, ns, dryRun);
             }
         }, fileOpt, namespaceOpt, solutionOpt, dryRunOpt);
 

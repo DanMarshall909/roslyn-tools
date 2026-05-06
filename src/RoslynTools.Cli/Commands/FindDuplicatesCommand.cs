@@ -54,7 +54,7 @@ internal sealed class FindDuplicatesCommand : IRtCommand
             using (workspace)
             {
                 var options = new FindDuplicatesOptions(minStatements, minOccurrences, scope, includeTests, maxStatements);
-                var groups = await new FindDuplicatesService().RunAsync(sln, options);
+                var groups = await RtServiceProvider.Get<FindDuplicatesService>().RunAsync(sln, options);
 
                 var solutionDir = sln.FilePath is not null
                     ? Path.GetDirectoryName(sln.FilePath)

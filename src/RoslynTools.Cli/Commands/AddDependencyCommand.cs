@@ -48,11 +48,11 @@ internal sealed class AddDependencyCommand : IRtCommand
         var (workspace, solution) = await WorkspaceLoader.LoadAsync(solutionPath);
         using (workspace)
         {
-            await new AddDependencyService().RunAsync(solution, typeName, depType, fieldName, dryRun);
+            await RtServiceProvider.Get<AddDependencyService>().RunAsync(solution, typeName, depType, fieldName, dryRun);
         }
     }
 
     // Forwarding stub kept for backwards compatibility
     internal static Task ExecuteCoreAsync(Microsoft.CodeAnalysis.Solution solution, string typeName, string depType, string? fieldName, bool dryRun) =>
-        new AddDependencyService().RunAsync(solution, typeName, depType, fieldName, dryRun);
+        RtServiceProvider.Get<AddDependencyService>().RunAsync(solution, typeName, depType, fieldName, dryRun);
 }

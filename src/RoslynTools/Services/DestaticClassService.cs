@@ -10,10 +10,29 @@ namespace RoslynTools.Services;
     Justification = "Instance service used by the static-to-instance migration dogfood path.")]
 internal sealed class DestaticClassService
 {
+    private readonly ISymbolResolutionService _symbols;
+    private readonly IDocumentLocatorService _documents;
+    private readonly ISolutionChangeWriter _writer;
+
+    public DestaticClassService()
+        : this(new SymbolResolutionService(), new DocumentLocatorService(), new SolutionChangeWriter())
+    {
+    }
+
+    public DestaticClassService(
+        ISymbolResolutionService symbols,
+        IDocumentLocatorService documents,
+        ISolutionChangeWriter writer)
+    {
+        _symbols = symbols;
+        _documents = documents;
+        _writer = writer;
+    }
+
     internal async Task RunAsync(Solution solution, string typeName, bool dryRun)
     {
         var originalSolution = solution;
-        var symbol = await SymbolLocator.FindTypeByFqnAsync(solution, typeName);
+        var symbol = await _symbols.FindTypeByFqnAsync(solution, typeName);
 
         if (symbol is not INamedTypeSymbol typeSymbol)
             throw new InvalidOperationException($"'{typeName}' is not a type.");
@@ -21,21 +40,16 @@ internal sealed class DestaticClassService
         if (!typeSymbol.IsStatic)
             throw new InvalidOperationException($"'{typeName}' is not a static class.");
 
-        var syntaxRef = typeSymbol.DeclaringSyntaxReferences.FirstOrDefault();
-        if (syntaxRef is null)
-            throw new InvalidOperationException($"No source declaration found for '{typeName}'.");
+        var classDeclaration = await _documents.GetDeclarationAsync<ClassDeclarationSyntax>(solution, typeSymbol);
 
-        var classDeclaration = await syntaxRef.GetSyntaxAsync() as ClassDeclarationSyntax
-            ?? throw new InvalidOperationException($"Source declaration for '{typeName}' is not a class.");
-
-        var declaringDocumentId = SymbolDocumentLocator.FindDocumentId(solution, typeSymbol)
+        var declaringDocumentId = _documents.FindDocumentId(solution, typeSymbol)
             ?? throw new InvalidOperationException($"Cannot locate source document for '{typeName}'.");
 
         solution = await RewriteCallSitesAsync(solution, typeSymbol);
         solution = await RewriteDeclarationAsync(solution, declaringDocumentId, classDeclaration);
 
         RtLog.Info("Migrated static class '{TypeName}' to instance class.", typeSymbol.ToDisplayString());
-        await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
+        await _writer.ApplyChangesAsync(originalSolution, solution, dryRun);
     }
 
     private static async Task<Solution> RewriteDeclarationAsync(
@@ -115,8 +129,24 @@ internal sealed class DestaticClassService
     private sealed class StaticTypeCallRewriter(SemanticModel semanticModel, INamedTypeSymbol typeSymbol) : CSharpSyntaxRewriter
     {
         private readonly string _targetTypeName = typeSymbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
+        private readonly string _fieldName = DeriveFieldName(typeSymbol.Name);
+        private readonly Stack<ClassDeclarationSyntax> _classStack = new();
+        private int _injectedReceiverRewrites;
 
         public bool Changed { get; private set; }
+
+        public override SyntaxNode? VisitClassDeclaration(ClassDeclarationSyntax node)
+        {
+            _classStack.Push(node);
+            var previousInjectedReceiverRewrites = _injectedReceiverRewrites;
+            var visited = (ClassDeclarationSyntax)base.VisitClassDeclaration(node)!;
+            _classStack.Pop();
+
+            if (_injectedReceiverRewrites == previousInjectedReceiverRewrites)
+                return visited;
+
+            return AddConstructorInjection(visited);
+        }
 
         public override SyntaxNode? VisitMemberAccessExpression(MemberAccessExpressionSyntax node)
         {
@@ -125,11 +155,11 @@ internal sealed class DestaticClassService
             if (expressionSymbol?.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat) != _targetTypeName)
                 return visited;
 
-            var objectCreation = SyntaxFactory.ParseExpression($"new {typeSymbol.Name}()")
+            var receiver = CreateReceiver(node)
                 .WithTriviaFrom(visited.Expression);
 
             Changed = true;
-            return visited.WithExpression(objectCreation);
+            return visited.WithExpression(receiver);
         }
 
         public override SyntaxNode? VisitInvocationExpression(InvocationExpressionSyntax node)
@@ -149,12 +179,124 @@ internal sealed class DestaticClassService
                 return visited;
             }
 
-            var receiver = SyntaxFactory.ParseExpression($"new {typeSymbol.Name}()");
+            var receiver = CreateReceiver(node);
             Changed = true;
             return visited.WithExpression(SyntaxFactory.MemberAccessExpression(
                 SyntaxKind.SimpleMemberAccessExpression,
                 receiver,
                 simpleName));
         }
+
+        private ExpressionSyntax CreateReceiver(SyntaxNode node)
+        {
+            if (CanUseInjectedReceiver(node))
+            {
+                _injectedReceiverRewrites++;
+                return SyntaxFactory.IdentifierName(_fieldName);
+            }
+
+            return SyntaxFactory.ParseExpression($"new {typeSymbol.Name}()");
+        }
+
+        private bool CanUseInjectedReceiver(SyntaxNode node)
+        {
+            if (!_classStack.TryPeek(out var classDeclaration)
+                || classDeclaration.Modifiers.Any(SyntaxKind.StaticKeyword))
+            {
+                return false;
+            }
+
+            foreach (var ancestor in node.Ancestors())
+            {
+                if (ReferenceEquals(ancestor, classDeclaration))
+                    break;
+
+                if (ancestor is BaseMethodDeclarationSyntax method
+                    && method.Modifiers.Any(SyntaxKind.StaticKeyword))
+                {
+                    return false;
+                }
+
+                if (ancestor is BasePropertyDeclarationSyntax property
+                    && property.Modifiers.Any(SyntaxKind.StaticKeyword))
+                {
+                    return false;
+                }
+
+                if (ancestor is FieldDeclarationSyntax)
+                    return false;
+
+                if (ancestor is PropertyDeclarationSyntax propertyDeclaration
+                    && propertyDeclaration.AccessorList is null)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private ClassDeclarationSyntax AddConstructorInjection(ClassDeclarationSyntax classDeclaration)
+        {
+            if (classDeclaration.Members.OfType<FieldDeclarationSyntax>()
+                .Any(field => field.Declaration.Variables.Any(variable => variable.Identifier.ValueText == _fieldName)))
+            {
+                return classDeclaration;
+            }
+
+            var field = SyntaxFactory.ParseMemberDeclaration(
+                $"private readonly {typeSymbol.Name} {_fieldName};")!;
+
+            var constructors = classDeclaration.Members
+                .OfType<ConstructorDeclarationSyntax>()
+                .Where(ctor => !ctor.Modifiers.Any(SyntaxKind.StaticKeyword))
+                .ToArray();
+
+            if (constructors.Length == 0)
+            {
+                var constructor = SyntaxFactory.ParseMemberDeclaration(
+                    $"public {classDeclaration.Identifier.ValueText}({typeSymbol.Name} {ToParameterName(typeSymbol.Name)})\r\n"
+                    + "{\r\n"
+                    + $"    {_fieldName} = {ToParameterName(typeSymbol.Name)};\r\n"
+                    + "}")!;
+
+                return classDeclaration.WithMembers(classDeclaration.Members.InsertRange(0, [field, constructor]));
+            }
+
+            var updatedClass = classDeclaration.WithMembers(classDeclaration.Members.Insert(0, field));
+            var parameterName = ToParameterName(typeSymbol.Name);
+
+            updatedClass = updatedClass.ReplaceNodes(
+                constructors,
+                (_, constructor) => AddConstructorParameter(constructor, parameterName));
+
+            return updatedClass;
+        }
+
+        private ConstructorDeclarationSyntax AddConstructorParameter(
+            ConstructorDeclarationSyntax constructor,
+            string parameterName)
+        {
+            if (constructor.ParameterList.Parameters.Any(parameter => parameter.Identifier.ValueText == parameterName))
+                return constructor;
+
+            var parameter = SyntaxFactory.Parameter(SyntaxFactory.Identifier(parameterName))
+                .WithType(SyntaxFactory.ParseTypeName(typeSymbol.Name));
+
+            var assignment = SyntaxFactory.ParseStatement($"{_fieldName} = {parameterName};");
+            var body = constructor.Body ?? SyntaxFactory.Block();
+
+            return constructor
+                .WithParameterList(constructor.ParameterList.AddParameters(parameter))
+                .WithBody(body.WithStatements(body.Statements.Insert(0, assignment)));
+        }
+
+        private static string DeriveFieldName(string typeName) =>
+            "_" + ToParameterName(typeName);
+
+        private static string ToParameterName(string typeName) =>
+            string.IsNullOrEmpty(typeName)
+                ? "dependency"
+                : char.ToLowerInvariant(typeName[0]) + typeName[1..];
     }
 }

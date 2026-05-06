@@ -41,7 +41,7 @@ internal sealed class FindUnusedCommand : IRtCommand
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
             using (workspace)
             {
-                var symbols = await new FindUnusedService().AnalyzeAsync(sln, scope ?? "all");
+                var symbols = await RtServiceProvider.Get<FindUnusedService>().AnalyzeAsync(sln, scope ?? "all");
                 var result = FindUnusedResult.FromSymbols(symbols);
                 RtSerializer.Write(result);
             }

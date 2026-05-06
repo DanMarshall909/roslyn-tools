@@ -9,7 +9,7 @@ internal sealed class DestaticClassCommand : IRtCommand
     private DestaticClassCommand() { }
 
     public static RtCommandInfo Info { get; } = new(
-        Name: "destatic-class",
+        Name: "convert-static-class",
         Mutates: true,
         JsonOutput: false,
         Category: "refactor",
@@ -19,8 +19,8 @@ internal sealed class DestaticClassCommand : IRtCommand
             + "to use injected references. Pairs with rt analyze static-class-inventory for sequencing.",
         Examples:
         [
-            "rt refactor destatic-class RoslynTools.Services.InspectService --solution RoslynTools.slnx --dry-run",
-            "rt refactor destatic-class RoslynTools.Services.RenameService --no-interface --solution RoslynTools.slnx",
+            "rt refactor convert-static-class RoslynTools.Services.InspectService --solution RoslynTools.slnx --dry-run",
+            "rt refactor convert-static-class RoslynTools.Services.RenameService --no-interface --solution RoslynTools.slnx",
         ]
     );
 
@@ -34,7 +34,8 @@ internal sealed class DestaticClassCommand : IRtCommand
         var solutionOpt = CommandOptionFactory.CreateSolutionOption();
         var dryRunOpt = CommandOptionFactory.CreateDryRunOption();
 
-        var cmd = new Command("destatic-class", "Migrate a static class to instance with DI registration and call-site rewrites");
+        var cmd = new Command("convert-static-class", "Migrate a static class to instance with DI registration and call-site rewrites");
+        cmd.AddAlias("destatic-class");
         cmd.AddArgument(typeArg);
         cmd.AddOption(interfaceNameOpt);
         cmd.AddOption(noInterfaceOpt);
@@ -46,10 +47,10 @@ internal sealed class DestaticClassCommand : IRtCommand
         cmd.SetHandler(async (type, interfaceName, noInterface, noDiRegistration, lifetime, solution, dryRun) =>
         {
             if (!noInterface)
-                throw new InvalidOperationException("destatic-class interface generation is not implemented yet. Re-run with --no-interface.");
+                throw new InvalidOperationException("convert-static-class interface generation is not implemented yet. Re-run with --no-interface.");
 
             if (!noDiRegistration)
-                throw new InvalidOperationException("destatic-class DI registration is not implemented yet. Re-run with --no-di-registration.");
+                throw new InvalidOperationException("convert-static-class DI registration is not implemented yet. Re-run with --no-di-registration.");
 
             if (!string.Equals(lifetime, "singleton", StringComparison.Ordinal)
                 && !string.Equals(lifetime, "scoped", StringComparison.Ordinal)
@@ -60,7 +61,7 @@ internal sealed class DestaticClassCommand : IRtCommand
 
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
             using (workspace)
-                await new DestaticClassService().RunAsync(sln, type, dryRun);
+                await RtServiceProvider.Get<DestaticClassService>().RunAsync(sln, type, dryRun);
         }, typeArg, interfaceNameOpt, noInterfaceOpt, noDiOpt, lifetimeOpt, solutionOpt, dryRunOpt);
 
         return cmd;

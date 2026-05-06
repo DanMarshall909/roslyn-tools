@@ -35,13 +35,13 @@ internal sealed class FixNamespaceCommand : IRtCommand
 
         cmd.SetHandler(async (file, solution, dryRun) =>
         {
-            await new FixNamespaceService().ExecuteAsync(file, solution, dryRun);
+            await RtServiceProvider.Get<FixNamespaceService>().ExecuteAsync(file, solution, dryRun);
         }, fileOpt, solutionOpt, dryRunOpt);
 
         return cmd;
     }
 
     internal static Task ExecuteAsync(string filePath, string? solutionPath, bool dryRun) =>
-        new FixNamespaceService().ExecuteAsync(filePath, solutionPath, dryRun);
+        RtServiceProvider.Get<FixNamespaceService>().ExecuteAsync(filePath, solutionPath, dryRun);
 }
 

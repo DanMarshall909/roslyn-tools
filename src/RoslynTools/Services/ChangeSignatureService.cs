@@ -8,6 +8,25 @@ namespace RoslynTools.Services;
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
 internal class ChangeSignatureService
 {
+    private readonly ReorderParamsService _reorderParams;
+    private readonly AddParamService _addParam;
+    private readonly RemoveParamService _removeParam;
+
+    public ChangeSignatureService()
+        : this(new ReorderParamsService(), new AddParamService(), new RemoveParamService())
+    {
+    }
+
+    public ChangeSignatureService(
+        ReorderParamsService reorderParams,
+        AddParamService addParam,
+        RemoveParamService removeParam)
+    {
+        _reorderParams = reorderParams;
+        _addParam = addParam;
+        _removeParam = removeParam;
+    }
+
     internal async Task<Solution> RenameParamAsync(
         Solution solution,
         string methodSpec,
@@ -39,19 +58,19 @@ internal class ChangeSignatureService
         Solution solution,
         string methodSpec,
         string[] newOrder) =>
-        new ReorderParamsService().ReorderParamsAsync(solution, methodSpec, newOrder);
+        _reorderParams.ReorderParamsAsync(solution, methodSpec, newOrder);
 
     internal Task<Solution> AddParamAsync(
         Solution solution,
         string methodSpec,
         string paramSpec,
         string? afterParam) =>
-        new AddParamService().AddParamAsync(solution, methodSpec, paramSpec, afterParam);
+        _addParam.AddParamAsync(solution, methodSpec, paramSpec, afterParam);
 
     internal Task<Solution> RemoveParamAsync(
         Solution solution,
         string methodSpec,
         string paramName,
         bool force) =>
-        new RemoveParamService().RemoveParamAsync(solution, methodSpec, paramName, force);
+        _removeParam.RemoveParamAsync(solution, methodSpec, paramName, force);
 }

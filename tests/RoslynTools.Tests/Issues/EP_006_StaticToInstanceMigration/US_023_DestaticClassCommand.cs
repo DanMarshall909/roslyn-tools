@@ -3,7 +3,7 @@ using RoslynTools.Commands;
 namespace RoslynTools.Tests.Issues.EP_006_StaticToInstanceMigration;
 
 /// <summary>
-/// US-023: Add `rt refactor destatic-class` command.
+/// US-023: Add `rt refactor convert-static-class` command.
 ///
 /// Drops the static modifier from a class, makes members instance, generates a matching
 /// interface, registers the class in DI, and rewrites all call sites to use injected
@@ -19,7 +19,7 @@ public class DestaticClass
     {
         var info = DestaticClassCommand.Info;
 
-        Assert.Equal("destatic-class", info.Name);
+        Assert.Equal("convert-static-class", info.Name);
         Assert.Equal("refactor", info.Category);
         Assert.True(info.Mutates);
         Assert.False(info.JsonOutput);

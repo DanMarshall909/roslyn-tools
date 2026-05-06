@@ -48,7 +48,7 @@ internal sealed class MakeStaticCommand : IRtCommand
         var (workspace, sln) = await WorkspaceLoader.LoadAsync(solutionPath);
         using (workspace)
         {
-            var exitCode = await new MakeStaticService().RunAsync(sln, methodSpec, dryRun);
+            var exitCode = await RtServiceProvider.Get<MakeStaticService>().RunAsync(sln, methodSpec, dryRun);
             if (exitCode != 0)
                 Environment.ExitCode = exitCode;
         }

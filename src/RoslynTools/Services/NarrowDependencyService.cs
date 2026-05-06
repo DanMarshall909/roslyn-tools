@@ -10,6 +10,22 @@ namespace RoslynTools.Services;
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
 internal class NarrowDependencyService
 {
+    private readonly InterfaceAnalyzerService _interfaceAnalyzer;
+    private readonly ConsumerNarrowerService _consumerNarrower;
+
+    public NarrowDependencyService()
+        : this(new InterfaceAnalyzerService(), new ConsumerNarrowerService())
+    {
+    }
+
+    public NarrowDependencyService(
+        InterfaceAnalyzerService interfaceAnalyzer,
+        ConsumerNarrowerService consumerNarrower)
+    {
+        _interfaceAnalyzer = interfaceAnalyzer;
+        _consumerNarrower = consumerNarrower;
+    }
+
     internal async Task ExecuteAsync(
         Solution solution,
         string sourceInterfaceSpec,
@@ -39,7 +55,7 @@ internal class NarrowDependencyService
         {
             // Build new interface text via InterfaceAnalyzerService
             var targetNamespace = interfaceSymbol.ContainingNamespace?.ToDisplayString() ?? string.Empty;
-            var interfaceText = new InterfaceAnalyzerService().BuildInterfaceText(targetNamespace, newInterfaceName, selectedMembers);
+            var interfaceText = _interfaceAnalyzer.BuildInterfaceText(targetNamespace, newInterfaceName, selectedMembers);
 
             // Find owning project
             var owningProject = FindOwningProject(solution, interfaceSymbol)
@@ -57,7 +73,7 @@ internal class NarrowDependencyService
         }
 
         // Analyze consumers and narrow those that only use the selected subset
-        var narrowResult = await new ConsumerNarrowerService().NarrowConsumersAsync(
+        var narrowResult = await _consumerNarrower.NarrowConsumersAsync(
             solution,
             interfaceSymbol,
             selectedMembers,

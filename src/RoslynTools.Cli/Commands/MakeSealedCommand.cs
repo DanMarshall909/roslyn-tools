@@ -50,7 +50,7 @@ internal sealed class MakeSealedCommand : IRtCommand
         var (workspace, sln) = await WorkspaceLoader.LoadAsync(solutionPath);
         using (workspace)
         {
-            await new MakeSealedService().RunAsync(sln, typeName, dryRun);
+            await RtServiceProvider.Get<MakeSealedService>().RunAsync(sln, typeName, dryRun);
         }
     }
 }

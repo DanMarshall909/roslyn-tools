@@ -1,9 +1,9 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
-using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
@@ -11,6 +11,18 @@ namespace RoslynTools.Services;
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
 internal class ReorderParamsService
 {
+    private readonly ParameterChangeHelper _parameterChangeHelper;
+
+    public ReorderParamsService()
+        : this(new ParameterChangeHelper())
+    {
+    }
+
+    public ReorderParamsService(ParameterChangeHelper parameterChangeHelper)
+    {
+        _parameterChangeHelper = parameterChangeHelper;
+    }
+
     /// <summary>
     /// Reorders parameters of a method and updates all call sites.
     /// </summary>
@@ -123,7 +135,7 @@ internal class ReorderParamsService
 
                 foreach (var node in root.DescendantNodes())
                 {
-                    var paramList = ParameterChangeHelper.GetParameterList(node);
+                    var paramList = _parameterChangeHelper.GetParameterList(node);
                     if (paramList is null)
                         continue;
 

@@ -13,6 +13,18 @@ namespace RoslynTools.Services;
 /// </summary>
 internal class ConsumerNarrowerService
 {
+    private readonly InterfaceAnalyzerService _interfaceAnalyzer;
+
+    public ConsumerNarrowerService()
+        : this(new InterfaceAnalyzerService())
+    {
+    }
+
+    public ConsumerNarrowerService(InterfaceAnalyzerService interfaceAnalyzer)
+    {
+        _interfaceAnalyzer = interfaceAnalyzer;
+    }
+
     internal sealed record NarrowResult(
         Solution Solution,
         List<string> NarrowedConsumers,
@@ -101,7 +113,7 @@ internal class ConsumerNarrowerService
         foreach (var (consumerSymbol, consumerDoc) in consumers)
         {
             // Determine which interface members this consumer actually uses
-            var usedMembers = await new InterfaceAnalyzerService().GetUsedMembersAsync(
+            var usedMembers = await _interfaceAnalyzer.GetUsedMembersAsync(
                 originalSolution, consumerSymbol, interfaceSymbol);
 
             // Check if all used members are within the selected subset

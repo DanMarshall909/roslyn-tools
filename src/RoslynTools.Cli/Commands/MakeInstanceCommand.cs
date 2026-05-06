@@ -45,7 +45,7 @@ internal sealed class MakeInstanceCommand : IRtCommand
         var (workspace, sln) = await WorkspaceLoader.LoadAsync(solutionPath);
         using (workspace)
         {
-            await new MakeInstanceService().RunAsync(sln, methodSpec, dryRun);
+            await RtServiceProvider.Get<MakeInstanceService>().RunAsync(sln, methodSpec, dryRun);
         }
     }
 }

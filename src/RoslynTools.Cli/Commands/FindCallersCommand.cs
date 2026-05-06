@@ -43,7 +43,7 @@ internal sealed class FindCallersCommand : IRtCommand
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
             using (workspace)
             {
-                var result = await new FindCallersService().FindAsync(sln, symbol, includeTests);
+                var result = await RtServiceProvider.Get<FindCallersService>().FindAsync(sln, symbol, includeTests);
                 RtSerializer.Write(result);
             }
         }, symbolOpt, solutionOpt, includeTestsOpt);
@@ -53,5 +53,5 @@ internal sealed class FindCallersCommand : IRtCommand
 
     // Forwarding stubs kept for backwards compatibility with tests
     internal static bool IsNameofExpression(InvocationExpressionSyntax invocation) =>
-        new FindCallersService().IsNameofExpression(invocation);
+        RtServiceProvider.Get<FindCallersService>().IsNameofExpression(invocation);
 }

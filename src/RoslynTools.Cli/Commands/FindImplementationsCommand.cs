@@ -49,7 +49,7 @@ internal sealed class FindImplementationsCommand : IRtCommand
                 if (typeSymbol.TypeKind != TypeKind.Interface && !typeSymbol.IsAbstract)
                     RtLog.Warning("'{Symbol}' is not an interface or abstract class. Searching for derived types.", symbol);
 
-                var implementations = await new FindImplementationsService().FindAsync(sln, typeSymbol);
+                var implementations = await RtServiceProvider.Get<FindImplementationsService>().FindAsync(sln, typeSymbol);
 
                 var result = new Dictionary<string, object?>
                 {

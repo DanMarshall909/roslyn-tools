@@ -153,7 +153,7 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
 
         foreach (var target in GetInjectionTargets(review, loggerDependency))
         {
-            var result = await new AddDependencyService().ApplyAsync(
+            var result = await RtServiceProvider.Get<AddDependencyService>().ApplyAsync(
                 solution,
                 target.TypeFullName,
                 target.DependencyType,

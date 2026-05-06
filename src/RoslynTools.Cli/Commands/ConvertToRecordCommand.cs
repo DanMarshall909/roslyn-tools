@@ -46,7 +46,7 @@ internal sealed class ConvertToRecordCommand : IRtCommand
         var (workspace, sln) = await WorkspaceLoader.LoadAsync(solutionPath);
         using (workspace)
         {
-            await new ConvertToRecordService().RunAsync(sln, typeName, dryRun);
+            await RtServiceProvider.Get<ConvertToRecordService>().RunAsync(sln, typeName, dryRun);
         }
     }
 }

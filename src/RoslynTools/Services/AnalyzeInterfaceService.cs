@@ -9,6 +9,18 @@ namespace RoslynTools.Services;
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
 internal class AnalyzeInterfaceService
 {
+    private readonly FindCallersService _findCallers;
+
+    public AnalyzeInterfaceService()
+        : this(new FindCallersService())
+    {
+    }
+
+    public AnalyzeInterfaceService(FindCallersService findCallers)
+    {
+        _findCallers = findCallers;
+    }
+
     internal async Task<AnalyzeInterfaceReport> AnalyzeAsync(
         Solution solution,
         string interfaceSymbolSpec,
@@ -261,7 +273,7 @@ internal class AnalyzeInterfaceService
     {
         return node.AncestorsAndSelf()
             .OfType<InvocationExpressionSyntax>()
-            .Any(new FindCallersService().IsNameofExpression);
+            .Any(_findCallers.IsNameofExpression);
     }
 
     private ConsumerAccumulator GetOrAddConsumer(

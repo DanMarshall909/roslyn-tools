@@ -44,7 +44,7 @@ internal sealed class TransformParametersCommand : IRtCommand
             {
                 try
                 {
-                    await new TransformParametersService().RunAsync(sln, method, newType, existingType, dryRun);
+                    await RtServiceProvider.Get<TransformParametersService>().RunAsync(sln, method, newType, existingType, dryRun);
                 }
                 catch (InvalidOperationException ex)
                 {

@@ -40,7 +40,7 @@ internal sealed class ListImportsCommand : IRtCommand
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
             using (workspace)
             {
-                var imports = await new ImportDirectiveService().AnalyzeAsync(sln, kind);
+                var imports = await RtServiceProvider.Get<ImportDirectiveService>().AnalyzeAsync(sln, kind);
                 RtSerializer.Write(ImportDirectiveResult.FromImports(imports));
             }
         }, solutionOpt, kindOpt);
