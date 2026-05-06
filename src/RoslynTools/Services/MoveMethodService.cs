@@ -13,15 +13,17 @@ namespace RoslynTools.Services;
 internal class MoveMethodService : IRtService
 {
     private readonly ILogger<MoveMethodService> _logger;
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
 
     public MoveMethodService()
-        : this(new RtConsoleLogger<MoveMethodService>())
+        : this(new RtConsoleLogger<MoveMethodService>(), new SolutionChangeWriter())
     {
     }
 
-    public MoveMethodService(ILogger<MoveMethodService> logger)
+    public MoveMethodService(ILogger<MoveMethodService> logger, ISolutionChangeWriter solutionChangeWriter)
     {
         _logger = logger;
+        _solutionChangeWriter = solutionChangeWriter;
     }
     /// <summary>
     /// Move a static method from its current type to <paramref name="targetTypeFqn"/>,
@@ -203,7 +205,7 @@ internal class MoveMethodService : IRtService
             sln = sln.AddDocument(newDocInfo);
         }
 
-        await SolutionWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
         return true;
     }
 

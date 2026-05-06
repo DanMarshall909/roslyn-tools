@@ -12,15 +12,17 @@ namespace RoslynTools.Services;
 internal class ReplaceCallService : IRtService
 {
     private readonly ILogger<ReplaceCallService> _logger;
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
 
     public ReplaceCallService()
-        : this(new RtConsoleLogger<ReplaceCallService>())
+        : this(new RtConsoleLogger<ReplaceCallService>(), new SolutionChangeWriter())
     {
     }
 
-    public ReplaceCallService(ILogger<ReplaceCallService> logger)
+    public ReplaceCallService(ILogger<ReplaceCallService> logger, ISolutionChangeWriter solutionChangeWriter)
     {
         _logger = logger;
+        _solutionChangeWriter = solutionChangeWriter;
     }
     internal async Task RunAsync(Solution solution, string from, string to, bool dryRun, int? ifArgIndex = null, string? ifArgLiteral = null)
     {
@@ -61,7 +63,7 @@ internal class ReplaceCallService : IRtService
             solution = solution.WithDocumentSyntaxRoot(docId, newRoot);
         }
 
-        await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
     }
 
     private bool ArgumentMatchesFilter(InvocationExpressionSyntax invocation, int argIndex, string literal)

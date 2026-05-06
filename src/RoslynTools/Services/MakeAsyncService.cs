@@ -11,6 +11,17 @@ namespace RoslynTools.Services;
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
 internal class MakeAsyncService : IRtService
 {
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
+
+    public MakeAsyncService()
+        : this(new SolutionChangeWriter())
+    {
+    }
+
+    public MakeAsyncService(ISolutionChangeWriter solutionChangeWriter)
+    {
+        _solutionChangeWriter = solutionChangeWriter;
+    }
     internal async Task RunAsync(Solution sln, string typeName, string methodName, bool noRename, bool dryRun)
     {
         var originalSolution = sln;
@@ -67,7 +78,7 @@ internal class MakeAsyncService : IRtService
             sln = sln.WithDocumentSyntaxRoot(docId, root);
         }
 
-        await SolutionWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
     }
 
     internal SyntaxNode TransformDocument(

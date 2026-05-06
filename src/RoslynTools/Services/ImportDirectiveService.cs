@@ -19,15 +19,17 @@ internal sealed record ImportDirectiveInfo(
 internal class ImportDirectiveService : IRtService
 {
     private readonly ILogger<ImportDirectiveService> _logger;
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
 
     public ImportDirectiveService()
-        : this(new RtConsoleLogger<ImportDirectiveService>())
+        : this(new RtConsoleLogger<ImportDirectiveService>(), new SolutionChangeWriter())
     {
     }
 
-    public ImportDirectiveService(ILogger<ImportDirectiveService> logger)
+    public ImportDirectiveService(ILogger<ImportDirectiveService> logger, ISolutionChangeWriter solutionChangeWriter)
     {
         _logger = logger;
+        _solutionChangeWriter = solutionChangeWriter;
     }
     internal async Task<IReadOnlyList<ImportDirectiveInfo>> AnalyzeAsync(
         Solution solution,
@@ -96,7 +98,7 @@ internal class ImportDirectiveService : IRtService
 
         var newRoot = AddUsingDirective(root, directive);
         solution = solution.WithDocumentSyntaxRoot(document.Id, newRoot);
-        await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
     }
 
     internal async Task AddGlobalUsingAsync(
@@ -121,7 +123,7 @@ internal class ImportDirectiveService : IRtService
 
         var newRoot = AddUsingDirective(root, directive);
         solution = solution.WithDocumentSyntaxRoot(document.Id, newRoot);
-        await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
     }
 
     private Document FindDocument(Solution solution, string filePath)

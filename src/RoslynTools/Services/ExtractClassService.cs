@@ -13,15 +13,17 @@ namespace RoslynTools.Services;
 internal class ExtractClassService : IRtService
 {
     private readonly ILogger<ExtractClassService> _logger;
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
 
     public ExtractClassService()
-        : this(new RtConsoleLogger<ExtractClassService>())
+        : this(new RtConsoleLogger<ExtractClassService>(), new SolutionChangeWriter())
     {
     }
 
-    public ExtractClassService(ILogger<ExtractClassService> logger)
+    public ExtractClassService(ILogger<ExtractClassService> logger, ISolutionChangeWriter solutionChangeWriter)
     {
         _logger = logger;
+        _solutionChangeWriter = solutionChangeWriter;
     }
     private readonly SymbolDisplayFormat TypeDisplayFormat = new(
         globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Omitted,
@@ -140,7 +142,7 @@ internal class ExtractClassService : IRtService
             filePath: newFilePath);
 
         _logger.RtInfo("Extracting '{MemberNames}' from '{TargetType}' into '{NewTypeName}'...", string.Join(", ", selection.Names.OrderBy(n => n, StringComparer.Ordinal)), target.Symbol.ToDisplayString(TypeDisplayFormat), newTypeName);
-        await SolutionWriter.ApplyChangesAsync(originalSolution, finalSolution, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, finalSolution, dryRun);
     }
 
     internal async Task<ResolvedSourceType?> ResolveSourceTypeAsync(Solution solution, string typeName)

@@ -13,15 +13,17 @@ namespace RoslynTools.Services;
 internal class ExtractInterfaceService : IRtService
 {
     private readonly ILogger<ExtractInterfaceService> _logger;
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
 
     public ExtractInterfaceService()
-        : this(new RtConsoleLogger<ExtractInterfaceService>())
+        : this(new RtConsoleLogger<ExtractInterfaceService>(), new SolutionChangeWriter())
     {
     }
 
-    public ExtractInterfaceService(ILogger<ExtractInterfaceService> logger)
+    public ExtractInterfaceService(ILogger<ExtractInterfaceService> logger, ISolutionChangeWriter solutionChangeWriter)
     {
         _logger = logger;
+        _solutionChangeWriter = solutionChangeWriter;
     }
     internal async Task RunAsync(
         Solution sln,
@@ -90,7 +92,7 @@ internal class ExtractInterfaceService : IRtService
             filePath: interfaceFilePath);
 
         _logger.RtInfo("Extracting interface '{InterfaceName}' from '{Name}'...", interfaceName, classSymbol.Name);
-        await SolutionWriter.ApplyChangesAsync(originalSln, finalSolution, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(originalSln, finalSolution, dryRun);
     }
 
     internal string BuildInterfaceText(

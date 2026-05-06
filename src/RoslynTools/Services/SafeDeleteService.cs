@@ -12,15 +12,17 @@ namespace RoslynTools.Services;
 internal class SafeDeleteService : IRtService
 {
     private readonly ILogger<SafeDeleteService> _logger;
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
 
     public SafeDeleteService()
-        : this(new RtConsoleLogger<SafeDeleteService>())
+        : this(new RtConsoleLogger<SafeDeleteService>(), new SolutionChangeWriter())
     {
     }
 
-    public SafeDeleteService(ILogger<SafeDeleteService> logger)
+    public SafeDeleteService(ILogger<SafeDeleteService> logger, ISolutionChangeWriter solutionChangeWriter)
     {
         _logger = logger;
+        _solutionChangeWriter = solutionChangeWriter;
     }
     internal async Task RunAsync(Solution sln, string symbol, string? kind, bool dryRun)
     {
@@ -98,7 +100,7 @@ internal class SafeDeleteService : IRtService
         var newDoc = editor.GetChangedDocument();
         var newSln = newDoc.Project.Solution;
 
-        await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(sln, newSln, dryRun);
     }
 
     private async Task<ISymbol> ResolveSymbolAsync(Solution sln, string symbol, string? kind)

@@ -13,15 +13,17 @@ namespace RoslynTools.Services;
 internal class InlineMethodService : IRtService
 {
     private readonly ILogger<InlineMethodService> _logger;
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
 
     public InlineMethodService()
-        : this(new RtConsoleLogger<InlineMethodService>())
+        : this(new RtConsoleLogger<InlineMethodService>(), new SolutionChangeWriter())
     {
     }
 
-    public InlineMethodService(ILogger<InlineMethodService> logger)
+    public InlineMethodService(ILogger<InlineMethodService> logger, ISolutionChangeWriter solutionChangeWriter)
     {
         _logger = logger;
+        _solutionChangeWriter = solutionChangeWriter;
     }
     internal async Task RunAsync(Solution sln, string typeName, string methodName, bool dryRun)
     {
@@ -77,7 +79,7 @@ internal class InlineMethodService : IRtService
             sln = sln.WithDocumentSyntaxRoot(docId, root);
         }
 
-        await SolutionWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
     }
 
     internal SyntaxNode TransformDocument(

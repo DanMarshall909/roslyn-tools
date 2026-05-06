@@ -12,15 +12,17 @@ namespace RoslynTools.Services;
 internal class MakeInstanceService : IRtService
 {
     private readonly ILogger<MakeInstanceService> _logger;
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
 
     public MakeInstanceService()
-        : this(new RtConsoleLogger<MakeInstanceService>())
+        : this(new RtConsoleLogger<MakeInstanceService>(), new SolutionChangeWriter())
     {
     }
 
-    public MakeInstanceService(ILogger<MakeInstanceService> logger)
+    public MakeInstanceService(ILogger<MakeInstanceService> logger, ISolutionChangeWriter solutionChangeWriter)
     {
         _logger = logger;
+        _solutionChangeWriter = solutionChangeWriter;
     }
     internal async Task RunAsync(Solution sln, string methodSpec, bool dryRun)
     {
@@ -73,7 +75,7 @@ internal class MakeInstanceService : IRtService
             sln = sln.WithDocumentSyntaxRoot(docId, newRoot);
         }
 
-        await SolutionWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
 
         PrintSummary(total, skipped);
     }

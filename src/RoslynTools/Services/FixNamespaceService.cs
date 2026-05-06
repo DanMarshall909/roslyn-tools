@@ -11,15 +11,17 @@ namespace RoslynTools.Services;
 internal class FixNamespaceService : IRtService
 {
     private readonly ILogger<FixNamespaceService> _logger;
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
 
     public FixNamespaceService()
-        : this(new RtConsoleLogger<FixNamespaceService>())
+        : this(new RtConsoleLogger<FixNamespaceService>(), new SolutionChangeWriter())
     {
     }
 
-    public FixNamespaceService(ILogger<FixNamespaceService> logger)
+    public FixNamespaceService(ILogger<FixNamespaceService> logger, ISolutionChangeWriter solutionChangeWriter)
     {
         _logger = logger;
+        _solutionChangeWriter = solutionChangeWriter;
     }
     internal async Task ExecuteAsync(string filePath, string? solutionPath, bool dryRun)
     {
@@ -95,7 +97,7 @@ internal class FixNamespaceService : IRtService
             }
         }
 
-        await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
     }
 
     internal string ComputeExpectedNamespace(string filePath, string projectDir, string assemblyName)

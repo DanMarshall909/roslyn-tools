@@ -9,6 +9,17 @@ namespace RoslynTools.Services;
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
 internal class ReplaceXunitAssertsService : IRtService
 {
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
+
+    public ReplaceXunitAssertsService()
+        : this(new SolutionChangeWriter())
+    {
+    }
+
+    public ReplaceXunitAssertsService(ISolutionChangeWriter solutionChangeWriter)
+    {
+        _solutionChangeWriter = solutionChangeWriter;
+    }
     internal async Task<ReplaceXunitAssertsReview> AnalyzeAsync(Solution solution)
     {
         var review = new ReplaceXunitAssertsReview();
@@ -34,7 +45,7 @@ internal class ReplaceXunitAssertsService : IRtService
     {
         var originalSolution = solution;
         var newSolution = await ApplyAsync(solution);
-        await SolutionWriter.ApplyChangesAsync(originalSolution, newSolution, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, newSolution, dryRun);
     }
 
     internal async Task<Solution> ApplyAsync(Solution solution)

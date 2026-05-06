@@ -9,6 +9,17 @@ namespace RoslynTools.Services;
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
 internal class AddNullChecksService : IRtService
 {
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
+
+    public AddNullChecksService()
+        : this(new SolutionChangeWriter())
+    {
+    }
+
+    public AddNullChecksService(ISolutionChangeWriter solutionChangeWriter)
+    {
+        _solutionChangeWriter = solutionChangeWriter;
+    }
     internal async Task RunAsync(Solution sln, string typeName, string methodName, bool dryRun)
     {
         var originalSolution = sln;
@@ -68,7 +79,7 @@ internal class AddNullChecksService : IRtService
         root = RoslynSyntax.EnsureUsing(root, "System");
 
         sln = sln.WithDocumentSyntaxRoot(docId, root);
-        await SolutionWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
     }
 
     internal bool HasExistingGuard(BlockSyntax body, string paramName)

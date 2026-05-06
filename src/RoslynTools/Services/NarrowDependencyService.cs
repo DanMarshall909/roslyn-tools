@@ -12,6 +12,7 @@ namespace RoslynTools.Services;
 internal class NarrowDependencyService : IRtService
 {
     private readonly ILogger<NarrowDependencyService> _logger;
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
     private readonly InterfaceAnalyzerService _interfaceAnalyzer;
     private readonly ConsumerNarrowerService _consumerNarrower;
 
@@ -19,16 +20,19 @@ internal class NarrowDependencyService : IRtService
         : this(
             new RtConsoleLogger<NarrowDependencyService>(),
             new InterfaceAnalyzerService(),
-            new ConsumerNarrowerService())
+            new ConsumerNarrowerService(),
+            new SolutionChangeWriter())
     {
     }
 
     public NarrowDependencyService(
         ILogger<NarrowDependencyService> logger,
         InterfaceAnalyzerService interfaceAnalyzer,
-        ConsumerNarrowerService consumerNarrower)
+        ConsumerNarrowerService consumerNarrower,
+        ISolutionChangeWriter solutionChangeWriter)
     {
         _logger = logger;
+        _solutionChangeWriter = solutionChangeWriter;
         _interfaceAnalyzer = interfaceAnalyzer;
         _consumerNarrower = consumerNarrower;
     }
@@ -94,7 +98,7 @@ internal class NarrowDependencyService : IRtService
 
         // Apply or preview
         _logger.RtInfo("Applying narrow-dependency '{Name}' -> '{NewInterfaceName}'...", interfaceSymbol.Name, newInterfaceName);
-        await SolutionWriter.ApplyChangesAsync(solution, updatedSolution, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(solution, updatedSolution, dryRun);
     }
 
     // -------------------------------------------------------------------------

@@ -11,15 +11,17 @@ namespace RoslynTools.Services;
 internal class RenameService : IRtService
 {
     private readonly ILogger<RenameService> _logger;
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
 
     public RenameService()
-        : this(new RtConsoleLogger<RenameService>())
+        : this(new RtConsoleLogger<RenameService>(), new SolutionChangeWriter())
     {
     }
 
-    public RenameService(ILogger<RenameService> logger)
+    public RenameService(ILogger<RenameService> logger, ISolutionChangeWriter solutionChangeWriter)
     {
         _logger = logger;
+        _solutionChangeWriter = solutionChangeWriter;
     }
     internal async Task<Solution> RenameAsync(
         Solution sln,
@@ -68,7 +70,7 @@ internal class RenameService : IRtService
             new SymbolRenameOptions(RenameOverloads: false, RenameInStrings: false, RenameInComments: false, RenameFile: false),
             newName);
 
-        await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(sln, newSln, dryRun);
 
         if (fileRename is { } rename)
             ApplyFileRename(rename, dryRun);

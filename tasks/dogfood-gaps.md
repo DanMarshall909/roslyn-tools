@@ -1,5 +1,9 @@
 # Dogfood Gaps
 
+- **2026-05-06: `rt refactor add-dependency` does not preserve fallback constructors when injecting an existing service** — dry-run command:
+  `dotnet "src\RoslynTools.Cli\bin\Debug\net8.0\rt.dll" refactor add-dependency --type AddDependencyService --dependency ISolutionChangeWriter --solution "RoslynTools.slnx" --dry-run --llm`.
+  Expected: keep the existing parameterless constructor and delegate it to `this(new RtConsoleLogger<AddDependencyService>(), new SolutionChangeWriter())`, then add `ISolutionChangeWriter` to the dependency constructor. Actual: changed the parameterless fallback into `public AddDependencyService(ISolutionChangeWriter solutionChangeWriter) : this(new RtConsoleLogger<AddDependencyService>())`, leaving the fallback path gone and assigning the field outside the main constructor. It also emitted `ILogger<AddDependencyService> logger,ISolutionChangeWriter solutionChangeWriter` without a space. This makes the tool unsafe for the current service-de-staticing pass; fell back to TDD plus manual patching.
+
 - **2026-05-05: `rt inspect outline` throws on files with no types** — files containing only top-level statements (e.g. `src/RoslynTools.Mcp/Program.cs`) cause `OutlineService.OutlineFileAsync` to throw `InvalidOperationException("No types found in file: ...")`. Should exit 0 with empty array `[]` instead. Hit while reviewing MCP server during EP-006 prep; the rt-first gate then blocks downstream Read because outline never succeeded. Workaround: fall back to `Grep` to read the file. Fix location: `src/RoslynTools/Services/OutlineService.cs:41`.
 
 - **2026-05-04: PHASE 3 COMPLETE (Parameterization for Mixed Variations)** — US-032 Phase 3 Parameterization is complete and production-ready. All 5 parameterization tests pass:

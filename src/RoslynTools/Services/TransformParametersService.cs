@@ -20,15 +20,17 @@ namespace RoslynTools.Services;
 internal class TransformParametersService : IRtService
 {
     private readonly ILogger<TransformParametersService> _logger;
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
 
     public TransformParametersService()
-        : this(new RtConsoleLogger<TransformParametersService>())
+        : this(new RtConsoleLogger<TransformParametersService>(), new SolutionChangeWriter())
     {
     }
 
-    public TransformParametersService(ILogger<TransformParametersService> logger)
+    public TransformParametersService(ILogger<TransformParametersService> logger, ISolutionChangeWriter solutionChangeWriter)
     {
         _logger = logger;
+        _solutionChangeWriter = solutionChangeWriter;
     }
     /// <summary>
     /// Entry point called by <see cref="RoslynTools.Commands.TransformParametersCommand"/>.
@@ -94,7 +96,7 @@ internal class TransformParametersService : IRtService
         (methodSymbol, doc) = await FindMethodAsync(sln, methodSpec);
         sln = await RewriteMethodSignatureAsync(sln, doc, methodSymbol, newTypeName);
 
-        await SolutionWriter.ApplyChangesAsync(originalSln, sln, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(originalSln, sln, dryRun);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -135,7 +137,7 @@ internal class TransformParametersService : IRtService
         (methodSymbol, doc) = await FindMethodAsync(sln, methodSpec);
         sln = await RewriteMethodSignatureAsync(sln, doc, methodSymbol, shortName);
 
-        await SolutionWriter.ApplyChangesAsync(originalSln, sln, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(originalSln, sln, dryRun);
     }
 
     private async Task<INamedTypeSymbol> FindExistingTypeAsync(Solution sln, string fqn)

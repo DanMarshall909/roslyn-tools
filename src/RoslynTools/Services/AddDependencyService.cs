@@ -12,15 +12,17 @@ namespace RoslynTools.Services;
 internal class AddDependencyService : IRtService
 {
     private readonly ILogger<AddDependencyService> _logger;
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
 
     public AddDependencyService()
-        : this(new RtConsoleLogger<AddDependencyService>())
+        : this(new RtConsoleLogger<AddDependencyService>(), new SolutionChangeWriter())
     {
     }
 
-    public AddDependencyService(ILogger<AddDependencyService> logger)
+    public AddDependencyService(ILogger<AddDependencyService> logger, ISolutionChangeWriter solutionChangeWriter)
     {
         _logger = logger;
+        _solutionChangeWriter = solutionChangeWriter;
     }
     private readonly SymbolDisplayFormat TypeDisplayFormat = new(
         globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Omitted,
@@ -46,7 +48,7 @@ internal class AddDependencyService : IRtService
         if (result.Solution == solution)
             return;
 
-        await SolutionWriter.ApplyChangesAsync(originalSolution, result.Solution, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, result.Solution, dryRun);
         _logger.RtInfo("Injected {DepType} into {TargetType}.", depType, result.TargetType ?? typeName);
     }
 

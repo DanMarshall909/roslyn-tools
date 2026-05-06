@@ -11,15 +11,17 @@ namespace RoslynTools.Services;
 internal class ReplaceTypeService : IRtService
 {
     private readonly ILogger<ReplaceTypeService> _logger;
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
 
     public ReplaceTypeService()
-        : this(new RtConsoleLogger<ReplaceTypeService>())
+        : this(new RtConsoleLogger<ReplaceTypeService>(), new SolutionChangeWriter())
     {
     }
 
-    public ReplaceTypeService(ILogger<ReplaceTypeService> logger)
+    public ReplaceTypeService(ILogger<ReplaceTypeService> logger, ISolutionChangeWriter solutionChangeWriter)
     {
         _logger = logger;
+        _solutionChangeWriter = solutionChangeWriter;
     }
     internal async Task RunAsync(Solution solution, bool dryRun)
     {
@@ -64,7 +66,7 @@ internal class ReplaceTypeService : IRtService
             changedFiles,
             classesNeedingInjection.Distinct().Count());
 
-        await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
 
         _logger.RtWarning("\n--- Manual review needed ---");
         _logger.RtWarning("Verify constructor injection was added correctly in each class.");

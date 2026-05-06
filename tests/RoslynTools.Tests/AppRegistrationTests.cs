@@ -87,17 +87,73 @@ public sealed class AppRegistrationTests
     }
 
     [Fact]
+    public void Bootstrap_resolves_every_concrete_service()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        Bootstrap.RegisterServices(services);
+
+        using var provider = services.BuildServiceProvider();
+        var serviceTypes = GetConcreteServiceTypes();
+
+        var unresolved = serviceTypes
+            .Where(type => provider.GetService(type) is null)
+            .Select(type => type.Name)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Empty(unresolved);
+    }
+
+    [Fact]
     public void Every_concrete_service_implements_the_marker_interface()
     {
-        var missing = typeof(MigrateToIOptionsService).Assembly.GetTypes()
-            .Where(type => type is { IsClass: true, IsAbstract: false }
-                           && type.Namespace == "RoslynTools.Services"
-                           && type.Name.EndsWith("Service", StringComparison.Ordinal)
-                           && !typeof(IRtService).IsAssignableFrom(type))
+        var missing = GetConcreteServiceTypes()
+            .Where(type => !typeof(IRtService).IsAssignableFrom(type))
             .Select(type => type.Name)
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
 
         Assert.Empty(missing);
     }
+
+    [Fact]
+    public void Services_write_solution_changes_through_the_injected_writer()
+    {
+        var repoRoot = FindRepoRoot();
+        var serviceFiles = Directory.EnumerateFiles(
+            Path.Combine(repoRoot, "src", "RoslynTools", "Services"),
+            "*.cs",
+            SearchOption.TopDirectoryOnly);
+
+        var directUsages = serviceFiles
+            .Where(path => !Path.GetFileName(path).Equals("SolutionChangeWriter.cs", StringComparison.Ordinal))
+            .Where(path => File.ReadAllText(path).Contains("SolutionWriter.ApplyChangesAsync", StringComparison.Ordinal))
+            .Select(path => Path.GetRelativePath(repoRoot, path))
+            .OrderBy(path => path, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Empty(directUsages);
+    }
+
+    private static string FindRepoRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "RoslynTools.slnx")))
+                return directory.FullName;
+
+            directory = directory.Parent;
+        }
+
+        throw new InvalidOperationException("Could not locate repository root.");
+    }
+
+    private static Type[] GetConcreteServiceTypes() =>
+        typeof(MigrateToIOptionsService).Assembly.GetTypes()
+            .Where(type => type is { IsClass: true, IsAbstract: false }
+                           && type.Namespace == "RoslynTools.Services"
+                           && type.Name.EndsWith("Service", StringComparison.Ordinal))
+            .ToArray();
 }

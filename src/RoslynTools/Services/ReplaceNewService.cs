@@ -11,15 +11,17 @@ namespace RoslynTools.Services;
 internal class ReplaceNewService : IRtService
 {
     private readonly ILogger<ReplaceNewService> _logger;
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
 
     public ReplaceNewService()
-        : this(new RtConsoleLogger<ReplaceNewService>())
+        : this(new RtConsoleLogger<ReplaceNewService>(), new SolutionChangeWriter())
     {
     }
 
-    public ReplaceNewService(ILogger<ReplaceNewService> logger)
+    public ReplaceNewService(ILogger<ReplaceNewService> logger, ISolutionChangeWriter solutionChangeWriter)
     {
         _logger = logger;
+        _solutionChangeWriter = solutionChangeWriter;
     }
     internal async Task RunAsync(Solution solution, string typeName, string with_method, bool dryRun, int? ifArgIndex = null, string? ifArgLiteral = null)
     {
@@ -56,7 +58,7 @@ internal class ReplaceNewService : IRtService
             solution = solution.WithDocumentSyntaxRoot(docId, newRoot);
         }
 
-        await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
     }
 
     private async Task<Dictionary<DocumentId, List<Location>>> FindObjectCreationsAsync(

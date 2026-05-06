@@ -12,15 +12,17 @@ namespace RoslynTools.Services;
 internal class ImplementInterfaceService : IRtService
 {
     private readonly ILogger<ImplementInterfaceService> _logger;
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
 
     public ImplementInterfaceService()
-        : this(new RtConsoleLogger<ImplementInterfaceService>())
+        : this(new RtConsoleLogger<ImplementInterfaceService>(), new SolutionChangeWriter())
     {
     }
 
-    public ImplementInterfaceService(ILogger<ImplementInterfaceService> logger)
+    public ImplementInterfaceService(ILogger<ImplementInterfaceService> logger, ISolutionChangeWriter solutionChangeWriter)
     {
         _logger = logger;
+        _solutionChangeWriter = solutionChangeWriter;
     }
     internal async Task RunAsync(Solution sln, string typeName, string? interfaceName, bool dryRun)
     {
@@ -48,7 +50,7 @@ internal class ImplementInterfaceService : IRtService
 
         sln = await ApplyStubsAsync(sln, typeName, docId, classSymbol, unimplementedMembers);
         _logger.RtInfo("Adding {Count} stub(s) to '{TypeName}'...", unimplementedMembers.Count, typeName);
-        await SolutionWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
     }
 
     private async Task<Solution> ApplyStubsAsync(

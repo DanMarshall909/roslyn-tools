@@ -11,15 +11,17 @@ namespace RoslynTools.Services;
 internal class ConvertToRecordService : IRtService
 {
     private readonly ILogger<ConvertToRecordService> _logger;
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
 
     public ConvertToRecordService()
-        : this(new RtConsoleLogger<ConvertToRecordService>())
+        : this(new RtConsoleLogger<ConvertToRecordService>(), new SolutionChangeWriter())
     {
     }
 
-    public ConvertToRecordService(ILogger<ConvertToRecordService> logger)
+    public ConvertToRecordService(ILogger<ConvertToRecordService> logger, ISolutionChangeWriter solutionChangeWriter)
     {
         _logger = logger;
+        _solutionChangeWriter = solutionChangeWriter;
     }
     internal async Task RunAsync(Solution sln, string typeName, bool dryRun)
     {
@@ -49,7 +51,7 @@ internal class ConvertToRecordService : IRtService
         sln = await ApplyRecordReplacementAsync(sln, docId, syntaxRef, recordDecl);
 
         _logger.RtInfo("Converting '{TypeName}' to a positional record...", typeName);
-        await SolutionWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
     }
 
     private async Task<INamedTypeSymbol> FindClassSymbolAsync(Solution sln, string typeName)

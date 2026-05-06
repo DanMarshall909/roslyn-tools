@@ -41,15 +41,17 @@ internal sealed class MigrateToIOptionsService : IRtService
         "dry-run mode: no files will be written.");
 
     private readonly ILogger<MigrateToIOptionsService> _logger;
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
 
     public MigrateToIOptionsService()
-        : this(new RtConsoleLogger<MigrateToIOptionsService>())
+        : this(new RtConsoleLogger<MigrateToIOptionsService>(), new SolutionChangeWriter())
     {
     }
 
-    public MigrateToIOptionsService(ILogger<MigrateToIOptionsService> logger)
+    public MigrateToIOptionsService(ILogger<MigrateToIOptionsService> logger, ISolutionChangeWriter solutionChangeWriter)
     {
         _logger = logger;
+        _solutionChangeWriter = solutionChangeWriter;
     }
 
     public async Task<int> RunAsync(Solution solution, string section, string name, bool dryRun)
@@ -135,7 +137,7 @@ internal sealed class MigrateToIOptionsService : IRtService
         if (dryRun)
             DryRunMode(_logger, null);
 
-        await SolutionWriter.ApplyChangesAsync(solution, newSolution, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(solution, newSolution, dryRun);
 
         RtConsole.WriteLine(RtOutputContext.Result, "Changed files:");
         foreach (var file in changedFiles)

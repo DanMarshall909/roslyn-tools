@@ -12,15 +12,17 @@ namespace RoslynTools.Services;
 internal class MoveService : IRtService
 {
     private readonly ILogger<MoveService> _logger;
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
 
     public MoveService()
-        : this(new RtConsoleLogger<MoveService>())
+        : this(new RtConsoleLogger<MoveService>(), new SolutionChangeWriter())
     {
     }
 
-    public MoveService(ILogger<MoveService> logger)
+    public MoveService(ILogger<MoveService> logger, ISolutionChangeWriter solutionChangeWriter)
     {
         _logger = logger;
+        _solutionChangeWriter = solutionChangeWriter;
     }
     // ──────────────────────────────────────────────────────────────
     //  Entry points
@@ -52,7 +54,7 @@ internal class MoveService : IRtService
             declarationFiles.Count,
             changedFiles);
 
-        await SolutionWriter.ApplyChangesAsync(originalSolution, updated, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, updated, dryRun);
 
         ApplyFileMoveOrNote(declarationFiles, projectDir, rootNamespace, sourceNamespace, targetNamespace, moveFile, dryRun);
     }
@@ -86,7 +88,7 @@ internal class MoveService : IRtService
 
         sln = await ApplyReferenceUsingsAsync(sln, references, oldNamespace, targetNamespace);
 
-        await SolutionWriter.ApplyChangesAsync(workspace.CurrentSolution, sln, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(workspace.CurrentSolution, sln, dryRun);
 
         if (moveFile && projectDir != null && rootNamespace != null)
             MoveSourceFiles(declarationFiles, projectDir, rootNamespace, oldNamespace, targetNamespace, dryRun);

@@ -12,15 +12,17 @@ namespace RoslynTools.Services;
 internal class MakeStaticService : IRtService
 {
     private readonly ILogger<MakeStaticService> _logger;
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
 
     public MakeStaticService()
-        : this(new RtConsoleLogger<MakeStaticService>())
+        : this(new RtConsoleLogger<MakeStaticService>(), new SolutionChangeWriter())
     {
     }
 
-    public MakeStaticService(ILogger<MakeStaticService> logger)
+    public MakeStaticService(ILogger<MakeStaticService> logger, ISolutionChangeWriter solutionChangeWriter)
     {
         _logger = logger;
+        _solutionChangeWriter = solutionChangeWriter;
     }
     internal async Task<int> RunAsync(Solution sln, string methodSpec, bool dryRun)
     {
@@ -39,7 +41,7 @@ internal class MakeStaticService : IRtService
         sln = await AddStaticModifierAsync(sln, methodSymbol, docId);
         sln = await RewriteCallSitesAsync(sln, methodSymbol, typeName, originalSolution);
 
-        await SolutionWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
         return 0;
     }
 

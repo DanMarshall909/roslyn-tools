@@ -12,15 +12,17 @@ namespace RoslynTools.Services;
 internal class MakeSealedService : IRtService
 {
     private readonly ILogger<MakeSealedService> _logger;
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
 
     public MakeSealedService()
-        : this(new RtConsoleLogger<MakeSealedService>())
+        : this(new RtConsoleLogger<MakeSealedService>(), new SolutionChangeWriter())
     {
     }
 
-    public MakeSealedService(ILogger<MakeSealedService> logger)
+    public MakeSealedService(ILogger<MakeSealedService> logger, ISolutionChangeWriter solutionChangeWriter)
     {
         _logger = logger;
+        _solutionChangeWriter = solutionChangeWriter;
     }
     internal async Task RunAsync(Solution sln, string typeName, bool dryRun)
     {
@@ -33,7 +35,7 @@ internal class MakeSealedService : IRtService
 
         sln = await AddSealedModifierAsync(sln, syntaxRef, docId);
 
-        await SolutionWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
     }
 
     private async Task<(INamedTypeSymbol classSymbol, SyntaxReference syntaxRef, DocumentId docId)>

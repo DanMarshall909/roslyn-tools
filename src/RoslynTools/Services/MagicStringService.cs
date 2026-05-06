@@ -20,6 +20,17 @@ internal sealed record MagicStringGroup(
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
 internal class MagicStringService : IRtService
 {
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
+
+    public MagicStringService()
+        : this(new SolutionChangeWriter())
+    {
+    }
+
+    public MagicStringService(ISolutionChangeWriter solutionChangeWriter)
+    {
+        _solutionChangeWriter = solutionChangeWriter;
+    }
     internal async Task<IReadOnlyList<MagicStringGroup>> AnalyzeAsync(
         Solution solution,
         int minLength,
@@ -104,7 +115,7 @@ internal class MagicStringService : IRtService
 
         var newRoot = root.ReplaceNode(containingType, rewrittenType);
         solution = solution.WithDocumentSyntaxRoot(document.Id, newRoot);
-        await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
     }
 
     private TypeDeclarationSyntax ReplaceMatchingLiterals(

@@ -11,15 +11,17 @@ namespace RoslynTools.Services;
 internal class AddTestService : IRtService
 {
     private readonly ILogger<AddTestService> _logger;
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
 
     public AddTestService()
-        : this(new RtConsoleLogger<AddTestService>())
+        : this(new RtConsoleLogger<AddTestService>(), new SolutionChangeWriter())
     {
     }
 
-    public AddTestService(ILogger<AddTestService> logger)
+    public AddTestService(ILogger<AddTestService> logger, ISolutionChangeWriter solutionChangeWriter)
     {
         _logger = logger;
+        _solutionChangeWriter = solutionChangeWriter;
     }
     internal async Task RunAsync(
         Solution sln,
@@ -40,7 +42,7 @@ internal class AddTestService : IRtService
             return;
         }
 
-        await SolutionWriter.ApplyChangesAsync(originalSolution, updatedSln, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, updatedSln, dryRun);
     }
 
     private async Task<(bool Found, Solution UpdatedSolution)> FindClassAndApplyChanges(
@@ -200,7 +202,7 @@ internal class AddTestService : IRtService
             return;
         }
 
-        await SolutionWriter.ApplyChangesAsync(originalSolution, updatedSln, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, updatedSln, dryRun);
     }
 
     internal string ScenarioOutcomeToMethodName(string scenario, string outcome)
