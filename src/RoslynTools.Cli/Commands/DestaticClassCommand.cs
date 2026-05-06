@@ -1,5 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Core;
+using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
@@ -42,12 +43,25 @@ internal sealed class DestaticClassCommand : IRtCommand
         cmd.AddOption(solutionOpt);
         cmd.AddOption(dryRunOpt);
 
-        cmd.SetHandler(_ =>
+        cmd.SetHandler(async (type, interfaceName, noInterface, noDiRegistration, lifetime, solution, dryRun) =>
         {
-            RtConsole.WriteLine(RtOutputContext.Diagnostic, "destatic-class is not yet implemented (US-023 in progress).");
-            Environment.ExitCode = 1;
-            return Task.CompletedTask;
-        });
+            if (!noInterface)
+                throw new InvalidOperationException("destatic-class interface generation is not implemented yet. Re-run with --no-interface.");
+
+            if (!noDiRegistration)
+                throw new InvalidOperationException("destatic-class DI registration is not implemented yet. Re-run with --no-di-registration.");
+
+            if (!string.Equals(lifetime, "singleton", StringComparison.Ordinal)
+                && !string.Equals(lifetime, "scoped", StringComparison.Ordinal)
+                && !string.Equals(lifetime, "transient", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("--lifetime must be singleton, scoped, or transient.");
+            }
+
+            var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
+            using (workspace)
+                await new DestaticClassService().RunAsync(sln, type, dryRun);
+        }, typeArg, interfaceNameOpt, noInterfaceOpt, noDiOpt, lifetimeOpt, solutionOpt, dryRunOpt);
 
         return cmd;
     }
