@@ -3,7 +3,6 @@ using System.CommandLine.Builder;
 using System.CommandLine.Invocation;
 using System.CommandLine.Parsing;
 using System.Reflection;
-using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Core.Decisions;

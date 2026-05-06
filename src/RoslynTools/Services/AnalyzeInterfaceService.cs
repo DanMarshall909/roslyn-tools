@@ -1,7 +1,6 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using RoslynTools.Models;
-using RoslynTools.Services;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;

@@ -2,9 +2,7 @@ using System.Diagnostics;
 using System.IO.Pipes;
 using System.Text;
 using System.Text.Json;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using RoslynTools;
 using RoslynTools.Core;
 
 namespace RoslynTools.Daemon;

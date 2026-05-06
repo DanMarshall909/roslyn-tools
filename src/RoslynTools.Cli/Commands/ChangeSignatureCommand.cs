@@ -1,7 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Commands.CommandHandlers;
 using RoslynTools.Core;
-using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
