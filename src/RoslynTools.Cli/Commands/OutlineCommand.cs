@@ -21,35 +21,53 @@ internal sealed class OutlineCommand : IRtCommand
             "rt inspect outline src/backend/TourStore.Api/Controllers/Admin/AdminController.cs --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt inspect outline ProjectX.Core.Services --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt inspect outline RoslynTools.Commands --solution RoslynTools.slnx",
+            "rt inspect outline \"src/**/*.cs\" --solution RoslynTools.slnx",
+            "rt inspect outline \"RoslynTools.*\" --solution RoslynTools.slnx",
+            "rt inspect outline --regex \"Service\\.cs$\" --solution RoslynTools.slnx",
         ]
     );
 
     public static Command Build()
     {
-        var targetArg = new Argument<string>("target", "File path or namespace to outline");
+        var targetArg = new Argument<string?>("target", () => null, "File path, glob pattern, or namespace to outline");
         var solutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file");
+        var regexOpt = new Option<string?>("--regex", "Regex pattern matched against solution file paths");
 
-        var cmd = new Command("outline", "List all types and member signatures in a file or namespace (JSON)")
+        var cmd = new Command("outline", "List all types and member signatures in a file, glob, namespace, or regex (JSON)")
         {
-            targetArg, solutionOpt
+            targetArg, solutionOpt, regexOpt
         };
 
-        cmd.SetHandler(async (target, solution) =>
+        cmd.SetHandler(async (target, solution, regex) =>
         {
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
             using (workspace)
             {
                 List<Dictionary<string, object?>> result;
+                var svc = RtServiceProvider.Get<OutlineService>();
 
-                if (target.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) || Path.Exists(target))
-                    result = await RtServiceProvider.Get<OutlineService>().OutlineFileAsync(sln, target);
+                if (regex is not null)
+                    result = await svc.OutlineRegexAsync(sln, regex);
+                else if (target is not null && target.EndsWith(".*", StringComparison.Ordinal)
+                    && !target.Contains('/') && !target.Contains('\\'))
+                    result = await svc.OutlineNamespaceAsync(sln, target);
+                else if (target is not null && (target.Contains('*') || target.Contains('?')))
+                    result = await svc.OutlineGlobAsync(sln, target);
+                else if (target is not null && (target.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) || Path.Exists(target)))
+                    result = await svc.OutlineFileAsync(sln, target);
+                else if (target is not null)
+                    result = await svc.OutlineNamespaceAsync(sln, target);
                 else
-                    result = await RtServiceProvider.Get<OutlineService>().OutlineNamespaceAsync(sln, target);
+                {
+                    RtLog.Error("specify a target (file, glob, or namespace) or --regex <pattern>");
+                    Environment.Exit(1);
+                    return;
+                }
 
                 StructuredOutput.Write(result, SymbolFormatter.DefaultJsonOptions);
             }
         },
-        targetArg, solutionOpt);
+        targetArg, solutionOpt, regexOpt);
 
         return cmd;
     }
