@@ -44,7 +44,7 @@ internal static class DaemonServer
 
         using var cts = new CancellationTokenSource();
         AppDomain.CurrentDomain.ProcessExit += (_, _) => { try { cts.Cancel(); } catch { } };
-        Console.CancelKeyPress += (_, e) => { e.Cancel = true; try { cts.Cancel(); } catch { } };
+        RtConsole.AddCancelKeyPressHandler((_, e) => { e.Cancel = true; try { cts.Cancel(); } catch { } });
 
         // Initialize MSBuild and DI BEFORE writing the state file. `rt daemon start` polls
         // the state file as the readiness signal — writing it earlier would make it report

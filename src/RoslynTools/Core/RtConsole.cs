@@ -16,7 +16,12 @@ internal static class RtConsole
 
     private static IRtConsole Current => Override.Value ?? DefaultConsole;
 
+    internal static TextReader In => Console.In;
+
     internal static TextWriter Out => Console.Out;
+
+    internal static void AddCancelKeyPressHandler(ConsoleCancelEventHandler handler) =>
+        Console.CancelKeyPress += handler;
 
     internal static void SetOutputEncoding(Encoding encoding) =>
         Console.OutputEncoding = encoding;
