@@ -43,7 +43,7 @@ public class FindDuplicatesMigrationTests : IDisposable
             """);
 
         var (workspace, sln) = project.Build();
-        var groups = FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions()).GetAwaiter().GetResult();
+        var groups = new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions()).GetAwaiter().GetResult();
         workspace.Dispose();
         return (project, groups, null);
     }
@@ -78,7 +78,7 @@ public class FindDuplicatesMigrationTests : IDisposable
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
             Assert.NotEmpty(groups);
 
             var result = FindDuplicatesResult.FromGroups(groups, solutionDir: null);
@@ -107,7 +107,7 @@ public class FindDuplicatesMigrationTests : IDisposable
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
             var result = FindDuplicatesResult.FromGroups(groups, solutionDir: null);
             var sw = new StringWriter();
             result.RenderText(sw);
@@ -145,7 +145,7 @@ public class FindDuplicatesMigrationTests : IDisposable
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
             Assert.NotEmpty(groups);
 
             var result = FindDuplicatesResult.FromGroups(groups, solutionDir: null);
@@ -203,7 +203,7 @@ public class FindDuplicatesMigrationTests : IDisposable
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
             Assert.NotEmpty(groups);
 
             var result = FindDuplicatesResult.FromGroups(groups, solutionDir: null);
@@ -248,7 +248,7 @@ public class FindDuplicatesMigrationTests : IDisposable
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
             Assert.NotEmpty(groups);
 
             var result = FindDuplicatesResult.FromGroups(groups, solutionDir: null);
@@ -299,7 +299,7 @@ public class FindDuplicatesMigrationTests : IDisposable
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
             Assert.NotEmpty(groups);
 
             var result = FindDuplicatesResult.FromGroups(groups, solutionDir: null);

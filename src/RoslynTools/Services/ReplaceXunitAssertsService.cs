@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -5,9 +6,10 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class ReplaceXunitAssertsService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class ReplaceXunitAssertsService
 {
-    internal static async Task<ReplaceXunitAssertsReview> AnalyzeAsync(Solution solution)
+    internal async Task<ReplaceXunitAssertsReview> AnalyzeAsync(Solution solution)
     {
         var review = new ReplaceXunitAssertsReview();
 
@@ -19,7 +21,7 @@ internal static class ReplaceXunitAssertsService
                 if (root is null)
                     continue;
 
-                var analyzer = new ReplaceXunitAssertsAnalyzer(document.FilePath ?? document.Name);
+                var analyzer = new ReplaceXunitAssertsAnalyzer(document.FilePath ?? document.Name, this);
                 analyzer.Visit(root);
                 review.AddRange(analyzer.Entries);
             }
@@ -28,14 +30,14 @@ internal static class ReplaceXunitAssertsService
         return review;
     }
 
-    internal static async Task RunAsync(Solution solution, bool dryRun)
+    internal async Task RunAsync(Solution solution, bool dryRun)
     {
         var originalSolution = solution;
         var newSolution = await ApplyAsync(solution);
         await SolutionWriter.ApplyChangesAsync(originalSolution, newSolution, dryRun);
     }
 
-    internal static async Task<Solution> ApplyAsync(Solution solution)
+    internal async Task<Solution> ApplyAsync(Solution solution)
     {
         foreach (var project in solution.Projects)
         {
@@ -45,7 +47,7 @@ internal static class ReplaceXunitAssertsService
                 if (root is null)
                     continue;
 
-                var rewriter = new ReplaceXunitAssertsRewriter();
+                var rewriter = new ReplaceXunitAssertsRewriter(this);
                 var rewritten = rewriter.Visit(root);
                 if (rewritten is null || rewriter.ReplacementCount == 0)
                     continue;
@@ -60,7 +62,7 @@ internal static class ReplaceXunitAssertsService
         return solution;
     }
 
-    private static CompilationUnitSyntax AddShouldlyUsing(CompilationUnitSyntax root)
+    private CompilationUnitSyntax AddShouldlyUsing(CompilationUnitSyntax root)
     {
         if (root.Usings.Any(u => !u.StaticKeyword.IsKind(SyntaxKind.StaticKeyword)
                 && u.Name?.ToString() == "Shouldly"))
@@ -75,14 +77,14 @@ internal static class ReplaceXunitAssertsService
         return root.AddUsings(usingDirective);
     }
 
-    private sealed class ReplaceXunitAssertsRewriter : CSharpSyntaxRewriter
+    private sealed class ReplaceXunitAssertsRewriter(ReplaceXunitAssertsService service) : CSharpSyntaxRewriter
     {
         public int ReplacementCount { get; private set; }
 
         public override SyntaxNode? VisitInvocationExpression(InvocationExpressionSyntax node)
         {
             var visited = (InvocationExpressionSyntax)base.VisitInvocationExpression(node)!;
-            if (!TryRewrite(visited, out var replacement))
+            if (!service.TryRewrite(visited, out var replacement))
                 return visited;
 
             ReplacementCount++;
@@ -90,13 +92,13 @@ internal static class ReplaceXunitAssertsService
         }
     }
 
-    private sealed class ReplaceXunitAssertsAnalyzer(string filePath) : CSharpSyntaxWalker
+    private sealed class ReplaceXunitAssertsAnalyzer(string filePath, ReplaceXunitAssertsService service) : CSharpSyntaxWalker
     {
         public List<ReplaceXunitAssertsEntry> Entries { get; } = [];
 
         public override void VisitInvocationExpression(InvocationExpressionSyntax node)
         {
-            if (TryRewrite(node, out var replacement))
+            if (service.TryRewrite(node, out var replacement))
             {
                 var line = node.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
                 Entries.Add(new ReplaceXunitAssertsEntry(
@@ -110,7 +112,7 @@ internal static class ReplaceXunitAssertsService
         }
     }
 
-    private static bool TryRewrite(
+    private bool TryRewrite(
         InvocationExpressionSyntax invocation,
         out InvocationExpressionSyntax replacement)
     {
@@ -165,7 +167,7 @@ internal static class ReplaceXunitAssertsService
         };
     }
 
-    private static bool IsAssertTarget(ExpressionSyntax expression)
+    private bool IsAssertTarget(ExpressionSyntax expression)
     {
         if (expression is IdentifierNameSyntax identifier)
             return identifier.Identifier.ValueText == "Assert";
@@ -176,7 +178,7 @@ internal static class ReplaceXunitAssertsService
             && target.Identifier.ValueText == "Xunit";
     }
 
-    private static bool RewriteActualExpected(
+    private bool RewriteActualExpected(
         ExpressionSyntax actual,
         string shouldlyMethod,
         ExpressionSyntax expected,
@@ -189,7 +191,7 @@ internal static class ReplaceXunitAssertsService
         return true;
     }
 
-    private static bool RewriteActualOnly(
+    private bool RewriteActualOnly(
         ExpressionSyntax actual,
         string shouldlyMethod,
         out InvocationExpressionSyntax replacement)
@@ -199,7 +201,7 @@ internal static class ReplaceXunitAssertsService
         return true;
     }
 
-    private static bool RewriteGenericActualOnly(
+    private bool RewriteGenericActualOnly(
         ExpressionSyntax actual,
         string shouldlyMethod,
         TypeArgumentListSyntax typeArguments,
@@ -210,7 +212,7 @@ internal static class ReplaceXunitAssertsService
         return true;
     }
 
-    private static bool RewriteStaticGeneric(
+    private bool RewriteStaticGeneric(
         string typeName,
         string methodName,
         TypeArgumentListSyntax typeArguments,
@@ -227,7 +229,7 @@ internal static class ReplaceXunitAssertsService
         return true;
     }
 
-    private static MemberAccessExpressionSyntax ShouldlyMemberAccess(
+    private MemberAccessExpressionSyntax ShouldlyMemberAccess(
         ExpressionSyntax actual,
         SimpleNameSyntax shouldlyMethod) =>
             SyntaxFactory.MemberAccessExpression(
@@ -235,7 +237,7 @@ internal static class ReplaceXunitAssertsService
             NormalizeReceiver(actual),
             shouldlyMethod);
 
-    private static ExpressionSyntax NormalizeReceiver(ExpressionSyntax actual)
+    private ExpressionSyntax NormalizeReceiver(ExpressionSyntax actual)
     {
         var receiver = actual.WithoutTrivia();
         return receiver switch

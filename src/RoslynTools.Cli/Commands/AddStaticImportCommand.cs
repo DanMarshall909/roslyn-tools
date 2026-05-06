@@ -39,7 +39,7 @@ internal sealed class AddStaticImportCommand : IRtCommand
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
             using (workspace)
             {
-                await ImportDirectiveService.AddStaticUsingAsync(sln, file, type, dryRun);
+                await new ImportDirectiveService().AddStaticUsingAsync(sln, file, type, dryRun);
             }
         }, fileOpt, typeOpt, solutionOpt, dryRunOpt);
 

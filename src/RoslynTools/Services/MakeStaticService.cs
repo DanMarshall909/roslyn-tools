@@ -2,13 +2,15 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class MakeStaticService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class MakeStaticService
 {
-    internal static async Task<int> RunAsync(Solution sln, string methodSpec, bool dryRun)
+    internal async Task<int> RunAsync(Solution sln, string methodSpec, bool dryRun)
     {
         var (typeName, methodName) = ParseMethodSpec(methodSpec);
 
@@ -31,7 +33,7 @@ internal static class MakeStaticService
 
     // ── Parsing ──────────────────────────────────────────────────────────────
 
-    private static (string typeName, string methodName) ParseMethodSpec(string spec)
+    private (string typeName, string methodName) ParseMethodSpec(string spec)
     {
         var dot = spec.LastIndexOf('.');
         if (dot <= 0 || dot >= spec.Length - 1)
@@ -43,7 +45,7 @@ internal static class MakeStaticService
 
     // ── Symbol resolution ─────────────────────────────────────────────────────
 
-    private static async Task<(IMethodSymbol methodSymbol, DocumentId docId)>
+    private async Task<(IMethodSymbol methodSymbol, DocumentId docId)>
         FindMethodAndDocumentAsync(Solution sln, string typeName, string methodName)
     {
         foreach (var project in sln.Projects)
@@ -74,7 +76,7 @@ internal static class MakeStaticService
 
     // ── Safety check ──────────────────────────────────────────────────────────
 
-    private static async Task<string?> CheckSafetyAsync(IMethodSymbol methodSymbol)
+    private async Task<string?> CheckSafetyAsync(IMethodSymbol methodSymbol)
     {
         if (methodSymbol.IsStatic)
             return "method is already static.";
@@ -100,7 +102,7 @@ internal static class MakeStaticService
         return DetectInstanceUsage(body, methodSymbol.ContainingType);
     }
 
-    private static string? DetectInstanceUsage(SyntaxNode body, INamedTypeSymbol containingType)
+    private string? DetectInstanceUsage(SyntaxNode body, INamedTypeSymbol containingType)
     {
         // Explicit `this` keyword
         var thisExpr = body.DescendantNodes()
@@ -154,7 +156,7 @@ internal static class MakeStaticService
 
     // ── Add static modifier ───────────────────────────────────────────────────
 
-    private static async Task<Solution> AddStaticModifierAsync(
+    private async Task<Solution> AddStaticModifierAsync(
         Solution sln, IMethodSymbol methodSymbol, DocumentId docId)
     {
         var syntaxRef = methodSymbol.DeclaringSyntaxReferences.First();
@@ -191,7 +193,7 @@ internal static class MakeStaticService
 
     // ── Call-site rewriting ───────────────────────────────────────────────────
 
-    private static async Task<Solution> RewriteCallSitesAsync(
+    private async Task<Solution> RewriteCallSitesAsync(
         Solution sln, IMethodSymbol methodSymbol, string typeName, Solution symbolSolution)
     {
         // Find references using the original (pre-modification) solution's symbol

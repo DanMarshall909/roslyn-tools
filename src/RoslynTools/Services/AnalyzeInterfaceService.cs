@@ -1,13 +1,15 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Models;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class AnalyzeInterfaceService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class AnalyzeInterfaceService
 {
-    internal static async Task<AnalyzeInterfaceReport> AnalyzeAsync(
+    internal async Task<AnalyzeInterfaceReport> AnalyzeAsync(
         Solution solution,
         string interfaceSymbolSpec,
         AnalyzeInterfaceOptions options)
@@ -75,7 +77,7 @@ internal static class AnalyzeInterfaceService
             Consumers: consumerReports);
     }
 
-    private static void AnalyzeDeclaredInterfaceCarriers(
+    private void AnalyzeDeclaredInterfaceCarriers(
         SyntaxNode root,
         SemanticModel semanticModel,
         INamedTypeSymbol interfaceSymbol,
@@ -139,7 +141,7 @@ internal static class AnalyzeInterfaceService
         }
     }
 
-    private static void AnalyzeMemberReferences(
+    private void AnalyzeMemberReferences(
         SyntaxNode root,
         SemanticModel semanticModel,
         HashSet<ISymbol> trackedMembers,
@@ -166,7 +168,7 @@ internal static class AnalyzeInterfaceService
         }
     }
 
-    private static async Task<INamedTypeSymbol> ResolveInterfaceAsync(Solution solution, string interfaceSymbolSpec)
+    private async Task<INamedTypeSymbol> ResolveInterfaceAsync(Solution solution, string interfaceSymbolSpec)
     {
         var symbol = LooksFullyQualified(interfaceSymbolSpec)
             ? await SymbolLocator.FindSymbolByFqnAsync(solution, interfaceSymbolSpec, "type")
@@ -184,7 +186,7 @@ internal static class AnalyzeInterfaceService
         return namedType;
     }
 
-    private static List<ISymbol> GetTrackedMembers(INamedTypeSymbol interfaceSymbol)
+    private List<ISymbol> GetTrackedMembers(INamedTypeSymbol interfaceSymbol)
     {
         return interfaceSymbol.GetMembers()
             .Where(member => !member.IsImplicitlyDeclared)
@@ -196,7 +198,7 @@ internal static class AnalyzeInterfaceService
             .ToList();
     }
 
-    private static ISymbol? NormalizeTrackedMember(ISymbol? symbol)
+    private ISymbol? NormalizeTrackedMember(ISymbol? symbol)
     {
         return symbol switch
         {
@@ -212,7 +214,7 @@ internal static class AnalyzeInterfaceService
         };
     }
 
-    private static ISymbol? GetBestSymbol(SymbolInfo symbolInfo)
+    private ISymbol? GetBestSymbol(SymbolInfo symbolInfo)
     {
         if (symbolInfo.Symbol is not null)
             return symbolInfo.Symbol;
@@ -222,7 +224,7 @@ internal static class AnalyzeInterfaceService
             : null;
     }
 
-    private static INamedTypeSymbol? GetContainingConsumerType(SemanticModel semanticModel, int position)
+    private INamedTypeSymbol? GetContainingConsumerType(SemanticModel semanticModel, int position)
     {
         for (var current = semanticModel.GetEnclosingSymbol(position); current is not null; current = current.ContainingSymbol)
         {
@@ -236,7 +238,7 @@ internal static class AnalyzeInterfaceService
         return null;
     }
 
-    private static bool MatchesScope(
+    private bool MatchesScope(
         INamedTypeSymbol consumer,
         string projectName,
         string? scope,
@@ -255,14 +257,14 @@ internal static class AnalyzeInterfaceService
         return namespaceName.StartsWith(scope, StringComparison.Ordinal);
     }
 
-    private static bool IsWithinNameof(SyntaxNode node)
+    private bool IsWithinNameof(SyntaxNode node)
     {
         return node.AncestorsAndSelf()
             .OfType<InvocationExpressionSyntax>()
-            .Any(FindCallersService.IsNameofExpression);
+            .Any(new FindCallersService().IsNameofExpression);
     }
 
-    private static ConsumerAccumulator GetOrAddConsumer(
+    private ConsumerAccumulator GetOrAddConsumer(
         Dictionary<string, ConsumerAccumulator> consumers,
         INamedTypeSymbol consumer,
         string projectName,
@@ -284,14 +286,14 @@ internal static class AnalyzeInterfaceService
         return accumulator;
     }
 
-    private static bool IsTestProject(string projectName)
+    private bool IsTestProject(string projectName)
     {
         return projectName.EndsWith(".Tests", StringComparison.OrdinalIgnoreCase)
                || projectName.EndsWith("Test", StringComparison.OrdinalIgnoreCase)
                || projectName.Contains("Tests", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool LooksFullyQualified(string symbolSpec)
+    private bool LooksFullyQualified(string symbolSpec)
     {
         return symbolSpec.StartsWith("global::", StringComparison.Ordinal)
                || symbolSpec.Contains('.', StringComparison.Ordinal);
@@ -301,7 +303,7 @@ internal static class AnalyzeInterfaceService
     /// Derives advisory minimal-interface suggestions for each consumer from its used-member set.
     /// The suggestion is purely advisory and does not imply a named type already exists.
     /// </summary>
-    private static List<AnalyzeInterfaceConsumerReport> AttachSuggestions(
+    private List<AnalyzeInterfaceConsumerReport> AttachSuggestions(
         List<AnalyzeInterfaceConsumerReport> reports,
         int totalInterfaceMemberCount)
     {
@@ -333,7 +335,7 @@ internal static class AnalyzeInterfaceService
         }).ToList();
     }
 
-    private static string ComputeGroupId(string key)
+    private string ComputeGroupId(string key)
     {
         // Stable 8-char hex group identifier derived from the member-set key.
         var bytes = System.Text.Encoding.UTF8.GetBytes(key);

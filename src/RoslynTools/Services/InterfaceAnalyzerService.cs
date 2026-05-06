@@ -2,21 +2,23 @@ using System.Text;
 using RoslynTools.Core;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System.Diagnostics.CodeAnalysis;
 
 namespace RoslynTools.Services;
 
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
 /// <summary>
 /// Pure analysis functions for interface members: determines which members of an
 /// interface a given consumer type actually uses, and generates new interface text
 /// from a selected member subset.
 /// </summary>
-internal static class InterfaceAnalyzerService
+internal class InterfaceAnalyzerService
 {
     /// <summary>
     /// Returns the set of member names from <paramref name="interfaceSymbol"/> that are
     /// actually referenced within the body of <paramref name="consumerSymbol"/>.
     /// </summary>
-    internal static async Task<HashSet<string>> GetUsedMembersAsync(
+    internal async Task<HashSet<string>> GetUsedMembersAsync(
         Solution solution,
         INamedTypeSymbol consumerSymbol,
         INamedTypeSymbol interfaceSymbol)
@@ -100,7 +102,7 @@ internal static class InterfaceAnalyzerService
     /// Generates C# source text for a new interface named <paramref name="interfaceName"/>
     /// in <paramref name="namespaceName"/> containing exactly the given <paramref name="members"/>.
     /// </summary>
-    internal static string BuildInterfaceText(
+    internal string BuildInterfaceText(
         string namespaceName,
         string interfaceName,
         List<ISymbol> members)
@@ -147,7 +149,7 @@ internal static class InterfaceAnalyzerService
     // Private helpers
     // -------------------------------------------------------------------------
 
-    private static string BuildParamList(IMethodSymbol method)
+    private string BuildParamList(IMethodSymbol method)
     {
         return string.Join(", ", method.Parameters.Select(p =>
         {
@@ -156,7 +158,7 @@ internal static class InterfaceAnalyzerService
         }));
     }
 
-    private static string BuildAccessors(IPropertySymbol property)
+    private string BuildAccessors(IPropertySymbol property)
     {
         var parts = new List<string>();
         if (property.GetMethod is { DeclaredAccessibility: Accessibility.Public })

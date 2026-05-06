@@ -1,11 +1,13 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System.Diagnostics.CodeAnalysis;
 
 namespace RoslynTools.Services;
 
-internal static class CircularDepsService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class CircularDepsService
 {
-    internal static async Task<IReadOnlyList<IReadOnlyList<string>>> AnalyzeCyclesAsync(Solution sln, string? scope)
+    internal async Task<IReadOnlyList<IReadOnlyList<string>>> AnalyzeCyclesAsync(Solution sln, string? scope)
     {
         var graph = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
 
@@ -103,7 +105,7 @@ internal static class CircularDepsService
         return cycleStrings.Select(s => (IReadOnlyList<string>)s.Split(" -> ")).ToList();
     }
 
-    internal static async Task<string> AnalyzeAsync(Solution sln, string? scope)
+    internal async Task<string> AnalyzeAsync(Solution sln, string? scope)
     {
         var cycles = await AnalyzeCyclesAsync(sln, scope);
 
@@ -113,7 +115,7 @@ internal static class CircularDepsService
         return string.Join(Environment.NewLine, cycles.Select(nodes => string.Join(" -> ", nodes)));
     }
 
-    private static void DfsCollectStrings(
+    private void DfsCollectStrings(
         string node,
         Dictionary<string, HashSet<string>> graph,
         HashSet<string> white,
@@ -151,7 +153,7 @@ internal static class CircularDepsService
         black.Add(node);
     }
 
-    private static void AddEdge(Dictionary<string, HashSet<string>> graph, string from, string to)
+    private void AddEdge(Dictionary<string, HashSet<string>> graph, string from, string to)
     {
         if (from == to)
             return;

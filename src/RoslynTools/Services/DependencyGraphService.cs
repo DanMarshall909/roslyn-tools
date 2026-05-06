@@ -2,16 +2,18 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class DependencyGraphService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class DependencyGraphService
 {
     /// <summary>
     /// Builds a type-level dependency graph and returns it in the requested format.
     /// </summary>
-    internal static async Task<string> BuildGraphAsync(
+    internal async Task<string> BuildGraphAsync(
         Solution sln,
         string? typeName,
         int? depth,
@@ -48,7 +50,7 @@ internal static class DependencyGraphService
         }
     }
 
-    private static Dictionary<string, INamedTypeSymbol> BuildSourceTypeIndex(List<INamedTypeSymbol> allTypes)
+    private Dictionary<string, INamedTypeSymbol> BuildSourceTypeIndex(List<INamedTypeSymbol> allTypes)
     {
         var index = new Dictionary<string, INamedTypeSymbol>(StringComparer.Ordinal);
         foreach (var t in allTypes)
@@ -56,7 +58,7 @@ internal static class DependencyGraphService
         return index;
     }
 
-    private static async Task<List<INamedTypeSymbol>> CollectSourceTypesAsync(Solution sln)
+    private async Task<List<INamedTypeSymbol>> CollectSourceTypesAsync(Solution sln)
     {
         var result = new List<INamedTypeSymbol>();
         var rtIgnore = RtIgnore.ForSolution(sln);
@@ -92,7 +94,7 @@ internal static class DependencyGraphService
         return result;
     }
 
-    private static (HashSet<string> Nodes, List<(string From, string To)> Edges) BuildFullGraph(
+    private (HashSet<string> Nodes, List<(string From, string To)> Edges) BuildFullGraph(
         IEnumerable<INamedTypeSymbol> typesToGraph,
         List<INamedTypeSymbol> allTypes,
         Dictionary<string, INamedTypeSymbol> sourceTypeByName,
@@ -122,7 +124,7 @@ internal static class DependencyGraphService
         return (nodes, edges);
     }
 
-    private static (HashSet<string> nodes, HashSet<(string, string)> edgeSet, List<(string From, string To)> edges) CreateStringHashSet()
+    private (HashSet<string> nodes, HashSet<(string, string)> edgeSet, List<(string From, string To)> edges) CreateStringHashSet()
     {
         var nodes = new HashSet<string>(StringComparer.Ordinal);
         var edgeSet = new HashSet<(string, string)>();
@@ -130,7 +132,7 @@ internal static class DependencyGraphService
 
         return (nodes, edgeSet, edges);
     }
-    private static (HashSet<string> Nodes, List<(string From, string To)> Edges) BuildBfsGraph(
+    private (HashSet<string> Nodes, List<(string From, string To)> Edges) BuildBfsGraph(
         INamedTypeSymbol rootType,
         int? maxDepth,
         List<INamedTypeSymbol> allTypes,
@@ -158,7 +160,7 @@ internal static class DependencyGraphService
         return (nodes, edges);
     }
 
-    private static void ExpandBfsNode(
+    private void ExpandBfsNode(
         INamedTypeSymbol current,
         int currentDepth,
         Dictionary<string, INamedTypeSymbol> sourceTypeByName,
@@ -187,7 +189,7 @@ internal static class DependencyGraphService
         }
     }
 
-    private static IEnumerable<INamedTypeSymbol> GetDependencies(
+    private IEnumerable<INamedTypeSymbol> GetDependencies(
         INamedTypeSymbol type,
         Dictionary<INamedTypeSymbol, List<INamedTypeSymbol>> bodyDeps)
     {
@@ -213,7 +215,7 @@ internal static class DependencyGraphService
         }
     }
 
-    private static async Task<Dictionary<INamedTypeSymbol, List<INamedTypeSymbol>>> CollectBodyDependenciesAsync(
+    private async Task<Dictionary<INamedTypeSymbol, List<INamedTypeSymbol>>> CollectBodyDependenciesAsync(
         Solution sln,
         List<INamedTypeSymbol> sourceTypes)
     {
@@ -271,7 +273,7 @@ internal static class DependencyGraphService
         return result;
     }
 
-    private static IEnumerable<INamedTypeSymbol> GetInheritanceDependencies(INamedTypeSymbol type)
+    private IEnumerable<INamedTypeSymbol> GetInheritanceDependencies(INamedTypeSymbol type)
     {
         if (type.BaseType != null && type.BaseType.SpecialType == SpecialType.None)
         {
@@ -288,7 +290,7 @@ internal static class DependencyGraphService
         }
     }
 
-    private static IEnumerable<INamedTypeSymbol> GetFieldDependencies(INamedTypeSymbol type)
+    private IEnumerable<INamedTypeSymbol> GetFieldDependencies(INamedTypeSymbol type)
     {
         foreach (var field in type.GetMembers().OfType<IFieldSymbol>())
         {
@@ -298,7 +300,7 @@ internal static class DependencyGraphService
         }
     }
 
-    private static IEnumerable<INamedTypeSymbol> GetMethodDependencies(INamedTypeSymbol type)
+    private IEnumerable<INamedTypeSymbol> GetMethodDependencies(INamedTypeSymbol type)
     {
         foreach (var method in type.GetMembers().OfType<IMethodSymbol>())
         {
@@ -315,7 +317,7 @@ internal static class DependencyGraphService
         }
     }
 
-    private static INamedTypeSymbol? ExtractNamedType(ITypeSymbol? type)
+    private INamedTypeSymbol? ExtractNamedType(ITypeSymbol? type)
     {
         return type switch
         {
@@ -325,7 +327,7 @@ internal static class DependencyGraphService
         };
     }
 
-    private static bool IsSourceType(INamedTypeSymbol? type, Dictionary<string, INamedTypeSymbol> sourceTypeByName)
+    private bool IsSourceType(INamedTypeSymbol? type, Dictionary<string, INamedTypeSymbol> sourceTypeByName)
     {
         if (type == null || !type.Locations.Any(l => l.IsInSource))
             return false;
@@ -338,10 +340,10 @@ internal static class DependencyGraphService
         return true;
     }
 
-    private static string GetNamespaceName(INamedTypeSymbol type) =>
+    private string GetNamespaceName(INamedTypeSymbol type) =>
         type.ContainingNamespace?.ToDisplayString() ?? string.Empty;
 
-    private static string GetDisplayName(INamedTypeSymbol type)
+    private string GetDisplayName(INamedTypeSymbol type)
     {
         var ns = GetNamespaceName(type);
         return string.IsNullOrEmpty(ns) || ns == "<global namespace>"
@@ -349,12 +351,12 @@ internal static class DependencyGraphService
             : type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
     }
 
-    private static string SerializeGraph(HashSet<string> nodes, List<(string From, string To)> edges, string format) =>
+    private string SerializeGraph(HashSet<string> nodes, List<(string From, string To)> edges, string format) =>
         format.Equals("dot", StringComparison.OrdinalIgnoreCase)
             ? BuildDotOutput(nodes, edges)
             : BuildJsonOutput(nodes, edges);
 
-    private static string BuildJsonOutput(HashSet<string> nodes, List<(string From, string To)> edges)
+    private string BuildJsonOutput(HashSet<string> nodes, List<(string From, string To)> edges)
     {
         var nodeList = nodes.OrderBy(n => n).ToList();
         var edgeList = edges
@@ -366,7 +368,7 @@ internal static class DependencyGraphService
             SymbolFormatter.DefaultJsonOptions);
     }
 
-    private static string BuildDotOutput(HashSet<string> nodes, List<(string From, string To)> edges)
+    private string BuildDotOutput(HashSet<string> nodes, List<(string From, string To)> edges)
     {
         var sb = new StringBuilder();
         sb.AppendLine("digraph {");

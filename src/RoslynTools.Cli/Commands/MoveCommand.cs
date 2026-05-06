@@ -55,9 +55,9 @@ internal sealed class MoveCommand : IRtCommand
             using (workspace)
             {
                 if (nsFrom != null)
-                    await MoveService.ExecuteNamespaceMoveAsync(workspace, sln, nsFrom, nsTo, moveFile, dryRun);
+                    await new MoveService().ExecuteNamespaceMoveAsync(workspace, sln, nsFrom, nsTo, moveFile, dryRun);
                 else
-                    await MoveService.ExecuteSingleTypeMoveAsync(workspace, sln, type!, nsTo, moveFile, dryRun);
+                    await new MoveService().ExecuteSingleTypeMoveAsync(workspace, sln, type!, nsTo, moveFile, dryRun);
             }
         },
         solutionOpt, typeOpt, nsFromOpt, nsToOpt, dryRunOpt, moveFileOpt);

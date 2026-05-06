@@ -45,7 +45,7 @@ internal sealed class InlineMethodCommand : IRtCommand
     {
         var (workspace, sln) = await WorkspaceLoader.LoadAsync(solutionPath);
         using (workspace)
-            await InlineMethodService.RunAsync(sln, typeName, methodName, dryRun);
+            await new InlineMethodService().RunAsync(sln, typeName, methodName, dryRun);
     }
 }
 

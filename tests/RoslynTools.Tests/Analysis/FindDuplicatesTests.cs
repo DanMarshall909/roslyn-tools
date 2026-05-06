@@ -37,7 +37,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
 
             Assert.NotEmpty(groups);
             var g = groups[0];
@@ -82,7 +82,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
 
             Assert.NotEmpty(groups);
             var g = groups.First(g => g.StatementCount == 3);
@@ -116,7 +116,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
 
             Assert.Empty(groups);
         }
@@ -152,7 +152,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions(MinStatements: 5));
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(MinStatements: 5));
 
             Assert.Empty(groups);
         }
@@ -188,7 +188,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions(MinOccurrences: 3));
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(MinOccurrences: 3));
 
             Assert.Empty(groups);
         }
@@ -228,7 +228,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions(MinStatements: 3));
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(MinStatements: 3));
 
             // The 5-statement clone is the maximal block; sub-sequences (3-stmt, 4-stmt windows)
             // should not produce separate reported groups since all their occurrences are subsumed.
@@ -285,7 +285,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions(MinStatements: 3));
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(MinStatements: 3));
 
             // The [s1,s2,s3] group appears in all 3 methods with PartiallyExpandable=true.
             // Use 3-occurrence count + PartiallyExpandable as the discriminator since there may be
@@ -329,7 +329,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions(MinStatements: 1));
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(MinStatements: 1));
 
             Assert.Empty(groups);
         }
@@ -365,7 +365,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
 
             Assert.NotEmpty(groups);
             var g = groups.First(g => g.StatementCount == 3);
@@ -405,7 +405,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions(MinStatements: 3));
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(MinStatements: 3));
 
             Assert.NotEmpty(groups);
             var g = groups.First(g => g.StatementCount >= 3);
@@ -443,7 +443,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
 
             Assert.NotEmpty(groups);
             var g = groups.First(g => g.StatementCount == 3);
@@ -481,7 +481,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
 
             Assert.NotEmpty(groups);
             var g = groups.First(g => g.StatementCount == 3);
@@ -525,7 +525,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions(MinStatements: 3));
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(MinStatements: 3));
 
             // if-body and while-body differ in SyntaxKind, so these should not group.
             Assert.DoesNotContain(groups, g => g.Occurrences.Count >= 2 && g.StatementCount == 3);
@@ -562,7 +562,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
 
             // WriteLine and Write are different member names — must not group.
             Assert.Empty(groups);
@@ -600,7 +600,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
 
             Assert.NotEmpty(groups);
             var g = groups.First(g => g.StatementCount == 3);
@@ -645,7 +645,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions(MinStatements: 3));
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(MinStatements: 3));
 
             // Only the maximal (5-stmt) group should remain; sub-windows should be suppressed.
             Assert.DoesNotContain(groups, g => g.StatementCount < 5);
@@ -699,7 +699,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions(MinStatements: 3));
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(MinStatements: 3));
 
             // The 3-statement group should still appear because MethodC's occurrence is NOT covered.
             Assert.Contains(groups, g => g.StatementCount == 3);
@@ -736,8 +736,8 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var run1 = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
-            var run2 = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
+            var run1 = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
+            var run2 = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
 
             Assert.Equal(run1.Count, run2.Count);
             for (var i = 0; i < run1.Count; i++)
@@ -779,8 +779,8 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var run1 = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
-            var run2 = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
+            var run1 = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
+            var run2 = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
 
             Assert.Equal(run1.Count, run2.Count);
             var ids1 = run1.Select(g => g.GroupId).OrderBy(id => id).ToList();
@@ -842,7 +842,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions(Scope: "MyApp.Services"));
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(Scope: "MyApp.Services"));
 
             Assert.NotEmpty(groups);
             foreach (var g in groups)
@@ -901,7 +901,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = builder.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions(Scope: "ProjectAlpha"));
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(Scope: "ProjectAlpha"));
 
             Assert.NotEmpty(groups);
             foreach (var g in groups)
@@ -947,7 +947,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = builder.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions(IncludeTests: false));
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(IncludeTests: false));
 
             Assert.Empty(groups);
         }
@@ -989,7 +989,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = builder.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions(IncludeTests: true));
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(IncludeTests: true));
 
             Assert.NotEmpty(groups);
             var g = groups.First(gr => gr.StatementCount == 3);
@@ -1033,7 +1033,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions(MaxStatements: 3));
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(MaxStatements: 3));
 
             Assert.DoesNotContain(groups, g => g.StatementCount > 3);
         }
@@ -1069,7 +1069,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
             Assert.NotEmpty(groups);
 
             var json = CaptureJson(groups, solutionDir: null);
@@ -1129,7 +1129,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
             Assert.Empty(groups);
 
             var json = CaptureJson(groups, solutionDir: null);
@@ -1171,8 +1171,8 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var run1 = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
-            var run2 = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
+            var run1 = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
+            var run2 = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
 
             var json1 = CaptureJson(run1, solutionDir: null);
             var json2 = CaptureJson(run2, solutionDir: null);
@@ -1223,7 +1223,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
             Assert.NotEmpty(groups);
 
             // Use the project directory as the "solution dir" so relative paths are computed.
@@ -1271,7 +1271,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
             Assert.NotEmpty(groups);
 
             var json = CaptureJson(groups, solutionDir: null);
@@ -1317,7 +1317,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
             Assert.NotEmpty(groups);
 
             var output = CaptureText(groups);
@@ -1357,7 +1357,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
 
             Assert.NotEmpty(groups);
             var g = groups.First(g => g.StatementCount == 3);
@@ -1400,7 +1400,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions(MinStatements: 3));
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(MinStatements: 3));
 
             Assert.NotEmpty(groups);
             var g = groups.First(g => g.StatementCount == 3);
@@ -1443,7 +1443,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
 
             Assert.NotEmpty(groups);
             var g = groups.First(g => g.StatementCount >= 3);
@@ -1498,7 +1498,7 @@ public class FindDuplicatesTests
         {
             // "CaptureTest" ends with "Test" so it would be excluded as a test project;
             // use IncludeTests:true so the project is scanned.
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions(IncludeTests: true));
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(IncludeTests: true));
 
             Assert.NotEmpty(groups);
             var g = groups.First(g => g.StatementCount >= 3);
@@ -1540,7 +1540,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
             Assert.NotEmpty(groups);
 
             var json = CaptureJson(groups, solutionDir: null);
@@ -1593,7 +1593,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
             Assert.NotEmpty(groups);
 
             var output = CaptureText(groups);
@@ -1631,7 +1631,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
             Assert.NotEmpty(groups);
 
             var output = CaptureText(groups);
@@ -1668,7 +1668,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
             Assert.NotEmpty(groups);
 
             var output = CaptureText(groups);
@@ -1706,7 +1706,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
             Assert.NotEmpty(groups);
 
             Assert.All(groups.SelectMany(g => g.Occurrences), o => Assert.True(o.EndLine >= o.StartLine));
@@ -1741,7 +1741,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions());
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
             Assert.NotEmpty(groups);
 
             var json = JsonDocument.Parse(CaptureJson(groups, solutionDir: null));
@@ -1816,7 +1816,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions(MinStatements: 1));
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(MinStatements: 1));
 
             // The single guard clause `if (IsNullOrWhiteSpace...) return false;` is a
             // 1-statement duplicate group. It must surface as likely_extractable.
@@ -1876,7 +1876,7 @@ public class FindDuplicatesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await FindDuplicatesService.RunAsync(sln, new FindDuplicatesOptions(MinStatements: 2));
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(MinStatements: 2));
 
             // The 2-statement compute block (var lo / var hi) is the only duplicate;
             // the callers differ so no larger window is a duplicate, so the 2-stmt group

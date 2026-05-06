@@ -17,7 +17,7 @@ internal static class ChangeSignatureCommandHandlers
         {
             try
             {
-                var updatedSolution = await ChangeSignatureService.RenameParamAsync(
+                var updatedSolution = await new ChangeSignatureService().RenameParamAsync(
                     loadedSolution,
                     methodSpec,
                     oldName,
@@ -45,7 +45,7 @@ internal static class ChangeSignatureCommandHandlers
         {
             try
             {
-                var updatedSolution = await ChangeSignatureService.ReorderParamsAsync(
+                var updatedSolution = await new ChangeSignatureService().ReorderParamsAsync(
                     loadedSolution,
                     methodSpec,
                     newOrder);
@@ -73,7 +73,7 @@ internal static class ChangeSignatureCommandHandlers
         {
             try
             {
-                var updatedSolution = await ChangeSignatureService.AddParamAsync(
+                var updatedSolution = await new ChangeSignatureService().AddParamAsync(
                     loadedSolution,
                     methodSpec,
                     paramSpec,
@@ -102,7 +102,7 @@ internal static class ChangeSignatureCommandHandlers
         {
             try
             {
-                var updatedSolution = await ChangeSignatureService.RemoveParamAsync(
+                var updatedSolution = await new ChangeSignatureService().RemoveParamAsync(
                     loadedSolution,
                     methodSpec,
                     paramName,

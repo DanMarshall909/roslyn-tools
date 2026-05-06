@@ -37,7 +37,7 @@ public class ChangeSignatureTests
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var updated = await ChangeSignatureService.RenameParamAsync(
+            var updated = await new ChangeSignatureService().RenameParamAsync(
                 solution,
                 "TestApp.Service.Foo",
                 "count",
@@ -92,7 +92,7 @@ public class ChangeSignatureTests
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var updated = await ChangeSignatureService.RenameParamAsync(
+            var updated = await new ChangeSignatureService().RenameParamAsync(
                 solution,
                 "TestApp.Service.Foo",
                 "count",
@@ -133,7 +133,7 @@ public class ChangeSignatureTests
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var updated = await ChangeSignatureService.RenameParamAsync(
+            var updated = await new ChangeSignatureService().RenameParamAsync(
                 solution,
                 "TestApp.Widget.Widget",
                 "count",
@@ -167,7 +167,7 @@ public class ChangeSignatureTests
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var updated = await ChangeSignatureService.RenameParamAsync(
+            var updated = await new ChangeSignatureService().RenameParamAsync(
                 solution,
                 "TestApp.Container.Run.Local",
                 "count",
@@ -198,7 +198,7 @@ public class ChangeSignatureTests
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                ChangeSignatureService.RenameParamAsync(solution, "TestApp.Service.Foo", "missing", "total"));
+                new ChangeSignatureService().RenameParamAsync(solution, "TestApp.Service.Foo", "missing", "total"));
 
             Assert.Contains("missing", ex.Message);
         }
@@ -223,7 +223,7 @@ public class ChangeSignatureTests
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                ChangeSignatureService.RenameParamAsync(solution, "TestApp.Service.Foo", "count", "total"));
+                new ChangeSignatureService().RenameParamAsync(solution, "TestApp.Service.Foo", "count", "total"));
 
             Assert.Contains("already has a parameter", ex.Message);
         }
@@ -260,7 +260,7 @@ public class ChangeSignatureTests
 
             try
             {
-                var updated = await ChangeSignatureService.RenameParamAsync(
+                var updated = await new ChangeSignatureService().RenameParamAsync(
                     solution,
                     "TestApp.Service.Foo",
                     "count",
@@ -487,7 +487,7 @@ public class ChangeSignatureTests
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                ChangeSignatureService.ReorderParamsAsync(solution, "TestApp.Service.Foo", ["1", "0"]));
+                new ChangeSignatureService().ReorderParamsAsync(solution, "TestApp.Service.Foo", ["1", "0"]));
             Assert.Contains("parameter count", ex.Message);
         }
     }
@@ -504,7 +504,7 @@ public class ChangeSignatureTests
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                ChangeSignatureService.ReorderParamsAsync(solution, "TestApp.Service.Foo", ["0", "0"]));
+                new ChangeSignatureService().ReorderParamsAsync(solution, "TestApp.Service.Foo", ["0", "0"]));
             Assert.Contains("duplicate", ex.Message);
         }
     }
@@ -521,7 +521,7 @@ public class ChangeSignatureTests
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                ChangeSignatureService.ReorderParamsAsync(solution, "TestApp.Service.Foo", ["0", "5"]));
+                new ChangeSignatureService().ReorderParamsAsync(solution, "TestApp.Service.Foo", ["0", "5"]));
             Assert.Contains("out of range", ex.Message);
         }
     }
@@ -538,7 +538,7 @@ public class ChangeSignatureTests
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                ChangeSignatureService.ReorderParamsAsync(solution, "TestApp.Service.Foo", ["b", "unknown"]));
+                new ChangeSignatureService().ReorderParamsAsync(solution, "TestApp.Service.Foo", ["b", "unknown"]));
             Assert.Contains("unknown", ex.Message);
         }
     }
@@ -555,7 +555,7 @@ public class ChangeSignatureTests
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                ChangeSignatureService.ReorderParamsAsync(solution, "TestApp.Service.Foo", ["0", "b"]));
+                new ChangeSignatureService().ReorderParamsAsync(solution, "TestApp.Service.Foo", ["0", "b"]));
             Assert.Contains("mixed", ex.Message);
         }
     }
@@ -572,7 +572,7 @@ public class ChangeSignatureTests
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                ChangeSignatureService.ReorderParamsAsync(solution, "TestApp.Service.Foo", ["1", "0"]));
+                new ChangeSignatureService().ReorderParamsAsync(solution, "TestApp.Service.Foo", ["1", "0"]));
             Assert.Contains("params", ex.Message);
         }
     }
@@ -600,7 +600,7 @@ public class ChangeSignatureTests
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var updated = await ChangeSignatureService.ReorderParamsAsync(
+            var updated = await new ChangeSignatureService().ReorderParamsAsync(
                 solution, "TestApp.Service.Foo", ["0", "1", "2"]);
             var changes = updated.GetChanges(solution);
             Assert.Empty(changes.GetProjectChanges().SelectMany(p => p.GetChangedDocuments()));
@@ -630,7 +630,7 @@ public class ChangeSignatureTests
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var updated = await ChangeSignatureService.ReorderParamsAsync(
+            var updated = await new ChangeSignatureService().ReorderParamsAsync(
                 solution, "TestApp.Service.Foo", ["2", "0", "1"]);
 
             var svc = await GetDocumentTextAsync(updated, "Service.cs");
@@ -664,7 +664,7 @@ public class ChangeSignatureTests
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var updated = await ChangeSignatureService.ReorderParamsAsync(
+            var updated = await new ChangeSignatureService().ReorderParamsAsync(
                 solution, "TestApp.Service.Foo", ["c", "a", "b"]);
 
             var svc = await GetDocumentTextAsync(updated, "Service.cs");
@@ -698,7 +698,7 @@ public class ChangeSignatureTests
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var updated = await ChangeSignatureService.ReorderParamsAsync(
+            var updated = await new ChangeSignatureService().ReorderParamsAsync(
                 solution, "TestApp.Service.Foo", ["1", "0"]);
 
             var svc = await GetDocumentTextAsync(updated, "Service.cs");
@@ -732,7 +732,7 @@ public class ChangeSignatureTests
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var updated = await ChangeSignatureService.ReorderParamsAsync(
+            var updated = await new ChangeSignatureService().ReorderParamsAsync(
                 solution, "TestApp.Service.Foo", ["2", "0", "1"]);
 
             var caller = await GetDocumentTextAsync(updated, "Caller.cs");
@@ -768,7 +768,7 @@ public class ChangeSignatureTests
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var updated = await ChangeSignatureService.ReorderParamsAsync(
+            var updated = await new ChangeSignatureService().ReorderParamsAsync(
                 solution, "TestApp.Service.Foo", ["1", "0"]);
 
             var caller = await GetDocumentTextAsync(updated, "Caller.cs");
@@ -801,7 +801,7 @@ public class ChangeSignatureTests
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var updated = await ChangeSignatureService.ReorderParamsAsync(
+            var updated = await new ChangeSignatureService().ReorderParamsAsync(
                 solution, "TestApp.Service.Foo", ["1", "0"]);
 
             Assert.Contains("Foo(int b, int a)", await GetDocumentTextAsync(updated, "Service.cs"));
@@ -833,7 +833,7 @@ public class ChangeSignatureTests
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var updated = await ChangeSignatureService.ReorderParamsAsync(
+            var updated = await new ChangeSignatureService().ReorderParamsAsync(
                 solution, "TestApp.Widget.Widget", ["1", "0"]);
 
             Assert.Contains("Widget(int b, int a)", await GetDocumentTextAsync(updated, "Widget.cs"));
@@ -861,7 +861,7 @@ public class ChangeSignatureTests
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var updated = await ChangeSignatureService.ReorderParamsAsync(
+            var updated = await new ChangeSignatureService().ReorderParamsAsync(
                 solution, "TestApp.Container.Run.Local", ["1", "0"]);
 
             var text = await GetDocumentTextAsync(updated, "Container.cs");
@@ -894,7 +894,7 @@ public class ChangeSignatureTests
         using (workspace)
         {
             // Reorder a and b; c stays at the end (omitted optional — safe to leave)
-            var updated = await ChangeSignatureService.ReorderParamsAsync(
+            var updated = await new ChangeSignatureService().ReorderParamsAsync(
                 solution, "TestApp.Service.Foo", ["1", "0", "2"]);
 
             var svc = await GetDocumentTextAsync(updated, "Service.cs");
@@ -928,7 +928,7 @@ public class ChangeSignatureTests
         {
             // Reorder puts b (index 1, currently omitted) before a (index 0)
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                ChangeSignatureService.ReorderParamsAsync(solution, "TestApp.Service.Foo", ["1", "0", "2"]));
+                new ChangeSignatureService().ReorderParamsAsync(solution, "TestApp.Service.Foo", ["1", "0", "2"]));
 
             Assert.Contains("non-trailing position", ex.Message);
         }
@@ -962,7 +962,7 @@ public class ChangeSignatureTests
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var updated = await ChangeSignatureService.AddParamAsync(
+            var updated = await new ChangeSignatureService().AddParamAsync(
                 solution,
                 "TestApp.Service.Foo",
                 "int count = 0",
@@ -996,7 +996,7 @@ public class ChangeSignatureTests
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var updated = await ChangeSignatureService.AddParamAsync(
+            var updated = await new ChangeSignatureService().AddParamAsync(
                 solution,
                 "TestApp.Service.Foo",
                 "int x = 0",
@@ -1026,7 +1026,7 @@ public class ChangeSignatureTests
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                ChangeSignatureService.AddParamAsync(solution, "TestApp.Service.Foo", "int x = 0", afterParam: "z"));
+                new ChangeSignatureService().AddParamAsync(solution, "TestApp.Service.Foo", "int x = 0", afterParam: "z"));
 
             Assert.Contains("z", ex.Message);
         }
@@ -1051,7 +1051,7 @@ public class ChangeSignatureTests
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                ChangeSignatureService.AddParamAsync(solution, "TestApp.Service.Foo", "int count", afterParam: null));
+                new ChangeSignatureService().AddParamAsync(solution, "TestApp.Service.Foo", "int count", afterParam: null));
 
             Assert.Contains("default value", ex.Message);
         }
@@ -1076,7 +1076,7 @@ public class ChangeSignatureTests
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                ChangeSignatureService.AddParamAsync(solution, "TestApp.Service.Foo", "int a = 0", afterParam: null));
+                new ChangeSignatureService().AddParamAsync(solution, "TestApp.Service.Foo", "int a = 0", afterParam: null));
 
             Assert.Contains("parameter named 'a'", ex.Message);
         }
@@ -1100,7 +1100,7 @@ public class ChangeSignatureTests
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var updated = await ChangeSignatureService.AddParamAsync(
+            var updated = await new ChangeSignatureService().AddParamAsync(
                 solution,
                 "TestApp.Widget.Widget",
                 "string label = \"\"",
@@ -1134,7 +1134,7 @@ public class ChangeSignatureTests
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var updated = await ChangeSignatureService.AddParamAsync(
+            var updated = await new ChangeSignatureService().AddParamAsync(
                 solution,
                 "TestApp.Container.Run.Local",
                 "int b = 0",
@@ -1166,7 +1166,7 @@ public class ChangeSignatureTests
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                ChangeSignatureService.RemoveParamAsync(solution, "TestApp.Service.Foo", "a", force: false));
+                new ChangeSignatureService().RemoveParamAsync(solution, "TestApp.Service.Foo", "a", force: false));
 
             Assert.Contains("default value", ex.Message);
         }
@@ -1198,7 +1198,7 @@ public class ChangeSignatureTests
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var updated = await ChangeSignatureService.RemoveParamAsync(
+            var updated = await new ChangeSignatureService().RemoveParamAsync(
                 solution, "TestApp.Service.Foo", "a", force: true);
 
             var serviceText = await GetDocumentTextAsync(updated, "Service.cs");
@@ -1236,7 +1236,7 @@ public class ChangeSignatureTests
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var updated = await ChangeSignatureService.RemoveParamAsync(
+            var updated = await new ChangeSignatureService().RemoveParamAsync(
                 solution, "TestApp.Service.Foo", "a", force: false);
 
             var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
@@ -1274,7 +1274,7 @@ public class ChangeSignatureTests
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var updated = await ChangeSignatureService.RemoveParamAsync(
+            var updated = await new ChangeSignatureService().RemoveParamAsync(
                 solution, "TestApp.Service.Foo", "a", force: false);
 
             var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
@@ -1317,7 +1317,7 @@ public class ChangeSignatureTests
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var updated = await ChangeSignatureService.RemoveParamAsync(
+            var updated = await new ChangeSignatureService().RemoveParamAsync(
                 solution, "TestApp.Service.Foo", "a", force: false);
 
             var caller1Text = await GetDocumentTextAsync(updated, "Caller1.cs");
@@ -1354,7 +1354,7 @@ public class ChangeSignatureTests
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var updated = await ChangeSignatureService.RemoveParamAsync(
+            var updated = await new ChangeSignatureService().RemoveParamAsync(
                 solution, "TestApp.Service.Foo", "a", force: false);
 
             var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
@@ -1393,7 +1393,7 @@ public class ChangeSignatureTests
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var updated = await ChangeSignatureService.RemoveParamAsync(
+            var updated = await new ChangeSignatureService().RemoveParamAsync(
                 solution, "TestApp.Service.Foo", "a", force: false);
 
             var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
@@ -1422,7 +1422,7 @@ public class ChangeSignatureTests
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                ChangeSignatureService.RemoveParamAsync(solution, "TestApp.Service.Foo", "missing", force: true));
+                new ChangeSignatureService().RemoveParamAsync(solution, "TestApp.Service.Foo", "missing", force: true));
 
             Assert.Contains("missing", ex.Message);
         }
@@ -1454,7 +1454,7 @@ public class ChangeSignatureTests
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var updated = await ChangeSignatureService.RemoveParamAsync(
+            var updated = await new ChangeSignatureService().RemoveParamAsync(
                 solution, "TestApp.Widget.Widget", "x", force: false);
 
             var widgetText = await GetDocumentTextAsync(updated, "Widget.cs");
@@ -1489,7 +1489,7 @@ public class ChangeSignatureTests
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var updated = await ChangeSignatureService.RemoveParamAsync(
+            var updated = await new ChangeSignatureService().RemoveParamAsync(
                 solution, "TestApp.Container.Run.Local", "a", force: false);
 
             var text = await GetDocumentTextAsync(updated, "Container.cs");
@@ -1519,7 +1519,7 @@ public class ChangeSignatureTests
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var updated = await ChangeSignatureService.AddParamAsync(
+            var updated = await new ChangeSignatureService().AddParamAsync(
                 solution,
                 "TestApp.Service.Foo",
                 "int count = 0",
@@ -1553,7 +1553,7 @@ public class ChangeSignatureTests
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var updated = await ChangeSignatureService.RemoveParamAsync(
+            var updated = await new ChangeSignatureService().RemoveParamAsync(
                 solution, "TestApp.Service.Foo", "a", force: false);
 
             var text = await GetDocumentTextAsync(updated, "All.cs");
@@ -1595,7 +1595,7 @@ public class ChangeSignatureTests
         using (workspace)
         {
             // Remove 'a' (param index 1 on the symbol, arg index 0 at call site)
-            var updated = await ChangeSignatureService.RemoveParamAsync(
+            var updated = await new ChangeSignatureService().RemoveParamAsync(
                 solution, "TestApp.Extensions.Foo", "a", force: false);
 
             var extText = await GetDocumentTextAsync(updated, "Extensions.cs");
@@ -1642,7 +1642,7 @@ public class ChangeSignatureTests
 
             try
             {
-                var updated = await ChangeSignatureService.RemoveParamAsync(
+                var updated = await new ChangeSignatureService().RemoveParamAsync(
                     solution, "TestApp.Service.Foo", "a", force: false);
 
                 var stderr = stderrCapture.ToString();
@@ -1695,7 +1695,7 @@ public class ChangeSignatureTests
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var updated = await ChangeSignatureService.RemoveParamAsync(
+            var updated = await new ChangeSignatureService().RemoveParamAsync(
                 solution, "TestApp.Base.Foo", "a", force: false);
 
             var baseText = await GetDocumentTextAsync(updated, "Base.cs");

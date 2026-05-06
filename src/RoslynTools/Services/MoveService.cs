@@ -2,17 +2,19 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class MoveService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class MoveService
 {
     // ──────────────────────────────────────────────────────────────
     //  Entry points
     // ──────────────────────────────────────────────────────────────
 
-    internal static async Task ExecuteNamespaceMoveAsync(
+    internal async Task ExecuteNamespaceMoveAsync(
         Workspace workspace,
         Solution solution,
         string sourceNamespace,
@@ -43,7 +45,7 @@ internal static class MoveService
         ApplyFileMoveOrNote(declarationFiles, projectDir, rootNamespace, sourceNamespace, targetNamespace, moveFile, dryRun);
     }
 
-    internal static async Task ExecuteSingleTypeMoveAsync(
+    internal async Task ExecuteSingleTypeMoveAsync(
         Workspace workspace,
         Solution sln,
         string fqn,
@@ -84,7 +86,7 @@ internal static class MoveService
     //  Namespace-move helpers
     // ──────────────────────────────────────────────────────────────
 
-    private static async Task<(Solution Solution, List<string> DeclarationFiles, string? ProjectDir, string? RootNamespace, int ChangedFiles)>
+    private async Task<(Solution Solution, List<string> DeclarationFiles, string? ProjectDir, string? RootNamespace, int ChangedFiles)>
         ScanSolutionForNamespaceAsync(Solution solution, string sourceNamespace, string targetNamespace)
     {
         var declarationFiles = new List<string>();
@@ -122,7 +124,7 @@ internal static class MoveService
         bool IsDeclarationFile,
         (string? ProjectDir, string? RootNamespace)? ProjectMeta);
 
-    private static async Task<DocumentRewriteResult> RewriteDocumentNamespaceAsync(
+    private async Task<DocumentRewriteResult> RewriteDocumentNamespaceAsync(
         Solution solution,
         Document doc,
         string sourceNamespace,
@@ -142,7 +144,7 @@ internal static class MoveService
         return new DocumentRewriteResult(true, solution, rewriter.IsDeclarationFile, meta);
     }
 
-    private static (string? ProjectDir, string? RootNamespace) ResolveProjectMeta(Project project)
+    private (string? ProjectDir, string? RootNamespace) ResolveProjectMeta(Project project)
     {
         var dir = Path.GetDirectoryName(project.FilePath);
         var ns = project.DefaultNamespace;
@@ -151,7 +153,7 @@ internal static class MoveService
         return (dir, ns);
     }
 
-    private static void ApplyFileMoveOrNote(
+    private void ApplyFileMoveOrNote(
         List<string> declarationFiles,
         string? projectDir,
         string? rootNamespace,
@@ -170,7 +172,7 @@ internal static class MoveService
     //  Single-type helpers
     // ──────────────────────────────────────────────────────────────
 
-    private static async Task<List<INamedTypeSymbol>> CollectCoLocatedTypesAsync(
+    private async Task<List<INamedTypeSymbol>> CollectCoLocatedTypesAsync(
         Solution sln, INamedTypeSymbol primary)
     {
         var trees = primary.DeclaringSyntaxReferences
@@ -199,7 +201,7 @@ internal static class MoveService
         return result;
     }
 
-    private static (List<string> Paths, string? ProjectDir, string? RootNamespace) CollectDeclarationPaths(
+    private (List<string> Paths, string? ProjectDir, string? RootNamespace) CollectDeclarationPaths(
         Solution sln, ISymbol symbol)
     {
         var paths = new List<string>();
@@ -219,7 +221,7 @@ internal static class MoveService
         return (paths, projectDir, rootNamespace);
     }
 
-    private static async Task<Solution> RewriteAllDeclarationsAsync(
+    private async Task<Solution> RewriteAllDeclarationsAsync(
         Solution solution,
         ISymbol symbol,
         string targetNamespace)
@@ -256,7 +258,7 @@ internal static class MoveService
         return solution;
     }
 
-    private static async Task<bool> DocumentReferencesNamespaceAsync(
+    private async Task<bool> DocumentReferencesNamespaceAsync(
         Document doc,
         ISymbol movedSymbol,
         string namespaceName)
@@ -279,7 +281,7 @@ internal static class MoveService
         return false;
     }
 
-    private static async Task<Solution> ApplyReferenceUsingsAsync(
+    private async Task<Solution> ApplyReferenceUsingsAsync(
         Solution solution,
         IEnumerable<ReferencedSymbol> references,
         string oldNamespace,
@@ -312,7 +314,7 @@ internal static class MoveService
         return solution;
     }
 
-    private static (SyntaxNode Root, bool Changed) RewriteFullyQualifiedReferences(
+    private (SyntaxNode Root, bool Changed) RewriteFullyQualifiedReferences(
         SyntaxNode root,
         SyntaxNode tracker,
         IGrouping<DocumentId, ReferenceLocation> group,
@@ -343,7 +345,7 @@ internal static class MoveService
         return (currentRoot, changed);
     }
 
-    private static SyntaxNode EnsureTargetNamespaceUsing(
+    private SyntaxNode EnsureTargetNamespaceUsing(
         SyntaxNode root,
         string targetNamespace,
         ref bool changed)
@@ -366,7 +368,7 @@ internal static class MoveService
         return compilationUnit.AddUsings(newUsing);
     }
 
-    private static SyntaxNode? FindOutermostQualifiedName(SyntaxNode node)
+    private SyntaxNode? FindOutermostQualifiedName(SyntaxNode node)
     {
         SyntaxNode current = node;
         while (current.Parent is QualifiedNameSyntax or MemberAccessExpressionSyntax)
@@ -378,7 +380,7 @@ internal static class MoveService
     //  File movement helpers
     // ──────────────────────────────────────────────────────────────
 
-    internal static void MoveSourceFiles(
+    internal void MoveSourceFiles(
         List<string> filePaths,
         string projectDir,
         string rootNamespace,
@@ -424,7 +426,7 @@ internal static class MoveService
         }
     }
 
-    internal static string NamespaceToRelativeDir(string ns, string rootNamespace)
+    internal string NamespaceToRelativeDir(string ns, string rootNamespace)
     {
         if (ns == rootNamespace)
             return "";

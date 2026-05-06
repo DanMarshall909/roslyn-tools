@@ -1,12 +1,14 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Rename;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class ChangeSignatureService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class ChangeSignatureService
 {
-    internal static async Task<Solution> RenameParamAsync(
+    internal async Task<Solution> RenameParamAsync(
         Solution solution,
         string methodSpec,
         string oldName,
@@ -33,23 +35,23 @@ internal static class ChangeSignatureService
         return await Renamer.RenameSymbolAsync(solution, parameter, options, newName);
     }
 
-    internal static Task<Solution> ReorderParamsAsync(
+    internal Task<Solution> ReorderParamsAsync(
         Solution solution,
         string methodSpec,
         string[] newOrder) =>
-        ReorderParamsService.ReorderParamsAsync(solution, methodSpec, newOrder);
+        new ReorderParamsService().ReorderParamsAsync(solution, methodSpec, newOrder);
 
-    internal static Task<Solution> AddParamAsync(
+    internal Task<Solution> AddParamAsync(
         Solution solution,
         string methodSpec,
         string paramSpec,
         string? afterParam) =>
-        AddParamService.AddParamAsync(solution, methodSpec, paramSpec, afterParam);
+        new AddParamService().AddParamAsync(solution, methodSpec, paramSpec, afterParam);
 
-    internal static Task<Solution> RemoveParamAsync(
+    internal Task<Solution> RemoveParamAsync(
         Solution solution,
         string methodSpec,
         string paramName,
         bool force) =>
-        RemoveParamService.RemoveParamAsync(solution, methodSpec, paramName, force);
+        new RemoveParamService().RemoveParamAsync(solution, methodSpec, paramName, force);
 }

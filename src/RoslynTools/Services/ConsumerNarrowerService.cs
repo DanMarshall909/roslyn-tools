@@ -1,15 +1,17 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System.Diagnostics.CodeAnalysis;
 
 namespace RoslynTools.Services;
 
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
 /// <summary>
 /// Rewriting logic for narrowing consumers: finds all types that depend on a wide
 /// interface and rewrites those that only use a selected member subset to use the
 /// new narrower interface instead.
 /// </summary>
-internal static class ConsumerNarrowerService
+internal class ConsumerNarrowerService
 {
     internal sealed record NarrowResult(
         Solution Solution,
@@ -20,7 +22,7 @@ internal static class ConsumerNarrowerService
     /// Finds all types in the solution that hold a field or constructor parameter
     /// typed as <paramref name="interfaceSymbol"/>.
     /// </summary>
-    internal static async Task<List<(INamedTypeSymbol Symbol, Document Document)>> FindConsumersAsync(
+    internal async Task<List<(INamedTypeSymbol Symbol, Document Document)>> FindConsumersAsync(
         Solution solution,
         INamedTypeSymbol interfaceSymbol)
     {
@@ -79,7 +81,7 @@ internal static class ConsumerNarrowerService
     /// its type annotations from the old interface name to the new one and returns
     /// the updated solution together with lists of narrowed and skipped consumers.
     /// </summary>
-    internal static async Task<NarrowResult> NarrowConsumersAsync(
+    internal async Task<NarrowResult> NarrowConsumersAsync(
         Solution originalSolution,
         INamedTypeSymbol interfaceSymbol,
         List<ISymbol> selectedMembers,
@@ -99,7 +101,7 @@ internal static class ConsumerNarrowerService
         foreach (var (consumerSymbol, consumerDoc) in consumers)
         {
             // Determine which interface members this consumer actually uses
-            var usedMembers = await InterfaceAnalyzerService.GetUsedMembersAsync(
+            var usedMembers = await new InterfaceAnalyzerService().GetUsedMembersAsync(
                 originalSolution, consumerSymbol, interfaceSymbol);
 
             // Check if all used members are within the selected subset
@@ -137,7 +139,7 @@ internal static class ConsumerNarrowerService
     // Private helpers
     // -------------------------------------------------------------------------
 
-    private static async Task<Solution?> NarrowConsumerDocumentAsync(
+    private async Task<Solution?> NarrowConsumerDocumentAsync(
         Solution solution,
         Document consumerDocument,
         INamedTypeSymbol consumerSymbol,

@@ -3,11 +3,13 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class ReorderParamsService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class ReorderParamsService
 {
     /// <summary>
     /// Reorders parameters of a method and updates all call sites.
@@ -18,7 +20,7 @@ internal static class ReorderParamsService
     /// Array of zero-based index strings (e.g. ["2","0","1"]) OR parameter name strings
     /// (e.g. ["c","a","b"]). Mixed mode is rejected. Length must equal parameter count.
     /// </param>
-    internal static async Task<Solution> ReorderParamsAsync(
+    internal async Task<Solution> ReorderParamsAsync(
         Solution solution,
         string methodSpec,
         string[] newOrder)
@@ -90,7 +92,7 @@ internal static class ReorderParamsService
         return await ApplyReorderAsync(solution, methodSymbol, indices);
     }
 
-    private static async Task<Solution> ApplyReorderAsync(
+    private async Task<Solution> ApplyReorderAsync(
         Solution solution,
         IMethodSymbol methodSymbol,
         int[] newParamOrder)
@@ -246,7 +248,7 @@ internal static class ReorderParamsService
         return solution;
     }
 
-    private static ArgumentSyntax[] ReorderArguments(
+    private ArgumentSyntax[] ReorderArguments(
         SeparatedSyntaxList<ArgumentSyntax> args,
         string[] paramNames,
         int[] reverseMap)

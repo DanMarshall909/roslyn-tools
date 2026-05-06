@@ -2,13 +2,15 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class MakeInstanceService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class MakeInstanceService
 {
-    internal static async Task RunAsync(Solution sln, string methodSpec, bool dryRun)
+    internal async Task RunAsync(Solution sln, string methodSpec, bool dryRun)
     {
         var originalSolution = sln;
 
@@ -72,7 +74,7 @@ internal static class MakeInstanceService
     ///   • Rewrites qualifying call sites from Type.Method(...) to instance.Method(...)
     ///   • Warns and skips call sites where no instance is reachable
     /// </summary>
-    private static (SyntaxNode newRoot, List<(string file, int line, string reason)> skipped)
+    private (SyntaxNode newRoot, List<(string file, int line, string reason)> skipped)
         TransformDocument(
             SyntaxNode root,
             SemanticModel semanticModel,
@@ -159,7 +161,7 @@ internal static class MakeInstanceService
 
     // ── Symbol finding ───────────────────────────────────────────────────────
 
-    private static async Task<IMethodSymbol?> FindStaticMethodAsync(Solution sln, string typeName, string methodName)
+    private async Task<IMethodSymbol?> FindStaticMethodAsync(Solution sln, string typeName, string methodName)
     {
         foreach (var project in sln.Projects)
         {
@@ -184,7 +186,7 @@ internal static class MakeInstanceService
 
     // ── Parsing ──────────────────────────────────────────────────────────────
 
-    private static (string TypeName, string MethodName) ParseMethodSpec(string spec)
+    private (string TypeName, string MethodName) ParseMethodSpec(string spec)
     {
         var lastDot = spec.LastIndexOf('.');
         if (lastDot <= 0 || lastDot == spec.Length - 1)
@@ -196,7 +198,7 @@ internal static class MakeInstanceService
 
     // ── Document/location utilities ──────────────────────────────────────────
 
-    private static DocumentId? FindDocumentIdForLocation(Solution sln, Location location)
+    private DocumentId? FindDocumentIdForLocation(Solution sln, Location location)
     {
         foreach (var project in sln.Projects)
         {
@@ -213,7 +215,7 @@ internal static class MakeInstanceService
 
     // ── Output ───────────────────────────────────────────────────────────────
 
-    private static void PrintSummary(int total, List<(string file, int line, string reason)> skipped)
+    private void PrintSummary(int total, List<(string file, int line, string reason)> skipped)
     {
         int rewritten = total - skipped.Count;
         RtConsole.WriteLine(RtOutputContext.Result, $"\nSummary: {total} call site(s) found, {rewritten} rewritten, {skipped.Count} skipped.");

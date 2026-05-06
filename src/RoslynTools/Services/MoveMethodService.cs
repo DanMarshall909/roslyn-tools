@@ -3,11 +3,13 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class MoveMethodService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class MoveMethodService
 {
     /// <summary>
     /// Move a static method from its current type to <paramref name="targetTypeFqn"/>,
@@ -15,7 +17,7 @@ internal static class MoveMethodService
     /// Returns <c>false</c> (and logs to stderr) on validation failure; throws on
     /// unexpected lookup failure (method/type not found in index).
     /// </summary>
-    internal static async Task<bool> RunAsync(
+    internal async Task<bool> RunAsync(
         Solution sln,
         string methodFqn,
         string targetTypeFqn,
@@ -195,7 +197,7 @@ internal static class MoveMethodService
 
     // ── Syntax transformation ─────────────────────────────────────────────────
 
-    internal static SyntaxNode TransformDocument(
+    internal SyntaxNode TransformDocument(
         SyntaxNode root,
         bool isSourceDoc,
         bool isTargetDoc,
@@ -318,7 +320,7 @@ internal static class MoveMethodService
 
     // ── New-file scaffolding ──────────────────────────────────────────────────
 
-    private static string BuildNewTargetFile(
+    private string BuildNewTargetFile(
         string namespaceName,
         string className,
         MethodDeclarationSyntax method)

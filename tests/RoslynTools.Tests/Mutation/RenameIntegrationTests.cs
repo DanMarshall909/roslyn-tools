@@ -20,7 +20,7 @@ public class RenameIntegrationTests
 
         var (workspace, solution) = project.Build();
 
-        await RenameService.ExecuteSingleAsync(
+        await new RenameService().ExecuteSingleAsync(
             sln: solution,
             symbol: "Foo.OldType",
             newName: "NewType",
@@ -55,7 +55,7 @@ public class RenameIntegrationTests
         var csvPath = Path.Combine(project.ProjectDir, "rename.csv");
         File.WriteAllText(csvPath, "source_symbol,target_name\nFoo.OldA,NewA\nFoo.OldB,NewB\n");
 
-        await RenameService.ExecuteBatchAsync(solution, csvPath, dryRun: false);
+        await new RenameService().ExecuteBatchAsync(solution, csvPath, dryRun: false);
 
         Assert.False(project.SourceExists("OldA.cs"), "old file A should be gone");
         Assert.True(project.SourceExists("NewA.cs"), "new file A should exist");

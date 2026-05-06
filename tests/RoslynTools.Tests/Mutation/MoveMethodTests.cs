@@ -42,7 +42,7 @@ public class MoveMethodTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await MoveMethodService.RunAsync(
+            var result = await new MoveMethodService().RunAsync(
                 sln, "App.Source.Add", "App.Target", createFile: false, dryRun: false);
 
             Assert.True(result);
@@ -92,7 +92,7 @@ public class MoveMethodTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await MoveMethodService.RunAsync(
+            var result = await new MoveMethodService().RunAsync(
                 sln, "App.Source.Greet", "App.Target", createFile: false, dryRun: false);
 
             Assert.True(result);
@@ -125,7 +125,7 @@ public class MoveMethodTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await MoveMethodService.RunAsync(
+            var result = await new MoveMethodService().RunAsync(
                 sln, "App.Source.Double", "App.Target", createFile: false, dryRun: false);
 
             Assert.True(result);
@@ -158,7 +158,7 @@ public class MoveMethodTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await MoveMethodService.RunAsync(
+            var result = await new MoveMethodService().RunAsync(
                 sln, "App.Source.Compute", "App.Target", createFile: false, dryRun: false);
 
             Assert.False(result);
@@ -183,7 +183,7 @@ public class MoveMethodTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await MoveMethodService.RunAsync(
+            var result = await new MoveMethodService().RunAsync(
                 sln, "App.Source.Missing", "App.Target", createFile: false, dryRun: false);
 
             Assert.False(result);
@@ -207,7 +207,7 @@ public class MoveMethodTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await MoveMethodService.RunAsync(
+            var result = await new MoveMethodService().RunAsync(
                 sln, "App.Source.Add", "App.NonExistent", createFile: false, dryRun: false);
 
             Assert.False(result);
@@ -235,7 +235,7 @@ public class MoveMethodTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await MoveMethodService.RunAsync(
+            var result = await new MoveMethodService().RunAsync(
                 sln, "App.Source.Add", "App.NewUtils", createFile: true, dryRun: false);
 
             Assert.True(result);
@@ -282,7 +282,7 @@ public class MoveMethodTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await MoveMethodService.RunAsync(
+            var result = await new MoveMethodService().RunAsync(
                 sln, "App.Source.Add", "App.Target", createFile: false, dryRun: false);
 
             Assert.False(result);
@@ -320,7 +320,7 @@ public class MoveMethodTests
 
         using (workspace)
         {
-            var result = await MoveMethodService.RunAsync(
+            var result = await new MoveMethodService().RunAsync(
                 sln, "App.Source.Add", "App.Target", createFile: false, dryRun: true);
 
             Assert.True(result);

@@ -42,9 +42,9 @@ internal sealed class OutlineCommand : IRtCommand
                 List<Dictionary<string, object?>> result;
 
                 if (target.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) || Path.Exists(target))
-                    result = await OutlineService.OutlineFileAsync(sln, target);
+                    result = await new OutlineService().OutlineFileAsync(sln, target);
                 else
-                    result = await OutlineService.OutlineNamespaceAsync(sln, target);
+                    result = await new OutlineService().OutlineNamespaceAsync(sln, target);
 
                 StructuredOutput.Write(result, SymbolFormatter.DefaultJsonOptions);
             }

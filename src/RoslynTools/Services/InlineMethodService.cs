@@ -3,13 +3,15 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class InlineMethodService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class InlineMethodService
 {
-    internal static async Task RunAsync(Solution sln, string typeName, string methodName, bool dryRun)
+    internal async Task RunAsync(Solution sln, string typeName, string methodName, bool dryRun)
     {
         var originalSolution = sln;
 
@@ -66,7 +68,7 @@ internal static class InlineMethodService
         await SolutionWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
     }
 
-    internal static SyntaxNode TransformDocument(
+    internal SyntaxNode TransformDocument(
         SyntaxNode root,
         bool isTargetDoc,
         IMethodSymbol methodSymbol,
@@ -138,7 +140,7 @@ internal static class InlineMethodService
         return result;
     }
 
-    private static ExpressionSyntax SubstituteParameters(
+    private ExpressionSyntax SubstituteParameters(
         ExpressionSyntax expression,
         Dictionary<string, ExpressionSyntax> substitution)
     {
@@ -146,7 +148,7 @@ internal static class InlineMethodService
         return (ExpressionSyntax)new ParameterSubstitutor(substitution).Visit(expression)!;
     }
 
-    private static ExpressionSyntax? GetInlinableBodyExpression(IMethodSymbol methodSymbol)
+    private ExpressionSyntax? GetInlinableBodyExpression(IMethodSymbol methodSymbol)
     {
         var location = methodSymbol.Locations.FirstOrDefault(l => l.IsInSource);
         if (location?.SourceTree == null) return null;

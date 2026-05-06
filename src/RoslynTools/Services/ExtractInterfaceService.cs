@@ -3,13 +3,15 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class ExtractInterfaceService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class ExtractInterfaceService
 {
-    internal static async Task RunAsync(
+    internal async Task RunAsync(
         Solution sln,
         string typeName,
         string? outputDir,
@@ -79,7 +81,7 @@ internal static class ExtractInterfaceService
         await SolutionWriter.ApplyChangesAsync(originalSln, finalSolution, dryRun);
     }
 
-    internal static string BuildInterfaceText(
+    internal string BuildInterfaceText(
         string namespaceName,
         string interfaceName,
         List<IMethodSymbol> methods,
@@ -115,14 +117,14 @@ internal static class ExtractInterfaceService
         return sb.ToString();
     }
 
-    internal static string BuildParamList(IMethodSymbol method) =>
+    internal string BuildParamList(IMethodSymbol method) =>
         string.Join(", ", method.Parameters.Select(p =>
         {
             var typeName = p.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
             return $"{typeName} {p.Name}";
         }));
 
-    internal static string BuildAccessors(IPropertySymbol property)
+    internal string BuildAccessors(IPropertySymbol property)
     {
         var parts = new List<string>();
         if (property.GetMethod is { DeclaredAccessibility: Accessibility.Public })
@@ -132,7 +134,7 @@ internal static class ExtractInterfaceService
         return string.Join(" ", parts);
     }
 
-    internal static async Task<Solution> AddInterfaceToClassAsync(
+    internal async Task<Solution> AddInterfaceToClassAsync(
         Solution solution,
         Document classDocument,
         INamedTypeSymbol classSymbol,

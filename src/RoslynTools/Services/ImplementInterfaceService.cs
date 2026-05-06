@@ -2,13 +2,15 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class ImplementInterfaceService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class ImplementInterfaceService
 {
-    internal static async Task RunAsync(Solution sln, string typeName, string? interfaceName, bool dryRun)
+    internal async Task RunAsync(Solution sln, string typeName, string? interfaceName, bool dryRun)
     {
         var originalSolution = sln;
 
@@ -37,7 +39,7 @@ internal static class ImplementInterfaceService
         await SolutionWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
     }
 
-    private static async Task<Solution> ApplyStubsAsync(
+    private async Task<Solution> ApplyStubsAsync(
         Solution sln,
         string typeName,
         DocumentId docId,
@@ -75,7 +77,7 @@ internal static class ImplementInterfaceService
         return sln.WithDocumentSyntaxRoot(docId, root);
     }
 
-    private static async Task<INamedTypeSymbol?> FindClassSymbolAsync(Solution sln, string typeName)
+    private async Task<INamedTypeSymbol?> FindClassSymbolAsync(Solution sln, string typeName)
     {
         foreach (var project in sln.Projects)
         {
@@ -96,7 +98,7 @@ internal static class ImplementInterfaceService
         return null;
     }
 
-    private static async Task<List<INamedTypeSymbol>> CollectInterfacesToImplementAsync(
+    private async Task<List<INamedTypeSymbol>> CollectInterfacesToImplementAsync(
         Solution sln, INamedTypeSymbol classSymbol, string? interfaceName)
     {
         var result = new List<INamedTypeSymbol>();
@@ -136,7 +138,7 @@ internal static class ImplementInterfaceService
         return result;
     }
 
-    private static List<ISymbol> CollectUnimplementedMembers(
+    private List<ISymbol> CollectUnimplementedMembers(
         INamedTypeSymbol classSymbol, List<INamedTypeSymbol> interfacesToImplement)
     {
         var unimplemented = new List<ISymbol>();
@@ -163,7 +165,7 @@ internal static class ImplementInterfaceService
         return unimplemented;
     }
 
-    private static bool ClassAlreadyHasMember(INamedTypeSymbol classSymbol, ISymbol interfaceMember)
+    private bool ClassAlreadyHasMember(INamedTypeSymbol classSymbol, ISymbol interfaceMember)
     {
         return interfaceMember switch
         {
@@ -181,7 +183,7 @@ internal static class ImplementInterfaceService
         };
     }
 
-    private static bool ParameterTypesMatch(
+    private bool ParameterTypesMatch(
         System.Collections.Immutable.ImmutableArray<IParameterSymbol> a,
         System.Collections.Immutable.ImmutableArray<IParameterSymbol> b)
     {
@@ -196,7 +198,7 @@ internal static class ImplementInterfaceService
         return true;
     }
 
-    private static MemberDeclarationSyntax? BuildStub(ISymbol member)
+    private MemberDeclarationSyntax? BuildStub(ISymbol member)
     {
         return member switch
         {
@@ -206,7 +208,7 @@ internal static class ImplementInterfaceService
         };
     }
 
-    private static MemberDeclarationSyntax BuildMethodStub(IMethodSymbol method)
+    private MemberDeclarationSyntax BuildMethodStub(IMethodSymbol method)
     {
         var returnType = method.ReturnType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
         var paramList = BuildParamList(method);
@@ -225,7 +227,7 @@ internal static class ImplementInterfaceService
         return member;
     }
 
-    private static MemberDeclarationSyntax BuildPropertyStub(IPropertySymbol property)
+    private MemberDeclarationSyntax BuildPropertyStub(IPropertySymbol property)
     {
         var typeName = property.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
 
@@ -247,7 +249,7 @@ internal static class ImplementInterfaceService
         return member;
     }
 
-    private static string BuildParamList(IMethodSymbol method)
+    private string BuildParamList(IMethodSymbol method)
     {
         return string.Join(", ", method.Parameters.Select(p =>
         {
@@ -256,7 +258,7 @@ internal static class ImplementInterfaceService
         }));
     }
 
-    private static string BuildTypeParamList(IMethodSymbol method)
+    private string BuildTypeParamList(IMethodSymbol method)
     {
         if (method.TypeParameters.Length == 0)
             return string.Empty;

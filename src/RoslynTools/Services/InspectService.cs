@@ -1,11 +1,13 @@
 using Microsoft.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class InspectService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class InspectService
 {
-    internal static Dictionary<string, object?> BuildInspection(ISymbol symbol, Solution solution)
+    internal Dictionary<string, object?> BuildInspection(ISymbol symbol, Solution solution)
     {
         var result = new Dictionary<string, object?>
         {

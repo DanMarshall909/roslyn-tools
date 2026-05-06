@@ -41,7 +41,7 @@ internal sealed class DescribeCommand : IRtCommand
             using (workspace)
             {
                 var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, symbol, kind);
-                var result = InspectService.BuildInspection(sym, sln);
+                var result = new InspectService().BuildInspection(sym, sln);
                 StructuredOutput.Write(result, SymbolFormatter.DefaultJsonOptions);
             }
         },

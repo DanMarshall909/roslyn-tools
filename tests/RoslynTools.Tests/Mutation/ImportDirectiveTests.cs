@@ -22,9 +22,9 @@ public class ImportDirectiveTests
 
         using (workspace)
         {
-            var all = await ImportDirectiveService.AnalyzeAsync(solution, "all");
-            var globals = await ImportDirectiveService.AnalyzeAsync(solution, "global");
-            var statics = await ImportDirectiveService.AnalyzeAsync(solution, "static");
+            var all = await new ImportDirectiveService().AnalyzeAsync(solution, "all");
+            var globals = await new ImportDirectiveService().AnalyzeAsync(solution, "global");
+            var statics = await new ImportDirectiveService().AnalyzeAsync(solution, "static");
 
             Assert.Contains(all, i => i.Kind == "global" && i.Name == "System");
             Assert.Contains(all, i => i.Kind == "global-static" && i.Name == "System.Math");
@@ -49,7 +49,7 @@ public class ImportDirectiveTests
 
         using (workspace)
         {
-            var globals = await ImportDirectiveService.AnalyzeAsync(solution, "global");
+            var globals = await new ImportDirectiveService().AnalyzeAsync(solution, "global");
 
             var only = Assert.Single(globals);
             Assert.Equal("Xunit", only.Name);
@@ -71,7 +71,7 @@ public class ImportDirectiveTests
 
         using (workspace)
         {
-            var globals = await ImportDirectiveService.AnalyzeAsync(solution, "global");
+            var globals = await new ImportDirectiveService().AnalyzeAsync(solution, "global");
 
             var only = Assert.Single(globals);
             Assert.Equal("Xunit", only.Name);
@@ -93,7 +93,7 @@ public class ImportDirectiveTests
 
         using (workspace)
         {
-            var globals = await ImportDirectiveService.AnalyzeAsync(solution, "global");
+            var globals = await new ImportDirectiveService().AnalyzeAsync(solution, "global");
 
             var only = Assert.Single(globals);
             Assert.Equal("Xunit", only.Name);
@@ -114,7 +114,7 @@ public class ImportDirectiveTests
 
         using (workspace)
         {
-            await ImportDirectiveService.AddStaticUsingAsync(
+            await new ImportDirectiveService().AddStaticUsingAsync(
                 solution,
                 filePath,
                 "System.Console",
@@ -137,7 +137,7 @@ public class ImportDirectiveTests
 
         using (workspace)
         {
-            await ImportDirectiveService.AddGlobalUsingAsync(
+            await new ImportDirectiveService().AddGlobalUsingAsync(
                 solution,
                 filePath,
                 "System.Text",
@@ -161,13 +161,13 @@ public class ImportDirectiveTests
 
         using (workspace)
         {
-            await ImportDirectiveService.AddGlobalUsingAsync(
+            await new ImportDirectiveService().AddGlobalUsingAsync(
                 solution,
                 filePath,
                 "System",
                 dryRun: false);
 
-            await ImportDirectiveService.AddStaticUsingAsync(
+            await new ImportDirectiveService().AddStaticUsingAsync(
                 solution,
                 filePath,
                 "System.Console",

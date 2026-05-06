@@ -29,7 +29,7 @@ public class MoveIntegrationTests
 
         var (workspace, solution) = project.Build();
 
-        await MoveService.ExecuteSingleTypeMoveAsync(
+        await new MoveService().ExecuteSingleTypeMoveAsync(
             workspace,
             solution,
             fqn: "Foo.Target",
@@ -69,7 +69,7 @@ public class MoveIntegrationTests
 
         var (workspace, solution) = project.Build();
 
-        await MoveService.ExecuteSingleTypeMoveAsync(
+        await new MoveService().ExecuteSingleTypeMoveAsync(
             workspace,
             solution,
             fqn: "Foo.Target",
@@ -98,7 +98,7 @@ public class MoveIntegrationTests
 
         var (workspace, solution) = project.Build();
 
-        await MoveService.ExecuteSingleTypeMoveAsync(
+        await new MoveService().ExecuteSingleTypeMoveAsync(
             workspace,
             solution,
             fqn: "SampleProject.Foo.Movable",
@@ -134,7 +134,7 @@ public class MoveIntegrationTests
 
         var (workspace, solution) = project.Build();
 
-        await MoveService.ExecuteSingleTypeMoveAsync(
+        await new MoveService().ExecuteSingleTypeMoveAsync(
             workspace,
             solution,
             fqn: "Foo.Target",

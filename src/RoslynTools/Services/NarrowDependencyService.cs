@@ -2,13 +2,15 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class NarrowDependencyService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class NarrowDependencyService
 {
-    internal static async Task ExecuteAsync(
+    internal async Task ExecuteAsync(
         Solution solution,
         string sourceInterfaceSpec,
         string[] memberNames,
@@ -37,7 +39,7 @@ internal static class NarrowDependencyService
         {
             // Build new interface text via InterfaceAnalyzerService
             var targetNamespace = interfaceSymbol.ContainingNamespace?.ToDisplayString() ?? string.Empty;
-            var interfaceText = InterfaceAnalyzerService.BuildInterfaceText(targetNamespace, newInterfaceName, selectedMembers);
+            var interfaceText = new InterfaceAnalyzerService().BuildInterfaceText(targetNamespace, newInterfaceName, selectedMembers);
 
             // Find owning project
             var owningProject = FindOwningProject(solution, interfaceSymbol)
@@ -55,7 +57,7 @@ internal static class NarrowDependencyService
         }
 
         // Analyze consumers and narrow those that only use the selected subset
-        var narrowResult = await ConsumerNarrowerService.NarrowConsumersAsync(
+        var narrowResult = await new ConsumerNarrowerService().NarrowConsumersAsync(
             solution,
             interfaceSymbol,
             selectedMembers,
@@ -76,7 +78,7 @@ internal static class NarrowDependencyService
     // Validation
     // -------------------------------------------------------------------------
 
-    private static void ValidateMemberNames(INamedTypeSymbol interfaceSymbol, string[] memberNames)
+    private void ValidateMemberNames(INamedTypeSymbol interfaceSymbol, string[] memberNames)
     {
         var available = interfaceSymbol.GetMembers()
             .Where(m => !m.IsImplicitlyDeclared)
@@ -96,7 +98,7 @@ internal static class NarrowDependencyService
     // Symbol helpers
     // -------------------------------------------------------------------------
 
-    private static async Task<INamedTypeSymbol> ResolveInterfaceAsync(Solution solution, string interfaceSpec)
+    private async Task<INamedTypeSymbol> ResolveInterfaceAsync(Solution solution, string interfaceSpec)
     {
         var symbol = LooksFullyQualified(interfaceSpec)
             ? await SymbolLocator.FindSymbolByFqnAsync(solution, interfaceSpec, "type")
@@ -114,7 +116,7 @@ internal static class NarrowDependencyService
         return namedType;
     }
 
-    private static List<ISymbol> GetSelectedMembers(INamedTypeSymbol interfaceSymbol, string[] memberNames)
+    private List<ISymbol> GetSelectedMembers(INamedTypeSymbol interfaceSymbol, string[] memberNames)
     {
         var nameSet = new HashSet<string>(memberNames, StringComparer.Ordinal);
         return interfaceSymbol.GetMembers()
@@ -122,7 +124,7 @@ internal static class NarrowDependencyService
             .ToList();
     }
 
-    private static async Task<INamedTypeSymbol?> FindExistingInterfaceAsync(
+    private async Task<INamedTypeSymbol?> FindExistingInterfaceAsync(
         Solution solution,
         string newInterfaceName,
         List<ISymbol> selectedMembers)
@@ -144,7 +146,7 @@ internal static class NarrowDependencyService
         return null;
     }
 
-    private static Project? FindOwningProject(Solution solution, INamedTypeSymbol interfaceSymbol)
+    private Project? FindOwningProject(Solution solution, INamedTypeSymbol interfaceSymbol)
     {
         var sourceFilePath = interfaceSymbol.Locations
             .Where(l => l.IsInSource)
@@ -159,7 +161,7 @@ internal static class NarrowDependencyService
                 string.Equals(d.FilePath, sourceFilePath, StringComparison.OrdinalIgnoreCase)));
     }
 
-    private static string ResolveNewInterfaceFilePath(INamedTypeSymbol interfaceSymbol, string newInterfaceName)
+    private string ResolveNewInterfaceFilePath(INamedTypeSymbol interfaceSymbol, string newInterfaceName)
     {
         var sourceFilePath = interfaceSymbol.Locations
             .Where(l => l.IsInSource)
@@ -177,7 +179,7 @@ internal static class NarrowDependencyService
     // Reporting
     // -------------------------------------------------------------------------
 
-    private static void PrintReport(
+    private void PrintReport(
         ConsumerNarrowerService.NarrowResult result,
         string newInterfaceName,
         bool newFileCreated,
@@ -218,7 +220,7 @@ internal static class NarrowDependencyService
     // Utility
     // -------------------------------------------------------------------------
 
-    private static bool LooksFullyQualified(string symbolSpec)
+    private bool LooksFullyQualified(string symbolSpec)
     {
         return symbolSpec.StartsWith("global::", StringComparison.Ordinal)
                || symbolSpec.Contains('.', StringComparison.Ordinal);

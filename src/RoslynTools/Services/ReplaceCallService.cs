@@ -2,13 +2,15 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.CSharp;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class ReplaceCallService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class ReplaceCallService
 {
-    internal static async Task RunAsync(Solution solution, string from, string to, bool dryRun, int? ifArgIndex = null, string? ifArgLiteral = null)
+    internal async Task RunAsync(Solution solution, string from, string to, bool dryRun, int? ifArgIndex = null, string? ifArgLiteral = null)
     {
         var originalSolution = solution;
 
@@ -50,7 +52,7 @@ internal static class ReplaceCallService
         await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
     }
 
-    private static bool ArgumentMatchesFilter(InvocationExpressionSyntax invocation, int argIndex, string literal)
+    private bool ArgumentMatchesFilter(InvocationExpressionSyntax invocation, int argIndex, string literal)
     {
         if (argIndex < 0 || argIndex >= invocation.ArgumentList.Arguments.Count)
             return false;
@@ -67,13 +69,13 @@ internal static class ReplaceCallService
         return literalText == literal;
     }
 
-    private static string ParseMethodName(string from)
+    private string ParseMethodName(string from)
     {
         var lastDot = from.LastIndexOf('.');
         return lastDot >= 0 ? from[(lastDot + 1)..] : from;
     }
 
-    private static async Task<Dictionary<DocumentId, List<Location>>> FindInvocationSitesAsync(
+    private async Task<Dictionary<DocumentId, List<Location>>> FindInvocationSitesAsync(
         IEnumerable<ReferencedSymbol> referencedSymbols,
         int? ifArgIndex = null,
         string? ifArgLiteral = null)
@@ -117,7 +119,7 @@ internal static class ReplaceCallService
         return locationsByDocument;
     }
 
-    private static Dictionary<SyntaxNode, SyntaxNode> RewriteMemberAccess(
+    private Dictionary<SyntaxNode, SyntaxNode> RewriteMemberAccess(
         SyntaxNode root,
         IEnumerable<Location> locations,
         string to)

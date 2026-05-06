@@ -3,12 +3,14 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using RoslynTools.Core;
 using RoslynTools.Services.Results;
+using System.Diagnostics.CodeAnalysis;
 
 namespace RoslynTools.Services;
 
-internal static class FindCallersService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class FindCallersService
 {
-    internal static async Task<FindCallersResult> FindAsync(
+    internal async Task<FindCallersResult> FindAsync(
         Solution sln,
         string symbol,
         bool includeTests)
@@ -72,10 +74,10 @@ internal static class FindCallersService
         };
     }
 
-    internal static bool IsNameofExpression(InvocationExpressionSyntax invocation) =>
+    internal bool IsNameofExpression(InvocationExpressionSyntax invocation) =>
         invocation.Expression is IdentifierNameSyntax id &&
         id.Identifier.ValueText == "nameof";
 
-    internal static bool IsTestProject(string projectName) =>
+    internal bool IsTestProject(string projectName) =>
         projectName.Contains("Test", StringComparison.OrdinalIgnoreCase);
 }

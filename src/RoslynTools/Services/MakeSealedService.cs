@@ -2,13 +2,15 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class MakeSealedService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class MakeSealedService
 {
-    internal static async Task RunAsync(Solution sln, string typeName, bool dryRun)
+    internal async Task RunAsync(Solution sln, string typeName, bool dryRun)
     {
         var originalSolution = sln;
 
@@ -22,7 +24,7 @@ internal static class MakeSealedService
         await SolutionWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
     }
 
-    private static async Task<(INamedTypeSymbol classSymbol, SyntaxReference syntaxRef, DocumentId docId)>
+    private async Task<(INamedTypeSymbol classSymbol, SyntaxReference syntaxRef, DocumentId docId)>
         FindClassAndDocumentAsync(Solution sln, string typeName)
     {
         var classSymbol = await FindClassSymbolAsync(sln, typeName)
@@ -37,7 +39,7 @@ internal static class MakeSealedService
         return (classSymbol, syntaxRef, docId);
     }
 
-    private static async Task<bool> CheckDerivedTypesAsync(
+    private async Task<bool> CheckDerivedTypesAsync(
         string typeName, INamedTypeSymbol classSymbol, Solution sln)
     {
         if (classSymbol.IsSealed)
@@ -65,7 +67,7 @@ internal static class MakeSealedService
         return true;
     }
 
-    private static async Task<Solution> AddSealedModifierAsync(
+    private async Task<Solution> AddSealedModifierAsync(
         Solution sln, SyntaxReference syntaxRef, DocumentId docId)
     {
         var classSyntax = (ClassDeclarationSyntax)await syntaxRef.GetSyntaxAsync();
@@ -81,7 +83,7 @@ internal static class MakeSealedService
         return sln.WithDocumentSyntaxRoot(docId, root);
     }
 
-    private static async Task<INamedTypeSymbol?> FindClassSymbolAsync(Solution sln, string typeName)
+    private async Task<INamedTypeSymbol?> FindClassSymbolAsync(Solution sln, string typeName)
     {
         foreach (var project in sln.Projects)
         {
@@ -102,7 +104,7 @@ internal static class MakeSealedService
         return null;
     }
 
-    private static SyntaxTokenList BuildSealedModifiers(SyntaxTokenList existingModifiers)
+    private SyntaxTokenList BuildSealedModifiers(SyntaxTokenList existingModifiers)
     {
         var sealedToken = SyntaxFactory.Token(SyntaxKind.SealedKeyword)
             .WithTrailingTrivia(SyntaxFactory.Space);

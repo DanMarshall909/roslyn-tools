@@ -124,7 +124,7 @@ internal sealed class AddTestCommand : IRtCommand
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solutionPath);
             using (workspace)
             {
-                await AddTestService.RunCommandBasedAsync(sln, commandInfo, scenario, outcome, concern, beforePath, afterPath, dryRun);
+                await new AddTestService().RunCommandBasedAsync(sln, commandInfo, scenario, outcome, concern, beforePath, afterPath, dryRun);
             }
         }
         // Legacy mode
@@ -147,7 +147,7 @@ internal sealed class AddTestCommand : IRtCommand
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solutionPath);
             using (workspace)
             {
-                await AddTestService.RunAsync(sln, className, name, acs, nestedClass, filePath, dryRun);
+                await new AddTestService().RunAsync(sln, className, name, acs, nestedClass, filePath, dryRun);
             }
         }
     }
@@ -156,7 +156,7 @@ internal sealed class AddTestCommand : IRtCommand
     //  AC → C# identifier conversion (delegates to Core; kept here for tests)
     // ──────────────────────────────────────────────────────────────────────────
 
-    internal static string AcToMethodName(string ac) => AddTestService.AcToMethodName(ac);
+    internal static string AcToMethodName(string ac) => new AddTestService().AcToMethodName(ac);
 
     // ──────────────────────────────────────────────────────────────────────────
     //  Command registry resolution

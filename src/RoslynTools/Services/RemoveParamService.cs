@@ -2,13 +2,15 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class RemoveParamService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class RemoveParamService
 {
-    internal static async Task<Solution> RemoveParamAsync(
+    internal async Task<Solution> RemoveParamAsync(
         Solution solution,
         string methodSpec,
         string paramName,
@@ -140,7 +142,7 @@ internal static class RemoveParamService
         return currentSolution;
     }
 
-    private static TextChange[] BuildParameterRemovalChanges(
+    private TextChange[] BuildParameterRemovalChanges(
         ParameterListSyntax paramList,
         int paramIndex,
         SourceText sourceText)
@@ -178,7 +180,7 @@ internal static class RemoveParamService
         return [new TextChange(removeSpan, "")];
     }
 
-    private static ArgumentListSyntax? FindArgumentList(SyntaxNode node)
+    private ArgumentListSyntax? FindArgumentList(SyntaxNode node)
     {
         // Reference locations typically point to the method name identifier.
         // Walk up to find the invocation expression or object creation expression.
@@ -200,7 +202,7 @@ internal static class RemoveParamService
         return null;
     }
 
-    private static TextChange[] BuildArgumentRemovalChanges(
+    private TextChange[] BuildArgumentRemovalChanges(
         ArgumentListSyntax argList,
         int paramIndex,
         string paramName,
@@ -233,7 +235,7 @@ internal static class RemoveParamService
         return BuildArgRemovalChanges(args, paramIndex, sourceText);
     }
 
-    private static TextChange[] BuildArgRemovalChanges(
+    private TextChange[] BuildArgRemovalChanges(
         SeparatedSyntaxList<ArgumentSyntax> args,
         int argIndex,
         SourceText sourceText)

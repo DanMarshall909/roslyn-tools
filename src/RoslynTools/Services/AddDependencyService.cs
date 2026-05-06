@@ -2,13 +2,15 @@ using System.Globalization;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class AddDependencyService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class AddDependencyService
 {
-    private static readonly SymbolDisplayFormat TypeDisplayFormat = new(
+    private readonly SymbolDisplayFormat TypeDisplayFormat = new(
         globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Omitted,
         typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
         genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters);
@@ -20,7 +22,7 @@ internal static class AddDependencyService
         ClassDeclarationSyntax Declaration,
         INamedTypeSymbol Symbol);
 
-    internal static async Task RunAsync(
+    internal async Task RunAsync(
         Solution solution,
         string typeName,
         string depType,
@@ -36,7 +38,7 @@ internal static class AddDependencyService
         RtLog.Info("Injected {DepType} into {TargetType}.", depType, result.TargetType ?? typeName);
     }
 
-    internal static async Task<DependencyInjectionResult> ApplyAsync(
+    internal async Task<DependencyInjectionResult> ApplyAsync(
         Solution solution,
         string typeName,
         string depType,
@@ -92,7 +94,7 @@ internal static class AddDependencyService
         bool Changed,
         string? TargetType);
 
-    internal static async Task<ResolvedTarget?> ResolveTargetClassAsync(Solution solution, string typeName)
+    internal async Task<ResolvedTarget?> ResolveTargetClassAsync(Solution solution, string typeName)
     {
         var normalizedTypeName = NormalizeTypeName(typeName);
         var isQualifiedName = normalizedTypeName.Contains('.', StringComparison.Ordinal);
@@ -143,7 +145,7 @@ internal static class AddDependencyService
         return matches[0];
     }
 
-    internal static ITypeSymbol? ResolveDependencyTypeSymbol(
+    internal ITypeSymbol? ResolveDependencyTypeSymbol(
         SemanticModel semanticModel,
         ClassDeclarationSyntax declaration,
         string depType)
@@ -162,7 +164,7 @@ internal static class AddDependencyService
             .FirstOrDefault();
     }
 
-    internal static bool IsTypeMatch(INamedTypeSymbol symbol, string normalizedTypeName, bool isQualifiedName)
+    internal bool IsTypeMatch(INamedTypeSymbol symbol, string normalizedTypeName, bool isQualifiedName)
     {
         if (isQualifiedName)
             return NormalizeTypeName(symbol.ToDisplayString(TypeDisplayFormat)) == normalizedTypeName;
@@ -170,10 +172,10 @@ internal static class AddDependencyService
         return symbol.Name == normalizedTypeName;
     }
 
-    internal static string NormalizeTypeName(string typeName) =>
+    internal string NormalizeTypeName(string typeName) =>
         typeName.Replace("global::", string.Empty, StringComparison.Ordinal).Trim();
 
-    internal static string DeriveFieldName(string depType)
+    internal string DeriveFieldName(string depType)
     {
         var name = depType;
         if (name.Length > 1 && name[0] == 'I' && char.IsUpper(name[1]))

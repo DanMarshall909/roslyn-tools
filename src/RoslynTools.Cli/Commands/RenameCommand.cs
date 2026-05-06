@@ -51,14 +51,14 @@ internal sealed class RenameCommand : IRtCommand
             {
                 if (!string.IsNullOrWhiteSpace(csv))
                 {
-                    await RenameService.ExecuteBatchAsync(sln, csv, dryRun);
+                    await new RenameService().ExecuteBatchAsync(sln, csv, dryRun);
                     return;
                 }
 
                 if (string.IsNullOrWhiteSpace(symbol) || string.IsNullOrWhiteSpace(newName))
                     throw new InvalidOperationException("Provide either <symbol> <new-name> or --csv <path>.");
 
-                await RenameService.ExecuteSingleAsync(sln, symbol, newName, kind, dryRun);
+                await new RenameService().ExecuteSingleAsync(sln, symbol, newName, kind, dryRun);
             }
         },
         symbolArg, newNameArg, solutionOpt, kindOpt, csvOpt, dryRunOpt);
@@ -71,13 +71,13 @@ internal sealed class RenameCommand : IRtCommand
     // Forwarding stubs kept for backwards compatibility
     internal static Task<Microsoft.CodeAnalysis.Solution> RenameAsync(
         Microsoft.CodeAnalysis.Solution sln, string symbol, string newName, string? kind) =>
-        RenameService.RenameAsync(sln, symbol, newName, kind);
+        new RenameService().RenameAsync(sln, symbol, newName, kind);
 
     internal static Task ExecuteSingleAsync(
         Microsoft.CodeAnalysis.Solution sln, string symbol, string newName, string? kind, bool dryRun) =>
-        RenameService.ExecuteSingleAsync(sln, symbol, newName, kind, dryRun);
+        new RenameService().ExecuteSingleAsync(sln, symbol, newName, kind, dryRun);
 
     internal static Task ExecuteBatchAsync(
         Microsoft.CodeAnalysis.Solution sln, string csvPath, bool dryRun) =>
-        RenameService.ExecuteBatchAsync(sln, csvPath, dryRun);
+        new RenameService().ExecuteBatchAsync(sln, csvPath, dryRun);
 }

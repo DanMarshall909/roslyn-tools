@@ -1,13 +1,15 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class FixNamespaceService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class FixNamespaceService
 {
-    internal static async Task ExecuteAsync(string filePath, string? solutionPath, bool dryRun)
+    internal async Task ExecuteAsync(string filePath, string? solutionPath, bool dryRun)
     {
         filePath = Path.GetFullPath(filePath);
 
@@ -18,7 +20,7 @@ internal static class FixNamespaceService
         }
     }
 
-    internal static async Task RunAsync(Solution solution, string filePath, bool dryRun)
+    internal async Task RunAsync(Solution solution, string filePath, bool dryRun)
     {
         var originalSolution = solution;
 
@@ -84,7 +86,7 @@ internal static class FixNamespaceService
         await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
     }
 
-    internal static string ComputeExpectedNamespace(string filePath, string projectDir, string assemblyName)
+    internal string ComputeExpectedNamespace(string filePath, string projectDir, string assemblyName)
     {
         var fileDir = Path.GetDirectoryName(filePath)!;
         var relativeDir = Path.GetRelativePath(projectDir, fileDir);
@@ -100,7 +102,7 @@ internal static class FixNamespaceService
         return assemblyName + "." + subNamespace;
     }
 
-    internal static string? GetDeclaredNamespace(SyntaxNode root)
+    internal string? GetDeclaredNamespace(SyntaxNode root)
     {
         var fileScoped = root.DescendantNodes()
             .OfType<FileScopedNamespaceDeclarationSyntax>()

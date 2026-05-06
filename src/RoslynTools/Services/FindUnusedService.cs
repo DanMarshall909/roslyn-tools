@@ -1,15 +1,16 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
 internal record UnusedSymbol(string Name, string Kind, string? FilePath, int Line);
-
-internal static class FindUnusedService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class FindUnusedService
 {
-    internal static async Task<List<UnusedSymbol>> AnalyzeAsync(Solution solution, string scope = "all")
+    internal async Task<List<UnusedSymbol>> AnalyzeAsync(Solution solution, string scope = "all")
     {
         var results = new List<UnusedSymbol>();
         var rtIgnore = RtIgnore.ForSolution(solution);
@@ -67,7 +68,7 @@ internal static class FindUnusedService
         return results;
     }
 
-    private static bool ShouldExclude(ISymbol symbol)
+    private bool ShouldExclude(ISymbol symbol)
     {
         if (symbol is INamedTypeSymbol type)
         {

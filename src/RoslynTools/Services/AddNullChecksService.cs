@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -5,9 +6,10 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class AddNullChecksService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class AddNullChecksService
 {
-    internal static async Task RunAsync(Solution sln, string typeName, string methodName, bool dryRun)
+    internal async Task RunAsync(Solution sln, string typeName, string methodName, bool dryRun)
     {
         var originalSolution = sln;
 
@@ -69,7 +71,7 @@ internal static class AddNullChecksService
         await SolutionWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
     }
 
-    internal static bool HasExistingGuard(BlockSyntax body, string paramName)
+    internal bool HasExistingGuard(BlockSyntax body, string paramName)
     {
         foreach (var stmt in body.Statements)
         {

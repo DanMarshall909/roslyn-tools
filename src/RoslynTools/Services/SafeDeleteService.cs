@@ -2,13 +2,15 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Editing;
 using Microsoft.CodeAnalysis.FindSymbols;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class SafeDeleteService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class SafeDeleteService
 {
-    internal static async Task RunAsync(Solution sln, string symbol, string? kind, bool dryRun)
+    internal async Task RunAsync(Solution sln, string symbol, string? kind, bool dryRun)
     {
         var sym = await ResolveSymbolAsync(sln, symbol, kind);
 
@@ -87,7 +89,7 @@ internal static class SafeDeleteService
         await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun);
     }
 
-    private static async Task<ISymbol> ResolveSymbolAsync(Solution sln, string symbol, string? kind)
+    private async Task<ISymbol> ResolveSymbolAsync(Solution sln, string symbol, string? kind)
     {
         if (symbol.Contains('.'))
             return await SymbolLocator.FindSymbolByFqnAsync(sln, symbol, kind);
@@ -108,7 +110,7 @@ internal static class SafeDeleteService
         return await SymbolLocator.FindSymbolAsync(sln, symbol, kind);
     }
 
-    internal static SyntaxNode? FindDeclarationNode(SyntaxNode node) =>
+    internal SyntaxNode? FindDeclarationNode(SyntaxNode node) =>
         node switch
         {
             ClassDeclarationSyntax => node,
@@ -124,7 +126,7 @@ internal static class SafeDeleteService
             _ => null
         };
 
-    internal static bool IsInsideNameOf(SyntaxNode node)
+    internal bool IsInsideNameOf(SyntaxNode node)
     {
         var current = node.Parent;
         while (current != null)

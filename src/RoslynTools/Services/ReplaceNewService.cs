@@ -1,13 +1,15 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.CSharp;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class ReplaceNewService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class ReplaceNewService
 {
-    internal static async Task RunAsync(Solution solution, string typeName, string with_method, bool dryRun, int? ifArgIndex = null, string? ifArgLiteral = null)
+    internal async Task RunAsync(Solution solution, string typeName, string with_method, bool dryRun, int? ifArgIndex = null, string? ifArgLiteral = null)
     {
         var originalSolution = solution;
 
@@ -45,7 +47,7 @@ internal static class ReplaceNewService
         await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
     }
 
-    private static async Task<Dictionary<DocumentId, List<Location>>> FindObjectCreationsAsync(
+    private async Task<Dictionary<DocumentId, List<Location>>> FindObjectCreationsAsync(
         Solution solution,
         string typeName,
         int? ifArgIndex = null,
@@ -89,13 +91,13 @@ internal static class ReplaceNewService
         return locationsByDocument;
     }
 
-    private static bool MatchesType(ObjectCreationExpressionSyntax creation, string typeName)
+    private bool MatchesType(ObjectCreationExpressionSyntax creation, string typeName)
     {
         var creationTypeText = creation.Type.ToString();
         return creationTypeText == typeName;
     }
 
-    private static bool ArgumentMatchesFilter(ObjectCreationExpressionSyntax creation, int argIndex, string literal)
+    private bool ArgumentMatchesFilter(ObjectCreationExpressionSyntax creation, int argIndex, string literal)
     {
         if (creation.ArgumentList is null)
             return false;
@@ -114,7 +116,7 @@ internal static class ReplaceNewService
         return literalText == literal;
     }
 
-    private static Dictionary<SyntaxNode, SyntaxNode> RewriteObjectCreation(
+    private Dictionary<SyntaxNode, SyntaxNode> RewriteObjectCreation(
         SyntaxNode root,
         IEnumerable<Location> locations,
         string with_method)

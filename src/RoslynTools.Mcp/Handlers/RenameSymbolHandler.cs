@@ -14,7 +14,7 @@ internal sealed class RenameSymbolHandler
         using (workspace)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var newSln = await RenameService.RenameAsync(sln, request.OldName, request.NewName, kind: null);
+            var newSln = await new RenameService().RenameAsync(sln, request.OldName, request.NewName, kind: null);
 
             var changedFiles = newSln.GetChanges(sln)
                 .GetProjectChanges()

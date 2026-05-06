@@ -2,12 +2,14 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.FindSymbols;
 using RoslynTools.Core;
 using RoslynTools.Services.Results;
+using System.Diagnostics.CodeAnalysis;
 
 namespace RoslynTools.Services;
 
-internal static class FindRefsService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class FindRefsService
 {
-    internal static async Task<FindRefsResult> FindAsync(
+    internal async Task<FindRefsResult> FindAsync(
         Solution sln,
         string symbol,
         string? kind)

@@ -37,7 +37,7 @@ public class NavigationServicesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await FindCallersService.FindAsync(sln, "Greet", includeTests: true);
+            var result = await new FindCallersService().FindAsync(sln, "Greet", includeTests: true);
             Assert.Equal("Greet", result.SymbolName);
             Assert.NotEmpty(result.Callers);
         }
@@ -51,7 +51,7 @@ public class NavigationServicesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await FindCallersService.FindAsync(sln, "Greet", includeTests: false);
+            var result = await new FindCallersService().FindAsync(sln, "Greet", includeTests: false);
             Assert.Empty(result.Callers);
         }
     }
@@ -59,9 +59,9 @@ public class NavigationServicesTests
     [Fact]
     public void FindCallers_IsTestProject_matches_test_in_name()
     {
-        Assert.True(FindCallersService.IsTestProject("MyProject.Tests"));
-        Assert.True(FindCallersService.IsTestProject("UnitTest"));
-        Assert.False(FindCallersService.IsTestProject("OrderService"));
+        Assert.True(new FindCallersService().IsTestProject("MyProject.Tests"));
+        Assert.True(new FindCallersService().IsTestProject("UnitTest"));
+        Assert.False(new FindCallersService().IsTestProject("OrderService"));
     }
 
     // ── FindRefsService ───────────────────────────────────────────────────
@@ -74,7 +74,7 @@ public class NavigationServicesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await FindRefsService.FindAsync(sln, "Greeter", kind: "type");
+            var result = await new FindRefsService().FindAsync(sln, "Greeter", kind: "type");
             Assert.Equal("Greeter", result.SymbolName);
             Assert.NotEmpty(result.References);
         }
@@ -96,7 +96,7 @@ public class NavigationServicesTests
         {
             var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, "App.IWorker", "type");
             var typeSymbol = (INamedTypeSymbol)sym;
-            var results = await FindImplementationsService.FindAsync(sln, typeSymbol);
+            var results = await new FindImplementationsService().FindAsync(sln, typeSymbol);
             Assert.Contains(results, r => r["name"]?.ToString() == "ConcreteWorker");
         }
     }
@@ -111,7 +111,7 @@ public class NavigationServicesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var results = await OutlineService.OutlineNamespaceAsync(sln, "App");
+            var results = await new OutlineService().OutlineNamespaceAsync(sln, "App");
             Assert.True(results.Count >= 2);
             Assert.Contains(results, r => r["name"]?.ToString() == "Greeter");
             Assert.Contains(results, r => r["name"]?.ToString() == "Runner");
@@ -127,7 +127,7 @@ public class NavigationServicesTests
         using (workspace)
         {
             await Assert.ThrowsAsync<InvalidOperationException>(
-                () => OutlineService.OutlineNamespaceAsync(sln, "DoesNotExist"));
+                () => new OutlineService().OutlineNamespaceAsync(sln, "DoesNotExist"));
         }
     }
 
@@ -140,7 +140,7 @@ public class NavigationServicesTests
         using (workspace)
         {
             await Assert.ThrowsAsync<InvalidOperationException>(
-                () => OutlineService.OutlineFileAsync(sln, "/nonexistent/path.cs"));
+                () => new OutlineService().OutlineFileAsync(sln, "/nonexistent/path.cs"));
         }
     }
 
@@ -165,7 +165,7 @@ public class NavigationServicesTests
         using (workspace)
         {
             var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, "App.Greeter", "type");
-            var result = InspectService.BuildInspection(sym, sln);
+            var result = new InspectService().BuildInspection(sym, sln);
 
             Assert.Equal("Greeter", result["name"]);
             Assert.Equal("NamedType", result["kind"]);
@@ -182,7 +182,7 @@ public class NavigationServicesTests
         using (workspace)
         {
             var sym = await SymbolLocator.FindSymbolAsync(sln, "Greet", "method");
-            var result = InspectService.BuildInspection(sym, sln);
+            var result = new InspectService().BuildInspection(sym, sln);
 
             Assert.Equal("Greet", result["name"]);
             Assert.Equal("Method", result["kind"]);
@@ -203,7 +203,7 @@ public class NavigationServicesTests
         using (workspace)
         {
             var sym = await SymbolLocator.FindSymbolAsync(sln, "Id", "property");
-            var result = InspectService.BuildInspection(sym, sln);
+            var result = new InspectService().BuildInspection(sym, sln);
 
             Assert.Equal("Id", result["name"]);
             Assert.True((bool?)result["hasGetter"]);
@@ -223,7 +223,7 @@ public class NavigationServicesTests
         using (workspace)
         {
             var sym = await SymbolLocator.FindSymbolAsync(sln, "MaxSize", "field");
-            var result = InspectService.BuildInspection(sym, sln);
+            var result = new InspectService().BuildInspection(sym, sln);
 
             Assert.Equal("MaxSize", result["name"]);
             Assert.True((bool?)result["isConst"]);

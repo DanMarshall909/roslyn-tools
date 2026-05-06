@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
@@ -13,10 +14,10 @@ internal sealed record ImportDirectiveInfo(
     bool IsGlobal,
     bool IsStatic,
     string? Alias);
-
-internal static class ImportDirectiveService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class ImportDirectiveService
 {
-    internal static async Task<IReadOnlyList<ImportDirectiveInfo>> AnalyzeAsync(
+    internal async Task<IReadOnlyList<ImportDirectiveInfo>> AnalyzeAsync(
         Solution solution,
         string kind)
     {
@@ -62,7 +63,7 @@ internal static class ImportDirectiveService
             .ToList();
     }
 
-    internal static async Task AddStaticUsingAsync(
+    internal async Task AddStaticUsingAsync(
         Solution solution,
         string filePath,
         string typeName,
@@ -86,7 +87,7 @@ internal static class ImportDirectiveService
         await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
     }
 
-    internal static async Task AddGlobalUsingAsync(
+    internal async Task AddGlobalUsingAsync(
         Solution solution,
         string filePath,
         string namespaceName,
@@ -111,7 +112,7 @@ internal static class ImportDirectiveService
         await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
     }
 
-    private static Document FindDocument(Solution solution, string filePath)
+    private Document FindDocument(Solution solution, string filePath)
     {
         var fullPath = Path.GetFullPath(filePath);
         return solution.Projects
@@ -120,7 +121,7 @@ internal static class ImportDirectiveService
             ?? throw new InvalidOperationException($"File '{filePath}' not found in solution.");
     }
 
-    private static async Task<CompilationUnitSyntax> GetCompilationUnitAsync(Document document)
+    private async Task<CompilationUnitSyntax> GetCompilationUnitAsync(Document document)
     {
         var root = await document.GetSyntaxRootAsync()
             ?? throw new InvalidOperationException($"Cannot read syntax root for '{document.FilePath}'.");
@@ -129,7 +130,7 @@ internal static class ImportDirectiveService
             ?? throw new InvalidOperationException($"Document '{document.FilePath}' is not a C# compilation unit.");
     }
 
-    private static CompilationUnitSyntax AddUsingDirective(
+    private CompilationUnitSyntax AddUsingDirective(
         CompilationUnitSyntax root,
         UsingDirectiveSyntax directive)
     {
@@ -144,10 +145,10 @@ internal static class ImportDirectiveService
         return root.WithUsings(usings.Insert(insertIndex, formattedDirective));
     }
 
-    private static UsingDirectiveSyntax ParseUsingDirective(string text) =>
+    private UsingDirectiveSyntax ParseUsingDirective(string text) =>
         SyntaxFactory.ParseCompilationUnit(text + Environment.NewLine).Usings.Single();
 
-    private static bool MatchesKind(string kind, bool isGlobal, bool isStatic, string? alias) =>
+    private bool MatchesKind(string kind, bool isGlobal, bool isStatic, string? alias) =>
         kind.ToLowerInvariant() switch
         {
             "all" => true,
@@ -157,7 +158,7 @@ internal static class ImportDirectiveService
             _ => throw new ArgumentException("Kind must be one of: all, global, static, alias.", nameof(kind)),
         };
 
-    private static string GetKind(bool isGlobal, bool isStatic, string? alias)
+    private string GetKind(bool isGlobal, bool isStatic, string? alias)
     {
         if (isGlobal && isStatic)
             return "global-static";
@@ -171,7 +172,7 @@ internal static class ImportDirectiveService
         return "using";
     }
 
-    private static bool IsGeneratedOrIntermediate(string? filePath)
+    private bool IsGeneratedOrIntermediate(string? filePath)
     {
         if (string.IsNullOrWhiteSpace(filePath))
             return false;

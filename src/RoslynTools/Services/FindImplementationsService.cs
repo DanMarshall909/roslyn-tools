@@ -1,12 +1,14 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.FindSymbols;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class FindImplementationsService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class FindImplementationsService
 {
-    internal static async Task<List<Dictionary<string, object?>>> FindAsync(
+    internal async Task<List<Dictionary<string, object?>>> FindAsync(
         Solution solution,
         INamedTypeSymbol typeSymbol)
     {

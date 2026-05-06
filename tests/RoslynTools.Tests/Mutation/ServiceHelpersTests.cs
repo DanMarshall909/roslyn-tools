@@ -23,7 +23,7 @@ public class ServiceHelpersTests
         filePath = filePath.Replace('/', Path.DirectorySeparatorChar);
         projectDir = projectDir.Replace('/', Path.DirectorySeparatorChar);
 
-        var result = FixNamespaceService.ComputeExpectedNamespace(filePath, projectDir, assemblyName);
+        var result = new FixNamespaceService().ComputeExpectedNamespace(filePath, projectDir, assemblyName);
         Assert.Equal(expected, result);
     }
 
@@ -32,7 +32,7 @@ public class ServiceHelpersTests
     {
         var tree = CSharpSyntaxTree.ParseText("namespace Foo.Bar;");
         var root = tree.GetRoot();
-        Assert.Equal("Foo.Bar", FixNamespaceService.GetDeclaredNamespace(root));
+        Assert.Equal("Foo.Bar", new FixNamespaceService().GetDeclaredNamespace(root));
     }
 
     [Fact]
@@ -40,7 +40,7 @@ public class ServiceHelpersTests
     {
         var tree = CSharpSyntaxTree.ParseText("namespace Foo.Bar { }");
         var root = tree.GetRoot();
-        Assert.Equal("Foo.Bar", FixNamespaceService.GetDeclaredNamespace(root));
+        Assert.Equal("Foo.Bar", new FixNamespaceService().GetDeclaredNamespace(root));
     }
 
     [Fact]
@@ -48,7 +48,7 @@ public class ServiceHelpersTests
     {
         var tree = CSharpSyntaxTree.ParseText("public class Foo { }");
         var root = tree.GetRoot();
-        Assert.Null(FixNamespaceService.GetDeclaredNamespace(root));
+        Assert.Null(new FixNamespaceService().GetDeclaredNamespace(root));
     }
 
     // ── AddDependencyService ──────────────────────────────────────────────
@@ -60,14 +60,14 @@ public class ServiceHelpersTests
     [InlineData("Abc", "_abc")]
     public void DeriveFieldName_strips_leading_I_for_interfaces(string depType, string expected)
     {
-        Assert.Equal(expected, AddDependencyService.DeriveFieldName(depType));
+        Assert.Equal(expected, new AddDependencyService().DeriveFieldName(depType));
     }
 
     [Fact]
     public void NormalizeTypeName_strips_global_prefix()
     {
-        Assert.Equal("Foo.Bar", AddDependencyService.NormalizeTypeName("global::Foo.Bar"));
-        Assert.Equal("Foo", AddDependencyService.NormalizeTypeName("  Foo  "));
+        Assert.Equal("Foo.Bar", new AddDependencyService().NormalizeTypeName("global::Foo.Bar"));
+        Assert.Equal("Foo", new AddDependencyService().NormalizeTypeName("  Foo  "));
     }
 
     // ── ExtractClassService ───────────────────────────────────────────────
@@ -75,21 +75,21 @@ public class ServiceHelpersTests
     [Fact]
     public void ExtractClass_DeriveFieldName_returns_camelCase_with_underscore()
     {
-        Assert.Equal("_myHelper", ExtractClassService.DeriveFieldName("MyHelper"));
-        Assert.Equal("_dependency", ExtractClassService.DeriveFieldName(""));
-        Assert.Equal("_a", ExtractClassService.DeriveFieldName("A"));
+        Assert.Equal("_myHelper", new ExtractClassService().DeriveFieldName("MyHelper"));
+        Assert.Equal("_dependency", new ExtractClassService().DeriveFieldName(""));
+        Assert.Equal("_a", new ExtractClassService().DeriveFieldName("A"));
     }
 
     [Fact]
     public void ExtractClass_NormalizeTypeName_strips_global_prefix()
     {
-        Assert.Equal("My.Type", ExtractClassService.NormalizeTypeName("global::My.Type"));
+        Assert.Equal("My.Type", new ExtractClassService().NormalizeTypeName("global::My.Type"));
     }
 
     [Fact]
     public void BuildNewClassText_generates_static_class_when_flag_set()
     {
-        var text = ExtractClassService.BuildNewClassText(
+        var text = new ExtractClassService().BuildNewClassText(
             namespaceName: "MyApp",
             newTypeName: "Helper",
             isStatic: true,
@@ -102,7 +102,7 @@ public class ServiceHelpersTests
     [Fact]
     public void BuildNewClassText_generates_instance_class_without_namespace()
     {
-        var text = ExtractClassService.BuildNewClassText(
+        var text = new ExtractClassService().BuildNewClassText(
             namespaceName: "",
             newTypeName: "Helper",
             isStatic: false,
@@ -118,7 +118,7 @@ public class ServiceHelpersTests
     [Fact]
     public void BuildInterfaceText_generates_interface_declaration()
     {
-        var text = ExtractInterfaceService.BuildInterfaceText(
+        var text = new ExtractInterfaceService().BuildInterfaceText(
             namespaceName: "MyApp",
             interfaceName: "IFoo",
             methods: [],
@@ -131,7 +131,7 @@ public class ServiceHelpersTests
     [Fact]
     public void BuildInterfaceText_skips_namespace_when_empty()
     {
-        var text = ExtractInterfaceService.BuildInterfaceText(
+        var text = new ExtractInterfaceService().BuildInterfaceText(
             namespaceName: "",
             interfaceName: "IFoo",
             methods: [],
@@ -213,28 +213,28 @@ public class ServiceHelpersTests
     public void ReadBatchRows_throws_for_empty_file()
     {
         var path = WriteTempCsv("");
-        Assert.Throws<InvalidOperationException>(() => RenameService.ReadBatchRows(path));
+        Assert.Throws<InvalidOperationException>(() => new RenameService().ReadBatchRows(path));
     }
 
     [Fact]
     public void ReadBatchRows_throws_when_source_symbol_column_missing()
     {
         var path = WriteTempCsv("target_name\nFoo");
-        Assert.Throws<InvalidOperationException>(() => RenameService.ReadBatchRows(path));
+        Assert.Throws<InvalidOperationException>(() => new RenameService().ReadBatchRows(path));
     }
 
     [Fact]
     public void ReadBatchRows_throws_when_target_name_column_missing()
     {
         var path = WriteTempCsv("source_symbol\nFoo");
-        Assert.Throws<InvalidOperationException>(() => RenameService.ReadBatchRows(path));
+        Assert.Throws<InvalidOperationException>(() => new RenameService().ReadBatchRows(path));
     }
 
     [Fact]
     public void ReadBatchRows_parses_valid_csv()
     {
         var path = WriteTempCsv("source_symbol,target_name\nOldName,NewName");
-        var rows = RenameService.ReadBatchRows(path);
+        var rows = new RenameService().ReadBatchRows(path);
         Assert.Single(rows);
         Assert.Equal("OldName", rows[0].OldFqn);
         Assert.Equal("NewName", rows[0].NewName);
@@ -245,7 +245,7 @@ public class ServiceHelpersTests
     public void ReadBatchRows_reads_optional_review_column()
     {
         var path = WriteTempCsv("source_symbol,target_name,review\nOldName,NewName,check-this");
-        var rows = RenameService.ReadBatchRows(path);
+        var rows = new RenameService().ReadBatchRows(path);
         Assert.Single(rows);
         Assert.Equal("check-this", rows[0].Review);
     }
@@ -254,8 +254,8 @@ public class ServiceHelpersTests
     public void GetField_returns_null_for_out_of_bounds_index()
     {
         var fields = new[] { "a", "b" };
-        Assert.Null(RenameService.GetField(fields, 5));
-        Assert.Null(RenameService.GetField(fields, -1));
+        Assert.Null(new RenameService().GetField(fields, 5));
+        Assert.Null(new RenameService().GetField(fields, -1));
     }
 
     private static string WriteTempCsv(string content)

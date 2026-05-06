@@ -53,7 +53,7 @@ internal sealed class MoveMethodCommand : IRtCommand
         var (workspace, sln) = await WorkspaceLoader.LoadAsync(solutionPath);
         using (workspace)
         {
-            var ok = await MoveMethodService.RunAsync(sln, methodFqn, toType, createFile, dryRun);
+            var ok = await new MoveMethodService().RunAsync(sln, methodFqn, toType, createFile, dryRun);
             if (!ok)
                 Environment.ExitCode = 1;
         }

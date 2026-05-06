@@ -48,7 +48,7 @@ public sealed class InterfaceAnalyzerServiceTests
         Assert.NotNull(interfaceSymbol);
         Assert.NotNull(consumerSymbol);
 
-        var used = await InterfaceAnalyzerService.GetUsedMembersAsync(sln, consumerSymbol, interfaceSymbol);
+        var used = await new InterfaceAnalyzerService().GetUsedMembersAsync(sln, consumerSymbol, interfaceSymbol);
 
         Assert.Contains("Send", used);
         Assert.DoesNotContain("Receive", used);
@@ -84,7 +84,7 @@ public sealed class InterfaceAnalyzerServiceTests
         Assert.NotNull(interfaceSymbol);
 
         var sendMember = interfaceSymbol.GetMembers("Send").First();
-        var text = InterfaceAnalyzerService.BuildInterfaceText("MyApp", "ISender", [sendMember]);
+        var text = new InterfaceAnalyzerService().BuildInterfaceText("MyApp", "ISender", [sendMember]);
 
         Assert.Contains("ISender", text);
         Assert.Contains("Send", text);

@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
@@ -16,10 +17,10 @@ internal sealed record MagicStringGroup(
     string Value,
     int Count,
     IReadOnlyList<MagicStringOccurrence> Occurrences);
-
-internal static class MagicStringService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class MagicStringService
 {
-    internal static async Task<IReadOnlyList<MagicStringGroup>> AnalyzeAsync(
+    internal async Task<IReadOnlyList<MagicStringGroup>> AnalyzeAsync(
         Solution solution,
         int minLength,
         int minOccurrences)
@@ -66,7 +67,7 @@ internal static class MagicStringService
             .ToList();
     }
 
-    internal static async Task ExtractConstantAsync(
+    internal async Task ExtractConstantAsync(
         Solution solution,
         string filePath,
         int line,
@@ -106,7 +107,7 @@ internal static class MagicStringService
         await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
     }
 
-    private static TypeDeclarationSyntax ReplaceMatchingLiterals(
+    private TypeDeclarationSyntax ReplaceMatchingLiterals(
         TypeDeclarationSyntax containingType,
         string value,
         string constantName)
@@ -124,7 +125,7 @@ internal static class MagicStringService
                 .WithTriviaFrom(original));
     }
 
-    private static TypeDeclarationSyntax InsertConstant(
+    private TypeDeclarationSyntax InsertConstant(
         TypeDeclarationSyntax containingType,
         string constantName,
         string value)
@@ -147,7 +148,7 @@ internal static class MagicStringService
         return containingType.WithMembers(containingType.Members.Insert(insertIndex, field));
     }
 
-    private static bool IsCandidateLiteral(LiteralExpressionSyntax literal, int minLength)
+    private bool IsCandidateLiteral(LiteralExpressionSyntax literal, int minLength)
     {
         if (!literal.IsKind(SyntaxKind.StringLiteralExpression))
             return false;
@@ -159,16 +160,16 @@ internal static class MagicStringService
             && !IsInUsingDirective(literal);
     }
 
-    private static bool IsInConstStringDeclaration(SyntaxNode node) =>
+    private bool IsInConstStringDeclaration(SyntaxNode node) =>
         node.Ancestors().OfType<FieldDeclarationSyntax>().Any(field =>
             field.Modifiers.Any(SyntaxKind.ConstKeyword)
             && field.Declaration.Type is PredefinedTypeSyntax predefined
             && predefined.Keyword.IsKind(SyntaxKind.StringKeyword));
 
-    private static bool IsInUsingDirective(SyntaxNode node) =>
+    private bool IsInUsingDirective(SyntaxNode node) =>
         node.Ancestors().OfType<UsingDirectiveSyntax>().Any();
 
-    private static Document FindDocument(Solution solution, string filePath)
+    private Document FindDocument(Solution solution, string filePath)
     {
         var fullPath = Path.GetFullPath(filePath);
         return solution.Projects
@@ -177,7 +178,7 @@ internal static class MagicStringService
             ?? throw new InvalidOperationException($"File '{filePath}' not found in solution.");
     }
 
-    private static string? GetMemberName(SyntaxNode node)
+    private string? GetMemberName(SyntaxNode node)
     {
         foreach (var ancestor in node.Ancestors())
         {
@@ -194,7 +195,7 @@ internal static class MagicStringService
         return null;
     }
 
-    private static bool IsGeneratedOrIntermediate(string? filePath)
+    private bool IsGeneratedOrIntermediate(string? filePath)
     {
         if (string.IsNullOrWhiteSpace(filePath))
             return false;

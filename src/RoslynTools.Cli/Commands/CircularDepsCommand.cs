@@ -42,7 +42,7 @@ internal sealed class CircularDepsCommand : IRtCommand
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
             using (workspace)
             {
-                var cycles = await CircularDepsService.AnalyzeCyclesAsync(sln, scope);
+                var cycles = await new CircularDepsService().AnalyzeCyclesAsync(sln, scope);
                 var result = CircularDepsResult.FromCycles(cycles);
                 RtSerializer.Write(result);
             }
@@ -53,8 +53,8 @@ internal sealed class CircularDepsCommand : IRtCommand
 
     // Kept for test backwards-compatibility — delegates to the service.
     internal static Task<IReadOnlyList<IReadOnlyList<string>>> AnalyzeCyclesAsync(Solution sln, string? scope)
-        => CircularDepsService.AnalyzeCyclesAsync(sln, scope);
+        => new CircularDepsService().AnalyzeCyclesAsync(sln, scope);
 
     internal static Task<string> AnalyzeAsync(Solution sln, string? scope)
-        => CircularDepsService.AnalyzeAsync(sln, scope);
+        => new CircularDepsService().AnalyzeAsync(sln, scope);
 }

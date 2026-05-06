@@ -69,12 +69,12 @@ internal sealed class ReplaceXunitAssertsCommand : IRtCommand
             return;
         }
 
-        await ReplaceXunitAssertsService.RunAsync(solution, dryRun);
+        await new ReplaceXunitAssertsService().RunAsync(solution, dryRun);
     }
 
     private static async Task ReviewAsync(Microsoft.CodeAnalysis.Solution solution)
     {
-        var review = await ReplaceXunitAssertsService.AnalyzeAsync(solution);
+        var review = await new ReplaceXunitAssertsService().AnalyzeAsync(solution);
         var entries = review.Entries;
 
         RtConsole.WriteLine(RtOutputContext.Result, $"xunit assert review: {entries.Count} call site(s)");

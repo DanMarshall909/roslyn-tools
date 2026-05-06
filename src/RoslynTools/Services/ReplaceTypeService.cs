@@ -1,13 +1,15 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class ReplaceTypeService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class ReplaceTypeService
 {
-    internal static async Task RunAsync(Solution solution, bool dryRun)
+    internal async Task RunAsync(Solution solution, bool dryRun)
     {
         var originalSolution = solution;
         int changedFiles = 0;

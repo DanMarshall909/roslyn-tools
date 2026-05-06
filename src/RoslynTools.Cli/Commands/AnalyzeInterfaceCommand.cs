@@ -45,7 +45,7 @@ internal sealed class AnalyzeInterfaceCommand : IRtCommand
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
             using (workspace)
             {
-                var report = await AnalyzeInterfaceService.AnalyzeAsync(
+                var report = await new AnalyzeInterfaceService().AnalyzeAsync(
                     sln,
                     interfaceSpec,
                     new AnalyzeInterfaceOptions(scope, includeTests, suggest));

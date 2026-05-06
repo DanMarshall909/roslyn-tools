@@ -1,11 +1,13 @@
 using Microsoft.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class OutlineService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class OutlineService
 {
-    internal static async Task<List<Dictionary<string, object?>>> OutlineFileAsync(
+    internal async Task<List<Dictionary<string, object?>>> OutlineFileAsync(
         Solution solution,
         string filePath)
     {
@@ -43,7 +45,7 @@ internal static class OutlineService
         return results;
     }
 
-    internal static async Task<List<Dictionary<string, object?>>> OutlineNamespaceAsync(
+    internal async Task<List<Dictionary<string, object?>>> OutlineNamespaceAsync(
         Solution solution,
         string namespaceName)
     {
@@ -70,7 +72,7 @@ internal static class OutlineService
         return results;
     }
 
-    internal static IEnumerable<INamedTypeSymbol> FindNamespaceTypes(
+    internal IEnumerable<INamedTypeSymbol> FindNamespaceTypes(
         INamespaceSymbol ns,
         string targetName)
     {
@@ -87,7 +89,7 @@ internal static class OutlineService
         }
     }
 
-    internal static Dictionary<string, object?> BuildTypeOutline(INamedTypeSymbol type)
+    internal Dictionary<string, object?> BuildTypeOutline(INamedTypeSymbol type)
     {
         var (lineFrom, lineTo) = SymbolFormatter.GetSourceLineRange(type);
         var outline = new Dictionary<string, object?>
@@ -113,13 +115,13 @@ internal static class OutlineService
 
     // C# convention order — Field > Property > Event > Method > NamedType (nested types last).
     // Anything not in this list (rare — e.g. ErrorType) sorts alphabetically at the end.
-    private static readonly string[] KindOrder = ["Field", "Property", "Event", "Method", "NamedType"];
+    private readonly string[] KindOrder = ["Field", "Property", "Event", "Method", "NamedType"];
 
     // Public-first; private last. Mirrors how a reader scans an unfamiliar type.
-    private static readonly string[] AccessibilityOrder =
+    private readonly string[] AccessibilityOrder =
         ["Public", "Internal", "ProtectedOrInternal", "Protected", "ProtectedAndInternal", "Private", "NotApplicable"];
 
-    private static Dictionary<string, object?> GroupMembersByKindAndAccessibility(
+    private Dictionary<string, object?> GroupMembersByKindAndAccessibility(
         List<Dictionary<string, object?>> members)
     {
         var grouped = new Dictionary<string, object?>(StringComparer.Ordinal);

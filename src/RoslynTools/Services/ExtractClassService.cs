@@ -3,13 +3,15 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class ExtractClassService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class ExtractClassService
 {
-    private static readonly SymbolDisplayFormat TypeDisplayFormat = new(
+    private readonly SymbolDisplayFormat TypeDisplayFormat = new(
         globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Omitted,
         typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
         genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters);
@@ -26,7 +28,7 @@ internal static class ExtractClassService
         HashSet<ISymbol> Symbols,
         HashSet<string> Names);
 
-    internal static async Task RunAsync(
+    internal async Task RunAsync(
         string typeName,
         string members,
         string newTypeName,
@@ -42,7 +44,7 @@ internal static class ExtractClassService
         }
     }
 
-    internal static async Task ExecuteAsync(
+    internal async Task ExecuteAsync(
         Solution solution,
         string typeName,
         string members,
@@ -129,7 +131,7 @@ internal static class ExtractClassService
         await SolutionWriter.ApplyChangesAsync(originalSolution, finalSolution, dryRun);
     }
 
-    internal static async Task<ResolvedSourceType?> ResolveSourceTypeAsync(Solution solution, string typeName)
+    internal async Task<ResolvedSourceType?> ResolveSourceTypeAsync(Solution solution, string typeName)
     {
         var normalizedTypeName = NormalizeTypeName(typeName);
         var isQualifiedName = normalizedTypeName.Contains('.', StringComparison.Ordinal);
@@ -177,7 +179,7 @@ internal static class ExtractClassService
         return matches[0];
     }
 
-    internal static SelectedMembers? CollectSelectedMembers(ResolvedSourceType target, HashSet<string> memberNames)
+    internal SelectedMembers? CollectSelectedMembers(ResolvedSourceType target, HashSet<string> memberNames)
     {
         var declarations = new List<MemberDeclarationSyntax>();
         var symbols = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
@@ -243,7 +245,7 @@ internal static class ExtractClassService
         return new SelectedMembers(declarations, symbols, foundNames);
     }
 
-    internal static string? ValidateSelectedMembers(ResolvedSourceType target, SelectedMembers selection)
+    internal string? ValidateSelectedMembers(ResolvedSourceType target, SelectedMembers selection)
     {
         foreach (var member in selection.Declarations)
         {
@@ -273,7 +275,7 @@ internal static class ExtractClassService
         return null;
     }
 
-    private static bool TryFindUnsafeSourceMember(
+    private bool TryFindUnsafeSourceMember(
         SyntaxNode referenceNode,
         ResolvedSourceType target,
         HashSet<ISymbol> extractedSymbols,
@@ -307,13 +309,13 @@ internal static class ExtractClassService
         return true;
     }
 
-    private static string BuildUnsafeReferenceMessage(
+    private string BuildUnsafeReferenceMessage(
         ResolvedSourceType target,
         MemberDeclarationSyntax member,
         ISymbol unsafeMember) =>
         $"Cannot extract '{GetMemberName(member)}' from '{target.Symbol.ToDisplayString(TypeDisplayFormat)}' because it references non-extracted instance member '{unsafeMember.Name}'. Extract that member too or keep '{GetMemberName(member)}' on the source type.";
 
-    private static async Task<SyntaxNode> InjectExtractedTypeAsync(
+    private async Task<SyntaxNode> InjectExtractedTypeAsync(
         Document updatedDocument,
         INamedTypeSymbol targetSymbol,
         string newTypeName)
@@ -356,7 +358,7 @@ internal static class ExtractClassService
         };
     }
 
-    internal static string BuildNewClassText(
+    internal string BuildNewClassText(
         string namespaceName,
         string newTypeName,
         bool isStatic,
@@ -391,7 +393,7 @@ internal static class ExtractClassService
         return sb.ToString();
     }
 
-    internal static bool IsTypeMatch(INamedTypeSymbol symbol, string normalizedTypeName, bool isQualifiedName)
+    internal bool IsTypeMatch(INamedTypeSymbol symbol, string normalizedTypeName, bool isQualifiedName)
     {
         if (isQualifiedName)
             return NormalizeTypeName(symbol.ToDisplayString(TypeDisplayFormat)) == normalizedTypeName;
@@ -399,16 +401,16 @@ internal static class ExtractClassService
         return symbol.Name == normalizedTypeName;
     }
 
-    internal static string NormalizeTypeName(string typeName) =>
+    internal string NormalizeTypeName(string typeName) =>
         typeName.Replace("global::", string.Empty, StringComparison.Ordinal).Trim();
 
-    private static void AddDeclaredSymbol(HashSet<ISymbol> symbols, ISymbol? symbol)
+    private void AddDeclaredSymbol(HashSet<ISymbol> symbols, ISymbol? symbol)
     {
         if (symbol is not null)
             symbols.Add(symbol.OriginalDefinition);
     }
 
-    internal static string GetMemberName(MemberDeclarationSyntax member) =>
+    internal string GetMemberName(MemberDeclarationSyntax member) =>
         member switch
         {
             MethodDeclarationSyntax method => method.Identifier.Text,
@@ -417,13 +419,13 @@ internal static class ExtractClassService
             _ => member.Kind().ToString()
         };
 
-    internal static void ReportValidationError(string message)
+    internal void ReportValidationError(string message)
     {
         RtLog.Error("{Message}", message);
         Environment.ExitCode = 1;
     }
 
-    internal static string DeriveFieldName(string typeName)
+    internal string DeriveFieldName(string typeName)
     {
         if (string.IsNullOrEmpty(typeName))
             return "_dependency";

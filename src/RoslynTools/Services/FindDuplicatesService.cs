@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
@@ -34,14 +35,14 @@ internal sealed record DuplicateGroup(
     bool PartiallyExpandable = false,
     string Extractability = "unknown",
     IReadOnlyList<ExtractabilityCheck>? Checks = null);
-
-internal static class FindDuplicatesService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class FindDuplicatesService
 {
     // Boilerplate patterns excluded from duplicate reporting:
     //   - single `return;` or `return <expr>;`
     //   - single `throw new NotImplementedException(...);`
     //   - empty blocks (zero statements — not reachable as window but kept for clarity)
-    private static bool IsBoilerplateWindow(IReadOnlyList<StatementSyntax> statements)
+    private bool IsBoilerplateWindow(IReadOnlyList<StatementSyntax> statements)
     {
         if (statements.Count != 1)
             return false;
@@ -79,7 +80,7 @@ internal static class FindDuplicatesService
         public bool CanExtend => StartIdx + Length < Body.Count;
     }
 
-    public static async Task<IReadOnlyList<DuplicateGroup>> RunAsync(
+    public async Task<IReadOnlyList<DuplicateGroup>> RunAsync(
         Solution solution,
         FindDuplicatesOptions options)
     {
@@ -346,7 +347,7 @@ internal static class FindDuplicatesService
     /// Maps an extractability level to a score weight.
     /// extractable=1.0, likely_extractable=0.7, discovery_only=0.3, unknown=1.0 (unanalysed).
     /// </summary>
-    private static double ExtractabilityWeight(string extractability) => extractability switch
+    private double ExtractabilityWeight(string extractability) => extractability switch
     {
         "extractable" => 1.0,
         "likely_extractable" => 0.7,
@@ -359,16 +360,16 @@ internal static class FindDuplicatesService
     /// and statement count. Format: "GRP-{stmtCount}-{first8hexOfHash}".
     /// The id is deterministic across runs for the same code shape.
     /// </summary>
-    private static string ComputeGroupId(string groupHash, int statementCount)
+    private string ComputeGroupId(string groupHash, int statementCount)
         => $"GRP-{statementCount}-{groupHash[..8].ToLowerInvariant()}";
 
-    private static string ComputeExtendedHash(CandidateLoc loc)
+    private string ComputeExtendedHash(CandidateLoc loc)
     {
         var extWindow = loc.Body.Skip(loc.StartIdx).Take(loc.Length + 1).ToList();
         return ComputeCanonicalHash(extWindow, loc.SemanticModel);
     }
 
-    private static DuplicateOccurrence BuildOccurrence(CandidateLoc loc)
+    private DuplicateOccurrence BuildOccurrence(CandidateLoc loc)
     {
         var window = loc.Window;
         var startLine = window[0].GetLocation().GetLineSpan().StartLinePosition.Line + 1;
@@ -383,14 +384,14 @@ internal static class FindDuplicatesService
             SubstitutionMap: subs);
     }
 
-    private static string ComputeCanonicalHash(IReadOnlyList<StatementSyntax> statements, SemanticModel semanticModel)
+    private string ComputeCanonicalHash(IReadOnlyList<StatementSyntax> statements, SemanticModel semanticModel)
     {
         var (canonicalText, _) = BlockNormalizer.Normalize(statements, semanticModel);
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(canonicalText));
         return Convert.ToHexString(bytes);
     }
 
-    private static string BuildPreview(IReadOnlyList<StatementSyntax> statements)
+    private string BuildPreview(IReadOnlyList<StatementSyntax> statements)
     {
         var first = statements[0].NormalizeWhitespace().ToFullString().Trim();
         var newlineIdx = first.IndexOfAny(['\r', '\n']);
@@ -399,16 +400,16 @@ internal static class FindDuplicatesService
         return first.Length > 120 ? first[..120] + " …" : first;
     }
 
-    private static string BuildFullBlock(IReadOnlyList<StatementSyntax> statements) =>
+    private string BuildFullBlock(IReadOnlyList<StatementSyntax> statements) =>
         string.Join("\n", statements.Select(s => s.NormalizeWhitespace().ToFullString().Trim()));
 
-    private static string GetContainingTypeName(SyntaxNode node)
+    private string GetContainingTypeName(SyntaxNode node)
     {
         var typeDecl = node.Ancestors().OfType<TypeDeclarationSyntax>().FirstOrDefault();
         return typeDecl?.Identifier.Text ?? "<unknown>";
     }
 
-    private static string GetMemberName(SyntaxNode node) => node switch
+    private string GetMemberName(SyntaxNode node) => node switch
     {
         MethodDeclarationSyntax m => m.Identifier.Text,
         LocalFunctionStatementSyntax lf => lf.Identifier.Text,
@@ -417,7 +418,7 @@ internal static class FindDuplicatesService
 
     // Test-project detection: name ends with ".Tests" or "Test" (case-insensitive).
     // AdhocWorkspace tests use project names only — no metadata references to check.
-    private static bool IsTestProject(Project project)
+    private bool IsTestProject(Project project)
     {
         var name = project.Name;
         return name.EndsWith(".Tests", StringComparison.OrdinalIgnoreCase)
@@ -431,10 +432,10 @@ internal static class FindDuplicatesService
     // Used to skip whole projects early when scope is a namespace prefix (not a project name).
     // Since we can't know without parsing, we always return true here — the per-document
     // check below is the real filter. This method exists so the logic is extensible.
-    private static bool ScopeCouldMatchProject(Project project, string scope) => true;
+    private bool ScopeCouldMatchProject(Project project, string scope) => true;
 
     // Returns the first namespace declaration in the document, preferring file-scoped.
-    private static string? GetDocumentNamespace(SyntaxNode root)
+    private string? GetDocumentNamespace(SyntaxNode root)
     {
         var fileScoped = root.DescendantNodes()
             .OfType<FileScopedNamespaceDeclarationSyntax>()

@@ -1,13 +1,15 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class AddParamService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class AddParamService
 {
-    internal static async Task<Solution> AddParamAsync(
+    internal async Task<Solution> AddParamAsync(
         Solution solution,
         string methodSpec,
         string paramSpec,

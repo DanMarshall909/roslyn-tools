@@ -1,13 +1,15 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class AddTestService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class AddTestService
 {
-    internal static async Task RunAsync(
+    internal async Task RunAsync(
         Solution sln,
         string className,
         string? name,
@@ -29,7 +31,7 @@ internal static class AddTestService
         await SolutionWriter.ApplyChangesAsync(originalSolution, updatedSln, dryRun);
     }
 
-    private static async Task<(bool Found, Solution UpdatedSolution)> FindClassAndApplyChanges(
+    private async Task<(bool Found, Solution UpdatedSolution)> FindClassAndApplyChanges(
         Solution sln,
         string className,
         string? name,
@@ -66,7 +68,7 @@ internal static class AddTestService
         return (false, sln);
     }
 
-    private static Solution ApplyChangesToDocument(
+    private Solution ApplyChangesToDocument(
         Solution sln,
         Document doc,
         ClassDeclarationSyntax classDecl,
@@ -92,13 +94,13 @@ internal static class AddTestService
         return sln.WithDocumentSyntaxRoot(doc.Id, cu);
     }
 
-    private static ClassDeclarationSyntax AppendSingleTest(ClassDeclarationSyntax classDecl, string methodName)
+    private ClassDeclarationSyntax AppendSingleTest(ClassDeclarationSyntax classDecl, string methodName)
     {
         var method = BuildFactMethod(methodName);
         return classDecl.AddMembers(method);
     }
 
-    private static ClassDeclarationSyntax GenerateBatchTests(
+    private ClassDeclarationSyntax GenerateBatchTests(
         ClassDeclarationSyntax classDecl,
         string acs,
         string? nestedClass)
@@ -122,7 +124,7 @@ internal static class AddTestService
         return classDecl.AddMembers(methods);
     }
 
-    internal static string AcToMethodName(string ac)
+    internal string AcToMethodName(string ac)
     {
         var cleaned = new string(ac.Where(c => char.IsLetterOrDigit(c) || c == ' ').ToArray());
 
@@ -133,7 +135,7 @@ internal static class AddTestService
         return string.Join("_", words);
     }
 
-    private static MemberDeclarationSyntax BuildFactMethod(string methodName)
+    private MemberDeclarationSyntax BuildFactMethod(string methodName)
     {
         var text =
             $"[Fact]\n" +
@@ -149,7 +151,7 @@ internal static class AddTestService
     //  Command-based test scaffolding
     // ──────────────────────────────────────────────────────────────────────────
 
-    internal static async Task RunCommandBasedAsync(
+    internal async Task RunCommandBasedAsync(
         Solution sln,
         RtCommandInfo commandInfo,
         string? scenario,
@@ -189,7 +191,7 @@ internal static class AddTestService
         await SolutionWriter.ApplyChangesAsync(originalSolution, updatedSln, dryRun);
     }
 
-    internal static string ScenarioOutcomeToMethodName(string scenario, string outcome)
+    internal string ScenarioOutcomeToMethodName(string scenario, string outcome)
     {
         // Convert to snake_case with 'with_' prefix
         // "source file as first occurrence" + "updates call site"
@@ -200,7 +202,7 @@ internal static class AddTestService
         return $"with_{scenarioSnake}_{outcomeSnake}";
     }
 
-    private static string ToSnakeCase(string text)
+    private string ToSnakeCase(string text)
     {
         // Remove non-alphanumeric, split on spaces, join with underscores, lowercase
         var cleaned = new string(text.Where(c => char.IsLetterOrDigit(c) || c == ' ').ToArray());
@@ -208,7 +210,7 @@ internal static class AddTestService
         return string.Join("_", words).ToLowerInvariant();
     }
 
-    private static MemberDeclarationSyntax BuildFactMethodWithTrait(
+    private MemberDeclarationSyntax BuildFactMethodWithTrait(
         string methodName,
         string concern,
         string? beforePath,
@@ -230,7 +232,7 @@ internal static class AddTestService
         return SyntaxFactory.ParseMemberDeclaration(text)!;
     }
 
-    private static string DetermineTestFilePath(RtCommandInfo commandInfo)
+    private string DetermineTestFilePath(RtCommandInfo commandInfo)
     {
         // Map category to directory
         var category = commandInfo.Category switch
@@ -249,7 +251,7 @@ internal static class AddTestService
         return $"tests/RoslynTools.Tests/{category}/{fileName}.cs";
     }
 
-    private static async Task<(bool Found, Solution UpdatedSolution)> FindOrCreateClassAndApplyChanges(
+    private async Task<(bool Found, Solution UpdatedSolution)> FindOrCreateClassAndApplyChanges(
         Solution sln,
         string testFilePath,
         string className,

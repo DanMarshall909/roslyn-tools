@@ -1,13 +1,15 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Rename;
 using Microsoft.VisualBasic.FileIO;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class RenameService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class RenameService
 {
-    internal static async Task<Solution> RenameAsync(
+    internal async Task<Solution> RenameAsync(
         Solution sln,
         string symbol,
         string newName,
@@ -26,7 +28,7 @@ internal static class RenameService
         return await Renamer.RenameSymbolAsync(sln, sym, options, newName);
     }
 
-    internal static async Task ExecuteSingleAsync(
+    internal async Task ExecuteSingleAsync(
         Solution sln,
         string symbol,
         string newName,
@@ -36,7 +38,7 @@ internal static class RenameService
         await RenameOneAsync(sln, symbol, newName, kind, dryRun);
     }
 
-    private static async Task<Solution> RenameOneAsync(
+    private async Task<Solution> RenameOneAsync(
         Solution sln,
         string symbol,
         string newName,
@@ -62,7 +64,7 @@ internal static class RenameService
         return newSln;
     }
 
-    private static (string OldPath, string NewPath)? ComputeFileRename(ISymbol sym, string newName)
+    private (string OldPath, string NewPath)? ComputeFileRename(ISymbol sym, string newName)
     {
         if (sym is not INamedTypeSymbol) return null;
 
@@ -78,7 +80,7 @@ internal static class RenameService
         return (filePath, Path.Combine(dir, newName + ext));
     }
 
-    private static void ApplyFileRename((string OldPath, string NewPath) rename, bool dryRun)
+    private void ApplyFileRename((string OldPath, string NewPath) rename, bool dryRun)
     {
         if (dryRun)
         {
@@ -96,7 +98,7 @@ internal static class RenameService
         RtConsole.WriteLine(RtOutputContext.Result, $"Renamed file: {rename.OldPath} -> {rename.NewPath}");
     }
 
-    internal static async Task ExecuteBatchAsync(
+    internal async Task ExecuteBatchAsync(
         Solution sln,
         string csvPath,
         bool dryRun)
@@ -122,7 +124,7 @@ internal static class RenameService
         }
     }
 
-    internal static List<RenameCsvRow> ReadBatchRows(string csvPath)
+    internal List<RenameCsvRow> ReadBatchRows(string csvPath)
     {
         using var parser = new TextFieldParser(csvPath);
         parser.SetDelimiters(",");
@@ -160,7 +162,7 @@ internal static class RenameService
         return rows;
     }
 
-    internal static string? GetField(string[] fields, int index)
+    internal string? GetField(string[] fields, int index)
         => index >= 0 && index < fields.Length ? fields[index] : null;
 
     internal sealed record RenameCsvRow(string? OldFqn, string? NewName, string? Review);

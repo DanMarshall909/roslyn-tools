@@ -35,7 +35,7 @@ public class FindUnusedTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var results = await FindUnusedService.AnalyzeAsync(sln);
+            var results = await new FindUnusedService().AnalyzeAsync(sln);
             var names = results.Select(r => r.Name).ToList();
             Assert.Contains("UnusedMethod", names);
         }
@@ -71,7 +71,7 @@ public class FindUnusedTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var results = await FindUnusedService.AnalyzeAsync(sln);
+            var results = await new FindUnusedService().AnalyzeAsync(sln);
             var names = results.Select(r => r.Name).ToList();
             Assert.DoesNotContain("UsedMethod", names);
         }
@@ -107,7 +107,7 @@ public class FindUnusedTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var results = await FindUnusedService.AnalyzeAsync(sln);
+            var results = await new FindUnusedService().AnalyzeAsync(sln);
             var names = results.Select(r => r.Name).ToList();
             Assert.DoesNotContain("SerializableData", names);
         }
@@ -143,7 +143,7 @@ public class FindUnusedTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var results = await FindUnusedService.AnalyzeAsync(sln, "methods");
+            var results = await new FindUnusedService().AnalyzeAsync(sln, "methods");
             var names = results.Select(r => r.Name).ToList();
             // UnusedClass is a type, not a method — should not appear with scope=methods
             Assert.DoesNotContain("UnusedClass", names);
@@ -177,7 +177,7 @@ public class FindUnusedTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var results = await FindUnusedService.AnalyzeAsync(sln, "types");
+            var results = await new FindUnusedService().AnalyzeAsync(sln, "types");
             var names = results.Select(r => r.Name).ToList();
             // UnusedMethod is a method — must not appear when scope is "types"
             Assert.DoesNotContain("UnusedMethod", names);
@@ -199,7 +199,7 @@ public class FindUnusedTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var results = await FindUnusedService.AnalyzeAsync(sln);
+            var results = await new FindUnusedService().AnalyzeAsync(sln);
             var names = results.Select(r => r.Name).ToList();
             Assert.DoesNotContain("Main", names);
         }
@@ -226,7 +226,7 @@ public class FindUnusedTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var results = await FindUnusedService.AnalyzeAsync(sln, "methods");
+            var results = await new FindUnusedService().AnalyzeAsync(sln, "methods");
             var names = results.Select(r => r.Name).ToList();
             Assert.DoesNotContain("Some_test", names);
         }
@@ -245,7 +245,7 @@ public class FindUnusedTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var results = await FindUnusedService.AnalyzeAsync(sln, "methods");
+            var results = await new FindUnusedService().AnalyzeAsync(sln, "methods");
             var names = results.Select(r => r.Name).ToList();
             Assert.DoesNotContain("Execute", names);
         }
@@ -270,7 +270,7 @@ public class FindUnusedTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var results = await FindUnusedService.AnalyzeAsync(sln, "methods");
+            var results = await new FindUnusedService().AnalyzeAsync(sln, "methods");
             var names = results.Select(r => r.Name).ToList();
             Assert.DoesNotContain("Parameterised_test", names);
         }
@@ -292,7 +292,7 @@ public class FindUnusedTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var results = await FindUnusedService.AnalyzeAsync(sln, "types");
+            var results = await new FindUnusedService().AnalyzeAsync(sln, "types");
             var names = results.Select(r => r.Name).ToList();
             Assert.DoesNotContain("OrderDto", names);
         }

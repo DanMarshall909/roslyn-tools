@@ -3,10 +3,12 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
 /// <summary>
 /// Core logic for the <c>transform-parameters</c> command.
 /// Generates a new <c>record ParamObj(...)</c> in the same file as the target method,
@@ -14,13 +16,13 @@ namespace RoslynTools.Services;
 /// and updates every call site from <c>Foo(a, b, c)</c> to <c>Foo(new ParamObj(a, b, c))</c>.
 /// Also supports reusing an existing type via <c>--existing-type</c>.
 /// </summary>
-internal static class TransformParametersService
+internal class TransformParametersService
 {
     /// <summary>
     /// Entry point called by <see cref="RoslynTools.Commands.TransformParametersCommand"/>.
     /// Exactly one of <paramref name="newTypeName"/> or <paramref name="existingTypeFqn"/> must be non-null.
     /// </summary>
-    internal static async Task RunAsync(
+    internal async Task RunAsync(
         Solution sln,
         string methodSpec,
         string? newTypeName,
@@ -45,7 +47,7 @@ internal static class TransformParametersService
     //  --new-type code path (original behaviour)
     // ──────────────────────────────────────────────────────────────────────────
 
-    private static async Task RunNewTypeAsync(
+    private async Task RunNewTypeAsync(
         Solution sln,
         string methodSpec,
         string newTypeName,
@@ -87,7 +89,7 @@ internal static class TransformParametersService
     //  --existing-type code path
     // ──────────────────────────────────────────────────────────────────────────
 
-    private static async Task RunExistingTypeAsync(
+    private async Task RunExistingTypeAsync(
         Solution sln,
         string methodSpec,
         string existingTypeFqn,
@@ -124,7 +126,7 @@ internal static class TransformParametersService
         await SolutionWriter.ApplyChangesAsync(originalSln, sln, dryRun);
     }
 
-    private static async Task<INamedTypeSymbol> FindExistingTypeAsync(Solution sln, string fqn)
+    private async Task<INamedTypeSymbol> FindExistingTypeAsync(Solution sln, string fqn)
     {
         foreach (var project in sln.Projects)
         {
@@ -141,7 +143,7 @@ internal static class TransformParametersService
             "Ensure you are using the fully-qualified name (e.g. MyApp.Services.PlaceOrderArgs).");
     }
 
-    private static void ValidateExistingTypeMembers(IMethodSymbol method, INamedTypeSymbol existingType)
+    private void ValidateExistingTypeMembers(IMethodSymbol method, INamedTypeSymbol existingType)
     {
         var missing = new List<string>();
 
@@ -190,7 +192,7 @@ internal static class TransformParametersService
     //  Symbol resolution
     // ──────────────────────────────────────────────────────────────────────────
 
-    private static async Task<(IMethodSymbol Symbol, Document Doc)>
+    private async Task<(IMethodSymbol Symbol, Document Doc)>
         FindMethodAsync(Solution sln, string methodSpec)
     {
         var dotIdx = methodSpec.LastIndexOf('.');
@@ -234,7 +236,7 @@ internal static class TransformParametersService
     //  Validation
     // ──────────────────────────────────────────────────────────────────────────
 
-    private static List<string> CollectUnsafeParameters(IMethodSymbol method)
+    private List<string> CollectUnsafeParameters(IMethodSymbol method)
     {
         return method.Parameters
             .Where(p => p.RefKind != RefKind.None)
@@ -246,7 +248,7 @@ internal static class TransformParametersService
     //  Step 1: Insert record declaration into the same file as the method
     // ──────────────────────────────────────────────────────────────────────────
 
-    private static async Task<Solution> InsertRecordDeclarationAsync(
+    private async Task<Solution> InsertRecordDeclarationAsync(
         Solution sln,
         Document doc,
         IMethodSymbol method,
@@ -269,7 +271,7 @@ internal static class TransformParametersService
         return sln.WithDocumentSyntaxRoot(doc.Id, newRoot);
     }
 
-    private static string BuildRecordText(
+    private string BuildRecordText(
         IReadOnlyList<IParameterSymbol> parameters,
         string newTypeName)
     {
@@ -285,7 +287,7 @@ internal static class TransformParametersService
         return $"internal sealed record {newTypeName}({string.Join(", ", paramParts)});";
     }
 
-    private static string FormatDefaultValue(IParameterSymbol param)
+    private string FormatDefaultValue(IParameterSymbol param)
     {
         if (param.ExplicitDefaultValue == null)
             return "null";
@@ -298,7 +300,7 @@ internal static class TransformParametersService
         return param.ExplicitDefaultValue.ToString() ?? "default";
     }
 
-    private static SyntaxNode InsertAfterType(
+    private SyntaxNode InsertAfterType(
         SyntaxNode root,
         TypeDeclarationSyntax containingType,
         RecordDeclarationSyntax recordDecl)
@@ -344,7 +346,7 @@ internal static class TransformParametersService
     //  Step 2: Rewrite method signature
     // ──────────────────────────────────────────────────────────────────────────
 
-    private static async Task<Solution> RewriteMethodSignatureAsync(
+    private async Task<Solution> RewriteMethodSignatureAsync(
         Solution sln,
         Document doc,
         IMethodSymbol method,
@@ -375,7 +377,7 @@ internal static class TransformParametersService
     //  Step 3: Rewrite call sites
     // ──────────────────────────────────────────────────────────────────────────
 
-    private static async Task<Solution> RewriteCallSitesAsync(
+    private async Task<Solution> RewriteCallSitesAsync(
         Solution sln,
         IMethodSymbol method,
         string typeName,
@@ -433,7 +435,7 @@ internal static class TransformParametersService
         return sln;
     }
 
-    private static InvocationExpressionSyntax RewriteInvocation(
+    private InvocationExpressionSyntax RewriteInvocation(
         InvocationExpressionSyntax original,
         string typeName,
         bool isRecord,
@@ -498,10 +500,10 @@ internal static class TransformParametersService
     //  Helpers
     // ──────────────────────────────────────────────────────────────────────────
 
-    private static string Capitalize(string name)
+    private string Capitalize(string name)
         => name.Length == 0 ? name : char.ToUpperInvariant(name[0]) + name[1..];
 
-    private static string MemberIndent(TypeDeclarationSyntax type)
+    private string MemberIndent(TypeDeclarationSyntax type)
     {
         var ws = type.GetLeadingTrivia()
             .LastOrDefault(t => t.IsKind(SyntaxKind.WhitespaceTrivia));

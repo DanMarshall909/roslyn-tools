@@ -3,13 +3,15 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class MakeAsyncService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class MakeAsyncService
 {
-    internal static async Task RunAsync(Solution sln, string typeName, string methodName, bool noRename, bool dryRun)
+    internal async Task RunAsync(Solution sln, string typeName, string methodName, bool noRename, bool dryRun)
     {
         var originalSolution = sln;
 
@@ -68,7 +70,7 @@ internal static class MakeAsyncService
         await SolutionWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
     }
 
-    internal static SyntaxNode TransformDocument(
+    internal SyntaxNode TransformDocument(
         SyntaxNode root,
         bool isTargetDoc,
         IMethodSymbol methodSymbol,
@@ -135,7 +137,7 @@ internal static class MakeAsyncService
         });
     }
 
-    private static MethodDeclarationSyntax TransformTargetDeclaration(MethodDeclarationSyntax method, string newMethodName)
+    private MethodDeclarationSyntax TransformTargetDeclaration(MethodDeclarationSyntax method, string newMethodName)
     {
         method = method.AddModifiers(
             SyntaxFactory.Token(SyntaxKind.AsyncKeyword).WithTrailingTrivia(SyntaxFactory.Space));
@@ -152,7 +154,7 @@ internal static class MakeAsyncService
         return method;
     }
 
-    private static InvocationExpressionSyntax RenameInvocationTarget(
+    private InvocationExpressionSyntax RenameInvocationTarget(
         InvocationExpressionSyntax inv, string oldName, string newName)
     {
         var identifiers = inv.Expression.DescendantNodesAndSelf()
@@ -168,7 +170,7 @@ internal static class MakeAsyncService
         return inv.ReplaceNode(target, renamed);
     }
 
-    private static MethodDeclarationSyntax PromoteMethodToAsync(MethodDeclarationSyntax method)
+    private MethodDeclarationSyntax PromoteMethodToAsync(MethodDeclarationSyntax method)
     {
         method = method.AddModifiers(
             SyntaxFactory.Token(SyntaxKind.AsyncKeyword).WithTrailingTrivia(SyntaxFactory.Space));

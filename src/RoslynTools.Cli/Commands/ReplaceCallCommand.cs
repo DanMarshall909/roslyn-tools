@@ -52,7 +52,7 @@ internal sealed class ReplaceCallCommand : IRtCommand
         var (workspace, solution) = await WorkspaceLoader.LoadAsync(solutionPath);
         using (workspace)
         {
-            await ReplaceCallService.RunAsync(solution, from, to, dryRun, ifArgIndex, ifArgLiteral);
+            await new ReplaceCallService().RunAsync(solution, from, to, dryRun, ifArgIndex, ifArgLiteral);
         }
     }
 }

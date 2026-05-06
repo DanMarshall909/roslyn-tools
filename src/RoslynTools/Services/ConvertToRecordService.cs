@@ -1,13 +1,15 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal static class ConvertToRecordService
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+internal class ConvertToRecordService
 {
-    internal static async Task RunAsync(Solution sln, string typeName, bool dryRun)
+    internal async Task RunAsync(Solution sln, string typeName, bool dryRun)
     {
         var originalSolution = sln;
 
@@ -38,7 +40,7 @@ internal static class ConvertToRecordService
         await SolutionWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
     }
 
-    private static async Task<INamedTypeSymbol> FindClassSymbolAsync(Solution sln, string typeName)
+    private async Task<INamedTypeSymbol> FindClassSymbolAsync(Solution sln, string typeName)
     {
         foreach (var project in sln.Projects)
         {
@@ -59,7 +61,7 @@ internal static class ConvertToRecordService
         throw new InvalidOperationException($"Class '{typeName}' not found in solution.");
     }
 
-    private static DocumentId? FindDocumentId(Solution sln, INamedTypeSymbol classSymbol)
+    private DocumentId? FindDocumentId(Solution sln, INamedTypeSymbol classSymbol)
     {
         var location = classSymbol.Locations.FirstOrDefault(l => l.IsInSource);
         if (location == null) return null;
@@ -79,7 +81,7 @@ internal static class ConvertToRecordService
         return null;
     }
 
-    private static (List<PropertyDeclarationSyntax> InitProps, List<MemberDeclarationSyntax> RemainingMembers)
+    private (List<PropertyDeclarationSyntax> InitProps, List<MemberDeclarationSyntax> RemainingMembers)
         CollectMembers(string typeName, ClassDeclarationSyntax classSyntax)
     {
         var allMembers = classSyntax.Members;
@@ -105,7 +107,7 @@ internal static class ConvertToRecordService
         return (initProps, remainingMembers);
     }
 
-    private static HashSet<MemberDeclarationSyntax> BuildMembersToRemove(
+    private HashSet<MemberDeclarationSyntax> BuildMembersToRemove(
         SyntaxList<MemberDeclarationSyntax> allMembers,
         List<PropertyDeclarationSyntax> initProps)
     {
@@ -132,7 +134,7 @@ internal static class ConvertToRecordService
         return membersToRemove;
     }
 
-    private static bool IsInitOnlyAutoProperty(PropertyDeclarationSyntax prop)
+    private bool IsInitOnlyAutoProperty(PropertyDeclarationSyntax prop)
     {
         if (prop.AccessorList == null) return false;
         var accessors = prop.AccessorList.Accessors;
@@ -141,14 +143,14 @@ internal static class ConvertToRecordService
                accessors.Any(a => a.IsKind(SyntaxKind.InitAccessorDeclaration) && a.Body == null && a.ExpressionBody == null);
     }
 
-    private static bool IsMutableAutoProperty(PropertyDeclarationSyntax prop)
+    private bool IsMutableAutoProperty(PropertyDeclarationSyntax prop)
     {
         if (prop.AccessorList == null) return false;
         var accessors = prop.AccessorList.Accessors;
         return accessors.Any(a => a.IsKind(SyntaxKind.SetAccessorDeclaration) && a.Body == null && a.ExpressionBody == null);
     }
 
-    private static SeparatedSyntaxList<ParameterSyntax> BuildParameterList(
+    private SeparatedSyntaxList<ParameterSyntax> BuildParameterList(
         List<PropertyDeclarationSyntax> initProps)
     {
         var parameters = initProps.Select(prop =>
@@ -163,7 +165,7 @@ internal static class ConvertToRecordService
         return SyntaxFactory.SeparatedList(parameters);
     }
 
-    private static RecordDeclarationSyntax BuildRecordDeclaration(
+    private RecordDeclarationSyntax BuildRecordDeclaration(
         ClassDeclarationSyntax classSyntax,
         SeparatedSyntaxList<ParameterSyntax> parameters,
         List<MemberDeclarationSyntax> remainingMembers)
@@ -204,7 +206,7 @@ internal static class ConvertToRecordService
             semicolonToken: default);
     }
 
-    private static async Task<Solution> ApplyRecordReplacementAsync(
+    private async Task<Solution> ApplyRecordReplacementAsync(
         Solution sln,
         DocumentId docId,
         Microsoft.CodeAnalysis.SyntaxReference syntaxRef,
