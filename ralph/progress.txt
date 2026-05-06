@@ -1,7 +1,7 @@
 roslyn-tools
 Branch: feat/analyze-complexity
 
-Current Status: 0/1 stories complete (0%)
+Current Status: 1/1 stories complete (100%)
 
 Stories
-[ ] US-001 Add rt analyze complexity command
+[x] US-001 Add rt analyze complexity command

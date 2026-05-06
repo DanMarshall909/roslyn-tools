@@ -104,8 +104,10 @@
                 "rt analyze complexity --solution RoslynTools.slnx --top 10 exits 0 in under 60 seconds when run against the roslyn-tools solution"
             ],
             "priority": 1,
-            "passes": false,
-            "notes": "New ComplexityCommand.cs in src/RoslynTools/Commands/. IRtCommand contract: Category=analyze, JsonOutput=true, Mutates=false. Metrics: cyclomatic (decision branches), cognitive (nesting-weighted), LOC (non-blank non-comment lines in body), params (excl. this for extensions). Flags: --threshold 0 (show all, >= filter), --sort cyclomatic|cognitive|loc|params, --top N. JSON output: methods[] + typeRollups[] + namespaceRollups[]. Rollups always cover all methods regardless of threshold/top. Solution auto-detection via existing pattern."
+            "passes": true,
+            "notes": "New ComplexityCommand.cs in src/RoslynTools/Commands/. IRtCommand contract: Category=analyze, JsonOutput=true, Mutates=false. Metrics: cyclomatic (decision branches), cognitive (nesting-weighted), LOC (non-blank non-comment lines in body), params (excl. this for extensions). Flags: --threshold 0 (show all, >= filter), --sort cyclomatic|cognitive|loc|params, --top N. JSON output: methods[] + typeRollups[] + namespaceRollups[]. Rollups always cover all methods regardless of threshold/top. Solution auto-detection via existing pattern.",
+            "resolution": "ComplexityAnalyzer service in RoslynTools.Core; ComplexityCommand (alias: cx) in RoslynTools.Cli/Commands. Metrics: cyclomatic, cognitive, LOC, params per method with type/namespace rollups. Flags: --threshold, --sort, --top. 37 tests all green.",
+            "resolvedAt": "2026-05-06"
         }
     ]
 }
