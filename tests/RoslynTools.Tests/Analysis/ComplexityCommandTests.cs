@@ -1,4 +1,4 @@
-using RoslynTools.Services;
+using RoslynTools.Core;
 
 namespace RoslynTools.Tests.Analysis;
 
