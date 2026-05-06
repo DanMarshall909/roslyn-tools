@@ -6,29 +6,41 @@ namespace RoslynTools.Mcp.Handlers;
 
 internal sealed class RenameSymbolHandler
 {
+    private readonly WorkspaceLoader _workspaceLoader;
+    private readonly RenameService _rename;
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
+
+    public RenameSymbolHandler(
+        WorkspaceLoader workspaceLoader,
+        RenameService rename,
+        ISolutionChangeWriter solutionChangeWriter)
+    {
+        _workspaceLoader = workspaceLoader;
+        _rename = rename;
+        _solutionChangeWriter = solutionChangeWriter;
+    }
+
     public async Task<RenameSymbolResult> HandleAsync(
         RenameSymbolRequest request,
         CancellationToken cancellationToken = default)
     {
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(request.Solution);
-        using (workspace)
+        var sln = await _workspaceLoader.GetSolutionAsync(request.Solution);
+
+        cancellationToken.ThrowIfCancellationRequested();
+        var newSln = await _rename.RenameAsync(sln, request.OldName, request.NewName, kind: null);
+
+        var changedFiles = newSln.GetChanges(sln)
+            .GetProjectChanges()
+            .SelectMany(p => p.GetChangedDocuments())
+            .Count();
+
+        if (request.Apply)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var newSln = await RtServiceProvider.Get<RenameService>().RenameAsync(sln, request.OldName, request.NewName, kind: null);
-
-            var changedFiles = newSln.GetChanges(sln)
-                .GetProjectChanges()
-                .SelectMany(p => p.GetChangedDocuments())
-                .Count();
-
-            if (request.Apply)
-            {
-                await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
-                return new RenameSymbolResult(ChangedFiles: changedFiles, Applied: true);
-            }
-
-            return new RenameSymbolResult(ChangedFiles: changedFiles, Applied: false);
+            await _solutionChangeWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+            return new RenameSymbolResult(ChangedFiles: changedFiles, Applied: true);
         }
+
+        return new RenameSymbolResult(ChangedFiles: changedFiles, Applied: false);
     }
 }
 

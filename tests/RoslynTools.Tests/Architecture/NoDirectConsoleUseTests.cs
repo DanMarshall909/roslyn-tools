@@ -22,6 +22,9 @@ public sealed class NoDirectConsoleUseTests
         var allowedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             Path.Combine(srcDir, "RoslynTools", "Core", "RtConsole.cs"),
+            // IRtConsole.cs defines the default Out implementation for backward-compatible
+            // addition of the Out member without requiring all implementors to change.
+            Path.Combine(srcDir, "RoslynTools", "Core", "IRtConsole.cs"),
         };
 
         // Console members that are NOT I/O channels — using these is fine because they don't

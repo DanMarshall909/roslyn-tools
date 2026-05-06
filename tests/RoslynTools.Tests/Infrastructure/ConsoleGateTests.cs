@@ -7,7 +7,11 @@ namespace RoslynTools.Tests.Infrastructure;
 public class ConsoleGateTests
 {
     private static readonly HashSet<string> Allowed =
-        new(StringComparer.OrdinalIgnoreCase) { "RtConsole.cs" };
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            "RtConsole.cs",
+            "IRtConsole.cs", // default Out implementation uses Console.Out as the base case
+        };
 
     [Fact]
     public void Only_RtConsole_may_reference_Console_directly()

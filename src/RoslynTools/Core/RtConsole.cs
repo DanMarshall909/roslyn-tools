@@ -18,7 +18,7 @@ internal static class RtConsole
 
     internal static TextReader In => Console.In;
 
-    internal static TextWriter Out => Console.Out;
+    internal static TextWriter Out => Current.Out;
 
     internal static void AddCancelKeyPressHandler(ConsoleCancelEventHandler handler) =>
         Console.CancelKeyPress += handler;

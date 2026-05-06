@@ -11,4 +11,6 @@ internal interface IRtConsole
     string? ReadLine();
 
     bool IsOutputRedirected { get; }
+
+    TextWriter Out => Console.Out;
 }

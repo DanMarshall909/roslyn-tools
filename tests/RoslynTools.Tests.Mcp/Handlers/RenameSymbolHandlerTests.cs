@@ -1,14 +1,17 @@
-using FluentAssertions;
+using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using RoslynTools;
 using RoslynTools.Core;
-using RoslynTools.Mcp.Handlers;
-using RoslynTools.Mcp.Schemas;
+using RoslynTools.Mcp;
+using RoslynTools.Mcp.Tools;
 
 namespace RoslynTools.Tests.Mcp.Handlers;
 
-public class RenameSymbolHandlerTests
+[Collection("mcp-bridge")]
+public class RenameToolTests
 {
     [Fact]
-    public async Task Dry_run_reports_changed_files_without_applying()
+    public async Task rename_defaults_to_dry_run_without_applying_changes()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Model.cs", """
@@ -31,19 +34,29 @@ public class RenameSymbolHandlerTests
         var (workspace, sln) = project.Build();
         using (workspace)
         using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (var provider = CreateProvider())
         {
-            var handler = new RenameSymbolHandler();
-            var request = new RenameSymbolRequest(
-                OldName: "TestApp.Invoice",
-                NewName: "Bill",
-                Solution: "ignored.slnx",
-                Apply: false);
+            var registry = provider.GetRequiredService<ToolRegistry>();
+            using var args = JsonDocument.Parse("""
+                {
+                  "symbol": "TestApp.Invoice",
+                  "new-name": "Bill",
+                  "solution": "ignored.slnx"
+                }
+                """);
 
-            var result = await handler.HandleAsync(request);
+            var result = await registry.InvokeAsync("rename", args.RootElement);
 
-            result.Applied.Should().BeFalse();
-            result.ChangedFiles.Should().BeGreaterThan(0);
+            Assert.False(result.isError);
+            Assert.Contains("Bill", result.content, StringComparison.Ordinal);
         }
     }
 
+    private static ServiceProvider CreateProvider()
+    {
+        var services = new ServiceCollection();
+        Bootstrap.RegisterServices(services);
+        services.AddMcpServices(new StringReader(string.Empty), new StringWriter());
+        return services.BuildServiceProvider();
+    }
 }

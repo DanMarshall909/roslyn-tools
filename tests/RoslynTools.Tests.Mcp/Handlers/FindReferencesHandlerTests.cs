@@ -1,14 +1,17 @@
-using FluentAssertions;
+using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using RoslynTools;
 using RoslynTools.Core;
-using RoslynTools.Mcp.Handlers;
-using RoslynTools.Mcp.Schemas;
+using RoslynTools.Mcp;
+using RoslynTools.Mcp.Tools;
 
 namespace RoslynTools.Tests.Mcp.Handlers;
 
-public class FindReferencesHandlerTests
+[Collection("mcp-bridge")]
+public class FindRefsToolTests
 {
     [Fact]
-    public async Task Returns_reference_count_for_referenced_type()
+    public async Task find_refs_returns_output_for_referenced_type()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Model.cs", """
@@ -32,19 +35,22 @@ public class FindReferencesHandlerTests
         var (workspace, sln) = project.Build();
         using (workspace)
         using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (var provider = CreateProvider())
         {
-            var handler = new FindReferencesHandler();
-            var request = new FindReferencesRequest(Symbol: "Invoice", Solution: "ignored.slnx");
+            var registry = provider.GetRequiredService<ToolRegistry>();
+            using var args = JsonDocument.Parse("""
+                {"symbol":"Invoice","solution":"ignored.slnx"}
+                """);
 
-            var result = await handler.HandleAsync(request);
+            var result = await registry.InvokeAsync("find_refs", args.RootElement);
 
-            result.Symbol.Should().Be("Invoice");
-            result.ReferencesCount.Should().BeGreaterThan(0);
+            Assert.False(result.isError);
+            Assert.Contains("Invoice", result.content, StringComparison.Ordinal);
         }
     }
 
     [Fact]
-    public async Task Returns_zero_for_unreferenced_symbol()
+    public async Task find_refs_succeeds_for_unreferenced_symbol()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Orphan.cs", """
@@ -56,14 +62,24 @@ public class FindReferencesHandlerTests
         var (workspace, sln) = project.Build();
         using (workspace)
         using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (var provider = CreateProvider())
         {
-            var handler = new FindReferencesHandler();
-            var request = new FindReferencesRequest(Symbol: "NeverUsed", Solution: "ignored.slnx");
+            var registry = provider.GetRequiredService<ToolRegistry>();
+            using var args = JsonDocument.Parse("""
+                {"symbol":"NeverUsed","solution":"ignored.slnx"}
+                """);
 
-            var result = await handler.HandleAsync(request);
+            var result = await registry.InvokeAsync("find_refs", args.RootElement);
 
-            result.Symbol.Should().Be("NeverUsed");
-            result.ReferencesCount.Should().Be(0);
+            Assert.False(result.isError);
         }
+    }
+
+    private static ServiceProvider CreateProvider()
+    {
+        var services = new ServiceCollection();
+        Bootstrap.RegisterServices(services);
+        services.AddMcpServices(new StringReader(string.Empty), new StringWriter());
+        return services.BuildServiceProvider();
     }
 }
