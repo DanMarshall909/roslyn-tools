@@ -1,5 +1,3 @@
-using System.Text.Encodings.Web;
-using System.Text.Json;
 using RoslynTools.Core.Output;
 
 namespace RoslynTools.Commands.Results;
@@ -75,23 +73,14 @@ internal sealed record NamespaceRollupItem : IRtOutput
     }
 }
 
-internal sealed record ComplexityResult : IRtOutput, IRtJsonOutput
+internal sealed record ComplexityResult : IRtOutput
 {
-    private static readonly JsonSerializerOptions CamelCaseOptions = new()
-    {
-        WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-    };
     [OutputField(OutputLevel.Default, "methods")]
     public IReadOnlyList<MethodComplexityItem> Methods { get; init; } = [];
     [OutputField(OutputLevel.Default, "typeRollups")]
     public IReadOnlyList<TypeRollupItem> TypeRollups { get; init; } = [];
     [OutputField(OutputLevel.Default, "namespaceRollups")]
     public IReadOnlyList<NamespaceRollupItem> NamespaceRollups { get; init; } = [];
-
-    public void RenderJson(TextWriter writer) =>
-        writer.Write(JsonSerializer.Serialize(this, CamelCaseOptions));
 
     public void RenderText(TextWriter writer)
     {
