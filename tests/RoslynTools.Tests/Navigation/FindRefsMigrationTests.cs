@@ -104,10 +104,10 @@ public sealed class FindRefsMigrationTests : IDisposable
         var doc = JsonDocument.Parse(sw.ToString());
         var root = doc.RootElement;
 
-        Assert.True(root.TryGetProperty("SymbolName", out var sym));
+        Assert.True(root.TryGetProperty("symbolName", out var sym));
         Assert.Equal("MyService", sym.GetString());
 
-        Assert.True(root.TryGetProperty("References", out var refs));
+        Assert.True(root.TryGetProperty("references", out var refs));
         Assert.Equal(JsonValueKind.Array, refs.ValueKind);
         Assert.Equal(2, refs.GetArrayLength());
     }
@@ -122,11 +122,11 @@ public sealed class FindRefsMigrationTests : IDisposable
         RtSerializer.Write(result, sw);
 
         var doc = JsonDocument.Parse(sw.ToString());
-        var first = doc.RootElement.GetProperty("References")[0];
+        var first = doc.RootElement.GetProperty("references")[0];
 
-        Assert.True(first.TryGetProperty("FilePath", out _));
-        Assert.True(first.TryGetProperty("Line", out _));
-        Assert.True(first.TryGetProperty("LineText", out _));
+        Assert.True(first.TryGetProperty("filePath", out _));
+        Assert.True(first.TryGetProperty("line", out _));
+        Assert.True(first.TryGetProperty("lineText", out _));
     }
 
     // ── Markdown format ───────────────────────────────────────────────────────────

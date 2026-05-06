@@ -92,16 +92,16 @@ public class ListSmellsMigrationTests : IDisposable
         var doc = JsonDocument.Parse(sw.ToString());
         var root = doc.RootElement;
 
-        Assert.True(root.TryGetProperty("Smells", out var smells));
+        Assert.True(root.TryGetProperty("smells", out var smells));
         Assert.Equal(JsonValueKind.Array, smells.ValueKind);
         Assert.Equal(2, smells.GetArrayLength());
 
         var first = smells[0];
-        Assert.True(first.TryGetProperty("SmellType", out _));
-        Assert.True(first.TryGetProperty("TypeName", out _));
-        Assert.True(first.TryGetProperty("FilePath", out _));
-        Assert.True(first.TryGetProperty("Line", out _));
-        Assert.True(first.TryGetProperty("Detail", out _));
+        Assert.True(first.TryGetProperty("smellType", out _));
+        Assert.True(first.TryGetProperty("typeName", out _));
+        Assert.True(first.TryGetProperty("filePath", out _));
+        Assert.True(first.TryGetProperty("line", out _));
+        Assert.True(first.TryGetProperty("detail", out _));
     }
 
     // ── AC-5: --markdown produces grouped Markdown output ─────────────────────────

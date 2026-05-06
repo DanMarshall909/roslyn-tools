@@ -98,18 +98,18 @@ public class CircularDepsMigrationTests : IDisposable
             var doc = JsonDocument.Parse(sw.ToString());
             var root = doc.RootElement;
 
-            Assert.True(root.TryGetProperty("HasCycles", out var hasCycles));
+            Assert.True(root.TryGetProperty("hasCycles", out var hasCycles));
             Assert.True(hasCycles.GetBoolean());
 
-            Assert.True(root.TryGetProperty("Cycles", out var cyclesArr));
+            Assert.True(root.TryGetProperty("cycles", out var cyclesArr));
             Assert.Equal(JsonValueKind.Array, cyclesArr.ValueKind);
             Assert.True(cyclesArr.GetArrayLength() >= 1);
 
             var firstCycle = cyclesArr[0];
-            Assert.True(firstCycle.TryGetProperty("Path", out var pathProp));
+            Assert.True(firstCycle.TryGetProperty("path", out var pathProp));
             Assert.Contains("->", pathProp.GetString());
 
-            Assert.True(firstCycle.TryGetProperty("Nodes", out var nodesProp));
+            Assert.True(firstCycle.TryGetProperty("nodes", out var nodesProp));
             Assert.Equal(JsonValueKind.Array, nodesProp.ValueKind);
             Assert.True(nodesProp.GetArrayLength() >= 2);
         }

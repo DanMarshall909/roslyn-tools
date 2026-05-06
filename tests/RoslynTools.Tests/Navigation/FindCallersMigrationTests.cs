@@ -78,10 +78,10 @@ public sealed class FindCallersMigrationTests : IDisposable
         var doc = JsonDocument.Parse(sw.ToString());
         var root = doc.RootElement;
 
-        Assert.True(root.TryGetProperty("SymbolName", out var sym));
+        Assert.True(root.TryGetProperty("symbolName", out var sym));
         Assert.Equal("DoWork", sym.GetString());
 
-        Assert.True(root.TryGetProperty("Callers", out var callers));
+        Assert.True(root.TryGetProperty("callers", out var callers));
         Assert.Equal(JsonValueKind.Array, callers.ValueKind);
         Assert.Equal(2, callers.GetArrayLength());
     }
@@ -96,12 +96,12 @@ public sealed class FindCallersMigrationTests : IDisposable
         RtSerializer.Write(result, sw);
 
         var doc = JsonDocument.Parse(sw.ToString());
-        var first = doc.RootElement.GetProperty("Callers")[0];
+        var first = doc.RootElement.GetProperty("callers")[0];
 
-        Assert.True(first.TryGetProperty("FilePath", out _));
-        Assert.True(first.TryGetProperty("Line", out _));
-        Assert.True(first.TryGetProperty("ContainingMethod", out _));
-        Assert.True(first.TryGetProperty("SourceLine", out _));
+        Assert.True(first.TryGetProperty("filePath", out _));
+        Assert.True(first.TryGetProperty("line", out _));
+        Assert.True(first.TryGetProperty("containingMethod", out _));
+        Assert.True(first.TryGetProperty("sourceLine", out _));
     }
 
     // ── Markdown format ───────────────────────────────────────────────────────────

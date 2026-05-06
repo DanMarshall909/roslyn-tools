@@ -32,9 +32,9 @@ public sealed class RendererTests : IDisposable
         var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
 
-        Assert.True(root.TryGetProperty("LlmField", out _), "Expected LlmField in JSON");
-        Assert.True(root.TryGetProperty("DefaultField", out _), "Expected DefaultField in JSON");
-        Assert.True(root.TryGetProperty("DetailedField", out _), "Expected DetailedField in JSON");
+        Assert.True(root.TryGetProperty("llmField", out _), "Expected llmField in JSON");
+        Assert.True(root.TryGetProperty("defaultField", out _), "Expected defaultField in JSON");
+        Assert.True(root.TryGetProperty("detailedField", out _), "Expected detailedField in JSON");
     }
 
     // ── AC-6: Markdown includes Llm + Default fields, omits Detailed ──────────────
@@ -88,7 +88,7 @@ public sealed class RendererTests : IDisposable
         var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
 
-        Assert.True(root.TryGetProperty("Children", out var children));
+        Assert.True(root.TryGetProperty("children", out var children));
         Assert.Equal(JsonValueKind.Array, children.ValueKind);
         Assert.Equal(2, children.GetArrayLength());
     }
@@ -104,7 +104,7 @@ public sealed class RendererTests : IDisposable
 
         var md = sw.ToString();
 
-        Assert.Contains("| Child Name |", md);
+        Assert.Contains("| name |", md);
         Assert.Contains("Alice", md);
         Assert.Contains("Bob", md);
     }
@@ -121,9 +121,9 @@ public sealed class RendererTests : IDisposable
         RtSerializer.Write(result, sw);
 
         var yaml = sw.ToString();
-        Assert.Contains("LlmField:", yaml);
-        Assert.Contains("DefaultField:", yaml);
-        Assert.Contains("DetailedField:", yaml);
+        Assert.Contains("llmField:", yaml);
+        Assert.Contains("defaultField:", yaml);
+        Assert.Contains("detailedField:", yaml);
         Assert.Contains("llm-value", yaml);
         Assert.Contains("default-value", yaml);
         Assert.Contains("detailed-value", yaml);
@@ -139,7 +139,7 @@ public sealed class RendererTests : IDisposable
         RtSerializer.Write(result, sw);
 
         var yaml = sw.ToString();
-        Assert.Contains("Children:", yaml);
+        Assert.Contains("children:", yaml);
         Assert.Contains("Alice", yaml);
         Assert.Contains("Bob", yaml);
     }
@@ -166,7 +166,7 @@ public sealed class RendererTests : IDisposable
         RtSerializer.Write(result, sw);
 
         var yaml = sw.ToString();
-        Assert.Contains("Child:", yaml);
+        Assert.Contains("child:", yaml);
     }
 
     // ── AC-9: Text rendering delegates to RenderText exactly once ─────────────────
@@ -236,7 +236,7 @@ public sealed class RendererTests : IDisposable
         RtSerializer.Write(result, sw);
 
         var doc = JsonDocument.Parse(sw.ToString());
-        Assert.True(doc.RootElement.TryGetProperty("Child", out var child));
+        Assert.True(doc.RootElement.TryGetProperty("child", out var child));
         Assert.Equal(JsonValueKind.Null, child.ValueKind);
     }
 
@@ -256,13 +256,13 @@ public sealed class RendererTests : IDisposable
 
     private sealed class FakeResult : IRtOutput
     {
-        [OutputField(OutputLevel.Llm, "LLM Field")]
+        [OutputField(OutputLevel.Llm, "llmField")]
         public string LlmField { get; } = "llm-value";
 
-        [OutputField(OutputLevel.Default, "Default Field")]
+        [OutputField(OutputLevel.Default, "defaultField")]
         public string DefaultField { get; } = "default-value";
 
-        [OutputField(OutputLevel.Detailed, "Detailed Field")]
+        [OutputField(OutputLevel.Detailed, "detailedField")]
         public string DetailedField { get; } = "detailed-value";
 
         public string UntaggedField { get; } = "untagged-value";
@@ -274,7 +274,7 @@ public sealed class RendererTests : IDisposable
     {
         public FakeChild(string name) => Name = name;
 
-        [OutputField(OutputLevel.Default, "Child Name")]
+        [OutputField(OutputLevel.Default, "name")]
         public string Name { get; }
 
         public void RenderText(TextWriter writer) => writer.Write(Name);
@@ -282,7 +282,7 @@ public sealed class RendererTests : IDisposable
 
     private sealed class FakeParent : IRtOutput
     {
-        [OutputField(OutputLevel.Default, "Children")]
+        [OutputField(OutputLevel.Default, "children")]
         public IReadOnlyList<FakeChild> Children { get; } =
             [new FakeChild("Alice"), new FakeChild("Bob")];
 
@@ -291,7 +291,7 @@ public sealed class RendererTests : IDisposable
 
     private sealed class FakeWithNullChild : IRtOutput
     {
-        [OutputField(OutputLevel.Llm, "Child")]
+        [OutputField(OutputLevel.Llm, "child")]
         public FakeChild? Child { get; } = null;
 
         public void RenderText(TextWriter writer) => writer.Write("null-child");

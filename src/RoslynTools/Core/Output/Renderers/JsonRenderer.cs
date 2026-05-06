@@ -30,7 +30,7 @@ internal static class JsonRenderer
                 continue;
 
             var value = prop.GetValue(result);
-            dict[prop.Name] = ConvertValue(value, maxLevel);
+            dict[attr.Description] = ConvertValue(value, maxLevel);
         }
 
         return dict;

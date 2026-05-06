@@ -89,9 +89,8 @@ public class FindUnusedMigrationTests : IDisposable
         RtSerializer.Write(result, sw);
         var json = sw.ToString();
         using var doc = JsonDocument.Parse(json);
-        Assert.True(doc.RootElement.TryGetProperty("Symbols", out var symbols) ||
-                    doc.RootElement.TryGetProperty("symbols", out symbols),
-            "Expected 'Symbols' or 'symbols' property in JSON output");
+        Assert.True(doc.RootElement.TryGetProperty("symbols", out var symbols),
+            "Expected 'symbols' property in JSON output");
     }
 
     // ── AC-4: --markdown produces well-formed markdown ───────────────────────
