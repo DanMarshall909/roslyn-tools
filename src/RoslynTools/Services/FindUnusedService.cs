@@ -8,7 +8,7 @@ namespace RoslynTools.Services;
 
 internal record UnusedSymbol(string Name, string Kind, string? FilePath, int Line);
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class FindUnusedService
+internal class FindUnusedService : IRtService
 {
     internal async Task<List<UnusedSymbol>> AnalyzeAsync(Solution solution, string scope = "all")
     {

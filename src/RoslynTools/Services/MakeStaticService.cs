@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
@@ -8,8 +9,19 @@ using RoslynTools.Core;
 namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class MakeStaticService
+internal class MakeStaticService : IRtService
 {
+    private readonly ILogger<MakeStaticService> _logger;
+
+    public MakeStaticService()
+        : this(new RtConsoleLogger<MakeStaticService>())
+    {
+    }
+
+    public MakeStaticService(ILogger<MakeStaticService> logger)
+    {
+        _logger = logger;
+    }
     internal async Task<int> RunAsync(Solution sln, string methodSpec, bool dryRun)
     {
         var (typeName, methodName) = ParseMethodSpec(methodSpec);
@@ -19,7 +31,7 @@ internal class MakeStaticService
         var blockingReason = await CheckSafetyAsync(methodSymbol);
         if (blockingReason != null)
         {
-            RtLog.Error("Cannot make static: {BlockingReason}", blockingReason);
+            _logger.RtError("Cannot make static: {BlockingReason}", blockingReason);
             return 1;
         }
 

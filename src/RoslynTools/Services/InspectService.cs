@@ -5,7 +5,7 @@ using RoslynTools.Core;
 namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class InspectService
+internal class InspectService : IRtService
 {
     internal Dictionary<string, object?> BuildInspection(ISymbol symbol, Solution solution)
     {

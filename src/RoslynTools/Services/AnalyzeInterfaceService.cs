@@ -7,7 +7,7 @@ using RoslynTools.Core;
 namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class AnalyzeInterfaceService
+internal class AnalyzeInterfaceService : IRtService
 {
     private readonly FindCallersService _findCallers;
 

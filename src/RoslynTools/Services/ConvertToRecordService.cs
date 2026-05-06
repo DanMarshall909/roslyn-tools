@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Diagnostics.CodeAnalysis;
@@ -7,8 +8,19 @@ using RoslynTools.Core;
 namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class ConvertToRecordService
+internal class ConvertToRecordService : IRtService
 {
+    private readonly ILogger<ConvertToRecordService> _logger;
+
+    public ConvertToRecordService()
+        : this(new RtConsoleLogger<ConvertToRecordService>())
+    {
+    }
+
+    public ConvertToRecordService(ILogger<ConvertToRecordService> logger)
+    {
+        _logger = logger;
+    }
     internal async Task RunAsync(Solution sln, string typeName, bool dryRun)
     {
         var originalSolution = sln;
@@ -17,7 +29,7 @@ internal class ConvertToRecordService
 
         if (classSymbol.IsRecord)
         {
-            RtLog.Info("'{TypeName}' is already a record.", typeName);
+            _logger.RtInfo("'{TypeName}' is already a record.", typeName);
             return;
         }
 
@@ -36,7 +48,7 @@ internal class ConvertToRecordService
 
         sln = await ApplyRecordReplacementAsync(sln, docId, syntaxRef, recordDecl);
 
-        RtLog.Info("Converting '{TypeName}' to a positional record...", typeName);
+        _logger.RtInfo("Converting '{TypeName}' to a positional record...", typeName);
         await SolutionWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
     }
 
@@ -99,7 +111,7 @@ internal class ConvertToRecordService
         if (mutableProps.Count > 0)
         {
             var names = string.Join(", ", mutableProps.Select(p => p.Identifier.Text));
-            RtLog.Warning("'{TypeName}' has mutable auto-properties ({PropertyNames}). They will remain as regular properties in the record body.", typeName, names);
+            _logger.RtWarning("'{TypeName}' has mutable auto-properties ({PropertyNames}). They will remain as regular properties in the record body.", typeName, names);
         }
 
         var membersToRemove = BuildMembersToRemove(allMembers, initProps);

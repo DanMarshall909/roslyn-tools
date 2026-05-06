@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.Rename;
 using Microsoft.VisualBasic.FileIO;
 using System.Diagnostics.CodeAnalysis;
@@ -7,8 +8,19 @@ using RoslynTools.Core;
 namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class RenameService
+internal class RenameService : IRtService
 {
+    private readonly ILogger<RenameService> _logger;
+
+    public RenameService()
+        : this(new RtConsoleLogger<RenameService>())
+    {
+    }
+
+    public RenameService(ILogger<RenameService> logger)
+    {
+        _logger = logger;
+    }
     internal async Task<Solution> RenameAsync(
         Solution sln,
         string symbol,
@@ -17,7 +29,7 @@ internal class RenameService
     {
         var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, symbol, kind);
 
-        RtLog.Info("Renaming '{Symbol}' -> '{NewName}'...", sym.ToDisplayString(), newName);
+        _logger.RtInfo("Renaming '{Symbol}' -> '{NewName}'...", sym.ToDisplayString(), newName);
 
         var options = new SymbolRenameOptions(
             RenameOverloads: false,
@@ -48,7 +60,7 @@ internal class RenameService
         var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, symbol, kind);
         var fileRename = ComputeFileRename(sym, newName);
 
-        RtLog.Info("Renaming '{Symbol}' -> '{NewName}'...", sym.ToDisplayString(), newName);
+        _logger.RtInfo("Renaming '{Symbol}' -> '{NewName}'...", sym.ToDisplayString(), newName);
 
         var newSln = await Renamer.RenameSymbolAsync(
             sln,
@@ -90,7 +102,7 @@ internal class RenameService
 
         if (File.Exists(rename.NewPath))
         {
-            RtLog.Warning("Target file already exists: {Path} — file not renamed.", rename.NewPath);
+            _logger.RtWarning("Target file already exists: {Path} — file not renamed.", rename.NewPath);
             return;
         }
 

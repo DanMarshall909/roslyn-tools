@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Diagnostics.CodeAnalysis;
@@ -7,8 +8,19 @@ using RoslynTools.Core;
 namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class FixNamespaceService
+internal class FixNamespaceService : IRtService
 {
+    private readonly ILogger<FixNamespaceService> _logger;
+
+    public FixNamespaceService()
+        : this(new RtConsoleLogger<FixNamespaceService>())
+    {
+    }
+
+    public FixNamespaceService(ILogger<FixNamespaceService> logger)
+    {
+        _logger = logger;
+    }
     internal async Task ExecuteAsync(string filePath, string? solutionPath, bool dryRun)
     {
         filePath = Path.GetFullPath(filePath);
@@ -45,7 +57,7 @@ internal class FixNamespaceService
         var currentNamespace = GetDeclaredNamespace(syntaxRoot);
         if (currentNamespace == null)
         {
-            RtLog.Info("No namespace declaration found in '{FilePath}'. Nothing to fix.", filePath);
+            _logger.RtInfo("No namespace declaration found in '{FilePath}'. Nothing to fix.", filePath);
             return;
         }
 
@@ -55,7 +67,7 @@ internal class FixNamespaceService
             return;
         }
 
-        RtLog.Info(
+        _logger.RtInfo(
             "Fixing namespace in '{FileName}': '{CurrentNamespace}' -> '{ExpectedNamespace}'",
             Path.GetFileName(filePath),
             currentNamespace,

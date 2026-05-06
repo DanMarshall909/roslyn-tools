@@ -4,22 +4,60 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
+using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-internal sealed class MigrateToIOptionsService
+internal sealed class MigrateToIOptionsService : IRtService
 {
     private static readonly Regex GetValueRegex = new(
         @"GetValue\s*(?:<(?<type>[^>]+)>)?\s*\(\s*""(?<key>[^""]+)""",
         RegexOptions.Compiled);
 
-    public static async Task<int> RunAsync(Solution solution, string section, string name, bool dryRun)
+    private static readonly Action<ILogger, Exception?> NoRegistrationSite = LoggerMessage.Define(
+        LogLevel.Error,
+        new EventId(1, nameof(NoRegistrationSite)),
+        "No DI registration site found. Add a services.Configure entry-point manually or pass a solution containing IServiceCollection configuration.");
+
+    private static readonly Action<ILogger, Exception?> MultipleRegistrationSites = LoggerMessage.Define(
+        LogLevel.Warning,
+        new EventId(2, nameof(MultipleRegistrationSites)),
+        "Multiple DI registration sites found; using first candidate.");
+
+    private static readonly Action<ILogger, string, int, Exception?> RegistrationSiteCandidate = LoggerMessage.Define<string, int>(
+        LogLevel.Warning,
+        new EventId(3, nameof(RegistrationSiteCandidate)),
+        "  {FilePath}:{Line}");
+
+    private static readonly Action<ILogger, string, string, Exception?> TypeNameCollision = LoggerMessage.Define<string, string>(
+        LogLevel.Error,
+        new EventId(4, nameof(TypeNameCollision)),
+        "Type name collision: {Name} already exists at {FilePath}.");
+
+    private static readonly Action<ILogger, Exception?> DryRunMode = LoggerMessage.Define(
+        LogLevel.Information,
+        new EventId(5, nameof(DryRunMode)),
+        "dry-run mode: no files will be written.");
+
+    private readonly ILogger<MigrateToIOptionsService> _logger;
+
+    public MigrateToIOptionsService()
+        : this(new RtConsoleLogger<MigrateToIOptionsService>())
+    {
+    }
+
+    public MigrateToIOptionsService(ILogger<MigrateToIOptionsService> logger)
+    {
+        _logger = logger;
+    }
+
+    public async Task<int> RunAsync(Solution solution, string section, string name, bool dryRun)
     {
         var candidates = await FindRegistrationSitesAsync(solution);
         if (candidates.Count == 0)
         {
-            RtLog.Error("No DI registration site found. Add a services.Configure entry-point manually or pass a solution containing IServiceCollection configuration.");
+            NoRegistrationSite(_logger, null);
             return 1;
         }
 
@@ -30,9 +68,9 @@ internal sealed class MigrateToIOptionsService
 
         if (candidates.Count > 1)
         {
-            RtLog.Warning("Multiple DI registration sites found; using first candidate.");
+            MultipleRegistrationSites(_logger, null);
             foreach (var candidate in candidates.OrderBy(c => c.FilePath, StringComparer.InvariantCulture).ThenBy(c => c.Line))
-                RtLog.Warning("  {FilePath}:{Line}", candidate.FilePath, candidate.Line);
+                RegistrationSiteCandidate(_logger, candidate.FilePath, candidate.Line, null);
         }
 
         var targetNamespace = await InferNamespaceAsync(target.Document);
@@ -44,7 +82,7 @@ internal sealed class MigrateToIOptionsService
 
         if (File.Exists(outputPath) && await File.ReadAllTextAsync(outputPath) != pocoText)
         {
-            RtLog.Error("Type name collision: {Name} already exists at {FilePath}.", name, outputPath);
+            TypeNameCollision(_logger, name, outputPath, null);
             return 1;
         }
 
@@ -95,7 +133,7 @@ internal sealed class MigrateToIOptionsService
         }
 
         if (dryRun)
-            RtLog.Info("dry-run mode: no files will be written.");
+            DryRunMode(_logger, null);
 
         await SolutionWriter.ApplyChangesAsync(solution, newSolution, dryRun);
 

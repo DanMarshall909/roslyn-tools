@@ -5,7 +5,7 @@ using RoslynTools.Core;
 namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class OutlineService
+internal class OutlineService : IRtService
 {
     internal async Task<List<Dictionary<string, object?>>> OutlineFileAsync(
         Solution solution,

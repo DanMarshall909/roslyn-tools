@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.CSharp;
@@ -8,8 +9,19 @@ using RoslynTools.Core;
 namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class ReplaceCallService
+internal class ReplaceCallService : IRtService
 {
+    private readonly ILogger<ReplaceCallService> _logger;
+
+    public ReplaceCallService()
+        : this(new RtConsoleLogger<ReplaceCallService>())
+    {
+    }
+
+    public ReplaceCallService(ILogger<ReplaceCallService> logger)
+    {
+        _logger = logger;
+    }
     internal async Task RunAsync(Solution solution, string from, string to, bool dryRun, int? ifArgIndex = null, string? ifArgLiteral = null)
     {
         var originalSolution = solution;
@@ -17,7 +29,7 @@ internal class ReplaceCallService
         var methodName = ParseMethodName(from);
         var methodSymbol = await SymbolLocator.FindSymbolByFqnAsync(solution, from, "method");
 
-        RtLog.Info("Finding invocations of '{Method}'...", methodSymbol.ToDisplayString());
+        _logger.RtInfo("Finding invocations of '{Method}'...", methodSymbol.ToDisplayString());
 
         var referencedSymbols = await SymbolFinder.FindReferencesAsync(methodSymbol, solution);
         var locationsByDocument = await FindInvocationSitesAsync(referencedSymbols, ifArgIndex, ifArgLiteral);
@@ -29,7 +41,7 @@ internal class ReplaceCallService
         }
 
         var totalCallSites = locationsByDocument.Values.Sum(l => l.Count);
-        RtLog.Info("Found {TotalCallSites} call site(s). Replacing '{MethodName}' → '{To}'...", totalCallSites, methodName, to);
+        _logger.RtInfo("Found {TotalCallSites} call site(s). Replacing '{MethodName}' → '{To}'...", totalCallSites, methodName, to);
 
         foreach (var (docId, locations) in locationsByDocument)
         {

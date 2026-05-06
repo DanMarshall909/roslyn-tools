@@ -1,5 +1,6 @@
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Diagnostics.CodeAnalysis;
@@ -8,8 +9,19 @@ using RoslynTools.Core;
 namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class ImplementInterfaceService
+internal class ImplementInterfaceService : IRtService
 {
+    private readonly ILogger<ImplementInterfaceService> _logger;
+
+    public ImplementInterfaceService()
+        : this(new RtConsoleLogger<ImplementInterfaceService>())
+    {
+    }
+
+    public ImplementInterfaceService(ILogger<ImplementInterfaceService> logger)
+    {
+        _logger = logger;
+    }
     internal async Task RunAsync(Solution sln, string typeName, string? interfaceName, bool dryRun)
     {
         var originalSolution = sln;
@@ -35,7 +47,7 @@ internal class ImplementInterfaceService
         }
 
         sln = await ApplyStubsAsync(sln, typeName, docId, classSymbol, unimplementedMembers);
-        RtLog.Info("Adding {Count} stub(s) to '{TypeName}'...", unimplementedMembers.Count, typeName);
+        _logger.RtInfo("Adding {Count} stub(s) to '{TypeName}'...", unimplementedMembers.Count, typeName);
         await SolutionWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
     }
 

@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
@@ -8,8 +9,19 @@ using RoslynTools.Core;
 namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class MoveService
+internal class MoveService : IRtService
 {
+    private readonly ILogger<MoveService> _logger;
+
+    public MoveService()
+        : this(new RtConsoleLogger<MoveService>())
+    {
+    }
+
+    public MoveService(ILogger<MoveService> logger)
+    {
+        _logger = logger;
+    }
     // ──────────────────────────────────────────────────────────────
     //  Entry points
     // ──────────────────────────────────────────────────────────────
@@ -33,7 +45,7 @@ internal class MoveService
             return;
         }
 
-        RtLog.Info(
+        _logger.RtInfo(
             "Rewriting '{SourceNamespace}' -> '{TargetNamespace}': {DeclarationFileCount} declaration file(s), {ChangedFileCount} total file(s) changed.",
             sourceNamespace,
             targetNamespace,
@@ -56,7 +68,7 @@ internal class MoveService
         var sym = await SymbolLocator.FindTypeByFqnAsync(sln, fqn);
         var oldNamespace = sym.ContainingNamespace.ToDisplayString();
 
-        RtLog.Info("Moving '{TypeName}' from '{OldNamespace}' to '{TargetNamespace}'...", sym.ToDisplayString(), oldNamespace, targetNamespace);
+        _logger.RtInfo("Moving '{TypeName}' from '{OldNamespace}' to '{TargetNamespace}'...", sym.ToDisplayString(), oldNamespace, targetNamespace);
 
         var (declarationFiles, projectDir, rootNamespace) = CollectDeclarationPaths(sln, sym);
 

@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Editing;
 using Microsoft.CodeAnalysis.FindSymbols;
@@ -8,13 +9,24 @@ using RoslynTools.Core;
 namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class SafeDeleteService
+internal class SafeDeleteService : IRtService
 {
+    private readonly ILogger<SafeDeleteService> _logger;
+
+    public SafeDeleteService()
+        : this(new RtConsoleLogger<SafeDeleteService>())
+    {
+    }
+
+    public SafeDeleteService(ILogger<SafeDeleteService> logger)
+    {
+        _logger = logger;
+    }
     internal async Task RunAsync(Solution sln, string symbol, string? kind, bool dryRun)
     {
         var sym = await ResolveSymbolAsync(sln, symbol, kind);
 
-        RtLog.Info("Checking references for '{Symbol}'...", sym.ToDisplayString());
+        _logger.RtInfo("Checking references for '{Symbol}'...", sym.ToDisplayString());
 
         var referencedSymbols = await SymbolFinder.FindReferencesAsync(sym, sln);
 
@@ -79,7 +91,7 @@ internal class SafeDeleteService
         if (doc == null)
             throw new InvalidOperationException($"Cannot find document for '{sym.Name}'.");
 
-        RtLog.Info("Deleting '{Symbol}' from {FilePath}...", sym.ToDisplayString(), doc.FilePath);
+        _logger.RtInfo("Deleting '{Symbol}' from {FilePath}...", sym.ToDisplayString(), doc.FilePath);
 
         var editor = await DocumentEditor.CreateAsync(doc);
         editor.RemoveNode(nodeToRemove);

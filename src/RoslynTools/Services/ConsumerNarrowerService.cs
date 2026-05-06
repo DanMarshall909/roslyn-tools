@@ -11,7 +11,7 @@ namespace RoslynTools.Services;
 /// interface and rewrites those that only use a selected member subset to use the
 /// new narrower interface instead.
 /// </summary>
-internal class ConsumerNarrowerService
+internal class ConsumerNarrowerService : IRtService
 {
     private readonly InterfaceAnalyzerService _interfaceAnalyzer;
 

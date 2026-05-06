@@ -1,5 +1,6 @@
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
@@ -9,8 +10,19 @@ using RoslynTools.Core;
 namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class ExtractInterfaceService
+internal class ExtractInterfaceService : IRtService
 {
+    private readonly ILogger<ExtractInterfaceService> _logger;
+
+    public ExtractInterfaceService()
+        : this(new RtConsoleLogger<ExtractInterfaceService>())
+    {
+    }
+
+    public ExtractInterfaceService(ILogger<ExtractInterfaceService> logger)
+    {
+        _logger = logger;
+    }
     internal async Task RunAsync(
         Solution sln,
         string typeName,
@@ -77,7 +89,7 @@ internal class ExtractInterfaceService
             interfaceSourceText,
             filePath: interfaceFilePath);
 
-        RtLog.Info("Extracting interface '{InterfaceName}' from '{Name}'...", interfaceName, classSymbol.Name);
+        _logger.RtInfo("Extracting interface '{InterfaceName}' from '{Name}'...", interfaceName, classSymbol.Name);
         await SolutionWriter.ApplyChangesAsync(originalSln, finalSolution, dryRun);
     }
 

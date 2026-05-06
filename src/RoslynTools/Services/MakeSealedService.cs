@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
@@ -8,8 +9,19 @@ using RoslynTools.Core;
 namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class MakeSealedService
+internal class MakeSealedService : IRtService
 {
+    private readonly ILogger<MakeSealedService> _logger;
+
+    public MakeSealedService()
+        : this(new RtConsoleLogger<MakeSealedService>())
+    {
+    }
+
+    public MakeSealedService(ILogger<MakeSealedService> logger)
+    {
+        _logger = logger;
+    }
     internal async Task RunAsync(Solution sln, string typeName, bool dryRun)
     {
         var originalSolution = sln;
@@ -50,7 +62,7 @@ internal class MakeSealedService
 
         if (classSymbol.IsAbstract)
         {
-            RtLog.Error("Cannot seal an abstract class.");
+            _logger.RtError("Cannot seal an abstract class.");
             return false;
         }
 

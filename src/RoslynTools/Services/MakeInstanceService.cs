@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
@@ -8,8 +9,19 @@ using RoslynTools.Core;
 namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class MakeInstanceService
+internal class MakeInstanceService : IRtService
 {
+    private readonly ILogger<MakeInstanceService> _logger;
+
+    public MakeInstanceService()
+        : this(new RtConsoleLogger<MakeInstanceService>())
+    {
+    }
+
+    public MakeInstanceService(ILogger<MakeInstanceService> logger)
+    {
+        _logger = logger;
+    }
     internal async Task RunAsync(Solution sln, string methodSpec, bool dryRun)
     {
         var originalSolution = sln;
@@ -19,7 +31,7 @@ internal class MakeInstanceService
         var methodSymbol = await FindStaticMethodAsync(sln, typeName, methodName)
             ?? throw new InvalidOperationException($"Static method '{methodSpec}' not found in solution.");
 
-        RtLog.Info("Found method '{Method}'. Collecting call sites...", methodSymbol.ToDisplayString());
+        _logger.RtInfo("Found method '{Method}'. Collecting call sites...", methodSymbol.ToDisplayString());
 
         var refs = await SymbolFinder.FindReferencesAsync(methodSymbol, sln);
 
@@ -30,7 +42,7 @@ internal class MakeInstanceService
             .ToDictionary(g => g.Key, g => g.Select(l => l.Location.SourceSpan).ToList());
 
         int total = locationsByDoc.Values.Sum(l => l.Count);
-        RtLog.Info("Found {Total} call site(s). Analysing reachability...", total);
+        _logger.RtInfo("Found {Total} call site(s). Analysing reachability...", total);
 
         // Find the document containing the method declaration
         var declLocation = methodSymbol.Locations.FirstOrDefault(l => l.IsInSource)
@@ -126,14 +138,14 @@ internal class MakeInstanceService
 
             if (reachability.Kind == ReachableInstanceKind.None)
             {
-                RtLog.Warning("{FilePath}:{LineNum}: no reachable instance — skipped", filePath, lineNum);
+                _logger.RtWarning("{FilePath}:{LineNum}: no reachable instance — skipped", filePath, lineNum);
                 skipped.Add((filePath, lineNum, "no reachable instance"));
                 continue;
             }
 
             if (reachability.Kind == ReachableInstanceKind.Ambiguous)
             {
-                RtLog.Warning("{FilePath}:{LineNum}: ambiguous reachable instance — skipped", filePath, lineNum);
+                _logger.RtWarning("{FilePath}:{LineNum}: ambiguous reachable instance — skipped", filePath, lineNum);
                 skipped.Add((filePath, lineNum, "ambiguous reachable instance"));
                 continue;
             }

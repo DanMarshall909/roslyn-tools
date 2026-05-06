@@ -1,5 +1,6 @@
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
 using System.Diagnostics.CodeAnalysis;
@@ -8,20 +9,26 @@ using RoslynTools.Core;
 namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class NarrowDependencyService
+internal class NarrowDependencyService : IRtService
 {
+    private readonly ILogger<NarrowDependencyService> _logger;
     private readonly InterfaceAnalyzerService _interfaceAnalyzer;
     private readonly ConsumerNarrowerService _consumerNarrower;
 
     public NarrowDependencyService()
-        : this(new InterfaceAnalyzerService(), new ConsumerNarrowerService())
+        : this(
+            new RtConsoleLogger<NarrowDependencyService>(),
+            new InterfaceAnalyzerService(),
+            new ConsumerNarrowerService())
     {
     }
 
     public NarrowDependencyService(
+        ILogger<NarrowDependencyService> logger,
         InterfaceAnalyzerService interfaceAnalyzer,
         ConsumerNarrowerService consumerNarrower)
     {
+        _logger = logger;
         _interfaceAnalyzer = interfaceAnalyzer;
         _consumerNarrower = consumerNarrower;
     }
@@ -86,7 +93,7 @@ internal class NarrowDependencyService
         PrintReport(narrowResult, newInterfaceName, newFileCreated, existingNarrow, dryRun);
 
         // Apply or preview
-        RtLog.Info("Applying narrow-dependency '{Name}' -> '{NewInterfaceName}'...", interfaceSymbol.Name, newInterfaceName);
+        _logger.RtInfo("Applying narrow-dependency '{Name}' -> '{NewInterfaceName}'...", interfaceSymbol.Name, newInterfaceName);
         await SolutionWriter.ApplyChangesAsync(solution, updatedSolution, dryRun);
     }
 

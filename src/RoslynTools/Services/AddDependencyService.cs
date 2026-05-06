@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Diagnostics.CodeAnalysis;
@@ -8,8 +9,19 @@ using RoslynTools.Core;
 namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class AddDependencyService
+internal class AddDependencyService : IRtService
 {
+    private readonly ILogger<AddDependencyService> _logger;
+
+    public AddDependencyService()
+        : this(new RtConsoleLogger<AddDependencyService>())
+    {
+    }
+
+    public AddDependencyService(ILogger<AddDependencyService> logger)
+    {
+        _logger = logger;
+    }
     private readonly SymbolDisplayFormat TypeDisplayFormat = new(
         globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Omitted,
         typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
@@ -35,7 +47,7 @@ internal class AddDependencyService
             return;
 
         await SolutionWriter.ApplyChangesAsync(originalSolution, result.Solution, dryRun);
-        RtLog.Info("Injected {DepType} into {TargetType}.", depType, result.TargetType ?? typeName);
+        _logger.RtInfo("Injected {DepType} into {TargetType}.", depType, result.TargetType ?? typeName);
     }
 
     internal async Task<DependencyInjectionResult> ApplyAsync(
@@ -66,16 +78,16 @@ internal class AddDependencyService
         switch (injector.Status)
         {
             case DependencyInjectionStatus.ClassNotFound:
-                RtLog.Error("Class '{TypeName}' not found in solution.", typeName);
+                _logger.RtError("Class '{TypeName}' not found in solution.", typeName);
                 Environment.ExitCode = 1;
                 return new DependencyInjectionResult(solution, false, target.Symbol.ToDisplayString(TypeDisplayFormat));
 
             case DependencyInjectionStatus.AlreadyInjected:
-                RtLog.Info("Dependency '{DepType}' is already injected into '{TargetType}'.", depType, target.Symbol.ToDisplayString(TypeDisplayFormat));
+                _logger.RtInfo("Dependency '{DepType}' is already injected into '{TargetType}'.", depType, target.Symbol.ToDisplayString(TypeDisplayFormat));
                 return new DependencyInjectionResult(solution, false, target.Symbol.ToDisplayString(TypeDisplayFormat));
 
             case DependencyInjectionStatus.Unsupported:
-                RtLog.Error("{Message}", injector.ValidationError ??
+                _logger.RtError("{Message}", injector.ValidationError ??
                     $"Cannot inject '{depType}' into '{target.Symbol.ToDisplayString(TypeDisplayFormat)}'.");
                 Environment.ExitCode = 1;
                 return new DependencyInjectionResult(solution, false, target.Symbol.ToDisplayString(TypeDisplayFormat));
@@ -127,7 +139,7 @@ internal class AddDependencyService
 
         if (matches.Count == 0)
         {
-            RtLog.Error("Class '{TypeName}' not found in solution.", typeName);
+            _logger.RtError("Class '{TypeName}' not found in solution.", typeName);
             Environment.ExitCode = 1;
             return null;
         }
@@ -137,7 +149,7 @@ internal class AddDependencyService
             var candidateList = string.Join(", ", matches
                 .Select(m => m.Symbol.ToDisplayString(TypeDisplayFormat))
                 .Distinct(StringComparer.Ordinal));
-            RtLog.Error("Class '{TypeName}' is ambiguous across the loaded solution: {CandidateList}. Pass a fully qualified type name.", typeName, candidateList);
+            _logger.RtError("Class '{TypeName}' is ambiguous across the loaded solution: {CandidateList}. Pass a fully qualified type name.", typeName, candidateList);
             Environment.ExitCode = 1;
             return null;
         }

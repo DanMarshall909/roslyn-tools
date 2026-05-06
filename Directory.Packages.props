@@ -13,6 +13,8 @@
     <PackageVersion Include="YamlDotNet" Version="16.2.1" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+    <PackageVersion Include="Scrutor" Version="6.0.1" />
   </ItemGroup>
   <ItemGroup Label="Analyzers">
     <PackageVersion Include="Roslynator.Analyzers" Version="4.12.9" />

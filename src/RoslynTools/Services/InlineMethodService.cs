@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
@@ -9,8 +10,19 @@ using RoslynTools.Core;
 namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class InlineMethodService
+internal class InlineMethodService : IRtService
 {
+    private readonly ILogger<InlineMethodService> _logger;
+
+    public InlineMethodService()
+        : this(new RtConsoleLogger<InlineMethodService>())
+    {
+    }
+
+    public InlineMethodService(ILogger<InlineMethodService> logger)
+    {
+        _logger = logger;
+    }
     internal async Task RunAsync(Solution sln, string typeName, string methodName, bool dryRun)
     {
         var originalSolution = sln;
@@ -18,14 +30,14 @@ internal class InlineMethodService
         var methodSymbol = await SymbolLocator.FindMethodInTypeAsync(sln, typeName, methodName);
         if (methodSymbol == null)
         {
-            RtLog.Error("Error: Method '{MethodName}' not found in type '{TypeName}'.", methodName, typeName);
+            _logger.RtError("Error: Method '{MethodName}' not found in type '{TypeName}'.", methodName, typeName);
             return;
         }
 
         var bodyExpression = GetInlinableBodyExpression(methodSymbol);
         if (bodyExpression == null)
         {
-            RtLog.Error("Error: inline-method only supports expression-bodied and single-return block methods.");
+            _logger.RtError("Error: inline-method only supports expression-bodied and single-return block methods.");
             return;
         }
 
@@ -40,7 +52,7 @@ internal class InlineMethodService
         var declDocId = SymbolDocumentLocator.FindDocumentId(sln, methodSymbol);
         if (declDocId == null)
         {
-            RtLog.Error("Error: Cannot locate source document for '{MethodName}'.", methodName);
+            _logger.RtError("Error: Cannot locate source document for '{MethodName}'.", methodName);
             return;
         }
 

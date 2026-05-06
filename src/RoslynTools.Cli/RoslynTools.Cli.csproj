@@ -42,6 +42,7 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Scrutor" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\RoslynTools\RoslynTools.csproj" />

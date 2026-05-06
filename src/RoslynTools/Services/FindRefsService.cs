@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.FindSymbols;
 using RoslynTools.Core;
 using RoslynTools.Services.Results;
@@ -7,8 +8,19 @@ using System.Diagnostics.CodeAnalysis;
 namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class FindRefsService
+internal class FindRefsService : IRtService
 {
+    private readonly ILogger<FindRefsService> _logger;
+
+    public FindRefsService()
+        : this(new RtConsoleLogger<FindRefsService>())
+    {
+    }
+
+    public FindRefsService(ILogger<FindRefsService> logger)
+    {
+        _logger = logger;
+    }
     internal async Task<FindRefsResult> FindAsync(
         Solution sln,
         string symbol,
@@ -16,7 +28,7 @@ internal class FindRefsService
     {
         var sym = await SymbolLocator.FindSymbolAsync(sln, symbol, kind);
 
-        RtLog.Info("Finding references to '{Symbol}'...", sym.ToDisplayString());
+        _logger.RtInfo("Finding references to '{Symbol}'...", sym.ToDisplayString());
 
         var referencedSymbols = await SymbolFinder.FindReferencesAsync(sym, sln);
         var references = new List<ReferenceResult>();

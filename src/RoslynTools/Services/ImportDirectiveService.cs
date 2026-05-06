@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Diagnostics.CodeAnalysis;
@@ -15,8 +16,19 @@ internal sealed record ImportDirectiveInfo(
     bool IsStatic,
     string? Alias);
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class ImportDirectiveService
+internal class ImportDirectiveService : IRtService
 {
+    private readonly ILogger<ImportDirectiveService> _logger;
+
+    public ImportDirectiveService()
+        : this(new RtConsoleLogger<ImportDirectiveService>())
+    {
+    }
+
+    public ImportDirectiveService(ILogger<ImportDirectiveService> logger)
+    {
+        _logger = logger;
+    }
     internal async Task<IReadOnlyList<ImportDirectiveInfo>> AnalyzeAsync(
         Solution solution,
         string kind)
@@ -76,7 +88,7 @@ internal class ImportDirectiveService
         if (root.Usings.Any(u => u.StaticKeyword.IsKind(SyntaxKind.StaticKeyword)
             && u.Name?.ToString() == typeName))
         {
-            RtLog.Info("Static using '{TypeName}' already exists in {FilePath}.", typeName, document.FilePath);
+            _logger.RtInfo("Static using '{TypeName}' already exists in {FilePath}.", typeName, document.FilePath);
             return;
         }
 
@@ -101,7 +113,7 @@ internal class ImportDirectiveService
             && !u.StaticKeyword.IsKind(SyntaxKind.StaticKeyword)
             && u.Name?.ToString() == namespaceName))
         {
-            RtLog.Info("Global using '{NamespaceName}' already exists in {FilePath}.", namespaceName, document.FilePath);
+            _logger.RtInfo("Global using '{NamespaceName}' already exists in {FilePath}.", namespaceName, document.FilePath);
             return;
         }
 

@@ -9,7 +9,7 @@ using RoslynTools.Core;
 namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class MakeAsyncService
+internal class MakeAsyncService : IRtService
 {
     internal async Task RunAsync(Solution sln, string typeName, string methodName, bool noRename, bool dryRun)
     {

@@ -8,7 +8,7 @@ using RoslynTools.Core;
 namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class DependencyGraphService
+internal class DependencyGraphService : IRtService
 {
     /// <summary>
     /// Builds a type-level dependency graph and returns it in the requested format.

@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.CSharp;
 using System.Diagnostics.CodeAnalysis;
@@ -7,13 +8,24 @@ using RoslynTools.Core;
 namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class ReplaceNewService
+internal class ReplaceNewService : IRtService
 {
+    private readonly ILogger<ReplaceNewService> _logger;
+
+    public ReplaceNewService()
+        : this(new RtConsoleLogger<ReplaceNewService>())
+    {
+    }
+
+    public ReplaceNewService(ILogger<ReplaceNewService> logger)
+    {
+        _logger = logger;
+    }
     internal async Task RunAsync(Solution solution, string typeName, string with_method, bool dryRun, int? ifArgIndex = null, string? ifArgLiteral = null)
     {
         var originalSolution = solution;
 
-        RtLog.Info("Finding constructor invocations of '{Type}'...", typeName);
+        _logger.RtInfo("Finding constructor invocations of '{Type}'...", typeName);
 
         var objectCreations = await FindObjectCreationsAsync(solution, typeName, ifArgIndex, ifArgLiteral);
 
@@ -24,7 +36,7 @@ internal class ReplaceNewService
         }
 
         var totalCallSites = objectCreations.Values.Sum(l => l.Count);
-        RtLog.Info("Found {TotalCallSites} constructor call site(s). Replacing '{TypeName}' → '{With}'...", totalCallSites, typeName, with_method);
+        _logger.RtInfo("Found {TotalCallSites} constructor call site(s). Replacing '{TypeName}' → '{With}'...", totalCallSites, typeName, with_method);
 
         foreach (var (docId, locations) in objectCreations)
         {

@@ -18,7 +18,7 @@ internal sealed record MagicStringGroup(
     int Count,
     IReadOnlyList<MagicStringOccurrence> Occurrences);
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class MagicStringService
+internal class MagicStringService : IRtService
 {
     internal async Task<IReadOnlyList<MagicStringGroup>> AnalyzeAsync(
         Solution solution,

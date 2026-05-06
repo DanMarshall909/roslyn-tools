@@ -76,7 +76,7 @@ internal sealed class MigrateToIOptionsCommand : IRtCommand
             var (workspace, solution) = await WorkspaceLoader.LoadAsync(solutionPath);
             using (workspace)
             {
-                return await MigrateToIOptionsService.RunAsync(solution, section, name, dryRun);
+                return await RtServiceProvider.Get<MigrateToIOptionsService>().RunAsync(solution, section, name, dryRun);
             }
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or ArgumentException)

@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using RoslynTools.Core;
@@ -8,14 +9,19 @@ namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance service used by the static-to-instance migration dogfood path.")]
-internal sealed class DestaticClassService
+internal sealed class DestaticClassService : IRtService
 {
+    private readonly ILogger<DestaticClassService> _logger;
     private readonly ISymbolResolutionService _symbols;
     private readonly IDocumentLocatorService _documents;
     private readonly ISolutionChangeWriter _writer;
 
     public DestaticClassService()
-        : this(new SymbolResolutionService(), new DocumentLocatorService(), new SolutionChangeWriter())
+        : this(
+            new RtConsoleLogger<DestaticClassService>(),
+            new SymbolResolutionService(),
+            new DocumentLocatorService(),
+            new SolutionChangeWriter())
     {
     }
 
@@ -23,7 +29,17 @@ internal sealed class DestaticClassService
         ISymbolResolutionService symbols,
         IDocumentLocatorService documents,
         ISolutionChangeWriter writer)
+        : this(new RtConsoleLogger<DestaticClassService>(), symbols, documents, writer)
     {
+    }
+
+    public DestaticClassService(
+        ILogger<DestaticClassService> logger,
+        ISymbolResolutionService symbols,
+        IDocumentLocatorService documents,
+        ISolutionChangeWriter writer)
+    {
+        _logger = logger;
         _symbols = symbols;
         _documents = documents;
         _writer = writer;
@@ -48,7 +64,7 @@ internal sealed class DestaticClassService
         solution = await RewriteCallSitesAsync(solution, typeSymbol);
         solution = await RewriteDeclarationAsync(solution, declaringDocumentId, classDeclaration);
 
-        RtLog.Info("Migrated static class '{TypeName}' to instance class.", typeSymbol.ToDisplayString());
+        _logger.RtInfo("Migrated static class '{TypeName}' to instance class.", typeSymbol.ToDisplayString());
         await _writer.ApplyChangesAsync(originalSolution, solution, dryRun);
     }
 

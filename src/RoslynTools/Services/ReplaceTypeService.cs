@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Diagnostics.CodeAnalysis;
@@ -7,8 +8,19 @@ using RoslynTools.Core;
 namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class ReplaceTypeService
+internal class ReplaceTypeService : IRtService
 {
+    private readonly ILogger<ReplaceTypeService> _logger;
+
+    public ReplaceTypeService()
+        : this(new RtConsoleLogger<ReplaceTypeService>())
+    {
+    }
+
+    public ReplaceTypeService(ILogger<ReplaceTypeService> logger)
+    {
+        _logger = logger;
+    }
     internal async Task RunAsync(Solution solution, bool dryRun)
     {
         var originalSolution = solution;
@@ -29,7 +41,7 @@ internal class ReplaceTypeService
 
                 if (!rewriter.Changed) continue;
 
-                var injector = new ConstructorInjector();
+                var injector = new ConstructorInjector(_logger);
                 newRoot = injector.Visit(newRoot);
 
                 if (newRoot is CompilationUnitSyntax compilationUnit)
@@ -47,16 +59,16 @@ internal class ReplaceTypeService
             return;
         }
 
-        RtLog.Info(
+        _logger.RtInfo(
             "Replaced DateTime.UtcNow/Now in {ChangedFileCount} file(s). Classes needing TimeProvider injection: {ClassCount}",
             changedFiles,
             classesNeedingInjection.Distinct().Count());
 
         await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
 
-        RtLog.Warning("\n--- Manual review needed ---");
-        RtLog.Warning("Verify constructor injection was added correctly in each class.");
-        RtLog.Warning("Static classes and top-level statements need manual wiring.");
+        _logger.RtWarning("\n--- Manual review needed ---");
+        _logger.RtWarning("Verify constructor injection was added correctly in each class.");
+        _logger.RtWarning("Static classes and top-level statements need manual wiring.");
     }
 
     internal sealed class DateTimeRewriter : CSharpSyntaxRewriter
@@ -111,7 +123,7 @@ internal class ReplaceTypeService
         }
     }
 
-    internal sealed class ConstructorInjector : CSharpSyntaxRewriter
+    internal sealed class ConstructorInjector(ILogger<ReplaceTypeService> logger) : CSharpSyntaxRewriter
     {
         public override SyntaxNode? VisitClassDeclaration(ClassDeclarationSyntax node)
         {
@@ -130,7 +142,7 @@ internal class ReplaceTypeService
 
             if (visited.Modifiers.Any(SyntaxKind.StaticKeyword))
             {
-                RtLog.Warning("Static class '{TypeName}' uses _timeProvider but cannot accept constructor injection.", visited.Identifier.Text);
+                logger.RtWarning("Static class '{TypeName}' uses _timeProvider but cannot accept constructor injection.", visited.Identifier.Text);
                 return visited;
             }
 

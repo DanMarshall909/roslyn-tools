@@ -12,7 +12,7 @@ namespace RoslynTools.Services;
 /// interface a given consumer type actually uses, and generates new interface text
 /// from a selected member subset.
 /// </summary>
-internal class InterfaceAnalyzerService
+internal class InterfaceAnalyzerService : IRtService
 {
     /// <summary>
     /// Returns the set of member names from <paramref name="interfaceSymbol"/> that are

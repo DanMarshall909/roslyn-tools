@@ -14,12 +14,10 @@ internal static class Bootstrap
         services.AddSingleton<ISymbolResolutionService, SymbolResolutionService>();
         services.AddSingleton<IDocumentLocatorService, DocumentLocatorService>();
         services.AddSingleton<ISolutionChangeWriter, SolutionChangeWriter>();
-
-        var serviceTypes = typeof(StaticClassInventoryService).Assembly.GetTypes()
-            .Where(type => type is { IsClass: true, IsAbstract: false }
-                && type.Namespace == "RoslynTools.Services");
-
-        foreach (var serviceType in serviceTypes)
-            services.AddTransient(serviceType);
+        services.Scan(scan => scan
+            .FromAssemblyOf<IRtService>()
+            .AddClasses(classes => classes.AssignableTo<IRtService>(), publicOnly: false)
+            .AsSelfWithInterfaces()
+            .WithTransientLifetime());
     }
 }

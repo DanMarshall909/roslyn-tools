@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
@@ -36,8 +37,19 @@ internal sealed record DuplicateGroup(
     string Extractability = "unknown",
     IReadOnlyList<ExtractabilityCheck>? Checks = null);
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class FindDuplicatesService
+internal class FindDuplicatesService : IRtService
 {
+    private readonly ILogger<FindDuplicatesService> _logger;
+
+    public FindDuplicatesService()
+        : this(new RtConsoleLogger<FindDuplicatesService>())
+    {
+    }
+
+    public FindDuplicatesService(ILogger<FindDuplicatesService> logger)
+    {
+        _logger = logger;
+    }
     // Boilerplate patterns excluded from duplicate reporting:
     //   - single `return;` or `return <expr>;`
     //   - single `throw new NotImplementedException(...);`
@@ -183,7 +195,7 @@ internal class FindDuplicatesService
             }
         }
 
-        RtLog.Info("[find-duplicates] projects={ProjectCount} methods={MethodCount} seeds={SeedCount}", projectCount, methodCount, seeds.Count);
+        _logger.RtInfo("[find-duplicates] projects={ProjectCount} methods={MethodCount} seeds={SeedCount}", projectCount, methodCount, seeds.Count);
 
         // Phase 2: bottom-up expansion.
         // Start with seed groups that meet MinOccurrences.
@@ -338,7 +350,7 @@ internal class FindDuplicatesService
             .OrderByDescending(g => g.Score)
             .ToList();
 
-        RtLog.Info("[find-duplicates] groups={GroupCount} after-suppression={FilteredCount}", results.Count, filtered.Count);
+        _logger.RtInfo("[find-duplicates] groups={GroupCount} after-suppression={FilteredCount}", results.Count, filtered.Count);
 
         return filtered;
     }

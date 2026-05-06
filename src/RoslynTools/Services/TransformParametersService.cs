@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
@@ -16,8 +17,19 @@ namespace RoslynTools.Services;
 /// and updates every call site from <c>Foo(a, b, c)</c> to <c>Foo(new ParamObj(a, b, c))</c>.
 /// Also supports reusing an existing type via <c>--existing-type</c>.
 /// </summary>
-internal class TransformParametersService
+internal class TransformParametersService : IRtService
 {
+    private readonly ILogger<TransformParametersService> _logger;
+
+    public TransformParametersService()
+        : this(new RtConsoleLogger<TransformParametersService>())
+    {
+    }
+
+    public TransformParametersService(ILogger<TransformParametersService> logger)
+    {
+        _logger = logger;
+    }
     /// <summary>
     /// Entry point called by <see cref="RoslynTools.Commands.TransformParametersCommand"/>.
     /// Exactly one of <paramref name="newTypeName"/> or <paramref name="existingTypeFqn"/> must be non-null.
@@ -53,7 +65,7 @@ internal class TransformParametersService
         string newTypeName,
         bool dryRun)
     {
-        RtLog.Info("Transforming parameters of '{MethodSpec}' → record '{NewTypeName}'...", methodSpec, newTypeName);
+        _logger.RtInfo("Transforming parameters of '{MethodSpec}' → record '{NewTypeName}'...", methodSpec, newTypeName);
         var originalSln = sln;
 
         var (methodSymbol, doc) = await FindMethodAsync(sln, methodSpec);
@@ -95,7 +107,7 @@ internal class TransformParametersService
         string existingTypeFqn,
         bool dryRun)
     {
-        RtLog.Info("Transforming parameters of '{MethodSpec}' → existing type '{ExistingTypeFqn}'...", methodSpec, existingTypeFqn);
+        _logger.RtInfo("Transforming parameters of '{MethodSpec}' → existing type '{ExistingTypeFqn}'...", methodSpec, existingTypeFqn);
         var originalSln = sln;
 
         var (methodSymbol, doc) = await FindMethodAsync(sln, methodSpec);

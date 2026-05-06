@@ -5,7 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class CircularDepsService
+internal class CircularDepsService : IRtService
 {
     internal async Task<IReadOnlyList<IReadOnlyList<string>>> AnalyzeCyclesAsync(Solution sln, string? scope)
     {

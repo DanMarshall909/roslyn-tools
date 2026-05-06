@@ -1,4 +1,7 @@
 using System.CommandLine;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using RoslynTools.Services;
 
 namespace RoslynTools.Tests;
 
@@ -68,5 +71,33 @@ public sealed class AppRegistrationTests
         App.RegisterGlobalOptions(root);
 
         Assert.Equal(before + 5, root.Options.Count);
+    }
+
+    [Fact]
+    public void Bootstrap_registers_services_by_marker_interface()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        Bootstrap.RegisterServices(services);
+
+        using var provider = services.BuildServiceProvider();
+        Assert.NotNull(provider.GetRequiredService<MigrateToIOptionsService>());
+        Assert.Contains(provider.GetServices<IRtService>(), service => service is MigrateToIOptionsService);
+    }
+
+    [Fact]
+    public void Every_concrete_service_implements_the_marker_interface()
+    {
+        var missing = typeof(MigrateToIOptionsService).Assembly.GetTypes()
+            .Where(type => type is { IsClass: true, IsAbstract: false }
+                           && type.Namespace == "RoslynTools.Services"
+                           && type.Name.EndsWith("Service", StringComparison.Ordinal)
+                           && !typeof(IRtService).IsAssignableFrom(type))
+            .Select(type => type.Name)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Empty(missing);
     }
 }

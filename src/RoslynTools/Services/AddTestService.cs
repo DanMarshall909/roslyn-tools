@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Diagnostics.CodeAnalysis;
@@ -7,8 +8,19 @@ using RoslynTools.Core;
 namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class AddTestService
+internal class AddTestService : IRtService
 {
+    private readonly ILogger<AddTestService> _logger;
+
+    public AddTestService()
+        : this(new RtConsoleLogger<AddTestService>())
+    {
+    }
+
+    public AddTestService(ILogger<AddTestService> logger)
+    {
+        _logger = logger;
+    }
     internal async Task RunAsync(
         Solution sln,
         string className,
@@ -23,7 +35,7 @@ internal class AddTestService
 
         if (!found)
         {
-            RtLog.Error("Class '{ClassName}' not found in solution.", className);
+            _logger.RtError("Class '{ClassName}' not found in solution.", className);
             Environment.ExitCode = 1;
             return;
         }
@@ -58,7 +70,7 @@ internal class AddTestService
 
                 if (classDecl == null) continue;
 
-                RtLog.Info("Found '{ClassName}' in {FilePath}", className, doc.FilePath);
+                _logger.RtInfo("Found '{ClassName}' in {FilePath}", className, doc.FilePath);
 
                 var updatedSln = ApplyChangesToDocument(sln, doc, classDecl, className, name, acs, nestedClass);
                 return (true, updatedSln);
@@ -183,7 +195,7 @@ internal class AddTestService
 
         if (!found)
         {
-            RtLog.Error("Failed to add test method to class '{ClassName}'.", className);
+            _logger.RtError("Failed to add test method to class '{ClassName}'.", className);
             Environment.ExitCode = 1;
             return;
         }
@@ -276,7 +288,7 @@ internal class AddTestService
 
                 if (classDecl == null) continue;
 
-                RtLog.Info("Found '{ClassName}' in {FilePath}", className, doc.FilePath);
+                _logger.RtInfo("Found '{ClassName}' in {FilePath}", className, doc.FilePath);
 
                 var cu = (CompilationUnitSyntax)root;
                 cu = RoslynSyntax.EnsureUsing(cu, "Xunit");
@@ -294,7 +306,7 @@ internal class AddTestService
         }
 
         // File/class not found - log but don't fail (user can manually create if needed)
-        RtLog.Info("Test class '{ClassName}' not found at {FilePath}. Create the file manually or use legacy mode.", className, testFilePath);
+        _logger.RtInfo("Test class '{ClassName}' not found at {FilePath}. Create the file manually or use legacy mode.", className, testFilePath);
         return (false, sln);
     }
 

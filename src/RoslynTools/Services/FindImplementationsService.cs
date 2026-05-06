@@ -6,7 +6,7 @@ using RoslynTools.Core;
 namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class FindImplementationsService
+internal class FindImplementationsService : IRtService
 {
     internal async Task<List<Dictionary<string, object?>>> FindAsync(
         Solution solution,

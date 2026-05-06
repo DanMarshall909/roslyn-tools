@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
@@ -9,8 +10,19 @@ using RoslynTools.Core;
 namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class MoveMethodService
+internal class MoveMethodService : IRtService
 {
+    private readonly ILogger<MoveMethodService> _logger;
+
+    public MoveMethodService()
+        : this(new RtConsoleLogger<MoveMethodService>())
+    {
+    }
+
+    public MoveMethodService(ILogger<MoveMethodService> logger)
+    {
+        _logger = logger;
+    }
     /// <summary>
     /// Move a static method from its current type to <paramref name="targetTypeFqn"/>,
     /// rewriting all call sites across the solution.
@@ -34,7 +46,7 @@ internal class MoveMethodService
         }
         catch (InvalidOperationException ex)
         {
-            RtLog.Error("Error: {Message}", ex.Message);
+            _logger.RtError("Error: {Message}", ex.Message);
             Environment.ExitCode = 1;
             return false;
         }
@@ -42,7 +54,7 @@ internal class MoveMethodService
         // ── 2. Validate: must be static ───────────────────────────────────────
         if (!methodSymbol.IsStatic)
         {
-            RtLog.Error(
+            _logger.RtError(
                 "Error: '{MethodFqn}' is not static. move-method only supports static methods.",
                 methodFqn);
             Environment.ExitCode = 1;
@@ -59,7 +71,7 @@ internal class MoveMethodService
         {
             if (!createFile)
             {
-                RtLog.Error(
+                _logger.RtError(
                     "Error: Target type '{TargetType}' not found. Pass --create-file to create it.",
                     targetTypeFqn);
                 Environment.ExitCode = 1;
@@ -76,7 +88,7 @@ internal class MoveMethodService
                 .Any();
             if (collision)
             {
-                RtLog.Error(
+                _logger.RtError(
                     "Error: Target type '{TargetType}' already has a method named '{MethodName}'.",
                     targetTypeFqn,
                     methodSymbol.Name);
@@ -89,7 +101,7 @@ internal class MoveMethodService
         var declLocation = methodSymbol.Locations.FirstOrDefault(l => l.IsInSource);
         if (declLocation?.SourceTree == null)
         {
-            RtLog.Error("Error: Cannot locate source for '{MethodFqn}'.", methodFqn);
+            _logger.RtError("Error: Cannot locate source for '{MethodFqn}'.", methodFqn);
             Environment.ExitCode = 1;
             return false;
         }
@@ -97,7 +109,7 @@ internal class MoveMethodService
         var declDocId = SymbolDocumentLocator.FindDocumentId(sln, methodSymbol);
         if (declDocId == null)
         {
-            RtLog.Error("Error: Cannot locate document for '{MethodFqn}'.", methodFqn);
+            _logger.RtError("Error: Cannot locate document for '{MethodFqn}'.", methodFqn);
             Environment.ExitCode = 1;
             return false;
         }
@@ -108,7 +120,7 @@ internal class MoveMethodService
         var methodDecl = declNode.AncestorsAndSelf().OfType<MethodDeclarationSyntax>().FirstOrDefault();
         if (methodDecl == null)
         {
-            RtLog.Error("Error: Cannot extract method syntax for '{MethodFqn}'.", methodFqn);
+            _logger.RtError("Error: Cannot extract method syntax for '{MethodFqn}'.", methodFqn);
             Environment.ExitCode = 1;
             return false;
         }

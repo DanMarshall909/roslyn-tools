@@ -15,7 +15,7 @@ internal interface IDocumentLocatorService
 
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance service registered through DI for dependency inversion.")]
-internal sealed class DocumentLocatorService : IDocumentLocatorService
+internal sealed class DocumentLocatorService : IDocumentLocatorService, IRtService
 {
     public DocumentId? FindDocumentId(Solution solution, ISymbol symbol) =>
         SymbolDocumentLocator.FindDocumentId(solution, symbol);

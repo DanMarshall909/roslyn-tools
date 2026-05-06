@@ -18,7 +18,7 @@ internal interface ISymbolResolutionService
 
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance service registered through DI for dependency inversion.")]
-internal sealed class SymbolResolutionService : ISymbolResolutionService
+internal sealed class SymbolResolutionService : ISymbolResolutionService, IRtService
 {
     public Task<ISymbol> FindSymbolAsync(Solution solution, string symbolName, string? kind) =>
         SymbolLocator.FindSymbolAsync(solution, symbolName, kind);

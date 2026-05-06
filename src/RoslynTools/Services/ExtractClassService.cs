@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 using System.Diagnostics.CodeAnalysis;
@@ -9,8 +10,19 @@ using RoslynTools.Core;
 namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class ExtractClassService
+internal class ExtractClassService : IRtService
 {
+    private readonly ILogger<ExtractClassService> _logger;
+
+    public ExtractClassService()
+        : this(new RtConsoleLogger<ExtractClassService>())
+    {
+    }
+
+    public ExtractClassService(ILogger<ExtractClassService> logger)
+    {
+        _logger = logger;
+    }
     private readonly SymbolDisplayFormat TypeDisplayFormat = new(
         globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Omitted,
         typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
@@ -127,7 +139,7 @@ internal class ExtractClassService
             newSourceText,
             filePath: newFilePath);
 
-        RtLog.Info("Extracting '{MemberNames}' from '{TargetType}' into '{NewTypeName}'...", string.Join(", ", selection.Names.OrderBy(n => n, StringComparer.Ordinal)), target.Symbol.ToDisplayString(TypeDisplayFormat), newTypeName);
+        _logger.RtInfo("Extracting '{MemberNames}' from '{TargetType}' into '{NewTypeName}'...", string.Join(", ", selection.Names.OrderBy(n => n, StringComparer.Ordinal)), target.Symbol.ToDisplayString(TypeDisplayFormat), newTypeName);
         await SolutionWriter.ApplyChangesAsync(originalSolution, finalSolution, dryRun);
     }
 
@@ -421,7 +433,7 @@ internal class ExtractClassService
 
     internal void ReportValidationError(string message)
     {
-        RtLog.Error("{Message}", message);
+        _logger.RtError("{Message}", message);
         Environment.ExitCode = 1;
     }
 

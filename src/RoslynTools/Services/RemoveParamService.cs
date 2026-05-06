@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
@@ -8,17 +9,19 @@ using RoslynTools.Core;
 namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
-internal class RemoveParamService
+internal class RemoveParamService : IRtService
 {
+    private readonly ILogger<RemoveParamService> _logger;
     private readonly ParameterChangeHelper _parameterChangeHelper;
 
     public RemoveParamService()
-        : this(new ParameterChangeHelper())
+        : this(new RtConsoleLogger<RemoveParamService>(), new ParameterChangeHelper())
     {
     }
 
-    public RemoveParamService(ParameterChangeHelper parameterChangeHelper)
+    public RemoveParamService(ILogger<RemoveParamService> logger, ParameterChangeHelper parameterChangeHelper)
     {
+        _logger = logger;
         _parameterChangeHelper = parameterChangeHelper;
     }
 
@@ -114,7 +117,7 @@ internal class RemoveParamService
                 {
                     // Not an invocation — likely a method group, nameof, or attribute.
                     // The signature change may break this site; warn so the user can inspect.
-                    RtLog.Warning("Reference at {Location} is not an invocation and was not rewritten automatically. Inspect manually.", loc.Location);
+                    _logger.RtWarning("Reference at {Location} is not an invocation and was not rewritten automatically. Inspect manually.", loc.Location);
                     continue;
                 }
 

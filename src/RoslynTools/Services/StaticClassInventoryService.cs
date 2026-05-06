@@ -7,7 +7,7 @@ namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class registered in DI per the static-to-instance migration (EP-006). CA1822 enforces the old static-when-stateless rule that conflicts with this direction; suppress per class until the migration completes and the rule is reviewed project-wide.")]
-internal sealed class StaticClassInventoryService
+internal sealed class StaticClassInventoryService : IRtService
 {
     internal async Task<StaticClassInventoryReport> AnalyzeAsync(Solution solution)
     {
