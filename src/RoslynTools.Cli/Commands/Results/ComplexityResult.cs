@@ -25,8 +25,11 @@ internal sealed record MethodComplexityItem : IRtOutput
 
     public void RenderText(TextWriter writer)
     {
-        writer.Write($"{Method,-40}{Type,-30}{Cyclomatic,4}  {Cognitive,4}  {Loc,5}  {Params,3}  {File}:{Line}");
+        writer.Write($"{Fit(Method, 40),-40}{Fit(Type, 30),-30}{Cyclomatic,4}  {Cognitive,4}  {Loc,5}  {Params,3}  {File}:{Line}");
     }
+
+    private static string Fit(string s, int width) =>
+        s.Length <= width ? s : "…" + s[^(width - 1)..];
 }
 
 internal sealed record TypeRollupItem : IRtOutput
@@ -48,8 +51,11 @@ internal sealed record TypeRollupItem : IRtOutput
 
     public void RenderText(TextWriter writer)
     {
-        writer.Write($"{Type,-40}{Namespace,-40}{MethodCount,4}  {CyclomaticTotal,6}  {CognitiveTotal,6}  {LocTotal,7}");
+        writer.Write($"{Fit(Type, 40),-40}{Fit(Namespace, 40),-40}{MethodCount,4}  {CyclomaticTotal,6}  {CognitiveTotal,6}  {LocTotal,7}");
     }
+
+    private static string Fit(string s, int width) =>
+        s.Length <= width ? s : "…" + s[^(width - 1)..];
 }
 
 internal sealed record NamespaceRollupItem : IRtOutput
@@ -69,8 +75,11 @@ internal sealed record NamespaceRollupItem : IRtOutput
 
     public void RenderText(TextWriter writer)
     {
-        writer.Write($"{Namespace,-60}{MethodCount,4}  {CyclomaticTotal,6}  {CognitiveTotal,6}  {LocTotal,7}");
+        writer.Write($"{Fit(Namespace, 60),-60}{MethodCount,4}  {CyclomaticTotal,6}  {CognitiveTotal,6}  {LocTotal,7}");
     }
+
+    private static string Fit(string s, int width) =>
+        s.Length <= width ? s : "…" + s[^(width - 1)..];
 }
 
 internal sealed record ComplexityResult : IRtOutput
