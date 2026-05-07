@@ -1,21 +1,23 @@
+using System.Diagnostics.CodeAnalysis;
+using System.Text;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
-using System.Diagnostics.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class MoveMethodService : IRtService
 {
-    private readonly ISymbolResolutionService _symbols;
     private readonly IDocumentLocatorService _documents;
     private readonly ILogger<MoveMethodService> _logger;
     private readonly ISolutionChangeWriter _solutionChangeWriter;
+    private readonly ISymbolResolutionService _symbols;
 
     public MoveMethodService()
         : this(new RtConsoleLogger<MoveMethodService>(), new SolutionChangeWriter())
@@ -32,11 +34,12 @@ internal class MoveMethodService : IRtService
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
     }
+
     /// <summary>
-    /// Move a static method from its current type to <paramref name="targetTypeFqn"/>,
-    /// rewriting all call sites across the solution.
-    /// Returns <c>false</c> (and logs to stderr) on validation failure; throws on
-    /// unexpected lookup failure (method/type not found in index).
+    ///     Move a static method from its current type to <paramref name="targetTypeFqn" />,
+    ///     rewriting all call sites across the solution.
+    ///     Returns <c>false</c> (and logs to stderr) on validation failure; throws on
+    ///     unexpected lookup failure (method/type not found in index).
     /// </summary>
     internal async Task<bool> RunAsync(
         Solution sln,
@@ -201,11 +204,11 @@ internal class MoveMethodService : IRtService
 
             var newDocInfo = DocumentInfo.Create(
                 DocumentId.CreateNewId(sourceProject.Id),
-                name: targetClassName + ".cs",
+                targetClassName + ".cs",
                 filePath: newFilePath,
                 loader: TextLoader.From(
                     TextAndVersion.Create(
-                        SourceText.From(newFileContent, System.Text.Encoding.UTF8),
+                        SourceText.From(newFileContent, Encoding.UTF8),
                         VersionStamp.Create(),
                         newFilePath)));
 
@@ -226,12 +229,11 @@ internal class MoveMethodService : IRtService
         MethodDeclarationSyntax movedDecl,
         string methodName,
         string targetClassName,
-        IList<Microsoft.CodeAnalysis.Text.TextSpan>? callSpans)
+        IList<TextSpan>? callSpans)
     {
         // Collect invocation nodes for this document's call spans.
         var callInvocations = new List<(SyntaxNode Node, bool IsQualified)>();
         if (callSpans != null)
-        {
             foreach (var span in callSpans)
             {
                 var refNode = root.FindNode(span);
@@ -241,10 +243,9 @@ internal class MoveMethodService : IRtService
                 if (invocation == null) continue;
 
                 // Determine if call is already qualified: Source.Method(...)
-                bool isQualified = invocation.Expression is MemberAccessExpressionSyntax;
+                var isQualified = invocation.Expression is MemberAccessExpressionSyntax;
                 callInvocations.Add((invocation, isQualified));
             }
-        }
 
         var nodesToReplace = new HashSet<SyntaxNode>(ReferenceEqualityComparer.Instance);
         foreach (var (node, _) in callInvocations) nodesToReplace.Add(node);
@@ -264,11 +265,9 @@ internal class MoveMethodService : IRtService
 
         ClassDeclarationSyntax? targetClass = null;
         if (isTargetDoc)
-        {
             targetClass = root.DescendantNodes()
                 .OfType<ClassDeclarationSyntax>()
                 .FirstOrDefault(c => c.Identifier.Text == targetClassName);
-        }
 
         if (nodesToReplace.Count == 0 && targetClass == null)
             return root;
@@ -284,30 +283,24 @@ internal class MoveMethodService : IRtService
                 var inv = (InvocationExpressionSyntax)rewritten;
                 ExpressionSyntax newExpr;
                 if (inv.Expression is MemberAccessExpressionSyntax memberAccess)
-                {
                     // Replace the receiver: Source → Target
                     newExpr = memberAccess.WithExpression(
                         SyntaxFactory.IdentifierName(targetClassName)
                             .WithTriviaFrom(memberAccess.Expression));
-                }
                 else
-                {
                     // Unqualified call: Foo(args) → Target.Foo(args)
                     newExpr = SyntaxFactory.MemberAccessExpression(
                         SyntaxKind.SimpleMemberAccessExpression,
                         SyntaxFactory.IdentifierName(targetClassName),
                         SyntaxFactory.Token(SyntaxKind.DotToken),
                         SyntaxFactory.IdentifierName(methodName));
-                }
                 return inv.WithExpression(newExpr);
             }
 
             // Mark method declaration for removal
             if (original is MethodDeclarationSyntax && declToRemove != null &&
                 ReferenceEquals(original, declToRemove))
-            {
                 return rewritten.WithAdditionalAnnotations(removeAnnotation);
-            }
 
             return rewritten;
         });
@@ -348,22 +341,20 @@ internal class MoveMethodService : IRtService
     {
         var methodText = method.NormalizeWhitespace().ToFullString();
         if (!string.IsNullOrEmpty(namespaceName))
-        {
             return $$"""
-                namespace {{namespaceName}};
+                     namespace {{namespaceName}};
 
-                public static class {{className}}
-                {
-                {{methodText}}
-                }
-                """;
-        }
+                     public static class {{className}}
+                     {
+                     {{methodText}}
+                     }
+                     """;
 
         return $$"""
-            public static class {{className}}
-            {
-            {{methodText}}
-            }
-            """;
+                 public static class {{className}}
+                 {
+                 {{methodText}}
+                 }
+                 """;
     }
 }

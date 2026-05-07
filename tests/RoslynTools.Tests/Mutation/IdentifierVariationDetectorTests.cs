@@ -5,9 +5,9 @@ using RoslynTools.Core;
 namespace RoslynTools.Tests.Mutation;
 
 /// <summary>
-/// Unit tests for IdentifierVariationDetector (US-045 Phase 2).
-/// These tests verify the detector identifies which identifier positions vary
-/// across structural duplicates by comparing PatternMatch.Substitutions.
+///     Unit tests for IdentifierVariationDetector (US-045 Phase 2).
+///     These tests verify the detector identifies which identifier positions vary
+///     across structural duplicates by comparing PatternMatch.Substitutions.
 /// </summary>
 public class IdentifierVariationDetectorTests
 {
@@ -99,8 +99,8 @@ public class IdentifierVariationDetectorTests
         var patternIdentifiers = new List<string> { "fieldA", "fieldB" };
         var matchSubstitutions = new List<Dictionary<string, string>>
         {
-            new() { ["fieldA"] = "fieldA", ["fieldB"] = "fieldB" },  // same
-            new() { ["fieldA"] = "fieldC", ["fieldB"] = "fieldB" }   // position 0 differs
+            new() { ["fieldA"] = "fieldA", ["fieldB"] = "fieldB" }, // same
+            new() { ["fieldA"] = "fieldC", ["fieldB"] = "fieldB" } // position 0 differs
         };
 
         var varyingPositions = IdentifierVariationDetector.FindVaryingPositions(patternIdentifiers, matchSubstitutions);
@@ -121,12 +121,12 @@ public class IdentifierVariationDetectorTests
         // Console.WriteLine is a member access but Console is a type, not parameterizable
         // The only bare identifier is the argument (none here, so result is empty)
         const string code = """
-            class C {
-                void M() {
-                    _svc.DoWork();
-                }
-            }
-            """;
+                            class C {
+                                void M() {
+                                    _svc.DoWork();
+                                }
+                            }
+                            """;
         var tree = CSharpSyntaxTree.ParseText(code);
         var method = tree.GetRoot()
             .DescendantNodes()
@@ -145,12 +145,12 @@ public class IdentifierVariationDetectorTests
     {
         // DirectCall() — DirectCall is the direct invocation target; must be skipped
         const string code = """
-            class C {
-                void M() {
-                    DirectCall();
-                }
-            }
-            """;
+                            class C {
+                                void M() {
+                                    DirectCall();
+                                }
+                            }
+                            """;
         var tree = CSharpSyntaxTree.ParseText(code);
         var method = tree.GetRoot()
             .DescendantNodes()
@@ -169,12 +169,12 @@ public class IdentifierVariationDetectorTests
     {
         // Console.WriteLine(_fieldA) — _fieldA is a bare argument, must be included
         const string code = """
-            class C {
-                void M() {
-                    System.Console.WriteLine(_fieldA);
-                }
-            }
-            """;
+                            class C {
+                                void M() {
+                                    System.Console.WriteLine(_fieldA);
+                                }
+                            }
+                            """;
         var tree = CSharpSyntaxTree.ParseText(code);
         var method = tree.GetRoot()
             .DescendantNodes()

@@ -14,14 +14,16 @@ public class MakeStaticTests
     {
         using var proj = new AdhocProjectBuilder("StaticApp");
         proj.AddSource("Calc.cs", """
-            class Calc {
-                public int Add(int a, int b) { return a + b; }
-            }
-            """);
+                                  class Calc {
+                                      public int Add(int a, int b) { return a + b; }
+                                  }
+                                  """);
         var (workspace, sln) = proj.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await MakeStaticCommand.ExecuteAsync("Calc.Add", "ignored", dryRun: false);
+        {
+            await MakeStaticCommand.ExecuteAsync("Calc.Add", "ignored", false);
+        }
 
         var content = await proj.ReadSourceAsync("Calc.cs");
         Assert.Contains("public static int Add", content);
@@ -36,18 +38,20 @@ public class MakeStaticTests
     {
         using var proj = new AdhocProjectBuilder("StaticApp");
         proj.AddSource("Service.cs", """
-            class Service {
-                private int _value = 0;
-                public int GetValue() { return this._value; }
-            }
-            """);
+                                     class Service {
+                                         private int _value = 0;
+                                         public int GetValue() { return this._value; }
+                                     }
+                                     """);
         var (workspace, sln) = proj.Build();
 
-        var stderr = new System.IO.StringWriter();
+        var stderr = new StringWriter();
         Console.SetError(stderr);
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await MakeStaticCommand.ExecuteAsync("Service.GetValue", "ignored", dryRun: false);
+        {
+            await MakeStaticCommand.ExecuteAsync("Service.GetValue", "ignored", false);
+        }
 
         var output = stderr.ToString();
         Assert.Contains("this", output);
@@ -55,7 +59,7 @@ public class MakeStaticTests
 
         // Reset for other tests
         Environment.ExitCode = 0;
-        Console.SetError(new System.IO.StreamWriter(System.IO.Stream.Null));
+        Console.SetError(new StreamWriter(Stream.Null));
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -67,18 +71,20 @@ public class MakeStaticTests
     {
         using var proj = new AdhocProjectBuilder("StaticApp");
         proj.AddSource("Repo.cs", """
-            class Repo {
-                private int _count;
-                public int GetCount() { return _count; }
-            }
-            """);
+                                  class Repo {
+                                      private int _count;
+                                      public int GetCount() { return _count; }
+                                  }
+                                  """);
         var (workspace, sln) = proj.Build();
 
-        var stderr = new System.IO.StringWriter();
+        var stderr = new StringWriter();
         Console.SetError(stderr);
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await MakeStaticCommand.ExecuteAsync("Repo.GetCount", "ignored", dryRun: false);
+        {
+            await MakeStaticCommand.ExecuteAsync("Repo.GetCount", "ignored", false);
+        }
 
         var output = stderr.ToString();
         Assert.Contains("instance member", output);
@@ -86,7 +92,7 @@ public class MakeStaticTests
         Assert.Equal(1, Environment.ExitCode);
 
         Environment.ExitCode = 0;
-        Console.SetError(new System.IO.StreamWriter(System.IO.Stream.Null));
+        Console.SetError(new StreamWriter(Stream.Null));
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -98,24 +104,26 @@ public class MakeStaticTests
     {
         using var proj = new AdhocProjectBuilder("StaticApp");
         proj.AddSource("Base.cs", """
-            class Base {
-                public virtual string Describe() { return "base"; }
-            }
-            """);
+                                  class Base {
+                                      public virtual string Describe() { return "base"; }
+                                  }
+                                  """);
         var (workspace, sln) = proj.Build();
 
-        var stderr = new System.IO.StringWriter();
+        var stderr = new StringWriter();
         Console.SetError(stderr);
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await MakeStaticCommand.ExecuteAsync("Base.Describe", "ignored", dryRun: false);
+        {
+            await MakeStaticCommand.ExecuteAsync("Base.Describe", "ignored", false);
+        }
 
         var output = stderr.ToString();
         Assert.Contains("virtual", output);
         Assert.Equal(1, Environment.ExitCode);
 
         Environment.ExitCode = 0;
-        Console.SetError(new System.IO.StreamWriter(System.IO.Stream.Null));
+        Console.SetError(new StreamWriter(Stream.Null));
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -127,22 +135,24 @@ public class MakeStaticTests
     {
         using var proj = new AdhocProjectBuilder("StaticApp");
         proj.AddSource("Helper.cs", """
-            class Helper {
-                public string Format(string s) { return s.Trim(); }
-            }
-            """);
+                                    class Helper {
+                                        public string Format(string s) { return s.Trim(); }
+                                    }
+                                    """);
         proj.AddSource("App.cs", """
-            class App {
-                void Run() {
-                    var h = new Helper();
-                    var result = h.Format("hello");
-                }
-            }
-            """);
+                                 class App {
+                                     void Run() {
+                                         var h = new Helper();
+                                         var result = h.Format("hello");
+                                     }
+                                 }
+                                 """);
         var (workspace, sln) = proj.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await MakeStaticCommand.ExecuteAsync("Helper.Format", "ignored", dryRun: false);
+        {
+            await MakeStaticCommand.ExecuteAsync("Helper.Format", "ignored", false);
+        }
 
         var helperContent = await proj.ReadSourceAsync("Helper.cs");
         Assert.Contains("public static string Format", helperContent);
@@ -161,20 +171,23 @@ public class MakeStaticTests
     {
         using var proj = new AdhocProjectBuilder("StaticApp");
         proj.AddSource("Util.cs", """
-            class Util {
-                public int Square(int x) { return x * x; }
-            }
-            """);
+                                  class Util {
+                                      public int Square(int x) { return x * x; }
+                                  }
+                                  """);
         var (workspace, sln) = proj.Build();
 
         var before = await proj.ReadSourceAsync("Util.cs");
 
-        var sw = new System.IO.StringWriter();
+        var sw = new StringWriter();
         var prevOut = Console.Out;
         Console.SetOut(sw);
         try
         {
-            using (WorkspaceLoader.UseOverride(workspace, sln)) await MakeStaticCommand.ExecuteAsync("Util.Square", "ignored", dryRun: true);
+            using (WorkspaceLoader.UseOverride(workspace, sln))
+            {
+                await MakeStaticCommand.ExecuteAsync("Util.Square", "ignored", true);
+            }
         }
         finally
         {

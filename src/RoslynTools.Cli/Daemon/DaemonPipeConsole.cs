@@ -8,18 +8,29 @@ internal sealed class DaemonPipeConsole(StreamWriter writer, string requestId) :
     public bool IsOutputRedirected => true;
 
     public void Log(RtLogLevel level, string template, params object?[] args)
-        => Send("stderr", RtConsole.RenderTemplate(template, args) + "\n");
+    {
+        Send("stderr", RtConsole.RenderTemplate(template, args) + "\n");
+    }
 
     public void WriteLine(RtOutputContext context, string message = "", ConsoleColor? color = null)
-        => Send(context == RtOutputContext.Diagnostic ? "stderr" : "stdout", message + "\n");
+    {
+        Send(context == RtOutputContext.Diagnostic ? "stderr" : "stdout", message + "\n");
+    }
 
     public void Write(RtOutputContext context, string message, ConsoleColor? color = null)
-        => Send(context == RtOutputContext.Diagnostic ? "stderr" : "stdout", message);
+    {
+        Send(context == RtOutputContext.Diagnostic ? "stderr" : "stdout", message);
+    }
 
-    public string? ReadLine() => null;
+    public string? ReadLine()
+    {
+        return null;
+    }
 
     private void Send(string type, string data)
-        => writer.WriteLine(JsonSerializer.Serialize(
-            new DaemonResponse(requestId, type, Data: data),
+    {
+        writer.WriteLine(JsonSerializer.Serialize(
+            new DaemonResponse(requestId, type, data),
             DaemonProtocol.JsonOpts));
+    }
 }

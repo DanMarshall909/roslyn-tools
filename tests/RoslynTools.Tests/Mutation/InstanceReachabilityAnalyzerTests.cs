@@ -1,3 +1,4 @@
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using RoslynTools.Core;
@@ -57,8 +58,8 @@ public sealed class InstanceReachabilityAnalyzerTests
     {
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("A.cs", """
-            class MyService { static void StaticHelper() { } }
-            """);
+                               class MyService { static void StaticHelper() { } }
+                               """);
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
@@ -85,12 +86,12 @@ public sealed class InstanceReachabilityAnalyzerTests
     {
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("A.cs", """
-            class MyDep { }
-            class MyService
-            {
-                private MyDep _dep;
-            }
-            """);
+                               class MyDep { }
+                               class MyService
+                               {
+                                   private MyDep _dep;
+                               }
+                               """);
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
@@ -107,13 +108,13 @@ public sealed class InstanceReachabilityAnalyzerTests
     {
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("A.cs", """
-            class MyDep { }
-            class Other { }
-            class MyService
-            {
-                private Other _other;
-            }
-            """);
+                               class MyDep { }
+                               class Other { }
+                               class MyService
+                               {
+                                   private Other _other;
+                               }
+                               """);
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
@@ -130,12 +131,12 @@ public sealed class InstanceReachabilityAnalyzerTests
     {
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("A.cs", """
-            class MyDep { }
-            class MyService
-            {
-                public MyDep Dep { get; set; }
-            }
-            """);
+                               class MyDep { }
+                               class MyService
+                               {
+                                   public MyDep Dep { get; set; }
+                               }
+                               """);
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
@@ -152,12 +153,12 @@ public sealed class InstanceReachabilityAnalyzerTests
     {
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("A.cs", """
-            class MyDep { }
-            class MyService
-            {
-                private static MyDep _staticDep;
-            }
-            """);
+                               class MyDep { }
+                               class MyService
+                               {
+                                   private static MyDep _staticDep;
+                               }
+                               """);
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
@@ -179,9 +180,9 @@ public sealed class InstanceReachabilityAnalyzerTests
 
         var source = "class C { }";
         var tree = CSharpSyntaxTree.ParseText(source);
-        var compilation = Microsoft.CodeAnalysis.CSharp.CSharpCompilation.Create("test",
+        var compilation = CSharpCompilation.Create("test",
             new[] { tree },
-            new[] { Microsoft.CodeAnalysis.MetadataReference.CreateFromFile(typeof(object).Assembly.Location) });
+            new[] { MetadataReference.CreateFromFile(typeof(object).Assembly.Location) });
         var model = compilation.GetSemanticModel(tree);
 
         var result = InstanceReachabilityAnalyzer.GetEnclosingTypeSymbol(method, model);
@@ -209,11 +210,11 @@ public sealed class InstanceReachabilityAnalyzerTests
             return;
         }
 
-        var comp = Microsoft.CodeAnalysis.CSharp.CSharpCompilation.Create("test2", new[] { tree },
-            new[] { Microsoft.CodeAnalysis.MetadataReference.CreateFromFile(typeof(object).Assembly.Location) });
+        var comp = CSharpCompilation.Create("test2", new[] { tree },
+            new[] { MetadataReference.CreateFromFile(typeof(object).Assembly.Location) });
         var model = comp.GetSemanticModel(tree);
         var compilation2 = comp;
-        var anyType = compilation2.GetSpecialType(Microsoft.CodeAnalysis.SpecialType.System_Object) as Microsoft.CodeAnalysis.INamedTypeSymbol;
+        var anyType = compilation2.GetSpecialType(SpecialType.System_Object);
 
         // Should not throw — returns null when no block ancestor
         var result = InstanceReachabilityAnalyzer.FindLocalVariableName(invocation, model, anyType!);
@@ -229,10 +230,10 @@ public sealed class InstanceReachabilityAnalyzerTests
         var tree = CSharpSyntaxTree.ParseText(source);
         var prop = tree.GetRoot().DescendantNodes().OfType<PropertyDeclarationSyntax>().First();
 
-        var comp = Microsoft.CodeAnalysis.CSharp.CSharpCompilation.Create("test3", new[] { tree },
-            new[] { Microsoft.CodeAnalysis.MetadataReference.CreateFromFile(typeof(object).Assembly.Location) });
+        var comp = CSharpCompilation.Create("test3", new[] { tree },
+            new[] { MetadataReference.CreateFromFile(typeof(object).Assembly.Location) });
         var model = comp.GetSemanticModel(tree);
-        var targetType = comp.GetSpecialType(Microsoft.CodeAnalysis.SpecialType.System_Int32) as Microsoft.CodeAnalysis.INamedTypeSymbol;
+        var targetType = comp.GetSpecialType(SpecialType.System_Int32);
 
         var result = InstanceReachabilityAnalyzer.FindParameterName(prop, model, targetType!);
         Assert.Null(result);
@@ -245,15 +246,15 @@ public sealed class InstanceReachabilityAnalyzerTests
         // in a class of the same type would incorrectly return `this`.
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("A.cs", """
-            class MyService
-            {
-                static void CallMe() { }
-                static void Caller()
-                {
-                    MyService.CallMe();
-                }
-            }
-            """);
+                               class MyService
+                               {
+                                   static void CallMe() { }
+                                   static void Caller()
+                                   {
+                                       MyService.CallMe();
+                                   }
+                               }
+                               """);
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
@@ -278,16 +279,16 @@ public sealed class InstanceReachabilityAnalyzerTests
         // that has a field of the target type would incorrectly return the field name.
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("A.cs", """
-            class MyDep { public void Go() { } }
-            class MyService
-            {
-                private MyDep _dep;
-                static void Caller(MyDep d)
-                {
-                    d.Go();
-                }
-            }
-            """);
+                               class MyDep { public void Go() { } }
+                               class MyService
+                               {
+                                   private MyDep _dep;
+                                   static void Caller(MyDep d)
+                                   {
+                                       d.Go();
+                                   }
+                               }
+                               """);
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
@@ -313,16 +314,16 @@ public sealed class InstanceReachabilityAnalyzerTests
         // With ||, the field _dep would be returned even though we're in a static context.
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("A.cs", """
-            class MyDep { public static void StaticGo() { } }
-            class MyService
-            {
-                private MyDep _dep;
-                static void Caller()
-                {
-                    MyDep.StaticGo();
-                }
-            }
-            """);
+                               class MyDep { public static void StaticGo() { } }
+                               class MyService
+                               {
+                                   private MyDep _dep;
+                                   static void Caller()
+                                   {
+                                       MyDep.StaticGo();
+                                   }
+                               }
+                               """);
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
@@ -347,12 +348,12 @@ public sealed class InstanceReachabilityAnalyzerTests
         // valid paramSymbols would be skipped and the method would return null instead of the name.
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("A.cs", """
-            class MyDep { }
-            class MyService
-            {
-                void M(MyDep dep) { }
-            }
-            """);
+                               class MyDep { }
+                               class MyService
+                               {
+                                   void M(MyDep dep) { }
+                               }
+                               """);
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
@@ -374,22 +375,22 @@ public sealed class InstanceReachabilityAnalyzerTests
     {
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("A.cs", """
-            class MyDep
-            {
-                public static void Go() { }
-            }
+                               class MyDep
+                               {
+                                   public static void Go() { }
+                               }
 
-            class Consumer
-            {
-                private readonly MyDep _first = new();
-                private readonly MyDep _second = new();
+                               class Consumer
+                               {
+                                   private readonly MyDep _first = new();
+                                   private readonly MyDep _second = new();
 
-                void Run()
-                {
-                    MyDep.Go();
-                }
-            }
-            """);
+                                   void Run()
+                                   {
+                                       MyDep.Go();
+                                   }
+                               }
+                               """);
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
@@ -411,19 +412,19 @@ public sealed class InstanceReachabilityAnalyzerTests
     {
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("A.cs", """
-            class MyDep
-            {
-                public static void Go() { }
-            }
+                               class MyDep
+                               {
+                                   public static void Go() { }
+                               }
 
-            class Consumer
-            {
-                void Run(MyDep first, MyDep second)
-                {
-                    MyDep.Go();
-                }
-            }
-            """);
+                               class Consumer
+                               {
+                                   void Run(MyDep first, MyDep second)
+                                   {
+                                       MyDep.Go();
+                                   }
+                               }
+                               """);
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
@@ -445,21 +446,21 @@ public sealed class InstanceReachabilityAnalyzerTests
     {
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("A.cs", """
-            class MyDep
-            {
-                public static void Go() { }
-            }
+                               class MyDep
+                               {
+                                   public static void Go() { }
+                               }
 
-            class Consumer
-            {
-                void Run()
-                {
-                    var first = new MyDep();
-                    var second = new MyDep();
-                    MyDep.Go();
-                }
-            }
-            """);
+                               class Consumer
+                               {
+                                   void Run()
+                                   {
+                                       var first = new MyDep();
+                                       var second = new MyDep();
+                                       MyDep.Go();
+                                   }
+                               }
+                               """);
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
@@ -481,21 +482,21 @@ public sealed class InstanceReachabilityAnalyzerTests
     {
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("A.cs", """
-            class MyDep : System.IDisposable
-            {
-                public static void Go() { }
-                public void Dispose() { }
-            }
+                               class MyDep : System.IDisposable
+                               {
+                                   public static void Go() { }
+                                   public void Dispose() { }
+                               }
 
-            class Consumer
-            {
-                void Run()
-                {
-                    using var dep = new MyDep();
-                    MyDep.Go();
-                }
-            }
-            """);
+                               class Consumer
+                               {
+                                   void Run()
+                                   {
+                                       using var dep = new MyDep();
+                                       MyDep.Go();
+                                   }
+                               }
+                               """);
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
@@ -517,24 +518,24 @@ public sealed class InstanceReachabilityAnalyzerTests
     {
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("A.cs", """
-            using System.Collections.Generic;
+                               using System.Collections.Generic;
 
-            class MyDep
-            {
-                public static void Go() { }
-            }
+                               class MyDep
+                               {
+                                   public static void Go() { }
+                               }
 
-            class Consumer
-            {
-                void Run(List<MyDep> deps)
-                {
-                    foreach (var dep in deps)
-                    {
-                        MyDep.Go();
-                    }
-                }
-            }
-            """);
+                               class Consumer
+                               {
+                                   void Run(List<MyDep> deps)
+                                   {
+                                       foreach (var dep in deps)
+                                       {
+                                           MyDep.Go();
+                                       }
+                                   }
+                               }
+                               """);
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
@@ -556,22 +557,22 @@ public sealed class InstanceReachabilityAnalyzerTests
     {
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("A.cs", """
-            class MyDep
-            {
-                public static void Go() { }
-            }
+                               class MyDep
+                               {
+                                   public static void Go() { }
+                               }
 
-            class Consumer
-            {
-                private static (int Count, MyDep Dep) Create() => (1, new MyDep());
+                               class Consumer
+                               {
+                                   private static (int Count, MyDep Dep) Create() => (1, new MyDep());
 
-                void Run()
-                {
-                    var (count, dep) = Create();
-                    MyDep.Go();
-                }
-            }
-            """);
+                                   void Run()
+                                   {
+                                       var (count, dep) = Create();
+                                       MyDep.Go();
+                                   }
+                               }
+                               """);
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
@@ -593,24 +594,24 @@ public sealed class InstanceReachabilityAnalyzerTests
     {
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("A.cs", """
-            class MyDep
-            {
-                public static void Go() { }
-            }
+                               class MyDep
+                               {
+                                   public static void Go() { }
+                               }
 
-            class Consumer
-            {
-                object Create() => new MyDep();
+                               class Consumer
+                               {
+                                   object Create() => new MyDep();
 
-                void Run()
-                {
-                    if (Create() is MyDep dep)
-                    {
-                        MyDep.Go();
-                    }
-                }
-            }
-            """);
+                                   void Run()
+                                   {
+                                       if (Create() is MyDep dep)
+                                       {
+                                           MyDep.Go();
+                                       }
+                                   }
+                               }
+                               """);
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
@@ -632,21 +633,21 @@ public sealed class InstanceReachabilityAnalyzerTests
     {
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("A.cs", """
-            class MyDep
-            {
-                public static void Go() { }
-            }
+                               class MyDep
+                               {
+                                   public static void Go() { }
+                               }
 
-            class Consumer
-            {
-                private readonly MyDep _dep = new();
+                               class Consumer
+                               {
+                                   private readonly MyDep _dep = new();
 
-                static Consumer()
-                {
-                    MyDep.Go();
-                }
-            }
-            """);
+                                   static Consumer()
+                                   {
+                                       MyDep.Go();
+                                   }
+                               }
+                               """);
         var (workspace, sln) = proj.Build();
         using (workspace)
         {

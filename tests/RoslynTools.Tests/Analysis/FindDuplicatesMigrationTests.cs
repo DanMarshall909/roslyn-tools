@@ -1,4 +1,5 @@
 using System.Text.Json;
+using RoslynTools.Commands;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
@@ -18,29 +19,30 @@ public class FindDuplicatesMigrationTests : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    private static (AdhocProjectBuilder Project, IReadOnlyList<DuplicateGroup> Groups, string? SolutionDir) BuildDuplicateProject()
+    private static (AdhocProjectBuilder Project, IReadOnlyList<DuplicateGroup> Groups, string? SolutionDir)
+        BuildDuplicateProject()
     {
         var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
 
-                public void Second()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         var groups = new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions()).GetAwaiter().GetResult();
@@ -55,25 +57,25 @@ public class FindDuplicatesMigrationTests : IDisposable
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
 
-                public void Second()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -81,7 +83,7 @@ public class FindDuplicatesMigrationTests : IDisposable
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
             Assert.NotEmpty(groups);
 
-            var result = FindDuplicatesResult.FromGroups(groups, solutionDir: null);
+            var result = FindDuplicatesResult.FromGroups(groups, null);
             var sw = new StringWriter();
             result.RenderText(sw);
             var actual = sw.ToString();
@@ -89,9 +91,13 @@ public class FindDuplicatesMigrationTests : IDisposable
             var g = groups[0];
             var path = g.Occurrences[0].FilePath.Replace('\\', '/');
 
-            Assert.Contains($"Group 1  id={g.GroupId}  occurrences={g.Occurrences.Count}  score={g.Score:F2}  extractable={g.Extractability}", actual);
+            Assert.Contains(
+                $"Group 1  id={g.GroupId}  occurrences={g.Occurrences.Count}  score={g.Score:F2}  extractable={g.Extractability}",
+                actual);
             Assert.Contains($"preview: {g.Preview}", actual);
-            Assert.Contains($"  1. {path}:{g.Occurrences[0].StartLine}-{g.Occurrences[0].EndLine} in {g.Occurrences[0].ContainingType}.{g.Occurrences[0].ContainingMember}", actual);
+            Assert.Contains(
+                $"  1. {path}:{g.Occurrences[0].StartLine}-{g.Occurrences[0].EndLine} in {g.Occurrences[0].ContainingType}.{g.Occurrences[0].ContainingMember}",
+                actual);
         }
     }
 
@@ -100,15 +106,15 @@ public class FindDuplicatesMigrationTests : IDisposable
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
-            public class A { public void Run() { int x = 1; } }
-            """);
+                                  namespace TestApp;
+                                  public class A { public void Run() { int x = 1; } }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
-            var result = FindDuplicatesResult.FromGroups(groups, solutionDir: null);
+            var result = FindDuplicatesResult.FromGroups(groups, null);
             var sw = new StringWriter();
             result.RenderText(sw);
             Assert.Equal("No duplicate groups found." + Environment.NewLine, sw.ToString());
@@ -122,25 +128,25 @@ public class FindDuplicatesMigrationTests : IDisposable
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
 
-                public void Second()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -148,7 +154,7 @@ public class FindDuplicatesMigrationTests : IDisposable
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
             Assert.NotEmpty(groups);
 
-            var result = FindDuplicatesResult.FromGroups(groups, solutionDir: null);
+            var result = FindDuplicatesResult.FromGroups(groups, null);
             var sw = new StringWriter();
             RtContext.Format = OutputFormat.Json;
             RtSerializer.Write(result, sw);
@@ -180,25 +186,25 @@ public class FindDuplicatesMigrationTests : IDisposable
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
 
-                public void Second()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -206,7 +212,7 @@ public class FindDuplicatesMigrationTests : IDisposable
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
             Assert.NotEmpty(groups);
 
-            var result = FindDuplicatesResult.FromGroups(groups, solutionDir: null);
+            var result = FindDuplicatesResult.FromGroups(groups, null);
             var sw = new StringWriter();
             RtContext.Format = OutputFormat.Markdown;
             RtSerializer.Write(result, sw);
@@ -225,25 +231,25 @@ public class FindDuplicatesMigrationTests : IDisposable
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
 
-                public void Second()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -251,7 +257,7 @@ public class FindDuplicatesMigrationTests : IDisposable
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
             Assert.NotEmpty(groups);
 
-            var result = FindDuplicatesResult.FromGroups(groups, solutionDir: null);
+            var result = FindDuplicatesResult.FromGroups(groups, null);
             var sw = new StringWriter();
             RtContext.Format = OutputFormat.Llm;
             RtSerializer.Write(result, sw);
@@ -276,25 +282,25 @@ public class FindDuplicatesMigrationTests : IDisposable
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
 
-                public void Second()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -302,7 +308,7 @@ public class FindDuplicatesMigrationTests : IDisposable
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
             Assert.NotEmpty(groups);
 
-            var result = FindDuplicatesResult.FromGroups(groups, solutionDir: null);
+            var result = FindDuplicatesResult.FromGroups(groups, null);
             var sw = new StringWriter();
             RtContext.Format = OutputFormat.Text;
             RtSerializer.Write(result, sw);
@@ -323,7 +329,7 @@ public class FindDuplicatesMigrationTests : IDisposable
     [Fact]
     public void FindDuplicatesCommand_Info_has_all_four_supported_formats()
     {
-        var info = Commands.FindDuplicatesCommand.Info;
+        var info = FindDuplicatesCommand.Info;
         var formats = info.SupportedFormats;
         Assert.NotNull(formats);
         Assert.Contains(OutputFormat.Text, formats);

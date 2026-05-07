@@ -7,20 +7,23 @@ namespace RoslynTools.Commands;
 
 internal sealed class ListSmellsCommand : IRtCommand
 {
-    private ListSmellsCommand() { }
+    private ListSmellsCommand()
+    {
+    }
 
     public static RtCommandInfo Info { get; } = new(
-        Name: "list-smells",
-        Mutates: false,
-        JsonOutput: false,
-        Category: "analyze",
+        "list-smells",
+        false,
+        false,
+        "analyze",
         Aliases: ["smells"],
-        WhenToUse: "Getting a prioritised list of code smells — oversized classes, long methods, and constructors with too many parameters — to guide a refactor session. Use --scope to focus on your domain code and skip generated or test noise.",
+        WhenToUse:
+        "Getting a prioritised list of code smells — oversized classes, long methods, and constructors with too many parameters — to guide a refactor session. Use --scope to focus on your domain code and skip generated or test noise.",
         Examples:
         [
             "rt analyze list-smells --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt analyze smells --scope ProjectX.Core --max-class-lines 200 --max-method-lines 30 --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt analyze list-smells --solution RoslynTools.slnx --max-params 5",
+            "rt analyze list-smells --solution RoslynTools.slnx --max-params 5"
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );
@@ -33,7 +36,8 @@ internal sealed class ListSmellsCommand : IRtCommand
         var maxParamsOpt = new Option<int>("--max-params", () => 7, "Max constructor params");
         var scopeOpt = new Option<string?>("--scope", "Namespace/project prefix filter");
 
-        var cmd = new Command("list-smells", "Report code smells: large classes, long methods, over-injected constructors");
+        var cmd = new Command("list-smells",
+            "Report code smells: large classes, long methods, over-injected constructors");
         cmd.AddAlias("smells");
         cmd.AddAll(solutionOpt, maxClassOpt, maxMethodOpt, maxParamsOpt, scopeOpt);
 
@@ -55,8 +59,8 @@ internal sealed class ListSmellsCommand : IRtCommand
                         MemberName = s.MemberName,
                         FilePath = s.FilePath ?? string.Empty,
                         Line = s.Line,
-                        Detail = s.Detail,
-                    }).ToList(),
+                        Detail = s.Detail
+                    }).ToList()
                 };
 
                 RtSerializer.Write(result);

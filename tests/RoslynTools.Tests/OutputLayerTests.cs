@@ -79,7 +79,10 @@ public sealed class OutputLayerTests : IDisposable
 
     private sealed class HelloOutput : IRtOutput
     {
-        public void RenderText(TextWriter writer) => writer.Write("HELLO");
+        public void RenderText(TextWriter writer)
+        {
+            writer.Write("HELLO");
+        }
     }
 
     private sealed class AnnotatedModel

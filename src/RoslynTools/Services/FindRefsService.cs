@@ -1,17 +1,18 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.FindSymbols;
+using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 using RoslynTools.Services.Results;
-using System.Diagnostics.CodeAnalysis;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class FindRefsService : IRtService
 {
-    private readonly ISymbolResolutionService _symbols;
     private readonly ILogger<FindRefsService> _logger;
+    private readonly ISymbolResolutionService _symbols;
 
     public FindRefsService()
         : this(new RtConsoleLogger<FindRefsService>())
@@ -25,6 +26,7 @@ internal class FindRefsService : IRtService
 
         _logger = logger;
     }
+
     internal async Task<FindRefsResult> FindAsync(
         Solution sln,
         string symbol,
@@ -38,28 +40,26 @@ internal class FindRefsService : IRtService
         var references = new List<ReferenceResult>();
 
         foreach (var referencedSymbol in referencedSymbols)
+        foreach (var loc in referencedSymbol.Locations)
         {
-            foreach (var loc in referencedSymbol.Locations)
-            {
-                var doc = loc.Document;
-                var text = await doc.GetTextAsync();
-                var linePos = text.Lines.GetLineFromPosition(loc.Location.SourceSpan.Start);
-                var lineNumber = linePos.LineNumber + 1;
-                var lineText = linePos.ToString().TrimStart();
+            var doc = loc.Document;
+            var text = await doc.GetTextAsync();
+            var linePos = text.Lines.GetLineFromPosition(loc.Location.SourceSpan.Start);
+            var lineNumber = linePos.LineNumber + 1;
+            var lineText = linePos.ToString().TrimStart();
 
-                references.Add(new ReferenceResult
-                {
-                    FilePath = doc.FilePath ?? string.Empty,
-                    Line = lineNumber,
-                    LineText = lineText,
-                });
-            }
+            references.Add(new ReferenceResult
+            {
+                FilePath = doc.FilePath ?? string.Empty,
+                Line = lineNumber,
+                LineText = lineText
+            });
         }
 
         return new FindRefsResult
         {
             SymbolName = sym.Name,
-            References = references,
+            References = references
         };
     }
 }

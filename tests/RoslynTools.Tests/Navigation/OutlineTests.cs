@@ -9,29 +9,29 @@ public class OutlineTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Domain.cs", """
-            namespace TestApp.Domain;
+                                       namespace TestApp.Domain;
 
-            public class Order
-            {
-                public int Id { get; set; }
-                public string CustomerName { get; set; } = "";
-                public decimal Total { get; set; }
-                public void Cancel() { }
-            }
+                                       public class Order
+                                       {
+                                           public int Id { get; set; }
+                                           public string CustomerName { get; set; } = "";
+                                           public decimal Total { get; set; }
+                                           public void Cancel() { }
+                                       }
 
-            public enum OrderStatus
-            {
-                Pending,
-                Confirmed,
-                Cancelled
-            }
+                                       public enum OrderStatus
+                                       {
+                                           Pending,
+                                           Confirmed,
+                                           Cancelled
+                                       }
 
-            public interface IOrderRepository
-            {
-                Order? GetById(int id);
-                void Save(Order order);
-            }
-            """);
+                                       public interface IOrderRepository
+                                       {
+                                           Order? GetById(int id);
+                                           void Save(Order order);
+                                       }
+                                       """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -51,22 +51,22 @@ public class OutlineTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class UserService
-            {
-                private readonly string _connectionString;
+                                        public class UserService
+                                        {
+                                            private readonly string _connectionString;
 
-                public UserService(string connectionString)
-                {
-                    _connectionString = connectionString;
-                }
+                                            public UserService(string connectionString)
+                                            {
+                                                _connectionString = connectionString;
+                                            }
 
-                public string GetUser(int id) => "";
-                public void DeleteUser(int id) { }
-                public int Count => 0;
-            }
-            """);
+                                            public string GetUser(int id) => "";
+                                            public void DeleteUser(int id) { }
+                                            public int Count => 0;
+                                        }
+                                        """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -92,28 +92,28 @@ public class OutlineTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("FileA.cs", """
-            namespace TestApp.Models;
+                                      namespace TestApp.Models;
 
-            public class Product
-            {
-                public int Id { get; set; }
-                public string Name { get; set; } = "";
-            }
-            """);
+                                      public class Product
+                                      {
+                                          public int Id { get; set; }
+                                          public string Name { get; set; } = "";
+                                      }
+                                      """);
         project.AddSource("FileB.cs", """
-            namespace TestApp.Models;
+                                      namespace TestApp.Models;
 
-            public class Category
-            {
-                public int Id { get; set; }
-                public string Title { get; set; } = "";
-            }
-            """);
+                                      public class Category
+                                      {
+                                          public int Id { get; set; }
+                                          public string Title { get; set; } = "";
+                                      }
+                                      """);
         project.AddSource("Other.cs", """
-            namespace TestApp.Services;
+                                      namespace TestApp.Services;
 
-            public class ProductService { }
-            """);
+                                      public class ProductService { }
+                                      """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -133,26 +133,25 @@ public class OutlineTests
     {
         var results = new List<INamedTypeSymbol>();
         foreach (var proj in solution.Projects)
+        foreach (var doc in proj.Documents)
         {
-            foreach (var doc in proj.Documents)
-            {
-                if (!string.Equals(doc.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
-                    continue;
+            if (!string.Equals(doc.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
+                continue;
 
-                var model = await doc.GetSemanticModelAsync();
-                var root = await doc.GetSyntaxRootAsync();
-                if (model == null || root == null) continue;
+            var model = await doc.GetSemanticModelAsync();
+            var root = await doc.GetSyntaxRootAsync();
+            if (model == null || root == null) continue;
 
-                var types = root.DescendantNodes()
-                    .Select(n => model.GetDeclaredSymbol(n))
-                    .OfType<INamedTypeSymbol>()
-                    .Distinct(SymbolEqualityComparer.Default)
-                    .Cast<INamedTypeSymbol>()
-                    .ToList();
+            var types = root.DescendantNodes()
+                .Select(n => model.GetDeclaredSymbol(n))
+                .OfType<INamedTypeSymbol>()
+                .Distinct(SymbolEqualityComparer.Default)
+                .Cast<INamedTypeSymbol>()
+                .ToList();
 
-                results.AddRange(types);
-            }
+            results.AddRange(types);
         }
+
         return results;
     }
 
@@ -169,6 +168,7 @@ public class OutlineTests
 
             CollectTypesInNamespace(compilation.GlobalNamespace, namespaceName, results, seen);
         }
+
         return results;
     }
 
@@ -177,14 +177,13 @@ public class OutlineTests
         List<INamedTypeSymbol> results, HashSet<string> seen)
     {
         if (ns.ToDisplayString() == target)
-        {
             foreach (var type in ns.GetTypeMembers())
             {
                 var fqn = type.ToDisplayString();
                 if (seen.Add(fqn))
                     results.Add(type);
             }
-        }
+
         foreach (var child in ns.GetNamespaceMembers())
             CollectTypesInNamespace(child, target, results, seen);
     }

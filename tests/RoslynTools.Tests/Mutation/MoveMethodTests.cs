@@ -1,3 +1,4 @@
+using Microsoft.CodeAnalysis;
 using RoslynTools.Services;
 
 namespace RoslynTools.Tests.Mutation;
@@ -6,7 +7,7 @@ public class MoveMethodTests
 {
     // ─── helpers ─────────────────────────────────────────────────────────────
 
-    private static async Task<string> TextAsync(Microsoft.CodeAnalysis.Solution sln, string name)
+    private static async Task<string> TextAsync(Solution sln, string name)
     {
         var doc = sln.Projects
             .SelectMany(p => p.Documents)
@@ -21,29 +22,29 @@ public class MoveMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Source.cs", """
-            namespace App;
-            public static class Source
-            {
-                public static int Add(int a, int b) => a + b;
-            }
-            """);
+                                       namespace App;
+                                       public static class Source
+                                       {
+                                           public static int Add(int a, int b) => a + b;
+                                       }
+                                       """);
         project.AddSource("Target.cs", """
-            namespace App;
-            public static class Target { }
-            """);
+                                       namespace App;
+                                       public static class Target { }
+                                       """);
         project.AddSource("Caller.cs", """
-            namespace App;
-            public class Caller
-            {
-                public int Run() => Source.Add(1, 2);
-            }
-            """);
+                                       namespace App;
+                                       public class Caller
+                                       {
+                                           public int Run() => Source.Add(1, 2);
+                                       }
+                                       """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
             var result = await new MoveMethodService().RunAsync(
-                sln, "App.Source.Add", "App.Target", createFile: false, dryRun: false);
+                sln, "App.Source.Add", "App.Target", false, false);
 
             Assert.True(result);
         }
@@ -69,31 +70,31 @@ public class MoveMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Source.cs", """
-            namespace App;
-            public static class Source
-            {
-                public static string Greet(string name) => "Hello " + name;
-            }
-            """);
+                                       namespace App;
+                                       public static class Source
+                                       {
+                                           public static string Greet(string name) => "Hello " + name;
+                                       }
+                                       """);
         project.AddSource("Target.cs", """
-            namespace App;
-            public static class Target { }
-            """);
+                                       namespace App;
+                                       public static class Target { }
+                                       """);
         project.AddSource("Caller.cs", """
-            namespace App;
-            public class Caller
-            {
-                public string A() => Source.Greet("Alice");
-                public string B() => Source.Greet("Bob");
-                public string C() => Source.Greet("Carol");
-            }
-            """);
+                                       namespace App;
+                                       public class Caller
+                                       {
+                                           public string A() => Source.Greet("Alice");
+                                           public string B() => Source.Greet("Bob");
+                                           public string C() => Source.Greet("Carol");
+                                       }
+                                       """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
             var result = await new MoveMethodService().RunAsync(
-                sln, "App.Source.Greet", "App.Target", createFile: false, dryRun: false);
+                sln, "App.Source.Greet", "App.Target", false, false);
 
             Assert.True(result);
         }
@@ -110,23 +111,23 @@ public class MoveMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Source.cs", """
-            namespace App;
-            public static class Source
-            {
-                public static int Double(int x) => x * 2;
-                public static int Quad(int x) => Double(x) + Double(x);
-            }
-            """);
+                                       namespace App;
+                                       public static class Source
+                                       {
+                                           public static int Double(int x) => x * 2;
+                                           public static int Quad(int x) => Double(x) + Double(x);
+                                       }
+                                       """);
         project.AddSource("Target.cs", """
-            namespace App;
-            public static class Target { }
-            """);
+                                       namespace App;
+                                       public static class Target { }
+                                       """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
             var result = await new MoveMethodService().RunAsync(
-                sln, "App.Source.Double", "App.Target", createFile: false, dryRun: false);
+                sln, "App.Source.Double", "App.Target", false, false);
 
             Assert.True(result);
         }
@@ -144,22 +145,22 @@ public class MoveMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Source.cs", """
-            namespace App;
-            public class Source
-            {
-                public int Compute(int x) => x + 1;
-            }
-            """);
+                                       namespace App;
+                                       public class Source
+                                       {
+                                           public int Compute(int x) => x + 1;
+                                       }
+                                       """);
         project.AddSource("Target.cs", """
-            namespace App;
-            public class Target { }
-            """);
+                                       namespace App;
+                                       public class Target { }
+                                       """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
             var result = await new MoveMethodService().RunAsync(
-                sln, "App.Source.Compute", "App.Target", createFile: false, dryRun: false);
+                sln, "App.Source.Compute", "App.Target", false, false);
 
             Assert.False(result);
         }
@@ -172,19 +173,19 @@ public class MoveMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Source.cs", """
-            namespace App;
-            public static class Source { }
-            """);
+                                       namespace App;
+                                       public static class Source { }
+                                       """);
         project.AddSource("Target.cs", """
-            namespace App;
-            public static class Target { }
-            """);
+                                       namespace App;
+                                       public static class Target { }
+                                       """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
             var result = await new MoveMethodService().RunAsync(
-                sln, "App.Source.Missing", "App.Target", createFile: false, dryRun: false);
+                sln, "App.Source.Missing", "App.Target", false, false);
 
             Assert.False(result);
         }
@@ -197,18 +198,18 @@ public class MoveMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Source.cs", """
-            namespace App;
-            public static class Source
-            {
-                public static int Add(int a, int b) => a + b;
-            }
-            """);
+                                       namespace App;
+                                       public static class Source
+                                       {
+                                           public static int Add(int a, int b) => a + b;
+                                       }
+                                       """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
             var result = await new MoveMethodService().RunAsync(
-                sln, "App.Source.Add", "App.NonExistent", createFile: false, dryRun: false);
+                sln, "App.Source.Add", "App.NonExistent", false, false);
 
             Assert.False(result);
         }
@@ -221,22 +222,22 @@ public class MoveMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Source.cs", """
-            namespace App;
-            public static class Source
-            {
-                public static int Add(int a, int b) => a + b;
-            }
-            """);
+                                       namespace App;
+                                       public static class Source
+                                       {
+                                           public static int Add(int a, int b) => a + b;
+                                       }
+                                       """);
         project.AddSource("Caller.cs", """
-            namespace App;
-            public class Caller { public int Run() => Source.Add(1, 2); }
-            """);
+                                       namespace App;
+                                       public class Caller { public int Run() => Source.Add(1, 2); }
+                                       """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
             var result = await new MoveMethodService().RunAsync(
-                sln, "App.Source.Add", "App.NewUtils", createFile: true, dryRun: false);
+                sln, "App.Source.Add", "App.NewUtils", true, false);
 
             Assert.True(result);
         }
@@ -265,25 +266,25 @@ public class MoveMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Source.cs", """
-            namespace App;
-            public static class Source
-            {
-                public static int Add(int a, int b) => a + b;
-            }
-            """);
+                                       namespace App;
+                                       public static class Source
+                                       {
+                                           public static int Add(int a, int b) => a + b;
+                                       }
+                                       """);
         project.AddSource("Target.cs", """
-            namespace App;
-            public static class Target
-            {
-                public static int Add(int a, int b) => a + b;
-            }
-            """);
+                                       namespace App;
+                                       public static class Target
+                                       {
+                                           public static int Add(int a, int b) => a + b;
+                                       }
+                                       """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
             var result = await new MoveMethodService().RunAsync(
-                sln, "App.Source.Add", "App.Target", createFile: false, dryRun: false);
+                sln, "App.Source.Add", "App.Target", false, false);
 
             Assert.False(result);
         }
@@ -296,20 +297,20 @@ public class MoveMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Source.cs", """
-            namespace App;
-            public static class Source
-            {
-                public static int Add(int a, int b) => a + b;
-            }
-            """);
+                                       namespace App;
+                                       public static class Source
+                                       {
+                                           public static int Add(int a, int b) => a + b;
+                                       }
+                                       """);
         project.AddSource("Target.cs", """
-            namespace App;
-            public static class Target { }
-            """);
+                                       namespace App;
+                                       public static class Target { }
+                                       """);
         project.AddSource("Caller.cs", """
-            namespace App;
-            public class Caller { public int Run() => Source.Add(1, 2); }
-            """);
+                                       namespace App;
+                                       public class Caller { public int Run() => Source.Add(1, 2); }
+                                       """);
 
         // Build() writes files to disk — capture originals after Build.
         var (workspace, sln) = project.Build();
@@ -321,7 +322,7 @@ public class MoveMethodTests
         using (workspace)
         {
             var result = await new MoveMethodService().RunAsync(
-                sln, "App.Source.Add", "App.Target", createFile: false, dryRun: true);
+                sln, "App.Source.Add", "App.Target", false, true);
 
             Assert.True(result);
         }
@@ -341,6 +342,7 @@ public class MoveMethodTests
             count++;
             index += pattern.Length;
         }
+
         return count;
     }
 }

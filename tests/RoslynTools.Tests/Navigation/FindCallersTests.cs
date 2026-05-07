@@ -13,26 +13,26 @@ public class FindCallersTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Greeter.cs", """
-            public class Greeter
-            {
-                public string Greet(string name) => $"Hello, {name}!";
-            }
-            """);
+                                        public class Greeter
+                                        {
+                                            public string Greet(string name) => $"Hello, {name}!";
+                                        }
+                                        """);
         project.AddSource("Program.cs", """
-            public class Program
-            {
-                public void Run()
-                {
-                    var g = new Greeter();
-                    g.Greet("Alice");
-                    g.Greet("Bob");
-                }
-                public void Other()
-                {
-                    var name = nameof(Greeter.Greet); // should NOT be a caller
-                }
-            }
-            """);
+                                        public class Program
+                                        {
+                                            public void Run()
+                                            {
+                                                var g = new Greeter();
+                                                g.Greet("Alice");
+                                                g.Greet("Bob");
+                                            }
+                                            public void Other()
+                                            {
+                                                var name = nameof(Greeter.Greet); // should NOT be a caller
+                                            }
+                                        }
+                                        """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -55,11 +55,11 @@ public class FindCallersTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            public class Service
-            {
-                public void NeverCalled() { }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public void NeverCalled() { }
+                                        }
+                                        """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -76,20 +76,20 @@ public class FindCallersTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Greeter.cs", """
-            public class Greeter
-            {
-                public string Greet(string name) => $"Hello, {name}!";
-            }
-            """);
+                                        public class Greeter
+                                        {
+                                            public string Greet(string name) => $"Hello, {name}!";
+                                        }
+                                        """);
         project.AddSource("Program.cs", """
-            public class Program
-            {
-                public void Other()
-                {
-                    var name = nameof(Greeter.Greet); // nameof reference only
-                }
-            }
-            """);
+                                        public class Program
+                                        {
+                                            public void Other()
+                                            {
+                                                var name = nameof(Greeter.Greet); // nameof reference only
+                                            }
+                                        }
+                                        """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -101,12 +101,6 @@ public class FindCallersTests
         }
     }
 
-    // ---------------------------------------------------------------------------
-    // Helper: mirrors the algorithm from FindCallersCommand
-    // ---------------------------------------------------------------------------
-
-    private sealed record CallerInfo(string? FilePath, int Line, string? ContainingMethod);
-
     private static async Task<List<CallerInfo>> FindInvocationCallersAsync(
         Solution solution,
         ISymbol symbol)
@@ -115,36 +109,40 @@ public class FindCallersTests
         var results = new List<CallerInfo>();
 
         foreach (var referencedSymbol in referencedSymbols)
+        foreach (var loc in referencedSymbol.Locations)
         {
-            foreach (var loc in referencedSymbol.Locations)
-            {
-                var doc = loc.Document;
-                var root = await doc.GetSyntaxRootAsync();
-                if (root is null)
-                    continue;
+            var doc = loc.Document;
+            var root = await doc.GetSyntaxRootAsync();
+            if (root is null)
+                continue;
 
-                var node = root.FindNode(loc.Location.SourceSpan);
+            var node = root.FindNode(loc.Location.SourceSpan);
 
-                // Only include actual invocations (not nameof, typeof, etc.)
-                var invocation = node.AncestorsAndSelf()
-                    .OfType<InvocationExpressionSyntax>()
-                    .FirstOrDefault();
+            // Only include actual invocations (not nameof, typeof, etc.)
+            var invocation = node.AncestorsAndSelf()
+                .OfType<InvocationExpressionSyntax>()
+                .FirstOrDefault();
 
-                if (invocation is null || FindCallersCommand.IsNameofExpression(invocation))
-                    continue;
+            if (invocation is null || FindCallersCommand.IsNameofExpression(invocation))
+                continue;
 
-                var lineSpan = loc.Location.GetLineSpan();
-                var line = lineSpan.StartLinePosition.Line + 1;
+            var lineSpan = loc.Location.GetLineSpan();
+            var line = lineSpan.StartLinePosition.Line + 1;
 
-                var containingMethod = invocation.Ancestors()
-                    .OfType<MethodDeclarationSyntax>()
-                    .FirstOrDefault()
-                    ?.Identifier.Text;
+            var containingMethod = invocation.Ancestors()
+                .OfType<MethodDeclarationSyntax>()
+                .FirstOrDefault()
+                ?.Identifier.Text;
 
-                results.Add(new CallerInfo(doc.FilePath, line, containingMethod));
-            }
+            results.Add(new CallerInfo(doc.FilePath, line, containingMethod));
         }
 
         return results;
     }
+
+    // ---------------------------------------------------------------------------
+    // Helper: mirrors the algorithm from FindCallersCommand
+    // ---------------------------------------------------------------------------
+
+    private sealed record CallerInfo(string? FilePath, int Line, string? ContainingMethod);
 }

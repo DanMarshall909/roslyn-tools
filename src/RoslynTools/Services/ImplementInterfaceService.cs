@@ -1,14 +1,16 @@
+using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using System.Diagnostics.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class ImplementInterfaceService : IRtService
 {
     private readonly IDocumentLocatorService _documents;
@@ -20,7 +22,8 @@ internal class ImplementInterfaceService : IRtService
     {
     }
 
-    public ImplementInterfaceService(ILogger<ImplementInterfaceService> logger, ISolutionChangeWriter solutionChangeWriter,
+    public ImplementInterfaceService(ILogger<ImplementInterfaceService> logger,
+        ISolutionChangeWriter solutionChangeWriter,
         IDocumentLocatorService? documents = null)
     {
         _documents = documents ?? new DocumentLocatorService();
@@ -28,12 +31,13 @@ internal class ImplementInterfaceService : IRtService
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
     }
+
     internal async Task RunAsync(Solution sln, string typeName, string? interfaceName, bool dryRun)
     {
         var originalSolution = sln;
 
         var classSymbol = await FindClassSymbolAsync(sln, typeName)
-            ?? throw new InvalidOperationException($"Class '{typeName}' not found in solution.");
+                          ?? throw new InvalidOperationException($"Class '{typeName}' not found in solution.");
 
         var interfacesToImplement = await CollectInterfacesToImplementAsync(sln, classSymbol, interfaceName);
         if (interfacesToImplement.Count == 0)
@@ -43,7 +47,7 @@ internal class ImplementInterfaceService : IRtService
         }
 
         var docId = _documents.FindDocumentId(sln, classSymbol)
-            ?? throw new InvalidOperationException("Cannot locate source document for the target class.");
+                    ?? throw new InvalidOperationException("Cannot locate source document for the target class.");
 
         var unimplementedMembers = CollectUnimplementedMembers(classSymbol, interfacesToImplement);
         if (unimplementedMembers.Count == 0)
@@ -75,10 +79,11 @@ internal class ImplementInterfaceService : IRtService
         var root = (CompilationUnitSyntax)(await document.GetSyntaxRootAsync())!;
 
         var syntaxRef = classSymbol.DeclaringSyntaxReferences.FirstOrDefault()
-            ?? throw new InvalidOperationException($"No source declaration found for '{typeName}'.");
+                        ?? throw new InvalidOperationException($"No source declaration found for '{typeName}'.");
 
         var classDecl = root.FindNode(syntaxRef.Span) as ClassDeclarationSyntax
-            ?? throw new InvalidOperationException($"Class declaration '{typeName}' not found in syntax tree.");
+                        ?? throw new InvalidOperationException(
+                            $"Class declaration '{typeName}' not found in syntax tree.");
 
         var newMembers = classDecl.Members;
         foreach (var stub in stubs)
@@ -103,14 +108,10 @@ internal class ImplementInterfaceService : IRtService
             if (compilation == null) continue;
 
             foreach (var symbol in compilation.GetSymbolsWithName(typeName, SymbolFilter.Type))
-            {
                 if (symbol is INamedTypeSymbol namedType &&
                     namedType.TypeKind == TypeKind.Class &&
                     namedType.Name == typeName)
-                {
                     return namedType;
-                }
-            }
         }
 
         return null;
@@ -130,7 +131,6 @@ internal class ImplementInterfaceService : IRtService
                 if (compilation == null) continue;
 
                 foreach (var symbol in compilation.GetSymbolsWithName(interfaceName, SymbolFilter.Type))
-                {
                     if (symbol is INamedTypeSymbol namedType &&
                         namedType.TypeKind == TypeKind.Interface &&
                         namedType.Name == interfaceName)
@@ -138,7 +138,6 @@ internal class ImplementInterfaceService : IRtService
                         targetInterface = namedType;
                         break;
                     }
-                }
 
                 if (targetInterface != null) break;
             }
@@ -161,23 +160,21 @@ internal class ImplementInterfaceService : IRtService
     {
         var unimplemented = new List<ISymbol>();
         foreach (var iface in interfacesToImplement)
+        foreach (var member in iface.GetMembers())
         {
-            foreach (var member in iface.GetMembers())
-            {
-                if (member is not IMethodSymbol and not IPropertySymbol)
-                    continue;
-                if (member is IMethodSymbol ms && ms.MethodKind != MethodKind.Ordinary)
-                    continue;
+            if (member is not IMethodSymbol and not IPropertySymbol)
+                continue;
+            if (member is IMethodSymbol ms && ms.MethodKind != MethodKind.Ordinary)
+                continue;
 
-                var implementation = classSymbol.FindImplementationForInterfaceMember(member);
-                if (implementation != null)
-                    continue;
+            var implementation = classSymbol.FindImplementationForInterfaceMember(member);
+            if (implementation != null)
+                continue;
 
-                if (ClassAlreadyHasMember(classSymbol, member))
-                    continue;
+            if (ClassAlreadyHasMember(classSymbol, member))
+                continue;
 
-                unimplemented.Add(member);
-            }
+            unimplemented.Add(member);
         }
 
         return unimplemented;
@@ -202,10 +199,10 @@ internal class ImplementInterfaceService : IRtService
     }
 
     private bool ParameterTypesMatch(
-        System.Collections.Immutable.ImmutableArray<IParameterSymbol> a,
-        System.Collections.Immutable.ImmutableArray<IParameterSymbol> b)
+        ImmutableArray<IParameterSymbol> a,
+        ImmutableArray<IParameterSymbol> b)
     {
-        for (int i = 0; i < a.Length; i++)
+        for (var i = 0; i < a.Length; i++)
         {
             var aName = a[i].Type.MetadataName;
             var bName = b[i].Type.MetadataName;
@@ -240,7 +237,7 @@ internal class ImplementInterfaceService : IRtService
         sb.Append('}');
 
         var member = SyntaxFactory.ParseMemberDeclaration(sb.ToString())
-            ?? throw new InvalidOperationException($"Failed to parse method stub for '{method.Name}'.");
+                     ?? throw new InvalidOperationException($"Failed to parse method stub for '{method.Name}'.");
 
         return member;
     }
@@ -251,18 +248,14 @@ internal class ImplementInterfaceService : IRtService
 
         string accessors;
         if (property.SetMethod != null)
-        {
             accessors = "get => throw new NotImplementedException(); set => throw new NotImplementedException();";
-        }
         else
-        {
             accessors = "get => throw new NotImplementedException();";
-        }
 
         var text = $"public {typeName} {property.Name} {{ {accessors} }}";
 
         var member = SyntaxFactory.ParseMemberDeclaration(text)
-            ?? throw new InvalidOperationException($"Failed to parse property stub for '{property.Name}'.");
+                     ?? throw new InvalidOperationException($"Failed to parse property stub for '{property.Name}'.");
 
         return member;
     }
@@ -283,5 +276,4 @@ internal class ImplementInterfaceService : IRtService
 
         return "<" + string.Join(", ", method.TypeParameters.Select(tp => tp.Name)) + ">";
     }
-
 }

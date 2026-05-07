@@ -1,18 +1,24 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using System.Diagnostics.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class AddDependencyService : IRtService
 {
     private readonly ILogger<AddDependencyService> _logger;
     private readonly ISolutionChangeWriter _solutionChangeWriter;
+
+    private readonly SymbolDisplayFormat TypeDisplayFormat = new(
+        SymbolDisplayGlobalNamespaceStyle.Omitted,
+        SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
+        SymbolDisplayGenericsOptions.IncludeTypeParameters);
 
     public AddDependencyService()
         : this(new RtConsoleLogger<AddDependencyService>(), new SolutionChangeWriter())
@@ -24,17 +30,6 @@ internal class AddDependencyService : IRtService
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
     }
-    private readonly SymbolDisplayFormat TypeDisplayFormat = new(
-        globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Omitted,
-        typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
-        genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters);
-
-    internal sealed record ResolvedTarget(
-        Document Document,
-        SyntaxNode Root,
-        SemanticModel SemanticModel,
-        ClassDeclarationSyntax Declaration,
-        INamedTypeSymbol Symbol);
 
     internal async Task RunAsync(
         Solution solution,
@@ -85,12 +80,13 @@ internal class AddDependencyService : IRtService
                 return new DependencyInjectionResult(solution, false, target.Symbol.ToDisplayString(TypeDisplayFormat));
 
             case DependencyInjectionStatus.AlreadyInjected:
-                _logger.RtInfo("Dependency '{DepType}' is already injected into '{TargetType}'.", depType, target.Symbol.ToDisplayString(TypeDisplayFormat));
+                _logger.RtInfo("Dependency '{DepType}' is already injected into '{TargetType}'.", depType,
+                    target.Symbol.ToDisplayString(TypeDisplayFormat));
                 return new DependencyInjectionResult(solution, false, target.Symbol.ToDisplayString(TypeDisplayFormat));
 
             case DependencyInjectionStatus.Unsupported:
                 _logger.RtError("{Message}", injector.ValidationError ??
-                    $"Cannot inject '{depType}' into '{target.Symbol.ToDisplayString(TypeDisplayFormat)}'.");
+                                             $"Cannot inject '{depType}' into '{target.Symbol.ToDisplayString(TypeDisplayFormat)}'.");
                 Environment.ExitCode = 1;
                 return new DependencyInjectionResult(solution, false, target.Symbol.ToDisplayString(TypeDisplayFormat));
 
@@ -103,11 +99,6 @@ internal class AddDependencyService : IRtService
         }
     }
 
-    internal sealed record DependencyInjectionResult(
-        Solution Solution,
-        bool Changed,
-        string? TargetType);
-
     internal async Task<ResolvedTarget?> ResolveTargetClassAsync(Solution solution, string typeName)
     {
         var normalizedTypeName = NormalizeTypeName(typeName);
@@ -115,27 +106,25 @@ internal class AddDependencyService : IRtService
         var matches = new List<ResolvedTarget>();
 
         foreach (var project in solution.Projects)
+        foreach (var document in project.Documents)
         {
-            foreach (var document in project.Documents)
+            var root = await document.GetSyntaxRootAsync();
+            if (root is null)
+                continue;
+
+            var semanticModel = await document.GetSemanticModelAsync();
+            if (semanticModel is null)
+                continue;
+
+            foreach (var declaration in root.DescendantNodes().OfType<ClassDeclarationSyntax>())
             {
-                var root = await document.GetSyntaxRootAsync();
-                if (root is null)
+                if (semanticModel.GetDeclaredSymbol(declaration) is not INamedTypeSymbol symbol)
                     continue;
 
-                var semanticModel = await document.GetSemanticModelAsync();
-                if (semanticModel is null)
+                if (!IsTypeMatch(symbol, normalizedTypeName, isQualifiedName))
                     continue;
 
-                foreach (var declaration in root.DescendantNodes().OfType<ClassDeclarationSyntax>())
-                {
-                    if (semanticModel.GetDeclaredSymbol(declaration) is not INamedTypeSymbol symbol)
-                        continue;
-
-                    if (!IsTypeMatch(symbol, normalizedTypeName, isQualifiedName))
-                        continue;
-
-                    matches.Add(new ResolvedTarget(document, root, semanticModel, declaration, symbol));
-                }
+                matches.Add(new ResolvedTarget(document, root, semanticModel, declaration, symbol));
             }
         }
 
@@ -151,7 +140,9 @@ internal class AddDependencyService : IRtService
             var candidateList = string.Join(", ", matches
                 .Select(m => m.Symbol.ToDisplayString(TypeDisplayFormat))
                 .Distinct(StringComparer.Ordinal));
-            _logger.RtError("Class '{TypeName}' is ambiguous across the loaded solution: {CandidateList}. Pass a fully qualified type name.", typeName, candidateList);
+            _logger.RtError(
+                "Class '{TypeName}' is ambiguous across the loaded solution: {CandidateList}. Pass a fully qualified type name.",
+                typeName, candidateList);
             Environment.ExitCode = 1;
             return null;
         }
@@ -186,8 +177,10 @@ internal class AddDependencyService : IRtService
         return symbol.Name == normalizedTypeName;
     }
 
-    internal string NormalizeTypeName(string typeName) =>
-        typeName.Replace("global::", string.Empty, StringComparison.Ordinal).Trim();
+    internal string NormalizeTypeName(string typeName)
+    {
+        return typeName.Replace("global::", string.Empty, StringComparison.Ordinal).Trim();
+    }
 
     internal string DeriveFieldName(string depType)
     {
@@ -198,4 +191,16 @@ internal class AddDependencyService : IRtService
         name = char.ToLower(name[0], CultureInfo.InvariantCulture) + name[1..];
         return "_" + name;
     }
+
+    internal sealed record ResolvedTarget(
+        Document Document,
+        SyntaxNode Root,
+        SemanticModel SemanticModel,
+        ClassDeclarationSyntax Declaration,
+        INamedTypeSymbol Symbol);
+
+    internal sealed record DependencyInjectionResult(
+        Solution Solution,
+        bool Changed,
+        string? TargetType);
 }

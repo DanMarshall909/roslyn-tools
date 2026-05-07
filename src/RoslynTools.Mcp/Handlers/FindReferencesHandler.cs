@@ -6,8 +6,8 @@ namespace RoslynTools.Mcp.Handlers;
 
 internal sealed class FindReferencesHandler
 {
-    private readonly WorkspaceLoader _workspaceLoader;
     private readonly FindRefsService _findRefs;
+    private readonly WorkspaceLoader _workspaceLoader;
 
     public FindReferencesHandler(WorkspaceLoader workspaceLoader, FindRefsService findRefs)
     {
@@ -22,8 +22,8 @@ internal sealed class FindReferencesHandler
         var sln = await _workspaceLoader.GetSolutionAsync(request.Solution);
 
         cancellationToken.ThrowIfCancellationRequested();
-        var refs = await _findRefs.FindAsync(sln, request.Symbol, kind: null);
-        return new FindReferencesResult(Symbol: refs.SymbolName, ReferencesCount: refs.References.Count);
+        var refs = await _findRefs.FindAsync(sln, request.Symbol, null);
+        return new FindReferencesResult(refs.SymbolName, refs.References.Count);
     }
 }
 

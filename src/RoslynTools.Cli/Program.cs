@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using RoslynTools;
@@ -6,6 +7,9 @@ using RoslynTools.Daemon;
 
 internal static class Program
 {
+    private static bool NoDaemon =>
+        Environment.GetEnvironmentVariable("RT_NO_DAEMON") is "1" or "true";
+
     private static async Task<int> Main(string[] args)
     {
         // Fast path: `rt dump-help` only enumerates the command registry in-process and emits
@@ -15,7 +19,7 @@ internal static class Program
         {
             // Force UTF-8 so em-dashes and other Unicode in RtCommandInfo strings survive
             // `cmd > file` redirection on Windows (default console encoding is often cp1252).
-            RtConsole.SetOutputEncoding(System.Text.Encoding.UTF8);
+            RtConsole.SetOutputEncoding(Encoding.UTF8);
             return await App.RunAsync(args);
         }
 
@@ -41,9 +45,8 @@ internal static class Program
         return await App.RunAsync(args, host.Services, [DaemonCommand.Build()]);
     }
 
-    private static bool IsDaemonCommand(string[] args) =>
-        args.Length > 0 && args[0] == "daemon";
-
-    private static bool NoDaemon =>
-        Environment.GetEnvironmentVariable("RT_NO_DAEMON") is "1" or "true";
+    private static bool IsDaemonCommand(string[] args)
+    {
+        return args.Length > 0 && args[0] == "daemon";
+    }
 }

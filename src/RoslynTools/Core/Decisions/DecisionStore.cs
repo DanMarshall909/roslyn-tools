@@ -11,10 +11,17 @@ internal sealed class DecisionStore
     private DecisionStore(List<DecisionEntry> entries)
     {
         this.entries = entries;
-        this.ids = new HashSet<string>(entries.Select(e => e.Id), StringComparer.Ordinal);
+        ids = new HashSet<string>(entries.Select(e => e.Id), StringComparer.Ordinal);
     }
 
-    public static DecisionStore Empty() => new(new List<DecisionEntry>());
+    public int PendingCount => entries.Count(e => e.Choose is null);
+
+    public bool AnyPending => PendingCount > 0;
+
+    public static DecisionStore Empty()
+    {
+        return new DecisionStore(new List<DecisionEntry>());
+    }
 
     public static DecisionStore Load(string path)
     {
@@ -42,6 +49,7 @@ internal sealed class DecisionStore
             choice = c;
             return true;
         }
+
         choice = -1;
         return false;
     }
@@ -51,10 +59,6 @@ internal sealed class DecisionStore
         if (ids.Add(entry.Id))
             entries.Add(entry);
     }
-
-    public int PendingCount => entries.Count(e => e.Choose is null);
-
-    public bool AnyPending => PendingCount > 0;
 
     public void Save(string path)
     {

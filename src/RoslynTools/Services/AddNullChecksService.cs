@@ -6,12 +6,13 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class AddNullChecksService : IRtService
 {
-    private readonly ISymbolResolutionService _symbols;
     private readonly IDocumentLocatorService _documents;
     private readonly ISolutionChangeWriter _solutionChangeWriter;
+    private readonly ISymbolResolutionService _symbols;
 
     public AddNullChecksService()
         : this(new SolutionChangeWriter())
@@ -27,6 +28,7 @@ internal class AddNullChecksService : IRtService
 
         _solutionChangeWriter = solutionChangeWriter;
     }
+
     internal async Task RunAsync(Solution sln, string typeName, string methodName, bool dryRun)
     {
         var originalSolution = sln;
@@ -102,6 +104,7 @@ internal class AddNullChecksService : IRtService
                 text.Contains($"{paramName} == null", StringComparison.Ordinal))
                 return true;
         }
+
         return false;
     }
 }

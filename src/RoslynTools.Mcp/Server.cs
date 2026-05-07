@@ -8,12 +8,13 @@ internal sealed class Server
 {
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
-    private readonly ToolRegistry _toolRegistry;
     private readonly TextReader _input;
     private readonly TextWriter _output;
+
+    private readonly ToolRegistry _toolRegistry;
 
     public Server(ToolRegistry toolRegistry, TextReader input, TextWriter output)
     {
@@ -116,8 +117,7 @@ internal sealed class Server
             id,
             result = new
             {
-                content = new[] { new { type = "text", text = result.content } },
-                isError = result.isError
+                content = new[] { new { type = "text", text = result.content } }, result.isError
             }
         };
     }

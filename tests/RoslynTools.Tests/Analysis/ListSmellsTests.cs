@@ -1,3 +1,4 @@
+using System.Text;
 using RoslynTools.Core;
 
 namespace RoslynTools.Tests.Analysis;
@@ -13,16 +14,16 @@ public class ListSmellsTests
     {
         using var project = new AdhocProjectBuilder();
 
-        var largeClassLines = new System.Text.StringBuilder();
+        var largeClassLines = new StringBuilder();
         largeClassLines.AppendLine("public class BigClass {");
-        for (int i = 0; i < 305; i++) largeClassLines.AppendLineF($"    public int Prop{i} {{ get; set; }}");
+        for (var i = 0; i < 305; i++) largeClassLines.AppendLineF($"    public int Prop{i} {{ get; set; }}");
         largeClassLines.AppendLine("}");
         project.AddSource("BigClass.cs", largeClassLines.ToString());
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var smells = await SmellAnalyzer.AnalyzeAsync(sln, maxClassLines: 300, maxMethodLines: 40, maxParams: 7, scope: null);
+            var smells = await SmellAnalyzer.AnalyzeAsync(sln, 300, 40, 7, null);
 
             var largeClass = smells.Where(s => s.SmellType == "LargeClass").ToList();
             Assert.NotEmpty(largeClass);
@@ -39,10 +40,10 @@ public class ListSmellsTests
     {
         using var project = new AdhocProjectBuilder();
 
-        var longMethodLines = new System.Text.StringBuilder();
+        var longMethodLines = new StringBuilder();
         longMethodLines.AppendLine("public class MyService {");
         longMethodLines.AppendLine("    public void DoWork() {");
-        for (int i = 0; i < 45; i++) longMethodLines.AppendLineF($"        var x{i} = {i};");
+        for (var i = 0; i < 45; i++) longMethodLines.AppendLineF($"        var x{i} = {i};");
         longMethodLines.AppendLine("    }");
         longMethodLines.AppendLine("}");
         project.AddSource("MyService.cs", longMethodLines.ToString());
@@ -50,7 +51,7 @@ public class ListSmellsTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var smells = await SmellAnalyzer.AnalyzeAsync(sln, maxClassLines: 300, maxMethodLines: 40, maxParams: 7, scope: null);
+            var smells = await SmellAnalyzer.AnalyzeAsync(sln, 300, 40, 7, null);
 
             var longMethods = smells.Where(s => s.SmellType == "LongMethod").ToList();
             Assert.NotEmpty(longMethods);
@@ -68,18 +69,18 @@ public class ListSmellsTests
         using var project = new AdhocProjectBuilder();
 
         project.AddSource("FatService.cs", """
-            public interface IA {} public interface IB {} public interface IC {}
-            public interface ID {} public interface IE {} public interface IF {}
-            public interface IG {} public interface IH {}
-            public class FatService {
-                public FatService(IA a, IB b, IC c, ID d, IE e, IF f, IG g, IH h) {}
-            }
-            """);
+                                           public interface IA {} public interface IB {} public interface IC {}
+                                           public interface ID {} public interface IE {} public interface IF {}
+                                           public interface IG {} public interface IH {}
+                                           public class FatService {
+                                               public FatService(IA a, IB b, IC c, ID d, IE e, IF f, IG g, IH h) {}
+                                           }
+                                           """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var smells = await SmellAnalyzer.AnalyzeAsync(sln, maxClassLines: 300, maxMethodLines: 40, maxParams: 7, scope: null);
+            var smells = await SmellAnalyzer.AnalyzeAsync(sln, 300, 40, 7, null);
 
             var tooDeps = smells.Where(s => s.SmellType == "TooManyDependencies").ToList();
             Assert.NotEmpty(tooDeps);
@@ -97,23 +98,23 @@ public class ListSmellsTests
         using var project = new AdhocProjectBuilder();
 
         project.AddSource("SmallClass.cs", """
-            public class SmallClass
-            {
-                public int Id { get; set; }
-                public string Name { get; set; } = "";
+                                           public class SmallClass
+                                           {
+                                               public int Id { get; set; }
+                                               public string Name { get; set; } = "";
 
-                public void DoSomething()
-                {
-                    var x = 1 + 2;
-                    Console.WriteLine(x);
-                }
-            }
-            """);
+                                               public void DoSomething()
+                                               {
+                                                   var x = 1 + 2;
+                                                   Console.WriteLine(x);
+                                               }
+                                           }
+                                           """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var smells = await SmellAnalyzer.AnalyzeAsync(sln, maxClassLines: 300, maxMethodLines: 40, maxParams: 7, scope: null);
+            var smells = await SmellAnalyzer.AnalyzeAsync(sln, 300, 40, 7, null);
 
             Assert.Empty(smells);
         }
@@ -129,9 +130,9 @@ public class ListSmellsTests
         using var project = new AdhocProjectBuilder();
 
         // A class of ~55 lines — under default 300 but over custom threshold of 50
-        var mediumClassLines = new System.Text.StringBuilder();
+        var mediumClassLines = new StringBuilder();
         mediumClassLines.AppendLine("public class MediumClass {");
-        for (int i = 0; i < 53; i++) mediumClassLines.AppendLineF($"    public int Prop{i} {{ get; set; }}");
+        for (var i = 0; i < 53; i++) mediumClassLines.AppendLineF($"    public int Prop{i} {{ get; set; }}");
         mediumClassLines.AppendLine("}");
         project.AddSource("MediumClass.cs", mediumClassLines.ToString());
 
@@ -139,11 +140,11 @@ public class ListSmellsTests
         using (workspace)
         {
             // Default threshold — should NOT flag
-            var smellsDefault = await SmellAnalyzer.AnalyzeAsync(sln, maxClassLines: 300, maxMethodLines: 40, maxParams: 7, scope: null);
+            var smellsDefault = await SmellAnalyzer.AnalyzeAsync(sln, 300, 40, 7, null);
             Assert.DoesNotContain(smellsDefault, s => s.SmellType == "LargeClass" && s.TypeName == "MediumClass");
 
             // Custom threshold of 50 — SHOULD flag
-            var smellsCustom = await SmellAnalyzer.AnalyzeAsync(sln, maxClassLines: 50, maxMethodLines: 40, maxParams: 7, scope: null);
+            var smellsCustom = await SmellAnalyzer.AnalyzeAsync(sln, 50, 40, 7, null);
             Assert.Contains(smellsCustom, s => s.SmellType == "LargeClass" && s.TypeName == "MediumClass");
         }
     }
@@ -153,31 +154,31 @@ public class ListSmellsTests
     {
         using var project = new AdhocProjectBuilder();
 
-        var largeClassLines = new System.Text.StringBuilder();
+        var largeClassLines = new StringBuilder();
         largeClassLines.AppendLine("namespace RoslynTools.Commands;");
         largeClassLines.AppendLine("public class FatCommand {");
-        for (int i = 0; i < 55; i++) largeClassLines.AppendLineF($"    public int Prop{i} {{ get; set; }}");
+        for (var i = 0; i < 55; i++) largeClassLines.AppendLineF($"    public int Prop{i} {{ get; set; }}");
         largeClassLines.AppendLine("}");
         project.AddSource("FatCommand.cs", largeClassLines.ToString());
 
         project.AddSource("Other.cs", """
-            namespace OtherNamespace;
+                                      namespace OtherNamespace;
 
-            public class OtherCommand
-            {
-                public int Id { get; set; }
-            }
-            """);
+                                      public class OtherCommand
+                                      {
+                                          public int Id { get; set; }
+                                      }
+                                      """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
             var smells = await SmellAnalyzer.AnalyzeAsync(
                 sln,
-                maxClassLines: 50,
-                maxMethodLines: 40,
-                maxParams: 7,
-                scope: "RoslynTools.Commands");
+                50,
+                40,
+                7,
+                "RoslynTools.Commands");
 
             Assert.Contains(smells, s => s.TypeName == "FatCommand");
             Assert.DoesNotContain(smells, s => s.TypeName == "OtherCommand");

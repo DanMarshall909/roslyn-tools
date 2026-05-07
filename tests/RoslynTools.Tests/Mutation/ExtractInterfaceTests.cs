@@ -10,24 +10,26 @@ public class ExtractInterfaceTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("AgentService.cs", """
-            namespace MyApp.Services;
+                                             namespace MyApp.Services;
 
-            public class AgentService
-            {
-                public string GetAgent(int id) => id.ToString();
-                public void DeleteAgent(int id) { }
-                private void Helper() { }
-            }
-            """);
+                                             public class AgentService
+                                             {
+                                                 public string GetAgent(int id) => id.ToString();
+                                                 public void DeleteAgent(int id) { }
+                                                 private void Helper() { }
+                                             }
+                                             """);
         var (workspace, sln) = project.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
             await ExtractInterfaceCommand.ExecuteAsync(
-            typeName: "AgentService",
-            solutionPath: "ignored",
-            outputDir: null,
-            ns: null,
-            dryRun: false);
+                "AgentService",
+                "ignored",
+                null,
+                null,
+                false);
+        }
 
         Assert.True(project.SourceExists("IAgentService.cs"),
             "IAgentService.cs should have been created alongside AgentService.cs");
@@ -38,24 +40,26 @@ public class ExtractInterfaceTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("AgentService.cs", """
-            namespace MyApp.Services;
+                                             namespace MyApp.Services;
 
-            public class AgentService
-            {
-                public string GetAgent(int id) => id.ToString();
-                public void DeleteAgent(int id) { }
-                private void Helper() { }
-            }
-            """);
+                                             public class AgentService
+                                             {
+                                                 public string GetAgent(int id) => id.ToString();
+                                                 public void DeleteAgent(int id) { }
+                                                 private void Helper() { }
+                                             }
+                                             """);
         var (workspace, sln) = project.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
             await ExtractInterfaceCommand.ExecuteAsync(
-            typeName: "AgentService",
-            solutionPath: "ignored",
-            outputDir: null,
-            ns: null,
-            dryRun: false);
+                "AgentService",
+                "ignored",
+                null,
+                null,
+                false);
+        }
 
         var content = await project.ReadSourceAsync("IAgentService.cs");
         Assert.Contains("GetAgent", content);
@@ -68,24 +72,26 @@ public class ExtractInterfaceTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("AgentService.cs", """
-            namespace MyApp.Services;
+                                             namespace MyApp.Services;
 
-            public class AgentService
-            {
-                public string GetAgent(int id) => id.ToString();
-                public void DeleteAgent(int id) { }
-                private void Helper() { }
-            }
-            """);
+                                             public class AgentService
+                                             {
+                                                 public string GetAgent(int id) => id.ToString();
+                                                 public void DeleteAgent(int id) { }
+                                                 private void Helper() { }
+                                             }
+                                             """);
         var (workspace, sln) = project.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
             await ExtractInterfaceCommand.ExecuteAsync(
-            typeName: "AgentService",
-            solutionPath: "ignored",
-            outputDir: null,
-            ns: null,
-            dryRun: false);
+                "AgentService",
+                "ignored",
+                null,
+                null,
+                false);
+        }
 
         var content = await project.ReadSourceAsync("AgentService.cs");
         Assert.Contains(": IAgentService", content);
@@ -96,24 +102,26 @@ public class ExtractInterfaceTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("AgentService.cs", """
-            namespace MyApp.Services;
+                                             namespace MyApp.Services;
 
-            public class AgentService
-            {
-                public string GetAgent(int id) => id.ToString();
-                public void DeleteAgent(int id) { }
-                private void Helper() { }
-            }
-            """);
+                                             public class AgentService
+                                             {
+                                                 public string GetAgent(int id) => id.ToString();
+                                                 public void DeleteAgent(int id) { }
+                                                 private void Helper() { }
+                                             }
+                                             """);
         var (workspace, sln) = project.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
             await ExtractInterfaceCommand.ExecuteAsync(
-            typeName: "AgentService",
-            solutionPath: "ignored",
-            outputDir: null,
-            ns: null,
-            dryRun: true);
+                "AgentService",
+                "ignored",
+                null,
+                null,
+                true);
+        }
 
         Assert.False(project.SourceExists("IAgentService.cs"),
             "IAgentService.cs should NOT be written during dry-run");

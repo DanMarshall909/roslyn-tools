@@ -13,8 +13,10 @@ internal sealed record ReferenceResult : IRtOutput
     [OutputField(OutputLevel.Default, "lineText")]
     public required string LineText { get; init; }
 
-    public void RenderText(TextWriter writer) =>
+    public void RenderText(TextWriter writer)
+    {
         writer.Write($"{FilePath}({Line}): {LineText}");
+    }
 }
 
 internal sealed record FindRefsResult : IRtOutput

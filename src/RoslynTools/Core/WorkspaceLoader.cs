@@ -15,6 +15,12 @@ internal sealed class WorkspaceLoader : IDisposable
     // AsyncLocal so parallel xunit tests don't clobber each other.
     internal static AsyncLocal<TextWriter?> DiagnosticSinkOverride { get; } = new();
 
+    public void Dispose()
+    {
+        _workspace?.Dispose();
+        _workspace = null;
+    }
+
     // Test-only scope: installs an override for the duration of the returned IDisposable.
     internal static IDisposable UseOverride(Workspace workspace, Solution solution)
     {
@@ -22,17 +28,12 @@ internal sealed class WorkspaceLoader : IDisposable
         return new OverrideScope();
     }
 
-    private sealed class OverrideScope : IDisposable
-    {
-        public void Dispose() => Override.Value = null;
-    }
-
     // ── Instance API (DI path) ───────────────────────────────────────────────
 
     /// <summary>
-    /// Load and return the solution. The instance retains the workspace — do not dispose it
-    /// from the call site. The workspace is disposed when this <see cref="WorkspaceLoader"/>
-    /// is disposed (i.e. when the DI container tears down).
+    ///     Load and return the solution. The instance retains the workspace — do not dispose it
+    ///     from the call site. The workspace is disposed when this <see cref="WorkspaceLoader" />
+    ///     is disposed (i.e. when the DI container tears down).
     /// </summary>
     internal async Task<Solution> GetSolutionAsync(string? solutionPath)
     {
@@ -45,18 +46,12 @@ internal sealed class WorkspaceLoader : IDisposable
         return solution;
     }
 
-    public void Dispose()
-    {
-        _workspace?.Dispose();
-        _workspace = null;
-    }
-
     // ── Static API (backward-compat for not-yet-migrated commands) ──────────
 
     /// <summary>
-    /// Loads a fresh workspace and solution. Caller owns the returned workspace and must
-    /// dispose it. Prefer the DI-injected <see cref="WorkspaceLoader"/> and
-    /// <see cref="GetSolutionAsync"/> for new code.
+    ///     Loads a fresh workspace and solution. Caller owns the returned workspace and must
+    ///     dispose it. Prefer the DI-injected <see cref="WorkspaceLoader" /> and
+    ///     <see cref="GetSolutionAsync" /> for new code.
     /// </summary>
     internal static async Task<(Workspace Workspace, Solution Solution)> LoadAsync(string? solutionPath)
     {
@@ -86,7 +81,10 @@ internal sealed class WorkspaceLoader : IDisposable
         var diagnostics = new List<WorkspaceDiagnostic>();
         workspace.RegisterWorkspaceFailedHandler(e =>
         {
-            lock (diagnostics) diagnostics.Add(e.Diagnostic);
+            lock (diagnostics)
+            {
+                diagnostics.Add(e.Diagnostic);
+            }
         });
 
         Solution solution;
@@ -96,7 +94,7 @@ internal sealed class WorkspaceLoader : IDisposable
         }
         catch
         {
-            EmitDiagnostics(diagnostics, fatal: true);
+            EmitDiagnostics(diagnostics, true);
             workspace.Dispose();
             throw;
         }
@@ -106,13 +104,13 @@ internal sealed class WorkspaceLoader : IDisposable
         var hasFailureKind = diagnostics.Any(d => d.Kind == WorkspaceDiagnosticKind.Failure);
         if (!solution.Projects.Any() && hasFailureKind)
         {
-            EmitDiagnostics(diagnostics, fatal: true);
+            EmitDiagnostics(diagnostics, true);
             workspace.Dispose();
             throw new InvalidOperationException(
                 $"Solution '{solutionPath}' failed to load: no projects and {diagnostics.Count} diagnostic(s). See [workspace-warnings] above.");
         }
 
-        EmitDiagnostics(diagnostics, fatal: false);
+        EmitDiagnostics(diagnostics, false);
         return (workspace, solution);
     }
 
@@ -157,7 +155,7 @@ internal sealed class WorkspaceLoader : IDisposable
         if (configuredDefault is not null)
             return configuredDefault;
 
-        for (DirectoryInfo? directory = currentDirectory; directory is not null; directory = directory.Parent)
+        for (var directory = currentDirectory; directory is not null; directory = directory.Parent)
         {
             var candidates = EnumerateSolutionFiles(directory.FullName)
                 .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
@@ -188,11 +186,13 @@ internal sealed class WorkspaceLoader : IDisposable
     }
 
     private static string ResolveExplicitSolutionPath(string solutionPath)
-        => Path.GetFullPath(solutionPath);
+    {
+        return Path.GetFullPath(solutionPath);
+    }
 
     private static string? ResolveRepoDefaultPath(DirectoryInfo currentDirectory)
     {
-        for (DirectoryInfo? directory = currentDirectory; directory is not null; directory = directory.Parent)
+        for (var directory = currentDirectory; directory is not null; directory = directory.Parent)
         {
             var repoDefaultPath = Path.Combine(directory.FullName, ".rt-solution");
             if (!File.Exists(repoDefaultPath))
@@ -221,5 +221,13 @@ internal sealed class WorkspaceLoader : IDisposable
         if (!File.Exists(resolvedPath))
             throw new InvalidOperationException(
                 $"Repository solution default '.rt-solution' in '{repoRoot}' points to '{configuredPath}', which does not exist.");
+    }
+
+    private sealed class OverrideScope : IDisposable
+    {
+        public void Dispose()
+        {
+            Override.Value = null;
+        }
     }
 }

@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
-using RoslynTools;
 using RoslynTools.Core;
 using RoslynTools.Mcp;
 using RoslynTools.Mcp.Tools;
@@ -71,20 +70,20 @@ public sealed class McpDependencyInjectionTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Model.cs", """
-            namespace TestApp;
+                                      namespace TestApp;
 
-            public class Invoice
-            {
-            }
-            """);
+                                      public class Invoice
+                                      {
+                                      }
+                                      """);
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class InvoiceService
-            {
-                public Invoice Create() => new Invoice();
-            }
-            """);
+                                        public class InvoiceService
+                                        {
+                                            public Invoice Create() => new Invoice();
+                                        }
+                                        """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -93,11 +92,11 @@ public sealed class McpDependencyInjectionTests
         {
             var registry = provider.GetRequiredService<ToolRegistry>();
             using var args = JsonDocument.Parse("""
-                {
-                  "symbol": "Invoice",
-                  "solution": "ignored.slnx"
-                }
-                """);
+                                                {
+                                                  "symbol": "Invoice",
+                                                  "solution": "ignored.slnx"
+                                                }
+                                                """);
 
             var result = await registry.InvokeAsync("find_refs", args.RootElement);
 

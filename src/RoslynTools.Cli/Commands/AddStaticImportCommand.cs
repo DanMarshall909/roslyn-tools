@@ -6,20 +6,23 @@ namespace RoslynTools.Commands;
 
 internal sealed class AddStaticImportCommand : IRtCommand
 {
-    private AddStaticImportCommand() { }
+    private AddStaticImportCommand()
+    {
+    }
 
     public static RtCommandInfo Info { get; } = new(
-        Name: "add-static-import",
-        Mutates: true,
-        JsonOutput: false,
-        Category: "refactor",
+        "add-static-import",
+        true,
+        false,
+        "refactor",
         Aliases: ["asi"],
-        WhenToUse: "Adding a C# `using static` directive to a specific file so static members can be referenced without qualifying the containing type. Prefer a narrow file target over solution-wide static imports.",
+        WhenToUse:
+        "Adding a C# `using static` directive to a specific file so static members can be referenced without qualifying the containing type. Prefer a narrow file target over solution-wide static imports.",
         Examples:
         [
             "rt refactor add-static-import --file tests/MathTests.cs --type Xunit.Assert --solution C:\\code\\app\\App.sln",
             "rt refactor asi --file src/App/Program.cs --type System.Console --dry-run --solution RoslynTools.slnx",
-            "rt refactor add-static-import --file src/Commands/FooCommand.cs --type RoslynTools.Core.RtLog --solution RoslynTools.slnx",
+            "rt refactor add-static-import --file src/Commands/FooCommand.cs --type RoslynTools.Core.RtLog --solution RoslynTools.slnx"
         ]
     );
 
@@ -46,4 +49,3 @@ internal sealed class AddStaticImportCommand : IRtCommand
         return cmd;
     }
 }
-

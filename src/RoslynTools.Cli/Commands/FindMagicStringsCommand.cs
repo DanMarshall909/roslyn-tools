@@ -8,20 +8,23 @@ namespace RoslynTools.Commands;
 
 internal sealed class FindMagicStringsCommand : IRtCommand
 {
-    private FindMagicStringsCommand() { }
+    private FindMagicStringsCommand()
+    {
+    }
 
     public static RtCommandInfo Info { get; } = new(
-        Name: "find-magic-strings",
-        Mutates: false,
-        JsonOutput: false,
-        Category: "analyze",
+        "find-magic-strings",
+        false,
+        false,
+        "analyze",
         Aliases: ["magic-strings"],
-        WhenToUse: "Finding repeated string literals that should probably be named constants before cleanup or domain refactoring. Generated files, const string declarations, and .rtignore matches are skipped.",
+        WhenToUse:
+        "Finding repeated string literals that should probably be named constants before cleanup or domain refactoring. Generated files, const string declarations, and .rtignore matches are skipped.",
         Examples:
         [
             "rt analyze find-magic-strings --solution RoslynTools.slnx",
             "rt analyze magic-strings --min-length 4 --min-occurrences 3 --solution C:\\code\\app\\App.sln",
-            "rt analyze find-magic-strings --json --solution RoslynTools.slnx",
+            "rt analyze find-magic-strings --json --solution RoslynTools.slnx"
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );
@@ -41,7 +44,8 @@ internal sealed class FindMagicStringsCommand : IRtCommand
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
             using (workspace)
             {
-                var groups = await RtServiceProvider.Get<MagicStringService>().AnalyzeAsync(sln, minLength, minOccurrences);
+                var groups = await RtServiceProvider.Get<MagicStringService>()
+                    .AnalyzeAsync(sln, minLength, minOccurrences);
                 RtSerializer.Write(MagicStringResult.FromGroups(groups));
             }
         }, solutionOpt, minLengthOpt, minOccurrencesOpt);

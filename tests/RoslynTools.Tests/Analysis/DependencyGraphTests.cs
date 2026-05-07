@@ -6,19 +6,19 @@ namespace RoslynTools.Tests.Analysis;
 public class DependencyGraphTests
 {
     /// <summary>
-    /// Builds a project with three classes:
-    ///   A depends on B
-    ///   B has no dependencies
-    ///   C depends on A and B
+    ///     Builds a project with three classes:
+    ///     A depends on B
+    ///     B has no dependencies
+    ///     C depends on A and B
     /// </summary>
     private static AdhocProjectBuilder BuildGraphProject()
     {
         var proj = new AdhocProjectBuilder("GraphApp");
         proj.AddSource("Types.cs", """
-            class A { B _b; }
-            class B { }
-            class C { A _a; B _b; }
-            """);
+                                   class A { B _b; }
+                                   class B { }
+                                   class C { A _a; B _b; }
+                                   """);
         return proj;
     }
 
@@ -33,7 +33,7 @@ public class DependencyGraphTests
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var json = await DependencyGraphCommand.BuildGraphAsync(sln, typeName: null, depth: null, format: "json", scope: null);
+            var json = await DependencyGraphCommand.BuildGraphAsync(sln, null, null, "json", null);
 
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
@@ -58,7 +58,7 @@ public class DependencyGraphTests
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var json = await DependencyGraphCommand.BuildGraphAsync(sln, typeName: null, depth: null, format: "json", scope: null);
+            var json = await DependencyGraphCommand.BuildGraphAsync(sln, null, null, "json", null);
 
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
@@ -84,7 +84,7 @@ public class DependencyGraphTests
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var dot = await DependencyGraphCommand.BuildGraphAsync(sln, typeName: null, depth: null, format: "dot", scope: null);
+            var dot = await DependencyGraphCommand.BuildGraphAsync(sln, null, null, "dot", null);
 
             Assert.StartsWith("digraph", dot, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("->", dot);
@@ -102,7 +102,7 @@ public class DependencyGraphTests
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var json = await DependencyGraphCommand.BuildGraphAsync(sln, typeName: "A", depth: 1, format: "json", scope: null);
+            var json = await DependencyGraphCommand.BuildGraphAsync(sln, "A", 1, "json", null);
 
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
@@ -126,22 +126,22 @@ public class DependencyGraphTests
     {
         using var proj = new AdhocProjectBuilder("GraphApp");
         proj.AddSource("Types.cs", """
-            class A
-            {
-                void Use() { var b = new B(); b.Ping(); }
-            }
-            class B { public void Ping() { } }
-            """);
+                                   class A
+                                   {
+                                       void Use() { var b = new B(); b.Ping(); }
+                                   }
+                                   class B { public void Ping() { } }
+                                   """);
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
             var json = await DependencyGraphCommand.BuildGraphAsync(
-                sln, typeName: null, depth: null, format: "json", scope: null);
+                sln, null, null, "json", null);
 
             using var doc = JsonDocument.Parse(json);
             var edges = doc.RootElement.GetProperty("edges").EnumerateArray()
                 .Select(e => (From: e.GetProperty("from").GetString()!,
-                              To: e.GetProperty("to").GetString()!))
+                    To: e.GetProperty("to").GetString()!))
                 .ToList();
 
             Assert.Contains(edges, e => e.From == "A" && e.To == "B");

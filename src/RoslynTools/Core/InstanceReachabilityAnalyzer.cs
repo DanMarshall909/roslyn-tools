@@ -16,20 +16,22 @@ internal readonly record struct ReachableInstanceResult(ReachableInstanceKind Ki
     internal static ReachableInstanceResult None { get; } = new(ReachableInstanceKind.None, null);
     internal static ReachableInstanceResult Ambiguous { get; } = new(ReachableInstanceKind.Ambiguous, null);
 
-    internal static ReachableInstanceResult FromExpression(ExpressionSyntax expression) =>
-        new(ReachableInstanceKind.Match, expression);
+    internal static ReachableInstanceResult FromExpression(ExpressionSyntax expression)
+    {
+        return new ReachableInstanceResult(ReachableInstanceKind.Match, expression);
+    }
 }
 
 /// <summary>
-/// Determines which instance of a given type is reachable at a call site,
-/// used by make-instance to find a suitable receiver expression.
+///     Determines which instance of a given type is reachable at a call site,
+///     used by make-instance to find a suitable receiver expression.
 /// </summary>
 internal static class InstanceReachabilityAnalyzer
 {
     /// <summary>
-    /// Finds a reachable instance of <paramref name="targetType"/> at <paramref name="callSite"/>.
-    /// Priority: local variables → parameters → this (same-class instance context) → fields/properties.
-    /// Returns an explicit result so callers can distinguish no-match from ambiguity.
+    ///     Finds a reachable instance of <paramref name="targetType" /> at <paramref name="callSite" />.
+    ///     Priority: local variables → parameters → this (same-class instance context) → fields/properties.
+    ///     Returns an explicit result so callers can distinguish no-match from ambiguity.
     /// </summary>
     internal static ReachableInstanceResult FindReachableInstance(
         InvocationExpressionSyntax callSite,
@@ -38,9 +40,9 @@ internal static class InstanceReachabilityAnalyzer
     {
         var enclosingMember = callSite.Ancestors()
             .FirstOrDefault(n => n is MethodDeclarationSyntax
-                              || n is ConstructorDeclarationSyntax
-                              || n is PropertyDeclarationSyntax
-                              || n is AccessorDeclarationSyntax);
+                                 || n is ConstructorDeclarationSyntax
+                                 || n is PropertyDeclarationSyntax
+                                 || n is AccessorDeclarationSyntax);
 
         if (enclosingMember is null)
             return ReachableInstanceResult.None;
@@ -63,13 +65,11 @@ internal static class InstanceReachabilityAnalyzer
 
         // 3. Same-class call site: `this` when in an instance context
         var enclosingType = GetEnclosingTypeSymbol(enclosingMember, semanticModel);
-        bool isInstance = IsInstanceContext(enclosingMember);
+        var isInstance = IsInstanceContext(enclosingMember);
 
         if (enclosingType is not null && isInstance &&
             SymbolEqualityComparer.Default.Equals(enclosingType, targetType))
-        {
             return ReachableInstanceResult.FromExpression(SyntaxFactory.ThisExpression());
-        }
 
         // 4. Instance field or property on the enclosing class that holds the target type
         if (enclosingType is not null && isInstance)
@@ -88,11 +88,12 @@ internal static class InstanceReachabilityAnalyzer
     {
         var typeDecl = memberNode.Ancestors().OfType<TypeDeclarationSyntax>().FirstOrDefault();
         if (typeDecl is null) return null;
-        return semanticModel.GetDeclaredSymbol(typeDecl) as INamedTypeSymbol;
+        return semanticModel.GetDeclaredSymbol(typeDecl);
     }
 
-    internal static bool IsInstanceContext(SyntaxNode memberNode) =>
-        memberNode switch
+    internal static bool IsInstanceContext(SyntaxNode memberNode)
+    {
+        return memberNode switch
         {
             MethodDeclarationSyntax m =>
                 !m.Modifiers.Any(t => t.IsKind(SyntaxKind.StaticKeyword)),
@@ -104,21 +105,28 @@ internal static class InstanceReachabilityAnalyzer
                 !GetAccessorOwnerModifiers(a).Any(t => t.IsKind(SyntaxKind.StaticKeyword)),
             _ => true
         };
+    }
 
     internal static string? FindLocalVariableName(
         InvocationExpressionSyntax callSite,
         SemanticModel semanticModel,
-        INamedTypeSymbol targetType) =>
-        FindLocalVariableCandidate(callSite, semanticModel, targetType).Name;
+        INamedTypeSymbol targetType)
+    {
+        return FindLocalVariableCandidate(callSite, semanticModel, targetType).Name;
+    }
 
     internal static string? FindParameterName(
         SyntaxNode enclosingMember,
         SemanticModel semanticModel,
-        INamedTypeSymbol targetType) =>
-        FindParameterCandidate(enclosingMember, semanticModel, targetType).Name;
+        INamedTypeSymbol targetType)
+    {
+        return FindParameterCandidate(enclosingMember, semanticModel, targetType).Name;
+    }
 
-    internal static string? FindFieldOrPropertyName(INamedTypeSymbol enclosingType, INamedTypeSymbol targetType) =>
-        FindFieldOrPropertyCandidate(enclosingType, targetType).Name;
+    internal static string? FindFieldOrPropertyName(INamedTypeSymbol enclosingType, INamedTypeSymbol targetType)
+    {
+        return FindFieldOrPropertyCandidate(enclosingType, targetType).Name;
+    }
 
     private static CandidateNameResult FindLocalVariableCandidate(
         InvocationExpressionSyntax callSite,
@@ -132,7 +140,7 @@ internal static class InstanceReachabilityAnalyzer
         var matches = new List<string>();
 
         foreach (var localSymbol in semanticModel.LookupSymbols(callSite.SpanStart)
-            .OfType<ILocalSymbol>())
+                     .OfType<ILocalSymbol>())
         {
             if (!SymbolEqualityComparer.Default.Equals(localSymbol.Type, targetType))
                 continue;
@@ -153,7 +161,7 @@ internal static class InstanceReachabilityAnalyzer
         SemanticModel semanticModel,
         INamedTypeSymbol targetType)
     {
-        ParameterListSyntax? paramList = enclosingMember switch
+        var paramList = enclosingMember switch
         {
             MethodDeclarationSyntax m => m.ParameterList,
             ConstructorDeclarationSyntax c => c.ParameterList,
@@ -167,7 +175,7 @@ internal static class InstanceReachabilityAnalyzer
 
         foreach (var param in paramList.Parameters)
         {
-            var paramSymbol = semanticModel.GetDeclaredSymbol(param) as IParameterSymbol;
+            var paramSymbol = semanticModel.GetDeclaredSymbol(param);
             if (paramSymbol is null)
                 continue;
             if (SymbolEqualityComparer.Default.Equals(paramSymbol.Type, targetType))
@@ -177,7 +185,8 @@ internal static class InstanceReachabilityAnalyzer
         return ToCandidateResult(matches);
     }
 
-    private static CandidateNameResult FindFieldOrPropertyCandidate(INamedTypeSymbol enclosingType, INamedTypeSymbol targetType)
+    private static CandidateNameResult FindFieldOrPropertyCandidate(INamedTypeSymbol enclosingType,
+        INamedTypeSymbol targetType)
     {
         var matches = new List<string>();
 
@@ -185,7 +194,7 @@ internal static class InstanceReachabilityAnalyzer
         {
             if (member.IsStatic) continue;
 
-            ITypeSymbol? memberType = member switch
+            var memberType = member switch
             {
                 IFieldSymbol f when !f.IsImplicitlyDeclared => f.Type,
                 IPropertySymbol p => p.Type,
@@ -220,7 +229,8 @@ internal static class InstanceReachabilityAnalyzer
 
             if (syntax is VariableDeclaratorSyntax variableDeclarator)
             {
-                var localDeclaration = variableDeclarator.AncestorsAndSelf().OfType<LocalDeclarationStatementSyntax>().FirstOrDefault();
+                var localDeclaration = variableDeclarator.AncestorsAndSelf().OfType<LocalDeclarationStatementSyntax>()
+                    .FirstOrDefault();
                 if (localDeclaration is not null)
                     return new LocalDeclarationInfo(LocalDeclarationSafety.Supported, localDeclaration.SpanStart);
             }
@@ -228,14 +238,15 @@ internal static class InstanceReachabilityAnalyzer
             if (syntax is SingleVariableDesignationSyntax designation &&
                 designation.Ancestors().OfType<DeclarationExpressionSyntax>().Any())
             {
-                var localDeclaration = designation.Ancestors().OfType<LocalDeclarationStatementSyntax>().FirstOrDefault();
+                var localDeclaration =
+                    designation.Ancestors().OfType<LocalDeclarationStatementSyntax>().FirstOrDefault();
                 if (localDeclaration is not null)
                     return new LocalDeclarationInfo(LocalDeclarationSafety.Supported, localDeclaration.SpanStart);
 
                 var assignmentStatement = designation.Ancestors()
                     .OfType<ExpressionStatementSyntax>()
                     .FirstOrDefault(statement => statement.Expression is AssignmentExpressionSyntax assignment &&
-                        assignment.IsKind(SyntaxKind.SimpleAssignmentExpression));
+                                                 assignment.IsKind(SyntaxKind.SimpleAssignmentExpression));
 
                 if (assignmentStatement is not null)
                     return new LocalDeclarationInfo(LocalDeclarationSafety.Supported, assignmentStatement.SpanStart);
@@ -277,6 +288,9 @@ internal static class InstanceReachabilityAnalyzer
         internal static CandidateNameResult Ambiguous { get; } = new(CandidateKind.Ambiguous, null);
         internal static CandidateNameResult Unsupported { get; } = new(CandidateKind.Unsupported, null);
 
-        internal static CandidateNameResult Match(string name) => new(CandidateKind.Match, name);
+        internal static CandidateNameResult Match(string name)
+        {
+            return new CandidateNameResult(CandidateKind.Match, name);
+        }
     }
 }

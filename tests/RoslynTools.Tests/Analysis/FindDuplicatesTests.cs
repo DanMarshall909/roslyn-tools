@@ -14,25 +14,25 @@ public class FindDuplicatesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
 
-                public void Second()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -53,31 +53,31 @@ public class FindDuplicatesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void Run()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                  public class A
+                                  {
+                                      public void Run()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
         project.AddSource("B.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class B
-            {
-                public void Run()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                  public class B
+                                  {
+                                      public void Run()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -100,18 +100,18 @@ public class FindDuplicatesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void Run()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                  public class A
+                                  {
+                                      public void Run()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -129,30 +129,30 @@ public class FindDuplicatesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
 
-                public void Second()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(MinStatements: 5));
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(5));
 
             Assert.Empty(groups);
         }
@@ -165,25 +165,25 @@ public class FindDuplicatesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
 
-                public void Second()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -201,34 +201,34 @@ public class FindDuplicatesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                    int z = 3;
-                    System.Console.WriteLine(z);
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                          int z = 3;
+                                          System.Console.WriteLine(z);
+                                      }
 
-                public void Second()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                    int z = 3;
-                    System.Console.WriteLine(z);
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                          int z = 3;
+                                          System.Console.WriteLine(z);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(MinStatements: 3));
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(3));
 
             // The 5-statement clone is the maximal block; sub-sequences (3-stmt, 4-stmt windows)
             // should not produce separate reported groups since all their occurrences are subsumed.
@@ -252,40 +252,40 @@ public class FindDuplicatesTests
         //         group [s1,s2,s3,s4] with 2 occurrences and PartiallyExpandable=false
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void MethodA()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                    System.Console.WriteLine(x);
-                }
+                                  public class A
+                                  {
+                                      public void MethodA()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                          System.Console.WriteLine(x);
+                                      }
 
-                public void MethodB()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                    System.Console.Write(x);
-                }
+                                      public void MethodB()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                          System.Console.Write(x);
+                                      }
 
-                public void MethodC()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                    System.Console.WriteLine(x);
-                }
-            }
-            """);
+                                      public void MethodC()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                          System.Console.WriteLine(x);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(MinStatements: 3));
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(3));
 
             // The [s1,s2,s3] group appears in all 3 methods with PartiallyExpandable=true.
             // Use 3-occurrence count + PartiallyExpandable as the discriminator since there may be
@@ -310,26 +310,26 @@ public class FindDuplicatesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    throw new System.NotImplementedException();
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          throw new System.NotImplementedException();
+                                      }
 
-                public void Second()
-                {
-                    throw new System.NotImplementedException();
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          throw new System.NotImplementedException();
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(MinStatements: 1));
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(1));
 
             Assert.Empty(groups);
         }
@@ -342,25 +342,25 @@ public class FindDuplicatesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
 
-                public void Second()
-                {
-                    int alpha = 1;
-                    int beta = 2;
-                    System.Console.WriteLine(alpha + beta);
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          int alpha = 1;
+                                          int beta = 2;
+                                          System.Console.WriteLine(alpha + beta);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -380,32 +380,32 @@ public class FindDuplicatesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First(int value, string label)
-                {
-                    int x = value;
-                    int y = value + 1;
-                    System.Console.WriteLine(label);
-                    System.Console.WriteLine(x + y);
-                }
+                                  public class A
+                                  {
+                                      public void First(int value, string label)
+                                      {
+                                          int x = value;
+                                          int y = value + 1;
+                                          System.Console.WriteLine(label);
+                                          System.Console.WriteLine(x + y);
+                                      }
 
-                public void Second(int amount, string tag)
-                {
-                    int x = amount;
-                    int y = amount + 1;
-                    System.Console.WriteLine(tag);
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                      public void Second(int amount, string tag)
+                                      {
+                                          int x = amount;
+                                          int y = amount + 1;
+                                          System.Console.WriteLine(tag);
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(MinStatements: 3));
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(3));
 
             Assert.NotEmpty(groups);
             var g = groups.First(g => g.StatementCount >= 3);
@@ -420,25 +420,25 @@ public class FindDuplicatesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    int x = 42;
-                    int y = 10;
-                    System.Console.WriteLine(x + y);
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          int x = 42;
+                                          int y = 10;
+                                          System.Console.WriteLine(x + y);
+                                      }
 
-                public void Second()
-                {
-                    int x = 99;
-                    int y = 7;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          int x = 99;
+                                          int y = 7;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -458,25 +458,25 @@ public class FindDuplicatesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    string msg = "hello";
-                    System.Console.WriteLine(msg);
-                    System.Console.WriteLine(msg + "!");
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          string msg = "hello";
+                                          System.Console.WriteLine(msg);
+                                          System.Console.WriteLine(msg + "!");
+                                      }
 
-                public void Second()
-                {
-                    string msg = "world";
-                    System.Console.WriteLine(msg);
-                    System.Console.WriteLine(msg + "?");
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          string msg = "world";
+                                          System.Console.WriteLine(msg);
+                                          System.Console.WriteLine(msg + "?");
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -496,36 +496,36 @@ public class FindDuplicatesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void WithIf(bool flag)
-                {
-                    int x = 1;
-                    if (flag)
-                    {
-                        System.Console.WriteLine(x);
-                    }
-                    System.Console.WriteLine(x + 1);
-                }
+                                  public class A
+                                  {
+                                      public void WithIf(bool flag)
+                                      {
+                                          int x = 1;
+                                          if (flag)
+                                          {
+                                              System.Console.WriteLine(x);
+                                          }
+                                          System.Console.WriteLine(x + 1);
+                                      }
 
-                public void WithWhile(bool flag)
-                {
-                    int x = 1;
-                    while (flag)
-                    {
-                        System.Console.WriteLine(x);
-                    }
-                    System.Console.WriteLine(x + 1);
-                }
-            }
-            """);
+                                      public void WithWhile(bool flag)
+                                      {
+                                          int x = 1;
+                                          while (flag)
+                                          {
+                                              System.Console.WriteLine(x);
+                                          }
+                                          System.Console.WriteLine(x + 1);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(MinStatements: 3));
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(3));
 
             // if-body and while-body differ in SyntaxKind, so these should not group.
             Assert.DoesNotContain(groups, g => g.Occurrences.Count >= 2 && g.StatementCount == 3);
@@ -539,25 +539,25 @@ public class FindDuplicatesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void CallFoo()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
+                                  public class A
+                                  {
+                                      public void CallFoo()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
 
-                public void CallBar()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.Write(x + y);
-                }
-            }
-            """);
+                                      public void CallBar()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.Write(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -576,26 +576,26 @@ public class FindDuplicatesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
 
-                public void Second()
-                {
-                    // leading comment
-                    int x   =   1;   // trailing comment
-                    int y=2;
-                    System.Console.WriteLine( x+y );
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          // leading comment
+                                          int x   =   1;   // trailing comment
+                                          int y=2;
+                                          System.Console.WriteLine( x+y );
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -618,34 +618,34 @@ public class FindDuplicatesTests
         // the 5-statement group should survive.
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                    int z = 3;
-                    System.Console.WriteLine(z);
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                          int z = 3;
+                                          System.Console.WriteLine(z);
+                                      }
 
-                public void Second()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                    int z = 3;
-                    System.Console.WriteLine(z);
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                          int z = 3;
+                                          System.Console.WriteLine(z);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(MinStatements: 3));
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(3));
 
             // Only the maximal (5-stmt) group should remain; sub-windows should be suppressed.
             Assert.DoesNotContain(groups, g => g.StatementCount < 5);
@@ -665,41 +665,41 @@ public class FindDuplicatesTests
         // so it must NOT be suppressed.
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void MethodA()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                    int z = 3;
-                    System.Console.WriteLine(z);
-                }
+                                  public class A
+                                  {
+                                      public void MethodA()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                          int z = 3;
+                                          System.Console.WriteLine(z);
+                                      }
 
-                public void MethodB()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                    int z = 3;
-                    System.Console.WriteLine(z);
-                }
+                                      public void MethodB()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                          int z = 3;
+                                          System.Console.WriteLine(z);
+                                      }
 
-                public void MethodC()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                      public void MethodC()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(MinStatements: 3));
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(3));
 
             // The 3-statement group should still appear because MethodC's occurrence is NOT covered.
             Assert.Contains(groups, g => g.StatementCount == 3);
@@ -713,25 +713,25 @@ public class FindDuplicatesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
 
-                public void Second()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -756,25 +756,25 @@ public class FindDuplicatesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
 
-                public void Second()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -800,49 +800,50 @@ public class FindDuplicatesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Services/A.cs", """
-            namespace MyApp.Services;
+                                           namespace MyApp.Services;
 
-            public class ServiceA
-            {
-                public void Run()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                           public class ServiceA
+                                           {
+                                               public void Run()
+                                               {
+                                                   int x = 1;
+                                                   int y = 2;
+                                                   System.Console.WriteLine(x + y);
+                                               }
+                                           }
+                                           """);
         project.AddSource("Services/B.cs", """
-            namespace MyApp.Services;
+                                           namespace MyApp.Services;
 
-            public class ServiceB
-            {
-                public void Run()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                           public class ServiceB
+                                           {
+                                               public void Run()
+                                               {
+                                                   int x = 1;
+                                                   int y = 2;
+                                                   System.Console.WriteLine(x + y);
+                                               }
+                                           }
+                                           """);
         project.AddSource("Other/C.cs", """
-            namespace MyApp.Other;
+                                        namespace MyApp.Other;
 
-            public class OtherC
-            {
-                public void Run()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                        public class OtherC
+                                        {
+                                            public void Run()
+                                            {
+                                                int x = 1;
+                                                int y = 2;
+                                                System.Console.WriteLine(x + y);
+                                            }
+                                        }
+                                        """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(Scope: "MyApp.Services"));
+            var groups =
+                await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(Scope: "MyApp.Services"));
 
             Assert.NotEmpty(groups);
             foreach (var g in groups)
@@ -857,51 +858,52 @@ public class FindDuplicatesTests
     {
         using var builder = new AdhocProjectBuilder("ProjectAlpha");
         builder.AddSource("A.cs", """
-            namespace ProjectAlpha;
+                                  namespace ProjectAlpha;
 
-            public class A
-            {
-                public void Run()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                  public class A
+                                  {
+                                      public void Run()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
         builder.AddSource("B.cs", """
-            namespace ProjectAlpha;
+                                  namespace ProjectAlpha;
 
-            public class B
-            {
-                public void Run()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                  public class B
+                                  {
+                                      public void Run()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var beta = builder.AddProject("ProjectBeta");
         beta.AddSource("C.cs", """
-            namespace ProjectBeta;
+                               namespace ProjectBeta;
 
-            public class C
-            {
-                public void Run()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                               public class C
+                               {
+                                   public void Run()
+                                   {
+                                       int x = 1;
+                                       int y = 2;
+                                       System.Console.WriteLine(x + y);
+                                   }
+                               }
+                               """);
 
         var (workspace, sln) = builder.Build();
         using (workspace)
         {
-            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(Scope: "ProjectAlpha"));
+            var groups =
+                await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(Scope: "ProjectAlpha"));
 
             Assert.NotEmpty(groups);
             foreach (var g in groups)
@@ -918,36 +920,37 @@ public class FindDuplicatesTests
         // when IncludeTests=false (the default).
         using var builder = new AdhocProjectBuilder("MyApp.Tests");
         builder.AddSource("A.cs", """
-            namespace MyApp.Tests;
+                                  namespace MyApp.Tests;
 
-            public class TestA
-            {
-                public void Run()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                  public class TestA
+                                  {
+                                      public void Run()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
         builder.AddSource("B.cs", """
-            namespace MyApp.Tests;
+                                  namespace MyApp.Tests;
 
-            public class TestB
-            {
-                public void Run()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                  public class TestB
+                                  {
+                                      public void Run()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = builder.Build();
         using (workspace)
         {
-            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(IncludeTests: false));
+            var groups =
+                await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(IncludeTests: false));
 
             Assert.Empty(groups);
         }
@@ -960,31 +963,31 @@ public class FindDuplicatesTests
     {
         using var builder = new AdhocProjectBuilder("MyApp.Tests");
         builder.AddSource("A.cs", """
-            namespace MyApp.Tests;
+                                  namespace MyApp.Tests;
 
-            public class TestA
-            {
-                public void Run()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                  public class TestA
+                                  {
+                                      public void Run()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
         builder.AddSource("B.cs", """
-            namespace MyApp.Tests;
+                                  namespace MyApp.Tests;
 
-            public class TestB
-            {
-                public void Run()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                  public class TestB
+                                  {
+                                      public void Run()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = builder.Build();
         using (workspace)
@@ -1006,29 +1009,29 @@ public class FindDuplicatesTests
         // should stop expanding at 3 statements and never produce a 5-statement group.
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                    int z = 3;
-                    System.Console.WriteLine(z);
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                          int z = 3;
+                                          System.Console.WriteLine(z);
+                                      }
 
-                public void Second()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                    int z = 3;
-                    System.Console.WriteLine(z);
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                          int z = 3;
+                                          System.Console.WriteLine(z);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -1046,25 +1049,25 @@ public class FindDuplicatesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
 
-                public void Second()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -1072,7 +1075,7 @@ public class FindDuplicatesTests
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
             Assert.NotEmpty(groups);
 
-            var json = CaptureJson(groups, solutionDir: null);
+            var json = CaptureJson(groups, null);
             var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 
@@ -1113,18 +1116,18 @@ public class FindDuplicatesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void Run()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                  public class A
+                                  {
+                                      public void Run()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -1132,7 +1135,7 @@ public class FindDuplicatesTests
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
             Assert.Empty(groups);
 
-            var json = CaptureJson(groups, solutionDir: null);
+            var json = CaptureJson(groups, null);
             var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 
@@ -1148,25 +1151,25 @@ public class FindDuplicatesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
 
-                public void Second()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -1174,8 +1177,8 @@ public class FindDuplicatesTests
             var run1 = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
             var run2 = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
 
-            var json1 = CaptureJson(run1, solutionDir: null);
-            var json2 = CaptureJson(run2, solutionDir: null);
+            var json1 = CaptureJson(run1, null);
+            var json2 = CaptureJson(run2, null);
 
             var ids1 = JsonDocument.Parse(json1).RootElement
                 .GetProperty("groups").EnumerateArray()
@@ -1200,25 +1203,25 @@ public class FindDuplicatesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
 
-                public void Second()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -1248,25 +1251,25 @@ public class FindDuplicatesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
 
-                public void Second()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -1274,7 +1277,7 @@ public class FindDuplicatesTests
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
             Assert.NotEmpty(groups);
 
-            var json = CaptureJson(groups, solutionDir: null);
+            var json = CaptureJson(groups, null);
             var doc = JsonDocument.Parse(json);
 
             var occs = doc.RootElement.GetProperty("groups")[0].GetProperty("occurrences");
@@ -1294,25 +1297,25 @@ public class FindDuplicatesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
 
-                public void Second()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -1334,25 +1337,25 @@ public class FindDuplicatesTests
         // Simple 3-statement block with no control-flow escapes, no ref/out, consistent state.
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
 
-                public void Second()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -1377,30 +1380,30 @@ public class FindDuplicatesTests
         // is implemented, value-return groups must remain discovery_only so the status is honest.
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public int First()
-                {
-                    int x = 1;
-                    int y = 2;
-                    return x + y;
-                }
+                                  public class A
+                                  {
+                                      public int First()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          return x + y;
+                                      }
 
-                public int Second()
-                {
-                    int x = 1;
-                    int y = 2;
-                    return x + y;
-                }
-            }
-            """);
+                                      public int Second()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          return x + y;
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(MinStatements: 3));
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(3));
 
             Assert.NotEmpty(groups);
             var g = groups.First(g => g.StatementCount == 3);
@@ -1418,27 +1421,27 @@ public class FindDuplicatesTests
         // A block that passes a ref argument should fail the no-ref-out-params check.
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                private static void Helper(ref int v) { v++; }
+                                  public class A
+                                  {
+                                      private static void Helper(ref int v) { v++; }
 
-                public void First()
-                {
-                    int x = 1;
-                    int y = 2;
-                    Helper(ref x);
-                }
+                                      public void First()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          Helper(ref x);
+                                      }
 
-                public void Second()
-                {
-                    int x = 1;
-                    int y = 2;
-                    Helper(ref x);
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          Helper(ref x);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -1463,35 +1466,35 @@ public class FindDuplicatesTests
         // group canonically. The consistent-captured-state check detects the differing FQNs.
         using var builder = new AdhocProjectBuilder("CaptureTest");
         builder.AddSource("A.cs", """
-            namespace CaptureTest;
+                                  namespace CaptureTest;
 
-            public class A
-            {
-                private int _count = 5;
+                                  public class A
+                                  {
+                                      private int _count = 5;
 
-                public void Run()
-                {
-                    int x = 1;
-                    int y = _count;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                      public void Run()
+                                      {
+                                          int x = 1;
+                                          int y = _count;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
         builder.AddSource("B.cs", """
-            namespace CaptureTest;
+                                  namespace CaptureTest;
 
-            public class B
-            {
-                private int _count = 10;
+                                  public class B
+                                  {
+                                      private int _count = 10;
 
-                public void Run()
-                {
-                    int x = 1;
-                    int y = _count;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                      public void Run()
+                                      {
+                                          int x = 1;
+                                          int y = _count;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = builder.Build();
         using (workspace)
@@ -1517,25 +1520,25 @@ public class FindDuplicatesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
 
-                public void Second()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -1543,8 +1546,8 @@ public class FindDuplicatesTests
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
             Assert.NotEmpty(groups);
 
-            var json = CaptureJson(groups, solutionDir: null);
-            var doc = System.Text.Json.JsonDocument.Parse(json);
+            var json = CaptureJson(groups, null);
+            var doc = JsonDocument.Parse(json);
             var g = doc.RootElement.GetProperty("groups")[0];
 
             // extractability must be a non-empty string (extractable/likely_extractable/discovery_only)
@@ -1553,7 +1556,7 @@ public class FindDuplicatesTests
 
             // checks must be an array (may be empty for extractable groups but structure must be present)
             var checks = g.GetProperty("checks");
-            Assert.Equal(System.Text.Json.JsonValueKind.Array, checks.ValueKind);
+            Assert.Equal(JsonValueKind.Array, checks.ValueKind);
 
             // Each check entry (if any) must have name, status, and detail fields
             foreach (var check in checks.EnumerateArray())
@@ -1570,25 +1573,25 @@ public class FindDuplicatesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
 
-                public void Second()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -1608,25 +1611,25 @@ public class FindDuplicatesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
 
-                public void Second()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -1635,7 +1638,9 @@ public class FindDuplicatesTests
             Assert.NotEmpty(groups);
 
             var output = CaptureText(groups);
-            var occurrenceLines = output.Split('\n').Where(l => l.TrimStart().StartsWith("1.", StringComparison.Ordinal) || l.TrimStart().StartsWith("2.", StringComparison.Ordinal));
+            var occurrenceLines = output.Split('\n').Where(l =>
+                l.TrimStart().StartsWith("1.", StringComparison.Ordinal) ||
+                l.TrimStart().StartsWith("2.", StringComparison.Ordinal));
             Assert.All(occurrenceLines, line => Assert.DoesNotContain('\\', line));
         }
     }
@@ -1645,25 +1650,25 @@ public class FindDuplicatesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
 
-                public void Second()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -1673,7 +1678,9 @@ public class FindDuplicatesTests
 
             var output = CaptureText(groups);
             // Each occurrence line should contain a startLine-endLine range like ":7-9"
-            var occurrenceLines = output.Split('\n').Where(l => l.TrimStart().StartsWith("1.", StringComparison.Ordinal) || l.TrimStart().StartsWith("2.", StringComparison.Ordinal)).ToList();
+            var occurrenceLines = output.Split('\n').Where(l =>
+                l.TrimStart().StartsWith("1.", StringComparison.Ordinal) ||
+                l.TrimStart().StartsWith("2.", StringComparison.Ordinal)).ToList();
             Assert.All(occurrenceLines, line => Assert.Matches(@":\d+-\d+", line));
         }
     }
@@ -1683,25 +1690,25 @@ public class FindDuplicatesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
 
-                public void Second()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -1718,25 +1725,25 @@ public class FindDuplicatesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void First()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
+                                  public class A
+                                  {
+                                      public void First()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
 
-                public void Second()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                      public void Second()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -1744,7 +1751,7 @@ public class FindDuplicatesTests
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
             Assert.NotEmpty(groups);
 
-            var json = JsonDocument.Parse(CaptureJson(groups, solutionDir: null));
+            var json = JsonDocument.Parse(CaptureJson(groups, null));
             var occurrences = json.RootElement.GetProperty("groups")[0].GetProperty("occurrences");
             foreach (var occ in occurrences.EnumerateArray())
             {
@@ -1759,7 +1766,7 @@ public class FindDuplicatesTests
 
     private static string CaptureJson(IReadOnlyList<DuplicateGroup> groups, string? solutionDir)
     {
-        var sw = new System.IO.StringWriter();
+        var sw = new StringWriter();
         var result = FindDuplicatesResult.FromGroups(groups, solutionDir);
         var prevFormat = RtContext.Format;
         RtContext.Format = OutputFormat.Json;
@@ -1771,6 +1778,7 @@ public class FindDuplicatesTests
         {
             RtContext.Format = prevFormat;
         }
+
         return sw.ToString().Trim();
     }
 
@@ -1786,37 +1794,37 @@ public class FindDuplicatesTests
         // surfaces as likely_extractable rather than discovery_only.
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class ServiceA
-            {
-                public bool ValidateAndProcess(string? input)
-                {
-                    if (string.IsNullOrWhiteSpace(input))
-                        return false;
-                    System.Console.WriteLine(input);
-                    System.Console.WriteLine(input.Length);
-                    return true;
-                }
-            }
+                                  public class ServiceA
+                                  {
+                                      public bool ValidateAndProcess(string? input)
+                                      {
+                                          if (string.IsNullOrWhiteSpace(input))
+                                              return false;
+                                          System.Console.WriteLine(input);
+                                          System.Console.WriteLine(input.Length);
+                                          return true;
+                                      }
+                                  }
 
-            public class ServiceB
-            {
-                public bool CheckAndLog(string? value)
-                {
-                    if (string.IsNullOrWhiteSpace(value))
-                        return false;
-                    int len = value.Length;
-                    System.Console.WriteLine(len * 2);
-                    return true;
-                }
-            }
-            """);
+                                  public class ServiceB
+                                  {
+                                      public bool CheckAndLog(string? value)
+                                      {
+                                          if (string.IsNullOrWhiteSpace(value))
+                                              return false;
+                                          int len = value.Length;
+                                          System.Console.WriteLine(len * 2);
+                                          return true;
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(MinStatements: 1));
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(1));
 
             // The single guard clause `if (IsNullOrWhiteSpace...) return false;` is a
             // 1-statement duplicate group. It must surface as likely_extractable.
@@ -1851,32 +1859,32 @@ public class FindDuplicatesTests
         // not itself a duplicate — the 2-stmt group is not suppressed.
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class ServiceA
-            {
-                public void ProcessA(int x)
-                {
-                    var lo = x - 1;
-                    var hi = x + 1;
-                    System.Console.WriteLine(lo + hi);
-                }
+                                  public class ServiceA
+                                  {
+                                      public void ProcessA(int x)
+                                      {
+                                          var lo = x - 1;
+                                          var hi = x + 1;
+                                          System.Console.WriteLine(lo + hi);
+                                      }
 
-                public void ProcessB(int n)
-                {
-                    var lo = n - 1;
-                    var hi = n + 1;
-                    Consume(lo, hi);
-                }
+                                      public void ProcessB(int n)
+                                      {
+                                          var lo = n - 1;
+                                          var hi = n + 1;
+                                          Consume(lo, hi);
+                                      }
 
-                private static void Consume(int a, int b) { }
-            }
-            """);
+                                      private static void Consume(int a, int b) { }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(MinStatements: 2));
+            var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(2));
 
             // The 2-statement compute block (var lo / var hi) is the only duplicate;
             // the callers differ so no larger window is a duplicate, so the 2-stmt group
@@ -1899,8 +1907,8 @@ public class FindDuplicatesTests
 
     private static string CaptureText(IReadOnlyList<DuplicateGroup> groups)
     {
-        var sw = new System.IO.StringWriter();
-        var result = FindDuplicatesResult.FromGroups(groups, solutionDir: null);
+        var sw = new StringWriter();
+        var result = FindDuplicatesResult.FromGroups(groups, null);
         var prevFormat = RtContext.Format;
         RtContext.Format = OutputFormat.Text;
         try
@@ -1911,6 +1919,7 @@ public class FindDuplicatesTests
         {
             RtContext.Format = prevFormat;
         }
+
         return sw.ToString();
     }
 }

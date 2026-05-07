@@ -1,12 +1,13 @@
+﻿using System.Diagnostics.CodeAnalysis;
 using System.Text;
-using RoslynTools.Core;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using System.Diagnostics.CodeAnalysis;
+using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 /// <summary>
 /// Pure analysis functions for interface members: determines which members of an
 /// interface a given consumer type actually uses, and generates new interface text
@@ -15,8 +16,8 @@ namespace RoslynTools.Services;
 internal class InterfaceAnalyzerService : IRtService
 {
     /// <summary>
-    /// Returns the set of member names from <paramref name="interfaceSymbol"/> that are
-    /// actually referenced within the body of <paramref name="consumerSymbol"/>.
+    ///     Returns the set of member names from <paramref name="interfaceSymbol" /> that are
+    ///     actually referenced within the body of <paramref name="consumerSymbol" />.
     /// </summary>
     internal async Task<HashSet<string>> GetUsedMembersAsync(
         Solution solution,
@@ -38,7 +39,8 @@ internal class InterfaceAnalyzerService : IRtService
             var document = solution.Projects
                 .SelectMany(p => p.Documents)
                 .FirstOrDefault(d => d.FilePath is not null
-                    && string.Equals(d.FilePath, sourceTree.FilePath, StringComparison.OrdinalIgnoreCase));
+                                     && string.Equals(d.FilePath, sourceTree.FilePath,
+                                         StringComparison.OrdinalIgnoreCase));
 
             if (document is null)
                 continue;
@@ -55,43 +57,41 @@ internal class InterfaceAnalyzerService : IRtService
                 {
                     var sym = semanticModel.GetDeclaredSymbol(t);
                     return sym is INamedTypeSymbol namedType
-                        && namedType.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat)
+                           && namedType.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat)
                            == consumerSymbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
                 })
                 .ToList();
 
             foreach (var typeDecl in typeDecls)
+            foreach (var simpleName in typeDecl.DescendantNodes().OfType<SimpleNameSyntax>())
             {
-                foreach (var simpleName in typeDecl.DescendantNodes().OfType<SimpleNameSyntax>())
+                var symbolInfo = semanticModel.GetSymbolInfo(simpleName);
+                var sym = symbolInfo.Symbol
+                          ?? (symbolInfo.CandidateSymbols.Length == 1 ? symbolInfo.CandidateSymbols[0] : null);
+
+                if (sym is null)
+                    continue;
+
+                // Normalize accessors back to their parent member
+                sym = sym switch
                 {
-                    var symbolInfo = semanticModel.GetSymbolInfo(simpleName);
-                    var sym = symbolInfo.Symbol
-                              ?? (symbolInfo.CandidateSymbols.Length == 1 ? symbolInfo.CandidateSymbols[0] : null);
-
-                    if (sym is null)
-                        continue;
-
-                    // Normalize accessors back to their parent member
-                    sym = sym switch
+                    IMethodSymbol
                     {
-                        IMethodSymbol
-                        {
-                            MethodKind: MethodKind.PropertyGet or MethodKind.PropertySet
-                                        or MethodKind.EventAdd or MethodKind.EventRemove,
-                            AssociatedSymbol: { } assoc
-                        } => assoc,
-                        _ => sym,
-                    };
+                        MethodKind: MethodKind.PropertyGet or MethodKind.PropertySet
+                        or MethodKind.EventAdd or MethodKind.EventRemove,
+                        AssociatedSymbol: { } assoc
+                    } => assoc,
+                    _ => sym
+                };
 
-                    // Match by containing-type FQN to avoid cross-compilation reference issues
-                    var containingFqn = sym.ContainingType?
-                        .ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
+                // Match by containing-type FQN to avoid cross-compilation reference issues
+                var containingFqn = sym.ContainingType?
+                    .ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
 
-                    if (containingFqn != interfaceFqn)
-                        continue;
+                if (containingFqn != interfaceFqn)
+                    continue;
 
-                    used.Add(sym.Name);
-                }
+                used.Add(sym.Name);
             }
         }
 
@@ -99,8 +99,8 @@ internal class InterfaceAnalyzerService : IRtService
     }
 
     /// <summary>
-    /// Generates C# source text for a new interface named <paramref name="interfaceName"/>
-    /// in <paramref name="namespaceName"/> containing exactly the given <paramref name="members"/>.
+    ///     Generates C# source text for a new interface named <paramref name="interfaceName" />
+    ///     in <paramref name="namespaceName" /> containing exactly the given <paramref name="members" />.
     /// </summary>
     internal string BuildInterfaceText(
         string namespaceName,
@@ -119,7 +119,6 @@ internal class InterfaceAnalyzerService : IRtService
         sb.AppendLine("{");
 
         foreach (var member in members)
-        {
             switch (member)
             {
                 case IMethodSymbol method when method.MethodKind == MethodKind.Ordinary:
@@ -139,7 +138,6 @@ internal class InterfaceAnalyzerService : IRtService
                     sb.AppendLineF($"    event {eventType} {eventSymbol.Name};");
                     break;
             }
-        }
 
         sb.AppendLine("}");
         return sb.ToString();

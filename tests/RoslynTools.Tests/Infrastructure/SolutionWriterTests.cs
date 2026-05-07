@@ -4,8 +4,8 @@ namespace RoslynTools.Tests.Infrastructure;
 
 public class SolutionWriterTests : IDisposable
 {
-    private readonly StringWriter _output;
     private readonly TextWriter _originalOut;
+    private readonly StringWriter _output;
 
     public SolutionWriterTests()
     {
@@ -32,7 +32,8 @@ public class SolutionWriterTests : IDisposable
         var output = _output.ToString();
         var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         var diffLines = lines.Where(l => l.StartsWith('+') && !l.StartsWith("+++", StringComparison.Ordinal)).ToArray();
-        var removedLines = lines.Where(l => l.StartsWith('-') && !l.StartsWith("---", StringComparison.Ordinal)).ToArray();
+        var removedLines = lines.Where(l => l.StartsWith('-') && !l.StartsWith("---", StringComparison.Ordinal))
+            .ToArray();
 
         Assert.Single(diffLines);
         Assert.Contains("X", diffLines[0]);
@@ -49,8 +50,10 @@ public class SolutionWriterTests : IDisposable
 
         var output = _output.ToString();
         var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        var addedLines = lines.Where(l => l.StartsWith('+') && !l.StartsWith("+++", StringComparison.Ordinal)).ToArray();
-        var removedLines = lines.Where(l => l.StartsWith('-') && !l.StartsWith("---", StringComparison.Ordinal)).ToArray();
+        var addedLines = lines.Where(l => l.StartsWith('+') && !l.StartsWith("+++", StringComparison.Ordinal))
+            .ToArray();
+        var removedLines = lines.Where(l => l.StartsWith('-') && !l.StartsWith("---", StringComparison.Ordinal))
+            .ToArray();
 
         Assert.Single(removedLines);
         Assert.Contains("X", removedLines[0]);
@@ -67,8 +70,10 @@ public class SolutionWriterTests : IDisposable
 
         var output = _output.ToString();
         var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        var addedLines = lines.Where(l => l.StartsWith('+') && !l.StartsWith("+++", StringComparison.Ordinal)).ToArray();
-        var removedLines = lines.Where(l => l.StartsWith('-') && !l.StartsWith("---", StringComparison.Ordinal)).ToArray();
+        var addedLines = lines.Where(l => l.StartsWith('+') && !l.StartsWith("+++", StringComparison.Ordinal))
+            .ToArray();
+        var removedLines = lines.Where(l => l.StartsWith('-') && !l.StartsWith("---", StringComparison.Ordinal))
+            .ToArray();
 
         Assert.Single(removedLines);
         Assert.Single(addedLines);
@@ -106,6 +111,7 @@ public class SolutionWriterTests : IDisposable
             .Where(l => l.StartsWith("@@", StringComparison.Ordinal))
             .ToArray();
 
-        Assert.True(hunkHeaders.Length >= 2, $"Expected at least 2 hunk headers, got {hunkHeaders.Length}. Output:\n{output}");
+        Assert.True(hunkHeaders.Length >= 2,
+            $"Expected at least 2 hunk headers, got {hunkHeaders.Length}. Output:\n{output}");
     }
 }

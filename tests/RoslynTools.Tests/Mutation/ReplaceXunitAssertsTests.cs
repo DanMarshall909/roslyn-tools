@@ -10,19 +10,19 @@ public class ReplaceXunitAssertsTests
     {
         using var project = new AdhocProjectBuilder("Tests");
         project.AddSource("ExampleTests.cs", """
-            using Xunit;
+                                             using Xunit;
 
-            public class ExampleTests
-            {
-                [Fact]
-                public void Values_match()
-                {
-                    var actual = 42;
-                    Assert.Equal(42, actual);
-                    Xunit.Assert.Equal(42, actual);
-                }
-            }
-            """);
+                                             public class ExampleTests
+                                             {
+                                                 [Fact]
+                                                 public void Values_match()
+                                                 {
+                                                     var actual = 42;
+                                                     Assert.Equal(42, actual);
+                                                     Xunit.Assert.Equal(42, actual);
+                                                 }
+                                             }
+                                             """);
         var (workspace, solution) = project.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, solution))
@@ -44,40 +44,40 @@ public class ReplaceXunitAssertsTests
     {
         using var project = new AdhocProjectBuilder("Tests");
         project.AddSource("ExampleTests.cs", """
-            using Xunit;
+                                             using Xunit;
 
-            public class ExampleTests
-            {
-                [Fact]
-                public void Values_match()
-                {
-                    var actual = "prefix-value";
-                    var other = new object();
-                    Assert.NotEqual("wrong", actual);
-                    Assert.Same(other, other);
-                    Assert.NotSame(new object(), other);
-                    Assert.True(actual.Length > 0);
-                    Assert.False(actual.Length == 0);
-                    object? maybe = null;
-                    Assert.Null(maybe);
-                    Assert.NotNull(actual);
-                    Assert.Empty(Array.Empty<string>());
-                    Assert.NotEmpty(new[] { "value" });
-                    Assert.Contains("value", actual);
-                    Assert.DoesNotContain("missing", actual);
-                    Assert.StartsWith("prefix", actual);
-                    Assert.EndsWith("value", actual);
-                    Assert.IsType<string>(actual);
-                    Assert.IsAssignableFrom<object>(actual);
-                    Assert.Throws<InvalidOperationException>(() => throw new InvalidOperationException());
-                }
-            }
-            """);
+                                             public class ExampleTests
+                                             {
+                                                 [Fact]
+                                                 public void Values_match()
+                                                 {
+                                                     var actual = "prefix-value";
+                                                     var other = new object();
+                                                     Assert.NotEqual("wrong", actual);
+                                                     Assert.Same(other, other);
+                                                     Assert.NotSame(new object(), other);
+                                                     Assert.True(actual.Length > 0);
+                                                     Assert.False(actual.Length == 0);
+                                                     object? maybe = null;
+                                                     Assert.Null(maybe);
+                                                     Assert.NotNull(actual);
+                                                     Assert.Empty(Array.Empty<string>());
+                                                     Assert.NotEmpty(new[] { "value" });
+                                                     Assert.Contains("value", actual);
+                                                     Assert.DoesNotContain("missing", actual);
+                                                     Assert.StartsWith("prefix", actual);
+                                                     Assert.EndsWith("value", actual);
+                                                     Assert.IsType<string>(actual);
+                                                     Assert.IsAssignableFrom<object>(actual);
+                                                     Assert.Throws<InvalidOperationException>(() => throw new InvalidOperationException());
+                                                 }
+                                             }
+                                             """);
         var (workspace, solution) = project.Build();
 
         using (workspace)
         {
-            await ReplaceXunitAssertsCommand.ExecuteCoreAsync(solution, dryRun: false, apply: true);
+            await ReplaceXunitAssertsCommand.ExecuteCoreAsync(solution, false, true);
         }
 
         var content = await project.ReadSourceAsync("ExampleTests.cs");
@@ -96,7 +96,8 @@ public class ReplaceXunitAssertsTests
         Assert.Contains("actual.ShouldEndWith(\"value\");", content);
         Assert.Contains("actual.ShouldBeOfType<string>();", content);
         Assert.Contains("actual.ShouldBeAssignableTo<object>();", content);
-        Assert.Contains("Should.Throw<InvalidOperationException>(() => throw new InvalidOperationException());", content);
+        Assert.Contains("Should.Throw<InvalidOperationException>(() => throw new InvalidOperationException());",
+            content);
     }
 
     [Fact]
@@ -104,22 +105,22 @@ public class ReplaceXunitAssertsTests
     {
         using var project = new AdhocProjectBuilder("Tests");
         project.AddSource("ExampleTests.cs", """
-            using Xunit;
+                                             using Xunit;
 
-            public class ExampleTests
-            {
-                [Fact]
-                public void Values_match()
-                {
-                    Assert.Equal(1.234, 1.235, 2);
-                }
-            }
-            """);
+                                             public class ExampleTests
+                                             {
+                                                 [Fact]
+                                                 public void Values_match()
+                                                 {
+                                                     Assert.Equal(1.234, 1.235, 2);
+                                                 }
+                                             }
+                                             """);
         var (workspace, solution) = project.Build();
 
         using (workspace)
         {
-            await ReplaceXunitAssertsCommand.ExecuteCoreAsync(solution, dryRun: false, apply: true);
+            await ReplaceXunitAssertsCommand.ExecuteCoreAsync(solution, false, true);
         }
 
         var content = await project.ReadSourceAsync("ExampleTests.cs");
@@ -132,17 +133,17 @@ public class ReplaceXunitAssertsTests
     {
         using var project = new AdhocProjectBuilder("Tests");
         project.AddSource("ExampleTests.cs", """
-            using Xunit;
+                                             using Xunit;
 
-            public class ExampleTests
-            {
-                [Fact]
-                public void Values_match()
-                {
-                    Assert.True(true);
-                }
-            }
-            """);
+                                             public class ExampleTests
+                                             {
+                                                 [Fact]
+                                                 public void Values_match()
+                                                 {
+                                                     Assert.True(true);
+                                                 }
+                                             }
+                                             """);
         var (workspace, solution) = project.Build();
         var original = await project.ReadSourceAsync("ExampleTests.cs");
 
@@ -153,7 +154,7 @@ public class ReplaceXunitAssertsTests
         {
             using (workspace)
             {
-                await ReplaceXunitAssertsCommand.ExecuteCoreAsync(solution, dryRun: false);
+                await ReplaceXunitAssertsCommand.ExecuteCoreAsync(solution, false);
             }
         }
         finally

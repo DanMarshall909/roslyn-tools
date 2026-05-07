@@ -5,11 +5,9 @@ namespace RoslynTools.Commands.Results;
 
 internal sealed record ImportDirectiveEntryResult : IRtOutput
 {
-    [OutputField(OutputLevel.Llm, "kind")]
-    public required string Kind { get; init; }
+    [OutputField(OutputLevel.Llm, "kind")] public required string Kind { get; init; }
 
-    [OutputField(OutputLevel.Llm, "name")]
-    public required string Name { get; init; }
+    [OutputField(OutputLevel.Llm, "name")] public required string Name { get; init; }
 
     [OutputField(OutputLevel.Default, "filePath")]
     public required string FilePath { get; init; }
@@ -42,8 +40,9 @@ internal sealed record ImportDirectiveResult : IRtOutput
         }
     }
 
-    internal static ImportDirectiveResult FromImports(IEnumerable<ImportDirectiveInfo> imports) =>
-        new()
+    internal static ImportDirectiveResult FromImports(IEnumerable<ImportDirectiveInfo> imports)
+    {
+        return new ImportDirectiveResult
         {
             Imports = imports.Select(i => new ImportDirectiveEntryResult
             {
@@ -51,7 +50,8 @@ internal sealed record ImportDirectiveResult : IRtOutput
                 Name = i.Name,
                 FilePath = i.FilePath,
                 Line = i.Line,
-                Alias = i.Alias,
-            }).ToList(),
+                Alias = i.Alias
+            }).ToList()
         };
+    }
 }

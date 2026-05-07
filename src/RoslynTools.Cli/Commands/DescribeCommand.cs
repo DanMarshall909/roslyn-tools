@@ -7,20 +7,23 @@ namespace RoslynTools.Commands;
 
 internal sealed class DescribeCommand : IRtCommand
 {
-    private DescribeCommand() { }
+    private DescribeCommand()
+    {
+    }
 
     public static RtCommandInfo Info { get; } = new(
-        Name: "describe",
-        Mutates: false,
-        JsonOutput: true,
-        Category: "inspect",
+        "describe",
+        false,
+        true,
+        "inspect",
         Aliases: null,
-        WhenToUse: "Getting a detailed JSON description of a symbol's shape — members, base types, interfaces, constructors, locations — without opening the file. Ideal for agents that need to understand a type's surface area before planning a refactor.",
+        WhenToUse:
+        "Getting a detailed JSON description of a symbol's shape — members, base types, interfaces, constructors, locations — without opening the file. Ideal for agents that need to understand a type's surface area before planning a refactor.",
         Examples:
         [
             "rt inspect describe BookingService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt inspect describe ProjectX.Core.Services.IEmailService --kind type --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt inspect describe IRtCommand --solution RoslynTools.slnx",
+            "rt inspect describe IRtCommand --solution RoslynTools.slnx"
         ]
     );
 
@@ -36,16 +39,16 @@ internal sealed class DescribeCommand : IRtCommand
         };
 
         cmd.SetHandler(async (symbol, solution, kind) =>
-        {
-            var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
-            using (workspace)
             {
-                var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, symbol, kind);
-                var result = RtServiceProvider.Get<InspectService>().BuildInspection(sym, sln);
-                StructuredOutput.Write(result, SymbolFormatter.DefaultJsonOptions);
-            }
-        },
-        symbolArg, solutionOpt, kindOpt);
+                var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
+                using (workspace)
+                {
+                    var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, symbol, kind);
+                    var result = RtServiceProvider.Get<InspectService>().BuildInspection(sym, sln);
+                    StructuredOutput.Write(result, SymbolFormatter.DefaultJsonOptions);
+                }
+            },
+            symbolArg, solutionOpt, kindOpt);
 
         return cmd;
     }

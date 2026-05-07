@@ -1,19 +1,20 @@
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
+using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class RemoveParamService : IRtService
 {
-    private readonly ISymbolResolutionService _symbols;
     private readonly ILogger<RemoveParamService> _logger;
     private readonly ParameterChangeHelper _parameterChangeHelper;
+    private readonly ISymbolResolutionService _symbols;
 
     public RemoveParamService()
         : this(new RtConsoleLogger<RemoveParamService>(), new ParameterChangeHelper())
@@ -39,29 +40,23 @@ internal class RemoveParamService : IRtService
 
         // Validate parameter exists
         var paramIndex = -1;
-        for (int i = 0; i < methodSymbol.Parameters.Length; i++)
-        {
+        for (var i = 0; i < methodSymbol.Parameters.Length; i++)
             if (methodSymbol.Parameters[i].Name == paramName)
             {
                 paramIndex = i;
                 break;
             }
-        }
 
         if (paramIndex < 0)
-        {
             throw new InvalidOperationException(
                 $"Parameter '{paramName}' was not found on '{methodSpec}'.");
-        }
 
         var param = methodSymbol.Parameters[paramIndex];
 
         // Require default value unless --force
         if (!force && !param.HasExplicitDefaultValue)
-        {
             throw new InvalidOperationException(
                 $"Parameter '{paramName}' has no default value. Use --force to remove it anyway.");
-        }
 
         // Collect all changes against the original solution, grouped by document,
         // then apply them in one pass per document to avoid offset drift.
@@ -121,14 +116,16 @@ internal class RemoveParamService : IRtService
                 {
                     // Not an invocation — likely a method group, nameof, or attribute.
                     // The signature change may break this site; warn so the user can inspect.
-                    _logger.RtWarning("Reference at {Location} is not an invocation and was not rewritten automatically. Inspect manually.", loc.Location);
+                    _logger.RtWarning(
+                        "Reference at {Location} is not an invocation and was not rewritten automatically. Inspect manually.",
+                        loc.Location);
                     continue;
                 }
 
                 // Extension methods called in instance style (receiver.Foo(args)) exclude
                 // the receiver from the arg list, so the positional index must be adjusted.
-                var callSiteParamIndex = (methodSymbol.IsExtensionMethod
-                    && argList.Arguments.Count < methodSymbol.Parameters.Length)
+                var callSiteParamIndex = methodSymbol.IsExtensionMethod
+                                         && argList.Arguments.Count < methodSymbol.Parameters.Length
                     ? paramIndex - 1
                     : paramIndex;
 
@@ -234,10 +231,8 @@ internal class RemoveParamService : IRtService
             a.NameColon?.Name.Identifier.Text == paramName);
 
         if (namedArg is not null)
-        {
             // Remove the named argument
             return BuildArgRemovalChanges(args, args.IndexOf(namedArg), sourceText);
-        }
 
         // Positional: only remove if we have enough positional args
         if (paramIndex >= args.Count)
@@ -246,10 +241,8 @@ internal class RemoveParamService : IRtService
         // Ensure the argument at this index is positional (no name colon)
         var positionalArg = args[paramIndex];
         if (positionalArg.NameColon is not null)
-        {
             // It's named but not for our param — skip
             return [];
-        }
 
         return BuildArgRemovalChanges(args, paramIndex, sourceText);
     }

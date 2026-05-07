@@ -24,7 +24,7 @@ public class FindUnusedMigrationTests : IDisposable
         var symbols = new List<UnusedSymbol>
         {
             new("UnusedMethod", "method", "/path/to/Services.cs", 42),
-            new("OrphanClass", "type",   "/path/to/Models.cs",   7),
+            new("OrphanClass", "type", "/path/to/Models.cs", 7)
         };
         return FindUnusedResult.FromSymbols(symbols);
     }
@@ -167,7 +167,7 @@ public class FindUnusedMigrationTests : IDisposable
             Kind = "method",
             Name = "Foo",
             FilePath = "/a/b.cs",
-            Line = 1,
+            Line = 1
         };
         Assert.IsAssignableFrom<IRtOutput>(symbolResult);
     }

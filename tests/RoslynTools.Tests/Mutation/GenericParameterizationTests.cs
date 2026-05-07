@@ -3,20 +3,21 @@ using RoslynTools.Core;
 namespace RoslynTools.Tests.Mutation;
 
 /// <summary>
-/// Integration tests for US-049 Phase 6: generic type-parameter parameterization.
-/// Verify that --replace-duplicates detects duplicate groups that differ only in
-/// generic type arguments and emits a generic extracted method (e.g. Method&lt;T&gt;)
-/// rather than erasing to object parameters.
-///
-/// v1 scope: user-defined type arguments only (both sides are IdentifierNameSyntax
-/// so PatternMatcher structural match succeeds). Predefined keyword types (int, string)
-/// are out of scope — PatternMatcher RawKind mismatch means they never reach this path.
-/// Constraint inference (where T : ...) is deferred (AC4 — see KnownIssues on the command).
+///     Integration tests for US-049 Phase 6: generic type-parameter parameterization.
+///     Verify that --replace-duplicates detects duplicate groups that differ only in
+///     generic type arguments and emits a generic extracted method (e.g. Method&lt;T&gt;)
+///     rather than erasing to object parameters.
+///     v1 scope: user-defined type arguments only (both sides are IdentifierNameSyntax
+///     so PatternMatcher structural match succeeds). Predefined keyword types (int, string)
+///     are out of scope — PatternMatcher RawKind mismatch means they never reach this path.
+///     Constraint inference (where T : ...) is deferred (AC4 — see KnownIssues on the command).
 /// </summary>
 public class GenericParameterizationTests
 {
     private static string FilePath(AdhocProjectBuilder project, string relativePath)
-        => Path.Combine(project.ProjectDir, relativePath);
+    {
+        return Path.Combine(project.ProjectDir, relativePath);
+    }
 
     // ──────────────────────────────────────────────────────────────────────────
     //  AC2: Single varying type argument -> extracted method gets <T>
@@ -31,35 +32,35 @@ public class GenericParameterizationTests
         // B's call site passes explicit type argument <OtherType>.
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            using System.Collections.Generic;
-            namespace TestApp;
+                                  using System.Collections.Generic;
+                                  namespace TestApp;
 
-            public class MyType { }
+                                  public class MyType { }
 
-            public class A
-            {
-                public void Run()
-                {
-                    var list = new List<MyType>();
-                    list.Add(new MyType());
-                }
-            }
-            """);
+                                  public class A
+                                  {
+                                      public void Run()
+                                      {
+                                          var list = new List<MyType>();
+                                          list.Add(new MyType());
+                                      }
+                                  }
+                                  """);
         project.AddSource("B.cs", """
-            using System.Collections.Generic;
-            namespace TestApp;
+                                  using System.Collections.Generic;
+                                  namespace TestApp;
 
-            public class OtherType { }
+                                  public class OtherType { }
 
-            public class B
-            {
-                public void Run()
-                {
-                    var list = new List<OtherType>();
-                    list.Add(new OtherType());
-                }
-            }
-            """);
+                                  public class B
+                                  {
+                                      public void Run()
+                                      {
+                                          var list = new List<OtherType>();
+                                          list.Add(new OtherType());
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -68,10 +69,10 @@ public class GenericParameterizationTests
                 sln,
                 FilePath(project, "A.cs"),
                 "BuildList",
-                startLine: 10,
-                endLine: 11,
+                10,
+                11,
                 replaceDuplicates: true);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var contentA = await project.ReadSourceAsync("A.cs");
@@ -100,37 +101,37 @@ public class GenericParameterizationTests
         // A uses Dictionary<KeyTypeA, ValTypeA>; B uses Dictionary<KeyTypeB, ValTypeB>.
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            using System.Collections.Generic;
-            namespace TestApp;
+                                  using System.Collections.Generic;
+                                  namespace TestApp;
 
-            public class KeyTypeA { }
-            public class ValTypeA { }
+                                  public class KeyTypeA { }
+                                  public class ValTypeA { }
 
-            public class A
-            {
-                public void Run()
-                {
-                    var dict = new Dictionary<KeyTypeA, ValTypeA>();
-                    dict[new KeyTypeA()] = new ValTypeA();
-                }
-            }
-            """);
+                                  public class A
+                                  {
+                                      public void Run()
+                                      {
+                                          var dict = new Dictionary<KeyTypeA, ValTypeA>();
+                                          dict[new KeyTypeA()] = new ValTypeA();
+                                      }
+                                  }
+                                  """);
         project.AddSource("B.cs", """
-            using System.Collections.Generic;
-            namespace TestApp;
+                                  using System.Collections.Generic;
+                                  namespace TestApp;
 
-            public class KeyTypeB { }
-            public class ValTypeB { }
+                                  public class KeyTypeB { }
+                                  public class ValTypeB { }
 
-            public class B
-            {
-                public void Run()
-                {
-                    var dict = new Dictionary<KeyTypeB, ValTypeB>();
-                    dict[new KeyTypeB()] = new ValTypeB();
-                }
-            }
-            """);
+                                  public class B
+                                  {
+                                      public void Run()
+                                      {
+                                          var dict = new Dictionary<KeyTypeB, ValTypeB>();
+                                          dict[new KeyTypeB()] = new ValTypeB();
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -139,10 +140,10 @@ public class GenericParameterizationTests
                 sln,
                 FilePath(project, "A.cs"),
                 "BuildDict",
-                startLine: 11,
-                endLine: 12,
+                11,
+                12,
                 replaceDuplicates: true);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var contentA = await project.ReadSourceAsync("A.cs");
@@ -173,37 +174,37 @@ public class GenericParameterizationTests
         // Type arg MyType/OtherType    -> type param <T>
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            using System;
-            using System.Collections.Generic;
-            namespace TestApp;
+                                  using System;
+                                  using System.Collections.Generic;
+                                  namespace TestApp;
 
-            public class MyType { }
+                                  public class MyType { }
 
-            public class A
-            {
-                public void Run()
-                {
-                    Console.WriteLine("hello");
-                    var list = new List<MyType>();
-                }
-            }
-            """);
+                                  public class A
+                                  {
+                                      public void Run()
+                                      {
+                                          Console.WriteLine("hello");
+                                          var list = new List<MyType>();
+                                      }
+                                  }
+                                  """);
         project.AddSource("B.cs", """
-            using System;
-            using System.Collections.Generic;
-            namespace TestApp;
+                                  using System;
+                                  using System.Collections.Generic;
+                                  namespace TestApp;
 
-            public class OtherType { }
+                                  public class OtherType { }
 
-            public class B
-            {
-                public void Run()
-                {
-                    Console.WriteLine("bye");
-                    var list = new List<OtherType>();
-                }
-            }
-            """);
+                                  public class B
+                                  {
+                                      public void Run()
+                                      {
+                                          Console.WriteLine("bye");
+                                          var list = new List<OtherType>();
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -212,10 +213,10 @@ public class GenericParameterizationTests
                 sln,
                 FilePath(project, "A.cs"),
                 "DoWork",
-                startLine: 11,
-                endLine: 12,
+                11,
+                12,
                 replaceDuplicates: true);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var contentA = await project.ReadSourceAsync("A.cs");

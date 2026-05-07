@@ -15,15 +15,13 @@ internal static class LongMethodRule
             var lineCount = lineSpan.EndLinePosition.Line - startLine + 1;
 
             if (lineCount > maxMethodLines)
-            {
                 yield return new SmellResult(
-                    SmellType: "LongMethod",
-                    TypeName: typeName,
-                    MemberName: method.Identifier.Text,
-                    FilePath: filePath,
-                    Line: startLine + 1,
-                    Detail: $"({lineCount} lines)");
-            }
+                    "LongMethod",
+                    typeName,
+                    method.Identifier.Text,
+                    filePath,
+                    startLine + 1,
+                    $"({lineCount} lines)");
         }
     }
 }

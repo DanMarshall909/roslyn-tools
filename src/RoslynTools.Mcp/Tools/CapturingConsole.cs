@@ -12,12 +12,17 @@ internal sealed class CapturingConsole : IRtConsole, IDisposable
         _out = new StringWriter(capture);
     }
 
-    public void Dispose() => _out.Dispose();
+    public void Dispose()
+    {
+        _out.Dispose();
+    }
 
     public TextWriter Out => _out;
     public bool IsOutputRedirected => true;
 
-    public void Log(RtLogLevel level, string template, params object?[] args) { }
+    public void Log(RtLogLevel level, string template, params object?[] args)
+    {
+    }
 
     public void WriteLine(RtOutputContext context, string message = "", ConsoleColor? color = null)
     {
@@ -31,5 +36,8 @@ internal sealed class CapturingConsole : IRtConsole, IDisposable
             _out.Write(message);
     }
 
-    public string? ReadLine() => null;
+    public string? ReadLine()
+    {
+        return null;
+    }
 }

@@ -11,8 +11,8 @@ internal sealed record AnalyzeInterfaceMemberReport(
     string DisplayName);
 
 /// <summary>
-/// Advisory suggestion for a minimal replacement interface shape for a single consumer.
-/// Derived solely from observed used-member data — does not imply a named type exists.
+///     Advisory suggestion for a minimal replacement interface shape for a single consumer.
+///     Derived solely from observed used-member data — does not imply a named type exists.
 /// </summary>
 internal sealed record AnalyzeInterfaceSuggestion(
     bool HasNarrowingBenefit,

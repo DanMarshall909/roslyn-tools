@@ -1,20 +1,21 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
-using System.Diagnostics.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class ExtractInterfaceService : IRtService
 {
-    private readonly ISymbolResolutionService _symbols;
     private readonly ILogger<ExtractInterfaceService> _logger;
     private readonly ISolutionChangeWriter _solutionChangeWriter;
+    private readonly ISymbolResolutionService _symbols;
 
     public ExtractInterfaceService()
         : this(new RtConsoleLogger<ExtractInterfaceService>(), new SolutionChangeWriter())
@@ -29,6 +30,7 @@ internal class ExtractInterfaceService : IRtService
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
     }
+
     internal async Task RunAsync(
         Solution sln,
         string typeName,
@@ -38,8 +40,8 @@ internal class ExtractInterfaceService : IRtService
     {
         var originalSln = sln;
 
-        var classSymbol = await _symbols.FindSymbolAsync(sln, typeName, kind: "type") as INamedTypeSymbol
-            ?? throw new InvalidOperationException($"'{typeName}' is not a named type.");
+        var classSymbol = await _symbols.FindSymbolAsync(sln, typeName, "type") as INamedTypeSymbol
+                          ?? throw new InvalidOperationException($"'{typeName}' is not a named type.");
 
         if (classSymbol.TypeKind != TypeKind.Class)
             throw new InvalidOperationException($"'{typeName}' must be a class, but is {classSymbol.TypeKind}.");
@@ -77,16 +79,18 @@ internal class ExtractInterfaceService : IRtService
         var interfaceText = BuildInterfaceText(targetNamespace, interfaceName, publicMethods, publicProperties);
 
         var classDocument = sln.Projects
-            .SelectMany(p => p.Documents)
-            .FirstOrDefault(d => string.Equals(d.FilePath, classFilePath, StringComparison.OrdinalIgnoreCase))
-            ?? throw new InvalidOperationException($"Document for '{classFilePath}' not found in solution.");
+                                .SelectMany(p => p.Documents)
+                                .FirstOrDefault(d =>
+                                    string.Equals(d.FilePath, classFilePath, StringComparison.OrdinalIgnoreCase))
+                            ?? throw new InvalidOperationException(
+                                $"Document for '{classFilePath}' not found in solution.");
 
         var updatedClassSolution = await AddInterfaceToClassAsync(sln, classDocument, classSymbol, interfaceName);
 
         var owningProject = updatedClassSolution.Projects
-            .FirstOrDefault(p => p.Documents.Any(d =>
-                string.Equals(d.FilePath, classFilePath, StringComparison.OrdinalIgnoreCase)))
-            ?? throw new InvalidOperationException("Cannot find project containing the class.");
+                                .FirstOrDefault(p => p.Documents.Any(d =>
+                                    string.Equals(d.FilePath, classFilePath, StringComparison.OrdinalIgnoreCase)))
+                            ?? throw new InvalidOperationException("Cannot find project containing the class.");
 
         var interfaceSourceText = SourceText.From(interfaceText, Encoding.UTF8);
         var finalSolution = updatedClassSolution.AddDocument(
@@ -135,12 +139,14 @@ internal class ExtractInterfaceService : IRtService
         return sb.ToString();
     }
 
-    internal string BuildParamList(IMethodSymbol method) =>
-        string.Join(", ", method.Parameters.Select(p =>
+    internal string BuildParamList(IMethodSymbol method)
+    {
+        return string.Join(", ", method.Parameters.Select(p =>
         {
             var typeName = p.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
             return $"{typeName} {p.Name}";
         }));
+    }
 
     internal string BuildAccessors(IPropertySymbol property)
     {
@@ -159,12 +165,13 @@ internal class ExtractInterfaceService : IRtService
         string interfaceName)
     {
         var root = await classDocument.GetSyntaxRootAsync()
-            ?? throw new InvalidOperationException("Cannot get syntax root.");
+                   ?? throw new InvalidOperationException("Cannot get syntax root.");
 
         var classDecl = root.DescendantNodes()
-            .OfType<ClassDeclarationSyntax>()
-            .FirstOrDefault(c => c.Identifier.Text == classSymbol.Name)
-            ?? throw new InvalidOperationException($"Class declaration '{classSymbol.Name}' not found in syntax tree.");
+                            .OfType<ClassDeclarationSyntax>()
+                            .FirstOrDefault(c => c.Identifier.Text == classSymbol.Name)
+                        ?? throw new InvalidOperationException(
+                            $"Class declaration '{classSymbol.Name}' not found in syntax tree.");
 
         var interfaceTypeName = SyntaxFactory.SimpleBaseType(
             SyntaxFactory.IdentifierName(interfaceName));

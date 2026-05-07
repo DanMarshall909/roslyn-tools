@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -5,58 +6,57 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace RoslynTools.Core;
 
 /// <summary>
-/// Rewrites a statement window into a canonical form so that structurally
-/// identical code with renamed locals or changed literal values hashes to
-/// the same string.
-///
-/// Canonical substitutions applied:
-///   - Local variable identifiers replaced with $L0, $L1, … (first-use order)
-///   - Parameter references replaced with $P0, $P1, … (first-use order)
-///   - Integer literals replaced with $I0, $I1, …
-///   - String literals replaced with $S0, $S1, …
-///   - Boolean literals replaced with $B0, $B1, …
-///   - Character literals replaced with $C0, $C1, …
-///   - Other numeric literals (float/double/decimal/long) replaced with $N0, $N1, …
-///   - All trivia (whitespace, comments) stripped
-///
-/// Type names and member-access targets are NOT canonicalised — invocation
-/// target identity matters for extractability (a.Foo() and a.Bar() must not group).
+///     Rewrites a statement window into a canonical form so that structurally
+///     identical code with renamed locals or changed literal values hashes to
+///     the same string.
+///     Canonical substitutions applied:
+///     - Local variable identifiers replaced with $L0, $L1, … (first-use order)
+///     - Parameter references replaced with $P0, $P1, … (first-use order)
+///     - Integer literals replaced with $I0, $I1, …
+///     - String literals replaced with $S0, $S1, …
+///     - Boolean literals replaced with $B0, $B1, …
+///     - Character literals replaced with $C0, $C1, …
+///     - Other numeric literals (float/double/decimal/long) replaced with $N0, $N1, …
+///     - All trivia (whitespace, comments) stripped
+///     Type names and member-access targets are NOT canonicalised — invocation
+///     target identity matters for extractability (a.Foo() and a.Bar() must not group).
 /// </summary>
 internal sealed class BlockNormalizer : CSharpSyntaxRewriter
 {
     private readonly SemanticModel _model;
     private readonly Dictionary<string, string> _substitutions = new(StringComparer.Ordinal);
+    private int _boolCounter;
+    private int _charCounter;
+    private int _intCounter;
 
     // Counters for placeholder sequences — one per category, order by first-use.
     private int _localCounter;
-    private int _paramCounter;
-    private int _intCounter;
-    private int _stringCounter;
-    private int _boolCounter;
-    private int _charCounter;
     private int _numericCounter;
+    private int _paramCounter;
+    private int _stringCounter;
 
     private BlockNormalizer(SemanticModel model)
-        : base(visitIntoStructuredTrivia: false)
+        : base(false)
     {
         _model = model;
     }
 
     /// <summary>
-    /// Normalize <paramref name="statements"/> to canonical text and return the
-    /// substitution map used (placeholder → original token text).
+    ///     Normalize <paramref name="statements" /> to canonical text and return the
+    ///     substitution map used (placeholder → original token text).
     /// </summary>
     public static (string CanonicalText, IReadOnlyDictionary<string, string> Substitutions) Normalize(
         IReadOnlyList<StatementSyntax> statements,
         SemanticModel model)
     {
         var normalizer = new BlockNormalizer(model);
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
         foreach (var stmt in statements)
         {
             var rewritten = (StatementSyntax)normalizer.Visit(stmt);
             sb.Append(rewritten.NormalizeWhitespace().ToFullString());
         }
+
         return (sb.ToString(), normalizer._substitutions);
     }
 
@@ -145,6 +145,7 @@ internal sealed class BlockNormalizer : CSharpSyntaxRewriter
                 var key = $"__int__{tokenText}";
                 placeholder = GetOrAdd(key, () => $"$I{_intCounter++}");
             }
+
             return SyntaxFactory.IdentifierName(placeholder).WithoutTrivia();
         }
 
@@ -165,7 +166,9 @@ internal sealed class BlockNormalizer : CSharpSyntaxRewriter
     // Remove all leading/trailing trivia from every token so whitespace and
     // comment differences do not affect the canonical form.
     public override SyntaxToken VisitToken(SyntaxToken token)
-        => token.WithoutTrivia();
+    {
+        return token.WithoutTrivia();
+    }
 
     // ── Helpers ───────────────────────────────────────────────────────────────────
 

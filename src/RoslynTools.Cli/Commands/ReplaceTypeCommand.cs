@@ -6,20 +6,23 @@ namespace RoslynTools.Commands;
 
 internal sealed class ReplaceTypeCommand : IRtCommand
 {
-    private ReplaceTypeCommand() { }
+    private ReplaceTypeCommand()
+    {
+    }
 
     public static RtCommandInfo Info { get; } = new(
-        Name: "replace-datetime",
-        Mutates: true,
-        JsonOutput: false,
-        Category: "refactor",
+        "replace-datetime",
+        true,
+        false,
+        "refactor",
         Aliases: null,
-        WhenToUse: "Replacing all DateTime.UtcNow and DateTime.Now usages with injected TimeProvider calls (_timeProvider.GetUtcNow().UtcDateTime / GetLocalNow().DateTime) and automatically wiring TimeProvider into the affected class constructors. Run solution-wide before adding unit tests that need controllable time.",
+        WhenToUse:
+        "Replacing all DateTime.UtcNow and DateTime.Now usages with injected TimeProvider calls (_timeProvider.GetUtcNow().UtcDateTime / GetLocalNow().DateTime) and automatically wiring TimeProvider into the affected class constructors. Run solution-wide before adding unit tests that need controllable time.",
         Examples:
         [
             "rt refactor replace-datetime --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt refactor replace-datetime --dry-run --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt refactor replace-datetime --solution RoslynTools.slnx",
+            "rt refactor replace-datetime --solution RoslynTools.slnx"
         ]
     );
 
@@ -35,14 +38,14 @@ internal sealed class ReplaceTypeCommand : IRtCommand
         };
 
         cmd.SetHandler(async (solution, dryRun) =>
-        {
-            var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
-            using (workspace)
             {
-                await RtServiceProvider.Get<ReplaceTypeService>().RunAsync(sln, dryRun);
-            }
-        },
-        solutionOpt, dryRunOpt);
+                var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
+                using (workspace)
+                {
+                    await RtServiceProvider.Get<ReplaceTypeService>().RunAsync(sln, dryRun);
+                }
+            },
+            solutionOpt, dryRunOpt);
 
         return cmd;
     }

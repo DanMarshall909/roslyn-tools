@@ -25,15 +25,17 @@ internal sealed class MigrateToIOptionsService : IRtService
         new EventId(2, nameof(MultipleRegistrationSites)),
         "Multiple DI registration sites found; using first candidate.");
 
-    private static readonly Action<ILogger, string, int, Exception?> RegistrationSiteCandidate = LoggerMessage.Define<string, int>(
-        LogLevel.Warning,
-        new EventId(3, nameof(RegistrationSiteCandidate)),
-        "  {FilePath}:{Line}");
+    private static readonly Action<ILogger, string, int, Exception?> RegistrationSiteCandidate =
+        LoggerMessage.Define<string, int>(
+            LogLevel.Warning,
+            new EventId(3, nameof(RegistrationSiteCandidate)),
+            "  {FilePath}:{Line}");
 
-    private static readonly Action<ILogger, string, string, Exception?> TypeNameCollision = LoggerMessage.Define<string, string>(
-        LogLevel.Error,
-        new EventId(4, nameof(TypeNameCollision)),
-        "Type name collision: {Name} already exists at {FilePath}.");
+    private static readonly Action<ILogger, string, string, Exception?> TypeNameCollision =
+        LoggerMessage.Define<string, string>(
+            LogLevel.Error,
+            new EventId(4, nameof(TypeNameCollision)),
+            "Type name collision: {Name} already exists at {FilePath}.");
 
     private static readonly Action<ILogger, Exception?> DryRunMode = LoggerMessage.Define(
         LogLevel.Information,
@@ -48,7 +50,8 @@ internal sealed class MigrateToIOptionsService : IRtService
     {
     }
 
-    public MigrateToIOptionsService(ILogger<MigrateToIOptionsService> logger, ISolutionChangeWriter solutionChangeWriter)
+    public MigrateToIOptionsService(ILogger<MigrateToIOptionsService> logger,
+        ISolutionChangeWriter solutionChangeWriter)
     {
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
@@ -71,7 +74,8 @@ internal sealed class MigrateToIOptionsService : IRtService
         if (candidates.Count > 1)
         {
             MultipleRegistrationSites(_logger, null);
-            foreach (var candidate in candidates.OrderBy(c => c.FilePath, StringComparer.InvariantCulture).ThenBy(c => c.Line))
+            foreach (var candidate in candidates.OrderBy(c => c.FilePath, StringComparer.InvariantCulture)
+                         .ThenBy(c => c.Line))
                 RegistrationSiteCandidate(_logger, candidate.FilePath, candidate.Line, null);
         }
 
@@ -128,7 +132,8 @@ internal sealed class MigrateToIOptionsService : IRtService
             }
 
             if (!updatedText.Contains($"Configure<{name}>", StringComparison.Ordinal))
-                updatedText = InsertRegistration(updatedText, name, section, target.ServicesName, target.ConfigurationName, insertOffset);
+                updatedText = InsertRegistration(updatedText, name, section, target.ServicesName,
+                    target.ConfigurationName, insertOffset);
 
             newSolution = newSolution.WithDocumentText(target.Document.Id, SourceText.From(updatedText, Encoding.UTF8));
             changedFiles.Add(target.FilePath);
@@ -155,44 +160,43 @@ internal sealed class MigrateToIOptionsService : IRtService
     {
         var sites = new List<RegistrationSite>();
         foreach (var project in solution.Projects)
+        foreach (var document in project.Documents)
         {
-            foreach (var document in project.Documents)
+            var text = document.FilePath is not null && File.Exists(document.FilePath)
+                ? await File.ReadAllTextAsync(document.FilePath)
+                : (await document.GetTextAsync()).ToString();
+            var match = Regex.Match(
+                text,
+                @"(?<services>[A-Za-z_][A-Za-z0-9_]*(?:\s*\.\s*[A-Za-z_][A-Za-z0-9_]*)*)\s*\.\s*(?:Add\w+|Configure)\s*\(");
+            if (!match.Success)
+                continue;
+
+            var configurationName = Regex.Match(text, @"\bIConfiguration\s+(?<name>\w+)\b").Groups["name"].Value;
+            if (string.IsNullOrEmpty(configurationName))
+                configurationName = Regex.Match(text, @"\b(?<name>[A-Za-z_][A-Za-z0-9_]*\s*\.\s*Configuration)\b")
+                    .Groups["name"].Value;
+            if (string.IsNullOrEmpty(configurationName))
             {
-                var text = document.FilePath is not null && File.Exists(document.FilePath)
-                    ? await File.ReadAllTextAsync(document.FilePath)
-                    : (await document.GetTextAsync()).ToString();
-                var match = Regex.Match(
-                    text,
-                    @"(?<services>[A-Za-z_][A-Za-z0-9_]*(?:\s*\.\s*[A-Za-z_][A-Za-z0-9_]*)*)\s*\.\s*(?:Add\w+|Configure)\s*\(");
-                if (!match.Success)
-                    continue;
-
-                var configurationName = Regex.Match(text, @"\bIConfiguration\s+(?<name>\w+)\b").Groups["name"].Value;
-                if (string.IsNullOrEmpty(configurationName))
-                    configurationName = Regex.Match(text, @"\b(?<name>[A-Za-z_][A-Za-z0-9_]*\s*\.\s*Configuration)\b").Groups["name"].Value;
-                if (string.IsNullOrEmpty(configurationName))
-                {
-                    var servicesExpression = NormalizeExpression(match.Groups["services"].Value);
-                    configurationName = servicesExpression.EndsWith(".Services", StringComparison.Ordinal)
-                        ? servicesExpression[..^".Services".Length] + ".Configuration"
-                        : "configuration";
-                }
-
-                var insertOffset = text.IndexOf(';', match.Index);
-                if (insertOffset < 0)
-                    continue;
-
-                var line = text.Take(match.Index).Count(c => c == '\n') + 1;
-                sites.Add(new RegistrationSite(
-                    project,
-                    document,
-                    document.FilePath!,
-                    text,
-                    NormalizeExpression(match.Groups["services"].Value),
-                    NormalizeExpression(configurationName),
-                    insertOffset + 1,
-                    line));
+                var servicesExpression = NormalizeExpression(match.Groups["services"].Value);
+                configurationName = servicesExpression.EndsWith(".Services", StringComparison.Ordinal)
+                    ? servicesExpression[..^".Services".Length] + ".Configuration"
+                    : "configuration";
             }
+
+            var insertOffset = text.IndexOf(';', match.Index);
+            if (insertOffset < 0)
+                continue;
+
+            var line = text.Take(match.Index).Count(c => c == '\n') + 1;
+            sites.Add(new RegistrationSite(
+                project,
+                document,
+                document.FilePath!,
+                text,
+                NormalizeExpression(match.Groups["services"].Value),
+                NormalizeExpression(configurationName),
+                insertOffset + 1,
+                line));
         }
 
         return sites;
@@ -209,22 +213,21 @@ internal sealed class MigrateToIOptionsService : IRtService
     {
         var properties = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var project in solution.Projects)
+        foreach (var document in project.Documents)
         {
-            foreach (var document in project.Documents)
+            var text = (await document.GetTextAsync()).ToString();
+            foreach (Match match in GetValueRegex.Matches(text))
             {
-                var text = (await document.GetTextAsync()).ToString();
-                foreach (Match match in GetValueRegex.Matches(text))
-                {
-                    var key = match.Groups["key"].Value;
-                    if (!key.StartsWith(section + ":", StringComparison.Ordinal))
-                        continue;
+                var key = match.Groups["key"].Value;
+                if (!key.StartsWith(section + ":", StringComparison.Ordinal))
+                    continue;
 
-                    var leaf = key[(section.Length + 1)..].Split(':', StringSplitOptions.RemoveEmptyEntries).LastOrDefault();
-                    if (string.IsNullOrWhiteSpace(leaf))
-                        continue;
+                var leaf = key[(section.Length + 1)..].Split(':', StringSplitOptions.RemoveEmptyEntries)
+                    .LastOrDefault();
+                if (string.IsNullOrWhiteSpace(leaf))
+                    continue;
 
-                    properties[ToPascalCase(leaf)] = NormalizeType(match.Groups["type"].Value);
-                }
+                properties[ToPascalCase(leaf)] = NormalizeType(match.Groups["type"].Value);
             }
         }
 
@@ -234,7 +237,8 @@ internal sealed class MigrateToIOptionsService : IRtService
             if (string.IsNullOrEmpty(projectDir))
                 continue;
 
-            foreach (var appsettings in Directory.EnumerateFiles(projectDir, "appsettings*.json", SearchOption.TopDirectoryOnly))
+            foreach (var appsettings in Directory.EnumerateFiles(projectDir, "appsettings*.json",
+                         SearchOption.TopDirectoryOnly))
                 AddJsonProperties(properties, section, appsettings);
         }
 
@@ -252,10 +256,8 @@ internal sealed class MigrateToIOptionsService : IRtService
         using var document = JsonDocument.Parse(File.ReadAllText(appsettings));
         var current = document.RootElement;
         foreach (var part in section.Split(':'))
-        {
             if (current.ValueKind != JsonValueKind.Object || !current.TryGetProperty(part, out current))
                 return;
-        }
 
         if (current.ValueKind != JsonValueKind.Object)
             return;
@@ -274,7 +276,8 @@ internal sealed class MigrateToIOptionsService : IRtService
         foreach (var property in properties)
         {
             var initializer = property.Type == "string" ? " = string.Empty;" : "";
-            builder.AppendLine(CultureInfo.InvariantCulture, $"    public {property.Type} {property.Name} {{ get; init; }}{initializer}");
+            builder.AppendLine(CultureInfo.InvariantCulture,
+                $"    public {property.Type} {property.Name} {{ get; init; }}{initializer}");
         }
 
         builder.AppendLine("}");
@@ -292,7 +295,8 @@ internal sealed class MigrateToIOptionsService : IRtService
         var newline = text.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
         var indentStart = text.LastIndexOf('\n', Math.Max(0, insertOffset - 1));
         var nextNonWhitespace = insertOffset;
-        while (nextNonWhitespace < text.Length && char.IsWhiteSpace(text[nextNonWhitespace]) && text[nextNonWhitespace] != '\n' && text[nextNonWhitespace] != '\r')
+        while (nextNonWhitespace < text.Length && char.IsWhiteSpace(text[nextNonWhitespace]) &&
+               text[nextNonWhitespace] != '\n' && text[nextNonWhitespace] != '\r')
             nextNonWhitespace++;
 
         var indent = "        ";
@@ -304,7 +308,8 @@ internal sealed class MigrateToIOptionsService : IRtService
                 indent = Regex.Match(leading, @"^\s*").Value;
         }
 
-        var registration = $"{newline}{indent}{servicesName}.Configure<{name}>({configurationName}.GetSection(\"{section}\"));";
+        var registration =
+            $"{newline}{indent}{servicesName}.Configure<{name}>({configurationName}.GetSection(\"{section}\"));";
         return text.Insert(insertOffset, registration);
     }
 
@@ -323,16 +328,12 @@ internal sealed class MigrateToIOptionsService : IRtService
     {
         var files = new SortedSet<string>(StringComparer.InvariantCulture);
         foreach (var project in solution.Projects)
+        foreach (var document in project.Documents)
         {
-            foreach (var document in project.Documents)
-            {
-                var text = (await document.GetTextAsync()).ToString();
-                if (text.Contains($"\"{section}:", StringComparison.Ordinal)
-                    || text.Contains($"GetSection(\"{section}\")", StringComparison.Ordinal))
-                {
-                    files.Add(document.FilePath!);
-                }
-            }
+            var text = (await document.GetTextAsync()).ToString();
+            if (text.Contains($"\"{section}:", StringComparison.Ordinal)
+                || text.Contains($"GetSection(\"{section}\")", StringComparison.Ordinal))
+                files.Add(document.FilePath!);
         }
 
         return files.ToList();
@@ -348,22 +349,26 @@ internal sealed class MigrateToIOptionsService : IRtService
             "bool" or "Boolean" => "bool",
             "double" or "Double" => "double",
             "decimal" or "Decimal" => "decimal",
-            _ => "string",
+            _ => "string"
         };
     }
 
-    private static string NormalizeExpression(string expression) =>
-        Regex.Replace(expression, @"\s+", "");
+    private static string NormalizeExpression(string expression)
+    {
+        return Regex.Replace(expression, @"\s+", "");
+    }
 
-    private static string InferJsonType(JsonElement value) =>
-        value.ValueKind switch
+    private static string InferJsonType(JsonElement value)
+    {
+        return value.ValueKind switch
         {
             JsonValueKind.Number when value.TryGetInt32(out _) => "int",
             JsonValueKind.Number when value.TryGetInt64(out _) => "long",
             JsonValueKind.Number => "double",
             JsonValueKind.True or JsonValueKind.False => "bool",
-            _ => "string",
+            _ => "string"
         };
+    }
 
     private static string ToPascalCase(string value)
     {

@@ -5,8 +5,8 @@ using System.Text.RegularExpressions;
 namespace RoslynTools.Core;
 
 /// <summary>
-/// Shared console abstraction for CLI output. Call-site migration is intentionally incremental:
-/// existing direct Console usage can be moved here command by command.
+///     Shared console abstraction for CLI output. Call-site migration is intentionally incremental:
+///     existing direct Console usage can be moved here command by command.
 /// </summary>
 internal static class RtConsole
 {
@@ -20,24 +20,37 @@ internal static class RtConsole
 
     internal static TextWriter Out => Current.Out;
 
-    internal static void AddCancelKeyPressHandler(ConsoleCancelEventHandler handler) =>
-        Console.CancelKeyPress += handler;
-
-    internal static void SetOutputEncoding(Encoding encoding) =>
-        Console.OutputEncoding = encoding;
-
-    internal static void Log(RtLogLevel level, string template, params object?[] args) =>
-        Current.Log(level, template, args);
-
-    internal static void WriteLine(RtOutputContext context, string message = "", ConsoleColor? color = null) =>
-        Current.WriteLine(context, message, color);
-
-    internal static void Write(RtOutputContext context, string message, ConsoleColor? color = null) =>
-        Current.Write(context, message, color);
-
-    internal static string? ReadLine() => Current.ReadLine();
-
     internal static bool IsOutputRedirected => Current.IsOutputRedirected;
+
+    internal static void AddCancelKeyPressHandler(ConsoleCancelEventHandler handler)
+    {
+        Console.CancelKeyPress += handler;
+    }
+
+    internal static void SetOutputEncoding(Encoding encoding)
+    {
+        Console.OutputEncoding = encoding;
+    }
+
+    internal static void Log(RtLogLevel level, string template, params object?[] args)
+    {
+        Current.Log(level, template, args);
+    }
+
+    internal static void WriteLine(RtOutputContext context, string message = "", ConsoleColor? color = null)
+    {
+        Current.WriteLine(context, message, color);
+    }
+
+    internal static void Write(RtOutputContext context, string message, ConsoleColor? color = null)
+    {
+        Current.Write(context, message, color);
+    }
+
+    internal static string? ReadLine()
+    {
+        return Current.ReadLine();
+    }
 
     internal static IDisposable UseConsole(IRtConsole console)
     {
@@ -64,7 +77,10 @@ internal static class RtConsole
 
     private sealed class Scope(IRtConsole? previous) : IDisposable
     {
-        public void Dispose() => Override.Value = previous;
+        public void Dispose()
+        {
+            Override.Value = previous;
+        }
     }
 
     private sealed class ConsoleRtConsole : IRtConsole
@@ -76,7 +92,7 @@ internal static class RtConsole
             {
                 RtLogLevel.Warning => "[WARNING] ",
                 RtLogLevel.Error => "[ERROR] ",
-                _ => string.Empty,
+                _ => string.Empty
             };
 
             Console.Error.WriteLine($"{prefix}{formatted}");
@@ -106,11 +122,16 @@ internal static class RtConsole
                 Console.ResetColor();
         }
 
-        public string? ReadLine() => Console.ReadLine();
+        public string? ReadLine()
+        {
+            return Console.ReadLine();
+        }
 
         public bool IsOutputRedirected => Console.IsOutputRedirected;
 
-        private static TextWriter GetWriter(RtOutputContext context) =>
-            context.HasFlag(RtOutputContext.Diagnostic) ? Console.Error : Console.Out;
+        private static TextWriter GetWriter(RtOutputContext context)
+        {
+            return context.HasFlag(RtOutputContext.Diagnostic) ? Console.Error : Console.Out;
+        }
     }
 }

@@ -1,13 +1,22 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
-using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class OutlineService : IRtService
 {
+    // Public-first; private last. Mirrors how a reader scans an unfamiliar type.
+    private readonly string[] AccessibilityOrder =
+        ["Public", "Internal", "ProtectedOrInternal", "Protected", "ProtectedAndInternal", "Private", "NotApplicable"];
+
+    // C# convention order — Field > Property > Event > Method > NamedType (nested types last).
+    // Anything not in this list (rare — e.g. ErrorType) sorts alphabetically at the end.
+    private readonly string[] KindOrder = ["Field", "Property", "Event", "Method", "NamedType"];
+
     internal async Task<List<Dictionary<string, object?>>> OutlineFileAsync(
         Solution solution,
         string filePath)
@@ -17,30 +26,28 @@ internal class OutlineService : IRtService
         var documentFound = false;
 
         foreach (var project in solution.Projects)
+        foreach (var doc in project.Documents)
         {
-            foreach (var doc in project.Documents)
-            {
-                if (!string.Equals(doc.FilePath, fullPath, StringComparison.OrdinalIgnoreCase))
-                    continue;
+            if (!string.Equals(doc.FilePath, fullPath, StringComparison.OrdinalIgnoreCase))
+                continue;
 
-                documentFound = true;
+            documentFound = true;
 
-                var semanticModel = await doc.GetSemanticModelAsync();
-                if (semanticModel == null) continue;
+            var semanticModel = await doc.GetSemanticModelAsync();
+            if (semanticModel == null) continue;
 
-                var root = await doc.GetSyntaxRootAsync();
-                if (root == null) continue;
+            var root = await doc.GetSyntaxRootAsync();
+            if (root == null) continue;
 
-                var declaredSymbols = root.DescendantNodes()
-                    .Select(n => semanticModel.GetDeclaredSymbol(n))
-                    .Where(s => s is INamedTypeSymbol)
-                    .Cast<INamedTypeSymbol>()
-                    .Distinct(SymbolEqualityComparer.Default)
-                    .Cast<INamedTypeSymbol>();
+            var declaredSymbols = root.DescendantNodes()
+                .Select(n => semanticModel.GetDeclaredSymbol(n))
+                .Where(s => s is INamedTypeSymbol)
+                .Cast<INamedTypeSymbol>()
+                .Distinct(SymbolEqualityComparer.Default)
+                .Cast<INamedTypeSymbol>();
 
-                foreach (var type in declaredSymbols)
-                    results.Add(BuildTypeOutline(type));
-            }
+            foreach (var type in declaredSymbols)
+                results.Add(BuildTypeOutline(type));
         }
 
         if (!documentFound)
@@ -56,7 +63,7 @@ internal class OutlineService : IRtService
         var results = new List<Dictionary<string, object?>>();
         var seen = new HashSet<string>();
 
-        bool isPrefix = namespaceName.EndsWith(".*", StringComparison.Ordinal);
+        var isPrefix = namespaceName.EndsWith(".*", StringComparison.Ordinal);
         var lookupName = isPrefix ? namespaceName[..^2] : namespaceName;
 
         foreach (var project in solution.Projects)
@@ -90,28 +97,26 @@ internal class OutlineService : IRtService
         var results = new List<Dictionary<string, object?>>();
 
         foreach (var project in solution.Projects)
+        foreach (var doc in project.Documents)
         {
-            foreach (var doc in project.Documents)
-            {
-                if (doc.FilePath == null) continue;
-                if (!matchingPaths.Contains(Path.GetFullPath(doc.FilePath))) continue;
+            if (doc.FilePath == null) continue;
+            if (!matchingPaths.Contains(Path.GetFullPath(doc.FilePath))) continue;
 
-                var semanticModel = await doc.GetSemanticModelAsync();
-                if (semanticModel == null) continue;
+            var semanticModel = await doc.GetSemanticModelAsync();
+            if (semanticModel == null) continue;
 
-                var root = await doc.GetSyntaxRootAsync();
-                if (root == null) continue;
+            var root = await doc.GetSyntaxRootAsync();
+            if (root == null) continue;
 
-                var types = root.DescendantNodes()
-                    .Select(n => semanticModel.GetDeclaredSymbol(n))
-                    .Where(s => s is INamedTypeSymbol)
-                    .Cast<INamedTypeSymbol>()
-                    .Distinct(SymbolEqualityComparer.Default)
-                    .Cast<INamedTypeSymbol>();
+            var types = root.DescendantNodes()
+                .Select(n => semanticModel.GetDeclaredSymbol(n))
+                .Where(s => s is INamedTypeSymbol)
+                .Cast<INamedTypeSymbol>()
+                .Distinct(SymbolEqualityComparer.Default)
+                .Cast<INamedTypeSymbol>();
 
-                foreach (var type in types)
-                    results.Add(BuildTypeOutline(type));
-            }
+            foreach (var type in types)
+                results.Add(BuildTypeOutline(type));
         }
 
         return results;
@@ -125,27 +130,25 @@ internal class OutlineService : IRtService
         var results = new List<Dictionary<string, object?>>();
 
         foreach (var project in solution.Projects)
+        foreach (var doc in project.Documents)
         {
-            foreach (var doc in project.Documents)
-            {
-                if (doc.FilePath == null || !regex.IsMatch(doc.FilePath)) continue;
+            if (doc.FilePath == null || !regex.IsMatch(doc.FilePath)) continue;
 
-                var semanticModel = await doc.GetSemanticModelAsync();
-                if (semanticModel == null) continue;
+            var semanticModel = await doc.GetSemanticModelAsync();
+            if (semanticModel == null) continue;
 
-                var root = await doc.GetSyntaxRootAsync();
-                if (root == null) continue;
+            var root = await doc.GetSyntaxRootAsync();
+            if (root == null) continue;
 
-                var types = root.DescendantNodes()
-                    .Select(n => semanticModel.GetDeclaredSymbol(n))
-                    .Where(s => s is INamedTypeSymbol)
-                    .Cast<INamedTypeSymbol>()
-                    .Distinct(SymbolEqualityComparer.Default)
-                    .Cast<INamedTypeSymbol>();
+            var types = root.DescendantNodes()
+                .Select(n => semanticModel.GetDeclaredSymbol(n))
+                .Where(s => s is INamedTypeSymbol)
+                .Cast<INamedTypeSymbol>()
+                .Distinct(SymbolEqualityComparer.Default)
+                .Cast<INamedTypeSymbol>();
 
-                foreach (var type in types)
-                    results.Add(BuildTypeOutline(type));
-            }
+            foreach (var type in types)
+                results.Add(BuildTypeOutline(type));
         }
 
         return results;
@@ -156,16 +159,12 @@ internal class OutlineService : IRtService
         string targetName)
     {
         if (ns.ToDisplayString() == targetName)
-        {
             foreach (var type in ns.GetTypeMembers())
                 yield return type;
-        }
 
         foreach (var child in ns.GetNamespaceMembers())
-        {
-            foreach (var type in FindNamespaceTypes(child, targetName))
-                yield return type;
-        }
+        foreach (var type in FindNamespaceTypes(child, targetName))
+            yield return type;
     }
 
     private IEnumerable<INamedTypeSymbol> FindNamespaceTypesByPrefix(
@@ -174,16 +173,12 @@ internal class OutlineService : IRtService
     {
         var displayName = ns.ToDisplayString();
         if (displayName == prefix || displayName.StartsWith(prefix + ".", StringComparison.Ordinal))
-        {
             foreach (var type in ns.GetTypeMembers())
                 yield return type;
-        }
 
         foreach (var child in ns.GetNamespaceMembers())
-        {
-            foreach (var type in FindNamespaceTypesByPrefix(child, prefix))
-                yield return type;
-        }
+        foreach (var type in FindNamespaceTypesByPrefix(child, prefix))
+            yield return type;
     }
 
     private static HashSet<string> ExpandGlob(string pattern)
@@ -198,16 +193,22 @@ internal class OutlineService : IRtService
             var filePattern = afterStars.Length > 0 ? afterStars : "*";
 
             if (!Directory.Exists(baseDir)) return [];
-            return [.. Directory.EnumerateFiles(baseDir, filePattern, SearchOption.AllDirectories)
-                .Select(Path.GetFullPath)];
+            return
+            [
+                .. Directory.EnumerateFiles(baseDir, filePattern, SearchOption.AllDirectories)
+                    .Select(Path.GetFullPath)
+            ];
         }
         else
         {
             var dir = Path.GetFullPath(Path.GetDirectoryName(pattern) ?? Environment.CurrentDirectory);
             var filePattern = Path.GetFileName(pattern);
             if (!Directory.Exists(dir)) return [];
-            return [.. Directory.EnumerateFiles(dir, filePattern, SearchOption.TopDirectoryOnly)
-                .Select(Path.GetFullPath)];
+            return
+            [
+                .. Directory.EnumerateFiles(dir, filePattern, SearchOption.TopDirectoryOnly)
+                    .Select(Path.GetFullPath)
+            ];
         }
     }
 
@@ -221,7 +222,7 @@ internal class OutlineService : IRtService
             ["kind"] = type.TypeKind.ToString(),
             ["accessibility"] = type.DeclaredAccessibility.ToString(),
             ["lineFrom"] = lineFrom,
-            ["lineTo"] = lineTo,
+            ["lineTo"] = lineTo
         };
 
         SymbolFormatter.AddTypeHierarchyInfo(outline, type);
@@ -230,18 +231,10 @@ internal class OutlineService : IRtService
         // once per group instead of on every member). Each member entry strips those redundant
         // keys but keeps name + signature + lineFrom/lineTo.
         outline["members"] = GroupMembersByKindAndAccessibility(
-            SymbolFormatter.ExtractMembers(type, includeStaticFlag: false));
+            SymbolFormatter.ExtractMembers(type, false));
 
         return outline;
     }
-
-    // C# convention order — Field > Property > Event > Method > NamedType (nested types last).
-    // Anything not in this list (rare — e.g. ErrorType) sorts alphabetically at the end.
-    private readonly string[] KindOrder = ["Field", "Property", "Event", "Method", "NamedType"];
-
-    // Public-first; private last. Mirrors how a reader scans an unfamiliar type.
-    private readonly string[] AccessibilityOrder =
-        ["Public", "Internal", "ProtectedOrInternal", "Protected", "ProtectedAndInternal", "Private", "NotApplicable"];
 
     private Dictionary<string, object?> GroupMembersByKindAndAccessibility(
         List<Dictionary<string, object?>> members)
@@ -275,6 +268,7 @@ internal class OutlineService : IRtService
                     .ToList();
                 accessibilityBucket[accGroup.Key] = stripped;
             }
+
             grouped[kindGroup.Key] = accessibilityBucket;
         }
 

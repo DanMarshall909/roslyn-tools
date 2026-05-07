@@ -10,19 +10,19 @@ public class SymbolLocatorTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public void Foo(int count)
-                {
-                }
+                                        public class Service
+                                        {
+                                            public void Foo(int count)
+                                            {
+                                            }
 
-                public void Foo(string name)
-                {
-                }
-            }
-            """);
+                                            public void Foo(string name)
+                                            {
+                                            }
+                                        }
+                                        """);
         var (workspace, solution) = project.Build();
 
         using (workspace)
@@ -51,13 +51,13 @@ public class SymbolLocatorTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Logger.cs", """
-            public class Logger
-            {
-                public Logger()
-                {
-                }
-            }
-            """);
+                                       public class Logger
+                                       {
+                                           public Logger()
+                                           {
+                                           }
+                                       }
+                                       """);
         var (workspace, solution) = project.Build();
 
         using (workspace)

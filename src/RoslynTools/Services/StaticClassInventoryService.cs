@@ -6,7 +6,8 @@ using RoslynTools.Models;
 namespace RoslynTools.Services;
 
 [SuppressMessage("Performance", "CA1822:Mark members as static",
-    Justification = "Instance class registered in DI per the static-to-instance migration (EP-006). CA1822 enforces the old static-when-stateless rule that conflicts with this direction; suppress per class until the migration completes and the rule is reviewed project-wide.")]
+    Justification =
+        "Instance class registered in DI per the static-to-instance migration (EP-006). CA1822 enforces the old static-when-stateless rule that conflicts with this direction; suppress per class until the migration completes and the rule is reviewed project-wide.")]
 internal sealed class StaticClassInventoryService : IRtService
 {
     internal async Task<StaticClassInventoryReport> AnalyzeAsync(Solution solution)
@@ -63,57 +64,55 @@ internal sealed class StaticClassInventoryService : IRtService
                 .ToList();
 
             foreach (var project in solution.Projects)
+            foreach (var document in project.Documents)
             {
-                foreach (var document in project.Documents)
+                var root = await document.GetSyntaxRootAsync();
+                if (root is null)
+                    continue;
+
+                var semanticModel = await document.GetSemanticModelAsync();
+                if (semanticModel is null)
+                    continue;
+
+                foreach (var nameNode in root.DescendantNodes().OfType<SimpleNameSyntax>())
                 {
-                    var root = await document.GetSyntaxRootAsync();
-                    if (root is null)
+                    // Skip nameof() expressions.
+                    if (IsWithinNameof(nameNode))
                         continue;
 
-                    var semanticModel = await document.GetSemanticModelAsync();
-                    if (semanticModel is null)
+                    var symbolInfo = semanticModel.GetSymbolInfo(nameNode);
+                    var referencedSymbol = symbolInfo.Symbol ?? (symbolInfo.CandidateSymbols.Length == 1
+                        ? symbolInfo.CandidateSymbols[0]
+                        : null);
+
+                    if (referencedSymbol is null)
                         continue;
 
-                    foreach (var nameNode in root.DescendantNodes().OfType<SimpleNameSyntax>())
-                    {
-                        // Skip nameof() expressions.
-                        if (IsWithinNameof(nameNode))
-                            continue;
+                    // Check if this name refers to a member of our static class.
+                    var containingType = referencedSymbol.ContainingType;
+                    if (containingType is null)
+                        continue;
 
-                        var symbolInfo = semanticModel.GetSymbolInfo(nameNode);
-                        var referencedSymbol = symbolInfo.Symbol ?? (symbolInfo.CandidateSymbols.Length == 1
-                            ? symbolInfo.CandidateSymbols[0]
-                            : null);
+                    var containingFqn = containingType.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
+                    if (!string.Equals(containingFqn, classFqn, StringComparison.Ordinal))
+                        continue;
 
-                        if (referencedSymbol is null)
-                            continue;
+                    // Found a call site. Determine the caller's enclosing type.
+                    var callerType = GetEnclosingNamedType(semanticModel, nameNode.SpanStart);
+                    if (callerType is null)
+                        continue;
 
-                        // Check if this name refers to a member of our static class.
-                        var containingType = referencedSymbol.ContainingType;
-                        if (containingType is null)
-                            continue;
+                    // Don't count self-references.
+                    var callerFqn = callerType.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
+                    if (string.Equals(callerFqn, classFqn, StringComparison.Ordinal))
+                        continue;
 
-                        var containingFqn = containingType.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
-                        if (!string.Equals(containingFqn, classFqn, StringComparison.Ordinal))
-                            continue;
+                    totalCallSites++;
 
-                        // Found a call site. Determine the caller's enclosing type.
-                        var callerType = GetEnclosingNamedType(semanticModel, nameNode.SpanStart);
-                        if (callerType is null)
-                            continue;
-
-                        // Don't count self-references.
-                        var callerFqn = callerType.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
-                        if (string.Equals(callerFqn, classFqn, StringComparison.Ordinal))
-                            continue;
-
-                        totalCallSites++;
-
-                        if (callerType.IsStatic)
-                            callerStaticFqns.Add(callerFqn);
-                        else
-                            callerInstanceFqns.Add(callerFqn);
-                    }
+                    if (callerType.IsStatic)
+                        callerStaticFqns.Add(callerFqn);
+                    else
+                        callerInstanceFqns.Add(callerFqn);
                 }
             }
 
@@ -130,13 +129,13 @@ internal sealed class StaticClassInventoryService : IRtService
             var difficulty = ClassifyDifficulty(callerStaticFqns.Count);
 
             entries.Add(new StaticClassEntry(
-                Fqn: classFqn,
-                File: locationFile,
-                MemberCount: memberCount,
-                CallSiteCount: totalCallSites,
-                CalledFromStaticClasses: [.. callerStaticFqns],
-                CalledFromInstanceClasses: [.. callerInstanceFqns],
-                MigrationDifficulty: difficulty));
+                classFqn,
+                locationFile,
+                memberCount,
+                totalCallSites,
+                [.. callerStaticFqns],
+                [.. callerInstanceFqns],
+                difficulty));
         }
 
         // 3. Sort: leaf < mid < hub, then callSiteCount asc.
@@ -146,8 +145,8 @@ internal sealed class StaticClassInventoryService : IRtService
             .ToList();
 
         return new StaticClassInventoryReport(
-            TotalStaticClasses: sorted.Count,
-            Classes: sorted);
+            sorted.Count,
+            sorted);
     }
 
     private static string ClassifyDifficulty(int staticCallerCount)
@@ -156,7 +155,7 @@ internal sealed class StaticClassInventoryService : IRtService
         {
             0 => "leaf",
             <= 3 => "mid",
-            _ => "hub",
+            _ => "hub"
         };
     }
 
@@ -166,20 +165,18 @@ internal sealed class StaticClassInventoryService : IRtService
         {
             "leaf" => 0,
             "mid" => 1,
-            _ => 2,
+            _ => 2
         };
     }
 
     private static INamedTypeSymbol? GetEnclosingNamedType(SemanticModel semanticModel, int position)
     {
-        for (var current = semanticModel.GetEnclosingSymbol(position); current is not null; current = current.ContainingSymbol)
-        {
+        for (var current = semanticModel.GetEnclosingSymbol(position);
+             current is not null;
+             current = current.ContainingSymbol)
             if (current is INamedTypeSymbol namedType
                 && namedType.TypeKind is TypeKind.Class or TypeKind.Struct)
-            {
                 return namedType;
-            }
-        }
 
         return null;
     }

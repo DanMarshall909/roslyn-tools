@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace RoslynTools.Core;
 
 /// <summary>
-/// A single structural match of a pattern against a location in the solution.
+///     A single structural match of a pattern against a location in the solution.
 /// </summary>
 public record PatternMatch(
     string File,
@@ -15,15 +15,15 @@ public record PatternMatch(
     string Preview);
 
 /// <summary>
-/// Walks a Roslyn solution looking for statement sequences whose SyntaxKind tree
-/// matches a given pattern block, modulo identifier and literal text.
+///     Walks a Roslyn solution looking for statement sequences whose SyntaxKind tree
+///     matches a given pattern block, modulo identifier and literal text.
 /// </summary>
 public static class PatternMatcher
 {
     /// <summary>
-    /// Find every location in <paramref name="solution"/> that structurally matches the
-    /// statements in <paramref name="filePath"/> between <paramref name="startLine"/> and
-    /// <paramref name="endLine"/> (1-based, inclusive).
+    ///     Find every location in <paramref name="solution" /> that structurally matches the
+    ///     statements in <paramref name="filePath" /> between <paramref name="startLine" /> and
+    ///     <paramref name="endLine" /> (1-based, inclusive).
     /// </summary>
     public static async Task<List<PatternMatch>> FindMatchesAsync(
         Solution solution,
@@ -39,22 +39,21 @@ public static class PatternMatcher
         var rtIgnore = RtIgnore.ForSolution(solution);
 
         foreach (var project in solution.Projects)
+        foreach (var document in project.Documents)
         {
-            foreach (var document in project.Documents)
-            {
-                if (document.FilePath == null || rtIgnore.IsIgnored(document.FilePath))
-                    continue;
+            if (document.FilePath == null || rtIgnore.IsIgnored(document.FilePath))
+                continue;
 
-                if (scope != null && !IsInScope(document, project, scope))
-                    continue;
+            if (scope != null && !IsInScope(document, project, scope))
+                continue;
 
-                var root = await document.GetSyntaxRootAsync();
-                if (root == null)
-                    continue;
+            var root = await document.GetSyntaxRootAsync();
+            if (root == null)
+                continue;
 
-                var matches = FindMatchesInDocument(document.FilePath, root, patternStatements, absPath, startLine, endLine);
-                results.AddRange(matches);
-            }
+            var matches =
+                FindMatchesInDocument(document.FilePath, root, patternStatements, absPath, startLine, endLine);
+            results.AddRange(matches);
         }
 
         return results;
@@ -69,12 +68,12 @@ public static class PatternMatcher
         int endLine)
     {
         var doc = solution.Projects
-            .SelectMany(p => p.Documents)
-            .FirstOrDefault(d => string.Equals(d.FilePath, absPath, StringComparison.OrdinalIgnoreCase))
-            ?? throw new InvalidOperationException($"File not found in solution: {absPath}");
+                      .SelectMany(p => p.Documents)
+                      .FirstOrDefault(d => string.Equals(d.FilePath, absPath, StringComparison.OrdinalIgnoreCase))
+                  ?? throw new InvalidOperationException($"File not found in solution: {absPath}");
 
         var root = await doc.GetSyntaxRootAsync()
-            ?? throw new InvalidOperationException("Failed to get syntax root.");
+                   ?? throw new InvalidOperationException("Failed to get syntax root.");
 
         var statements = SelectStatementsInRange(root, startLine, endLine);
 
@@ -121,9 +120,7 @@ public static class PatternMatcher
 
                     if (string.Equals(docPath, patternFilePath, StringComparison.OrdinalIgnoreCase)
                         && LinesOverlap(candidateStart, candidateEnd, patternStartLine, patternEndLine))
-                    {
                         continue;
-                    }
 
                     var preview = BuildPreview(candidate);
                     results.Add(new PatternMatch(docPath, candidateStart, candidateEnd, substitutions, preview));
@@ -144,13 +141,11 @@ public static class PatternMatcher
         substitutions = new Dictionary<string, string>(StringComparer.Ordinal);
 
         for (var i = 0; i < pattern.Count; i++)
-        {
             if (!NodesMatch(pattern[i], candidate[i], substitutions))
             {
                 substitutions.Clear();
                 return false;
             }
-        }
 
         return true;
     }
@@ -273,19 +268,23 @@ public static class PatternMatcher
     // ── Helpers ───────────────────────────────────────────────────────────────────
 
     private static List<StatementSyntax> SelectStatementsInRange(SyntaxNode root, int startLine, int endLine)
-        => root.DescendantNodes()
-               .OfType<StatementSyntax>()
-               .Where(s => s.Parent is BlockSyntax)
-               .Where(s =>
-               {
-                   var span = s.GetLocation().GetLineSpan();
-                   return span.StartLinePosition.Line >= startLine - 1
+    {
+        return root.DescendantNodes()
+            .OfType<StatementSyntax>()
+            .Where(s => s.Parent is BlockSyntax)
+            .Where(s =>
+            {
+                var span = s.GetLocation().GetLineSpan();
+                return span.StartLinePosition.Line >= startLine - 1
                        && span.EndLinePosition.Line <= endLine - 1;
-               })
-               .ToList();
+            })
+            .ToList();
+    }
 
     private static bool LinesOverlap(int aStart, int aEnd, int bStart, int bEnd)
-        => aStart <= bEnd && bStart <= aEnd;
+    {
+        return aStart <= bEnd && bStart <= aEnd;
+    }
 
     private static string BuildPreview(List<StatementSyntax> statements)
     {

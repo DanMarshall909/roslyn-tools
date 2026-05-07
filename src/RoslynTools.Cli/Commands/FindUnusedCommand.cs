@@ -8,20 +8,23 @@ namespace RoslynTools.Commands;
 
 internal sealed class FindUnusedCommand : IRtCommand
 {
-    private FindUnusedCommand() { }
+    private FindUnusedCommand()
+    {
+    }
 
     public static RtCommandInfo Info { get; } = new(
-        Name: "find-unused",
-        Mutates: false,
-        JsonOutput: false,
-        Category: "inspect",
+        "find-unused",
+        false,
+        false,
+        "inspect",
         Aliases: ["unused"],
-        WhenToUse: "Identifying dead code — types and methods with zero references in the solution — before a safe-delete pass or ahead of a major refactor. Use --scope to focus on a specific namespace and filter noise from generated or test code.",
+        WhenToUse:
+        "Identifying dead code — types and methods with zero references in the solution — before a safe-delete pass or ahead of a major refactor. Use --scope to focus on a specific namespace and filter noise from generated or test code.",
         Examples:
         [
             "rt inspect find-unused --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt inspect unused --scope ProjectX.Core --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt inspect find-unused --scope types --solution RoslynTools.slnx",
+            "rt inspect find-unused --scope types --solution RoslynTools.slnx"
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );

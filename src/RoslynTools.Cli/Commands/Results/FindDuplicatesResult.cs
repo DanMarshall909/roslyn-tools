@@ -11,8 +11,7 @@ internal sealed record OccurrenceResult : IRtOutput
     public required string AbsoluteForwardSlashPath { get; init; }
 
     // "{absoluteForwardSlash}:{startLine}" — backward-compat JSON link field, also shown in LLM output
-    [OutputField(OutputLevel.Llm, "link")]
-    public required string Link { get; init; }
+    [OutputField(OutputLevel.Llm, "link")] public required string Link { get; init; }
 
     [OutputField(OutputLevel.Default, "file")]
     public required string File { get; init; }
@@ -29,7 +28,10 @@ internal sealed record OccurrenceResult : IRtOutput
     [OutputField(OutputLevel.Default, "member")]
     public required string Member { get; init; }
 
-    public void RenderText(TextWriter writer) => writer.Write($"{AbsoluteForwardSlashPath}:{Line}-{EndLine}");
+    public void RenderText(TextWriter writer)
+    {
+        writer.Write($"{AbsoluteForwardSlashPath}:{Line}-{EndLine}");
+    }
 }
 
 internal sealed record CheckResult : IRtOutput
@@ -80,7 +82,10 @@ internal sealed record DuplicateGroupResult : IRtOutput
     [OutputField(OutputLevel.Default, "checks")]
     public required IReadOnlyList<CheckResult> Checks { get; init; }
 
-    public void RenderText(TextWriter writer) => throw new NotSupportedException("Use FindDuplicatesResult.RenderText");
+    public void RenderText(TextWriter writer)
+    {
+        throw new NotSupportedException("Use FindDuplicatesResult.RenderText");
+    }
 }
 
 internal sealed record FindDuplicatesResult : IRtOutput, IRtMarkdownOutput, IRtJsonOutput
@@ -91,35 +96,38 @@ internal sealed record FindDuplicatesResult : IRtOutput, IRtMarkdownOutput, IRtJ
     [OutputField(OutputLevel.Llm, "groups")]
     public required IReadOnlyList<DuplicateGroupResult> Groups { get; init; }
 
-    public void RenderText(TextWriter writer)
+    public void RenderJson(TextWriter writer)
     {
-        if (Groups.Count == 0)
+        var doc = new
         {
-            writer.WriteLine("No duplicate groups found.");
-            return;
-        }
-
-        for (var i = 0; i < Groups.Count; i++)
-        {
-            var g = Groups[i];
-            var partialTag = g.PartiallyExpandable ? "  [partial]" : "";
-            writer.WriteLine($"Group {i + 1}  id={g.GroupId}  occurrences={g.OccurrenceCount}  score={g.Score:F2}  extractable={g.Extractability}{partialTag}");
-            writer.WriteLine($"preview: {g.Preview}");
-            if (g.Checks is { Count: > 0 })
+            mode = Mode,
+            groups = Groups.Select(g => new
             {
-                foreach (var c in g.Checks)
+                groupId = g.GroupId,
+                mode = DuplicateGroupResult.Mode,
+                score = g.Score,
+                occurrenceCount = g.OccurrenceCount,
+                extractability = g.Extractability,
+                preview = g.Preview,
+                occurrences = g.Occurrences.Select(o => new
                 {
-                    var detail = c.Detail is not null ? $": {c.Detail}" : "";
-                    writer.WriteLine($"  [{c.Status}] {c.Name}{detail}");
-                }
-            }
-            for (var j = 0; j < g.Occurrences.Count; j++)
-            {
-                var o = g.Occurrences[j];
-                writer.WriteLine($"  {j + 1}. {o.AbsoluteForwardSlashPath}:{o.Line}-{o.EndLine} in {o.Type}.{o.Member}");
-            }
-            writer.WriteLine();
-        }
+                    file = o.File,
+                    line = o.Line,
+                    endLine = o.EndLine,
+                    type = o.Type,
+                    member = o.Member,
+                    link = o.Link
+                }).ToArray(),
+                checks = g.Checks.Select(c => new
+                {
+                    name = c.Name,
+                    status = c.Status,
+                    detail = c.Detail
+                }).ToArray()
+            }).ToArray()
+        };
+
+        writer.Write(JsonSerializer.Serialize(doc, SymbolFormatter.DefaultJsonOptions));
     }
 
     public void RenderMarkdown(TextWriter writer)
@@ -159,8 +167,10 @@ internal sealed record FindDuplicatesResult : IRtOutput, IRtMarkdownOutput, IRtJ
                     var label = $"{Path.GetFileName(o.File)}:{o.Line}-{o.EndLine}";
                     var href = $"vscode://file/{o.AbsoluteForwardSlashPath}:{o.Line}";
                     var fallback = $"file:///{o.AbsoluteForwardSlashPath}#L{o.Line}";
-                    writer.WriteLine($"| {j + 1} | <a href=\"{href}\" title=\"{fallback}\">{label}</a> | {o.Type} | {o.Member} |");
+                    writer.WriteLine(
+                        $"| {j + 1} | <a href=\"{href}\" title=\"{fallback}\">{label}</a> | {o.Type} | {o.Member} |");
                 }
+
                 writer.WriteLine();
             }
 
@@ -168,51 +178,48 @@ internal sealed record FindDuplicatesResult : IRtOutput, IRtMarkdownOutput, IRtJ
             {
                 writer.WriteLine("| Check | Status | Detail |");
                 writer.WriteLine("| --- | --- | --- |");
-                foreach (var c in g.Checks)
-                {
-                    writer.WriteLine($"| {c.Name} | {c.Status} | {c.Detail ?? string.Empty} |");
-                }
+                foreach (var c in g.Checks) writer.WriteLine($"| {c.Name} | {c.Status} | {c.Detail ?? string.Empty} |");
                 writer.WriteLine();
             }
         }
     }
 
-    public void RenderJson(TextWriter writer)
+    public void RenderText(TextWriter writer)
     {
-        var doc = new
+        if (Groups.Count == 0)
         {
-            mode = Mode,
-            groups = Groups.Select(g => new
-            {
-                groupId = g.GroupId,
-                mode = DuplicateGroupResult.Mode,
-                score = g.Score,
-                occurrenceCount = g.OccurrenceCount,
-                extractability = g.Extractability,
-                preview = g.Preview,
-                occurrences = g.Occurrences.Select(o => new
-                {
-                    file = o.File,
-                    line = o.Line,
-                    endLine = o.EndLine,
-                    type = o.Type,
-                    member = o.Member,
-                    link = o.Link,
-                }).ToArray(),
-                checks = g.Checks.Select(c => new
-                {
-                    name = c.Name,
-                    status = c.Status,
-                    detail = c.Detail,
-                }).ToArray(),
-            }).ToArray(),
-        };
+            writer.WriteLine("No duplicate groups found.");
+            return;
+        }
 
-        writer.Write(JsonSerializer.Serialize(doc, SymbolFormatter.DefaultJsonOptions));
+        for (var i = 0; i < Groups.Count; i++)
+        {
+            var g = Groups[i];
+            var partialTag = g.PartiallyExpandable ? "  [partial]" : "";
+            writer.WriteLine(
+                $"Group {i + 1}  id={g.GroupId}  occurrences={g.OccurrenceCount}  score={g.Score:F2}  extractable={g.Extractability}{partialTag}");
+            writer.WriteLine($"preview: {g.Preview}");
+            if (g.Checks is { Count: > 0 })
+                foreach (var c in g.Checks)
+                {
+                    var detail = c.Detail is not null ? $": {c.Detail}" : "";
+                    writer.WriteLine($"  [{c.Status}] {c.Name}{detail}");
+                }
+
+            for (var j = 0; j < g.Occurrences.Count; j++)
+            {
+                var o = g.Occurrences[j];
+                writer.WriteLine(
+                    $"  {j + 1}. {o.AbsoluteForwardSlashPath}:{o.Line}-{o.EndLine} in {o.Type}.{o.Member}");
+            }
+
+            writer.WriteLine();
+        }
     }
 
-    internal static FindDuplicatesResult FromGroups(IReadOnlyList<DuplicateGroup> groups, string? solutionDir) =>
-        new()
+    internal static FindDuplicatesResult FromGroups(IReadOnlyList<DuplicateGroup> groups, string? solutionDir)
+    {
+        return new FindDuplicatesResult
         {
             Groups = groups.Select(g => new DuplicateGroupResult
             {
@@ -235,22 +242,22 @@ internal sealed record FindDuplicatesResult : IRtOutput, IRtMarkdownOutput, IRtJ
                         Line = o.StartLine,
                         EndLine = o.EndLine,
                         Type = o.ContainingType,
-                        Member = o.ContainingMember,
+                        Member = o.ContainingMember
                     };
                 }).ToList(),
                 Checks = (g.Checks ?? []).Select(c => new CheckResult
                 {
                     Name = c.Name,
                     Status = c.Status,
-                    Detail = c.Detail,
-                }).ToList(),
-            }).ToList(),
+                    Detail = c.Detail
+                }).ToList()
+            }).ToList()
         };
+    }
 
     private static string MakeRelativePath(string absolutePath, string? solutionDir)
     {
         if (solutionDir is not null)
-        {
             try
             {
                 return Path.GetRelativePath(solutionDir, absolutePath);
@@ -259,7 +266,6 @@ internal sealed record FindDuplicatesResult : IRtOutput, IRtMarkdownOutput, IRtJ
             {
                 // Fall through to filename fallback
             }
-        }
 
         return Path.GetFileName(absolutePath);
     }

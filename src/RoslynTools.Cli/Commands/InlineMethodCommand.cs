@@ -6,19 +6,22 @@ namespace RoslynTools.Commands;
 
 internal sealed class InlineMethodCommand : IRtCommand
 {
-    private InlineMethodCommand() { }
+    private InlineMethodCommand()
+    {
+    }
 
     public static RtCommandInfo Info { get; } = new(
-        Name: "inline-method",
-        Mutates: true,
-        JsonOutput: false,
-        Category: "refactor",
+        "inline-method",
+        true,
+        false,
+        "refactor",
         Aliases: ["im"],
-        WhenToUse: "Inlining a trivial helper method (expression-bodied or single-return block) at every call site and removing the method declaration. Best for one-liner wrappers that add no clarity — over-extracted private methods that obscure intent.",
+        WhenToUse:
+        "Inlining a trivial helper method (expression-bodied or single-return block) at every call site and removing the method declaration. Best for one-liner wrappers that add no clarity — over-extracted private methods that obscure intent.",
         Examples:
         [
             "rt refactor inline-method --type MathHelper --method Double --solution RoslynTools.slnx",
-            "rt refactor im --type OrderService --method GetTotal --dry-run --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt refactor im --type OrderService --method GetTotal --dry-run --solution C:\\code\\libraries\\ProjectX.Libraries.sln"
         ]
     );
 
@@ -31,12 +34,14 @@ internal sealed class InlineMethodCommand : IRtCommand
 
         var cmd = new Command("inline-method", "Inline a method by replacing all call sites with the method body");
         cmd.AddAlias("im");
-        cmd.Add(typeOpt); cmd.Add(methodOpt); cmd.Add(solutionOpt); cmd.Add(dryRunOpt);
+        cmd.Add(typeOpt);
+        cmd.Add(methodOpt);
+        cmd.Add(solutionOpt);
+        cmd.Add(dryRunOpt);
 
-        cmd.SetHandler(async (type, method, solution, dryRun) =>
-        {
-            await ExecuteAsync(type, method, solution, dryRun);
-        }, typeOpt, methodOpt, solutionOpt, dryRunOpt);
+        cmd.SetHandler(
+            async (type, method, solution, dryRun) => { await ExecuteAsync(type, method, solution, dryRun); }, typeOpt,
+            methodOpt, solutionOpt, dryRunOpt);
 
         return cmd;
     }
@@ -45,7 +50,8 @@ internal sealed class InlineMethodCommand : IRtCommand
     {
         var (workspace, sln) = await WorkspaceLoader.LoadAsync(solutionPath);
         using (workspace)
+        {
             await RtServiceProvider.Get<InlineMethodService>().RunAsync(sln, typeName, methodName, dryRun);
+        }
     }
 }
-

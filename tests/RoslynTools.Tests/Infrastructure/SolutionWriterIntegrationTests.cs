@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Text;
 using RoslynTools.Core;
 
 namespace RoslynTools.Tests.Infrastructure;
@@ -10,12 +11,12 @@ public class SolutionWriterIntegrationTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
-            namespace TestProject;
-            public class Calculator
-            {
-                public int Add(int a, int b) => a + b;
-            }
-            """);
+                                           namespace TestProject;
+                                           public class Calculator
+                                           {
+                                               public int Add(int a, int b) => a + b;
+                                           }
+                                           """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -29,7 +30,7 @@ public class SolutionWriterIntegrationTests
                     filePath: newFilePath,
                     loader: new NewClassTextLoader()));
 
-            await SolutionWriter.ApplyChangesAsync(sln, newDoc, dryRun: false);
+            await SolutionWriter.ApplyChangesAsync(sln, newDoc, false);
 
             Assert.True(File.Exists(newFilePath), $"Expected new file at {newFilePath}");
             var content = await File.ReadAllTextAsync(newFilePath);
@@ -42,12 +43,12 @@ public class SolutionWriterIntegrationTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
-            namespace TestProject;
-            public class Calculator
-            {
-                public int Add(int a, int b) => a + b;
-            }
-            """);
+                                           namespace TestProject;
+                                           public class Calculator
+                                           {
+                                               public int Add(int a, int b) => a + b;
+                                           }
+                                           """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -67,7 +68,7 @@ public class SolutionWriterIntegrationTests
             Console.SetOut(sw);
             try
             {
-                await SolutionWriter.ApplyChangesAsync(sln, newDoc, dryRun: true);
+                await SolutionWriter.ApplyChangesAsync(sln, newDoc, true);
             }
             finally
             {
@@ -81,21 +82,21 @@ public class SolutionWriterIntegrationTests
     }
 
     /// <summary>
-    /// Simple TextLoader that provides the content for the new document.
+    ///     Simple TextLoader that provides the content for the new document.
     /// </summary>
     private sealed class NewClassTextLoader : TextLoader
     {
         public override Task<TextAndVersion> LoadTextAndVersionAsync(
             LoadTextOptions options, CancellationToken cancellationToken)
         {
-            var text = Microsoft.CodeAnalysis.Text.SourceText.From("""
-                namespace TestProject;
+            var text = SourceText.From("""
+                                       namespace TestProject;
 
-                public class NewClass
-                {
-                    public string Name => "New";
-                }
-                """);
+                                       public class NewClass
+                                       {
+                                           public string Name => "New";
+                                       }
+                                       """);
             return Task.FromResult(TextAndVersion.Create(text, VersionStamp.Create()));
         }
     }

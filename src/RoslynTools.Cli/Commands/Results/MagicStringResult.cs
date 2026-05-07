@@ -62,8 +62,9 @@ internal sealed record MagicStringResult : IRtOutput
         }
     }
 
-    internal static MagicStringResult FromGroups(IEnumerable<MagicStringGroup> groups) =>
-        new()
+    internal static MagicStringResult FromGroups(IEnumerable<MagicStringGroup> groups)
+    {
+        return new MagicStringResult
         {
             Groups = groups.Select(g => new MagicStringGroupResult
             {
@@ -74,8 +75,9 @@ internal sealed record MagicStringResult : IRtOutput
                     FilePath = o.FilePath,
                     Line = o.Line,
                     TypeName = o.TypeName,
-                    MemberName = o.MemberName,
-                }).ToList(),
-            }).ToList(),
+                    MemberName = o.MemberName
+                }).ToList()
+            }).ToList()
         };
+    }
 }

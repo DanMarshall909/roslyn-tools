@@ -13,25 +13,25 @@ public sealed class InterfaceAnalyzerServiceTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("IWideFacade.cs", """
-            namespace MyApp;
+                                            namespace MyApp;
 
-            public interface IWideFacade
-            {
-                void Send(string message);
-                void Receive();
-                void Delete(int id);
-            }
-            """);
+                                            public interface IWideFacade
+                                            {
+                                                void Send(string message);
+                                                void Receive();
+                                                void Delete(int id);
+                                            }
+                                            """);
         project.AddSource("SenderOnly.cs", """
-            namespace MyApp;
+                                           namespace MyApp;
 
-            public sealed class SenderOnly
-            {
-                private readonly IWideFacade _facade;
-                public SenderOnly(IWideFacade facade) { _facade = facade; }
-                public void Use() { _facade.Send("hello"); }
-            }
-            """);
+                                           public sealed class SenderOnly
+                                           {
+                                               private readonly IWideFacade _facade;
+                                               public SenderOnly(IWideFacade facade) { _facade = facade; }
+                                               public void Use() { _facade.Send("hello"); }
+                                           }
+                                           """);
         var (workspace, sln) = project.Build();
 
         // Find symbols
@@ -63,14 +63,14 @@ public sealed class InterfaceAnalyzerServiceTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("IWideFacade.cs", """
-            namespace MyApp;
+                                            namespace MyApp;
 
-            public interface IWideFacade
-            {
-                void Send(string message);
-                void Receive();
-            }
-            """);
+                                            public interface IWideFacade
+                                            {
+                                                void Send(string message);
+                                                void Receive();
+                                            }
+                                            """);
         var (workspace, sln) = project.Build();
 
         INamedTypeSymbol? interfaceSymbol = null;

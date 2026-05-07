@@ -1,16 +1,18 @@
+using System.Diagnostics.CodeAnalysis;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Models;
-using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class AnalyzeInterfaceService : IRtService
 {
-    private readonly ISymbolResolutionService _symbols;
     private readonly FindCallersService _findCallers;
+    private readonly ISymbolResolutionService _symbols;
 
     public AnalyzeInterfaceService()
         : this(new FindCallersService())
@@ -41,7 +43,7 @@ internal class AnalyzeInterfaceService : IRtService
                 continue;
 
             var scopeMatchesProject = options.Scope is not null
-                && string.Equals(project.Name, options.Scope, StringComparison.OrdinalIgnoreCase);
+                                      && string.Equals(project.Name, options.Scope, StringComparison.OrdinalIgnoreCase);
 
             foreach (var document in project.Documents)
             {
@@ -85,12 +87,12 @@ internal class AnalyzeInterfaceService : IRtService
             : rawReports;
 
         return new AnalyzeInterfaceReport(
-            InterfaceName: interfaceSymbol.Name,
-            InterfaceDisplayName: interfaceSymbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
-            InterfaceMemberCount: trackedMembers.Count,
-            Scope: options.Scope,
-            IncludeTests: options.IncludeTests,
-            Consumers: consumerReports);
+            interfaceSymbol.Name,
+            interfaceSymbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
+            trackedMembers.Count,
+            options.Scope,
+            options.IncludeTests,
+            consumerReports);
     }
 
     private void AnalyzeDeclaredInterfaceCarriers(
@@ -108,10 +110,12 @@ internal class AnalyzeInterfaceService : IRtService
             var declared = semanticModel.GetDeclaredSymbol(field);
             switch (declared)
             {
-                case IFieldSymbol fieldSymbol when SymbolEqualityComparer.Default.Equals(fieldSymbol.Type, interfaceSymbol):
+                case IFieldSymbol fieldSymbol
+                    when SymbolEqualityComparer.Default.Equals(fieldSymbol.Type, interfaceSymbol):
                     AddTypeOnlyConsumer(field.SpanStart);
                     break;
-                case ILocalSymbol localSymbol when SymbolEqualityComparer.Default.Equals(localSymbol.Type, interfaceSymbol):
+                case ILocalSymbol localSymbol
+                    when SymbolEqualityComparer.Default.Equals(localSymbol.Type, interfaceSymbol):
                     AddTypeOnlyConsumer(field.SpanStart);
                     break;
             }
@@ -121,9 +125,7 @@ internal class AnalyzeInterfaceService : IRtService
         {
             if (semanticModel.GetDeclaredSymbol(property) is not IPropertySymbol propertySymbol
                 || !SymbolEqualityComparer.Default.Equals(propertySymbol.Type, interfaceSymbol))
-            {
                 continue;
-            }
 
             var consumer = GetContainingConsumerType(semanticModel, property.SpanStart);
             if (consumer is null || !MatchesScope(consumer, projectName, scope, scopeMatchesProject))
@@ -136,9 +138,7 @@ internal class AnalyzeInterfaceService : IRtService
         {
             if (semanticModel.GetDeclaredSymbol(parameter) is not IParameterSymbol parameterSymbol
                 || !SymbolEqualityComparer.Default.Equals(parameterSymbol.Type, interfaceSymbol))
-            {
                 continue;
-            }
 
             var consumer = GetContainingConsumerType(semanticModel, parameter.SpanStart);
             if (consumer is null || !MatchesScope(consumer, projectName, scope, scopeMatchesProject))
@@ -194,10 +194,8 @@ internal class AnalyzeInterfaceService : IRtService
             throw new InvalidOperationException($"'{interfaceSymbolSpec}' is not a named type.");
 
         if (namedType.TypeKind != TypeKind.Interface)
-        {
             throw new InvalidOperationException(
                 $"'{namedType.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat)}' is not an interface; resolved type kind was {namedType.TypeKind}.");
-        }
 
         return namedType;
     }
@@ -210,7 +208,8 @@ internal class AnalyzeInterfaceService : IRtService
             .Where(member => member is not null)
             .Distinct(SymbolEqualityComparer.Default)
             .Cast<ISymbol>()
-            .OrderBy(member => member.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat), StringComparer.Ordinal)
+            .OrderBy(member => member.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
+                StringComparer.Ordinal)
             .ToList();
     }
 
@@ -220,13 +219,14 @@ internal class AnalyzeInterfaceService : IRtService
         {
             IMethodSymbol
             {
-                MethodKind: MethodKind.PropertyGet or MethodKind.PropertySet or MethodKind.EventAdd or MethodKind.EventRemove,
+                MethodKind: MethodKind.PropertyGet or MethodKind.PropertySet or MethodKind.EventAdd
+                or MethodKind.EventRemove,
                 AssociatedSymbol: { } associated
             } => NormalizeTrackedMember(associated),
             IMethodSymbol method when method.MethodKind == MethodKind.Ordinary => method.OriginalDefinition,
             IPropertySymbol property => property.OriginalDefinition,
             IEventSymbol eventSymbol => eventSymbol.OriginalDefinition,
-            _ => null,
+            _ => null
         };
     }
 
@@ -242,14 +242,12 @@ internal class AnalyzeInterfaceService : IRtService
 
     private INamedTypeSymbol? GetContainingConsumerType(SemanticModel semanticModel, int position)
     {
-        for (var current = semanticModel.GetEnclosingSymbol(position); current is not null; current = current.ContainingSymbol)
-        {
+        for (var current = semanticModel.GetEnclosingSymbol(position);
+             current is not null;
+             current = current.ContainingSymbol)
             if (current is INamedTypeSymbol namedType
                 && namedType.TypeKind is TypeKind.Class or TypeKind.Struct)
-            {
                 return namedType;
-            }
-        }
 
         return null;
     }
@@ -316,8 +314,8 @@ internal class AnalyzeInterfaceService : IRtService
     }
 
     /// <summary>
-    /// Derives advisory minimal-interface suggestions for each consumer from its used-member set.
-    /// The suggestion is purely advisory and does not imply a named type already exists.
+    ///     Derives advisory minimal-interface suggestions for each consumer from its used-member set.
+    ///     The suggestion is purely advisory and does not imply a named type already exists.
     /// </summary>
     private List<AnalyzeInterfaceConsumerReport> AttachSuggestions(
         List<AnalyzeInterfaceConsumerReport> reports,
@@ -343,9 +341,9 @@ internal class AnalyzeInterfaceService : IRtService
             }
 
             var suggestion = new AnalyzeInterfaceSuggestion(
-                HasNarrowingBenefit: hasNarrowingBenefit,
-                SharedGroupId: groupId,
-                SuggestedMembers: hasNarrowingBenefit ? report.UsedMembers : []);
+                hasNarrowingBenefit,
+                groupId,
+                hasNarrowingBenefit ? report.UsedMembers : []);
 
             return report with { Suggestion = suggestion };
         }).ToList();
@@ -354,21 +352,24 @@ internal class AnalyzeInterfaceService : IRtService
     private string ComputeGroupId(string key)
     {
         // Stable 8-char hex group identifier derived from the member-set key.
-        var bytes = System.Text.Encoding.UTF8.GetBytes(key);
-        var hash = System.Security.Cryptography.SHA256.HashData(bytes);
+        var bytes = Encoding.UTF8.GetBytes(key);
+        var hash = SHA256.HashData(bytes);
         return Convert.ToHexString(hash)[..8].ToLowerInvariant();
     }
 
     private sealed class ConsumerAccumulator
     {
-        private readonly SortedSet<string> _documents = new(StringComparer.Ordinal);
-        private readonly SortedDictionary<string, AnalyzeInterfaceMemberReport> _usedMembers = new(StringComparer.Ordinal);
-        private bool _hasTypeReference;
+        private readonly string _consumerKind;
 
         private readonly string _consumerName;
-        private readonly string _consumerKind;
         private readonly string _consumerNamespace;
+        private readonly SortedSet<string> _documents = new(StringComparer.Ordinal);
         private readonly string _projectName;
+
+        private readonly SortedDictionary<string, AnalyzeInterfaceMemberReport> _usedMembers =
+            new(StringComparer.Ordinal);
+
+        private bool _hasTypeReference;
 
         public ConsumerAccumulator(
             string consumerName,
@@ -404,32 +405,35 @@ internal class AnalyzeInterfaceService : IRtService
             _usedMembers.TryAdd(
                 displayName,
                 new AnalyzeInterfaceMemberReport(
-                    Name: member.Name,
-                    Kind: member.Kind.ToString(),
-                    DisplayName: displayName));
+                    member.Name,
+                    member.Kind.ToString(),
+                    displayName));
         }
 
         public AnalyzeInterfaceConsumerReport ToReport()
         {
             return new AnalyzeInterfaceConsumerReport(
-                ConsumerName: _consumerName,
-                ConsumerDisplayName: ConsumerDisplayName,
-                ConsumerKind: _consumerKind,
-                Namespace: _consumerNamespace,
-                ProjectName: _projectName,
-                UsageKind: _usedMembers.Count == 0 && _hasTypeReference ? "type-only" : "members",
-                Documents: [.. _documents],
-                UsedMembers: [.. _usedMembers.Values]);
+                _consumerName,
+                ConsumerDisplayName,
+                _consumerKind,
+                _consumerNamespace,
+                _projectName,
+                _usedMembers.Count == 0 && _hasTypeReference ? "type-only" : "members",
+                [.. _documents],
+                [.. _usedMembers.Values]);
         }
 
         private static string FormatMemberDisplay(ISymbol member)
         {
             return member switch
             {
-                IMethodSymbol method => $"{FormatType(method.ReturnType)} {FormatContainingType(method)}.{method.Name}({string.Join(", ", method.Parameters.Select(FormatParameter))})",
-                IPropertySymbol property => $"{FormatType(property.Type)} {FormatContainingType(property)}.{property.Name} {{ {FormatPropertyAccessors(property)} }}",
-                IEventSymbol eventSymbol => $"event {FormatType(eventSymbol.Type)} {FormatContainingType(eventSymbol)}.{eventSymbol.Name}",
-                _ => member.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
+                IMethodSymbol method =>
+                    $"{FormatType(method.ReturnType)} {FormatContainingType(method)}.{method.Name}({string.Join(", ", method.Parameters.Select(FormatParameter))})",
+                IPropertySymbol property =>
+                    $"{FormatType(property.Type)} {FormatContainingType(property)}.{property.Name} {{ {FormatPropertyAccessors(property)} }}",
+                IEventSymbol eventSymbol =>
+                    $"event {FormatType(eventSymbol.Type)} {FormatContainingType(eventSymbol)}.{eventSymbol.Name}",
+                _ => member.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat)
             };
         }
 
@@ -440,8 +444,10 @@ internal class AnalyzeInterfaceService : IRtService
                    ?? string.Empty;
         }
 
-        private static string FormatType(ITypeSymbol type) =>
-            type.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
+        private static string FormatType(ITypeSymbol type)
+        {
+            return type.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
+        }
 
         private static string FormatParameter(IParameterSymbol parameter)
         {
@@ -450,7 +456,7 @@ internal class AnalyzeInterfaceService : IRtService
                 RefKind.Ref => "ref ",
                 RefKind.Out => "out ",
                 RefKind.In => "in ",
-                _ => string.Empty,
+                _ => string.Empty
             };
 
             return $"{modifier}{FormatType(parameter.Type)} {parameter.Name}";

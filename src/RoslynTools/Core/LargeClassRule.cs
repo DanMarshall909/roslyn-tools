@@ -15,11 +15,11 @@ internal static class LargeClassRule
             return null;
 
         return new SmellResult(
-            SmellType: "LargeClass",
-            TypeName: typeName,
-            MemberName: null,
-            FilePath: filePath,
-            Line: startLine + 1,
-            Detail: $"({lineCount} lines)");
+            "LargeClass",
+            typeName,
+            null,
+            filePath,
+            startLine + 1,
+            $"({lineCount} lines)");
     }
 }

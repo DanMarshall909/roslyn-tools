@@ -6,14 +6,14 @@ namespace RoslynTools.Tests.Mutation;
 public class ConvertToRecordTests
 {
     private const string RecordAppSource = """
-        class Point { public int X { get; init; } public int Y { get; init; } }
-        class WithEquals {
-          public int Value { get; init; }
-          public override bool Equals(object? obj) => obj is WithEquals o && o.Value == Value;
-          public override int GetHashCode() => Value.GetHashCode();
-        }
-        class WithMutableProp { public int Id { get; set; } public string Name { get; init; } = ""; }
-        """;
+                                           class Point { public int X { get; init; } public int Y { get; init; } }
+                                           class WithEquals {
+                                             public int Value { get; init; }
+                                             public override bool Equals(object? obj) => obj is WithEquals o && o.Value == Value;
+                                             public override int GetHashCode() => Value.GetHashCode();
+                                           }
+                                           class WithMutableProp { public int Id { get; set; } public string Name { get; init; } = ""; }
+                                           """;
 
     // ──────────────────────────────────────────────────────────────────────────
     //  1. class Point becomes record Point
@@ -27,7 +27,9 @@ public class ConvertToRecordTests
         var (workspace, sln) = proj.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await ConvertToRecordCommand.ExecuteAsync("Point", "ignored", dryRun: false);
+        {
+            await ConvertToRecordCommand.ExecuteAsync("Point", "ignored", false);
+        }
 
         var content = await proj.ReadSourceAsync("Types.cs");
         Assert.Contains("record Point", content);
@@ -46,7 +48,9 @@ public class ConvertToRecordTests
         var (workspace, sln) = proj.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await ConvertToRecordCommand.ExecuteAsync("Point", "ignored", dryRun: false);
+        {
+            await ConvertToRecordCommand.ExecuteAsync("Point", "ignored", false);
+        }
 
         var content = await proj.ReadSourceAsync("Types.cs");
         // Positional record syntax: record Point(int X, int Y)
@@ -66,7 +70,9 @@ public class ConvertToRecordTests
         var (workspace, sln) = proj.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await ConvertToRecordCommand.ExecuteAsync("WithEquals", "ignored", dryRun: false);
+        {
+            await ConvertToRecordCommand.ExecuteAsync("WithEquals", "ignored", false);
+        }
 
         var content = await proj.ReadSourceAsync("Types.cs");
         Assert.DoesNotContain("override bool Equals", content);
@@ -86,11 +92,14 @@ public class ConvertToRecordTests
 
         // Capture stderr to verify warning
         var originalError = Console.Error;
-        var errorCapture = new System.IO.StringWriter();
+        var errorCapture = new StringWriter();
         Console.SetError(errorCapture);
         try
         {
-            using (WorkspaceLoader.UseOverride(workspace, sln)) await ConvertToRecordCommand.ExecuteAsync("WithMutableProp", "ignored", dryRun: false);
+            using (WorkspaceLoader.UseOverride(workspace, sln))
+            {
+                await ConvertToRecordCommand.ExecuteAsync("WithMutableProp", "ignored", false);
+            }
         }
         finally
         {
@@ -118,7 +127,9 @@ public class ConvertToRecordTests
         var before = await proj.ReadSourceAsync("Types.cs");
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await ConvertToRecordCommand.ExecuteAsync("Point", "ignored", dryRun: true);
+        {
+            await ConvertToRecordCommand.ExecuteAsync("Point", "ignored", true);
+        }
 
         var after = await proj.ReadSourceAsync("Types.cs");
         Assert.Equal(before, after);

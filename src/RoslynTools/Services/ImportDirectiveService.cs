@@ -1,8 +1,8 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using System.Diagnostics.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
@@ -15,7 +15,9 @@ internal sealed record ImportDirectiveInfo(
     bool IsGlobal,
     bool IsStatic,
     string? Alias);
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class ImportDirectiveService : IRtService
 {
     private readonly ILogger<ImportDirectiveService> _logger;
@@ -31,6 +33,7 @@ internal class ImportDirectiveService : IRtService
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
     }
+
     internal async Task<IReadOnlyList<ImportDirectiveInfo>> AnalyzeAsync(
         Solution solution,
         string kind)
@@ -39,35 +42,33 @@ internal class ImportDirectiveService : IRtService
         var rtIgnore = RtIgnore.ForSolution(solution);
 
         foreach (var project in solution.Projects)
+        foreach (var document in project.Documents)
         {
-            foreach (var document in project.Documents)
+            if (rtIgnore.IsIgnored(document.FilePath, "list-imports") || IsGeneratedOrIntermediate(document.FilePath))
+                continue;
+
+            var root = await document.GetSyntaxRootAsync();
+            if (root is null)
+                continue;
+
+            foreach (var directive in root.DescendantNodes().OfType<UsingDirectiveSyntax>())
             {
-                if (rtIgnore.IsIgnored(document.FilePath, "list-imports") || IsGeneratedOrIntermediate(document.FilePath))
+                var isGlobal = directive.GlobalKeyword.IsKind(SyntaxKind.GlobalKeyword);
+                var isStatic = directive.StaticKeyword.IsKind(SyntaxKind.StaticKeyword);
+                var alias = directive.Alias?.Name.Identifier.ValueText;
+
+                if (!MatchesKind(kind, isGlobal, isStatic, alias))
                     continue;
 
-                var root = await document.GetSyntaxRootAsync();
-                if (root is null)
-                    continue;
-
-                foreach (var directive in root.DescendantNodes().OfType<UsingDirectiveSyntax>())
-                {
-                    var isGlobal = directive.GlobalKeyword.IsKind(SyntaxKind.GlobalKeyword);
-                    var isStatic = directive.StaticKeyword.IsKind(SyntaxKind.StaticKeyword);
-                    var alias = directive.Alias?.Name.Identifier.ValueText;
-
-                    if (!MatchesKind(kind, isGlobal, isStatic, alias))
-                        continue;
-
-                    var line = directive.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
-                    results.Add(new ImportDirectiveInfo(
-                        Kind: GetKind(isGlobal, isStatic, alias),
-                        Name: directive.Name?.ToString() ?? string.Empty,
-                        FilePath: document.FilePath ?? document.Name,
-                        Line: line,
-                        IsGlobal: isGlobal,
-                        IsStatic: isStatic,
-                        Alias: alias));
-                }
+                var line = directive.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+                results.Add(new ImportDirectiveInfo(
+                    GetKind(isGlobal, isStatic, alias),
+                    directive.Name?.ToString() ?? string.Empty,
+                    document.FilePath ?? document.Name,
+                    line,
+                    isGlobal,
+                    isStatic,
+                    alias));
             }
         }
 
@@ -88,7 +89,7 @@ internal class ImportDirectiveService : IRtService
         var root = await GetCompilationUnitAsync(document);
 
         if (root.Usings.Any(u => u.StaticKeyword.IsKind(SyntaxKind.StaticKeyword)
-            && u.Name?.ToString() == typeName))
+                                 && u.Name?.ToString() == typeName))
         {
             _logger.RtInfo("Static using '{TypeName}' already exists in {FilePath}.", typeName, document.FilePath);
             return;
@@ -112,10 +113,11 @@ internal class ImportDirectiveService : IRtService
         var root = await GetCompilationUnitAsync(document);
 
         if (root.Usings.Any(u => u.GlobalKeyword.IsKind(SyntaxKind.GlobalKeyword)
-            && !u.StaticKeyword.IsKind(SyntaxKind.StaticKeyword)
-            && u.Name?.ToString() == namespaceName))
+                                 && !u.StaticKeyword.IsKind(SyntaxKind.StaticKeyword)
+                                 && u.Name?.ToString() == namespaceName))
         {
-            _logger.RtInfo("Global using '{NamespaceName}' already exists in {FilePath}.", namespaceName, document.FilePath);
+            _logger.RtInfo("Global using '{NamespaceName}' already exists in {FilePath}.", namespaceName,
+                document.FilePath);
             return;
         }
 
@@ -130,18 +132,18 @@ internal class ImportDirectiveService : IRtService
     {
         var fullPath = Path.GetFullPath(filePath);
         return solution.Projects
-            .SelectMany(p => p.Documents)
-            .FirstOrDefault(d => string.Equals(d.FilePath, fullPath, StringComparison.OrdinalIgnoreCase))
-            ?? throw new InvalidOperationException($"File '{filePath}' not found in solution.");
+                   .SelectMany(p => p.Documents)
+                   .FirstOrDefault(d => string.Equals(d.FilePath, fullPath, StringComparison.OrdinalIgnoreCase))
+               ?? throw new InvalidOperationException($"File '{filePath}' not found in solution.");
     }
 
     private async Task<CompilationUnitSyntax> GetCompilationUnitAsync(Document document)
     {
         var root = await document.GetSyntaxRootAsync()
-            ?? throw new InvalidOperationException($"Cannot read syntax root for '{document.FilePath}'.");
+                   ?? throw new InvalidOperationException($"Cannot read syntax root for '{document.FilePath}'.");
 
         return root as CompilationUnitSyntax
-            ?? throw new InvalidOperationException($"Document '{document.FilePath}' is not a C# compilation unit.");
+               ?? throw new InvalidOperationException($"Document '{document.FilePath}' is not a C# compilation unit.");
     }
 
     private CompilationUnitSyntax AddUsingDirective(
@@ -159,18 +161,22 @@ internal class ImportDirectiveService : IRtService
         return root.WithUsings(usings.Insert(insertIndex, formattedDirective));
     }
 
-    private UsingDirectiveSyntax ParseUsingDirective(string text) =>
-        SyntaxFactory.ParseCompilationUnit(text + Environment.NewLine).Usings.Single();
+    private UsingDirectiveSyntax ParseUsingDirective(string text)
+    {
+        return SyntaxFactory.ParseCompilationUnit(text + Environment.NewLine).Usings.Single();
+    }
 
-    private bool MatchesKind(string kind, bool isGlobal, bool isStatic, string? alias) =>
-        kind.ToLowerInvariant() switch
+    private bool MatchesKind(string kind, bool isGlobal, bool isStatic, string? alias)
+    {
+        return kind.ToLowerInvariant() switch
         {
             "all" => true,
             "global" => isGlobal,
             "static" => isStatic,
             "alias" => alias is not null,
-            _ => throw new ArgumentException("Kind must be one of: all, global, static, alias.", nameof(kind)),
+            _ => throw new ArgumentException("Kind must be one of: all, global, static, alias.", nameof(kind))
         };
+    }
 
     private string GetKind(bool isGlobal, bool isStatic, string? alias)
     {
@@ -193,7 +199,7 @@ internal class ImportDirectiveService : IRtService
 
         var normalized = filePath.Replace('\\', '/');
         return normalized.Contains("/obj/", StringComparison.OrdinalIgnoreCase)
-            || normalized.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase)
-            || normalized.EndsWith(".generated.cs", StringComparison.OrdinalIgnoreCase);
+               || normalized.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase)
+               || normalized.EndsWith(".generated.cs", StringComparison.OrdinalIgnoreCase);
     }
 }

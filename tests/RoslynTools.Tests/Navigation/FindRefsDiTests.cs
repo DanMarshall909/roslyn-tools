@@ -4,8 +4,8 @@ using RoslynTools.Core;
 namespace RoslynTools.Tests.Navigation;
 
 /// <summary>
-/// Verifies that FindRefsCommand correctly resolves WorkspaceLoader from DI
-/// when App.RunAsync is called with a service provider.
+///     Verifies that FindRefsCommand correctly resolves WorkspaceLoader from DI
+///     when App.RunAsync is called with a service provider.
 /// </summary>
 public class FindRefsDiTests
 {
@@ -14,21 +14,21 @@ public class FindRefsDiTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Model.cs", """
-            namespace TestApp;
+                                      namespace TestApp;
 
-            public class Widget
-            {
-                public int Id { get; set; }
-            }
-            """);
+                                      public class Widget
+                                      {
+                                          public int Id { get; set; }
+                                      }
+                                      """);
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class WidgetService
-            {
-                public Widget Get(int id) => new Widget { Id = id };
-            }
-            """);
+                                        public class WidgetService
+                                        {
+                                            public Widget Get(int id) => new Widget { Id = id };
+                                        }
+                                        """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -52,18 +52,18 @@ public class FindRefsDiTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Model.cs", """
-            namespace TestApp;
+                                      namespace TestApp;
 
-            public class Gadget { }
-            """);
+                                      public class Gadget { }
+                                      """);
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class GadgetService
-            {
-                public Gadget Get() => new Gadget();
-            }
-            """);
+                                        public class GadgetService
+                                        {
+                                            public Gadget Get() => new Gadget();
+                                        }
+                                        """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -71,7 +71,7 @@ public class FindRefsDiTests
         {
             var (exitCode, stdout, _) = await InvokeAsync(
                 ["find-refs", "--symbol", "Gadget", "--solution", "ignored"],
-                services: null);
+                null);
 
             Assert.Equal(0, exitCode);
             Assert.Contains("Gadget", stdout);

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -5,14 +6,14 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace RoslynTools.Core;
 
 /// <summary>
-/// Finds structurally-matching duplicate statement sequences and rewrites them to calls
-/// of the newly-extracted method. Invoked by <see cref="MethodExtractor"/> when
-/// <c>--replace-duplicates</c> is set.
+///     Finds structurally-matching duplicate statement sequences and rewrites them to calls
+///     of the newly-extracted method. Invoked by <see cref="MethodExtractor" /> when
+///     <c>--replace-duplicates</c> is set.
 /// </summary>
 internal static class MethodExtractorDuplicates
 {
     /// <summary>
-    /// Backward-compatible overload (no ref/out params) for guard-extraction callers.
+    ///     Backward-compatible overload (no ref/out params) for guard-extraction callers.
     /// </summary>
     internal static Task<Solution> ReplaceDuplicatesAsync(
         Solution extractedSln,
@@ -22,12 +23,14 @@ internal static class MethodExtractorDuplicates
         string newMethodName,
         IReadOnlyList<ISymbol> orderedParameters,
         IReadOnlyList<ISymbol> returnVars)
-        => ReplaceDuplicatesAsync(extractedSln, filePath, newMethodStartLine, newMethodEndLine,
+    {
+        return ReplaceDuplicatesAsync(extractedSln, filePath, newMethodStartLine, newMethodEndLine,
             newMethodName, orderedParameters, [], [], returnVars);
+    }
 
     /// <summary>
-    /// After extraction, find all structural duplicates of the extracted body and replace
-    /// them with calls to the new method. Emits warnings for skipped matches and a summary.
+    ///     After extraction, find all structural duplicates of the extracted body and replace
+    ///     them with calls to the new method. Emits warnings for skipped matches and a summary.
     /// </summary>
     internal static async Task<Solution> ReplaceDuplicatesAsync(
         Solution extractedSln,
@@ -46,7 +49,7 @@ internal static class MethodExtractorDuplicates
             filePath,
             newMethodStartLine,
             newMethodEndLine,
-            scope: null);
+            null);
 
         // Phase 2 blocker fix: Detect cross-file matches and upgrade visibility
         var absPath = Path.GetFullPath(filePath);
@@ -55,18 +58,17 @@ internal static class MethodExtractorDuplicates
 
         var currentSln = extractedSln;
         if (hasCrossFileMatches)
-        {
             // If there are cross-file duplicates, upgrade the extracted method from private to public static
             // so that other files can call it
             currentSln = await UpgradeMethodVisibilityAsync(extractedSln, filePath, newMethodName);
-        }
 
-        return await ApplyMatchesAsync(currentSln, filePath, newMethodStartLine, newMethodEndLine, matches, newMethodName, orderedParameters, refParams, outParams, returnVars);
+        return await ApplyMatchesAsync(currentSln, filePath, newMethodStartLine, newMethodEndLine, matches,
+            newMethodName, orderedParameters, refParams, outParams, returnVars);
     }
 
     /// <summary>
-    /// Upgrades an extracted method from private to public static visibility.
-    /// This enables cross-file call sites to access the method.
+    ///     Upgrades an extracted method from private to public static visibility.
+    ///     This enables cross-file call sites to access the method.
     /// </summary>
     private static async Task<Solution> UpgradeMethodVisibilityAsync(
         Solution solution,
@@ -108,8 +110,8 @@ internal static class MethodExtractorDuplicates
     }
 
     /// <summary>
-    /// Phase 2-4+6: Regenerate method signature with parameters and rewrite body for parameterized literals,
-    /// identifier variations, and generic type parameters.
+    ///     Phase 2-4+6: Regenerate method signature with parameters and rewrite body for parameterized literals,
+    ///     identifier variations, and generic type parameters.
     /// </summary>
     private static async Task<Solution> RegenerateForParameterizedVariationsAsync(
         Solution solution,
@@ -124,7 +126,7 @@ internal static class MethodExtractorDuplicates
         if (varyingLiteralPositions.Count == 0 && varyingIdentifierPositions.Count == 0 && typeParamMap.Count == 0)
             return solution;
 
-        if (literalsByMatch.Count == 0 && (varyingLiteralPositions.Count > 0))
+        if (literalsByMatch.Count == 0 && varyingLiteralPositions.Count > 0)
             return solution;
 
         var absPath = Path.GetFullPath(filePath);
@@ -160,17 +162,16 @@ internal static class MethodExtractorDuplicates
 
         // Add parameters for varying literal positions, then varying identifier positions
         // (varyingIdentifierPositions here already excludes type-arg positions — they become type params above)
-        newMethodDecl = AddParametersForVariations(newMethodDecl, varyingLiteralPositions, patternIdentifiers, varyingIdentifierPositions);
+        newMethodDecl = AddParametersForVariations(newMethodDecl, varyingLiteralPositions, patternIdentifiers,
+            varyingIdentifierPositions);
 
         // Rewrite body to use parameter references for both literals and identifiers
         newMethodDecl = RewriteBodyForLiteralParameters(newMethodDecl, varyingLiteralPositions);
-        newMethodDecl = RewriteBodyForIdentifierParameters(newMethodDecl, patternIdentifiers, varyingIdentifierPositions, varyingLiteralPositions.Count);
+        newMethodDecl = RewriteBodyForIdentifierParameters(newMethodDecl, patternIdentifiers,
+            varyingIdentifierPositions, varyingLiteralPositions.Count);
 
         // Phase 6: Rewrite body to replace type-position identifiers with type parameter names
-        if (typeParamMap.Count > 0)
-        {
-            newMethodDecl = RewriteBodyForTypeParameters(newMethodDecl, typeParamMap);
-        }
+        if (typeParamMap.Count > 0) newMethodDecl = RewriteBodyForTypeParameters(newMethodDecl, typeParamMap);
 
         var newRoot = root.ReplaceNode(methodDecl, newMethodDecl);
         return solution.WithDocumentSyntaxRoot(doc.Id, newRoot);
@@ -187,7 +188,7 @@ internal static class MethodExtractorDuplicates
         // Add string parameters for varying literal positions
         foreach (var pos in varyingLiteralPositions.OrderBy(p => p))
         {
-            var paramName = "param" + pos.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var paramName = "param" + pos.ToString(CultureInfo.InvariantCulture);
             var newParam = SyntaxFactory.Parameter(SyntaxFactory.Identifier(paramName))
                 .WithType(SyntaxFactory.ParseTypeName("string")
                     .WithTrailingTrivia(SyntaxFactory.Space));
@@ -195,10 +196,10 @@ internal static class MethodExtractorDuplicates
         }
 
         // Add object parameters for varying identifier positions
-        int identParamOffset = varyingLiteralPositions.Count;
+        var identParamOffset = varyingLiteralPositions.Count;
         foreach (var pos in varyingIdentifierPositions.OrderBy(p => p))
         {
-            var paramName = "param" + (identParamOffset + pos).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var paramName = "param" + (identParamOffset + pos).ToString(CultureInfo.InvariantCulture);
             var newParam = SyntaxFactory.Parameter(SyntaxFactory.Identifier(paramName))
                 .WithType(SyntaxFactory.ParseTypeName("object")
                     .WithTrailingTrivia(SyntaxFactory.Space));
@@ -218,7 +219,7 @@ internal static class MethodExtractorDuplicates
 
         var positionToParam = new Dictionary<int, string>();
         foreach (var pos in varyingPositions.OrderBy(p => p))
-            positionToParam[pos] = "param" + pos.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            positionToParam[pos] = "param" + pos.ToString(CultureInfo.InvariantCulture);
 
         var rewriter = new LiteralReplacementRewriter(positionToParam);
         var newBody = (BlockSyntax)rewriter.Visit(methodDecl.Body);
@@ -237,14 +238,12 @@ internal static class MethodExtractorDuplicates
         // Build map: original identifier name -> parameter name
         var identifierToParam = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var pos in varyingIdentifierPositions.OrderBy(p => p))
-        {
             if (pos < patternIdentifiers.Count)
             {
                 var originalName = patternIdentifiers[pos];
-                var paramName = "param" + (literalParamCount + pos).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                var paramName = "param" + (literalParamCount + pos).ToString(CultureInfo.InvariantCulture);
                 identifierToParam[originalName] = paramName;
             }
-        }
 
         var rewriter = new IdentifierReplacementRewriter(identifierToParam);
         var newBody = (BlockSyntax)rewriter.Visit(methodDecl.Body);
@@ -252,11 +251,11 @@ internal static class MethodExtractorDuplicates
     }
 
     /// <summary>
-    /// Phase 6: Rewrites the method body replacing type-position identifier names with
-    /// their assigned type parameter names (e.g. MyType -> T).
-    /// Uses the same IdentifierReplacementRewriter as Phase 2 since the replacement
-    /// is purely name-based — IdentifierNameSyntax nodes are replaced regardless of
-    /// whether they appear in type or value position.
+    ///     Phase 6: Rewrites the method body replacing type-position identifier names with
+    ///     their assigned type parameter names (e.g. MyType -> T).
+    ///     Uses the same IdentifierReplacementRewriter as Phase 2 since the replacement
+    ///     is purely name-based — IdentifierNameSyntax nodes are replaced regardless of
+    ///     whether they appear in type or value position.
     /// </summary>
     private static MethodDeclarationSyntax RewriteBodyForTypeParameters(
         MethodDeclarationSyntax methodDecl,
@@ -271,63 +270,11 @@ internal static class MethodExtractorDuplicates
         return methodDecl.WithBody(newBody);
     }
 
-    private class LiteralReplacementRewriter : CSharpSyntaxRewriter
-    {
-        private readonly Dictionary<int, string> _positionToParam;
-        private int _literalIndex = -1;
-
-        public LiteralReplacementRewriter(Dictionary<int, string> positionToParam)
-        {
-            _positionToParam = positionToParam;
-        }
-
-        public override SyntaxNode? VisitLiteralExpression(LiteralExpressionSyntax node)
-        {
-            _literalIndex++;
-            if (_positionToParam.TryGetValue(_literalIndex, out var paramName))
-                return SyntaxFactory.IdentifierName(paramName);
-            return base.VisitLiteralExpression(node);
-        }
-    }
-
     /// <summary>
-    /// Replaces specific identifier names in the method body with parameter names.
-    /// Only replaces exact-match simple IdentifierNameSyntax nodes -- skips
-    /// member-access chains, method names, and declaration nodes.
-    /// </summary>
-    private class IdentifierReplacementRewriter : CSharpSyntaxRewriter
-    {
-        private readonly Dictionary<string, string> _identifierToParam;
-
-        public IdentifierReplacementRewriter(Dictionary<string, string> identifierToParam)
-        {
-            _identifierToParam = identifierToParam;
-        }
-
-        public override SyntaxNode? VisitIdentifierName(IdentifierNameSyntax node)
-        {
-            // Skip if this identifier is the name in a member-access (right side of dot)
-            if (node.Parent is MemberAccessExpressionSyntax memberAccess && memberAccess.Name == node)
-                return base.VisitIdentifierName(node);
-
-            // Skip declaration identifiers (variable declarators) -- those are local to the block
-            if (node.Parent is VariableDeclaratorSyntax)
-                return base.VisitIdentifierName(node);
-
-            var name = node.Identifier.Text;
-            if (_identifierToParam.TryGetValue(name, out var paramName))
-                return SyntaxFactory.IdentifierName(paramName)
-                    .WithTriviaFrom(node);
-
-            return base.VisitIdentifierName(node);
-        }
-    }
-
-    /// <summary>
-    /// Apply a pre-built match list, replacing each match with a call to
-    /// <paramref name="newMethodName"/>. Exposed as <c>internal</c> so tests can
-    /// inject synthetic match lists (including overlapping ones) to verify the
-    /// overlap-warning contract without going through the full MSBuild workspace.
+    ///     Apply a pre-built match list, replacing each match with a call to
+    ///     <paramref name="newMethodName" />. Exposed as <c>internal</c> so tests can
+    ///     inject synthetic match lists (including overlapping ones) to verify the
+    ///     overlap-warning contract without going through the full MSBuild workspace.
     /// </summary>
     internal static async Task<Solution> ApplyMatchesAsync(
         Solution solution,
@@ -338,8 +285,10 @@ internal static class MethodExtractorDuplicates
         string newMethodName,
         IReadOnlyList<ISymbol> orderedParameters,
         IReadOnlyList<ISymbol> returnVars)
-        => await ApplyMatchesAsync(solution, filePath, sourceStartLine, sourceEndLine, matches,
+    {
+        return await ApplyMatchesAsync(solution, filePath, sourceStartLine, sourceEndLine, matches,
             newMethodName, orderedParameters, [], [], returnVars);
+    }
 
     internal static async Task<Solution> ApplyMatchesAsync(
         Solution solution,
@@ -354,12 +303,14 @@ internal static class MethodExtractorDuplicates
         IReadOnlyList<ISymbol> returnVars)
     {
         // Phase 1: Analyze literal variations
-        var (literalsByMatch, varyingLiteralPositions) = await AnalyzeLiteralVariationsAsync(solution, filePath, newMethodName, matches);
+        var (literalsByMatch, varyingLiteralPositions) =
+            await AnalyzeLiteralVariationsAsync(solution, filePath, newMethodName, matches);
 
         // Phase 2: Analyze identifier variations using PatternMatch.Substitutions.
         // Exclude identifiers already covered by orderedParameters (the existing method params).
         var existingParamNames = orderedParameters.Select(p => p.Name).ToHashSet(StringComparer.Ordinal);
-        var (patternIdentifiers, varyingIdentifierPositions) = await AnalyzeIdentifierVariationsAsync(solution, filePath, sourceStartLine, sourceEndLine, matches, existingParamNames);
+        var (patternIdentifiers, varyingIdentifierPositions) = await AnalyzeIdentifierVariationsAsync(solution,
+            filePath, sourceStartLine, sourceEndLine, matches, existingParamNames);
 
         // Phase 6: Classify varying identifier positions — type-arg positions become generic
         // type parameters; value positions remain as ordinary value parameters.
@@ -371,14 +322,16 @@ internal static class MethodExtractorDuplicates
         // Check if return variable names differ across matches (indicates incompatible structure)
         // In that case, skip parameterization entirely — variable renaming requires synthetic code generation
         // that the current system doesn't support.
-        var returnVarNamesMatch = CheckReturnVariableNamesConsistent(solution, filePath, sourceStartLine, sourceEndLine, matches, returnVars);
+        var returnVarNamesMatch =
+            CheckReturnVariableNamesConsistent(solution, filePath, sourceStartLine, sourceEndLine, matches, returnVars);
 
         // If there are any varying positions (literals, identifiers, or type params), regenerate method signature and body
         // Note: PatternMatcher excludes the source file, so matches only contains cross-file duplicates
         // ALSO: Only attempt parameterization if return variable names are consistent (no synthetic renaming needed)
         var currentSln = solution;
-        if (returnVarNamesMatch && (varyingLiteralPositions.Count > 0 || effectiveIdentifierPositions.Count > 0 || typeParamMap.Count > 0) && matches.Count > 0)
-        {
+        if (returnVarNamesMatch &&
+            (varyingLiteralPositions.Count > 0 || effectiveIdentifierPositions.Count > 0 || typeParamMap.Count > 0) &&
+            matches.Count > 0)
             currentSln = await RegenerateForParameterizedVariationsAsync(
                 currentSln,
                 filePath,
@@ -388,7 +341,6 @@ internal static class MethodExtractorDuplicates
                 patternIdentifiers,
                 effectiveIdentifierPositions,
                 typeParamMap);
-        }
 
         // Validate semantic equivalence: filter matches by string literal comparison
         // For parameterized cases (varyingPositions.Count > 0), allow different literals at varying positions
@@ -406,7 +358,8 @@ internal static class MethodExtractorDuplicates
                 var patternRoot = await patternDoc.GetSyntaxRootAsync();
                 if (patternRoot != null)
                 {
-                    var patternStatements = SelectStatementsInRange(patternRoot, patternMatch.Line, patternMatch.EndLine);
+                    var patternStatements =
+                        SelectStatementsInRange(patternRoot, patternMatch.Line, patternMatch.EndLine);
                     patternStringLiterals = ExtractStringLiterals(patternStatements);
                 }
             }
@@ -437,14 +390,11 @@ internal static class MethodExtractorDuplicates
                 var matchStringLiterals = ExtractStringLiterals(matchStatements);
 
                 // If parameterizing (literals, identifiers, or type params), accept matches with differences at varying positions
-                if (varyingLiteralPositions.Count > 0 || effectiveIdentifierPositions.Count > 0 || typeParamMap.Count > 0 || patternStringLiterals.SetEquals(matchStringLiterals))
-                {
+                if (varyingLiteralPositions.Count > 0 || effectiveIdentifierPositions.Count > 0 ||
+                    typeParamMap.Count > 0 || patternStringLiterals.SetEquals(matchStringLiterals))
                     filteredMatches.Add(match);
-                }
                 else
-                {
                     RtLog.Warning("{File}:{Line}: string literal semantic mismatch -- skipped", match.File, match.Line);
-                }
             }
 
             matches = filteredMatches;
@@ -463,8 +413,8 @@ internal static class MethodExtractorDuplicates
         //         patternIdentifiers, effectiveIdentifierPositions, typeParamMap);
         // }
 
-        int replaced = 0;
-        int skipped = 0;
+        var replaced = 0;
+        var skipped = 0;
 
         // Process matches in an order that keeps line numbers stable as we rewrite.
         // - Group by file so cross-file matches don't affect each other.
@@ -529,7 +479,8 @@ internal static class MethodExtractorDuplicates
             }
         }
 
-        RtConsole.WriteLine(RtOutputContext.Result, $"matches found: {matches.Count}, replaced: {replaced}, skipped: {skipped}");
+        RtConsole.WriteLine(RtOutputContext.Result,
+            $"matches found: {matches.Count}, replaced: {replaced}, skipped: {skipped}");
 
         return currentSln;
     }
@@ -580,22 +531,16 @@ internal static class MethodExtractorDuplicates
 
         // Append literal values for parameterized literal duplicates (Phase 1)
         if (varyingLiteralPositions != null && matchLiterals != null)
-        {
             foreach (var pos in varyingLiteralPositions.OrderBy(p => p))
-            {
                 if (pos < matchLiterals.Count)
                 {
                     var literal = matchLiterals[pos];
                     args.Add("\"" + literal + "\"");
                 }
-            }
-        }
 
         // Append identifier values for parameterized identifier duplicates (Phase 2)
         if (patternIdentifiers != null && varyingIdentifierPositions != null && varyingIdentifierPositions.Count > 0)
-        {
             foreach (var pos in varyingIdentifierPositions.OrderBy(p => p))
-            {
                 if (pos < patternIdentifiers.Count)
                 {
                     var patternIdentifier = patternIdentifiers[pos];
@@ -605,8 +550,6 @@ internal static class MethodExtractorDuplicates
                         : patternIdentifier;
                     args.Add(matchIdentifier);
                 }
-            }
-        }
 
         // Find the document containing the match
         var matchAbsPath = Path.GetFullPath(match.File);
@@ -631,7 +574,6 @@ internal static class MethodExtractorDuplicates
         // We need to emit the match-site concrete types (e.g. "OtherType") in order
         var typeArgs = new List<string>();
         if (typeParamMap != null && typeParamMap.Count > 0)
-        {
             foreach (var (patternTypeName, _) in typeParamMap)
             {
                 var concreteType = match.Substitutions.TryGetValue(patternTypeName, out var sub)
@@ -639,7 +581,6 @@ internal static class MethodExtractorDuplicates
                     : patternTypeName;
                 typeArgs.Add(concreteType);
             }
-        }
 
         var leadingTrivia = matchedStatements[0].GetLeadingTrivia();
         var callStmt = BuildReplacementCallSite(newMethodName, args, typeArgs, returnVars, match)
@@ -649,10 +590,10 @@ internal static class MethodExtractorDuplicates
         // Replace the matched statement block with the call
         var block = (BlockSyntax)matchedStatements[0].Parent!;
         var stmts = block.Statements;
-        int firstIdx = stmts.IndexOf(matchedStatements[0]);
-        int lastIdx = stmts.IndexOf(matchedStatements[^1]);
+        var firstIdx = stmts.IndexOf(matchedStatements[0]);
+        var lastIdx = stmts.IndexOf(matchedStatements[^1]);
 
-        for (int i = lastIdx; i >= firstIdx; i--)
+        for (var i = lastIdx; i >= firstIdx; i--)
             stmts = stmts.RemoveAt(i);
 
         stmts = stmts.Insert(firstIdx, callStmt);
@@ -689,14 +630,16 @@ internal static class MethodExtractorDuplicates
         return SyntaxFactory.ParseStatement($"var ({returnNames}) = {call};");
     }
 
-    private static string MapSymbolName(ISymbol symbol, PatternMatch match) =>
-        match.Substitutions.TryGetValue(symbol.Name, out var substituted)
+    private static string MapSymbolName(ISymbol symbol, PatternMatch match)
+    {
+        return match.Substitutions.TryGetValue(symbol.Name, out var substituted)
             ? substituted
             : symbol.Name;
+    }
 
     /// <summary>
-    /// Heuristically determines if a value string is a literal (number, string, bool, char, null)
-    /// rather than an identifier that could be passed as an argument.
+    ///     Heuristically determines if a value string is a literal (number, string, bool, char, null)
+    ///     rather than an identifier that could be passed as an argument.
     /// </summary>
     private static bool IsLiteralValue(string value)
     {
@@ -719,8 +662,8 @@ internal static class MethodExtractorDuplicates
     }
 
     /// <summary>
-    /// Loads the statements in the given line range from the source file document.
-    /// Returns an empty list if the document or syntax root cannot be resolved.
+    ///     Loads the statements in the given line range from the source file document.
+    ///     Returns an empty list if the document or syntax root cannot be resolved.
     /// </summary>
     private static async Task<IReadOnlyList<StatementSyntax>> LoadSourceStatementsAsync(
         Solution solution, string filePath, int startLine, int endLine)
@@ -747,66 +690,58 @@ internal static class MethodExtractorDuplicates
             var span = stmt.GetLocation().GetLineSpan();
             // Check if statement falls within [startLine, endLine] (1-based)
             // Convert to 1-based for comparison: statement at 0-based LinePosition.Line N has 1-based line = N+1
-            int stmtStartLine1Based = span.StartLinePosition.Line + 1;
-            int stmtEndLine1Based = span.EndLinePosition.Line + 1;
+            var stmtStartLine1Based = span.StartLinePosition.Line + 1;
+            var stmtEndLine1Based = span.EndLinePosition.Line + 1;
 
-            if (stmtStartLine1Based >= startLine && stmtStartLine1Based <= endLine)
-            {
-                result.Add(stmt);
-            }
+            if (stmtStartLine1Based >= startLine && stmtStartLine1Based <= endLine) result.Add(stmt);
         }
+
         return result;
     }
 
     private static List<StatementSyntax> SelectStatementsInRange(SyntaxNode root, int startLine, int endLine)
     {
         var allStmts = root.DescendantNodes()
-               .OfType<StatementSyntax>()
-               .Where(s => s.Parent is BlockSyntax)
-               .ToList();
+            .OfType<StatementSyntax>()
+            .Where(s => s.Parent is BlockSyntax)
+            .ToList();
 
         var result = new List<StatementSyntax>();
         foreach (var stmt in allStmts)
         {
             var span = stmt.GetLocation().GetLineSpan();
-            int stmtStartLine1Based = span.StartLinePosition.Line + 1;
-            int stmtEndLine1Based = span.EndLinePosition.Line + 1;
+            var stmtStartLine1Based = span.StartLinePosition.Line + 1;
+            var stmtEndLine1Based = span.EndLinePosition.Line + 1;
 
-            bool matches = stmtStartLine1Based >= startLine && stmtStartLine1Based <= endLine;
+            var matches = stmtStartLine1Based >= startLine && stmtStartLine1Based <= endLine;
 
-            if (matches)
-            {
-                result.Add(stmt);
-            }
+            if (matches) result.Add(stmt);
         }
 
         return result;
     }
 
     /// <summary>
-    /// Extracts all string literal values from a list of statements.
+    ///     Extracts all string literal values from a list of statements.
     /// </summary>
     private static HashSet<string> ExtractStringLiterals(List<StatementSyntax> statements)
     {
         var literals = new HashSet<string>();
         var visitor = new StringLiteralVisitor();
 
-        foreach (var stmt in statements)
-        {
-            visitor.Visit(stmt);
-        }
+        foreach (var stmt in statements) visitor.Visit(stmt);
 
         return visitor.Literals;
     }
 
     /// <summary>
-    /// Phase 1: Analyzes literal variations across all matches.
-    /// Returns (literalsByMatch, varyingPositions).
+    ///     Phase 1: Analyzes literal variations across all matches.
+    ///     Returns (literalsByMatch, varyingPositions).
     /// </summary>
     /// <summary>
-    /// Checks if all matches use the same return variable names as the source pattern.
-    /// Parameterization that requires renaming return variables (e.g., methodOpt->typeOpt)
-    /// requires synthetic code generation and is not currently supported.
+    ///     Checks if all matches use the same return variable names as the source pattern.
+    ///     Parameterization that requires renaming return variables (e.g., methodOpt->typeOpt)
+    ///     requires synthetic code generation and is not currently supported.
     /// </summary>
     private static bool CheckReturnVariableNamesConsistent(
         Solution solution, string sourceFilePath, int sourceStartLine, int sourceEndLine,
@@ -821,23 +756,18 @@ internal static class MethodExtractorDuplicates
         // Check each match: the substitution map should map source names to the same names
         // If any source var name maps to a different name in a match, return false
         foreach (var match in matches)
-        {
-            foreach (var varName in sourceVarNames)
-            {
-                if (match.Substitutions.TryGetValue(varName, out var mappedName))
-                {
-                    // If the variable is renamed (e.g., methodOpt -> typeOpt), return false
-                    if (!varName.Equals(mappedName, StringComparison.Ordinal))
-                        return false;
-                }
-            }
-        }
+        foreach (var varName in sourceVarNames)
+            if (match.Substitutions.TryGetValue(varName, out var mappedName))
+                // If the variable is renamed (e.g., methodOpt -> typeOpt), return false
+                if (!varName.Equals(mappedName, StringComparison.Ordinal))
+                    return false;
 
         return true;
     }
 
     private static async Task<(List<List<string>>, HashSet<int>)>
-        AnalyzeLiteralVariationsAsync(Solution solution, string sourceFilePath, string newMethodName, IReadOnlyList<PatternMatch> matches)
+        AnalyzeLiteralVariationsAsync(Solution solution, string sourceFilePath, string newMethodName,
+            IReadOnlyList<PatternMatch> matches)
     {
         // Extract source file's literals directly from the newly extracted method
         var sourceAbsPath = Path.GetFullPath(sourceFilePath);
@@ -881,10 +811,10 @@ internal static class MethodExtractorDuplicates
 
         var varyingPositions = new HashSet<int>();
 
-        for (int pos = 0; pos < patternLiterals.Count; pos++)
+        for (var pos = 0; pos < patternLiterals.Count; pos++)
         {
             var patternValue = patternLiterals[pos];
-            for (int matchIdx = 1; matchIdx < literalsByMatch.Count; matchIdx++)
+            for (var matchIdx = 1; matchIdx < literalsByMatch.Count; matchIdx++)
             {
                 var matchLiterals = literalsByMatch[matchIdx];
                 if (pos >= matchLiterals.Count || matchLiterals[pos] != patternValue)
@@ -907,11 +837,11 @@ internal static class MethodExtractorDuplicates
             .FirstOrDefault(d => string.Equals(d.FilePath, matchAbsPath, StringComparison.OrdinalIgnoreCase));
 
         if (matchDoc == null)
-            return new();
+            return new List<string>();
 
         var matchRoot = await matchDoc.GetSyntaxRootAsync();
         if (matchRoot == null)
-            return new();
+            return new List<string>();
 
         var matchStatements = SelectStatementsInRange(matchRoot, match.Line, match.EndLine);
         return ExtractOrderedLiterals(matchStatements);
@@ -927,46 +857,10 @@ internal static class MethodExtractorDuplicates
     }
 
     /// <summary>
-    /// Roslyn syntax walker that collects all literals in traversal order.
-    /// </summary>
-    private class OrderedLiteralVisitor : CSharpSyntaxWalker
-    {
-        public List<string> Literals { get; } = new();
-
-        public override void VisitLiteralExpression(LiteralExpressionSyntax node)
-        {
-            Literals.Add(node.Token.ValueText);
-            base.VisitLiteralExpression(node);
-        }
-    }
-
-    /// <summary>
-    /// Roslyn syntax walker that collects all string literal values.
-    /// </summary>
-    private class StringLiteralVisitor : CSharpSyntaxWalker
-    {
-        public HashSet<string> Literals { get; } = new();
-
-        public override void VisitLiteralExpression(LiteralExpressionSyntax node)
-        {
-            // Collect string literals (standard and UTF-8)
-            if (node.IsKind(SyntaxKind.StringLiteralExpression))
-            {
-                Literals.Add(node.Token.ValueText);
-            }
-            else if (node.IsKind(SyntaxKind.Utf8StringLiteralExpression))
-            {
-                Literals.Add(node.Token.ValueText);
-            }
-            base.VisitLiteralExpression(node);
-        }
-    }
-
-    /// <summary>
-    /// Phase 2: Analyzes identifier variations across all matches using PatternMatch.Substitutions.
-    /// Returns (patternIdentifiers, varyingPositions) where patternIdentifiers is the ordered list
-    /// of external identifiers in the source block (excluding those already in orderedParameters),
-    /// and varyingPositions is the set of indices where any match uses a different identifier.
+    ///     Phase 2: Analyzes identifier variations across all matches using PatternMatch.Substitutions.
+    ///     Returns (patternIdentifiers, varyingPositions) where patternIdentifiers is the ordered list
+    ///     of external identifiers in the source block (excluding those already in orderedParameters),
+    ///     and varyingPositions is the set of indices where any match uses a different identifier.
     /// </summary>
     private static async Task<(List<string> patternIdentifiers, HashSet<int> varyingPositions)>
         AnalyzeIdentifierVariationsAsync(
@@ -1020,9 +914,9 @@ internal static class MethodExtractorDuplicates
     }
 
     /// <summary>
-    /// After parameterization, update the source file's original call site with parameterized arguments.
-    /// The extraction process replaces the original statements with a call to the new method.
-    /// When parameterization adds parameters, this call site must be updated to pass those arguments.
+    ///     After parameterization, update the source file's original call site with parameterized arguments.
+    ///     The extraction process replaces the original statements with a call to the new method.
+    ///     When parameterization adds parameters, this call site must be updated to pass those arguments.
     /// </summary>
     private static async Task<Solution> UpdateSourceFileCallSiteAsync(
         Solution solution,
@@ -1068,7 +962,7 @@ internal static class MethodExtractorDuplicates
         // Build the argument list from source file values
         var arguments = new List<ExpressionSyntax>();
 
-        foreach (int pos in varyingLiteralPositions.Union(varyingIdentifierPositions).OrderBy(p => p))
+        foreach (var pos in varyingLiteralPositions.Union(varyingIdentifierPositions).OrderBy(p => p))
         {
             ExpressionSyntax? arg = null;
 
@@ -1076,20 +970,16 @@ internal static class MethodExtractorDuplicates
             {
                 // Literal position: use the source file's literal value
                 if (pos < sourceLiterals.Count)
-                {
                     arg = SyntaxFactory.LiteralExpression(
                         SyntaxKind.StringLiteralExpression,
                         SyntaxFactory.Literal(sourceLiterals[pos]));
-                }
             }
             else
             {
                 // Identifier position: use the source file's identifier name
                 var idPos = pos - varyingLiteralPositions.Count;
                 if (idPos >= 0 && idPos < sourceIdentifiers.Count)
-                {
                     arg = SyntaxFactory.IdentifierName(sourceIdentifiers[idPos]);
-                }
             }
 
             if (arg != null)
@@ -1111,5 +1001,87 @@ internal static class MethodExtractorDuplicates
 
         return solution;
     }
-}
 
+    private class LiteralReplacementRewriter : CSharpSyntaxRewriter
+    {
+        private readonly Dictionary<int, string> _positionToParam;
+        private int _literalIndex = -1;
+
+        public LiteralReplacementRewriter(Dictionary<int, string> positionToParam)
+        {
+            _positionToParam = positionToParam;
+        }
+
+        public override SyntaxNode? VisitLiteralExpression(LiteralExpressionSyntax node)
+        {
+            _literalIndex++;
+            if (_positionToParam.TryGetValue(_literalIndex, out var paramName))
+                return SyntaxFactory.IdentifierName(paramName);
+            return base.VisitLiteralExpression(node);
+        }
+    }
+
+    /// <summary>
+    ///     Replaces specific identifier names in the method body with parameter names.
+    ///     Only replaces exact-match simple IdentifierNameSyntax nodes -- skips
+    ///     member-access chains, method names, and declaration nodes.
+    /// </summary>
+    private class IdentifierReplacementRewriter : CSharpSyntaxRewriter
+    {
+        private readonly Dictionary<string, string> _identifierToParam;
+
+        public IdentifierReplacementRewriter(Dictionary<string, string> identifierToParam)
+        {
+            _identifierToParam = identifierToParam;
+        }
+
+        public override SyntaxNode? VisitIdentifierName(IdentifierNameSyntax node)
+        {
+            // Skip if this identifier is the name in a member-access (right side of dot)
+            if (node.Parent is MemberAccessExpressionSyntax memberAccess && memberAccess.Name == node)
+                return base.VisitIdentifierName(node);
+
+            // Skip declaration identifiers (variable declarators) -- those are local to the block
+            if (node.Parent is VariableDeclaratorSyntax)
+                return base.VisitIdentifierName(node);
+
+            var name = node.Identifier.Text;
+            if (_identifierToParam.TryGetValue(name, out var paramName))
+                return SyntaxFactory.IdentifierName(paramName)
+                    .WithTriviaFrom(node);
+
+            return base.VisitIdentifierName(node);
+        }
+    }
+
+    /// <summary>
+    ///     Roslyn syntax walker that collects all literals in traversal order.
+    /// </summary>
+    private class OrderedLiteralVisitor : CSharpSyntaxWalker
+    {
+        public List<string> Literals { get; } = new();
+
+        public override void VisitLiteralExpression(LiteralExpressionSyntax node)
+        {
+            Literals.Add(node.Token.ValueText);
+            base.VisitLiteralExpression(node);
+        }
+    }
+
+    /// <summary>
+    ///     Roslyn syntax walker that collects all string literal values.
+    /// </summary>
+    private class StringLiteralVisitor : CSharpSyntaxWalker
+    {
+        public HashSet<string> Literals { get; } = new();
+
+        public override void VisitLiteralExpression(LiteralExpressionSyntax node)
+        {
+            // Collect string literals (standard and UTF-8)
+            if (node.IsKind(SyntaxKind.StringLiteralExpression))
+                Literals.Add(node.Token.ValueText);
+            else if (node.IsKind(SyntaxKind.Utf8StringLiteralExpression)) Literals.Add(node.Token.ValueText);
+            base.VisitLiteralExpression(node);
+        }
+    }
+}

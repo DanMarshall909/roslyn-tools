@@ -1,11 +1,12 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.FindSymbols;
-using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class FindImplementationsService : IRtService
 {
     internal async Task<List<Dictionary<string, object?>>> FindAsync(
@@ -34,7 +35,7 @@ internal class FindImplementationsService : IRtService
                 ["accessibility"] = implType.DeclaredAccessibility.ToString(),
                 ["isAbstract"] = implType.IsAbstract,
                 ["project"] = implType.ContainingAssembly?.Name,
-                ["locations"] = locations,
+                ["locations"] = locations
             };
 
             var directInterfaces = implType.Interfaces
@@ -67,7 +68,7 @@ internal class FindImplementationsService : IRtService
                     ["accessibility"] = d.DeclaredAccessibility.ToString(),
                     ["isAbstract"] = d.IsAbstract,
                     ["project"] = d.ContainingAssembly?.Name,
-                    ["locations"] = locations,
+                    ["locations"] = locations
                 });
             }
         }

@@ -1,11 +1,12 @@
+﻿using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using System.Diagnostics.CodeAnalysis;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 /// <summary>
 /// Rewriting logic for narrowing consumers: finds all types that depend on a wide
 /// interface and rewrites those that only use a selected member subset to use the
@@ -25,14 +26,9 @@ internal class ConsumerNarrowerService : IRtService
         _interfaceAnalyzer = interfaceAnalyzer;
     }
 
-    internal sealed record NarrowResult(
-        Solution Solution,
-        List<string> NarrowedConsumers,
-        List<(string Name, string Reason)> SkippedConsumers);
-
     /// <summary>
-    /// Finds all types in the solution that hold a field or constructor parameter
-    /// typed as <paramref name="interfaceSymbol"/>.
+    ///     Finds all types in the solution that hold a field or constructor parameter
+    ///     typed as <paramref name="interfaceSymbol" />.
     /// </summary>
     internal async Task<List<(INamedTypeSymbol Symbol, Document Document)>> FindConsumersAsync(
         Solution solution,
@@ -41,44 +37,34 @@ internal class ConsumerNarrowerService : IRtService
         var result = new List<(INamedTypeSymbol, Document)>();
 
         foreach (var project in solution.Projects)
+        foreach (var document in project.Documents)
         {
-            foreach (var document in project.Documents)
-            {
-                var root = await document.GetSyntaxRootAsync();
-                var semanticModel = await document.GetSemanticModelAsync();
-                if (root is null || semanticModel is null)
-                    continue;
+            var root = await document.GetSyntaxRootAsync();
+            var semanticModel = await document.GetSemanticModelAsync();
+            if (root is null || semanticModel is null)
+                continue;
 
-                // Find fields typed as the interface
-                foreach (var field in root.DescendantNodes().OfType<VariableDeclaratorSyntax>())
+            // Find fields typed as the interface
+            foreach (var field in root.DescendantNodes().OfType<VariableDeclaratorSyntax>())
+                if (semanticModel.GetDeclaredSymbol(field) is IFieldSymbol fieldSym
+                    && SymbolEqualityComparer.Default.Equals(fieldSym.Type, interfaceSymbol))
                 {
-                    if (semanticModel.GetDeclaredSymbol(field) is IFieldSymbol fieldSym
-                        && SymbolEqualityComparer.Default.Equals(fieldSym.Type, interfaceSymbol))
-                    {
-                        var containingType = fieldSym.ContainingType;
-                        if (containingType is not null)
-                        {
-                            result.Add((containingType, document));
-                        }
-                    }
+                    var containingType = fieldSym.ContainingType;
+                    if (containingType is not null) result.Add((containingType, document));
                 }
 
-                // Find ctor parameters typed as the interface
-                foreach (var param in root.DescendantNodes().OfType<ParameterSyntax>())
-                {
-                    if (semanticModel.GetDeclaredSymbol(param) is IParameterSymbol paramSym
-                        && SymbolEqualityComparer.Default.Equals(paramSym.Type, interfaceSymbol)
-                        && paramSym.ContainingSymbol is IMethodSymbol
-                        { MethodKind: MethodKind.Constructor } ctorSym)
+            // Find ctor parameters typed as the interface
+            foreach (var param in root.DescendantNodes().OfType<ParameterSyntax>())
+                if (semanticModel.GetDeclaredSymbol(param) is IParameterSymbol paramSym
+                    && SymbolEqualityComparer.Default.Equals(paramSym.Type, interfaceSymbol)
+                    && paramSym.ContainingSymbol is IMethodSymbol
                     {
-                        var containingType = ctorSym.ContainingType;
-                        if (containingType is not null)
-                        {
-                            result.Add((containingType, document));
-                        }
-                    }
+                        MethodKind: MethodKind.Constructor
+                    } ctorSym)
+                {
+                    var containingType = ctorSym.ContainingType;
+                    if (containingType is not null) result.Add((containingType, document));
                 }
-            }
         }
 
         // Deduplicate by type display name
@@ -89,9 +75,9 @@ internal class ConsumerNarrowerService : IRtService
     }
 
     /// <summary>
-    /// For each consumer that exclusively uses the selected member subset, rewrites
-    /// its type annotations from the old interface name to the new one and returns
-    /// the updated solution together with lists of narrowed and skipped consumers.
+    ///     For each consumer that exclusively uses the selected member subset, rewrites
+    ///     its type annotations from the old interface name to the new one and returns
+    ///     the updated solution together with lists of narrowed and skipped consumers.
     /// </summary>
     internal async Task<NarrowResult> NarrowConsumersAsync(
         Solution originalSolution,
@@ -172,15 +158,20 @@ internal class ConsumerNarrowerService : IRtService
         return solution.WithDocumentSyntaxRoot(consumerDocument.Id, newRoot);
     }
 
+    internal sealed record NarrowResult(
+        Solution Solution,
+        List<string> NarrowedConsumers,
+        List<(string Name, string Reason)> SkippedConsumers);
+
     // -------------------------------------------------------------------------
     // Syntax rewriter -- replaces type annotations of the old interface name
     // -------------------------------------------------------------------------
 
     private sealed class NarrowTypeRewriter : CSharpSyntaxRewriter
     {
-        private readonly SemanticModel _semanticModel;
-        private readonly string _oldName;
         private readonly string _newName;
+        private readonly string _oldName;
+        private readonly SemanticModel _semanticModel;
 
         internal NarrowTypeRewriter(SemanticModel semanticModel, string oldName, string newName)
         {
@@ -196,15 +187,14 @@ internal class ConsumerNarrowerService : IRtService
 
             // Only rewrite if the semantic model confirms this identifier refers to the interface type
             var symbolInfo = _semanticModel.GetSymbolInfo(node);
-            var sym = symbolInfo.Symbol ?? (symbolInfo.CandidateSymbols.Length == 1 ? symbolInfo.CandidateSymbols[0] : null);
+            var sym = symbolInfo.Symbol ??
+                      (symbolInfo.CandidateSymbols.Length == 1 ? symbolInfo.CandidateSymbols[0] : null);
 
             if (sym is INamedTypeSymbol namedType
                 && namedType.TypeKind == TypeKind.Interface
                 && namedType.Name == _oldName)
-            {
                 return node.WithIdentifier(
                     SyntaxFactory.Identifier(node.Identifier.LeadingTrivia, _newName, node.Identifier.TrailingTrivia));
-            }
 
             return base.VisitIdentifierName(node);
         }

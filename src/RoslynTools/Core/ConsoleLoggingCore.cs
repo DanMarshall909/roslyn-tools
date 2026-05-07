@@ -1,6 +1,6 @@
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Globalization;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -20,15 +20,15 @@ internal enum ConsoleLoggingStream
 {
     All,
     Stdout,
-    Stderr,
+    Stderr
 }
 
 internal static class ConsoleLoggingCore
 {
     private static readonly SymbolDisplayFormat TypeDisplayFormat = new(
-        globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Omitted,
-        typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
-        genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters);
+        SymbolDisplayGlobalNamespaceStyle.Omitted,
+        SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
+        SymbolDisplayGenericsOptions.IncludeTypeParameters);
 
     internal static async Task<ConsoleLoggingReview> AnalyzeAsync(Solution solution, ConsoleLoggingOptions options)
     {
@@ -37,18 +37,16 @@ internal static class ConsoleLoggingCore
         var review = new ConsoleLoggingReview();
 
         foreach (var project in solution.Projects)
+        foreach (var document in project.Documents)
         {
-            foreach (var document in project.Documents)
-            {
-                var root = await document.GetSyntaxRootAsync();
-                if (root is null || ShouldExclude(document.FilePath, options.ExcludePaths))
-                    continue;
+            var root = await document.GetSyntaxRootAsync();
+            if (root is null || ShouldExclude(document.FilePath, options.ExcludePaths))
+                continue;
 
-                var semanticModel = await document.GetSemanticModelAsync();
-                var analyzer = new ConsoleLoggingAnalyzer(options, document.FilePath ?? document.Name, semanticModel);
-                analyzer.Visit(root);
-                review.AddRange(analyzer.Entries);
-            }
+            var semanticModel = await document.GetSemanticModelAsync();
+            var analyzer = new ConsoleLoggingAnalyzer(options, document.FilePath ?? document.Name, semanticModel);
+            analyzer.Visit(root);
+            review.AddRange(analyzer.Entries);
         }
 
         return review;
@@ -68,21 +66,19 @@ internal static class ConsoleLoggingCore
         ArgumentNullException.ThrowIfNull(options);
 
         foreach (var project in solution.Projects)
+        foreach (var document in project.Documents)
         {
-            foreach (var document in project.Documents)
-            {
-                var root = await document.GetSyntaxRootAsync();
-                if (root is null)
-                    continue;
+            var root = await document.GetSyntaxRootAsync();
+            if (root is null)
+                continue;
 
-                if (ShouldExclude(document.FilePath, options.ExcludePaths))
-                    continue;
+            if (ShouldExclude(document.FilePath, options.ExcludePaths))
+                continue;
 
-                var rewriter = new ConsoleLoggingRewriter(options);
-                var newRoot = rewriter.Visit(root);
-                if (newRoot is not null && !ReferenceEquals(root, newRoot))
-                    solution = solution.WithDocumentSyntaxRoot(document.Id, newRoot);
-            }
+            var rewriter = new ConsoleLoggingRewriter(options);
+            var newRoot = rewriter.Visit(root);
+            if (newRoot is not null && !ReferenceEquals(root, newRoot))
+                solution = solution.WithDocumentSyntaxRoot(document.Id, newRoot);
         }
 
         return solution;
@@ -115,7 +111,9 @@ internal static class ConsoleLoggingCore
             var converted = BuildMessage(visited.ArgumentList);
             var level = options.InferLevel
                 ? InferLevel(converted.Template, isError)
-                : isError ? ConsoleLoggingLevel.Error : ConsoleLoggingLevel.Information;
+                : isError
+                    ? ConsoleLoggingLevel.Error
+                    : ConsoleLoggingLevel.Information;
             var methodName = GetMethodName(options, level);
 
             var replacement = SyntaxFactory.InvocationExpression(
@@ -128,13 +126,15 @@ internal static class ConsoleLoggingCore
             return replacement.WithTriviaFrom(visited);
         }
 
-        private bool ShouldRewriteStream(bool isError) =>
-            options.Stream switch
+        private bool ShouldRewriteStream(bool isError)
+        {
+            return options.Stream switch
             {
                 ConsoleLoggingStream.Stdout => !isError,
                 ConsoleLoggingStream.Stderr => isError,
-                _ => true,
+                _ => true
             };
+        }
 
         internal static bool TryGetConsoleKind(InvocationExpressionSyntax invocation, out bool isError)
         {
@@ -156,9 +156,7 @@ internal static class ConsoleLoggingCore
 
             if (expression is IdentifierNameSyntax identifier
                 && identifier.Identifier.ValueText == "Console")
-            {
                 return true;
-            }
 
             if (expression is MemberAccessExpressionSyntax memberAccess)
             {
@@ -171,25 +169,27 @@ internal static class ConsoleLoggingCore
 
                 if (memberAccess.Name.Identifier.ValueText == "Console"
                     && IsSystemExpression(memberAccess.Expression))
-                {
                     return true;
-                }
             }
 
             return false;
         }
 
-        private static bool IsSystemExpression(ExpressionSyntax expression) =>
-            expression is IdentifierNameSyntax identifier
-            && identifier.Identifier.ValueText == "System";
+        private static bool IsSystemExpression(ExpressionSyntax expression)
+        {
+            return expression is IdentifierNameSyntax identifier
+                   && identifier.Identifier.ValueText == "System";
+        }
 
-        private static string GetMethodName(ConsoleLoggingOptions options, ConsoleLoggingLevel level) =>
-            level switch
+        private static string GetMethodName(ConsoleLoggingOptions options, ConsoleLoggingLevel level)
+        {
+            return level switch
             {
                 ConsoleLoggingLevel.Warning => options.WarningMethod,
                 ConsoleLoggingLevel.Error => options.ErrorMethod,
-                _ => options.InformationMethod,
+                _ => options.InformationMethod
             };
+        }
 
         internal static ConsoleLoggingLevel InferLevel(string template, bool isError)
         {
@@ -199,9 +199,7 @@ internal static class ConsoleLoggingCore
             var trimmed = template.TrimStart();
             if (trimmed.StartsWith("warning", StringComparison.OrdinalIgnoreCase)
                 || trimmed.StartsWith("[warning]", StringComparison.OrdinalIgnoreCase))
-            {
                 return ConsoleLoggingLevel.Warning;
-            }
 
             if (trimmed.StartsWith("error", StringComparison.OrdinalIgnoreCase)
                 || trimmed.StartsWith("[error]", StringComparison.OrdinalIgnoreCase)
@@ -209,9 +207,7 @@ internal static class ConsoleLoggingCore
                 || trimmed.StartsWith("failed ", StringComparison.OrdinalIgnoreCase)
                 || trimmed.StartsWith("failed:", StringComparison.OrdinalIgnoreCase)
                 || trimmed.StartsWith("fatal", StringComparison.OrdinalIgnoreCase))
-            {
                 return ConsoleLoggingLevel.Error;
-            }
 
             return ConsoleLoggingLevel.Information;
         }
@@ -243,15 +239,13 @@ internal static class ConsoleLoggingCore
                 return SyntaxFactory.SeparatedList<ArgumentSyntax>();
 
             var nodesAndSeparators = new List<SyntaxNodeOrToken>();
-            for (int i = 0; i < args.Count; i++)
+            for (var i = 0; i < args.Count; i++)
             {
                 nodesAndSeparators.Add(args[i]);
                 if (i < args.Count - 1)
-                {
                     nodesAndSeparators.Add(
                         SyntaxFactory.Token(SyntaxKind.CommaToken)
                             .WithTrailingTrivia(SyntaxFactory.Space));
-                }
             }
 
             return SyntaxFactory.SeparatedList<ArgumentSyntax>(nodesAndSeparators);
@@ -335,25 +329,19 @@ internal static class ConsoleLoggingCore
             // string.Format
             if (receiver is PredefinedTypeSyntax predefined
                 && predefined.Keyword.IsKind(SyntaxKind.StringKeyword))
-            {
                 return true;
-            }
 
             // String.Format
             if (receiver is IdentifierNameSyntax identifier
                 && identifier.Identifier.ValueText == "String")
-            {
                 return true;
-            }
 
             // System.String.Format
             if (receiver is MemberAccessExpressionSyntax outerAccess
                 && outerAccess.Name.Identifier.ValueText == "String"
                 && outerAccess.Expression is IdentifierNameSyntax systemIdentifier
                 && systemIdentifier.Identifier.ValueText == "System")
-            {
                 return true;
-            }
 
             return false;
         }
@@ -439,9 +427,11 @@ internal static class ConsoleLoggingCore
             parts.Add(expression);
         }
 
-        private static bool IsStringLiteral(ExpressionSyntax expression) =>
-            expression is LiteralExpressionSyntax literal
-            && literal.IsKind(SyntaxKind.StringLiteralExpression);
+        private static bool IsStringLiteral(ExpressionSyntax expression)
+        {
+            return expression is LiteralExpressionSyntax literal
+                   && literal.IsKind(SyntaxKind.StringLiteralExpression);
+        }
 
         private static string ConvertCompositeFormat(string template, List<ExpressionSyntax> args)
         {
@@ -476,10 +466,8 @@ internal static class ConsoleLoggingCore
 
             var builder = new StringBuilder();
             foreach (var ch in raw)
-            {
                 if (char.IsLetterOrDigit(ch) || ch == '_')
                     builder.Append(ch);
-            }
 
             if (builder.Length == 0)
                 return $"Value{index + 1}";
@@ -497,9 +485,7 @@ internal static class ConsoleLoggingCore
             if (memberName == "Message"
                 && memberAccess.Expression is IdentifierNameSyntax identifier
                 && identifier.Identifier.ValueText is "ex" or "exception")
-            {
                 return "ErrorMessage";
-            }
 
             return memberName;
         }
@@ -512,27 +498,27 @@ internal static class ConsoleLoggingCore
 
             if (methodName == "GetFileName"
                 && memberAccess.Expression.ToString() == "Path")
-            {
                 return "FileName";
-            }
 
             if (methodName == "Join"
                 && memberAccess.Expression.ToString() == "string")
-            {
                 return "JoinedValues";
-            }
 
             return methodName;
         }
 
-        private static string EscapeTemplateText(string text) =>
-            text.Replace("{", "{{", StringComparison.Ordinal)
+        private static string EscapeTemplateText(string text)
+        {
+            return text.Replace("{", "{{", StringComparison.Ordinal)
                 .Replace("}", "}}", StringComparison.Ordinal);
+        }
 
-        private static LiteralExpressionSyntax StringLiteral(string value) =>
-            SyntaxFactory.LiteralExpression(
+        private static LiteralExpressionSyntax StringLiteral(string value)
+        {
+            return SyntaxFactory.LiteralExpression(
                 SyntaxKind.StringLiteralExpression,
                 SyntaxFactory.Literal(value));
+        }
     }
 
     private readonly record struct ConvertedMessage(string Template, List<ExpressionSyntax> Arguments);
@@ -552,7 +538,9 @@ internal static class ConsoleLoggingCore
                 var message = ConsoleLoggingRewriter.BuildMessage(node.ArgumentList);
                 var level = options.InferLevel
                     ? ConsoleLoggingRewriter.InferLevel(message.Template, isError)
-                    : isError ? ConsoleLoggingLevel.Error : ConsoleLoggingLevel.Information;
+                    : isError
+                        ? ConsoleLoggingLevel.Error
+                        : ConsoleLoggingLevel.Information;
 
                 var line = node.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
                 var targetType = ResolveContainingType(node);
@@ -570,13 +558,15 @@ internal static class ConsoleLoggingCore
             base.VisitInvocationExpression(node);
         }
 
-        private bool ShouldRewriteStream(bool isError) =>
-            options.Stream switch
+        private bool ShouldRewriteStream(bool isError)
+        {
+            return options.Stream switch
             {
                 ConsoleLoggingStream.Stdout => !isError,
                 ConsoleLoggingStream.Stderr => isError,
-                _ => true,
+                _ => true
             };
+        }
 
         private INamedTypeSymbol? ResolveContainingType(SyntaxNode node)
         {
@@ -596,7 +586,7 @@ internal enum ConsoleLoggingLevel
 {
     Information,
     Warning,
-    Error,
+    Error
 }
 
 internal sealed record ConsoleLoggingReviewEntry(
@@ -615,6 +605,8 @@ internal sealed class ConsoleLoggingReview
 
     internal IReadOnlyList<ConsoleLoggingReviewEntry> Entries => _entries;
 
-    internal void AddRange(IEnumerable<ConsoleLoggingReviewEntry> entries) =>
+    internal void AddRange(IEnumerable<ConsoleLoggingReviewEntry> entries)
+    {
         _entries.AddRange(entries);
+    }
 }

@@ -1,13 +1,14 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using System.Diagnostics.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class ReplaceTypeService : IRtService
 {
     private readonly ILogger<ReplaceTypeService> _logger;
@@ -23,36 +24,35 @@ internal class ReplaceTypeService : IRtService
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
     }
+
     internal async Task RunAsync(Solution solution, bool dryRun)
     {
         var originalSolution = solution;
-        int changedFiles = 0;
+        var changedFiles = 0;
         var classesNeedingInjection = new List<string>();
 
         foreach (var project in solution.Projects)
+        foreach (var doc in project.Documents)
         {
-            foreach (var doc in project.Documents)
-            {
-                if (doc.FilePath == null) continue;
+            if (doc.FilePath == null) continue;
 
-                var root = await doc.GetSyntaxRootAsync();
-                if (root == null) continue;
+            var root = await doc.GetSyntaxRootAsync();
+            if (root == null) continue;
 
-                var rewriter = new DateTimeRewriter();
-                var newRoot = rewriter.Visit(root);
+            var rewriter = new DateTimeRewriter();
+            var newRoot = rewriter.Visit(root);
 
-                if (!rewriter.Changed) continue;
+            if (!rewriter.Changed) continue;
 
-                var injector = new ConstructorInjector(_logger);
-                newRoot = injector.Visit(newRoot);
+            var injector = new ConstructorInjector(_logger);
+            newRoot = injector.Visit(newRoot);
 
-                if (newRoot is CompilationUnitSyntax compilationUnit)
-                    newRoot = RoslynSyntax.EnsureUsing(compilationUnit, "System");
+            if (newRoot is CompilationUnitSyntax compilationUnit)
+                newRoot = RoslynSyntax.EnsureUsing(compilationUnit, "System");
 
-                solution = solution.WithDocumentSyntaxRoot(doc.Id, newRoot);
-                changedFiles++;
-                classesNeedingInjection.AddRange(rewriter.ClassesWithReplacements);
-            }
+            solution = solution.WithDocumentSyntaxRoot(doc.Id, newRoot);
+            changedFiles++;
+            classesNeedingInjection.AddRange(rewriter.ClassesWithReplacements);
         }
 
         if (changedFiles == 0)
@@ -75,10 +75,9 @@ internal class ReplaceTypeService : IRtService
 
     internal sealed class DateTimeRewriter : CSharpSyntaxRewriter
     {
+        private string? _currentClass;
         public bool Changed { get; private set; }
         public List<string> ClassesWithReplacements { get; } = [];
-
-        private string? _currentClass;
 
         public override SyntaxNode? VisitClassDeclaration(ClassDeclarationSyntax node)
         {
@@ -132,8 +131,8 @@ internal class ReplaceTypeService : IRtService
             var visited = (ClassDeclarationSyntax)base.VisitClassDeclaration(node)!;
 
             if (!visited.DescendantNodes()
-                .OfType<IdentifierNameSyntax>()
-                .Any(id => id.Identifier.Text == "_timeProvider"))
+                    .OfType<IdentifierNameSyntax>()
+                    .Any(id => id.Identifier.Text == "_timeProvider"))
                 return visited;
 
             if (visited.Members
@@ -144,7 +143,9 @@ internal class ReplaceTypeService : IRtService
 
             if (visited.Modifiers.Any(SyntaxKind.StaticKeyword))
             {
-                logger.RtWarning("Static class '{TypeName}' uses _timeProvider but cannot accept constructor injection.", visited.Identifier.Text);
+                logger.RtWarning(
+                    "Static class '{TypeName}' uses _timeProvider but cannot accept constructor injection.",
+                    visited.Identifier.Text);
                 return visited;
             }
 
@@ -164,13 +165,11 @@ internal class ReplaceTypeService : IRtService
 
                 var members = visited.Members;
                 var insertIndex = 0;
-                for (int i = 0; i < members.Count; i++)
-                {
+                for (var i = 0; i < members.Count; i++)
                     if (members[i] is FieldDeclarationSyntax)
                         insertIndex = i + 1;
                     else
                         break;
-                }
 
                 members = members.Insert(insertIndex, fieldDecl);
                 members = members.Insert(insertIndex + 1, ctorDecl);
@@ -181,19 +180,18 @@ internal class ReplaceTypeService : IRtService
                 var result = visited;
                 var members = result.Members;
                 var insertIndex = 0;
-                for (int i = 0; i < members.Count; i++)
-                {
+                for (var i = 0; i < members.Count; i++)
                     if (members[i] is FieldDeclarationSyntax)
                         insertIndex = i + 1;
                     else
                         break;
-                }
                 members = members.Insert(insertIndex, fieldDecl);
                 result = result.WithMembers(members);
 
                 constructors = result.Members.OfType<ConstructorDeclarationSyntax>().ToList();
 
-                var ctorReplacements = new List<(ConstructorDeclarationSyntax Original, ConstructorDeclarationSyntax Replacement)>();
+                var ctorReplacements =
+                    new List<(ConstructorDeclarationSyntax Original, ConstructorDeclarationSyntax Replacement)>();
 
                 foreach (var ctor in constructors)
                 {
@@ -202,7 +200,7 @@ internal class ReplaceTypeService : IRtService
                         continue;
 
                     var newParam = SyntaxFactory.Parameter(
-                        SyntaxFactory.Identifier("timeProvider"))
+                            SyntaxFactory.Identifier("timeProvider"))
                         .WithType(SyntaxFactory.ParseTypeName("TimeProvider "));
 
                     var newParamList = ctor.ParameterList.AddParameters(newParam);

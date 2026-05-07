@@ -1,8 +1,10 @@
+using System.Text.RegularExpressions;
+
 namespace RoslynTools.Tests.Infrastructure;
 
 /// <summary>
-/// Architecture gate: only <c>RtConsole.cs</c> may reference <c>Console</c> directly.
-/// See docs/logging-standards.md.
+///     Architecture gate: only <c>RtConsole.cs</c> may reference <c>Console</c> directly.
+///     See docs/logging-standards.md.
 /// </summary>
 public class ConsoleGateTests
 {
@@ -10,7 +12,7 @@ public class ConsoleGateTests
         new(StringComparer.OrdinalIgnoreCase)
         {
             "RtConsole.cs",
-            "IRtConsole.cs", // default Out implementation uses Console.Out as the base case
+            "IRtConsole.cs" // default Out implementation uses Console.Out as the base case
         };
 
     [Fact]
@@ -36,47 +38,51 @@ public class ConsoleGateTests
 
         Assert.True(violations.Count == 0,
             $"""
-            {violations.Count} file(s) reference Console.* directly outside the allowlist.
-            Route all console I/O through RtConsole — see docs/logging-standards.md.
+             {violations.Count} file(s) reference Console.* directly outside the allowlist.
+             Route all console I/O through RtConsole — see docs/logging-standards.md.
 
-            Violations:
-            {string.Join(Environment.NewLine, violations.Select(v => "  " + v))}
-            """);
+             Violations:
+             {string.Join(Environment.NewLine, violations.Select(v => "  " + v))}
+             """);
     }
 
     /// <summary>
-    /// Replaces string literal content with whitespace so that occurrences of "Console."
-    /// inside example strings or comments don't trigger false positives.
+    ///     Replaces string literal content with whitespace so that occurrences of "Console."
+    ///     inside example strings or comments don't trigger false positives.
     /// </summary>
     private static string StripStringLiterals(string source)
     {
         // Strip line comments
-        source = System.Text.RegularExpressions.Regex.Replace(source, @"//[^\r\n]*", " ");
+        source = Regex.Replace(source, @"//[^\r\n]*", " ");
 
         // Strip block comments
-        source = System.Text.RegularExpressions.Regex.Replace(source, @"/\*.*?\*/", " ",
-            System.Text.RegularExpressions.RegexOptions.Singleline);
+        source = Regex.Replace(source, @"/\*.*?\*/", " ",
+            RegexOptions.Singleline);
 
         // Strip verbatim strings @"..." (non-greedy, handles escaped quotes "" inside)
-        source = System.Text.RegularExpressions.Regex.Replace(source, @"@""(?:[^""]|"""")*""", "\"\"");
+        source = Regex.Replace(source, @"@""(?:[^""]|"""")*""", "\"\"");
 
         // Strip raw string literals """...""" (3+ quotes)
-        source = System.Text.RegularExpressions.Regex.Replace(source, "\"\"\".*?\"\"\"", "\"\"\"\"\"\"",
-            System.Text.RegularExpressions.RegexOptions.Singleline);
+        source = Regex.Replace(source, "\"\"\".*?\"\"\"", "\"\"\"\"\"\"",
+            RegexOptions.Singleline);
 
         // Strip regular string literals "..." (handles \" escapes)
-        source = System.Text.RegularExpressions.Regex.Replace(source, @"""(?:[^""\\]|\\.)*""", "\"\"");
+        source = Regex.Replace(source, @"""(?:[^""\\]|\\.)*""", "\"\"");
 
         return source;
     }
 
-    private static bool ContainsConsoleMember(string source) =>
-        System.Text.RegularExpressions.Regex.IsMatch(source, @"\bConsole\s*\.");
+    private static bool ContainsConsoleMember(string source)
+    {
+        return Regex.IsMatch(source, @"\bConsole\s*\.");
+    }
 
-    private static bool IsGeneratedOrObj(string path) =>
-        path.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar) ||
-        path.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar) ||
-        path.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase);
+    private static bool IsGeneratedOrObj(string path)
+    {
+        return path.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar) ||
+               path.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar) ||
+               path.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase);
+    }
 
     private static string FindSrcRoot()
     {

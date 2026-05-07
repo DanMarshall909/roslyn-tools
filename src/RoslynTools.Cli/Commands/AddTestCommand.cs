@@ -6,21 +6,24 @@ namespace RoslynTools.Commands;
 
 internal sealed class AddTestCommand : IRtCommand
 {
-    private AddTestCommand() { }
+    private AddTestCommand()
+    {
+    }
 
     public static RtCommandInfo Info { get; } = new(
-        Name: "add-test",
-        Mutates: true,
-        JsonOutput: false,
-        Category: "refactor",
+        "add-test",
+        true,
+        false,
+        "refactor",
         Aliases: ["at"],
-        WhenToUse: "Appending xUnit [Fact] stub methods to an existing test class. Two modes: legacy (--class with --name or --acs) adds to arbitrary test classes; command-based (--command with --scenario/--outcome or --before/--after) scaffolds organized test files by rt command category.",
+        WhenToUse:
+        "Appending xUnit [Fact] stub methods to an existing test class. Two modes: legacy (--class with --name or --acs) adds to arbitrary test classes; command-based (--command with --scenario/--outcome or --before/--after) scaffolds organized test files by rt command category.",
         Examples:
         [
             "rt refactor add-test --class BookingServiceTests --name Returns_404_When_Not_Found --solution RoslynTools.slnx",
             "rt refactor add-test --class OrderTests --acs \"Returns total;Applies discount\" --nested-class WhenCalculatingTotal",
             "rt refactor add-test --command ExtractMethod --scenario \"source file as first occurrence\" --outcome \"call site updated\" --concern SourceFileCallSite --solution RoslynTools.slnx",
-            "rt refactor add-test --command Rename --concern CrossFileRefs --before before.cs --after after.cs --solution RoslynTools.slnx",
+            "rt refactor add-test --command Rename --concern CrossFileRefs --before before.cs --after after.cs --solution RoslynTools.slnx"
         ]
     );
 
@@ -30,13 +33,17 @@ internal sealed class AddTestCommand : IRtCommand
         var classOpt = new Option<string?>("--class", "Test class name to add methods to");
         var nameOpt = new Option<string?>("--name", "Method name for single-test mode");
         var acsOpt = new Option<string?>("--acs", "Semicolon-separated acceptance criteria (AC mode)");
-        var nestedClassOpt = new Option<string?>("--nested-class", "Wrap AC-generated methods in a nested class with this name");
+        var nestedClassOpt =
+            new Option<string?>("--nested-class", "Wrap AC-generated methods in a nested class with this name");
 
         // New command-based mode options
-        var commandOpt = new Option<string?>("--command", "rt command name to scaffold tests for (e.g., ExtractMethod)");
-        var scenarioOpt = new Option<string?>("--scenario", "Scenario/precondition description (e.g., 'source file as first occurrence')");
+        var commandOpt =
+            new Option<string?>("--command", "rt command name to scaffold tests for (e.g., ExtractMethod)");
+        var scenarioOpt = new Option<string?>("--scenario",
+            "Scenario/precondition description (e.g., 'source file as first occurrence')");
         var outcomeOpt = new Option<string?>("--outcome", "Expected outcome description (e.g., 'updates call site')");
-        var concernOpt = new Option<string?>("--concern", "Trait grouping for test organization (e.g., 'SourceFileCallSite')");
+        var concernOpt = new Option<string?>("--concern",
+            "Trait grouping for test organization (e.g., 'SourceFileCallSite')");
         var beforeOpt = new Option<string?>("--before", "File with starting code for transformation tests");
         var afterOpt = new Option<string?>("--after", "File with ending code for transformation tests");
 
@@ -47,7 +54,8 @@ internal sealed class AddTestCommand : IRtCommand
 
         var cmd = new Command("add-test", "Append xUnit test stubs to an existing test class");
         cmd.AddAlias("at");
-        cmd.AddAll(classOpt, nameOpt, acsOpt, nestedClassOpt, commandOpt, scenarioOpt, outcomeOpt, concernOpt, beforeOpt, afterOpt, fileOpt, solutionOpt, dryRunOpt);
+        cmd.AddAll(classOpt, nameOpt, acsOpt, nestedClassOpt, commandOpt, scenarioOpt, outcomeOpt, concernOpt,
+            beforeOpt, afterOpt, fileOpt, solutionOpt, dryRunOpt);
 
         cmd.SetHandler(async ctx =>
         {
@@ -65,7 +73,8 @@ internal sealed class AddTestCommand : IRtCommand
             var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
             var dryRun = ctx.ParseResult.GetValueForOption(dryRunOpt);
 
-            await ExecuteAsync(className, name, acs, nestedClass, command, scenario, outcome, concern, before, after, file, solution, dryRun);
+            await ExecuteAsync(className, name, acs, nestedClass, command, scenario, outcome, concern, before, after,
+                file, solution, dryRun);
         });
 
         return cmd;
@@ -101,7 +110,8 @@ internal sealed class AddTestCommand : IRtCommand
 
             if (!hasScenarioOutcome && !hasBeforeAfter)
             {
-                RtLog.Error("Error: either --scenario and --outcome, or --before and --after is required with --command mode.");
+                RtLog.Error(
+                    "Error: either --scenario and --outcome, or --before and --after is required with --command mode.");
                 Environment.ExitCode = 1;
                 return;
             }
@@ -124,7 +134,8 @@ internal sealed class AddTestCommand : IRtCommand
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solutionPath);
             using (workspace)
             {
-                await RtServiceProvider.Get<AddTestService>().RunCommandBasedAsync(sln, commandInfo, scenario, outcome, concern, beforePath, afterPath, dryRun);
+                await RtServiceProvider.Get<AddTestService>().RunCommandBasedAsync(sln, commandInfo, scenario, outcome,
+                    concern, beforePath, afterPath, dryRun);
             }
         }
         // Legacy mode
@@ -147,7 +158,8 @@ internal sealed class AddTestCommand : IRtCommand
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solutionPath);
             using (workspace)
             {
-                await RtServiceProvider.Get<AddTestService>().RunAsync(sln, className, name, acs, nestedClass, filePath, dryRun);
+                await RtServiceProvider.Get<AddTestService>()
+                    .RunAsync(sln, className, name, acs, nestedClass, filePath, dryRun);
             }
         }
     }
@@ -156,7 +168,10 @@ internal sealed class AddTestCommand : IRtCommand
     //  AC → C# identifier conversion (delegates to Core; kept here for tests)
     // ──────────────────────────────────────────────────────────────────────────
 
-    internal static string AcToMethodName(string ac) => RtServiceProvider.Get<AddTestService>().AcToMethodName(ac);
+    internal static string AcToMethodName(string ac)
+    {
+        return RtServiceProvider.Get<AddTestService>().AcToMethodName(ac);
+    }
 
     // ──────────────────────────────────────────────────────────────────────────
     //  Command registry resolution

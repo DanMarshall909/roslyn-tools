@@ -1,19 +1,25 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
-using System.Diagnostics.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class ExtractClassService : IRtService
 {
     private readonly ILogger<ExtractClassService> _logger;
     private readonly ISolutionChangeWriter _solutionChangeWriter;
+
+    private readonly SymbolDisplayFormat TypeDisplayFormat = new(
+        SymbolDisplayGlobalNamespaceStyle.Omitted,
+        SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
+        SymbolDisplayGenericsOptions.IncludeTypeParameters);
 
     public ExtractClassService()
         : this(new RtConsoleLogger<ExtractClassService>(), new SolutionChangeWriter())
@@ -25,22 +31,6 @@ internal class ExtractClassService : IRtService
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
     }
-    private readonly SymbolDisplayFormat TypeDisplayFormat = new(
-        globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Omitted,
-        typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
-        genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters);
-
-    internal sealed record ResolvedSourceType(
-        Document Document,
-        SyntaxNode Root,
-        SemanticModel SemanticModel,
-        ClassDeclarationSyntax Declaration,
-        INamedTypeSymbol Symbol);
-
-    internal sealed record SelectedMembers(
-        List<MemberDeclarationSyntax> Declarations,
-        HashSet<ISymbol> Symbols,
-        HashSet<string> Names);
 
     internal async Task RunAsync(
         string typeName,
@@ -98,14 +88,14 @@ internal class ExtractClassService : IRtService
                 fieldName,
                 paramName,
                 target.SemanticModel,
-                dependencyTypeSymbol: null,
+                null,
                 target.Symbol);
 
             preflight.Visit(target.Root);
             if (preflight.Status == DependencyInjectionStatus.Unsupported)
             {
                 ReportValidationError(preflight.ValidationError ??
-                    $"Cannot inject '{newTypeName}' into '{target.Symbol.ToDisplayString(TypeDisplayFormat)}'.");
+                                      $"Cannot inject '{newTypeName}' into '{target.Symbol.ToDisplayString(TypeDisplayFormat)}'.");
                 return;
             }
         }
@@ -116,14 +106,15 @@ internal class ExtractClassService : IRtService
 
         var newClassText = BuildNewClassText(namespaceName, newTypeName, isStatic, selection.Declarations);
 
-        var updatedClassDecl = target.Declaration.RemoveNodes(selection.Declarations, SyntaxRemoveOptions.KeepNoTrivia)!;
+        var updatedClassDecl =
+            target.Declaration.RemoveNodes(selection.Declarations, SyntaxRemoveOptions.KeepNoTrivia)!;
         var updatedRoot = target.Root.ReplaceNode(target.Declaration, updatedClassDecl);
         solution = solution.WithDocumentSyntaxRoot(target.Document.Id, updatedRoot);
 
         if (!isStatic)
         {
             var updatedDocument = solution.GetDocument(target.Document.Id)
-                ?? throw new InvalidOperationException("Updated source document could not be found.");
+                                  ?? throw new InvalidOperationException("Updated source document could not be found.");
             var injectedRoot = await InjectExtractedTypeAsync(updatedDocument, target.Symbol, newTypeName);
             solution = solution.WithDocumentSyntaxRoot(target.Document.Id, injectedRoot);
         }
@@ -132,7 +123,7 @@ internal class ExtractClassService : IRtService
         var newFileName = newTypeName + ".cs";
         var newFilePath = Path.Combine(sourceDir, newFileName);
         var owningProject = solution.GetProject(target.Document.Project.Id)
-            ?? throw new InvalidOperationException("Cannot find project containing the class.");
+                            ?? throw new InvalidOperationException("Cannot find project containing the class.");
 
         var newSourceText = SourceText.From(newClassText, Encoding.UTF8);
         var finalSolution = solution.AddDocument(
@@ -141,7 +132,9 @@ internal class ExtractClassService : IRtService
             newSourceText,
             filePath: newFilePath);
 
-        _logger.RtInfo("Extracting '{MemberNames}' from '{TargetType}' into '{NewTypeName}'...", string.Join(", ", selection.Names.OrderBy(n => n, StringComparer.Ordinal)), target.Symbol.ToDisplayString(TypeDisplayFormat), newTypeName);
+        _logger.RtInfo("Extracting '{MemberNames}' from '{TargetType}' into '{NewTypeName}'...",
+            string.Join(", ", selection.Names.OrderBy(n => n, StringComparer.Ordinal)),
+            target.Symbol.ToDisplayString(TypeDisplayFormat), newTypeName);
         await _solutionChangeWriter.ApplyChangesAsync(originalSolution, finalSolution, dryRun);
     }
 
@@ -152,25 +145,23 @@ internal class ExtractClassService : IRtService
         var matches = new List<ResolvedSourceType>();
 
         foreach (var project in solution.Projects)
+        foreach (var document in project.Documents)
         {
-            foreach (var document in project.Documents)
+            var root = await document.GetSyntaxRootAsync();
+            if (root is null) continue;
+
+            var semanticModel = await document.GetSemanticModelAsync();
+            if (semanticModel is null) continue;
+
+            foreach (var declaration in root.DescendantNodes().OfType<ClassDeclarationSyntax>())
             {
-                var root = await document.GetSyntaxRootAsync();
-                if (root is null) continue;
+                if (semanticModel.GetDeclaredSymbol(declaration) is not INamedTypeSymbol symbol)
+                    continue;
 
-                var semanticModel = await document.GetSemanticModelAsync();
-                if (semanticModel is null) continue;
+                if (!IsTypeMatch(symbol, normalizedTypeName, isQualifiedName))
+                    continue;
 
-                foreach (var declaration in root.DescendantNodes().OfType<ClassDeclarationSyntax>())
-                {
-                    if (semanticModel.GetDeclaredSymbol(declaration) is not INamedTypeSymbol symbol)
-                        continue;
-
-                    if (!IsTypeMatch(symbol, normalizedTypeName, isQualifiedName))
-                        continue;
-
-                    matches.Add(new ResolvedSourceType(document, root, semanticModel, declaration, symbol));
-                }
+                matches.Add(new ResolvedSourceType(document, root, semanticModel, declaration, symbol));
             }
         }
 
@@ -200,7 +191,6 @@ internal class ExtractClassService : IRtService
         var foundNames = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var member in target.Declaration.Members)
-        {
             switch (member)
             {
                 case MethodDeclarationSyntax method when memberNames.Contains(method.Identifier.Text):
@@ -237,9 +227,9 @@ internal class ExtractClassService : IRtService
                         foundNames.Add(variable.Identifier.Text);
                         AddDeclaredSymbol(symbols, target.SemanticModel.GetDeclaredSymbol(variable));
                     }
+
                     break;
             }
-        }
 
         if (foundNames.Count == 0)
         {
@@ -248,7 +238,8 @@ internal class ExtractClassService : IRtService
             return null;
         }
 
-        var missing = memberNames.Except(foundNames, StringComparer.Ordinal).OrderBy(n => n, StringComparer.Ordinal).ToList();
+        var missing = memberNames.Except(foundNames, StringComparer.Ordinal).OrderBy(n => n, StringComparer.Ordinal)
+            .ToList();
         if (missing.Count > 0)
         {
             ReportValidationError(
@@ -265,25 +256,22 @@ internal class ExtractClassService : IRtService
         {
             var bareThis = member.DescendantNodes()
                 .OfType<ThisExpressionSyntax>()
-                .FirstOrDefault(thisExpr => thisExpr.Parent is not MemberAccessExpressionSyntax { Expression: ThisExpressionSyntax });
+                .FirstOrDefault(thisExpr => thisExpr.Parent is not MemberAccessExpressionSyntax
+                {
+                    Expression: ThisExpressionSyntax
+                });
 
             if (bareThis is not null)
-            {
                 return
                     $"Cannot extract '{GetMemberName(member)}' from '{target.Symbol.ToDisplayString(TypeDisplayFormat)}' because it uses 'this' directly. Keep it on the source type or rewrite it to avoid source-class instance state.";
-            }
 
             foreach (var reference in member.DescendantNodes().OfType<IdentifierNameSyntax>())
-            {
                 if (TryFindUnsafeSourceMember(reference, target, selection.Symbols, out var unsafeMember))
                     return BuildUnsafeReferenceMessage(target, member, unsafeMember);
-            }
 
             foreach (var reference in member.DescendantNodes().OfType<MemberAccessExpressionSyntax>())
-            {
                 if (TryFindUnsafeSourceMember(reference, target, selection.Symbols, out var unsafeMember))
                     return BuildUnsafeReferenceMessage(target, member, unsafeMember);
-            }
         }
 
         return null;
@@ -326,8 +314,11 @@ internal class ExtractClassService : IRtService
     private string BuildUnsafeReferenceMessage(
         ResolvedSourceType target,
         MemberDeclarationSyntax member,
-        ISymbol unsafeMember) =>
-        $"Cannot extract '{GetMemberName(member)}' from '{target.Symbol.ToDisplayString(TypeDisplayFormat)}' because it references non-extracted instance member '{unsafeMember.Name}'. Extract that member too or keep '{GetMemberName(member)}' on the source type.";
+        ISymbol unsafeMember)
+    {
+        return
+            $"Cannot extract '{GetMemberName(member)}' from '{target.Symbol.ToDisplayString(TypeDisplayFormat)}' because it references non-extracted instance member '{unsafeMember.Name}'. Extract that member too or keep '{GetMemberName(member)}' on the source type.";
+    }
 
     private async Task<SyntaxNode> InjectExtractedTypeAsync(
         Document updatedDocument,
@@ -335,18 +326,22 @@ internal class ExtractClassService : IRtService
         string newTypeName)
     {
         var updatedRoot = await updatedDocument.GetSyntaxRootAsync()
-            ?? throw new InvalidOperationException("Updated source syntax root could not be loaded.");
+                          ?? throw new InvalidOperationException("Updated source syntax root could not be loaded.");
         var updatedSemanticModel = await updatedDocument.GetSemanticModelAsync()
-            ?? throw new InvalidOperationException("Updated source semantic model could not be loaded.");
+                                   ?? throw new InvalidOperationException(
+                                       "Updated source semantic model could not be loaded.");
         var targetDisplayName = targetSymbol.ToDisplayString(TypeDisplayFormat);
         var updatedTargetDeclaration = updatedRoot.DescendantNodes()
-            .OfType<ClassDeclarationSyntax>()
-            .FirstOrDefault(declaration =>
-                updatedSemanticModel.GetDeclaredSymbol(declaration) is INamedTypeSymbol candidate &&
-                candidate.ToDisplayString(TypeDisplayFormat) == targetDisplayName)
-            ?? throw new InvalidOperationException($"Cannot locate '{targetDisplayName}' after extraction.");
+                                           .OfType<ClassDeclarationSyntax>()
+                                           .FirstOrDefault(declaration =>
+                                               updatedSemanticModel.GetDeclaredSymbol(declaration) is INamedTypeSymbol
+                                                   candidate &&
+                                               candidate.ToDisplayString(TypeDisplayFormat) == targetDisplayName)
+                                       ?? throw new InvalidOperationException(
+                                           $"Cannot locate '{targetDisplayName}' after extraction.");
         var updatedTargetSymbol = updatedSemanticModel.GetDeclaredSymbol(updatedTargetDeclaration) as INamedTypeSymbol
-            ?? throw new InvalidOperationException($"Cannot resolve '{targetDisplayName}' after extraction.");
+                                  ?? throw new InvalidOperationException(
+                                      $"Cannot resolve '{targetDisplayName}' after extraction.");
 
         var fieldName = DeriveFieldName(newTypeName);
         var paramName = fieldName.TrimStart('_');
@@ -356,7 +351,7 @@ internal class ExtractClassService : IRtService
             fieldName,
             paramName,
             updatedSemanticModel,
-            dependencyTypeSymbol: null,
+            null,
             updatedTargetSymbol);
 
         var injectedRoot = injector.Visit(updatedRoot);
@@ -366,7 +361,8 @@ internal class ExtractClassService : IRtService
             DependencyInjectionStatus.Applied => injectedRoot!,
             DependencyInjectionStatus.AlreadyInjected => updatedRoot,
             DependencyInjectionStatus.Unsupported => throw new InvalidOperationException(
-                injector.ValidationError ?? $"Cannot inject '{newTypeName}' into '{updatedTargetSymbol.ToDisplayString(TypeDisplayFormat)}'."),
+                injector.ValidationError ??
+                $"Cannot inject '{newTypeName}' into '{updatedTargetSymbol.ToDisplayString(TypeDisplayFormat)}'."),
             _ => throw new InvalidOperationException(
                 $"Cannot locate '{updatedTargetSymbol.ToDisplayString(TypeDisplayFormat)}' after extraction.")
         };
@@ -415,8 +411,10 @@ internal class ExtractClassService : IRtService
         return symbol.Name == normalizedTypeName;
     }
 
-    internal string NormalizeTypeName(string typeName) =>
-        typeName.Replace("global::", string.Empty, StringComparison.Ordinal).Trim();
+    internal string NormalizeTypeName(string typeName)
+    {
+        return typeName.Replace("global::", string.Empty, StringComparison.Ordinal).Trim();
+    }
 
     private void AddDeclaredSymbol(HashSet<ISymbol> symbols, ISymbol? symbol)
     {
@@ -424,14 +422,17 @@ internal class ExtractClassService : IRtService
             symbols.Add(symbol.OriginalDefinition);
     }
 
-    internal string GetMemberName(MemberDeclarationSyntax member) =>
-        member switch
+    internal string GetMemberName(MemberDeclarationSyntax member)
+    {
+        return member switch
         {
             MethodDeclarationSyntax method => method.Identifier.Text,
             PropertyDeclarationSyntax property => property.Identifier.Text,
-            FieldDeclarationSyntax field => string.Join(", ", field.Declaration.Variables.Select(v => v.Identifier.Text)),
+            FieldDeclarationSyntax field => string.Join(", ",
+                field.Declaration.Variables.Select(v => v.Identifier.Text)),
             _ => member.Kind().ToString()
         };
+    }
 
     internal void ReportValidationError(string message)
     {
@@ -447,4 +448,16 @@ internal class ExtractClassService : IRtService
         var name = char.ToLower(typeName[0], CultureInfo.InvariantCulture) + typeName[1..];
         return "_" + name;
     }
+
+    internal sealed record ResolvedSourceType(
+        Document Document,
+        SyntaxNode Root,
+        SemanticModel SemanticModel,
+        ClassDeclarationSyntax Declaration,
+        INamedTypeSymbol Symbol);
+
+    internal sealed record SelectedMembers(
+        List<MemberDeclarationSyntax> Declarations,
+        HashSet<ISymbol> Symbols,
+        HashSet<string> Names);
 }

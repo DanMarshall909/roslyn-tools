@@ -1,18 +1,19 @@
-using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
-using Microsoft.CodeAnalysis.Rename;
-using Microsoft.VisualBasic.FileIO;
 using System.Diagnostics.CodeAnalysis;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Rename;
+using Microsoft.Extensions.Logging;
+using Microsoft.VisualBasic.FileIO;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class RenameService : IRtService
 {
-    private readonly ISymbolResolutionService _symbols;
     private readonly ILogger<RenameService> _logger;
     private readonly ISolutionChangeWriter _solutionChangeWriter;
+    private readonly ISymbolResolutionService _symbols;
 
     public RenameService()
         : this(new RtConsoleLogger<RenameService>(), new SolutionChangeWriter())
@@ -27,6 +28,7 @@ internal class RenameService : IRtService
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
     }
+
     internal async Task<Solution> RenameAsync(
         Solution sln,
         string symbol,
@@ -38,10 +40,10 @@ internal class RenameService : IRtService
         _logger.RtInfo("Renaming '{Symbol}' -> '{NewName}'...", sym.ToDisplayString(), newName);
 
         var options = new SymbolRenameOptions(
-            RenameOverloads: false,
-            RenameInStrings: false,
-            RenameInComments: false,
-            RenameFile: false);
+            false,
+            false,
+            false,
+            false);
 
         return await Renamer.RenameSymbolAsync(sln, sym, options, newName);
     }
@@ -71,7 +73,7 @@ internal class RenameService : IRtService
         var newSln = await Renamer.RenameSymbolAsync(
             sln,
             sym,
-            new SymbolRenameOptions(RenameOverloads: false, RenameInStrings: false, RenameInComments: false, RenameFile: false),
+            new SymbolRenameOptions(false, false, false, false),
             newName);
 
         await _solutionChangeWriter.ApplyChangesAsync(sln, newSln, dryRun);
@@ -102,7 +104,8 @@ internal class RenameService : IRtService
     {
         if (dryRun)
         {
-            RtConsole.WriteLine(RtOutputContext.Result, $"[dry-run] Would rename: {rename.OldPath} -> {rename.NewPath}");
+            RtConsole.WriteLine(RtOutputContext.Result,
+                $"[dry-run] Would rename: {rename.OldPath} -> {rename.NewPath}");
             return;
         }
 
@@ -127,10 +130,8 @@ internal class RenameService : IRtService
         var rows = ReadBatchRows(csvPath);
         var flagged = rows.Where(r => !string.IsNullOrWhiteSpace(r.Review)).ToList();
         if (flagged.Count > 0)
-        {
             throw new InvalidOperationException(
                 $"CSV contains {flagged.Count} row(s) with a non-empty review column. Curate first.");
-        }
 
         var currentSln = sln;
         foreach (var row in rows.Where(r => !string.IsNullOrWhiteSpace(r.NewName)))
@@ -138,7 +139,7 @@ internal class RenameService : IRtService
             if (string.IsNullOrWhiteSpace(row.OldFqn))
                 continue;
 
-            currentSln = await RenameOneAsync(currentSln, row.OldFqn, row.NewName!, kind: null, dryRun);
+            currentSln = await RenameOneAsync(currentSln, row.OldFqn, row.NewName!, null, dryRun);
         }
     }
 
@@ -181,7 +182,9 @@ internal class RenameService : IRtService
     }
 
     internal string? GetField(string[] fields, int index)
-        => index >= 0 && index < fields.Length ? fields[index] : null;
+    {
+        return index >= 0 && index < fields.Length ? fields[index] : null;
+    }
 
     internal sealed record RenameCsvRow(string? OldFqn, string? NewName, string? Review);
 }

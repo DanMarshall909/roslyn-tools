@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using RoslynTools.Core;
 using RoslynTools.Daemon;
 using RoslynTools.Services;
 
@@ -8,7 +9,7 @@ internal static class Bootstrap
 {
     public static void RegisterServices(IServiceCollection services)
     {
-        services.AddSingleton<Core.WorkspaceLoader>();
+        services.AddSingleton<WorkspaceLoader>();
         services.AddSingleton<GitService>();
         services.AddSingleton<DaemonClient>();
         services.AddSingleton<ISymbolResolutionService, SymbolResolutionService>();
@@ -16,7 +17,7 @@ internal static class Bootstrap
         services.AddSingleton<ISolutionChangeWriter, SolutionChangeWriter>();
         services.Scan(scan => scan
             .FromAssemblyOf<IRtService>()
-            .AddClasses(classes => classes.AssignableTo<IRtService>(), publicOnly: false)
+            .AddClasses(classes => classes.AssignableTo<IRtService>(), false)
             .AsSelfWithInterfaces()
             .WithTransientLifetime());
     }

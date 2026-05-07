@@ -6,20 +6,23 @@ namespace RoslynTools.Commands;
 
 internal sealed class ExtractInterfaceCommand : IRtCommand
 {
-    private ExtractInterfaceCommand() { }
+    private ExtractInterfaceCommand()
+    {
+    }
 
     public static RtCommandInfo Info { get; } = new(
-        Name: "extract-interface",
-        Mutates: true,
-        JsonOutput: false,
-        Category: "refactor",
+        "extract-interface",
+        true,
+        false,
+        "refactor",
         Aliases: ["ei"],
-        WhenToUse: "Generating an IXxx interface from an existing class's public members and updating the class declaration to implement it. Use this before injecting a service as a dependency, or when introducing a seam for testing.",
+        WhenToUse:
+        "Generating an IXxx interface from an existing class's public members and updating the class declaration to implement it. Use this before injecting a service as a dependency, or when introducing a seam for testing.",
         Examples:
         [
             "rt refactor extract-interface --type BookingService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt refactor ei --type EmailSender --output-dir src/Interfaces --dry-run",
-            "rt refactor extract-interface --type HeroApiClient --namespace ProjectX.Core.Abstractions --solution RoslynTools.slnx",
+            "rt refactor extract-interface --type HeroApiClient --namespace ProjectX.Core.Abstractions --solution RoslynTools.slnx"
         ]
     );
 
@@ -35,10 +38,11 @@ internal sealed class ExtractInterfaceCommand : IRtCommand
         cmd.AddAlias("ei");
         cmd.AddAll(typeOpt, solutionOpt, outputDirOpt, namespaceOpt, dryRunOpt);
 
-        cmd.SetHandler(async (type, solution, outputDir, ns, dryRun) =>
-        {
-            await ExecuteAsync(type, solution, outputDir, ns, dryRun);
-        }, typeOpt, solutionOpt, outputDirOpt, namespaceOpt, dryRunOpt);
+        cmd.SetHandler(
+            async (type, solution, outputDir, ns, dryRun) =>
+            {
+                await ExecuteAsync(type, solution, outputDir, ns, dryRun);
+            }, typeOpt, solutionOpt, outputDirOpt, namespaceOpt, dryRunOpt);
 
         return cmd;
     }

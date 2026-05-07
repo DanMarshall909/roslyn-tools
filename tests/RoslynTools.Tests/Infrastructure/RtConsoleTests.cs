@@ -102,7 +102,10 @@ public class RtConsoleTests
         {
         }
 
-        public string? ReadLine() => null;
+        public string? ReadLine()
+        {
+            return null;
+        }
 
         public bool IsOutputRedirected => false;
 
@@ -113,8 +116,10 @@ public class RtConsoleTests
     {
         public List<LogEntry> LogEntries { get; } = [];
 
-        public void Log(RtLogLevel level, string message) =>
+        public void Log(RtLogLevel level, string message)
+        {
             LogEntries.Add(new LogEntry(level, message));
+        }
 
         public sealed record LogEntry(RtLogLevel Level, string Message);
     }

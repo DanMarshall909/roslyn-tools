@@ -1,4 +1,5 @@
 using System.Text.Json;
+using RoslynTools.Commands;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core.Output;
 
@@ -17,7 +18,9 @@ public class ListSmellsMigrationTests : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    private static ListSmellsResult BuildResult(params (string SmellType, string TypeName, string? MemberName, string FilePath, int Line, string Detail)[] items)
+    private static ListSmellsResult BuildResult(
+        params (string SmellType, string TypeName, string? MemberName, string FilePath, int Line, string Detail)[]
+            items)
     {
         return new ListSmellsResult
         {
@@ -28,8 +31,8 @@ public class ListSmellsMigrationTests : IDisposable
                 MemberName = i.MemberName,
                 FilePath = i.FilePath,
                 Line = i.Line,
-                Detail = i.Detail,
-            }).ToList(),
+                Detail = i.Detail
+            }).ToList()
         };
     }
 
@@ -181,7 +184,7 @@ public class ListSmellsMigrationTests : IDisposable
     [Fact]
     public void ListSmellsCommand_Info_has_all_four_supported_formats()
     {
-        var info = Commands.ListSmellsCommand.Info;
+        var info = ListSmellsCommand.Info;
         var formats = info.SupportedFormats;
         Assert.NotNull(formats);
         Assert.Contains(OutputFormat.Text, formats);

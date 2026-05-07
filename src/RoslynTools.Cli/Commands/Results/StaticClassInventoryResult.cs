@@ -10,6 +10,30 @@ internal sealed record StaticClassInventoryResult : IRtOutput, IRtJsonOutput
     public required int TotalStaticClasses { get; init; }
     public required IReadOnlyList<StaticClassEntryOutput> Classes { get; init; }
 
+    public void RenderJson(TextWriter writer)
+    {
+        var document = new
+        {
+            diagnostics = Array.Empty<string>(),
+            results = new
+            {
+                totalStaticClasses = TotalStaticClasses,
+                classes = Classes.Select(c => new
+                {
+                    fqn = c.Fqn,
+                    file = c.File,
+                    memberCount = c.MemberCount,
+                    callSiteCount = c.CallSiteCount,
+                    calledFromStaticClasses = c.CalledFromStaticClasses,
+                    calledFromInstanceClasses = c.CalledFromInstanceClasses,
+                    migrationDifficulty = c.MigrationDifficulty
+                }).ToArray()
+            }
+        };
+
+        writer.Write(JsonSerializer.Serialize(document, SymbolFormatter.DefaultJsonOptions));
+    }
+
     public void RenderText(TextWriter writer)
     {
         writer.WriteLine($"Total static classes: {TotalStaticClasses}");
@@ -40,30 +64,6 @@ internal sealed record StaticClassInventoryResult : IRtOutput, IRtJsonOutput
         }
     }
 
-    public void RenderJson(TextWriter writer)
-    {
-        var document = new
-        {
-            diagnostics = Array.Empty<string>(),
-            results = new
-            {
-                totalStaticClasses = TotalStaticClasses,
-                classes = Classes.Select(c => new
-                {
-                    fqn = c.Fqn,
-                    file = c.File,
-                    memberCount = c.MemberCount,
-                    callSiteCount = c.CallSiteCount,
-                    calledFromStaticClasses = c.CalledFromStaticClasses,
-                    calledFromInstanceClasses = c.CalledFromInstanceClasses,
-                    migrationDifficulty = c.MigrationDifficulty,
-                }).ToArray(),
-            },
-        };
-
-        writer.Write(JsonSerializer.Serialize(document, SymbolFormatter.DefaultJsonOptions));
-    }
-
     internal static StaticClassInventoryResult FromReport(StaticClassInventoryReport report)
     {
         return new StaticClassInventoryResult
@@ -77,8 +77,8 @@ internal sealed record StaticClassInventoryResult : IRtOutput, IRtJsonOutput
                 CallSiteCount = c.CallSiteCount,
                 CalledFromStaticClasses = c.CalledFromStaticClasses,
                 CalledFromInstanceClasses = c.CalledFromInstanceClasses,
-                MigrationDifficulty = c.MigrationDifficulty,
-            }).ToList(),
+                MigrationDifficulty = c.MigrationDifficulty
+            }).ToList()
         };
     }
 }
@@ -93,5 +93,8 @@ internal sealed record StaticClassEntryOutput : IRtOutput
     public required IReadOnlyList<string> CalledFromInstanceClasses { get; init; }
     public required string MigrationDifficulty { get; init; }
 
-    public void RenderText(TextWriter writer) => writer.Write($"[{MigrationDifficulty}] {Fqn}");
+    public void RenderText(TextWriter writer)
+    {
+        writer.Write($"[{MigrationDifficulty}] {Fqn}");
+    }
 }

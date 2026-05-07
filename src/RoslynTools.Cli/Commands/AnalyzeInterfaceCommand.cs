@@ -9,19 +9,20 @@ namespace RoslynTools.Commands;
 
 internal sealed class AnalyzeInterfaceCommand : IRtCommand
 {
-    private AnalyzeInterfaceCommand() { }
+    private AnalyzeInterfaceCommand()
+    {
+    }
 
     public static RtCommandInfo Info { get; } = new(
-        Name: "analyze-interface",
-        Mutates: false,
-        JsonOutput: true,
-        Category: "analyze",
-        WhenToUse: "Grouping interface consumers by the exact interface members they use so interface-segregation work can be driven by evidence instead of raw reference dumps. Use --scope to focus on one namespace or project, and --json for automation-friendly output.",
-        Examples:
+        "analyze-interface",
+        false,
+        true,
+        "analyze",
+        "Grouping interface consumers by the exact interface members they use so interface-segregation work can be driven by evidence instead of raw reference dumps. Use --scope to focus on one namespace or project, and --json for automation-friendly output.",
         [
             "rt analyze analyze-interface ProjectX.Core.IEmailSender --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt analyze analyze-interface IEmailSender --scope ProjectX.Core --solution RoslynTools.slnx",
-            "rt analyze analyze-interface ProjectX.Core.IEmailSender --json --solution RoslynTools.slnx",
+            "rt analyze analyze-interface ProjectX.Core.IEmailSender --json --solution RoslynTools.slnx"
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]);
 
@@ -31,7 +32,8 @@ internal sealed class AnalyzeInterfaceCommand : IRtCommand
         var solutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file");
         var scopeOpt = new Option<string?>("--scope", "Project name or namespace prefix to restrict analysis");
         var includeTestsOpt = new Option<bool>("--include-tests", () => false, "Include test projects in results");
-        var suggestOpt = new Option<bool>("--suggest", () => false, "Augment output with advisory minimal replacement interface suggestions per consumer");
+        var suggestOpt = new Option<bool>("--suggest", () => false,
+            "Augment output with advisory minimal replacement interface suggestions per consumer");
 
         var cmd = new Command("analyze-interface", "Group interface consumers by the exact members they use");
         cmd.Add(interfaceArg);

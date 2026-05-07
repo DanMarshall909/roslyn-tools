@@ -10,15 +10,17 @@ internal static class DaemonEncoding
     // UTF-8 without BOM — both client and server use this. Encoding.UTF8 emits a 3-byte BOM
     // on first flush, which the JSON deserializer on the other end rejects with
     // "'0xEF' is an invalid start of a value".
-    internal static readonly UTF8Encoding NoBom = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+    internal static readonly UTF8Encoding NoBom = new(false, true);
 
     // Display string for the pipe — purely cosmetic, used by `rt daemon status` and the
     // daemon's startup log line. .NET's NamedPipeServerStream on Linux/macOS is implemented
     // over a Unix domain socket at /tmp/CoreFxPipe_<name>; on Windows it's \\.\pipe\<name>.
     internal static string DisplayPipePath(string pipeName)
-        => OperatingSystem.IsWindows()
+    {
+        return OperatingSystem.IsWindows()
             ? $@"\\.\pipe\{pipeName}"
             : $"/tmp/CoreFxPipe_{pipeName}";
+    }
 }
 
 internal sealed class DaemonClient(GitService git)
@@ -36,7 +38,8 @@ internal sealed class DaemonClient(GitService git)
 
         if (state.RtVersion != DaemonState.CurrentVersion())
         {
-            RtLog.Warning("[rt] Daemon version mismatch — falling back to in-process. Run `rt daemon start` to refresh.");
+            RtLog.Warning(
+                "[rt] Daemon version mismatch — falling back to in-process. Run `rt daemon start` to refresh.");
             return null;
         }
 
@@ -46,11 +49,14 @@ internal sealed class DaemonClient(GitService git)
     // Connects to the well-known pipe without consulting the state file. Used by lifecycle
     // commands to talk to (or stop) an orphan daemon whose state file was lost.
     internal Task<int?> TrySendDirectAsync(string[] args, CancellationToken ct = default)
-        => SendOverPipeAsync(DaemonServer.PipeName, args, ct);
+    {
+        return SendOverPipeAsync(DaemonServer.PipeName, args, ct);
+    }
 
     internal static async Task<bool> IsPipeReachableAsync(CancellationToken ct = default)
     {
-        await using var pipe = new NamedPipeClientStream(".", DaemonServer.PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+        await using var pipe =
+            new NamedPipeClientStream(".", DaemonServer.PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -79,9 +85,16 @@ internal sealed class DaemonClient(GitService git)
         await using var pipeOwn = pipe;
         await using var registration = deadline.Token.Register(() =>
         {
-            try { pipe.Dispose(); }
-            catch (ObjectDisposedException) { }
-            catch (IOException) { }
+            try
+            {
+                pipe.Dispose();
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+            catch (IOException)
+            {
+            }
         });
 
         try
@@ -90,7 +103,8 @@ internal sealed class DaemonClient(GitService git)
             connectCts.CancelAfter(TimeSpan.FromSeconds(1));
             await pipe.ConnectAsync(connectCts.Token);
         }
-        catch (Exception ex) when (ex is OperationCanceledException or IOException or TimeoutException or ObjectDisposedException)
+        catch (Exception ex) when (ex is OperationCanceledException or IOException or TimeoutException
+                                       or ObjectDisposedException)
         {
             // Connect failure is transient (daemon mid-init, pipe momentarily busy). Fall back to
             // in-process for this invocation but do NOT remove the state file — that turns a busy
@@ -102,15 +116,16 @@ internal sealed class DaemonClient(GitService git)
         {
             var workDir = Directory.GetCurrentDirectory();
             var request = new DaemonRequest(
-                RequestId: Guid.NewGuid().ToString("N")[..8],
-                Args: args,
-                GitState: git.GetState(workDir),
-                WorkingDirectory: workDir);
+                Guid.NewGuid().ToString("N")[..8],
+                args,
+                git.GetState(workDir),
+                workDir);
 
-            var writer = new StreamWriter(pipe, DaemonEncoding.NoBom, bufferSize: 1024, leaveOpen: true) { AutoFlush = true };
-            await writer.WriteLineAsync(JsonSerializer.Serialize(request, DaemonProtocol.JsonOpts).AsMemory(), deadline.Token);
+            var writer = new StreamWriter(pipe, DaemonEncoding.NoBom, 1024, true) { AutoFlush = true };
+            await writer.WriteLineAsync(JsonSerializer.Serialize(request, DaemonProtocol.JsonOpts).AsMemory(),
+                deadline.Token);
 
-            using var reader = new StreamReader(pipe, DaemonEncoding.NoBom, detectEncodingFromByteOrderMarks: false, bufferSize: 1024, leaveOpen: true);
+            using var reader = new StreamReader(pipe, DaemonEncoding.NoBom, false, 1024, true);
             while (!deadline.IsCancellationRequested)
             {
                 var line = await reader.ReadLineAsync(deadline.Token);

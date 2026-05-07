@@ -1,21 +1,22 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
-using System.Diagnostics.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class NarrowDependencyService : IRtService
 {
-    private readonly ISymbolResolutionService _symbols;
+    private readonly ConsumerNarrowerService _consumerNarrower;
+    private readonly InterfaceAnalyzerService _interfaceAnalyzer;
     private readonly ILogger<NarrowDependencyService> _logger;
     private readonly ISolutionChangeWriter _solutionChangeWriter;
-    private readonly InterfaceAnalyzerService _interfaceAnalyzer;
-    private readonly ConsumerNarrowerService _consumerNarrower;
+    private readonly ISymbolResolutionService _symbols;
 
     public NarrowDependencyService()
         : this(
@@ -63,19 +64,20 @@ internal class NarrowDependencyService : IRtService
         // Determine source file location for the new interface
         var interfaceFilePath = ResolveNewInterfaceFilePath(interfaceSymbol, newInterfaceName);
 
-        Solution updatedSolution = solution;
-        bool newFileCreated = false;
+        var updatedSolution = solution;
+        var newFileCreated = false;
 
         if (existingNarrow is null)
         {
             // Build new interface text via InterfaceAnalyzerService
             var targetNamespace = interfaceSymbol.ContainingNamespace?.ToDisplayString() ?? string.Empty;
-            var interfaceText = _interfaceAnalyzer.BuildInterfaceText(targetNamespace, newInterfaceName, selectedMembers);
+            var interfaceText =
+                _interfaceAnalyzer.BuildInterfaceText(targetNamespace, newInterfaceName, selectedMembers);
 
             // Find owning project
             var owningProject = FindOwningProject(solution, interfaceSymbol)
-                ?? throw new InvalidOperationException(
-                    $"Cannot find project containing '{interfaceSymbol.Name}'.");
+                                ?? throw new InvalidOperationException(
+                                    $"Cannot find project containing '{interfaceSymbol.Name}'.");
 
             var interfaceSourceText = SourceText.From(interfaceText, Encoding.UTF8);
             updatedSolution = updatedSolution.AddDocument(
@@ -101,7 +103,8 @@ internal class NarrowDependencyService : IRtService
         PrintReport(narrowResult, newInterfaceName, newFileCreated, existingNarrow, dryRun);
 
         // Apply or preview
-        _logger.RtInfo("Applying narrow-dependency '{Name}' -> '{NewInterfaceName}'...", interfaceSymbol.Name, newInterfaceName);
+        _logger.RtInfo("Applying narrow-dependency '{Name}' -> '{NewInterfaceName}'...", interfaceSymbol.Name,
+            newInterfaceName);
         await _solutionChangeWriter.ApplyChangesAsync(solution, updatedSolution, dryRun);
     }
 
@@ -118,11 +121,9 @@ internal class NarrowDependencyService : IRtService
 
         var invalid = memberNames.Where(n => !available.Contains(n)).ToList();
         if (invalid.Count > 0)
-        {
             throw new InvalidOperationException(
                 $"Member(s) [{string.Join(", ", invalid)}] not found on interface '{interfaceSymbol.Name}'. " +
                 $"Available members: [{string.Join(", ", available.OrderBy(n => n, StringComparer.Ordinal))}].");
-        }
     }
 
     // -------------------------------------------------------------------------
@@ -139,10 +140,8 @@ internal class NarrowDependencyService : IRtService
             throw new InvalidOperationException($"'{interfaceSpec}' is not a named type.");
 
         if (namedType.TypeKind != TypeKind.Interface)
-        {
             throw new InvalidOperationException(
                 $"'{namedType.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat)}' is not an interface.");
-        }
 
         return namedType;
     }
@@ -164,7 +163,7 @@ internal class NarrowDependencyService : IRtService
         foreach (var project in solution.Projects)
         {
             var found = await SymbolFinder.FindDeclarationsAsync(
-                project, newInterfaceName, ignoreCase: false, SymbolFilter.Type);
+                project, newInterfaceName, false, SymbolFilter.Type);
 
             var match = found
                 .OfType<INamedTypeSymbol>()
@@ -220,17 +219,16 @@ internal class NarrowDependencyService : IRtService
         var modeLabel = dryRun ? "[dry-run] " : string.Empty;
 
         if (reusedInterface is not null)
-        {
-            RtConsole.WriteLine(RtOutputContext.Result, $"{modeLabel}Reusing existing interface '{newInterfaceName}' -- shape matches selected members.");
-        }
+            RtConsole.WriteLine(RtOutputContext.Result,
+                $"{modeLabel}Reusing existing interface '{newInterfaceName}' -- shape matches selected members.");
         else
-        {
-            RtConsole.WriteLine(RtOutputContext.Result, $"{modeLabel}New interface '{newInterfaceName}' will be created.");
-        }
+            RtConsole.WriteLine(RtOutputContext.Result,
+                $"{modeLabel}New interface '{newInterfaceName}' will be created.");
 
         if (result.NarrowedConsumers.Count > 0)
         {
-            RtConsole.WriteLine(RtOutputContext.Result, $"\n{modeLabel}Narrowed {result.NarrowedConsumers.Count} consumer(s):");
+            RtConsole.WriteLine(RtOutputContext.Result,
+                $"\n{modeLabel}Narrowed {result.NarrowedConsumers.Count} consumer(s):");
             foreach (var consumer in result.NarrowedConsumers)
                 RtConsole.WriteLine(RtOutputContext.Result, $"  - {consumer}");
 
@@ -241,7 +239,8 @@ internal class NarrowDependencyService : IRtService
 
         if (result.SkippedConsumers.Count > 0)
         {
-            RtConsole.WriteLine(RtOutputContext.Result, $"\n{modeLabel}Skipped {result.SkippedConsumers.Count} consumer(s):");
+            RtConsole.WriteLine(RtOutputContext.Result,
+                $"\n{modeLabel}Skipped {result.SkippedConsumers.Count} consumer(s):");
             foreach (var (name, reason) in result.SkippedConsumers)
                 RtConsole.WriteLine(RtOutputContext.Result, $"  - {name}: skipped ({reason})");
         }

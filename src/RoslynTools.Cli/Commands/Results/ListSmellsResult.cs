@@ -34,15 +34,6 @@ internal sealed record ListSmellsResult : IRtOutput, IRtMarkdownOutput
     [OutputField(OutputLevel.Llm, "smells")]
     public required IReadOnlyList<SmellItemResult> Smells { get; init; }
 
-    public void RenderText(TextWriter writer)
-    {
-        foreach (var smell in Smells)
-        {
-            smell.RenderText(writer);
-            writer.WriteLine();
-        }
-    }
-
     public void RenderMarkdown(TextWriter writer)
     {
         writer.WriteLine("# Code Smells");
@@ -66,6 +57,16 @@ internal sealed record ListSmellsResult : IRtOutput, IRtMarkdownOutput
                 var member = smell.MemberName ?? string.Empty;
                 writer.WriteLine($"| {smell.TypeName} | {member} | {smell.FilePath} | {smell.Line} | {smell.Detail} |");
             }
+
+            writer.WriteLine();
+        }
+    }
+
+    public void RenderText(TextWriter writer)
+    {
+        foreach (var smell in Smells)
+        {
+            smell.RenderText(writer);
             writer.WriteLine();
         }
     }

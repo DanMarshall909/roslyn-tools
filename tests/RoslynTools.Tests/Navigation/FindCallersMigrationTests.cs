@@ -1,4 +1,5 @@
 using System.Text.Json;
+using RoslynTools.Commands;
 using RoslynTools.Core.Output;
 using RoslynTools.Services.Results;
 
@@ -55,7 +56,7 @@ public sealed class FindCallersMigrationTests : IDisposable
             FilePath = "C:/code/Foo.cs",
             Line = 7,
             ContainingMethod = "MyMethod",
-            SourceLine = "foo.Bar();",
+            SourceLine = "foo.Bar();"
         };
         using var sw = new StringWriter();
 
@@ -154,7 +155,7 @@ public sealed class FindCallersMigrationTests : IDisposable
     [Fact]
     public void FindCallersCommand_Info_SupportedFormats_contains_all_four_formats()
     {
-        var formats = RoslynTools.Commands.FindCallersCommand.Info.SupportedFormats;
+        var formats = FindCallersCommand.Info.SupportedFormats;
         Assert.NotNull(formats);
         Assert.Contains(OutputFormat.Text, formats);
         Assert.Contains(OutputFormat.Json, formats);
@@ -164,8 +165,9 @@ public sealed class FindCallersMigrationTests : IDisposable
 
     // ── Helpers ───────────────────────────────────────────────────────────────────
 
-    private static FindCallersResult MakeFindCallersResult() =>
-        new()
+    private static FindCallersResult MakeFindCallersResult()
+    {
+        return new FindCallersResult
         {
             SymbolName = "DoWork",
             Callers =
@@ -175,15 +177,16 @@ public sealed class FindCallersMigrationTests : IDisposable
                     FilePath = "/src/Foo.cs",
                     Line = 10,
                     ContainingMethod = "RunJob",
-                    SourceLine = "DoWork();",
+                    SourceLine = "DoWork();"
                 },
                 new CallerResult
                 {
                     FilePath = "/src/Bar.cs",
                     Line = 42,
                     ContainingMethod = "Execute",
-                    SourceLine = "DoWork();",
-                },
-            ],
+                    SourceLine = "DoWork();"
+                }
+            ]
         };
+    }
 }

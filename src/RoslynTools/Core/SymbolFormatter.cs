@@ -5,8 +5,8 @@ using Microsoft.CodeAnalysis;
 namespace RoslynTools.Core;
 
 /// <summary>
-/// Shared helpers for formatting Roslyn symbols into JSON-serializable dictionaries.
-/// Extracted from InspectCommand, OutlineCommand, FindImplementationsCommand to eliminate duplication.
+///     Shared helpers for formatting Roslyn symbols into JSON-serializable dictionaries.
+///     Extracted from InspectCommand, OutlineCommand, FindImplementationsCommand to eliminate duplication.
 /// </summary>
 internal static class SymbolFormatter
 {
@@ -16,11 +16,11 @@ internal static class SymbolFormatter
     internal static readonly JsonSerializerOptions DefaultJsonOptions = new()
     {
         WriteIndented = true,
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
 
     /// <summary>
-    /// Returns a list of source-location dictionaries (file + line) for the given symbol.
+    ///     Returns a list of source-location dictionaries (file + line) for the given symbol.
     /// </summary>
     internal static List<Dictionary<string, object?>> ExtractSourceLocations(ISymbol symbol)
     {
@@ -32,17 +32,17 @@ internal static class SymbolFormatter
                 return new Dictionary<string, object?>
                 {
                     ["file"] = span.Path,
-                    ["line"] = span.StartLinePosition.Line + 1,
+                    ["line"] = span.StartLinePosition.Line + 1
                 };
             })
             .ToList();
     }
 
     /// <summary>
-    /// Returns a list of member dictionaries for the given named type.
-    /// Each entry includes "lineFrom" / "lineTo" pulled from the symbol's first source location
-    /// (1-indexed; null when the symbol has no source location, e.g. compiler-generated members).
-    /// When <paramref name="includeStaticFlag"/> is true each entry also includes an "isStatic" key.
+    ///     Returns a list of member dictionaries for the given named type.
+    ///     Each entry includes "lineFrom" / "lineTo" pulled from the symbol's first source location
+    ///     (1-indexed; null when the symbol has no source location, e.g. compiler-generated members).
+    ///     When <paramref name="includeStaticFlag" /> is true each entry also includes an "isStatic" key.
     /// </summary>
     internal static List<Dictionary<string, object?>> ExtractMembers(
         INamedTypeSymbol type,
@@ -60,7 +60,7 @@ internal static class SymbolFormatter
                     ["signature"] = m.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
                     ["accessibility"] = m.DeclaredAccessibility.ToString(),
                     ["lineFrom"] = lineFrom,
-                    ["lineTo"] = lineTo,
+                    ["lineTo"] = lineTo
                 };
                 if (includeStaticFlag)
                     entry["isStatic"] = m.IsStatic;
@@ -70,11 +70,11 @@ internal static class SymbolFormatter
     }
 
     /// <summary>
-    /// Returns the 1-indexed start and end line of the symbol's first declaration. Uses
-    /// <see cref="ISymbol.DeclaringSyntaxReferences"/> rather than <see cref="ISymbol.Locations"/>
-    /// because Locations point only at the identifier token (so end == start), whereas the
-    /// declaring syntax node spans the entire declaration including its body.
-    /// Both values are null when the symbol has no source declaration (compiler-generated, etc.).
+    ///     Returns the 1-indexed start and end line of the symbol's first declaration. Uses
+    ///     <see cref="ISymbol.DeclaringSyntaxReferences" /> rather than <see cref="ISymbol.Locations" />
+    ///     because Locations point only at the identifier token (so end == start), whereas the
+    ///     declaring syntax node spans the entire declaration including its body.
+    ///     Both values are null when the symbol has no source declaration (compiler-generated, etc.).
     /// </summary>
     internal static (int? LineFrom, int? LineTo) GetSourceLineRange(ISymbol symbol)
     {
@@ -85,9 +85,9 @@ internal static class SymbolFormatter
     }
 
     /// <summary>
-    /// Populates <paramref name="result"/> with "baseType" and "interfaces" keys from <paramref name="type"/>.
-    /// "baseType" is omitted when the base is System.Object.
-    /// "interfaces" is omitted when the list is empty.
+    ///     Populates <paramref name="result" /> with "baseType" and "interfaces" keys from <paramref name="type" />.
+    ///     "baseType" is omitted when the base is System.Object.
+    ///     "interfaces" is omitted when the list is empty.
     /// </summary>
     internal static void AddTypeHierarchyInfo(
         Dictionary<string, object?> result,

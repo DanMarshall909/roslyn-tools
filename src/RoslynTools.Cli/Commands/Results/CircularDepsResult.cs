@@ -4,13 +4,15 @@ namespace RoslynTools.Commands.Results;
 
 internal sealed record CycleResult : IRtOutput
 {
-    [OutputField(OutputLevel.Llm, "path")]
-    public required string Path { get; init; }
+    [OutputField(OutputLevel.Llm, "path")] public required string Path { get; init; }
 
     [OutputField(OutputLevel.Default, "nodes")]
     public required IReadOnlyList<string> Nodes { get; init; }
 
-    public void RenderText(TextWriter writer) => writer.Write(Path);
+    public void RenderText(TextWriter writer)
+    {
+        writer.Write(Path);
+    }
 }
 
 internal sealed record CircularDepsResult : IRtOutput, IRtMarkdownOutput
@@ -20,20 +22,6 @@ internal sealed record CircularDepsResult : IRtOutput, IRtMarkdownOutput
 
     [OutputField(OutputLevel.Llm, "cycles")]
     public required IReadOnlyList<CycleResult> Cycles { get; init; }
-
-    public void RenderText(TextWriter writer)
-    {
-        if (!HasCycles)
-        {
-            writer.WriteLine("No circular namespace dependencies found.");
-            return;
-        }
-
-        for (var i = 0; i < Cycles.Count; i++)
-        {
-            writer.WriteLine(Cycles[i].Path);
-        }
-    }
 
     public void RenderMarkdown(TextWriter writer)
     {
@@ -55,12 +43,20 @@ internal sealed record CircularDepsResult : IRtOutput, IRtMarkdownOutput
             writer.WriteLine();
             writer.WriteLine("**Nodes:**");
             writer.WriteLine();
-            foreach (var node in cycle.Nodes)
-            {
-                writer.WriteLine($"- {node}");
-            }
+            foreach (var node in cycle.Nodes) writer.WriteLine($"- {node}");
             writer.WriteLine();
         }
+    }
+
+    public void RenderText(TextWriter writer)
+    {
+        if (!HasCycles)
+        {
+            writer.WriteLine("No circular namespace dependencies found.");
+            return;
+        }
+
+        for (var i = 0; i < Cycles.Count; i++) writer.WriteLine(Cycles[i].Path);
     }
 
     internal static CircularDepsResult FromCycles(IReadOnlyList<IReadOnlyList<string>> cycles)
@@ -71,14 +67,14 @@ internal sealed record CircularDepsResult : IRtOutput, IRtMarkdownOutput
             return new CycleResult
             {
                 Path = path,
-                Nodes = nodes,
+                Nodes = nodes
             };
         }).ToList();
 
         return new CircularDepsResult
         {
             HasCycles = cycleResults.Count > 0,
-            Cycles = cycleResults,
+            Cycles = cycleResults
         };
     }
 }

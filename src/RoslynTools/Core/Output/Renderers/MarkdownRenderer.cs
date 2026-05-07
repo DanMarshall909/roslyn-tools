@@ -40,13 +40,11 @@ internal static class MarkdownRenderer
 
         IRtOutput? first = null;
         foreach (var row in rows)
-        {
             if (row is IRtOutput rt)
             {
                 first = rt;
                 break;
             }
-        }
 
         if (first is null)
             return;
@@ -72,7 +70,8 @@ internal static class MarkdownRenderer
         }
     }
 
-    private static List<(PropertyInfo prop, OutputFieldAttribute attr)> GetAnnotatedProperties(Type type, OutputLevel maxLevel)
+    private static List<(PropertyInfo prop, OutputFieldAttribute attr)> GetAnnotatedProperties(Type type,
+        OutputLevel maxLevel)
     {
         return type
             .GetProperties(BindingFlags.Public | BindingFlags.Instance)

@@ -4,34 +4,33 @@ namespace RoslynTools.Tests.Navigation;
 
 public class FindUnusedTests
 {
-
     [Fact]
     public async Task Reports_unreferenced_method()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Services.cs", """
-            using System;
+                                         using System;
 
-            public class UsedService
-            {
-                public void UsedMethod() { }
-                public void UnusedMethod() { }  // never called
-            }
+                                         public class UsedService
+                                         {
+                                             public void UsedMethod() { }
+                                             public void UnusedMethod() { }  // never called
+                                         }
 
-            public class CallerClass
-            {
-                public void Run()
-                {
-                    var s = new UsedService();
-                    s.UsedMethod();
-                }
-            }
+                                         public class CallerClass
+                                         {
+                                             public void Run()
+                                             {
+                                                 var s = new UsedService();
+                                                 s.UsedMethod();
+                                             }
+                                         }
 
-            [Serializable]
-            public class SerializableData { }  // should be excluded
+                                         [Serializable]
+                                         public class SerializableData { }  // should be excluded
 
-            public class UnusedClass { }  // never referenced
-            """);
+                                         public class UnusedClass { }  // never referenced
+                                         """);
         var (workspace, sln) = project.Build();
         using (workspace)
         {
@@ -46,28 +45,28 @@ public class FindUnusedTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Services.cs", """
-            using System;
+                                         using System;
 
-            public class UsedService
-            {
-                public void UsedMethod() { }
-                public void UnusedMethod() { }  // never called
-            }
+                                         public class UsedService
+                                         {
+                                             public void UsedMethod() { }
+                                             public void UnusedMethod() { }  // never called
+                                         }
 
-            public class CallerClass
-            {
-                public void Run()
-                {
-                    var s = new UsedService();
-                    s.UsedMethod();
-                }
-            }
+                                         public class CallerClass
+                                         {
+                                             public void Run()
+                                             {
+                                                 var s = new UsedService();
+                                                 s.UsedMethod();
+                                             }
+                                         }
 
-            [Serializable]
-            public class SerializableData { }  // should be excluded
+                                         [Serializable]
+                                         public class SerializableData { }  // should be excluded
 
-            public class UnusedClass { }  // never referenced
-            """);
+                                         public class UnusedClass { }  // never referenced
+                                         """);
         var (workspace, sln) = project.Build();
         using (workspace)
         {
@@ -82,28 +81,28 @@ public class FindUnusedTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Services.cs", """
-            using System;
+                                         using System;
 
-            public class UsedService
-            {
-                public void UsedMethod() { }
-                public void UnusedMethod() { }  // never called
-            }
+                                         public class UsedService
+                                         {
+                                             public void UsedMethod() { }
+                                             public void UnusedMethod() { }  // never called
+                                         }
 
-            public class CallerClass
-            {
-                public void Run()
-                {
-                    var s = new UsedService();
-                    s.UsedMethod();
-                }
-            }
+                                         public class CallerClass
+                                         {
+                                             public void Run()
+                                             {
+                                                 var s = new UsedService();
+                                                 s.UsedMethod();
+                                             }
+                                         }
 
-            [Serializable]
-            public class SerializableData { }  // should be excluded
+                                         [Serializable]
+                                         public class SerializableData { }  // should be excluded
 
-            public class UnusedClass { }  // never referenced
-            """);
+                                         public class UnusedClass { }  // never referenced
+                                         """);
         var (workspace, sln) = project.Build();
         using (workspace)
         {
@@ -118,28 +117,28 @@ public class FindUnusedTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Services.cs", """
-            using System;
+                                         using System;
 
-            public class UsedService
-            {
-                public void UsedMethod() { }
-                public void UnusedMethod() { }  // never called
-            }
+                                         public class UsedService
+                                         {
+                                             public void UsedMethod() { }
+                                             public void UnusedMethod() { }  // never called
+                                         }
 
-            public class CallerClass
-            {
-                public void Run()
-                {
-                    var s = new UsedService();
-                    s.UsedMethod();
-                }
-            }
+                                         public class CallerClass
+                                         {
+                                             public void Run()
+                                             {
+                                                 var s = new UsedService();
+                                                 s.UsedMethod();
+                                             }
+                                         }
 
-            [Serializable]
-            public class SerializableData { }  // should be excluded
+                                         [Serializable]
+                                         public class SerializableData { }  // should be excluded
 
-            public class UnusedClass { }  // never referenced
-            """);
+                                         public class UnusedClass { }  // never referenced
+                                         """);
         var (workspace, sln) = project.Build();
         using (workspace)
         {
@@ -157,23 +156,23 @@ public class FindUnusedTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Services.cs", """
-            public class UsedService
-            {
-                public void UsedMethod() { }
-                public void UnusedMethod() { }
-            }
+                                         public class UsedService
+                                         {
+                                             public void UsedMethod() { }
+                                             public void UnusedMethod() { }
+                                         }
 
-            public class CallerClass
-            {
-                public void Run()
-                {
-                    var s = new UsedService();
-                    s.UsedMethod();
-                }
-            }
+                                         public class CallerClass
+                                         {
+                                             public void Run()
+                                             {
+                                                 var s = new UsedService();
+                                                 s.UsedMethod();
+                                             }
+                                         }
 
-            public class OrphanType { }
-            """);
+                                         public class OrphanType { }
+                                         """);
         var (workspace, sln) = project.Build();
         using (workspace)
         {
@@ -191,11 +190,11 @@ public class FindUnusedTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Program.cs", """
-            public class Program
-            {
-                public static void Main(string[] args) { }
-            }
-            """);
+                                        public class Program
+                                        {
+                                            public static void Main(string[] args) { }
+                                        }
+                                        """);
         var (workspace, sln) = project.Build();
         using (workspace)
         {
@@ -212,17 +211,17 @@ public class FindUnusedTests
         // Simulate a [Fact] attribute — AdhocProjectBuilder compiles against a minimal set
         // so we define a stub attribute to keep the project self-contained.
         project.AddSource("Tests.cs", """
-            using System;
+                                      using System;
 
-            [AttributeUsage(AttributeTargets.Method)]
-            public class FactAttribute : Attribute { }
+                                      [AttributeUsage(AttributeTargets.Method)]
+                                      public class FactAttribute : Attribute { }
 
-            public class MyTests
-            {
-                [Fact]
-                public void Some_test() { }
-            }
-            """);
+                                      public class MyTests
+                                      {
+                                          [Fact]
+                                          public void Some_test() { }
+                                      }
+                                      """);
         var (workspace, sln) = project.Build();
         using (workspace)
         {
@@ -237,11 +236,11 @@ public class FindUnusedTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Contracts.cs", """
-            public interface IService
-            {
-                void Execute();
-            }
-            """);
+                                          public interface IService
+                                          {
+                                              void Execute();
+                                          }
+                                          """);
         var (workspace, sln) = project.Build();
         using (workspace)
         {
@@ -256,17 +255,17 @@ public class FindUnusedTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Tests.cs", """
-            using System;
+                                      using System;
 
-            [AttributeUsage(AttributeTargets.Method)]
-            public class TheoryAttribute : Attribute { }
+                                      [AttributeUsage(AttributeTargets.Method)]
+                                      public class TheoryAttribute : Attribute { }
 
-            public class MyTests
-            {
-                [Theory]
-                public void Parameterised_test(int x) { }
-            }
-            """);
+                                      public class MyTests
+                                      {
+                                          [Theory]
+                                          public void Parameterised_test(int x) { }
+                                      }
+                                      """);
         var (workspace, sln) = project.Build();
         using (workspace)
         {
@@ -281,14 +280,14 @@ public class FindUnusedTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Contracts.cs", """
-            using System;
+                                          using System;
 
-            [AttributeUsage(AttributeTargets.Class)]
-            public class DataContractAttribute : Attribute { }
+                                          [AttributeUsage(AttributeTargets.Class)]
+                                          public class DataContractAttribute : Attribute { }
 
-            [DataContract]
-            public class OrderDto { }
-            """);
+                                          [DataContract]
+                                          public class OrderDto { }
+                                          """);
         var (workspace, sln) = project.Build();
         using (workspace)
         {

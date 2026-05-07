@@ -6,17 +6,17 @@ namespace RoslynTools.Core;
 
 internal sealed class NamespaceMoveRewriter : CSharpSyntaxRewriter
 {
-    private readonly string _oldNs;
     private readonly string _newNs;
-
-    public bool Changed { get; private set; }
-    public bool IsDeclarationFile { get; private set; }
+    private readonly string _oldNs;
 
     public NamespaceMoveRewriter(string oldNs, string newNs)
     {
         _oldNs = oldNs;
         _newNs = newNs;
     }
+
+    public bool Changed { get; private set; }
+    public bool IsDeclarationFile { get; private set; }
 
     public override SyntaxNode? VisitNamespaceDeclaration(NamespaceDeclarationSyntax node)
     {

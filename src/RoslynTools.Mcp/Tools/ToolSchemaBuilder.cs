@@ -1,6 +1,4 @@
 using System.CommandLine;
-using RoslynTools;
-using RoslynTools.Core;
 
 namespace RoslynTools.Mcp.Tools;
 
@@ -13,9 +11,9 @@ internal sealed class ToolSchemaBuilder
             {
                 var cmd = entry.Build();
                 return new ToolDefinition(
-                    name: entry.Info.Name.Replace('-', '_'),
-                    description: entry.Info.WhenToUse,
-                    inputSchema: BuildSchema(cmd));
+                    entry.Info.Name.Replace('-', '_'),
+                    entry.Info.WhenToUse,
+                    BuildSchema(cmd));
             })
             .ToList();
     }

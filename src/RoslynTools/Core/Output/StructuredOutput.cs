@@ -4,9 +4,9 @@ using YamlDotNet.Serialization;
 namespace RoslynTools.Core.Output;
 
 /// <summary>
-/// Writes a structured object as JSON or YAML to stdout, dispatching on <see cref="RtContext.Format"/>.
-/// Use this in commands that don't go through <see cref="RtSerializer"/> (i.e. plain anonymous-object
-/// or non-IRtOutput results) so <c>--yaml</c> works uniformly across the CLI.
+///     Writes a structured object as JSON or YAML to stdout, dispatching on <see cref="RtContext.Format" />.
+///     Use this in commands that don't go through <see cref="RtSerializer" /> (i.e. plain anonymous-object
+///     or non-IRtOutput results) so <c>--yaml</c> works uniformly across the CLI.
 /// </summary>
 internal static class StructuredOutput
 {

@@ -1,26 +1,26 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0</TargetFramework>
-    <LangVersion>latest</LangVersion>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <NoWarn>$(NoWarn);CA1861;CA2016;CA1822;CA1852</NoWarn>
-  </PropertyGroup>
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net8.0</TargetFramework>
+        <LangVersion>latest</LangVersion>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <NoWarn>$(NoWarn);CA1861;CA2016;CA1822;CA1852</NoWarn>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <InternalsVisibleTo Include="RoslynTools.Tests.Mcp" />
-  </ItemGroup>
+    <ItemGroup>
+        <InternalsVisibleTo Include="RoslynTools.Tests.Mcp"/>
+    </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="../RoslynTools/RoslynTools.csproj" />
-    <ProjectReference Include="../RoslynTools.Cli/RoslynTools.Cli.csproj" />
-  </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="../RoslynTools/RoslynTools.csproj"/>
+        <ProjectReference Include="../RoslynTools.Cli/RoslynTools.Cli.csproj"/>
+    </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
-    <PackageReference Include="System.Text.Json" />
-  </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection"/>
+        <PackageReference Include="System.Text.Json"/>
+    </ItemGroup>
 
 </Project>

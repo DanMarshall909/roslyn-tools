@@ -1,14 +1,16 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
-using System.Diagnostics.CodeAnalysis;
+using Microsoft.CodeAnalysis.Text;
+using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class MakeInstanceService : IRtService
 {
     private readonly ILogger<MakeInstanceService> _logger;
@@ -24,6 +26,7 @@ internal class MakeInstanceService : IRtService
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
     }
+
     internal async Task RunAsync(Solution sln, string methodSpec, bool dryRun)
     {
         var originalSolution = sln;
@@ -31,7 +34,8 @@ internal class MakeInstanceService : IRtService
         var (typeName, methodName) = ParseMethodSpec(methodSpec);
 
         var methodSymbol = await FindStaticMethodAsync(sln, typeName, methodName)
-            ?? throw new InvalidOperationException($"Static method '{methodSpec}' not found in solution.");
+                           ?? throw new InvalidOperationException(
+                               $"Static method '{methodSpec}' not found in solution.");
 
         _logger.RtInfo("Found method '{Method}'. Collecting call sites...", methodSymbol.ToDisplayString());
 
@@ -43,14 +47,14 @@ internal class MakeInstanceService : IRtService
             .GroupBy(loc => loc.Document.Id)
             .ToDictionary(g => g.Key, g => g.Select(l => l.Location.SourceSpan).ToList());
 
-        int total = locationsByDoc.Values.Sum(l => l.Count);
+        var total = locationsByDoc.Values.Sum(l => l.Count);
         _logger.RtInfo("Found {Total} call site(s). Analysing reachability...", total);
 
         // Find the document containing the method declaration
         var declLocation = methodSymbol.Locations.FirstOrDefault(l => l.IsInSource)
-            ?? throw new InvalidOperationException("No source location for method declaration.");
+                           ?? throw new InvalidOperationException("No source location for method declaration.");
         var declDocId = FindDocumentIdForLocation(sln, declLocation)
-            ?? throw new InvalidOperationException("Cannot locate source document for method declaration.");
+                        ?? throw new InvalidOperationException("Cannot locate source document for method declaration.");
 
         // Process all documents that have call sites plus the declaration document
         var allDocIds = new HashSet<DocumentId>(locationsByDoc.Keys) { declDocId };
@@ -83,10 +87,10 @@ internal class MakeInstanceService : IRtService
     // ── Document transformation ──────────────────────────────────────────────
 
     /// <summary>
-    /// Transforms one document in a single ReplaceNodes pass:
-    ///   • Removes the `static` modifier from the method declaration (if this is the declaration doc)
-    ///   • Rewrites qualifying call sites from Type.Method(...) to instance.Method(...)
-    ///   • Warns and skips call sites where no instance is reachable
+    ///     Transforms one document in a single ReplaceNodes pass:
+    ///     • Removes the `static` modifier from the method declaration (if this is the declaration doc)
+    ///     • Rewrites qualifying call sites from Type.Method(...) to instance.Method(...)
+    ///     • Warns and skips call sites where no instance is reachable
     /// </summary>
     private (SyntaxNode newRoot, List<(string file, int line, string reason)> skipped)
         TransformDocument(
@@ -94,7 +98,7 @@ internal class MakeInstanceService : IRtService
             SemanticModel semanticModel,
             IMethodSymbol methodSymbol,
             INamedTypeSymbol targetType,
-            List<Microsoft.CodeAnalysis.Text.TextSpan> callSpans,
+            List<TextSpan> callSpans,
             bool isDeclarationDoc,
             Document doc)
     {
@@ -136,7 +140,8 @@ internal class MakeInstanceService : IRtService
 
             var lineNum = fileText.Lines.GetLineFromPosition(span.Start).LineNumber + 1;
 
-            var reachability = InstanceReachabilityAnalyzer.FindReachableInstance(invocation, semanticModel, targetType);
+            var reachability =
+                InstanceReachabilityAnalyzer.FindReachableInstance(invocation, semanticModel, targetType);
 
             if (reachability.Kind == ReachableInstanceKind.None)
             {
@@ -152,8 +157,9 @@ internal class MakeInstanceService : IRtService
                 continue;
             }
 
-            ExpressionSyntax instanceExpr = reachability.Expression
-                ?? throw new InvalidOperationException("Reachability analysis returned no expression for a matched instance.");
+            var instanceExpr = reachability.Expression
+                               ?? throw new InvalidOperationException(
+                                   "Reachability analysis returned no expression for a matched instance.");
 
             var newMemberAccess = memberAccess
                 .WithExpression(instanceExpr.WithTriviaFrom(memberAccess.Expression))
@@ -215,14 +221,10 @@ internal class MakeInstanceService : IRtService
     private DocumentId? FindDocumentIdForLocation(Solution sln, Location location)
     {
         foreach (var project in sln.Projects)
-        {
-            foreach (var doc in project.Documents)
-            {
-                if (doc.FilePath != null &&
-                    string.Equals(doc.FilePath, location.SourceTree?.FilePath, StringComparison.OrdinalIgnoreCase))
-                    return doc.Id;
-            }
-        }
+        foreach (var doc in project.Documents)
+            if (doc.FilePath != null &&
+                string.Equals(doc.FilePath, location.SourceTree?.FilePath, StringComparison.OrdinalIgnoreCase))
+                return doc.Id;
 
         return null;
     }
@@ -231,8 +233,9 @@ internal class MakeInstanceService : IRtService
 
     private void PrintSummary(int total, List<(string file, int line, string reason)> skipped)
     {
-        int rewritten = total - skipped.Count;
-        RtConsole.WriteLine(RtOutputContext.Result, $"\nSummary: {total} call site(s) found, {rewritten} rewritten, {skipped.Count} skipped.");
+        var rewritten = total - skipped.Count;
+        RtConsole.WriteLine(RtOutputContext.Result,
+            $"\nSummary: {total} call site(s) found, {rewritten} rewritten, {skipped.Count} skipped.");
 
         foreach (var (file, line, reason) in skipped)
             RtConsole.WriteLine(RtOutputContext.Result, $"  SKIPPED {file}:{line} — {reason}");

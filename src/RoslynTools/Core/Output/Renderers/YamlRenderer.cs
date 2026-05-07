@@ -48,10 +48,7 @@ internal static class YamlRenderer
         if (value is IEnumerable enumerable && value is not string)
         {
             var list = new List<object?>();
-            foreach (var item in enumerable)
-            {
-                list.Add(item is IRtOutput rtItem ? BuildObject(rtItem, maxLevel) : item);
-            }
+            foreach (var item in enumerable) list.Add(item is IRtOutput rtItem ? BuildObject(rtItem, maxLevel) : item);
             return list;
         }
 

@@ -11,37 +11,37 @@ public class FindImplementationsTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Contracts.cs", """
-            namespace TestApp;
+                                          namespace TestApp;
 
-            public interface IRepository
-            {
-                void Save(string item);
-                string? GetById(int id);
-            }
-            """);
+                                          public interface IRepository
+                                          {
+                                              void Save(string item);
+                                              string? GetById(int id);
+                                          }
+                                          """);
         project.AddSource("SqlRepo.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class SqlRepository : IRepository
-            {
-                public void Save(string item) { }
-                public string? GetById(int id) => null;
-            }
-            """);
+                                        public class SqlRepository : IRepository
+                                        {
+                                            public void Save(string item) { }
+                                            public string? GetById(int id) => null;
+                                        }
+                                        """);
         project.AddSource("InMemoryRepo.cs", """
-            namespace TestApp;
+                                             namespace TestApp;
 
-            public class InMemoryRepository : IRepository
-            {
-                public void Save(string item) { }
-                public string? GetById(int id) => null;
-            }
-            """);
+                                             public class InMemoryRepository : IRepository
+                                             {
+                                                 public void Save(string item) { }
+                                                 public string? GetById(int id) => null;
+                                             }
+                                             """);
         project.AddSource("Unrelated.cs", """
-            namespace TestApp;
+                                          namespace TestApp;
 
-            public class UnrelatedService { }
-            """);
+                                          public class UnrelatedService { }
+                                          """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -64,25 +64,25 @@ public class FindImplementationsTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Types.cs", """
-            namespace TestApp;
+                                      namespace TestApp;
 
-            public abstract class BaseHandler
-            {
-                public abstract void Handle();
-            }
+                                      public abstract class BaseHandler
+                                      {
+                                          public abstract void Handle();
+                                      }
 
-            public class CreateHandler : BaseHandler
-            {
-                public override void Handle() { }
-            }
+                                      public class CreateHandler : BaseHandler
+                                      {
+                                          public override void Handle() { }
+                                      }
 
-            public class DeleteHandler : BaseHandler
-            {
-                public override void Handle() { }
-            }
+                                      public class DeleteHandler : BaseHandler
+                                      {
+                                          public override void Handle() { }
+                                      }
 
-            public class StandaloneService { }
-            """);
+                                      public class StandaloneService { }
+                                      """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -105,13 +105,13 @@ public class FindImplementationsTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Lonely.cs", """
-            namespace TestApp;
+                                       namespace TestApp;
 
-            public interface IUnimplemented
-            {
-                void DoNothing();
-            }
-            """);
+                                       public interface IUnimplemented
+                                       {
+                                           void DoNothing();
+                                       }
+                                       """);
 
         var (workspace, sln) = project.Build();
         using (workspace)

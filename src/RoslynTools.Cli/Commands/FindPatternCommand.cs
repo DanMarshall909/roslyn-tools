@@ -7,34 +7,42 @@ namespace RoslynTools.Commands;
 
 internal sealed class FindPatternCommand : IRtCommand
 {
-    private FindPatternCommand() { }
+    private FindPatternCommand()
+    {
+    }
 
     // Use the shared options so generic type names like List<int> render as `<` not `<`.
     private static JsonSerializerOptions JsonOptions => SymbolFormatter.DefaultJsonOptions;
 
     public static RtCommandInfo Info { get; } = new(
-        Name: "find-pattern",
-        Mutates: false,
-        JsonOutput: true,
-        Category: "inspect",
+        "find-pattern",
+        false,
+        true,
+        "inspect",
         Aliases: ["fp"],
-        WhenToUse: "Find every location in the solution that structurally matches a given line range — same SyntaxKind tree shape, only identifier and literal values differ. Useful for spotting duplicated logic even when variable names differ.",
+        WhenToUse:
+        "Find every location in the solution that structurally matches a given line range — same SyntaxKind tree shape, only identifier and literal values differ. Useful for spotting duplicated logic even when variable names differ.",
         Examples:
         [
             "rt inspect find-pattern --file src/Services/BookingService.cs --start-line 42 --end-line 50 --solution RoslynTools.slnx",
-            "rt inspect fp --file src/Controllers/AdminController.cs --start-line 110 --end-line 125 --scope RoslynTools.Core --solution RoslynTools.slnx",
+            "rt inspect fp --file src/Controllers/AdminController.cs --start-line 110 --end-line 125 --scope RoslynTools.Core --solution RoslynTools.slnx"
         ]
     );
 
     public static Command Build()
     {
-        var fileOpt = new Option<string>("--file", "Path to the .cs file containing the pattern.") { IsRequired = true };
-        var startLineOpt = new Option<int>("--start-line", "First line of the pattern range (1-based).") { IsRequired = true };
-        var endLineOpt = new Option<int>("--end-line", "Last line of the pattern range (1-based, inclusive).") { IsRequired = true };
+        var fileOpt = new Option<string>("--file", "Path to the .cs file containing the pattern.")
+            { IsRequired = true };
+        var startLineOpt = new Option<int>("--start-line", "First line of the pattern range (1-based).")
+            { IsRequired = true };
+        var endLineOpt = new Option<int>("--end-line", "Last line of the pattern range (1-based, inclusive).")
+            { IsRequired = true };
         var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx. Auto-detected if omitted.");
-        var scopeOpt = new Option<string?>("--scope", "Filter matches to documents in this namespace prefix or project name.");
+        var scopeOpt = new Option<string?>("--scope",
+            "Filter matches to documents in this namespace prefix or project name.");
 
-        var cmd = new Command("find-pattern", "Find all solution locations structurally matching a given statement range.");
+        var cmd = new Command("find-pattern",
+            "Find all solution locations structurally matching a given statement range.");
         cmd.AddAlias("fp");
         cmd.AddAll(fileOpt, startLineOpt, endLineOpt, solutionOpt, scopeOpt);
 

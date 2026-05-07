@@ -15,12 +15,14 @@ public sealed class NarrowDependencyTests
         var (workspace, sln) = project.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
             await NarrowDependencyCommand.ExecuteAsync(
-                sourceInterface: "IWideFacade",
-                members: ["Send"],
-                newInterfaceName: "ISender",
-                solutionPath: "ignored",
-                dryRun: false);
+                "IWideFacade",
+                ["Send"],
+                "ISender",
+                "ignored",
+                false);
+        }
 
         Assert.True(project.SourceExists("ISender.cs"),
             "ISender.cs should have been created");
@@ -42,12 +44,14 @@ public sealed class NarrowDependencyTests
         var (workspace, sln) = project.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
             await NarrowDependencyCommand.ExecuteAsync(
-                sourceInterface: "IWideFacade",
-                members: ["Send"],
-                newInterfaceName: "ISender",
-                solutionPath: "ignored",
-                dryRun: false);
+                "IWideFacade",
+                ["Send"],
+                "ISender",
+                "ignored",
+                false);
+        }
 
         // SenderOnlyConsumer only uses Send — its ctor param and field should be narrowed
         var content = await project.ReadSourceAsync("Consumers.cs");
@@ -64,12 +68,14 @@ public sealed class NarrowDependencyTests
         var (workspace, sln) = project.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
             await NarrowDependencyCommand.ExecuteAsync(
-                sourceInterface: "IWideFacade",
-                members: ["Send"],
-                newInterfaceName: "ISender",
-                solutionPath: "ignored",
-                dryRun: false);
+                "IWideFacade",
+                ["Send"],
+                "ISender",
+                "ignored",
+                false);
+        }
 
         // MixedConsumer uses Send + Receive — should still have IWideFacade
         var content = await project.ReadSourceAsync("Consumers.cs");
@@ -89,11 +95,11 @@ public sealed class NarrowDependencyTests
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 NarrowDependencyCommand.ExecuteAsync(
-                    sourceInterface: "IWideFacade",
-                    members: ["NonExistentMethod"],
-                    newInterfaceName: "INarrow",
-                    solutionPath: "ignored",
-                    dryRun: false));
+                    "IWideFacade",
+                    ["NonExistentMethod"],
+                    "INarrow",
+                    "ignored",
+                    false));
 
             Assert.Contains("NonExistentMethod", ex.Message);
             Assert.Contains("IWideFacade", ex.Message);
@@ -113,12 +119,14 @@ public sealed class NarrowDependencyTests
         var (workspace, sln) = project.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
             await NarrowDependencyCommand.ExecuteAsync(
-                sourceInterface: "IWideFacade",
-                members: ["Send"],
-                newInterfaceName: "ISender",
-                solutionPath: "ignored",
-                dryRun: true);
+                "IWideFacade",
+                ["Send"],
+                "ISender",
+                "ignored",
+                true);
+        }
 
         Assert.False(project.SourceExists("ISender.cs"),
             "ISender.cs should NOT be written during dry-run");
@@ -139,12 +147,14 @@ public sealed class NarrowDependencyTests
         try
         {
             using (WorkspaceLoader.UseOverride(workspace, sln))
+            {
                 await NarrowDependencyCommand.ExecuteAsync(
-                    sourceInterface: "IWideFacade",
-                    members: ["Send"],
-                    newInterfaceName: "ISender",
-                    solutionPath: "ignored",
-                    dryRun: false);
+                    "IWideFacade",
+                    ["Send"],
+                    "ISender",
+                    "ignored",
+                    false);
+            }
         }
         finally
         {
@@ -170,12 +180,14 @@ public sealed class NarrowDependencyTests
         try
         {
             using (WorkspaceLoader.UseOverride(workspace, sln))
+            {
                 await NarrowDependencyCommand.ExecuteAsync(
-                    sourceInterface: "IWideFacade",
-                    members: ["Send"],
-                    newInterfaceName: "ISender",
-                    solutionPath: "ignored",
-                    dryRun: false);
+                    "IWideFacade",
+                    ["Send"],
+                    "ISender",
+                    "ignored",
+                    false);
+            }
         }
         finally
         {
@@ -213,32 +225,34 @@ public sealed class NarrowDependencyTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("IWideFacade.cs", """
-            namespace MyApp;
+                                            namespace MyApp;
 
-            public interface IWideFacade
-            {
-                void Send(string message);
-                void Receive();
-            }
-            """);
+                                            public interface IWideFacade
+                                            {
+                                                void Send(string message);
+                                                void Receive();
+                                            }
+                                            """);
         // Pre-existing ISender with the exact same member
         project.AddSource("ISender.cs", """
-            namespace MyApp;
+                                        namespace MyApp;
 
-            public interface ISender
-            {
-                void Send(string message);
-            }
-            """);
+                                        public interface ISender
+                                        {
+                                            void Send(string message);
+                                        }
+                                        """);
         var (workspace, sln) = project.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
             await NarrowDependencyCommand.ExecuteAsync(
-                sourceInterface: "IWideFacade",
-                members: ["Send"],
-                newInterfaceName: "ISender",
-                solutionPath: "ignored",
-                dryRun: false);
+                "IWideFacade",
+                ["Send"],
+                "ISender",
+                "ignored",
+                false);
+        }
 
         // No exception thrown — existing ISender was reused.
         // Content should be unchanged (not overwritten with a duplicate)
@@ -256,52 +270,52 @@ public sealed class NarrowDependencyTests
         var project = new AdhocProjectBuilder();
 
         project.AddSource("IWideFacade.cs", """
-            namespace MyApp;
+                                            namespace MyApp;
 
-            public interface IWideFacade
-            {
-                void Send(string message);
-                void Receive();
-                void Delete(int id);
-            }
-            """);
+                                            public interface IWideFacade
+                                            {
+                                                void Send(string message);
+                                                void Receive();
+                                                void Delete(int id);
+                                            }
+                                            """);
 
         project.AddSource("Consumers.cs", """
-            namespace MyApp;
+                                          namespace MyApp;
 
-            /// Only uses Send — safe to narrow
-            public sealed class SenderOnlyConsumer
-            {
-                private readonly IWideFacade _facade;
+                                          /// Only uses Send — safe to narrow
+                                          public sealed class SenderOnlyConsumer
+                                          {
+                                              private readonly IWideFacade _facade;
 
-                public SenderOnlyConsumer(IWideFacade facade)
-                {
-                    _facade = facade;
-                }
+                                              public SenderOnlyConsumer(IWideFacade facade)
+                                              {
+                                                  _facade = facade;
+                                              }
 
-                public void Use()
-                {
-                    _facade.Send("hello");
-                }
-            }
+                                              public void Use()
+                                              {
+                                                  _facade.Send("hello");
+                                              }
+                                          }
 
-            /// Uses Send + Receive — must stay on IWideFacade
-            public sealed class MixedConsumer
-            {
-                private readonly IWideFacade _facade;
+                                          /// Uses Send + Receive — must stay on IWideFacade
+                                          public sealed class MixedConsumer
+                                          {
+                                              private readonly IWideFacade _facade;
 
-                public MixedConsumer(IWideFacade facade)
-                {
-                    _facade = facade;
-                }
+                                              public MixedConsumer(IWideFacade facade)
+                                              {
+                                                  _facade = facade;
+                                              }
 
-                public void Use()
-                {
-                    _facade.Send("hello");
-                    _facade.Receive();
-                }
-            }
-            """);
+                                              public void Use()
+                                              {
+                                                  _facade.Send("hello");
+                                                  _facade.Receive();
+                                              }
+                                          }
+                                          """);
 
         return project;
     }

@@ -5,28 +5,26 @@ namespace RoslynTools.Tests.Mutation;
 
 public class ExtractClassTests
 {
-    private sealed record CommandCapture(string StdOut, string StdErr, int ExitCode);
-
     private static AdhocProjectBuilder BuildFixture()
     {
         var project = new AdhocProjectBuilder("MyApp");
         project.AddSource("BigService.cs", """
-            namespace MyApp;
+                                           namespace MyApp;
 
-            public class BigService
-            {
-                private readonly string _baseUrl;
+                                           public class BigService
+                                           {
+                                               private readonly string _baseUrl;
 
-                public BigService(string baseUrl)
-                {
-                    _baseUrl = baseUrl;
-                }
+                                               public BigService(string baseUrl)
+                                               {
+                                                   _baseUrl = baseUrl;
+                                               }
 
-                public string FetchData(int id) => $"{_baseUrl}/{id}";
-                public void ProcessData(string data) { /* ... */ }
-                public void LogInfo(string msg) { }
-            }
-            """);
+                                               public string FetchData(int id) => $"{_baseUrl}/{id}";
+                                               public void ProcessData(string data) { /* ... */ }
+                                               public void LogInfo(string msg) { }
+                                           }
+                                           """);
         return project;
     }
 
@@ -77,14 +75,16 @@ public class ExtractClassTests
         var (workspace, sln) = project.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
             await ExtractClassCommand.ExecuteAsync(
-            typeName: "BigService",
-            members: "LogInfo",
-            newTypeName: "LogHelper",
-            isStatic: false,
-            solutionPath: "ignored",
-            outputDir: null,
-            dryRun: false);
+                "BigService",
+                "LogInfo",
+                "LogHelper",
+                false,
+                "ignored",
+                null,
+                false);
+        }
 
         Assert.True(project.SourceExists("LogHelper.cs"),
             "LogHelper.cs should have been created alongside BigService.cs");
@@ -97,14 +97,16 @@ public class ExtractClassTests
         var (workspace, sln) = project.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
             await ExtractClassCommand.ExecuteAsync(
-            typeName: "BigService",
-            members: "LogInfo",
-            newTypeName: "LogHelper",
-            isStatic: false,
-            solutionPath: "ignored",
-            outputDir: null,
-            dryRun: false);
+                "BigService",
+                "LogInfo",
+                "LogHelper",
+                false,
+                "ignored",
+                null,
+                false);
+        }
 
         var content = await project.ReadSourceAsync("BigService.cs");
         Assert.DoesNotContain("void LogInfo", content);
@@ -117,14 +119,16 @@ public class ExtractClassTests
         var (workspace, sln) = project.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
             await ExtractClassCommand.ExecuteAsync(
-            typeName: "BigService",
-            members: "LogInfo",
-            newTypeName: "LogHelper",
-            isStatic: false,
-            solutionPath: "ignored",
-            outputDir: null,
-            dryRun: false);
+                "BigService",
+                "LogInfo",
+                "LogHelper",
+                false,
+                "ignored",
+                null,
+                false);
+        }
 
         var content = await project.ReadSourceAsync("BigService.cs");
         Assert.Contains("private readonly LogHelper _logHelper", content);
@@ -137,14 +141,16 @@ public class ExtractClassTests
         var (workspace, sln) = project.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
             await ExtractClassCommand.ExecuteAsync(
-            typeName: "BigService",
-            members: "LogInfo",
-            newTypeName: "LogHelper",
-            isStatic: true,
-            solutionPath: "ignored",
-            outputDir: null,
-            dryRun: false);
+                "BigService",
+                "LogInfo",
+                "LogHelper",
+                true,
+                "ignored",
+                null,
+                false);
+        }
 
         var newClassContent = await project.ReadSourceAsync("LogHelper.cs");
         var sourceContent = await project.ReadSourceAsync("BigService.cs");
@@ -163,14 +169,16 @@ public class ExtractClassTests
         CommandCapture capture;
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
             capture = await RunExtractClassAsync(
-            typeName: "BigService",
-            members: "LogInfo",
-            newTypeName: "LogHelper",
-            isStatic: false,
-            solutionPath: "ignored",
-            outputDir: null,
-            dryRun: true);
+                "BigService",
+                "LogInfo",
+                "LogHelper",
+                false,
+                "ignored",
+                null,
+                true);
+        }
 
         var afterContent = await project.ReadSourceAsync("BigService.cs");
         Assert.False(project.SourceExists("LogHelper.cs"),
@@ -185,21 +193,21 @@ public class ExtractClassTests
     {
         using var project = new AdhocProjectBuilder("MyApp");
         project.AddSource("Billing/SharedService.cs", """
-            namespace Billing;
+                                                      namespace Billing;
 
-            public class SharedService
-            {
-                public void LogInfo() { }
-            }
-            """);
+                                                      public class SharedService
+                                                      {
+                                                          public void LogInfo() { }
+                                                      }
+                                                      """);
         project.AddSource("Shipping/SharedService.cs", """
-            namespace Shipping;
+                                                       namespace Shipping;
 
-            public class SharedService
-            {
-                public void LogInfo() { }
-            }
-            """);
+                                                       public class SharedService
+                                                       {
+                                                           public void LogInfo() { }
+                                                       }
+                                                       """);
 
         var (workspace, sln) = project.Build();
         var billingBefore = await project.ReadSourceAsync("Billing/SharedService.cs");
@@ -207,14 +215,16 @@ public class ExtractClassTests
 
         CommandCapture capture;
         using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
             capture = await RunExtractClassAsync(
-                typeName: "SharedService",
-                members: "LogInfo",
-                newTypeName: "LogHelper",
-                isStatic: false,
-                solutionPath: "ignored",
-                outputDir: null,
-                dryRun: false);
+                "SharedService",
+                "LogInfo",
+                "LogHelper",
+                false,
+                "ignored",
+                null,
+                false);
+        }
 
         Assert.Equal(1, capture.ExitCode);
         Assert.Contains("ambiguous", capture.StdErr, StringComparison.OrdinalIgnoreCase);
@@ -230,32 +240,34 @@ public class ExtractClassTests
     {
         using var project = new AdhocProjectBuilder("MyApp");
         project.AddSource("BigService.cs", """
-            namespace MyApp;
+                                           namespace MyApp;
 
-            public class BigService
-            {
-                private string _baseUrl = "https://api";
+                                           public class BigService
+                                           {
+                                               private string _baseUrl = "https://api";
 
-                public string LogInfo(int id)
-                {
-                    return $"{_baseUrl}/{id}";
-                }
-            }
-            """);
+                                               public string LogInfo(int id)
+                                               {
+                                                   return $"{_baseUrl}/{id}";
+                                               }
+                                           }
+                                           """);
 
         var (workspace, sln) = project.Build();
         var before = await project.ReadSourceAsync("BigService.cs");
 
         CommandCapture capture;
         using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
             capture = await RunExtractClassAsync(
-                typeName: "BigService",
-                members: "LogInfo",
-                newTypeName: "LogHelper",
-                isStatic: false,
-                solutionPath: "ignored",
-                outputDir: null,
-                dryRun: false);
+                "BigService",
+                "LogInfo",
+                "LogHelper",
+                false,
+                "ignored",
+                null,
+                false);
+        }
 
         Assert.Equal(1, capture.ExitCode);
         Assert.Contains("_baseUrl", capture.StdErr);
@@ -269,27 +281,29 @@ public class ExtractClassTests
     {
         using var project = new AdhocProjectBuilder("MyApp");
         project.AddSource("BigService.cs", """
-            namespace MyApp;
+                                           namespace MyApp;
 
-            public class BigService
-            {
-                private int a, b;
-            }
-            """);
+                                           public class BigService
+                                           {
+                                               private int a, b;
+                                           }
+                                           """);
 
         var (workspace, sln) = project.Build();
         var before = await project.ReadSourceAsync("BigService.cs");
 
         CommandCapture capture;
         using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
             capture = await RunExtractClassAsync(
-                typeName: "BigService",
-                members: "a",
-                newTypeName: "ValueHolder",
-                isStatic: true,
-                solutionPath: "ignored",
-                outputDir: null,
-                dryRun: false);
+                "BigService",
+                "a",
+                "ValueHolder",
+                true,
+                "ignored",
+                null,
+                false);
+        }
 
         Assert.Equal(1, capture.ExitCode);
         Assert.Contains("multiple variables", capture.StdErr, StringComparison.OrdinalIgnoreCase);
@@ -303,32 +317,34 @@ public class ExtractClassTests
     {
         using var project = new AdhocProjectBuilder("MyApp");
         project.AddSource("BigService.cs", """
-            namespace MyApp;
+                                           namespace MyApp;
 
-            public class BigService
-            {
-                private string _prefix = "https://api";
+                                           public class BigService
+                                           {
+                                               private string _prefix = "https://api";
 
-                public string FormatPath(int id)
-                {
-                    return $"{_prefix}/{id}";
-                }
+                                               public string FormatPath(int id)
+                                               {
+                                                   return $"{_prefix}/{id}";
+                                               }
 
-                public void KeepWorking() { }
-            }
-            """);
+                                               public void KeepWorking() { }
+                                           }
+                                           """);
 
         var (workspace, sln) = project.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
             await ExtractClassCommand.ExecuteAsync(
-                typeName: "BigService",
-                members: "_prefix,FormatPath",
-                newTypeName: "PathFormatter",
-                isStatic: false,
-                solutionPath: "ignored",
-                outputDir: null,
-                dryRun: false);
+                "BigService",
+                "_prefix,FormatPath",
+                "PathFormatter",
+                false,
+                "ignored",
+                null,
+                false);
+        }
 
         var extractedContent = await project.ReadSourceAsync("PathFormatter.cs");
         var sourceContent = await project.ReadSourceAsync("BigService.cs");
@@ -340,4 +356,6 @@ public class ExtractClassTests
         Assert.DoesNotContain("FormatPath", sourceContent);
         Assert.Contains("private readonly PathFormatter _pathFormatter", sourceContent);
     }
+
+    private sealed record CommandCapture(string StdOut, string StdErr, int ExitCode);
 }

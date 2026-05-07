@@ -1,19 +1,18 @@
 using System.CommandLine;
-using RoslynTools;
+using Microsoft.CodeAnalysis;
 using RoslynTools.Commands;
 using RoslynTools.Core;
 
 namespace RoslynTools.Tests.Issues.EP_004_NewRtRefactorCommands;
 
 /// <summary>
-/// US-054: Add `rt refactor migrate-to-ioptions --section &lt;name&gt; --name &lt;T&gt;` command.
+///     US-054: Add `rt refactor migrate-to-ioptions --section &lt;name&gt; --name &lt;T&gt;` command.
 /// </summary>
 [Trait("Epic", "EP-004")]
 [Trait("Story", "US-054")]
 public class MigrateToIOptions
 {
     [Fact]
-    [Trait("AcceptanceCriterion", "1")]
     [Trait("Concern", "PocoGeneration")]
     public async Task with_section_run_writes_internal_sealed_poco_under_host_project()
     {
@@ -28,7 +27,6 @@ public class MigrateToIOptions
     }
 
     [Fact]
-    [Trait("AcceptanceCriterion", "2")]
     [Trait("Concern", "TypeInference")]
     public async Task with_section_keys_types_inferred_from_getvalue_and_appsettings()
     {
@@ -43,7 +41,6 @@ public class MigrateToIOptions
     }
 
     [Fact]
-    [Trait("AcceptanceCriterion", "3")]
     [Trait("Concern", "DIRegistration")]
     public async Task with_section_run_inserts_services_configure_at_detected_di_site()
     {
@@ -52,12 +49,12 @@ public class MigrateToIOptions
         var output = await RunMigrationAsync(fixture);
 
         var startup = await fixture.ReadSourceAsync("Startup.cs");
-        Assert.Equal(1, Count(startup, "services.Configure<MyFeatureOptions>(configuration.GetSection(\"MyFeature\"));"));
+        Assert.Equal(1,
+            Count(startup, "services.Configure<MyFeatureOptions>(configuration.GetSection(\"MyFeature\"));"));
         Assert.Contains(Path.Combine(fixture.ProjectDir, "Startup.cs"), output.Results);
     }
 
     [Fact]
-    [Trait("AcceptanceCriterion", "3")]
     [Trait("Concern", "DIRegistration")]
     public async Task with_builder_services_registration_preserves_the_full_services_expression()
     {
@@ -67,11 +64,11 @@ public class MigrateToIOptions
 
         var startup = await fixture.ReadSourceAsync("Startup.cs");
         Assert.Contains("using HostApp;", startup);
-        Assert.Contains("builder.Services.Configure<MyFeatureOptions>(builder.Configuration.GetSection(\"MyFeature\"));", startup);
+        Assert.Contains(
+            "builder.Services.Configure<MyFeatureOptions>(builder.Configuration.GetSection(\"MyFeature\"));", startup);
     }
 
     [Fact]
-    [Trait("AcceptanceCriterion", "4")]
     [Trait("Concern", "ConsumerWorklist")]
     public async Task with_consuming_files_distributed_stdout_lists_them_sorted_by_path()
     {
@@ -89,7 +86,6 @@ public class MigrateToIOptions
     }
 
     [Fact]
-    [Trait("AcceptanceCriterion", "5")]
     [Trait("Concern", "Validation")]
     public async Task with_section_omitted_exits_one_with_stderr_message()
     {
@@ -97,7 +93,7 @@ public class MigrateToIOptions
 
         using (RtConsole.UseConsole(output))
         {
-            var exit = await MigrateToIOptionsCommand.ExecuteAsync(null, "MyFeatureOptions", "ignored", dryRun: false);
+            var exit = await MigrateToIOptionsCommand.ExecuteAsync(null, "MyFeatureOptions", "ignored", false);
             Assert.Equal(1, exit);
         }
 
@@ -105,7 +101,6 @@ public class MigrateToIOptions
     }
 
     [Fact]
-    [Trait("AcceptanceCriterion", "6")]
     [Trait("Concern", "Validation")]
     public async Task with_name_omitted_exits_one_with_stderr_message()
     {
@@ -113,7 +108,7 @@ public class MigrateToIOptions
 
         using (RtConsole.UseConsole(output))
         {
-            var exit = await MigrateToIOptionsCommand.ExecuteAsync("MyFeature", null, "ignored", dryRun: false);
+            var exit = await MigrateToIOptionsCommand.ExecuteAsync("MyFeature", null, "ignored", false);
             Assert.Equal(1, exit);
         }
 
@@ -121,7 +116,6 @@ public class MigrateToIOptions
     }
 
     [Fact]
-    [Trait("AcceptanceCriterion", "7")]
     [Trait("Concern", "Validation")]
     public async Task with_name_not_pascalcase_exits_one_and_writes_no_files()
     {
@@ -131,7 +125,7 @@ public class MigrateToIOptions
         using (RtConsole.UseConsole(output))
         using (WorkspaceLoader.UseOverride(fixture.Workspace, fixture.Solution))
         {
-            var exit = await MigrateToIOptionsCommand.ExecuteAsync("MyFeature", "myfeatureoptions", "ignored", dryRun: false);
+            var exit = await MigrateToIOptionsCommand.ExecuteAsync("MyFeature", "myfeatureoptions", "ignored", false);
             Assert.Equal(1, exit);
         }
 
@@ -140,7 +134,6 @@ public class MigrateToIOptions
     }
 
     [Fact]
-    [Trait("AcceptanceCriterion", "8")]
     [Trait("Concern", "Validation")]
     public async Task with_malformed_section_exits_one_and_writes_no_files()
     {
@@ -150,7 +143,7 @@ public class MigrateToIOptions
         using (RtConsole.UseConsole(output))
         using (WorkspaceLoader.UseOverride(fixture.Workspace, fixture.Solution))
         {
-            var exit = await MigrateToIOptionsCommand.ExecuteAsync(":foo", "MyFeatureOptions", "ignored", dryRun: false);
+            var exit = await MigrateToIOptionsCommand.ExecuteAsync(":foo", "MyFeatureOptions", "ignored", false);
             Assert.Equal(1, exit);
         }
 
@@ -159,12 +152,12 @@ public class MigrateToIOptions
     }
 
     [Fact]
-    [Trait("AcceptanceCriterion", "9")]
     [Trait("Concern", "Validation")]
     public async Task with_name_collides_with_existing_type_exits_one_and_writes_no_files()
     {
         using var fixture = BuildFixture();
-        await File.WriteAllTextAsync(Path.Combine(fixture.ProjectDir, "MyFeatureOptions.cs"), "namespace HostApp; internal sealed class MyFeatureOptions { }");
+        await File.WriteAllTextAsync(Path.Combine(fixture.ProjectDir, "MyFeatureOptions.cs"),
+            "namespace HostApp; internal sealed class MyFeatureOptions { }");
 
         var output = await RunMigrationAsync(fixture);
 
@@ -173,7 +166,6 @@ public class MigrateToIOptions
     }
 
     [Fact]
-    [Trait("AcceptanceCriterion", "10")]
     [Trait("Concern", "SolutionAutoDetect")]
     public async Task with_solution_omitted_and_single_slnx_in_cwd_auto_detects()
     {
@@ -181,13 +173,12 @@ public class MigrateToIOptions
 
         using (WorkspaceLoader.UseOverride(fixture.Workspace, fixture.Solution))
         {
-            var exit = await MigrateToIOptionsCommand.ExecuteAsync("MyFeature", "MyFeatureOptions", null, dryRun: true);
+            var exit = await MigrateToIOptionsCommand.ExecuteAsync("MyFeature", "MyFeatureOptions", null, true);
             Assert.Equal(0, exit);
         }
     }
 
     [Fact]
-    [Trait("AcceptanceCriterion", "11")]
     [Trait("Concern", "ErrorHandling")]
     public async Task with_workspace_load_failure_exits_one_with_no_unhandled_exception()
     {
@@ -195,7 +186,8 @@ public class MigrateToIOptions
 
         using (RtConsole.UseConsole(output))
         {
-            var exit = await MigrateToIOptionsCommand.ExecuteAsync("MyFeature", "MyFeatureOptions", "NoSuch.slnx", dryRun: false);
+            var exit = await MigrateToIOptionsCommand.ExecuteAsync("MyFeature", "MyFeatureOptions", "NoSuch.slnx",
+                false);
             Assert.Equal(1, exit);
         }
 
@@ -203,11 +195,10 @@ public class MigrateToIOptions
     }
 
     [Fact]
-    [Trait("AcceptanceCriterion", "12")]
     [Trait("Concern", "DIRegistration")]
     public async Task with_zero_di_registration_sites_exits_one_with_no_writes()
     {
-        using var fixture = BuildFixture(includeRegistration: false);
+        using var fixture = BuildFixture(false);
 
         var output = await RunMigrationAsync(fixture);
 
@@ -217,7 +208,6 @@ public class MigrateToIOptions
     }
 
     [Fact]
-    [Trait("AcceptanceCriterion", "13")]
     [Trait("Concern", "DIRegistration")]
     public async Task with_multiple_di_registration_sites_picks_first_and_warns()
     {
@@ -226,11 +216,11 @@ public class MigrateToIOptions
         var output = await RunMigrationAsync(fixture);
 
         Assert.Equal(0, output.ExitCode);
-        Assert.Contains(output.Diagnostics, m => m.Contains("Multiple DI registration sites", StringComparison.Ordinal));
+        Assert.Contains(output.Diagnostics,
+            m => m.Contains("Multiple DI registration sites", StringComparison.Ordinal));
     }
 
     [Fact]
-    [Trait("AcceptanceCriterion", "14")]
     [Trait("Concern", "Idempotence")]
     public async Task with_re_run_after_success_exits_zero_and_makes_no_changes()
     {
@@ -246,22 +236,22 @@ public class MigrateToIOptions
     }
 
     [Fact]
-    [Trait("AcceptanceCriterion", "15")]
     [Trait("Concern", "DryRun")]
     public async Task with_dry_run_emits_diff_with_synthesized_poco_and_no_writes()
     {
         using var fixture = BuildFixture();
 
-        var output = await RunMigrationAsync(fixture, dryRun: true);
+        var output = await RunMigrationAsync(fixture, true);
 
         Assert.Equal(0, output.ExitCode);
-        Assert.Contains(output.Results, m => m.Contains("+++ ", StringComparison.Ordinal) && m.Contains("MyFeatureOptions.cs", StringComparison.Ordinal));
+        Assert.Contains(output.Results,
+            m => m.Contains("+++ ", StringComparison.Ordinal) &&
+                 m.Contains("MyFeatureOptions.cs", StringComparison.Ordinal));
         Assert.False(File.Exists(Path.Combine(fixture.ProjectDir, "MyFeatureOptions.cs")));
         Assert.Contains(output.Diagnostics, m => m.Contains("dry-run", StringComparison.Ordinal));
     }
 
     [Fact]
-    [Trait("AcceptanceCriterion", "16")]
     [Trait("Concern", "OutputFormat")]
     public async Task with_successful_run_stdout_is_plain_text_and_diagnostics_on_stderr()
     {
@@ -274,7 +264,6 @@ public class MigrateToIOptions
     }
 
     [Fact]
-    [Trait("AcceptanceCriterion", "17")]
     [Trait("Concern", "PocoFormatting")]
     public async Task with_generated_poco_passes_dotnet_format_verify_no_changes()
     {
@@ -288,7 +277,6 @@ public class MigrateToIOptions
     }
 
     [Fact]
-    [Trait("AcceptanceCriterion", "18")]
     [Trait("Concern", "BuildGates")]
     public void with_post_run_state_build_format_and_test_all_pass()
     {
@@ -296,7 +284,6 @@ public class MigrateToIOptions
     }
 
     [Fact]
-    [Trait("AcceptanceCriterion", "19")]
     [Trait("Concern", "DumpHelp")]
     public void with_dump_help_lists_command_under_refactor_with_correct_metadata()
     {
@@ -311,7 +298,6 @@ public class MigrateToIOptions
     }
 
     [Fact]
-    [Trait("AcceptanceCriterion", "20")]
     [Trait("Concern", "Metadata")]
     public void with_command_metadata_category_is_refactor_and_mutates()
     {
@@ -337,16 +323,16 @@ public class MigrateToIOptions
                   var endpoint = builder.Configuration.GetValue<string>("MyFeature:Endpoint");
                   """
                 : """
-              namespace HostApp;
+                  namespace HostApp;
 
-              public sealed class Startup
-              {
-                  public void ConfigureServices(IServiceCollection services, IConfiguration configuration)
+                  public sealed class Startup
                   {
-                      services.AddLogging();
+                      public void ConfigureServices(IServiceCollection services, IConfiguration configuration)
+                      {
+                          services.AddLogging();
+                      }
                   }
-              }
-              """
+                  """
             : """
               namespace HostApp;
 
@@ -359,32 +345,30 @@ public class MigrateToIOptions
               """);
 
         fixture.AddSource("Consumers/FeatureReader.cs", """
-            namespace HostApp;
+                                                        namespace HostApp;
 
-            public sealed class FeatureReader
-            {
-                public string Endpoint(IConfiguration configuration)
-                {
-                    var retryCount = configuration.GetValue<int>("MyFeature:RetryCount");
-                    return configuration.GetValue<string>("MyFeature:Endpoint");
-                }
-            }
-            """);
+                                                        public sealed class FeatureReader
+                                                        {
+                                                            public string Endpoint(IConfiguration configuration)
+                                                            {
+                                                                var retryCount = configuration.GetValue<int>("MyFeature:RetryCount");
+                                                                return configuration.GetValue<string>("MyFeature:Endpoint");
+                                                            }
+                                                        }
+                                                        """);
 
         if (includeSecondRegistration)
-        {
             fixture.AddSource("OtherRegistration.cs", """
-                namespace HostApp;
+                                                      namespace HostApp;
 
-                public sealed class OtherRegistration
-                {
-                    public void Add(IServiceCollection services, IConfiguration configuration)
-                    {
-                        services.AddOptions();
-                    }
-                }
-                """);
-        }
+                                                      public sealed class OtherRegistration
+                                                      {
+                                                          public void Add(IServiceCollection services, IConfiguration configuration)
+                                                          {
+                                                              services.AddOptions();
+                                                          }
+                                                      }
+                                                      """);
 
         fixture.Build();
         File.WriteAllText(Path.Combine(fixture.ProjectDir, "appsettings.json"), """
@@ -405,34 +389,52 @@ public class MigrateToIOptions
         using (RtConsole.UseConsole(output))
         using (WorkspaceLoader.UseOverride(fixture.Workspace, fixture.Solution))
         {
-            output.ExitCode = await MigrateToIOptionsCommand.ExecuteAsync("MyFeature", "MyFeatureOptions", "ignored", dryRun);
+            output.ExitCode =
+                await MigrateToIOptionsCommand.ExecuteAsync("MyFeature", "MyFeatureOptions", "ignored", dryRun);
         }
 
         return output;
     }
 
-    private static int Count(string text, string value) =>
-        text.Split(value, StringSplitOptions.None).Length - 1;
+    private static int Count(string text, string value)
+    {
+        return text.Split(value).Length - 1;
+    }
 
     private sealed class TestFixture : IDisposable
     {
         private readonly AdhocProjectBuilder _builder;
 
-        public TestFixture(string name) => _builder = new AdhocProjectBuilder(name);
+        public TestFixture(string name)
+        {
+            _builder = new AdhocProjectBuilder(name);
+        }
 
         public string ProjectDir => _builder.ProjectDir;
 
-        public Microsoft.CodeAnalysis.Workspace Workspace { get; private set; } = null!;
+        public Workspace Workspace { get; private set; } = null!;
 
-        public Microsoft.CodeAnalysis.Solution Solution { get; private set; } = null!;
+        public Solution Solution { get; private set; } = null!;
 
-        public void AddSource(string relativePath, string content) => _builder.AddSource(relativePath, content);
+        public void Dispose()
+        {
+            _builder.Dispose();
+        }
 
-        public void Build() => (Workspace, Solution) = _builder.Build();
+        public void AddSource(string relativePath, string content)
+        {
+            _builder.AddSource(relativePath, content);
+        }
 
-        public Task<string> ReadSourceAsync(string relativePath) => _builder.ReadSourceAsync(relativePath);
+        public void Build()
+        {
+            (Workspace, Solution) = _builder.Build();
+        }
 
-        public void Dispose() => _builder.Dispose();
+        public Task<string> ReadSourceAsync(string relativePath)
+        {
+            return _builder.ReadSourceAsync(relativePath);
+        }
     }
 
     private sealed class CollectingConsole : IRtConsole
@@ -443,8 +445,10 @@ public class MigrateToIOptions
 
         public List<string> Diagnostics { get; } = [];
 
-        public void Log(RtLogLevel level, string template, object?[] args) =>
+        public void Log(RtLogLevel level, string template, object?[] args)
+        {
             Diagnostics.Add(RtConsole.RenderTemplate(template, args));
+        }
 
         public void WriteLine(RtOutputContext context, string message = "", ConsoleColor? color = null)
         {
@@ -462,7 +466,10 @@ public class MigrateToIOptions
                 Results.Add(message);
         }
 
-        public string? ReadLine() => null;
+        public string? ReadLine()
+        {
+            return null;
+        }
 
         public bool IsOutputRedirected => false;
     }

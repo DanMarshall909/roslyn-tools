@@ -1,10 +1,11 @@
-using Microsoft.CodeAnalysis;
 using System.Diagnostics.CodeAnalysis;
+using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class InspectService : IRtService
 {
     internal Dictionary<string, object?> BuildInspection(ISymbol symbol, Solution solution)
@@ -17,7 +18,7 @@ internal class InspectService : IRtService
             ["accessibility"] = symbol.DeclaredAccessibility.ToString(),
             ["isStatic"] = symbol.IsStatic,
             ["isAbstract"] = symbol.IsAbstract,
-            ["isSealed"] = symbol.IsSealed,
+            ["isSealed"] = symbol.IsSealed
         };
 
         result["locations"] = SymbolFormatter.ExtractSourceLocations(symbol);
@@ -46,8 +47,8 @@ internal class InspectService : IRtService
                     ["parameters"] = c.Parameters.Select(p => new Dictionary<string, object?>
                     {
                         ["name"] = p.Name,
-                        ["type"] = p.Type.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
-                    }).ToList(),
+                        ["type"] = p.Type.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat)
+                    }).ToList()
                 })
                 .ToList();
             if (constructors.Count > 0)
@@ -59,7 +60,7 @@ internal class InspectService : IRtService
             result["parameters"] = method.Parameters.Select(p => new Dictionary<string, object?>
             {
                 ["name"] = p.Name,
-                ["type"] = p.Type.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
+                ["type"] = p.Type.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat)
             }).ToList();
         }
         else if (symbol is IPropertySymbol prop)

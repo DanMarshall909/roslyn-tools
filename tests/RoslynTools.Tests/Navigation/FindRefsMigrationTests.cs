@@ -1,4 +1,5 @@
 using System.Text.Json;
+using RoslynTools.Commands;
 using RoslynTools.Core.Output;
 using RoslynTools.Services.Results;
 
@@ -81,7 +82,7 @@ public sealed class FindRefsMigrationTests : IDisposable
         {
             FilePath = "C:/code/Foo.cs",
             Line = 7,
-            LineText = "var x = new Foo();",
+            LineText = "var x = new Foo();"
         };
         using var sw = new StringWriter();
 
@@ -179,7 +180,7 @@ public sealed class FindRefsMigrationTests : IDisposable
     [Fact]
     public void FindRefsCommand_Info_SupportedFormats_contains_all_four_formats()
     {
-        var formats = RoslynTools.Commands.FindRefsCommand.Info.SupportedFormats;
+        var formats = FindRefsCommand.Info.SupportedFormats;
         Assert.NotNull(formats);
         Assert.Contains(OutputFormat.Text, formats);
         Assert.Contains(OutputFormat.Json, formats);
@@ -189,8 +190,9 @@ public sealed class FindRefsMigrationTests : IDisposable
 
     // ── Helpers ───────────────────────────────────────────────────────────────────
 
-    private static FindRefsResult MakeFindRefsResult() =>
-        new()
+    private static FindRefsResult MakeFindRefsResult()
+    {
+        return new FindRefsResult
         {
             SymbolName = "MyService",
             References =
@@ -199,14 +201,15 @@ public sealed class FindRefsMigrationTests : IDisposable
                 {
                     FilePath = "/src/Service.cs",
                     Line = 15,
-                    LineText = "var svc = new MyService();",
+                    LineText = "var svc = new MyService();"
                 },
                 new ReferenceResult
                 {
                     FilePath = "/src/Controller.cs",
                     Line = 88,
-                    LineText = "_svc.Process();",
-                },
-            ],
+                    LineText = "_svc.Process();"
+                }
+            ]
         };
+    }
 }

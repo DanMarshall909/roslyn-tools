@@ -1,21 +1,23 @@
+using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
-using System.Diagnostics.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class InlineMethodService : IRtService
 {
-    private readonly ISymbolResolutionService _symbols;
     private readonly IDocumentLocatorService _documents;
     private readonly ILogger<InlineMethodService> _logger;
     private readonly ISolutionChangeWriter _solutionChangeWriter;
+    private readonly ISymbolResolutionService _symbols;
 
     public InlineMethodService()
         : this(new RtConsoleLogger<InlineMethodService>(), new SolutionChangeWriter())
@@ -32,6 +34,7 @@ internal class InlineMethodService : IRtService
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
     }
+
     internal async Task RunAsync(Solution sln, string typeName, string methodName, bool dryRun)
     {
         var originalSolution = sln;
@@ -94,7 +97,7 @@ internal class InlineMethodService : IRtService
         bool isTargetDoc,
         IMethodSymbol methodSymbol,
         ExpressionSyntax bodyExpression,
-        System.Collections.Immutable.ImmutableArray<IParameterSymbol> parameters,
+        ImmutableArray<IParameterSymbol> parameters,
         List<TextSpan> callSpans)
     {
         var callInvocations = new List<InvocationExpressionSyntax>();
@@ -135,7 +138,7 @@ internal class InlineMethodService : IRtService
                 var args = inv.ArgumentList.Arguments;
 
                 var substitution = new Dictionary<string, ExpressionSyntax>(StringComparer.Ordinal);
-                for (int i = 0; i < parameters.Length && i < args.Count; i++)
+                for (var i = 0; i < parameters.Length && i < args.Count; i++)
                     substitution[parameters[i].Name] = args[i].Expression;
 
                 var inlined = SubstituteParameters(bodyExpression, substitution);
@@ -210,19 +213,23 @@ internal class InlineMethodService : IRtService
                     : replacement;
                 return safe.WithTriviaFrom(node);
             }
+
             return base.VisitIdentifierName(node);
         }
 
-        private static bool NeedsParens(ExpressionSyntax expr) => expr is
-            BinaryExpressionSyntax or
-            ConditionalExpressionSyntax or
-            AssignmentExpressionSyntax or
-            PrefixUnaryExpressionSyntax or
-            PostfixUnaryExpressionSyntax or
-            CastExpressionSyntax or
-            IsPatternExpressionSyntax or
-            AwaitExpressionSyntax or
-            LambdaExpressionSyntax or
-            RangeExpressionSyntax;
+        private static bool NeedsParens(ExpressionSyntax expr)
+        {
+            return expr is
+                BinaryExpressionSyntax or
+                ConditionalExpressionSyntax or
+                AssignmentExpressionSyntax or
+                PrefixUnaryExpressionSyntax or
+                PostfixUnaryExpressionSyntax or
+                CastExpressionSyntax or
+                IsPatternExpressionSyntax or
+                AwaitExpressionSyntax or
+                LambdaExpressionSyntax or
+                RangeExpressionSyntax;
+        }
     }
 }

@@ -1,8 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
@@ -11,9 +11,9 @@ namespace RoslynTools.Services;
     Justification = "Instance service used by the static-to-instance migration dogfood path.")]
 internal sealed class DestaticClassService : IRtService
 {
+    private readonly IDocumentLocatorService _documents;
     private readonly ILogger<DestaticClassService> _logger;
     private readonly ISymbolResolutionService _symbols;
-    private readonly IDocumentLocatorService _documents;
     private readonly ISolutionChangeWriter _writer;
 
     public DestaticClassService()
@@ -59,7 +59,8 @@ internal sealed class DestaticClassService : IRtService
         var classDeclaration = await _documents.GetDeclarationAsync<ClassDeclarationSyntax>(solution, typeSymbol);
 
         var declaringDocumentId = _documents.FindDocumentId(solution, typeSymbol)
-            ?? throw new InvalidOperationException($"Cannot locate source document for '{typeName}'.");
+                                  ?? throw new InvalidOperationException(
+                                      $"Cannot locate source document for '{typeName}'.");
 
         solution = await RewriteCallSitesAsync(solution, typeSymbol);
         solution = await RewriteDeclarationAsync(solution, declaringDocumentId, classDeclaration);
@@ -74,12 +75,12 @@ internal sealed class DestaticClassService : IRtService
         ClassDeclarationSyntax originalClass)
     {
         var document = solution.GetDocument(documentId)
-            ?? throw new InvalidOperationException("Cannot locate class document.");
+                       ?? throw new InvalidOperationException("Cannot locate class document.");
         var root = await document.GetSyntaxRootAsync()
-            ?? throw new InvalidOperationException("Cannot read class syntax root.");
+                   ?? throw new InvalidOperationException("Cannot read class syntax root.");
 
         var currentClass = root.FindNode(originalClass.Span) as ClassDeclarationSyntax
-            ?? throw new InvalidOperationException("Cannot locate class syntax node.");
+                           ?? throw new InvalidOperationException("Cannot locate class syntax node.");
 
         var updatedClass = currentClass.ReplaceNodes(
             currentClass.Members.OfType<BaseMethodDeclarationSyntax>()
@@ -106,21 +107,19 @@ internal sealed class DestaticClassService : IRtService
     private static async Task<Solution> RewriteCallSitesAsync(Solution solution, INamedTypeSymbol typeSymbol)
     {
         foreach (var project in solution.Projects.ToArray())
+        foreach (var document in project.Documents.ToArray())
         {
-            foreach (var document in project.Documents.ToArray())
-            {
-                var root = await document.GetSyntaxRootAsync();
-                var semanticModel = await document.GetSemanticModelAsync();
-                if (root is null || semanticModel is null)
-                    continue;
+            var root = await document.GetSyntaxRootAsync();
+            var semanticModel = await document.GetSemanticModelAsync();
+            if (root is null || semanticModel is null)
+                continue;
 
-                var rewriter = new StaticTypeCallRewriter(semanticModel, typeSymbol);
-                var newRoot = rewriter.Visit(root);
-                if (!rewriter.Changed || newRoot is null)
-                    continue;
+            var rewriter = new StaticTypeCallRewriter(semanticModel, typeSymbol);
+            var newRoot = rewriter.Visit(root);
+            if (!rewriter.Changed || newRoot is null)
+                continue;
 
-                solution = solution.WithDocumentSyntaxRoot(document.Id, newRoot);
-            }
+            solution = solution.WithDocumentSyntaxRoot(document.Id, newRoot);
         }
 
         return solution;
@@ -138,15 +137,19 @@ internal sealed class DestaticClassService : IRtService
             BaseMethodDeclarationSyntax method => method.WithModifiers(RemoveStaticModifier(method.Modifiers)),
             PropertyDeclarationSyntax property => property.WithModifiers(RemoveStaticModifier(property.Modifiers)),
             FieldDeclarationSyntax field => field.WithModifiers(RemoveStaticModifier(field.Modifiers)),
-            _ => node,
+            _ => node
         };
     }
 
-    private sealed class StaticTypeCallRewriter(SemanticModel semanticModel, INamedTypeSymbol typeSymbol) : CSharpSyntaxRewriter
+    private sealed class StaticTypeCallRewriter(SemanticModel semanticModel, INamedTypeSymbol typeSymbol)
+        : CSharpSyntaxRewriter
     {
-        private readonly string _targetTypeName = typeSymbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
-        private readonly string _fieldName = DeriveFieldName(typeSymbol.Name);
         private readonly Stack<ClassDeclarationSyntax> _classStack = new();
+        private readonly string _fieldName = DeriveFieldName(typeSymbol.Name);
+
+        private readonly string _targetTypeName =
+            typeSymbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
+
         private int _injectedReceiverRewrites;
 
         public bool Changed { get; private set; }
@@ -185,15 +188,14 @@ internal sealed class DestaticClassService : IRtService
                 return visited;
 
             var symbol = semanticModel.GetSymbolInfo(simpleName).Symbol;
-            if (symbol?.ContainingType?.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat) != _targetTypeName)
+            if (symbol?.ContainingType?.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat) !=
+                _targetTypeName)
                 return visited;
 
             var enclosingType = semanticModel.GetEnclosingSymbol(node.SpanStart)?.ContainingType;
             if (enclosingType is not null
                 && enclosingType.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat) == _targetTypeName)
-            {
                 return visited;
-            }
 
             var receiver = CreateReceiver(node);
             Changed = true;
@@ -218,9 +220,7 @@ internal sealed class DestaticClassService : IRtService
         {
             if (!_classStack.TryPeek(out var classDeclaration)
                 || classDeclaration.Modifiers.Any(SyntaxKind.StaticKeyword))
-            {
                 return false;
-            }
 
             foreach (var ancestor in node.Ancestors())
             {
@@ -229,24 +229,18 @@ internal sealed class DestaticClassService : IRtService
 
                 if (ancestor is BaseMethodDeclarationSyntax method
                     && method.Modifiers.Any(SyntaxKind.StaticKeyword))
-                {
                     return false;
-                }
 
                 if (ancestor is BasePropertyDeclarationSyntax property
                     && property.Modifiers.Any(SyntaxKind.StaticKeyword))
-                {
                     return false;
-                }
 
                 if (ancestor is FieldDeclarationSyntax)
                     return false;
 
                 if (ancestor is PropertyDeclarationSyntax propertyDeclaration
                     && propertyDeclaration.AccessorList is null)
-                {
                     return false;
-                }
             }
 
             return true;
@@ -256,9 +250,7 @@ internal sealed class DestaticClassService : IRtService
         {
             if (classDeclaration.Members.OfType<FieldDeclarationSyntax>()
                 .Any(field => field.Declaration.Variables.Any(variable => variable.Identifier.ValueText == _fieldName)))
-            {
                 return classDeclaration;
-            }
 
             var field = SyntaxFactory.ParseMemberDeclaration(
                 $"private readonly {typeSymbol.Name} {_fieldName};")!;
@@ -307,12 +299,16 @@ internal sealed class DestaticClassService : IRtService
                 .WithBody(body.WithStatements(body.Statements.Insert(0, assignment)));
         }
 
-        private static string DeriveFieldName(string typeName) =>
-            "_" + ToParameterName(typeName);
+        private static string DeriveFieldName(string typeName)
+        {
+            return "_" + ToParameterName(typeName);
+        }
 
-        private static string ToParameterName(string typeName) =>
-            string.IsNullOrEmpty(typeName)
+        private static string ToParameterName(string typeName)
+        {
+            return string.IsNullOrEmpty(typeName)
                 ? "dependency"
                 : char.ToLowerInvariant(typeName[0]) + typeName[1..];
+        }
     }
 }

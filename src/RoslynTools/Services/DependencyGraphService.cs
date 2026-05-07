@@ -1,17 +1,18 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Text.Json;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class DependencyGraphService : IRtService
 {
     /// <summary>
-    /// Builds a type-level dependency graph and returns it in the requested format.
+    ///     Builds a type-level dependency graph and returns it in the requested format.
     /// </summary>
     internal async Task<string> BuildGraphAsync(
         Solution sln,
@@ -33,12 +34,14 @@ internal class DependencyGraphService : IRtService
         {
             var root = allTypes.FirstOrDefault(t =>
                 t.Name.Equals(typeName, StringComparison.Ordinal) ||
-                t.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat).Contains(typeName, StringComparison.Ordinal));
+                t.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+                    .Contains(typeName, StringComparison.Ordinal));
 
             if (root == null)
                 return format.Equals("dot", StringComparison.OrdinalIgnoreCase)
                     ? "digraph { }"
-                    : JsonSerializer.Serialize(new { nodes = Array.Empty<string>(), edges = Array.Empty<object>() }, SymbolFormatter.DefaultJsonOptions);
+                    : JsonSerializer.Serialize(new { nodes = Array.Empty<string>(), edges = Array.Empty<object>() },
+                        SymbolFormatter.DefaultJsonOptions);
 
             var (nodes, edges) = BuildBfsGraph(root, depth, allTypes, sourceTypeByName, bodyDeps);
             return SerializeGraph(nodes, edges, format);
@@ -91,6 +94,7 @@ internal class DependencyGraphService : IRtService
                 }
             }
         }
+
         return result;
     }
 
@@ -124,7 +128,8 @@ internal class DependencyGraphService : IRtService
         return (nodes, edges);
     }
 
-    private (HashSet<string> nodes, HashSet<(string, string)> edgeSet, List<(string From, string To)> edges) CreateStringHashSet()
+    private (HashSet<string> nodes, HashSet<(string, string)> edgeSet, List<(string From, string To)> edges)
+        CreateStringHashSet()
     {
         var nodes = new HashSet<string>(StringComparer.Ordinal);
         var edgeSet = new HashSet<(string, string)>();
@@ -132,6 +137,7 @@ internal class DependencyGraphService : IRtService
 
         return (nodes, edgeSet, edges);
     }
+
     private (HashSet<string> Nodes, List<(string From, string To)> Edges) BuildBfsGraph(
         INamedTypeSymbol rootType,
         int? maxDepth,
@@ -208,11 +214,9 @@ internal class DependencyGraphService : IRtService
                 yield return dep;
 
         if (bodyDeps.TryGetValue(type, out var locals))
-        {
             foreach (var dep in locals)
                 if (seen.Add(dep.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
                     yield return dep;
-        }
     }
 
     private async Task<Dictionary<INamedTypeSymbol, List<INamedTypeSymbol>>> CollectBodyDependenciesAsync(
@@ -227,43 +231,33 @@ internal class DependencyGraphService : IRtService
             var seen = new HashSet<string>(StringComparer.Ordinal);
 
             foreach (var method in type.GetMembers().OfType<IMethodSymbol>())
+            foreach (var syntaxRef in method.DeclaringSyntaxReferences)
             {
-                foreach (var syntaxRef in method.DeclaringSyntaxReferences)
-                {
-                    var node = await syntaxRef.GetSyntaxAsync();
-                    if (node is not BaseMethodDeclarationSyntax decl)
-                        continue;
+                var node = await syntaxRef.GetSyntaxAsync();
+                if (node is not BaseMethodDeclarationSyntax decl)
+                    continue;
 
-                    SyntaxNode? body = decl.Body ?? (SyntaxNode?)decl.ExpressionBody;
-                    if (body == null)
-                        continue;
+                var body = decl.Body ?? (SyntaxNode?)decl.ExpressionBody;
+                if (body == null)
+                    continue;
 
-                    var doc = sln.GetDocument(node.SyntaxTree);
-                    if (doc == null)
-                        continue;
-                    var model = await doc.GetSemanticModelAsync();
-                    if (model == null)
-                        continue;
+                var doc = sln.GetDocument(node.SyntaxTree);
+                if (doc == null)
+                    continue;
+                var model = await doc.GetSemanticModelAsync();
+                if (model == null)
+                    continue;
 
-                    foreach (var name in body.DescendantNodes().OfType<SimpleNameSyntax>())
-                    {
-                        if (model.GetSymbolInfo(name).Symbol is INamedTypeSymbol named &&
-                            ExtractNamedType(named) is { } resolved &&
-                            seen.Add(resolved.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
-                        {
-                            deps.Add(resolved);
-                        }
-                    }
+                foreach (var name in body.DescendantNodes().OfType<SimpleNameSyntax>())
+                    if (model.GetSymbolInfo(name).Symbol is INamedTypeSymbol named &&
+                        ExtractNamedType(named) is { } resolved &&
+                        seen.Add(resolved.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
+                        deps.Add(resolved);
 
-                    foreach (var oce in body.DescendantNodes().OfType<BaseObjectCreationExpressionSyntax>())
-                    {
-                        if (ExtractNamedType(model.GetTypeInfo(oce).Type) is { } resolved &&
-                            seen.Add(resolved.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
-                        {
-                            deps.Add(resolved);
-                        }
-                    }
-                }
+                foreach (var oce in body.DescendantNodes().OfType<BaseObjectCreationExpressionSyntax>())
+                    if (ExtractNamedType(model.GetTypeInfo(oce).Type) is { } resolved &&
+                        seen.Add(resolved.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
+                        deps.Add(resolved);
             }
 
             if (deps.Count > 0)
@@ -323,7 +317,7 @@ internal class DependencyGraphService : IRtService
         {
             INamedTypeSymbol named => named,
             IArrayTypeSymbol array => ExtractNamedType(array.ElementType),
-            _ => null,
+            _ => null
         };
     }
 
@@ -340,8 +334,10 @@ internal class DependencyGraphService : IRtService
         return true;
     }
 
-    private string GetNamespaceName(INamedTypeSymbol type) =>
-        type.ContainingNamespace?.ToDisplayString() ?? string.Empty;
+    private string GetNamespaceName(INamedTypeSymbol type)
+    {
+        return type.ContainingNamespace?.ToDisplayString() ?? string.Empty;
+    }
 
     private string GetDisplayName(INamedTypeSymbol type)
     {
@@ -351,10 +347,12 @@ internal class DependencyGraphService : IRtService
             : type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
     }
 
-    private string SerializeGraph(HashSet<string> nodes, List<(string From, string To)> edges, string format) =>
-        format.Equals("dot", StringComparison.OrdinalIgnoreCase)
+    private string SerializeGraph(HashSet<string> nodes, List<(string From, string To)> edges, string format)
+    {
+        return format.Equals("dot", StringComparison.OrdinalIgnoreCase)
             ? BuildDotOutput(nodes, edges)
             : BuildJsonOutput(nodes, edges);
+    }
 
     private string BuildJsonOutput(HashSet<string> nodes, List<(string From, string To)> edges)
     {

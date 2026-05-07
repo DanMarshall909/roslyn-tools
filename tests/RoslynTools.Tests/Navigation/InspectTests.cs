@@ -1,3 +1,4 @@
+using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Tests.Navigation;
@@ -9,23 +10,23 @@ public class InspectTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Models.cs", """
-            namespace TestApp;
+                                       namespace TestApp;
 
-            public abstract class BaseEntity
-            {
-                public int Id { get; set; }
-            }
+                                       public abstract class BaseEntity
+                                       {
+                                           public int Id { get; set; }
+                                       }
 
-            public class Customer : BaseEntity
-            {
-                public string Name { get; set; } = "";
-                public string Email { get; set; } = "";
-                public bool IsActive { get; set; }
+                                       public class Customer : BaseEntity
+                                       {
+                                           public string Name { get; set; } = "";
+                                           public string Email { get; set; } = "";
+                                           public bool IsActive { get; set; }
 
-                public void Activate() { IsActive = true; }
-                public static Customer Create(string name) => new() { Name = name };
-            }
-            """);
+                                           public void Activate() { IsActive = true; }
+                                           public static Customer Create(string name) => new() { Name = name };
+                                       }
+                                       """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -34,7 +35,7 @@ public class InspectTests
             Assert.Equal("Customer", sym.Name);
 
             // Verify it's a named type with expected members
-            var namedType = Assert.IsAssignableFrom<Microsoft.CodeAnalysis.INamedTypeSymbol>(sym);
+            var namedType = Assert.IsAssignableFrom<INamedTypeSymbol>(sym);
             Assert.Equal("BaseEntity", namedType.BaseType?.Name);
 
             var memberNames = namedType.GetMembers()
@@ -55,30 +56,30 @@ public class InspectTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Services.cs", """
-            namespace TestApp;
+                                         namespace TestApp;
 
-            public interface IService
-            {
-                void Execute();
-            }
+                                         public interface IService
+                                         {
+                                             void Execute();
+                                         }
 
-            public interface ILoggable
-            {
-                void Log(string message);
-            }
+                                         public interface ILoggable
+                                         {
+                                             void Log(string message);
+                                         }
 
-            public class MyService : IService, ILoggable
-            {
-                public void Execute() { }
-                public void Log(string message) { }
-            }
-            """);
+                                         public class MyService : IService, ILoggable
+                                         {
+                                             public void Execute() { }
+                                             public void Log(string message) { }
+                                         }
+                                         """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
             var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.MyService", "type");
-            var namedType = Assert.IsAssignableFrom<Microsoft.CodeAnalysis.INamedTypeSymbol>(sym);
+            var namedType = Assert.IsAssignableFrom<INamedTypeSymbol>(sym);
 
             var ifaceNames = namedType.Interfaces.Select(i => i.Name).ToList();
             Assert.Contains("IService", ifaceNames);
@@ -91,20 +92,20 @@ public class InspectTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
-            namespace TestApp;
+                                           namespace TestApp;
 
-            public class Calculator
-            {
-                public int Add(int a, int b) => a + b;
-                public double Divide(double numerator, double denominator) => numerator / denominator;
-            }
-            """);
+                                           public class Calculator
+                                           {
+                                               public int Add(int a, int b) => a + b;
+                                               public double Divide(double numerator, double denominator) => numerator / denominator;
+                                           }
+                                           """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
             var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.Calculator.Add", "method");
-            var method = Assert.IsAssignableFrom<Microsoft.CodeAnalysis.IMethodSymbol>(sym);
+            var method = Assert.IsAssignableFrom<IMethodSymbol>(sym);
 
             Assert.Equal("int", method.ReturnType.ToDisplayString());
             Assert.Equal(2, method.Parameters.Length);
@@ -118,26 +119,26 @@ public class InspectTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Config.cs", """
-            namespace TestApp;
+                                       namespace TestApp;
 
-            public class Config
-            {
-                public string Name { get; set; } = "";
-                public int MaxRetries { get; }
-                public bool IsEnabled { set { } }
-            }
-            """);
+                                       public class Config
+                                       {
+                                           public string Name { get; set; } = "";
+                                           public int MaxRetries { get; }
+                                           public bool IsEnabled { set { } }
+                                       }
+                                       """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
             var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.Config.Name", "property");
-            var prop = Assert.IsAssignableFrom<Microsoft.CodeAnalysis.IPropertySymbol>(sym);
+            var prop = Assert.IsAssignableFrom<IPropertySymbol>(sym);
             Assert.NotNull(prop.GetMethod);
             Assert.NotNull(prop.SetMethod);
 
             var readOnly = await SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.Config.MaxRetries", "property");
-            var readOnlyProp = Assert.IsAssignableFrom<Microsoft.CodeAnalysis.IPropertySymbol>(readOnly);
+            var readOnlyProp = Assert.IsAssignableFrom<IPropertySymbol>(readOnly);
             Assert.NotNull(readOnlyProp.GetMethod);
             Assert.Null(readOnlyProp.SetMethod);
         }

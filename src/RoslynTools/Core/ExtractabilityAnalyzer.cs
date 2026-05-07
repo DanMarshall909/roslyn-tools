@@ -5,32 +5,31 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace RoslynTools.Core;
 
 /// <summary>
-/// Analyses a duplicate group and emits extraction-readiness diagnostics.
-///
-/// Checks implemented:
-///   parameterizable-inputs  — all occurrence substitution maps agree on symbol-vs-literal
-///                             category for each placeholder; fails when one site has a
-///                             literal where another has an identifier.
-///   single-output           — data-flow shows variables flowing out of each window;
-///                             warns when variables declared INSIDE the window flow out
-///                             (1 = return value, 2+ = tuple return via MethodExtractor);
-///                             fails when variables declared BEFORE the window are written
-///                             inside (unsafe — needs out-params or wider selection).
-///   no-control-flow-escape  — no return/yield/goto/labelled-break inside the window.
-///   no-ref-out-params       — no ref/out parameter usage inside the window.
-///   consistent-captured-state — captured field/property set is identical across all
-///                             occurrences (warn when sets differ, not a hard fail).
-///
-/// Extractability level derived from checks:
-///   all pass                  → extractable
-///   at least one warn, no fails → likely_extractable
-///   any fail                  → discovery_only
+///     Analyses a duplicate group and emits extraction-readiness diagnostics.
+///     Checks implemented:
+///     parameterizable-inputs  — all occurrence substitution maps agree on symbol-vs-literal
+///     category for each placeholder; fails when one site has a
+///     literal where another has an identifier.
+///     single-output           — data-flow shows variables flowing out of each window;
+///     warns when variables declared INSIDE the window flow out
+///     (1 = return value, 2+ = tuple return via MethodExtractor);
+///     fails when variables declared BEFORE the window are written
+///     inside (unsafe — needs out-params or wider selection).
+///     no-control-flow-escape  — no return/yield/goto/labelled-break inside the window.
+///     no-ref-out-params       — no ref/out parameter usage inside the window.
+///     consistent-captured-state — captured field/property set is identical across all
+///     occurrences (warn when sets differ, not a hard fail).
+///     Extractability level derived from checks:
+///     all pass                  → extractable
+///     at least one warn, no fails → likely_extractable
+///     any fail                  → discovery_only
 /// </summary>
 internal static class ExtractabilityAnalyzer
 {
     public static (string Extractability, IReadOnlyList<ExtractabilityCheck> Checks) Analyze(
         IReadOnlyList<StatementSyntax> canonicalWindow,
-        IReadOnlyList<(IReadOnlyList<StatementSyntax> Window, SemanticModel Model, IReadOnlyDictionary<string, string>? SubstitutionMap)> occurrences)
+        IReadOnlyList<(IReadOnlyList<StatementSyntax> Window, SemanticModel Model, IReadOnlyDictionary<string, string>?
+            SubstitutionMap)> occurrences)
     {
         var firstModel = occurrences.Count > 0 ? occurrences[0].Model : null;
         var checks = new List<ExtractabilityCheck>
@@ -41,7 +40,7 @@ internal static class ExtractabilityAnalyzer
                 ? CheckNoControlFlowEscape(canonicalWindow, firstModel)
                 : new ExtractabilityCheck("no-control-flow-escape", "pass", null),
             CheckNoRefOutParams(occurrences),
-            CheckConsistentCapturedState(occurrences),
+            CheckConsistentCapturedState(occurrences)
         };
 
         var extractability = DeriveExtractability(checks);
@@ -51,7 +50,8 @@ internal static class ExtractabilityAnalyzer
     // ── Check: parameterizable-inputs ────────────────────────────────────────────
 
     private static ExtractabilityCheck CheckParameterizableInputs(
-        IReadOnlyList<(IReadOnlyList<StatementSyntax> Window, SemanticModel Model, IReadOnlyDictionary<string, string>? SubstitutionMap)> occurrences)
+        IReadOnlyList<(IReadOnlyList<StatementSyntax> Window, SemanticModel Model, IReadOnlyDictionary<string, string>?
+            SubstitutionMap)> occurrences)
     {
         // For each occurrence, classify each placeholder in the substitution map as:
         //   "identifier" (local/parameter) or "literal" (int/string/bool/…)
@@ -85,7 +85,8 @@ internal static class ExtractabilityAnalyzer
 
         if (conflicting.Count > 0)
         {
-            var detail = $"placeholder(s) {string.Join(", ", conflicting)} map to both identifier and literal across occurrences";
+            var detail =
+                $"placeholder(s) {string.Join(", ", conflicting)} map to both identifier and literal across occurrences";
             return new ExtractabilityCheck("parameterizable-inputs", "fail", detail);
         }
 
@@ -104,7 +105,8 @@ internal static class ExtractabilityAnalyzer
     // ── Check: single-output ──────────────────────────────────────────────────────
 
     private static ExtractabilityCheck CheckSingleOutput(
-        IReadOnlyList<(IReadOnlyList<StatementSyntax> Window, SemanticModel Model, IReadOnlyDictionary<string, string>? SubstitutionMap)> occurrences)
+        IReadOnlyList<(IReadOnlyList<StatementSyntax> Window, SemanticModel Model, IReadOnlyDictionary<string, string>?
+            SubstitutionMap)> occurrences)
     {
         // Run Roslyn DataFlowAnalysis on each occurrence's window.
         // Count symbols that need to be returned from the extracted method:
@@ -113,8 +115,8 @@ internal static class ExtractabilityAnalyzer
         //   - Variables declared INSIDE the window and read after (tuple-returnable).
         // MethodExtractor supports tuple returns for 2+ in-window outputs, so those
         // count as "warn" (likely_extractable), not "fail" (discovery_only).
-        var maxUnsafeOut = 0;  // declared before window, written inside — not extractable
-        var maxTupleOut = 0;   // declared inside window, read after — tuple-returnable
+        var maxUnsafeOut = 0; // declared before window, written inside — not extractable
+        var maxTupleOut = 0; // declared inside window, read after — tuple-returnable
 
         foreach (var (window, model, _) in occurrences)
         {
@@ -200,22 +202,22 @@ internal static class ExtractabilityAnalyzer
     // ── Check: no-ref-out-params ──────────────────────────────────────────────────
 
     private static ExtractabilityCheck CheckNoRefOutParams(
-        IReadOnlyList<(IReadOnlyList<StatementSyntax> Window, SemanticModel Model, IReadOnlyDictionary<string, string>? SubstitutionMap)> occurrences)
+        IReadOnlyList<(IReadOnlyList<StatementSyntax> Window, SemanticModel Model, IReadOnlyDictionary<string, string>?
+            SubstitutionMap)> occurrences)
     {
         foreach (var (window, model, _) in occurrences)
+        foreach (var stmt in window)
         {
-            foreach (var stmt in window)
-            {
-                // Check for ref/out argument usage in invocations.
-                var hasRefOut = stmt.DescendantNodesAndSelf()
-                    .OfType<ArgumentSyntax>()
-                    .Any(a => a.RefKindKeyword.IsKind(SyntaxKind.RefKeyword)
-                           || a.RefKindKeyword.IsKind(SyntaxKind.OutKeyword)
-                           || a.RefKindKeyword.IsKind(SyntaxKind.InKeyword));
+            // Check for ref/out argument usage in invocations.
+            var hasRefOut = stmt.DescendantNodesAndSelf()
+                .OfType<ArgumentSyntax>()
+                .Any(a => a.RefKindKeyword.IsKind(SyntaxKind.RefKeyword)
+                          || a.RefKindKeyword.IsKind(SyntaxKind.OutKeyword)
+                          || a.RefKindKeyword.IsKind(SyntaxKind.InKeyword));
 
-                if (hasRefOut)
-                    return new ExtractabilityCheck("no-ref-out-params", "fail", "block passes arguments with ref/out/in modifiers");
-            }
+            if (hasRefOut)
+                return new ExtractabilityCheck("no-ref-out-params", "fail",
+                    "block passes arguments with ref/out/in modifiers");
         }
 
         return new ExtractabilityCheck("no-ref-out-params", "pass", null);
@@ -224,7 +226,8 @@ internal static class ExtractabilityAnalyzer
     // ── Check: consistent-captured-state ────────────────────────────────────────
 
     private static ExtractabilityCheck CheckConsistentCapturedState(
-        IReadOnlyList<(IReadOnlyList<StatementSyntax> Window, SemanticModel Model, IReadOnlyDictionary<string, string>? SubstitutionMap)> occurrences)
+        IReadOnlyList<(IReadOnlyList<StatementSyntax> Window, SemanticModel Model, IReadOnlyDictionary<string, string>?
+            SubstitutionMap)> occurrences)
     {
         // Collect all field/property symbols referenced in each occurrence window.
         // If the set differs across occurrences, warn.
@@ -234,14 +237,13 @@ internal static class ExtractabilityAnalyzer
         {
             var fields = new HashSet<string>(StringComparer.Ordinal);
             foreach (var stmt in window)
+            foreach (var ident in stmt.DescendantNodesAndSelf().OfType<IdentifierNameSyntax>())
             {
-                foreach (var ident in stmt.DescendantNodesAndSelf().OfType<IdentifierNameSyntax>())
-                {
-                    var sym = model.GetSymbolInfo(ident).Symbol;
-                    if (sym is IFieldSymbol or IPropertySymbol)
-                        fields.Add(sym.ToDisplayString());
-                }
+                var sym = model.GetSymbolInfo(ident).Symbol;
+                if (sym is IFieldSymbol or IPropertySymbol)
+                    fields.Add(sym.ToDisplayString());
             }
+
             perOccurrenceFields.Add(fields);
         }
 

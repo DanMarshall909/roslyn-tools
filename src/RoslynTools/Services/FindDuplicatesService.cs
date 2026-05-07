@@ -1,9 +1,9 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using System.Diagnostics.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
@@ -36,7 +36,9 @@ internal sealed record DuplicateGroup(
     bool PartiallyExpandable = false,
     string Extractability = "unknown",
     IReadOnlyList<ExtractabilityCheck>? Checks = null);
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class FindDuplicatesService : IRtService
 {
     private readonly ILogger<FindDuplicatesService> _logger;
@@ -50,6 +52,7 @@ internal class FindDuplicatesService : IRtService
     {
         _logger = logger;
     }
+
     // Boilerplate patterns excluded from duplicate reporting:
     //   - single `return;` or `return <expr>;`
     //   - single `throw new NotImplementedException(...);`
@@ -73,23 +76,6 @@ internal class FindDuplicatesService : IRtService
         }
 
         return false;
-    }
-
-    // Tracks a single occurrence of a window candidate during bottom-up expansion.
-    private sealed class CandidateLoc
-    {
-        public required string FilePath { get; init; }
-        public required List<StatementSyntax> Body { get; init; }
-        public required int StartIdx { get; init; }
-        public required string ContainingType { get; init; }
-        public required string ContainingMember { get; init; }
-        public required SemanticModel SemanticModel { get; init; }
-        public int Length { get; set; } = 1;
-
-        public IReadOnlyList<StatementSyntax> Window =>
-            Body.Skip(StartIdx).Take(Length).ToList();
-
-        public bool CanExtend => StartIdx + Length < Body.Count;
     }
 
     public async Task<IReadOnlyList<DuplicateGroup>> RunAsync(
@@ -116,7 +102,7 @@ internal class FindDuplicatesService : IRtService
             // If the scope matches a project name exactly, only that project is enumerated.
             // Otherwise, scope is treated as a namespace prefix and applied per-document.
             var scopeMatchesProject = options.Scope is not null
-                && string.Equals(project.Name, options.Scope, StringComparison.OrdinalIgnoreCase);
+                                      && string.Equals(project.Name, options.Scope, StringComparison.OrdinalIgnoreCase);
 
             if (options.Scope is not null
                 && !scopeMatchesProject
@@ -179,7 +165,7 @@ internal class FindDuplicatesService : IRtService
                             ContainingType = containingType,
                             ContainingMember = containingMember,
                             SemanticModel = semanticModel,
-                            Length = 1,
+                            Length = 1
                         };
 
                         // Filter single-statement boilerplate at seed time.
@@ -195,7 +181,8 @@ internal class FindDuplicatesService : IRtService
             }
         }
 
-        _logger.RtInfo("[find-duplicates] projects={ProjectCount} methods={MethodCount} seeds={SeedCount}", projectCount, methodCount, seeds.Count);
+        _logger.RtInfo("[find-duplicates] projects={ProjectCount} methods={MethodCount} seeds={SeedCount}",
+            projectCount, methodCount, seeds.Count);
 
         // Phase 2: bottom-up expansion.
         // Start with seed groups that meet MinOccurrences.
@@ -243,8 +230,8 @@ internal class FindDuplicatesService : IRtService
                 //   - extendable locations diverge across multiple hashes (more than one continuing group), OR
                 //   - some extendable locations form groups below MinOccurrences (become orphans).
                 var hasSplit = terminal.Count > 0
-                    || continuingGroups.Count > 1
-                    || extGroups.Any(eg => eg.Value.Count < options.MinOccurrences);
+                               || continuingGroups.Count > 1
+                               || extGroups.Any(eg => eg.Value.Count < options.MinOccurrences);
 
                 // Snapshot occurrence data and window BEFORE mutating lengths.
                 // CandidateLoc.Window is computed lazily from loc.Length, so we must
@@ -253,7 +240,8 @@ internal class FindDuplicatesService : IRtService
                 var currentOccurrences = locations.Select(BuildOccurrence).ToList();
                 // Capture raw windows + models for extractability analysis.
                 var rawOccurrences = locations
-                    .Select(l => (Window: l.Window, Model: l.SemanticModel, SubstitutionMap: (IReadOnlyDictionary<string, string>?)BuildOccurrence(l).SubstitutionMap))
+                    .Select(l => (l.Window, Model: l.SemanticModel,
+                        SubstitutionMap: (IReadOnlyDictionary<string, string>?)BuildOccurrence(l).SubstitutionMap))
                     .ToList();
 
                 // Queue continuing subgroups for next round.
@@ -276,20 +264,21 @@ internal class FindDuplicatesService : IRtService
                         {
                             var stmtCount = currentWindow.Count;
                             var occCount = currentOccurrences.Count;
-                            var (extractability, checks) = ExtractabilityAnalyzer.Analyze(currentWindow, rawOccurrences);
+                            var (extractability, checks) =
+                                ExtractabilityAnalyzer.Analyze(currentWindow, rawOccurrences);
                             // Score: log(occurrences) * statementCount * extractabilityWeight
                             var score = Math.Log(occCount) * stmtCount * ExtractabilityWeight(extractability);
                             results.Add(new DuplicateGroup(
-                                GroupHash: currentHash,
-                                GroupId: ComputeGroupId(currentHash, stmtCount),
-                                Occurrences: currentOccurrences,
-                                Preview: BuildPreview(currentWindow),
-                                FullBlock: BuildFullBlock(currentWindow),
-                                StatementCount: stmtCount,
-                                Score: score,
-                                PartiallyExpandable: continuingGroups.Count > 0,
-                                Extractability: extractability,
-                                Checks: checks));
+                                currentHash,
+                                ComputeGroupId(currentHash, stmtCount),
+                                currentOccurrences,
+                                BuildPreview(currentWindow),
+                                BuildFullBlock(currentWindow),
+                                stmtCount,
+                                score,
+                                continuingGroups.Count > 0,
+                                extractability,
+                                checks));
                         }
                     }
                     else if (terminal.Count == locations.Count)
@@ -302,16 +291,16 @@ internal class FindDuplicatesService : IRtService
                         // Score: log(occurrences) * statementCount * extractabilityWeight
                         var score = Math.Log(occCount) * stmtCount * ExtractabilityWeight(extractability);
                         results.Add(new DuplicateGroup(
-                            GroupHash: currentHash,
-                            GroupId: ComputeGroupId(currentHash, stmtCount),
-                            Occurrences: currentOccurrences,
-                            Preview: BuildPreview(currentWindow),
-                            FullBlock: BuildFullBlock(currentWindow),
-                            StatementCount: stmtCount,
-                            Score: score,
-                            PartiallyExpandable: false,
-                            Extractability: extractability,
-                            Checks: checks));
+                            currentHash,
+                            ComputeGroupId(currentHash, stmtCount),
+                            currentOccurrences,
+                            BuildPreview(currentWindow),
+                            BuildFullBlock(currentWindow),
+                            stmtCount,
+                            score,
+                            false,
+                            extractability,
+                            checks));
                     }
                     // Otherwise: all extendable and all continuing to a single group — don't report yet.
                 }
@@ -350,30 +339,36 @@ internal class FindDuplicatesService : IRtService
             .OrderByDescending(g => g.Score)
             .ToList();
 
-        _logger.RtInfo("[find-duplicates] groups={GroupCount} after-suppression={FilteredCount}", results.Count, filtered.Count);
+        _logger.RtInfo("[find-duplicates] groups={GroupCount} after-suppression={FilteredCount}", results.Count,
+            filtered.Count);
 
         return filtered;
     }
 
     /// <summary>
-    /// Maps an extractability level to a score weight.
-    /// extractable=1.0, likely_extractable=0.7, discovery_only=0.3, unknown=1.0 (unanalysed).
+    ///     Maps an extractability level to a score weight.
+    ///     extractable=1.0, likely_extractable=0.7, discovery_only=0.3, unknown=1.0 (unanalysed).
     /// </summary>
-    private double ExtractabilityWeight(string extractability) => extractability switch
+    private double ExtractabilityWeight(string extractability)
     {
-        "extractable" => 1.0,
-        "likely_extractable" => 0.7,
-        "discovery_only" => 0.3,
-        _ => 1.0,
-    };
+        return extractability switch
+        {
+            "extractable" => 1.0,
+            "likely_extractable" => 0.7,
+            "discovery_only" => 0.3,
+            _ => 1.0
+        };
+    }
 
     /// <summary>
-    /// Computes a short, stable, human-readable group identifier from the canonical hash
-    /// and statement count. Format: "GRP-{stmtCount}-{first8hexOfHash}".
-    /// The id is deterministic across runs for the same code shape.
+    ///     Computes a short, stable, human-readable group identifier from the canonical hash
+    ///     and statement count. Format: "GRP-{stmtCount}-{first8hexOfHash}".
+    ///     The id is deterministic across runs for the same code shape.
     /// </summary>
     private string ComputeGroupId(string groupHash, int statementCount)
-        => $"GRP-{statementCount}-{groupHash[..8].ToLowerInvariant()}";
+    {
+        return $"GRP-{statementCount}-{groupHash[..8].ToLowerInvariant()}";
+    }
 
     private string ComputeExtendedHash(CandidateLoc loc)
     {
@@ -393,7 +388,7 @@ internal class FindDuplicatesService : IRtService
             endLine,
             loc.ContainingType,
             loc.ContainingMember,
-            SubstitutionMap: subs);
+            subs);
     }
 
     private string ComputeCanonicalHash(IReadOnlyList<StatementSyntax> statements, SemanticModel semanticModel)
@@ -412,8 +407,10 @@ internal class FindDuplicatesService : IRtService
         return first.Length > 120 ? first[..120] + " …" : first;
     }
 
-    private string BuildFullBlock(IReadOnlyList<StatementSyntax> statements) =>
-        string.Join("\n", statements.Select(s => s.NormalizeWhitespace().ToFullString().Trim()));
+    private string BuildFullBlock(IReadOnlyList<StatementSyntax> statements)
+    {
+        return string.Join("\n", statements.Select(s => s.NormalizeWhitespace().ToFullString().Trim()));
+    }
 
     private string GetContainingTypeName(SyntaxNode node)
     {
@@ -421,12 +418,15 @@ internal class FindDuplicatesService : IRtService
         return typeDecl?.Identifier.Text ?? "<unknown>";
     }
 
-    private string GetMemberName(SyntaxNode node) => node switch
+    private string GetMemberName(SyntaxNode node)
     {
-        MethodDeclarationSyntax m => m.Identifier.Text,
-        LocalFunctionStatementSyntax lf => lf.Identifier.Text,
-        _ => "<unknown>"
-    };
+        return node switch
+        {
+            MethodDeclarationSyntax m => m.Identifier.Text,
+            LocalFunctionStatementSyntax lf => lf.Identifier.Text,
+            _ => "<unknown>"
+        };
+    }
 
     // Test-project detection: name ends with ".Tests" or "Test" (case-insensitive).
     // AdhocWorkspace tests use project names only — no metadata references to check.
@@ -434,17 +434,20 @@ internal class FindDuplicatesService : IRtService
     {
         var name = project.Name;
         return name.EndsWith(".Tests", StringComparison.OrdinalIgnoreCase)
-            || name.EndsWith("Test", StringComparison.OrdinalIgnoreCase)
-            || name.Contains("xunit", StringComparison.OrdinalIgnoreCase)
-            || name.Contains("nunit", StringComparison.OrdinalIgnoreCase)
-            || name.Contains("mstest", StringComparison.OrdinalIgnoreCase);
+               || name.EndsWith("Test", StringComparison.OrdinalIgnoreCase)
+               || name.Contains("xunit", StringComparison.OrdinalIgnoreCase)
+               || name.Contains("nunit", StringComparison.OrdinalIgnoreCase)
+               || name.Contains("mstest", StringComparison.OrdinalIgnoreCase);
     }
 
     // Returns true if the project *might* contain documents in the given namespace scope.
     // Used to skip whole projects early when scope is a namespace prefix (not a project name).
     // Since we can't know without parsing, we always return true here — the per-document
     // check below is the real filter. This method exists so the logic is extensible.
-    private bool ScopeCouldMatchProject(Project project, string scope) => true;
+    private bool ScopeCouldMatchProject(Project project, string scope)
+    {
+        return true;
+    }
 
     // Returns the first namespace declaration in the document, preferring file-scoped.
     private string? GetDocumentNamespace(SyntaxNode root)
@@ -459,5 +462,22 @@ internal class FindDuplicatesService : IRtService
             .OfType<NamespaceDeclarationSyntax>()
             .FirstOrDefault();
         return blockScoped?.Name.ToString();
+    }
+
+    // Tracks a single occurrence of a window candidate during bottom-up expansion.
+    private sealed class CandidateLoc
+    {
+        public required string FilePath { get; init; }
+        public required List<StatementSyntax> Body { get; init; }
+        public required int StartIdx { get; init; }
+        public required string ContainingType { get; init; }
+        public required string ContainingMember { get; init; }
+        public required SemanticModel SemanticModel { get; init; }
+        public int Length { get; set; } = 1;
+
+        public IReadOnlyList<StatementSyntax> Window =>
+            Body.Skip(StartIdx).Take(Length).ToList();
+
+        public bool CanExtend => StartIdx + Length < Body.Count;
     }
 }

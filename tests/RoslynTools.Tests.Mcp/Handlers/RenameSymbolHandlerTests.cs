@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
-using RoslynTools;
 using RoslynTools.Core;
 using RoslynTools.Mcp;
 using RoslynTools.Mcp.Tools;
@@ -15,21 +14,21 @@ public class RenameToolTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Model.cs", """
-            namespace TestApp;
+                                      namespace TestApp;
 
-            public class Invoice
-            {
-                public int Id { get; set; }
-            }
-            """);
+                                      public class Invoice
+                                      {
+                                          public int Id { get; set; }
+                                      }
+                                      """);
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class InvoiceService
-            {
-                public Invoice Create() => new Invoice();
-            }
-            """);
+                                        public class InvoiceService
+                                        {
+                                            public Invoice Create() => new Invoice();
+                                        }
+                                        """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -38,12 +37,12 @@ public class RenameToolTests
         {
             var registry = provider.GetRequiredService<ToolRegistry>();
             using var args = JsonDocument.Parse("""
-                {
-                  "symbol": "TestApp.Invoice",
-                  "new-name": "Bill",
-                  "solution": "ignored.slnx"
-                }
-                """);
+                                                {
+                                                  "symbol": "TestApp.Invoice",
+                                                  "new-name": "Bill",
+                                                  "solution": "ignored.slnx"
+                                                }
+                                                """);
 
             var result = await registry.InvokeAsync("rename", args.RootElement);
 

@@ -1,17 +1,17 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Rename;
-using System.Diagnostics.CodeAnalysis;
-using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class ChangeSignatureService : IRtService
 {
-    private readonly ISymbolResolutionService _symbols;
-    private readonly ReorderParamsService _reorderParams;
     private readonly AddParamService _addParam;
     private readonly RemoveParamService _removeParam;
+    private readonly ReorderParamsService _reorderParams;
+    private readonly ISymbolResolutionService _symbols;
 
     public ChangeSignatureService()
         : this(new ReorderParamsService(), new AddParamService(), new RemoveParamService())
@@ -40,20 +40,18 @@ internal class ChangeSignatureService : IRtService
         var methodSymbol = await _symbols.FindMethodBySpecAsync(solution, methodSpec);
 
         var parameter = methodSymbol.Parameters.FirstOrDefault(param => param.Name == oldName)
-            ?? throw new InvalidOperationException(
-                $"Parameter '{oldName}' was not found on '{methodSpec}'.");
+                        ?? throw new InvalidOperationException(
+                            $"Parameter '{oldName}' was not found on '{methodSpec}'.");
 
         if (methodSymbol.Parameters.Any(param => param.Name == newName))
-        {
             throw new InvalidOperationException(
                 $"Method '{methodSpec}' already has a parameter named '{newName}'.");
-        }
 
         var options = new SymbolRenameOptions(
-            RenameOverloads: false,
-            RenameInStrings: false,
-            RenameInComments: false,
-            RenameFile: false);
+            false,
+            false,
+            false,
+            false);
 
         return await Renamer.RenameSymbolAsync(solution, parameter, options, newName);
     }
@@ -61,20 +59,26 @@ internal class ChangeSignatureService : IRtService
     internal Task<Solution> ReorderParamsAsync(
         Solution solution,
         string methodSpec,
-        string[] newOrder) =>
-        _reorderParams.ReorderParamsAsync(solution, methodSpec, newOrder);
+        string[] newOrder)
+    {
+        return _reorderParams.ReorderParamsAsync(solution, methodSpec, newOrder);
+    }
 
     internal Task<Solution> AddParamAsync(
         Solution solution,
         string methodSpec,
         string paramSpec,
-        string? afterParam) =>
-        _addParam.AddParamAsync(solution, methodSpec, paramSpec, afterParam);
+        string? afterParam)
+    {
+        return _addParam.AddParamAsync(solution, methodSpec, paramSpec, afterParam);
+    }
 
     internal Task<Solution> RemoveParamAsync(
         Solution solution,
         string methodSpec,
         string paramName,
-        bool force) =>
-        _removeParam.RemoveParamAsync(solution, methodSpec, paramName, force);
+        bool force)
+    {
+        return _removeParam.RemoveParamAsync(solution, methodSpec, paramName, force);
+    }
 }

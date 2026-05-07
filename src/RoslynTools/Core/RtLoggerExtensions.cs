@@ -6,14 +6,20 @@ internal static class RtLoggerExtensions
 {
     private static readonly EventId DiagnosticEvent = new(0, "RtDiagnostic");
 
-    public static void RtInfo(this ILogger logger, string template, params object?[] args) =>
+    public static void RtInfo(this ILogger logger, string template, params object?[] args)
+    {
         Log(logger, LogLevel.Information, template, args);
+    }
 
-    public static void RtWarning(this ILogger logger, string template, params object?[] args) =>
+    public static void RtWarning(this ILogger logger, string template, params object?[] args)
+    {
         Log(logger, LogLevel.Warning, template, args);
+    }
 
-    public static void RtError(this ILogger logger, string template, params object?[] args) =>
+    public static void RtError(this ILogger logger, string template, params object?[] args)
+    {
         Log(logger, LogLevel.Error, template, args);
+    }
 
     private static void Log(ILogger logger, LogLevel level, string template, object?[] args)
     {
@@ -24,7 +30,7 @@ internal static class RtLoggerExtensions
             level,
             DiagnosticEvent,
             new RtLogState(template, args),
-            exception: null,
+            null,
             static (state, _) => RtConsole.RenderTemplate(state.Template, state.Args));
     }
 

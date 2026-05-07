@@ -3,8 +3,8 @@ using System.Diagnostics;
 namespace RoslynTools.Tests.Infrastructure;
 
 /// <summary>
-/// Architecture validation tests using rt's own analysis.
-/// Validates that the codebase follows dependency rules (no circular deps, proper layering).
+///     Architecture validation tests using rt's own analysis.
+///     Validates that the codebase follows dependency rules (no circular deps, proper layering).
 /// </summary>
 public class ArchitectureTests
 {
@@ -20,7 +20,7 @@ public class ArchitectureTests
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             CreateNoWindow = true,
-            WorkingDirectory = FindSolutionRoot(),
+            WorkingDirectory = FindSolutionRoot()
         };
 
         // ACT: Run rt circular-deps

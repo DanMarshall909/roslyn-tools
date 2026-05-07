@@ -1,19 +1,20 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
-using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class MakeAsyncService : IRtService
 {
-    private readonly ISymbolResolutionService _symbols;
     private readonly IDocumentLocatorService _documents;
     private readonly ISolutionChangeWriter _solutionChangeWriter;
+    private readonly ISymbolResolutionService _symbols;
 
     public MakeAsyncService()
         : this(new SolutionChangeWriter())
@@ -29,6 +30,7 @@ internal class MakeAsyncService : IRtService
 
         _solutionChangeWriter = solutionChangeWriter;
     }
+
     internal async Task RunAsync(Solution sln, string typeName, string methodName, bool noRename, bool dryRun)
     {
         var originalSolution = sln;
@@ -73,7 +75,7 @@ internal class MakeAsyncService : IRtService
 
             root = TransformDocument(
                 root,
-                isTargetDoc: docId == targetDocId,
+                docId == targetDocId,
                 methodSymbol,
                 newMethodName,
                 methodName,
@@ -161,7 +163,7 @@ internal class MakeAsyncService : IRtService
             SyntaxFactory.Token(SyntaxKind.AsyncKeyword).WithTrailingTrivia(SyntaxFactory.Space));
 
         var returnTypeText = method.ReturnType.ToString().Trim();
-        TypeSyntax newReturnType = returnTypeText == "void"
+        var newReturnType = returnTypeText == "void"
             ? SyntaxFactory.ParseTypeName("Task").WithTriviaFrom(method.ReturnType)
             : SyntaxFactory.ParseTypeName($"Task<{returnTypeText}>").WithTriviaFrom(method.ReturnType);
         method = method.WithReturnType(newReturnType);
@@ -195,15 +197,11 @@ internal class MakeAsyncService : IRtService
 
         var returnTypeText = method.ReturnType.ToString().Trim();
         if (returnTypeText == "void")
-        {
             method = method.WithReturnType(
                 SyntaxFactory.ParseTypeName("Task").WithTriviaFrom(method.ReturnType));
-        }
         else if (!returnTypeText.StartsWith("Task", StringComparison.Ordinal))
-        {
             method = method.WithReturnType(
                 SyntaxFactory.ParseTypeName($"Task<{returnTypeText}>").WithTriviaFrom(method.ReturnType));
-        }
 
         return method;
     }

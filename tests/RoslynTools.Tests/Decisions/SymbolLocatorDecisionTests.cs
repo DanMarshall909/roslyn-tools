@@ -10,14 +10,14 @@ public class SymbolLocatorDecisionTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public void Foo(int count) { }
-                public void Foo(string name) { }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public void Foo(int count) { }
+                                            public void Foo(string name) { }
+                                        }
+                                        """);
         var (workspace, solution) = project.Build();
 
         using (workspace)
@@ -26,8 +26,8 @@ public class SymbolLocatorDecisionTests
             DecisionContext.Store = store;
             try
             {
-                await Assert.ThrowsAsync<DecisionsRequiredException>(
-                    () => SymbolLocator.FindMethodBySpecAsync(solution, "TestApp.Service.Foo"));
+                await Assert.ThrowsAsync<DecisionsRequiredException>(() =>
+                    SymbolLocator.FindMethodBySpecAsync(solution, "TestApp.Service.Foo"));
 
                 Assert.True(store.AnyPending);
                 Assert.Equal(1, store.PendingCount);
@@ -45,14 +45,14 @@ public class SymbolLocatorDecisionTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public void Foo(int count) { }
-                public void Foo(string name) { }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public void Foo(int count) { }
+                                            public void Foo(string name) { }
+                                        }
+                                        """);
         var (workspace, solution) = project.Build();
 
         using (workspace)
@@ -61,13 +61,13 @@ public class SymbolLocatorDecisionTests
             try
             {
                 File.WriteAllText(path, """
-                    - id: ambig-TestApp.Service.Foo-2
-                      q: 2 symbols match 'TestApp.Service.Foo'
-                      options:
-                        0: 'Method   TestApp.Service.Foo(int count)  (TestProject)'
-                        1: 'Method   TestApp.Service.Foo(string name)  (TestProject)'
-                      choose: 1
-                    """);
+                                        - id: ambig-TestApp.Service.Foo-2
+                                          q: 2 symbols match 'TestApp.Service.Foo'
+                                          options:
+                                            0: 'Method   TestApp.Service.Foo(int count)  (TestProject)'
+                                            1: 'Method   TestApp.Service.Foo(string name)  (TestProject)'
+                                          choose: 1
+                                        """);
                 DecisionContext.Store = DecisionStore.Load(path);
 
                 var symbol = await SymbolLocator.FindMethodBySpecAsync(solution, "TestApp.Service.Foo");
@@ -90,14 +90,14 @@ public class SymbolLocatorDecisionTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public void Foo(int count) { }
-                public void Foo(string name) { }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public void Foo(int count) { }
+                                            public void Foo(string name) { }
+                                        }
+                                        """);
         var (workspace, solution) = project.Build();
 
         using (workspace)
@@ -106,17 +106,17 @@ public class SymbolLocatorDecisionTests
             try
             {
                 File.WriteAllText(path, """
-                    - id: ambig-TestApp.Service.Foo-2
-                      q: 2 symbols match 'TestApp.Service.Foo'
-                      options:
-                        0: 'Method   TestApp.Service.Foo(int count)  (TestProject)'
-                        1: 'Method   TestApp.Service.Foo(string name)  (TestProject)'
-                      choose: 99
-                    """);
+                                        - id: ambig-TestApp.Service.Foo-2
+                                          q: 2 symbols match 'TestApp.Service.Foo'
+                                          options:
+                                            0: 'Method   TestApp.Service.Foo(int count)  (TestProject)'
+                                            1: 'Method   TestApp.Service.Foo(string name)  (TestProject)'
+                                          choose: 99
+                                        """);
                 DecisionContext.Store = DecisionStore.Load(path);
 
-                var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-                    () => SymbolLocator.FindMethodBySpecAsync(solution, "TestApp.Service.Foo"));
+                var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                    SymbolLocator.FindMethodBySpecAsync(solution, "TestApp.Service.Foo"));
                 Assert.Contains("Invalid choice", ex.Message);
                 Assert.Contains("99", ex.Message);
                 Assert.Contains("0-1", ex.Message);
@@ -134,13 +134,13 @@ public class SymbolLocatorDecisionTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public void OnlyFoo() { }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public void OnlyFoo() { }
+                                        }
+                                        """);
         var (workspace, solution) = project.Build();
 
         using (workspace)

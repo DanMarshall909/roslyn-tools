@@ -6,28 +6,28 @@ namespace RoslynTools.Tests.Mutation;
 public class MakeAsyncTests
 {
     private const string AgentServiceSource = """
-        using System.Threading.Tasks;
+                                              using System.Threading.Tasks;
 
-        public class AgentService
-        {
-            public string GetAgent(int id) => id.ToString();
-            public string ProcessAgent(int id) => GetAgent(id).ToUpper();
-            public async System.Threading.Tasks.Task<string> AlreadyAsyncMethod() => await System.Threading.Tasks.Task.FromResult("x");
-        }
+                                              public class AgentService
+                                              {
+                                                  public string GetAgent(int id) => id.ToString();
+                                                  public string ProcessAgent(int id) => GetAgent(id).ToUpper();
+                                                  public async System.Threading.Tasks.Task<string> AlreadyAsyncMethod() => await System.Threading.Tasks.Task.FromResult("x");
+                                              }
 
-        public class Caller
-        {
-            private readonly AgentService _svc = new AgentService();
-            public void UseAgent()
-            {
-                var result = _svc.GetAgent(1);
-            }
-            public async System.Threading.Tasks.Task AsyncCaller()
-            {
-                var result = _svc.GetAgent(2);
-            }
-        }
-        """;
+                                              public class Caller
+                                              {
+                                                  private readonly AgentService _svc = new AgentService();
+                                                  public void UseAgent()
+                                                  {
+                                                      var result = _svc.GetAgent(1);
+                                                  }
+                                                  public async System.Threading.Tasks.Task AsyncCaller()
+                                                  {
+                                                      var result = _svc.GetAgent(2);
+                                                  }
+                                              }
+                                              """;
 
     [Fact]
     public async Task Renames_the_method_with_an_async_suffix()
@@ -37,7 +37,9 @@ public class MakeAsyncTests
         var (workspace, sln) = project.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await MakeAsyncCommand.ExecuteAsync("AgentService", "GetAgent", noRename: false, "ignored", dryRun: false);
+        {
+            await MakeAsyncCommand.ExecuteAsync("AgentService", "GetAgent", false, "ignored", false);
+        }
 
         var content = await project.ReadSourceAsync("AgentService.cs");
         Assert.Contains("GetAgentAsync", content);
@@ -52,7 +54,9 @@ public class MakeAsyncTests
         var (workspace, sln) = project.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await MakeAsyncCommand.ExecuteAsync("AgentService", "GetAgent", noRename: false, "ignored", dryRun: false);
+        {
+            await MakeAsyncCommand.ExecuteAsync("AgentService", "GetAgent", false, "ignored", false);
+        }
 
         var content = await project.ReadSourceAsync("AgentService.cs");
         Assert.Contains("Task<string>", content);
@@ -67,7 +71,9 @@ public class MakeAsyncTests
         var (workspace, sln) = project.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await MakeAsyncCommand.ExecuteAsync("AgentService", "GetAgent", noRename: false, "ignored", dryRun: false);
+        {
+            await MakeAsyncCommand.ExecuteAsync("AgentService", "GetAgent", false, "ignored", false);
+        }
 
         var content = await project.ReadSourceAsync("AgentService.cs");
         Assert.Matches(@"async\s+Task<string>\s+GetAgentAsync", content);
@@ -81,7 +87,9 @@ public class MakeAsyncTests
         var (workspace, sln) = project.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await MakeAsyncCommand.ExecuteAsync("AgentService", "GetAgent", noRename: false, "ignored", dryRun: false);
+        {
+            await MakeAsyncCommand.ExecuteAsync("AgentService", "GetAgent", false, "ignored", false);
+        }
 
         var content = await project.ReadSourceAsync("AgentService.cs");
         Assert.Contains("await _svc.GetAgentAsync(", content);
@@ -97,7 +105,9 @@ public class MakeAsyncTests
         var originalContent = await project.ReadSourceAsync("AgentService.cs");
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await MakeAsyncCommand.ExecuteAsync("AgentService", "AlreadyAsyncMethod", noRename: false, "ignored", dryRun: false);
+        {
+            await MakeAsyncCommand.ExecuteAsync("AgentService", "AlreadyAsyncMethod", false, "ignored", false);
+        }
 
         var afterContent = await project.ReadSourceAsync("AgentService.cs");
         Assert.Equal(originalContent, afterContent);
@@ -111,7 +121,9 @@ public class MakeAsyncTests
         var (workspace, sln) = project.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await MakeAsyncCommand.ExecuteAsync("AgentService", "GetAgent", noRename: true, "ignored", dryRun: false);
+        {
+            await MakeAsyncCommand.ExecuteAsync("AgentService", "GetAgent", true, "ignored", false);
+        }
 
         var content = await project.ReadSourceAsync("AgentService.cs");
         Assert.Contains("async", content);
@@ -125,15 +137,17 @@ public class MakeAsyncTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Svc.cs", """
-            public class Svc
-            {
-                public void Send() { }
-            }
-            """);
+                                    public class Svc
+                                    {
+                                        public void Send() { }
+                                    }
+                                    """);
         var (workspace, sln) = project.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await MakeAsyncCommand.ExecuteAsync("Svc", "Send", noRename: false, "ignored", dryRun: false);
+        {
+            await MakeAsyncCommand.ExecuteAsync("Svc", "Send", false, "ignored", false);
+        }
 
         var content = await project.ReadSourceAsync("Svc.cs");
         Assert.Contains("async Task SendAsync", content);
@@ -148,7 +162,9 @@ public class MakeAsyncTests
         var (workspace, sln) = project.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await MakeAsyncCommand.ExecuteAsync("AgentService", "GetAgent", noRename: false, "ignored", dryRun: false);
+        {
+            await MakeAsyncCommand.ExecuteAsync("AgentService", "GetAgent", false, "ignored", false);
+        }
 
         var content = await project.ReadSourceAsync("AgentService.cs");
         // UseAgent was void non-async; it must be promoted to async Task
@@ -160,28 +176,30 @@ public class MakeAsyncTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Svc.cs", """
-            using System.Threading.Tasks;
+                                    using System.Threading.Tasks;
 
-            public class Processor
-            {
-                public string Run() => "ok";
-            }
+                                    public class Processor
+                                    {
+                                        public string Run() => "ok";
+                                    }
 
-            public class Consumer
-            {
-                private readonly Processor _p = new();
+                                    public class Consumer
+                                    {
+                                        private readonly Processor _p = new();
 
-                // Already written with await even though Run is currently sync
-                public async Task Go()
-                {
-                    var r = await Task.FromResult(_p.Run());
-                }
-            }
-            """);
+                                        // Already written with await even though Run is currently sync
+                                        public async Task Go()
+                                        {
+                                            var r = await Task.FromResult(_p.Run());
+                                        }
+                                    }
+                                    """);
         var (workspace, sln) = project.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await MakeAsyncCommand.ExecuteAsync("Processor", "Run", noRename: false, "ignored", dryRun: false);
+        {
+            await MakeAsyncCommand.ExecuteAsync("Processor", "Run", false, "ignored", false);
+        }
 
         var content = await project.ReadSourceAsync("Svc.cs");
         // The call inside Task.FromResult is not a direct invocation of Run that returns Task,
@@ -194,27 +212,29 @@ public class MakeAsyncTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Svc.cs", """
-            using System.Threading.Tasks;
+                                    using System.Threading.Tasks;
 
-            public class Worker
-            {
-                public string Fetch() => "data";
-            }
+                                    public class Worker
+                                    {
+                                        public string Fetch() => "data";
+                                    }
 
-            public class Consumer
-            {
-                private readonly Worker _w = new();
-                public Task Run()
-                {
-                    var result = _w.Fetch();
-                    return Task.CompletedTask;
-                }
-            }
-            """);
+                                    public class Consumer
+                                    {
+                                        private readonly Worker _w = new();
+                                        public Task Run()
+                                        {
+                                            var result = _w.Fetch();
+                                            return Task.CompletedTask;
+                                        }
+                                    }
+                                    """);
         var (workspace, sln) = project.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await MakeAsyncCommand.ExecuteAsync("Worker", "Fetch", noRename: false, "ignored", dryRun: false);
+        {
+            await MakeAsyncCommand.ExecuteAsync("Worker", "Fetch", false, "ignored", false);
+        }
 
         var content = await project.ReadSourceAsync("Svc.cs");
         // Run already returned Task — promotion must not produce Task<Task>
@@ -231,8 +251,8 @@ public class MakeAsyncTests
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await Assert.ThrowsAsync<InvalidOperationException>(
-                () => MakeAsyncCommand.ExecuteAsync("AgentService", "NonExistent", noRename: false, "ignored", dryRun: false));
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                MakeAsyncCommand.ExecuteAsync("AgentService", "NonExistent", false, "ignored", false));
         }
     }
 }

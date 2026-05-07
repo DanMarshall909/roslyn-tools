@@ -20,6 +20,9 @@ internal static class RtServiceProvider
 
     private sealed class Scope(IServiceProvider? previous) : IDisposable
     {
-        public void Dispose() => CurrentProvider.Value = previous;
+        public void Dispose()
+        {
+            CurrentProvider.Value = previous;
+        }
     }
 }

@@ -25,7 +25,7 @@ internal static class DaemonState
     private static readonly JsonSerializerOptions WriteOpts = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = true,
+        WriteIndented = true
     };
 
     internal static DaemonStateFile? TryRead()
@@ -47,12 +47,19 @@ internal static class DaemonState
         Directory.CreateDirectory(StateDir);
         var tmp = StateFile + ".tmp";
         File.WriteAllText(tmp, JsonSerializer.Serialize(state, WriteOpts));
-        File.Move(tmp, StateFile, overwrite: true);
+        File.Move(tmp, StateFile, true);
     }
 
     internal static void Remove()
     {
-        try { File.Delete(StateFile); } catch { /* best effort */ }
+        try
+        {
+            File.Delete(StateFile);
+        }
+        catch
+        {
+            /* best effort */
+        }
     }
 
     internal static bool IsAlive(DaemonStateFile state)

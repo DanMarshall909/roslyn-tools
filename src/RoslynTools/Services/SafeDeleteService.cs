@@ -1,19 +1,20 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Editing;
 using Microsoft.CodeAnalysis.FindSymbols;
-using System.Diagnostics.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class SafeDeleteService : IRtService
 {
-    private readonly ISymbolResolutionService _symbols;
     private readonly ILogger<SafeDeleteService> _logger;
     private readonly ISolutionChangeWriter _solutionChangeWriter;
+    private readonly ISymbolResolutionService _symbols;
 
     public SafeDeleteService()
         : this(new RtConsoleLogger<SafeDeleteService>(), new SolutionChangeWriter())
@@ -28,6 +29,7 @@ internal class SafeDeleteService : IRtService
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
     }
+
     internal async Task RunAsync(Solution sln, string symbol, string? kind, bool dryRun)
     {
         var sym = await ResolveSymbolAsync(sln, symbol, kind);
@@ -39,33 +41,31 @@ internal class SafeDeleteService : IRtService
         var trueRefs = new List<(string FilePath, int Line, string LineText)>();
 
         foreach (var referencedSymbol in referencedSymbols)
+        foreach (var loc in referencedSymbol.Locations)
         {
-            foreach (var loc in referencedSymbol.Locations)
-            {
-                var span = loc.Location.SourceSpan;
-                var filePath = loc.Document.FilePath ?? string.Empty;
+            var span = loc.Location.SourceSpan;
+            var filePath = loc.Document.FilePath ?? string.Empty;
 
-                var declSyntaxRef = sym.DeclaringSyntaxReferences.FirstOrDefault(r =>
-                    string.Equals(r.SyntaxTree.FilePath, filePath, StringComparison.OrdinalIgnoreCase)
-                    && r.Span.Contains(span));
-                if (declSyntaxRef != null)
-                    continue;
+            var declSyntaxRef = sym.DeclaringSyntaxReferences.FirstOrDefault(r =>
+                string.Equals(r.SyntaxTree.FilePath, filePath, StringComparison.OrdinalIgnoreCase)
+                && r.Span.Contains(span));
+            if (declSyntaxRef != null)
+                continue;
 
-                var syntaxNode = loc.Location.SourceTree is not null
-                    ? (await loc.Location.SourceTree.GetRootAsync())
-                        .FindNode(span)
-                    : null;
+            var syntaxNode = loc.Location.SourceTree is not null
+                ? (await loc.Location.SourceTree.GetRootAsync())
+                .FindNode(span)
+                : null;
 
-                if (syntaxNode != null && IsInsideNameOf(syntaxNode))
-                    continue;
+            if (syntaxNode != null && IsInsideNameOf(syntaxNode))
+                continue;
 
-                var text = await loc.Document.GetTextAsync();
-                var linePos = text.Lines.GetLineFromPosition(span.Start);
-                var lineNumber = linePos.LineNumber + 1;
-                var lineText = linePos.ToString().TrimStart();
+            var text = await loc.Document.GetTextAsync();
+            var linePos = text.Lines.GetLineFromPosition(span.Start);
+            var lineNumber = linePos.LineNumber + 1;
+            var lineText = linePos.ToString().TrimStart();
 
-                trueRefs.Add((filePath, lineNumber, lineText));
-            }
+            trueRefs.Add((filePath, lineNumber, lineText));
         }
 
         if (trueRefs.Count > 0)
@@ -92,7 +92,7 @@ internal class SafeDeleteService : IRtService
         var doc = sln.Projects
             .SelectMany(p => p.Documents)
             .FirstOrDefault(d => d.FilePath != null &&
-                string.Equals(d.FilePath, syntaxTree.FilePath, StringComparison.OrdinalIgnoreCase));
+                                 string.Equals(d.FilePath, syntaxTree.FilePath, StringComparison.OrdinalIgnoreCase));
 
         if (doc == null)
             throw new InvalidOperationException($"Cannot find document for '{sym.Name}'.");
@@ -113,7 +113,6 @@ internal class SafeDeleteService : IRtService
             return await _symbols.FindSymbolByFqnAsync(sln, symbol, kind);
 
         if (kind is null)
-        {
             try
             {
                 return await _symbols.FindSymbolAsync(sln, symbol, "type");
@@ -123,13 +122,13 @@ internal class SafeDeleteService : IRtService
             {
                 // Fall back to the broader lookup so explicit member-like simple names keep working.
             }
-        }
 
         return await _symbols.FindSymbolAsync(sln, symbol, kind);
     }
 
-    internal SyntaxNode? FindDeclarationNode(SyntaxNode node) =>
-        node switch
+    internal SyntaxNode? FindDeclarationNode(SyntaxNode node)
+    {
+        return node switch
         {
             ClassDeclarationSyntax => node,
             InterfaceDeclarationSyntax => node,
@@ -143,6 +142,7 @@ internal class SafeDeleteService : IRtService
             EventDeclarationSyntax => node,
             _ => null
         };
+    }
 
     internal bool IsInsideNameOf(SyntaxNode node)
     {
@@ -150,11 +150,9 @@ internal class SafeDeleteService : IRtService
         while (current != null)
         {
             if (current is InvocationExpressionSyntax invocation)
-            {
                 if (invocation.Expression is IdentifierNameSyntax id &&
                     id.Identifier.ValueText == "nameof")
                     return true;
-            }
 
             if (current is StatementSyntax or MemberDeclarationSyntax)
                 break;

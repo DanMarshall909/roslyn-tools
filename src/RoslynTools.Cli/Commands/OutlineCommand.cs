@@ -7,15 +7,18 @@ namespace RoslynTools.Commands;
 
 internal sealed class OutlineCommand : IRtCommand
 {
-    private OutlineCommand() { }
+    private OutlineCommand()
+    {
+    }
 
     public static RtCommandInfo Info { get; } = new(
-        Name: "outline",
-        Mutates: false,
-        JsonOutput: true,
-        Category: "inspect",
+        "outline",
+        false,
+        true,
+        "inspect",
         Aliases: null,
-        WhenToUse: "Getting a JSON summary of all types and member signatures in a file or namespace without reading the raw source. Useful for agents to orient themselves in an unfamiliar module before planning a refactor, or to diff the public surface area across branches.",
+        WhenToUse:
+        "Getting a JSON summary of all types and member signatures in a file or namespace without reading the raw source. Useful for agents to orient themselves in an unfamiliar module before planning a refactor, or to diff the public surface area across branches.",
         Examples:
         [
             "rt inspect outline src/backend/TourStore.Api/Controllers/Admin/AdminController.cs --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
@@ -23,7 +26,7 @@ internal sealed class OutlineCommand : IRtCommand
             "rt inspect outline RoslynTools.Commands --solution RoslynTools.slnx",
             "rt inspect outline \"src/**/*.cs\" --solution RoslynTools.slnx",
             "rt inspect outline \"RoslynTools.*\" --solution RoslynTools.slnx",
-            "rt inspect outline --regex \"Service\\.cs$\" --solution RoslynTools.slnx",
+            "rt inspect outline --regex \"Service\\.cs$\" --solution RoslynTools.slnx"
         ]
     );
 
@@ -33,41 +36,53 @@ internal sealed class OutlineCommand : IRtCommand
         var solutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file");
         var regexOpt = new Option<string?>("--regex", "Regex pattern matched against solution file paths");
 
-        var cmd = new Command("outline", "List all types and member signatures in a file, glob, namespace, or regex (JSON)")
+        var cmd = new Command("outline",
+            "List all types and member signatures in a file, glob, namespace, or regex (JSON)")
         {
             targetArg, solutionOpt, regexOpt
         };
 
         cmd.SetHandler(async (target, solution, regex) =>
-        {
-            var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
-            using (workspace)
             {
-                List<Dictionary<string, object?>> result;
-                var svc = RtServiceProvider.Get<OutlineService>();
-
-                if (regex is not null)
-                    result = await svc.OutlineRegexAsync(sln, regex);
-                else if (target is not null && target.EndsWith(".*", StringComparison.Ordinal)
-                    && !target.Contains('/') && !target.Contains('\\'))
-                    result = await svc.OutlineNamespaceAsync(sln, target);
-                else if (target is not null && (target.Contains('*') || target.Contains('?')))
-                    result = await svc.OutlineGlobAsync(sln, target);
-                else if (target is not null && (target.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) || Path.Exists(target)))
-                    result = await svc.OutlineFileAsync(sln, target);
-                else if (target is not null)
-                    result = await svc.OutlineNamespaceAsync(sln, target);
-                else
+                var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
+                using (workspace)
                 {
-                    RtLog.Error("specify a target (file, glob, or namespace) or --regex <pattern>");
-                    Environment.Exit(1);
-                    return;
-                }
+                    List<Dictionary<string, object?>> result;
+                    var svc = RtServiceProvider.Get<OutlineService>();
 
-                StructuredOutput.Write(result, SymbolFormatter.DefaultJsonOptions);
-            }
-        },
-        targetArg, solutionOpt, regexOpt);
+                    if (regex is not null)
+                    {
+                        result = await svc.OutlineRegexAsync(sln, regex);
+                    }
+                    else if (target is not null && target.EndsWith(".*", StringComparison.Ordinal)
+                                                && !target.Contains('/') && !target.Contains('\\'))
+                    {
+                        result = await svc.OutlineNamespaceAsync(sln, target);
+                    }
+                    else if (target is not null && (target.Contains('*') || target.Contains('?')))
+                    {
+                        result = await svc.OutlineGlobAsync(sln, target);
+                    }
+                    else if (target is not null && (target.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) ||
+                                                    Path.Exists(target)))
+                    {
+                        result = await svc.OutlineFileAsync(sln, target);
+                    }
+                    else if (target is not null)
+                    {
+                        result = await svc.OutlineNamespaceAsync(sln, target);
+                    }
+                    else
+                    {
+                        RtLog.Error("specify a target (file, glob, or namespace) or --regex <pattern>");
+                        Environment.Exit(1);
+                        return;
+                    }
+
+                    StructuredOutput.Write(result, SymbolFormatter.DefaultJsonOptions);
+                }
+            },
+            targetArg, solutionOpt, regexOpt);
 
         return cmd;
     }

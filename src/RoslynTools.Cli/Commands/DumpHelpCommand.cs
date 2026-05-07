@@ -1,22 +1,24 @@
 using System.CommandLine;
+using System.CommandLine.Help;
 using System.Text;
 using RoslynTools.Core;
 
 namespace RoslynTools.Commands;
 
 /// <summary>
-/// Displays the full command reference by walking the registry in <see cref="App"/>.
-/// When stdout is a terminal: coloured, categorised output.
-/// When stdout is redirected (e.g. the post-build MSBuild target): Markdown suitable for <c>docs/COMMANDS.md</c>.
-/// Hidden from <c>rt --help</c> to keep the top-level list clean.
+///     Displays the full command reference by walking the registry in <see cref="App" />.
+///     When stdout is a terminal: coloured, categorised output.
+///     When stdout is redirected (e.g. the post-build MSBuild target): Markdown suitable for <c>docs/COMMANDS.md</c>.
+///     Hidden from <c>rt --help</c> to keep the top-level list clean.
 /// </summary>
 internal static class DumpHelpCommand
 {
     internal static Command Build()
     {
-        var cmd = new Command("dump-help", "Show the full command reference (coloured in terminal, Markdown when piped)")
+        var cmd = new Command("dump-help",
+            "Show the full command reference (coloured in terminal, Markdown when piped)")
         {
-            IsHidden = true,
+            IsHidden = true
         };
 
         cmd.SetHandler(() =>
@@ -44,10 +46,7 @@ internal static class DumpHelpCommand
         BuildHeader(sb, registry);
         BuildContents(sb, byCategory);
 
-        foreach (var group in byCategory)
-        {
-            BuildGroupSection(sb, group);
-        }
+        foreach (var group in byCategory) BuildGroupSection(sb, group);
 
         return sb.ToString();
     }
@@ -56,11 +55,13 @@ internal static class DumpHelpCommand
     {
         sb.AppendLine("# rt Commands");
         sb.AppendLine();
-        sb.AppendLine("Auto-generated on every `dotnet build` from each command's static `RtCommandInfo Info` property. **Do not hand-edit.**");
+        sb.AppendLine(
+            "Auto-generated on every `dotnet build` from each command's static `RtCommandInfo Info` property. **Do not hand-edit.**");
         sb.AppendLine();
         sb.AppendLineF($"Total commands: **{registry.Count}**");
         sb.AppendLine();
-        sb.AppendLine("Commands are filed under one of three groups: `inspect`, `analyze`, `refactor`. Invoke either way:");
+        sb.AppendLine(
+            "Commands are filed under one of three groups: `inspect`, `analyze`, `refactor`. Invoke either way:");
         sb.AppendLine();
         sb.AppendLine("```bash");
         sb.AppendLine("rt <group> <command> [args...]   # canonical form");
@@ -69,7 +70,8 @@ internal static class DumpHelpCommand
         sb.AppendLine();
     }
 
-    internal static void BuildContents(StringBuilder sb, IEnumerable<IGrouping<string, (Command Cmd, RtCommandInfo Info)>> byCategory)
+    internal static void BuildContents(StringBuilder sb,
+        IEnumerable<IGrouping<string, (Command Cmd, RtCommandInfo Info)>> byCategory)
     {
         sb.AppendLine("## Contents");
         sb.AppendLine();
@@ -77,8 +79,10 @@ internal static class DumpHelpCommand
         {
             var desc = App.GroupDescriptions.TryGetValue(group.Key, out var d) ? d : "";
             sb.AppendLineF($"- **`rt {group.Key}`** — {desc}");
-            sb.AppendLineF($"  - {string.Join(", ", group.OrderBy(e => e.Info.Name).Select(e => $"[`{e.Info.Name}`](#{Anchor(e.Info.Name)}){(e.Info.Aliases is { Length: > 0 } a ? $" ({string.Join("/", a)})" : "")}"))}");
+            sb.AppendLineF(
+                $"  - {string.Join(", ", group.OrderBy(e => e.Info.Name).Select(e => $"[`{e.Info.Name}`](#{Anchor(e.Info.Name)}){(e.Info.Aliases is { Length: > 0 } a ? $" ({string.Join("/", a)})" : "")}"))}");
         }
+
         sb.AppendLine();
     }
 
@@ -88,10 +92,7 @@ internal static class DumpHelpCommand
         sb.AppendLineF($"## `rt {group.Key}` — {desc}");
         sb.AppendLine();
 
-        foreach (var (c, info) in group.OrderBy(e => e.Info.Name))
-        {
-            BuildCommandSection(sb, c, info);
-        }
+        foreach (var (c, info) in group.OrderBy(e => e.Info.Name)) BuildCommandSection(sb, c, info);
     }
 
     internal static void BuildCommandSection(StringBuilder sb, Command c, RtCommandInfo info)
@@ -105,7 +106,7 @@ internal static class DumpHelpCommand
         var badges = new List<string>
         {
             info.Mutates ? "**Mutation** (writes files)" : "**Read-only**",
-            info.JsonOutput ? "JSON output" : "Plain-text output",
+            info.JsonOutput ? "JSON output" : "Plain-text output"
         };
         sb.AppendLine(string.Join(" | ", badges));
         sb.AppendLine();
@@ -126,10 +127,7 @@ internal static class DumpHelpCommand
             sb.AppendLine("**Examples:**");
             sb.AppendLine();
             sb.AppendLine("```bash");
-            foreach (var ex in info.Examples)
-            {
-                sb.AppendLine(ex);
-            }
+            foreach (var ex in info.Examples) sb.AppendLine(ex);
             sb.AppendLine("```");
             sb.AppendLine();
         }
@@ -138,10 +136,7 @@ internal static class DumpHelpCommand
         {
             sb.AppendLine("**Known issues:**");
             sb.AppendLine();
-            foreach (var issue in info.KnownIssues)
-            {
-                sb.AppendLineF($"- {issue}");
-            }
+            foreach (var issue in info.KnownIssues) sb.AppendLineF($"- {issue}");
             sb.AppendLine();
         }
 
@@ -171,9 +166,8 @@ internal static class DumpHelpCommand
                 RtConsole.Write(RtOutputContext.Ui, $"  {info.Name}", ConsoleColor.White);
 
                 if (info.Aliases is { Length: > 0 })
-                {
-                    RtConsole.Write(RtOutputContext.Ui, $"  ({string.Join(", ", info.Aliases)})", ConsoleColor.DarkGray);
-                }
+                    RtConsole.Write(RtOutputContext.Ui, $"  ({string.Join(", ", info.Aliases)})",
+                        ConsoleColor.DarkGray);
 
                 RtConsole.Write(RtOutputContext.Ui, info.Mutates ? "  writes" : "  read-only",
                     info.Mutates ? ConsoleColor.DarkRed : ConsoleColor.DarkGreen);
@@ -186,21 +180,80 @@ internal static class DumpHelpCommand
         }
     }
 
-    private static ConsoleColor CategoryColour(string category) => category switch
+    internal static void RenderColouredGroup(
+        string category,
+        IReadOnlyList<(Command Cmd, RtCommandInfo Info)> snapshot)
     {
-        "inspect" => ConsoleColor.Cyan,
-        "analyze" => ConsoleColor.Yellow,
-        "refactor" => ConsoleColor.Magenta,
-        _ => ConsoleColor.White,
-    };
+        var desc = App.GroupDescriptions.TryGetValue(category, out var d) ? d : "";
+        RtConsole.WriteLine(RtOutputContext.Ui);
+        RtConsole.Write(RtOutputContext.Ui, $"  rt {category}", CategoryColour(category));
+        RtConsole.WriteLine(RtOutputContext.Ui, $"   — {desc}", ConsoleColor.DarkGray);
+        RtConsole.WriteLine(RtOutputContext.Ui, "  " + new string('─', 52), ConsoleColor.DarkGray);
+        RtConsole.WriteLine(RtOutputContext.Ui);
 
-    private static int CategoryOrder(string category) => category switch
+        foreach (var (c, info) in snapshot.OrderBy(e => e.Info.Name))
+        {
+            RtConsole.Write(RtOutputContext.Ui, $"    {info.Name}", ConsoleColor.White);
+            if (info.Aliases is { Length: > 0 })
+                RtConsole.Write(RtOutputContext.Ui, $"  ({string.Join(", ", info.Aliases)})", ConsoleColor.DarkGray);
+            RtConsole.Write(RtOutputContext.Ui, info.Mutates ? "  writes" : "  read-only",
+                info.Mutates ? ConsoleColor.DarkRed : ConsoleColor.DarkGreen);
+            RtConsole.WriteLine(RtOutputContext.Ui);
+            RtConsole.WriteLine(RtOutputContext.Ui, $"      {c.Description}", ConsoleColor.Gray);
+        }
+
+        RtConsole.WriteLine(RtOutputContext.Ui);
+    }
+
+    internal static void RenderColouredCommandHeader(HelpContext ctx, RtCommandInfo info)
     {
-        "inspect" => 0,
-        "analyze" => 1,
-        "refactor" => 2,
-        _ => 3,
-    };
+        RtConsole.WriteLine(RtOutputContext.Ui);
+        RtConsole.Write(RtOutputContext.Ui, $"  rt {info.Name}", ConsoleColor.White);
+        if (info.Aliases is { Length: > 0 })
+            RtConsole.Write(RtOutputContext.Ui, $"  ({string.Join(", ", info.Aliases)})", ConsoleColor.DarkGray);
+        RtConsole.Write(RtOutputContext.Ui, info.Mutates ? "  writes" : "  read-only",
+            info.Mutates ? ConsoleColor.DarkRed : ConsoleColor.DarkGreen);
+        RtConsole.WriteLine(RtOutputContext.Ui);
+        RtConsole.WriteLine(RtOutputContext.Ui, $"  {ctx.Command.Description}", ConsoleColor.Gray);
+        RtConsole.WriteLine(RtOutputContext.Ui);
+        RtConsole.WriteLine(RtOutputContext.Ui, "  When to use:", ConsoleColor.White);
+        RtConsole.WriteLine(RtOutputContext.Ui, $"  {info.WhenToUse}", ConsoleColor.Gray);
+        RtConsole.WriteLine(RtOutputContext.Ui);
+        if (info.Examples is { Length: > 0 })
+        {
+            RtConsole.WriteLine(RtOutputContext.Ui, "  Examples:", ConsoleColor.White);
+            foreach (var ex in info.Examples)
+                RtConsole.WriteLine(RtOutputContext.Ui, $"    {ex}", ConsoleColor.DarkCyan);
+            RtConsole.WriteLine(RtOutputContext.Ui);
+        }
 
-    private static string Anchor(string name) => name.ToLowerInvariant().Replace(' ', '-');
+        RtConsole.WriteLine(RtOutputContext.Ui, "  " + new string('─', 52), ConsoleColor.DarkGray);
+    }
+
+    private static ConsoleColor CategoryColour(string category)
+    {
+        return category switch
+        {
+            "inspect" => ConsoleColor.Cyan,
+            "analyze" => ConsoleColor.Yellow,
+            "refactor" => ConsoleColor.Magenta,
+            _ => ConsoleColor.White
+        };
+    }
+
+    private static int CategoryOrder(string category)
+    {
+        return category switch
+        {
+            "inspect" => 0,
+            "analyze" => 1,
+            "refactor" => 2,
+            _ => 3
+        };
+    }
+
+    private static string Anchor(string name)
+    {
+        return name.ToLowerInvariant().Replace(' ', '-');
+    }
 }

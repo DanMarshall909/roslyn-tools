@@ -6,32 +6,37 @@ namespace RoslynTools.Commands;
 
 internal sealed class NarrowDependencyCommand : IRtCommand
 {
-    private NarrowDependencyCommand() { }
+    private NarrowDependencyCommand()
+    {
+    }
 
     public static RtCommandInfo Info { get; } = new(
-        Name: "narrow-dependency",
-        Mutates: true,
-        JsonOutput: false,
-        Category: "refactor",
+        "narrow-dependency",
+        true,
+        false,
+        "refactor",
         Aliases: ["nd"],
-        WhenToUse: "Interface-segregation refactoring: extracts a named subset of an interface's members into a new narrower interface and rewrites consumers that only use that subset to depend on the narrower type. Consumers that require members outside the subset are left unchanged and reported. DI registration updates are reported as a manual follow-up.",
+        WhenToUse:
+        "Interface-segregation refactoring: extracts a named subset of an interface's members into a new narrower interface and rewrites consumers that only use that subset to depend on the narrower type. Consumers that require members outside the subset are left unchanged and reported. DI registration updates are reported as a manual follow-up.",
         Examples:
         [
             "rt refactor narrow-dependency IWideFacade --members Send --new-name ISender --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt refactor nd IEmailService --members Send,SendBulk --new-name IEmailSender --solution RoslynTools.slnx --dry-run",
-            "rt refactor narrow-dependency ProjectX.Core.IRepository --members GetById,GetAll --new-name IReadOnlyRepository --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt refactor narrow-dependency ProjectX.Core.IRepository --members GetById,GetAll --new-name IReadOnlyRepository --solution C:\\code\\libraries\\ProjectX.Libraries.sln"
         ]
     );
 
     public static Command Build()
     {
         var interfaceArg = new Argument<string>("interface", "Source interface to extract members from");
-        var membersOpt = new Option<string[]>("--members", "Comma-separated or repeated member names to extract") { IsRequired = true, AllowMultipleArgumentsPerToken = true };
+        var membersOpt = new Option<string[]>("--members", "Comma-separated or repeated member names to extract")
+            { IsRequired = true, AllowMultipleArgumentsPerToken = true };
         var newNameOpt = CommandOptionFactory.CreateStringOption("--new-name", "Name for the new narrower interface");
         var solutionOpt = CommandOptionFactory.CreateSolutionOption();
         var dryRunOpt = CommandOptionFactory.CreateDryRunOption();
 
-        var cmd = new Command("narrow-dependency", "Extract a member subset into a new interface and narrow consumers that only use that subset");
+        var cmd = new Command("narrow-dependency",
+            "Extract a member subset into a new interface and narrow consumers that only use that subset");
         cmd.AddAlias("nd");
         cmd.Add(interfaceArg);
         cmd.AddAll(membersOpt, newNameOpt, solutionOpt, dryRunOpt);
@@ -59,8 +64,8 @@ internal sealed class NarrowDependencyCommand : IRtCommand
         var (workspace, sln) = await WorkspaceLoader.LoadAsync(solutionPath);
         using (workspace)
         {
-            await RtServiceProvider.Get<NarrowDependencyService>().ExecuteAsync(sln, sourceInterface, members, newInterfaceName, dryRun);
+            await RtServiceProvider.Get<NarrowDependencyService>()
+                .ExecuteAsync(sln, sourceInterface, members, newInterfaceName, dryRun);
         }
     }
 }
-

@@ -1,14 +1,13 @@
 using System.Text;
 using System.Text.Json;
-using RoslynTools;
 using RoslynTools.Core;
 
 namespace RoslynTools.Mcp.Tools;
 
 internal sealed class CliCommandBridge
 {
-    private readonly IServiceProvider _services;
     private readonly Dictionary<string, List<string>> _positionalArgNames;
+    private readonly IServiceProvider _services;
 
     public CliCommandBridge(IServiceProvider services)
     {
@@ -101,8 +100,10 @@ internal sealed class CliCommandBridge
         return [.. list];
     }
 
-    private static string GetValue(JsonElement element) =>
-        element.ValueKind == JsonValueKind.String
+    private static string GetValue(JsonElement element)
+    {
+        return element.ValueKind == JsonValueKind.String
             ? element.GetString()!
             : element.ToString();
+    }
 }

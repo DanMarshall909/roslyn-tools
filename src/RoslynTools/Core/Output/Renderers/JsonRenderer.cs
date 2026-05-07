@@ -15,7 +15,7 @@ internal static class JsonRenderer
         }
 
         var obj = BuildObject(result, OutputLevel.Detailed);
-        var json = JsonSerializer.Serialize(obj, Core.SymbolFormatter.DefaultJsonOptions);
+        var json = JsonSerializer.Serialize(obj, SymbolFormatter.DefaultJsonOptions);
         writer.Write(json);
     }
 
@@ -47,10 +47,7 @@ internal static class JsonRenderer
         if (value is IEnumerable enumerable && value is not string)
         {
             var list = new List<object?>();
-            foreach (var item in enumerable)
-            {
-                list.Add(item is IRtOutput rtItem ? BuildObject(rtItem, maxLevel) : item);
-            }
+            foreach (var item in enumerable) list.Add(item is IRtOutput rtItem ? BuildObject(rtItem, maxLevel) : item);
             return list;
         }
 

@@ -2,15 +2,15 @@ using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
-using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class AddParamService : IRtService
 {
-    private readonly ISymbolResolutionService _symbols;
     private readonly ParameterChangeHelper _parameterChangeHelper;
+    private readonly ISymbolResolutionService _symbols;
 
     public AddParamService()
         : this(new ParameterChangeHelper())
@@ -36,27 +36,21 @@ internal class AddParamService : IRtService
         // Parse the parameter spec using SyntaxFactory
         var parsedList = SyntaxFactory.ParseParameterList($"({paramSpec})");
         if (parsedList.Parameters.Count != 1)
-        {
             throw new InvalidOperationException(
                 $"Could not parse '{paramSpec}' as a single parameter declaration.");
-        }
 
         var newParam = parsedList.Parameters[0];
 
         // Require a default value so existing call sites remain valid
         if (newParam.Default is null)
-        {
             throw new InvalidOperationException(
                 "A default value is required for add-param (the new parameter must not break existing call sites).");
-        }
 
         // Check for name conflict
         var newParamName = newParam.Identifier.Text;
         if (methodSymbol.Parameters.Any(p => p.Name == newParamName))
-        {
             throw new InvalidOperationException(
                 $"Method '{methodSpec}' already has a parameter named '{newParamName}'.");
-        }
 
         // Determine insertion index
         int insertAfterIndex;
@@ -67,20 +61,16 @@ internal class AddParamService : IRtService
         else
         {
             var afterIndex = -1;
-            for (int i = 0; i < methodSymbol.Parameters.Length; i++)
-            {
+            for (var i = 0; i < methodSymbol.Parameters.Length; i++)
                 if (methodSymbol.Parameters[i].Name == afterParam)
                 {
                     afterIndex = i;
                     break;
                 }
-            }
 
             if (afterIndex < 0)
-            {
                 throw new InvalidOperationException(
                     $"Parameter '{afterParam}' was not found on '{methodSpec}'.");
-            }
 
             insertAfterIndex = afterIndex;
         }

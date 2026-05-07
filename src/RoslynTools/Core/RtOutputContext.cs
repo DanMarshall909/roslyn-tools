@@ -8,5 +8,5 @@ internal enum RtOutputContext
     Result = 1 << 1,
     Diff = 1 << 2,
     Interactive = 1 << 3,
-    Ui = 1 << 4,
+    Ui = 1 << 4
 }

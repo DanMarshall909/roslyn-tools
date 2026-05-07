@@ -6,20 +6,23 @@ namespace RoslynTools.Commands;
 
 internal sealed class MakeAsyncCommand : IRtCommand
 {
-    private MakeAsyncCommand() { }
+    private MakeAsyncCommand()
+    {
+    }
 
     public static RtCommandInfo Info { get; } = new(
-        Name: "make-async",
-        Mutates: true,
-        JsonOutput: false,
-        Category: "refactor",
+        "make-async",
+        true,
+        false,
+        "refactor",
         Aliases: ["ma"],
-        WhenToUse: "Converting a synchronous method to async Task<T> and updating its direct call sites with await, without manually hunting every invocation. Use --no-rename to skip the Async suffix when the call sites already have naming that makes async clear.",
+        WhenToUse:
+        "Converting a synchronous method to async Task<T> and updating its direct call sites with await, without manually hunting every invocation. Use --no-rename to skip the Async suffix when the call sites already have naming that makes async clear.",
         Examples:
         [
             "rt refactor make-async --type BookingService --method Save --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt refactor ma --type EmailSender --method Send --no-rename --dry-run",
-            "rt refactor make-async --type HeroApiClient --method FetchAvailability --solution RoslynTools.slnx",
+            "rt refactor make-async --type HeroApiClient --method FetchAvailability --solution RoslynTools.slnx"
         ]
     );
 
@@ -35,18 +38,22 @@ internal sealed class MakeAsyncCommand : IRtCommand
         cmd.AddAlias("ma");
         cmd.AddAll(typeOpt, methodOpt, noRenameOpt, solutionOpt, dryRunOpt);
 
-        cmd.SetHandler(async (type, method, noRename, solution, dryRun) =>
-        {
-            await ExecuteAsync(type, method, noRename, solution, dryRun);
-        }, typeOpt, methodOpt, noRenameOpt, solutionOpt, dryRunOpt);
+        cmd.SetHandler(
+            async (type, method, noRename, solution, dryRun) =>
+            {
+                await ExecuteAsync(type, method, noRename, solution, dryRun);
+            }, typeOpt, methodOpt, noRenameOpt, solutionOpt, dryRunOpt);
 
         return cmd;
     }
 
-    internal static async Task ExecuteAsync(string typeName, string methodName, bool noRename, string? solutionPath, bool dryRun)
+    internal static async Task ExecuteAsync(string typeName, string methodName, bool noRename, string? solutionPath,
+        bool dryRun)
     {
         var (workspace, sln) = await WorkspaceLoader.LoadAsync(solutionPath);
         using (workspace)
+        {
             await RtServiceProvider.Get<MakeAsyncService>().RunAsync(sln, typeName, methodName, noRename, dryRun);
+        }
     }
 }

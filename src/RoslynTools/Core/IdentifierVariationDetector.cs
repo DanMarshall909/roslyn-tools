@@ -4,28 +4,28 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace RoslynTools.Core;
 
 /// <summary>
-/// Detects which identifier positions (by traversal order within the extracted block)
-/// vary across structural duplicates. Used by MethodExtractorDuplicates (Phase 2)
-/// to determine which identifiers should be parameterized.
+///     Detects which identifier positions (by traversal order within the extracted block)
+///     vary across structural duplicates. Used by MethodExtractorDuplicates (Phase 2)
+///     to determine which identifiers should be parameterized.
 /// </summary>
 internal static class IdentifierVariationDetector
 {
     /// <summary>
-    /// Given the ordered list of identifiers in the pattern block (in traversal order)
-    /// and the Substitutions map for each match, returns the set of positional indices
-    /// where the identifier value differs from the pattern across any match.
+    ///     Given the ordered list of identifiers in the pattern block (in traversal order)
+    ///     and the Substitutions map for each match, returns the set of positional indices
+    ///     where the identifier value differs from the pattern across any match.
     /// </summary>
     /// <param name="patternIdentifiers">
-    ///   Ordered identifiers from the source/pattern block (extracted via
-    ///   <see cref="ExtractOrderedIdentifiers"/>). These are the canonical names.
+    ///     Ordered identifiers from the source/pattern block (extracted via
+    ///     <see cref="ExtractOrderedIdentifiers" />). These are the canonical names.
     /// </param>
     /// <param name="matchSubstitutions">
-    ///   Per-match Substitutions dictionaries from <see cref="PatternMatch"/>.
-    ///   Each maps pattern identifier name → the actual name used at that match site.
+    ///     Per-match Substitutions dictionaries from <see cref="PatternMatch" />.
+    ///     Each maps pattern identifier name → the actual name used at that match site.
     /// </param>
     /// <returns>
-    ///   Set of positions (0-based, in <paramref name="patternIdentifiers"/> order)
-    ///   where at least one match uses a different identifier than the pattern.
+    ///     Set of positions (0-based, in <paramref name="patternIdentifiers" /> order)
+    ///     where at least one match uses a different identifier than the pattern.
     /// </returns>
     internal static HashSet<int> FindVaryingPositions(
         IReadOnlyList<string> patternIdentifiers,
@@ -36,7 +36,7 @@ internal static class IdentifierVariationDetector
         if (patternIdentifiers.Count == 0 || matchSubstitutions.Count == 0)
             return varyingPositions;
 
-        for (int pos = 0; pos < patternIdentifiers.Count; pos++)
+        for (var pos = 0; pos < patternIdentifiers.Count; pos++)
         {
             var patternName = patternIdentifiers[pos];
 
@@ -57,10 +57,10 @@ internal static class IdentifierVariationDetector
     }
 
     /// <summary>
-    /// Extracts all simple identifier references (IdentifierNameSyntax) from a block
-    /// in traversal order. Filters out identifiers that are declared within the block
-    /// itself (those are internal locals and don't need parameterization).
-    /// Only captures identifiers that resolve to symbols declared outside the block.
+    ///     Extracts all simple identifier references (IdentifierNameSyntax) from a block
+    ///     in traversal order. Filters out identifiers that are declared within the block
+    ///     itself (those are internal locals and don't need parameterization).
+    ///     Only captures identifiers that resolve to symbols declared outside the block.
     /// </summary>
     internal static List<string> ExtractOrderedIdentifiers(
         IReadOnlyList<StatementSyntax> statements)
@@ -73,9 +73,9 @@ internal static class IdentifierVariationDetector
     }
 
     /// <summary>
-    /// Walks statements collecting all simple IdentifierNameSyntax references in
-    /// traversal order. Excludes identifiers on the left-hand side of declarations
-    /// (those are being introduced by the block, not referenced from outside).
+    ///     Walks statements collecting all simple IdentifierNameSyntax references in
+    ///     traversal order. Excludes identifiers on the left-hand side of declarations
+    ///     (those are being introduced by the block, not referenced from outside).
     /// </summary>
     private sealed class OrderedIdentifierVisitor : CSharpSyntaxWalker
     {

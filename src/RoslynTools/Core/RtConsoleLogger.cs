@@ -5,10 +5,15 @@ namespace RoslynTools.Core;
 internal sealed class RtConsoleLogger<T> : ILogger<T>
 {
     public IDisposable? BeginScope<TState>(TState state)
-        where TState : notnull =>
-        NullScope.Instance;
+        where TState : notnull
+    {
+        return NullScope.Instance;
+    }
 
-    public bool IsEnabled(LogLevel logLevel) => logLevel != LogLevel.None;
+    public bool IsEnabled(LogLevel logLevel)
+    {
+        return logLevel != LogLevel.None;
+    }
 
     public void Log<TState>(
         LogLevel logLevel,
@@ -27,13 +32,15 @@ internal sealed class RtConsoleLogger<T> : ILogger<T>
         RtConsole.Log(ToRtLogLevel(logLevel), "{Message}", message);
     }
 
-    private static RtLogLevel ToRtLogLevel(LogLevel level) =>
-        level switch
+    private static RtLogLevel ToRtLogLevel(LogLevel level)
+    {
+        return level switch
         {
             LogLevel.Warning => RtLogLevel.Warning,
             LogLevel.Error or LogLevel.Critical => RtLogLevel.Error,
-            _ => RtLogLevel.Info,
+            _ => RtLogLevel.Info
         };
+    }
 
     private sealed class NullScope : IDisposable
     {

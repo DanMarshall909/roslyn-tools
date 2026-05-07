@@ -7,13 +7,12 @@ namespace RoslynTools.Core;
 internal static class MethodExtractor
 {
     /// <summary>
-    /// Extracts statements within <paramref name="startLine"/>–<paramref name="endLine"/> (1-based, inclusive)
-    /// from the method that contains them, placing a new private method named <paramref name="newMethodName"/>
-    /// at the specified position within the same type.
-    ///
-    /// If the selected statements form a guard clause (if (cond) return value;) the extractor
-    /// automatically unwraps the pattern: the new method returns bool and the call site becomes
-    /// <c>if (NewMethod(...)) return value;</c>.
+    ///     Extracts statements within <paramref name="startLine" />–<paramref name="endLine" /> (1-based, inclusive)
+    ///     from the method that contains them, placing a new private method named <paramref name="newMethodName" />
+    ///     at the specified position within the same type.
+    ///     If the selected statements form a guard clause (if (cond) return value;) the extractor
+    ///     automatically unwraps the pattern: the new method returns bool and the call site becomes
+    ///     <c>if (NewMethod(...)) return value;</c>.
     /// </summary>
     internal static async Task<Solution> ExtractAsync(
         Solution solution,
@@ -27,7 +26,7 @@ internal static class MethodExtractor
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(startLine, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(endLine, 1);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(startLine, endLine, nameof(startLine));
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(startLine, endLine);
 
         if (insertAfter != null && insertBefore != null)
             throw new InvalidOperationException("--after and --before are mutually exclusive.");
@@ -37,11 +36,9 @@ internal static class MethodExtractor
         // ── Guard-pattern unwinding ───────────────────────────────────────────
         var cfClass = ControlFlowUnwinder.Classify(selected);
         if (cfClass.Strategy == ControlFlowStrategy.ExtractAsBoolGuard)
-        {
             return await ExtractGuardAsync(
                 solution, doc, root, model, selected, newMethodName,
                 insertAfter, insertBefore, replaceDuplicates, filePath);
-        }
 
         // ── Standard extraction path (no control-flow escape) ─────────────────
         var flow = ValidateDataFlow(model, selected);
@@ -49,16 +46,19 @@ internal static class MethodExtractor
         var (containingMethod, containingType, isStatic) = FindContainingContext(selected);
 
         // ── 7. Build new method ───────────────────────────────────────────────
-        var newMethod = MethodExtractorBuilder.BuildNewMethod(newMethodName, orderedParams, refParams, outParams, returnVars, selected, model, isStatic);
+        var newMethod = MethodExtractorBuilder.BuildNewMethod(newMethodName, orderedParams, refParams, outParams,
+            returnVars, selected, model, isStatic);
 
         // ── 8. Build call site ────────────────────────────────────────────────
-        var callSite = MethodExtractorBuilder.BuildCallSite(newMethodName, orderedParams, refParams, outParams, returnVars, selected.First());
+        var callSite = MethodExtractorBuilder.BuildCallSite(newMethodName, orderedParams, refParams, outParams,
+            returnVars, selected.First());
 
         // ── 9. Splice call site into the original block ───────────────────────
         var newContainingMethod = SpliceCallSite(selected, callSite, containingMethod);
 
         // ── 10. Replace the containing method in the type, then insert the new method ──
-        var finalType = InsertNewMethod(containingType, containingMethod, newContainingMethod, newMethod, insertAfter, insertBefore);
+        var finalType = InsertNewMethod(containingType, containingMethod, newContainingMethod, newMethod, insertAfter,
+            insertBefore);
         var newRoot = root.ReplaceNode(containingType, finalType);
 
         var extractedSln = solution.WithDocumentSyntaxRoot(doc.Id, newRoot);
@@ -108,17 +108,15 @@ internal static class MethodExtractor
     {
         // The guard must be a single if-statement (could be 1 stmt or multi-stmt with void guards)
         // For a single if-statement guard:
-        IfStatementSyntax? ifStmt = selected.Count == 1
+        var ifStmt = selected.Count == 1
             ? selected[0] as IfStatementSyntax
             : null;
 
         if (ifStmt == null)
-        {
             // Multi-statement void guard block — fall back to standard extraction error
             throw new InvalidOperationException(
                 "Cannot extract statements that contain return statements. " +
                 "Multi-statement guard blocks with void returns are not yet auto-extractable.");
-        }
 
         // Collect parameters that flow into the condition from outside
         var flow = model.AnalyzeDataFlow(ifStmt);
@@ -143,14 +141,13 @@ internal static class MethodExtractor
         var seenParams = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
         var orderedParams = new List<ISymbol>();
         foreach (var id in ifStmt.Condition
-            .DescendantNodesAndSelf()
-            .OfType<IdentifierNameSyntax>()
-            .OrderBy(id => id.SpanStart))
+                     .DescendantNodesAndSelf()
+                     .OfType<IdentifierNameSyntax>()
+                     .OrderBy(id => id.SpanStart))
         {
             var sym = model.GetSymbolInfo(id).Symbol;
             if (sym == null) continue;
-            var match = dataFlowParams.FirstOrDefault(
-                p => SymbolEqualityComparer.Default.Equals(p, sym));
+            var match = dataFlowParams.FirstOrDefault(p => SymbolEqualityComparer.Default.Equals(p, sym));
             if (match != null && seenParams.Add(match))
                 orderedParams.Add(match);
         }
@@ -204,7 +201,7 @@ internal static class MethodExtractor
     }
 
     /// <summary>
-    /// Extracts the return expression (or null for void returns) from a guard if-statement.
+    ///     Extracts the return expression (or null for void returns) from a guard if-statement.
     /// </summary>
     private static ExpressionSyntax? ExtractReturnExpression(IfStatementSyntax ifStmt)
     {
@@ -223,8 +220,8 @@ internal static class MethodExtractor
     }
 
     /// <summary>
-    /// Builds a bool-returning method that extracts the guard condition:
-    /// <c>private [static] bool Name(params) { return condition; }</c>
+    ///     Builds a bool-returning method that extracts the guard condition:
+    ///     <c>private [static] bool Name(params) { return condition; }</c>
     /// </summary>
     private static MethodDeclarationSyntax BuildBoolGuardMethod(
         string name,
@@ -238,10 +235,12 @@ internal static class MethodExtractor
         var memberIndent = MethodExtractorBuilder.MemberIndentOf(anchorStmt);
         var bodyIndent = MethodExtractorBuilder.IndentOf(anchorStmt);
         var condText = condition.ToFullString().Trim();
-        var methodText = $"{modifiers} bool {name}({paramStr})\n{memberIndent}{{\n{bodyIndent}return {condText};\n{memberIndent}}}";
+        var methodText =
+            $"{modifiers} bool {name}({paramStr})\n{memberIndent}{{\n{bodyIndent}return {condText};\n{memberIndent}}}";
 
         var method = (MethodDeclarationSyntax)(SyntaxFactory.ParseMemberDeclaration(methodText)
-            ?? throw new InvalidOperationException("Failed to parse the generated guard method."));
+                                               ?? throw new InvalidOperationException(
+                                                   "Failed to parse the generated guard method."));
 
         return method.WithLeadingTrivia(
             SyntaxFactory.LineFeed,
@@ -249,8 +248,8 @@ internal static class MethodExtractor
     }
 
     /// <summary>
-    /// Builds the call site for a guard extraction:
-    /// <c>if (NewMethod(args)) return value;</c>
+    ///     Builds the call site for a guard extraction:
+    ///     <c>if (NewMethod(args)) return value;</c>
     /// </summary>
     private static StatementSyntax BuildGuardCallSite(
         string methodName,
@@ -271,8 +270,8 @@ internal static class MethodExtractor
     }
 
     /// <summary>
-    /// Locates the body statements of the newly-extracted method in the updated document
-    /// and returns the 1-based line range of those statements.
+    ///     Locates the body statements of the newly-extracted method in the updated document
+    ///     and returns the 1-based line range of those statements.
     /// </summary>
     private static async Task<(int startLine, int endLine)> FindNewMethodBodyRange(
         Solution solution,
@@ -281,17 +280,18 @@ internal static class MethodExtractor
     {
         var absPath = Path.GetFullPath(filePath);
         var doc = solution.Projects
-            .SelectMany(p => p.Documents)
-            .FirstOrDefault(d => string.Equals(d.FilePath, absPath, StringComparison.OrdinalIgnoreCase))
-            ?? throw new InvalidOperationException($"File not found in solution after extraction: {absPath}");
+                      .SelectMany(p => p.Documents)
+                      .FirstOrDefault(d => string.Equals(d.FilePath, absPath, StringComparison.OrdinalIgnoreCase))
+                  ?? throw new InvalidOperationException($"File not found in solution after extraction: {absPath}");
 
         var root = await doc.GetSyntaxRootAsync()
-            ?? throw new InvalidOperationException("Failed to get syntax root after extraction.");
+                   ?? throw new InvalidOperationException("Failed to get syntax root after extraction.");
 
         var newMethodDecl = root.DescendantNodes()
-            .OfType<MethodDeclarationSyntax>()
-            .FirstOrDefault(m => m.Identifier.Text == newMethodName)
-            ?? throw new InvalidOperationException($"Could not locate newly-extracted method '{newMethodName}' in {absPath}.");
+                                .OfType<MethodDeclarationSyntax>()
+                                .FirstOrDefault(m => m.Identifier.Text == newMethodName)
+                            ?? throw new InvalidOperationException(
+                                $"Could not locate newly-extracted method '{newMethodName}' in {absPath}.");
 
         var bodyStatements = newMethodDecl.Body?.Statements ?? [];
         // Filter out any trailing return statement that was generated (not part of the original body)
@@ -300,10 +300,8 @@ internal static class MethodExtractor
             .ToList();
 
         if (statements.Count == 0)
-        {
             // Fall back to all statements if body only has a return
             statements = bodyStatements.ToList();
-        }
 
         if (statements.Count == 0)
             throw new InvalidOperationException($"Extracted method '{newMethodName}' has no body statements.");
@@ -324,15 +322,15 @@ internal static class MethodExtractor
         // ── 1. Find document ──────────────────────────────────────────────────
         var absPath = Path.GetFullPath(filePath);
         var doc = solution.Projects
-            .SelectMany(p => p.Documents)
-            .FirstOrDefault(d => string.Equals(d.FilePath, absPath, StringComparison.OrdinalIgnoreCase))
-            ?? throw new InvalidOperationException($"File not found in solution: {absPath}");
+                      .SelectMany(p => p.Documents)
+                      .FirstOrDefault(d => string.Equals(d.FilePath, absPath, StringComparison.OrdinalIgnoreCase))
+                  ?? throw new InvalidOperationException($"File not found in solution: {absPath}");
 
         // ── 2. Get syntax root and semantic model ─────────────────────────────
         var root = await doc.GetSyntaxRootAsync()
-            ?? throw new InvalidOperationException("Failed to get syntax root.");
+                   ?? throw new InvalidOperationException("Failed to get syntax root.");
         var model = await doc.GetSemanticModelAsync()
-            ?? throw new InvalidOperationException("Failed to get semantic model.");
+                    ?? throw new InvalidOperationException("Failed to get semantic model.");
 
         // ── 3. Find statements in line range (Roslyn lines are 0-based) ───────
         var selected = root.DescendantNodes()
@@ -342,7 +340,7 @@ internal static class MethodExtractor
             {
                 var span = s.GetLocation().GetLineSpan();
                 return span.StartLinePosition.Line >= startLine - 1
-                    && span.EndLinePosition.Line <= endLine - 1;
+                       && span.EndLinePosition.Line <= endLine - 1;
             })
             .ToList();
 
@@ -362,10 +360,8 @@ internal static class MethodExtractor
         var cfClass = ControlFlowUnwinder.Classify(selected);
         if (cfClass.Strategy != ControlFlowStrategy.ExtractAsBoolGuard
             && selected.Any(s => s.DescendantNodesAndSelf().OfType<ReturnStatementSyntax>().Any()))
-        {
             throw new InvalidOperationException(
                 "Cannot extract statements that contain return statements.");
-        }
 
         return (doc, root, model, selected);
     }
@@ -399,14 +395,15 @@ internal static class MethodExtractor
     //   returnVars    — declared INSIDE the range and flow out (tuple/single return).
     // ────────────────────────────────────────────────────────────────────────────
 
-    private static (List<ISymbol> orderedParams, List<ISymbol> refParams, List<ISymbol> outParams, List<ISymbol> returnVars)
+    private static (List<ISymbol> orderedParams, List<ISymbol> refParams, List<ISymbol> outParams, List<ISymbol>
+        returnVars)
         OrderParameters(DataFlowAnalysis flow, List<StatementSyntax> selected, SemanticModel model)
     {
         // Symbols declared inside the selection
         var declaredInRange = selected
             .SelectMany(s => s.DescendantNodesAndSelf())
             .OfType<VariableDeclaratorSyntax>()
-            .Select(v => (ISymbol?)model.GetDeclaredSymbol(v))
+            .Select(v => model.GetDeclaredSymbol(v))
             .Where(s => s != null)
             .Select(s => s!)
             .ToHashSet(SymbolEqualityComparer.Default);
@@ -442,15 +439,14 @@ internal static class MethodExtractor
         var orderedParams = new List<ISymbol>();
 
         foreach (var ident in selected
-            .SelectMany(s => s.DescendantNodesAndSelf())
-            .OfType<IdentifierNameSyntax>()
-            .OrderBy(id => id.SpanStart))
+                     .SelectMany(s => s.DescendantNodesAndSelf())
+                     .OfType<IdentifierNameSyntax>()
+                     .OrderBy(id => id.SpanStart))
         {
             var sym = model.GetSymbolInfo(ident).Symbol;
             if (sym == null) continue;
-            if (refOrOutSet.Contains(sym)) continue;  // handled as ref/out, not plain in
-            var match = flow.DataFlowsIn.FirstOrDefault(
-                p => SymbolEqualityComparer.Default.Equals(p, sym));
+            if (refOrOutSet.Contains(sym)) continue; // handled as ref/out, not plain in
+            var match = flow.DataFlowsIn.FirstOrDefault(p => SymbolEqualityComparer.Default.Equals(p, sym));
             if (match != null && seenParams.Add(match))
                 orderedParams.Add(match);
         }
@@ -473,9 +469,9 @@ internal static class MethodExtractor
         var ordered = new List<ISymbol>();
 
         foreach (var ident in selected
-            .SelectMany(s => s.DescendantNodesAndSelf())
-            .OfType<IdentifierNameSyntax>()
-            .OrderBy(id => id.SpanStart))
+                     .SelectMany(s => s.DescendantNodesAndSelf())
+                     .OfType<IdentifierNameSyntax>()
+                     .OrderBy(id => id.SpanStart))
         {
             var sym = model.GetSymbolInfo(ident).Symbol;
             if (sym == null) continue;
@@ -486,7 +482,8 @@ internal static class MethodExtractor
 
         // Append any not found via identifier walk (shouldn't happen, but defensive)
         foreach (var s in symbols)
-            if (seen.Add(s)) ordered.Add(s);
+            if (seen.Add(s))
+                ordered.Add(s);
 
         return ordered;
     }
@@ -499,20 +496,20 @@ internal static class MethodExtractor
         FindContainingContext(List<StatementSyntax> selected)
     {
         var containingMethod = selected.First()
-            .Ancestors()
-            .OfType<MethodDeclarationSyntax>()
-            .FirstOrDefault()
-            ?? throw new InvalidOperationException(
-                "The selected statements are not inside a method declaration.");
+                                   .Ancestors()
+                                   .OfType<MethodDeclarationSyntax>()
+                                   .FirstOrDefault()
+                               ?? throw new InvalidOperationException(
+                                   "The selected statements are not inside a method declaration.");
 
         var containingType = containingMethod
-            .Ancestors()
-            .OfType<TypeDeclarationSyntax>()
-            .FirstOrDefault()
-            ?? throw new InvalidOperationException(
-                "The containing method is not inside a class or struct.");
+                                 .Ancestors()
+                                 .OfType<TypeDeclarationSyntax>()
+                                 .FirstOrDefault()
+                             ?? throw new InvalidOperationException(
+                                 "The containing method is not inside a class or struct.");
 
-        bool isStatic = containingMethod.Modifiers.Any(SyntaxKind.StaticKeyword);
+        var isStatic = containingMethod.Modifiers.Any(SyntaxKind.StaticKeyword);
 
         return (containingMethod, containingType, isStatic);
     }
@@ -528,10 +525,10 @@ internal static class MethodExtractor
     {
         var block = (BlockSyntax)selected.First().Parent!;
         var stmts = block.Statements;
-        int firstIdx = stmts.IndexOf(selected.First());
-        int lastIdx = stmts.IndexOf(selected.Last());
+        var firstIdx = stmts.IndexOf(selected.First());
+        var lastIdx = stmts.IndexOf(selected.Last());
 
-        for (int i = lastIdx; i >= firstIdx; i--)
+        for (var i = lastIdx; i >= firstIdx; i--)
             stmts = stmts.RemoveAt(i);
 
         stmts = stmts.Insert(firstIdx, callSite);
@@ -563,25 +560,25 @@ internal static class MethodExtractor
         {
             var name = insertAfter ?? insertBefore!;
             anchorMember = updatedType.Members
-                .FirstOrDefault(m => GetMemberName(m) == name)
-                ?? throw new InvalidOperationException(
-                    $"Member '{name}' not found in type '{containingType.Identifier.Text}'.");
+                               .FirstOrDefault(m => GetMemberName(m) == name)
+                           ?? throw new InvalidOperationException(
+                               $"Member '{name}' not found in type '{containingType.Identifier.Text}'.");
             afterAnchor = insertAfter != null;
         }
         else
         {
             anchorMember = updatedType.Members
-                .FirstOrDefault(m => m.HasAnnotation(methodAnnotation))
-                ?? updatedType.Members.Last();
+                               .FirstOrDefault(m => m.HasAnnotation(methodAnnotation))
+                           ?? updatedType.Members.Last();
             afterAnchor = true;
         }
 
         var membersList = updatedType.Members.ToList();
-        int anchorIdx = membersList.IndexOf(anchorMember);
+        var anchorIdx = membersList.IndexOf(anchorMember);
         if (anchorIdx < 0)
             throw new InvalidOperationException("Internal error: anchor member not located after tree update.");
 
-        int insertIdx = afterAnchor ? anchorIdx + 1 : anchorIdx;
+        var insertIdx = afterAnchor ? anchorIdx + 1 : anchorIdx;
         membersList.Insert(insertIdx, newMethod);
 
         return updatedType.WithMembers(SyntaxFactory.List(membersList));
@@ -591,12 +588,15 @@ internal static class MethodExtractor
     //  Helpers
     // ────────────────────────────────────────────────────────────────────────────
 
-    private static string? GetMemberName(MemberDeclarationSyntax member) => member switch
+    private static string? GetMemberName(MemberDeclarationSyntax member)
     {
-        MethodDeclarationSyntax m => m.Identifier.Text,
-        PropertyDeclarationSyntax p => p.Identifier.Text,
-        FieldDeclarationSyntax f => f.Declaration.Variables.FirstOrDefault()?.Identifier.Text,
-        ConstructorDeclarationSyntax c => c.Identifier.Text,
-        _ => null
-    };
+        return member switch
+        {
+            MethodDeclarationSyntax m => m.Identifier.Text,
+            PropertyDeclarationSyntax p => p.Identifier.Text,
+            FieldDeclarationSyntax f => f.Declaration.Variables.FirstOrDefault()?.Identifier.Text,
+            ConstructorDeclarationSyntax c => c.Identifier.Text,
+            _ => null
+        };
+    }
 }

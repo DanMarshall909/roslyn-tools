@@ -4,9 +4,9 @@ using RoslynTools.Services;
 namespace RoslynTools.Tests.Mutation;
 
 /// <summary>
-/// Unit tests for pure-logic helper methods extracted into service classes.
-/// Integration-level behaviour (workspace write/dry-run) is covered by the
-/// existing command-level tests in the same folder.
+///     Unit tests for pure-logic helper methods extracted into service classes.
+///     Integration-level behaviour (workspace write/dry-run) is covered by the
+///     existing command-level tests in the same folder.
 /// </summary>
 public class ServiceHelpersTests
 {
@@ -90,10 +90,10 @@ public class ServiceHelpersTests
     public void BuildNewClassText_generates_static_class_when_flag_set()
     {
         var text = new ExtractClassService().BuildNewClassText(
-            namespaceName: "MyApp",
-            newTypeName: "Helper",
-            isStatic: true,
-            membersToExtract: []);
+            "MyApp",
+            "Helper",
+            true,
+            []);
 
         Assert.Contains("namespace MyApp;", text);
         Assert.Contains("public static class Helper", text);
@@ -103,10 +103,10 @@ public class ServiceHelpersTests
     public void BuildNewClassText_generates_instance_class_without_namespace()
     {
         var text = new ExtractClassService().BuildNewClassText(
-            namespaceName: "",
-            newTypeName: "Helper",
-            isStatic: false,
-            membersToExtract: []);
+            "",
+            "Helper",
+            false,
+            []);
 
         Assert.DoesNotContain("namespace", text);
         Assert.Contains("public class Helper", text);
@@ -119,10 +119,10 @@ public class ServiceHelpersTests
     public void BuildInterfaceText_generates_interface_declaration()
     {
         var text = new ExtractInterfaceService().BuildInterfaceText(
-            namespaceName: "MyApp",
-            interfaceName: "IFoo",
-            methods: [],
-            properties: []);
+            "MyApp",
+            "IFoo",
+            [],
+            []);
 
         Assert.Contains("namespace MyApp;", text);
         Assert.Contains("public interface IFoo", text);
@@ -132,10 +132,10 @@ public class ServiceHelpersTests
     public void BuildInterfaceText_skips_namespace_when_empty()
     {
         var text = new ExtractInterfaceService().BuildInterfaceText(
-            namespaceName: "",
-            interfaceName: "IFoo",
-            methods: [],
-            properties: []);
+            "",
+            "IFoo",
+            [],
+            []);
 
         Assert.DoesNotContain("namespace", text);
         Assert.Contains("public interface IFoo", text);
@@ -147,8 +147,8 @@ public class ServiceHelpersTests
     public void DateTimeRewriter_replaces_UtcNow()
     {
         var tree = CSharpSyntaxTree.ParseText("""
-            class Foo { void Bar() { var t = DateTime.UtcNow; } }
-            """);
+                                              class Foo { void Bar() { var t = DateTime.UtcNow; } }
+                                              """);
         var root = tree.GetRoot();
         var rewriter = new ReplaceTypeService.DateTimeRewriter();
         var newRoot = rewriter.Visit(root);
@@ -161,8 +161,8 @@ public class ServiceHelpersTests
     public void DateTimeRewriter_replaces_Now()
     {
         var tree = CSharpSyntaxTree.ParseText("""
-            class Foo { void Bar() { var t = DateTime.Now; } }
-            """);
+                                              class Foo { void Bar() { var t = DateTime.Now; } }
+                                              """);
         var root = tree.GetRoot();
         var rewriter = new ReplaceTypeService.DateTimeRewriter();
         rewriter.Visit(root);
@@ -174,8 +174,8 @@ public class ServiceHelpersTests
     public void DateTimeRewriter_tracks_class_name()
     {
         var tree = CSharpSyntaxTree.ParseText("""
-            class OrderService { void Bar() { var t = DateTime.UtcNow; } }
-            """);
+                                              class OrderService { void Bar() { var t = DateTime.UtcNow; } }
+                                              """);
         var root = tree.GetRoot();
         var rewriter = new ReplaceTypeService.DateTimeRewriter();
         rewriter.Visit(root);
@@ -187,8 +187,8 @@ public class ServiceHelpersTests
     public void DateTimeRewriter_tracks_struct_class_name()
     {
         var tree = CSharpSyntaxTree.ParseText("""
-            struct TimeStruct { void Bar() { var t = DateTime.UtcNow; } }
-            """);
+                                              struct TimeStruct { void Bar() { var t = DateTime.UtcNow; } }
+                                              """);
         var root = tree.GetRoot();
         var rewriter = new ReplaceTypeService.DateTimeRewriter();
         rewriter.Visit(root);

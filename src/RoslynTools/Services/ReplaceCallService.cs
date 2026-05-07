@@ -1,19 +1,20 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
-using Microsoft.CodeAnalysis.CSharp;
-using System.Diagnostics.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class ReplaceCallService : IRtService
 {
-    private readonly ISymbolResolutionService _symbols;
     private readonly ILogger<ReplaceCallService> _logger;
     private readonly ISolutionChangeWriter _solutionChangeWriter;
+    private readonly ISymbolResolutionService _symbols;
 
     public ReplaceCallService()
         : this(new RtConsoleLogger<ReplaceCallService>(), new SolutionChangeWriter())
@@ -28,7 +29,9 @@ internal class ReplaceCallService : IRtService
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
     }
-    internal async Task RunAsync(Solution solution, string from, string to, bool dryRun, int? ifArgIndex = null, string? ifArgLiteral = null)
+
+    internal async Task RunAsync(Solution solution, string from, string to, bool dryRun, int? ifArgIndex = null,
+        string? ifArgLiteral = null)
     {
         var originalSolution = solution;
 
@@ -47,7 +50,8 @@ internal class ReplaceCallService : IRtService
         }
 
         var totalCallSites = locationsByDocument.Values.Sum(l => l.Count);
-        _logger.RtInfo("Found {TotalCallSites} call site(s). Replacing '{MethodName}' → '{To}'...", totalCallSites, methodName, to);
+        _logger.RtInfo("Found {TotalCallSites} call site(s). Replacing '{MethodName}' → '{To}'...", totalCallSites,
+            methodName, to);
 
         foreach (var (docId, locations) in locationsByDocument)
         {
@@ -101,37 +105,33 @@ internal class ReplaceCallService : IRtService
         var locationsByDocument = new Dictionary<DocumentId, List<Location>>();
 
         foreach (var referencedSymbol in referencedSymbols)
+        foreach (var loc in referencedSymbol.Locations)
         {
-            foreach (var loc in referencedSymbol.Locations)
+            var doc = loc.Document;
+            var root = await doc.GetSyntaxRootAsync();
+            if (root is null)
+                continue;
+
+            var node = root.FindNode(loc.Location.SourceSpan);
+            var invocation = node.AncestorsAndSelf()
+                .OfType<InvocationExpressionSyntax>()
+                .FirstOrDefault();
+
+            if (invocation is null)
+                continue;
+
+            // Apply argument filter if specified
+            if (ifArgIndex.HasValue && ifArgLiteral is not null)
+                if (!ArgumentMatchesFilter(invocation, ifArgIndex.Value, ifArgLiteral))
+                    continue;
+
+            if (!locationsByDocument.TryGetValue(doc.Id, out var locs))
             {
-                var doc = loc.Document;
-                var root = await doc.GetSyntaxRootAsync();
-                if (root is null)
-                    continue;
-
-                var node = root.FindNode(loc.Location.SourceSpan);
-                var invocation = node.AncestorsAndSelf()
-                    .OfType<InvocationExpressionSyntax>()
-                    .FirstOrDefault();
-
-                if (invocation is null)
-                    continue;
-
-                // Apply argument filter if specified
-                if (ifArgIndex.HasValue && ifArgLiteral is not null)
-                {
-                    if (!ArgumentMatchesFilter(invocation, ifArgIndex.Value, ifArgLiteral))
-                        continue;
-                }
-
-                if (!locationsByDocument.TryGetValue(doc.Id, out var locs))
-                {
-                    locs = new List<Location>();
-                    locationsByDocument[doc.Id] = locs;
-                }
-
-                locs.Add(loc.Location);
+                locs = new List<Location>();
+                locationsByDocument[doc.Id] = locs;
             }
+
+            locs.Add(loc.Location);
         }
 
         return locationsByDocument;
@@ -171,9 +171,7 @@ internal class ReplaceCallService : IRtService
             }
 
             if (oldName is not null && newName is not null && !replacements.ContainsKey(oldName))
-            {
                 replacements[oldName] = newName;
-            }
         }
 
         return replacements;

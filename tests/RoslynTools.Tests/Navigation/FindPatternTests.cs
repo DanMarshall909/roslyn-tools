@@ -5,7 +5,9 @@ namespace RoslynTools.Tests.Navigation;
 public class FindPatternTests
 {
     private static string FilePath(AdhocProjectBuilder project, string relativePath)
-        => Path.Combine(project.ProjectDir, relativePath);
+    {
+        return Path.Combine(project.ProjectDir, relativePath);
+    }
 
     // ── Exact duplicate found ─────────────────────────────────────────────────────
 
@@ -14,31 +16,31 @@ public class FindPatternTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void Run()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                  public class A
+                                  {
+                                      public void Run()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
         project.AddSource("B.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class B
-            {
-                public void Run()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                  public class B
+                                  {
+                                      public void Run()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -46,9 +48,9 @@ public class FindPatternTests
             var matches = await PatternMatcher.FindMatchesAsync(
                 sln,
                 FilePath(project, "A.cs"),
-                startLine: 7,
-                endLine: 9,
-                scope: null);
+                7,
+                9,
+                null);
 
             Assert.Single(matches);
             Assert.Contains("B.cs", matches[0].File, StringComparison.OrdinalIgnoreCase);
@@ -62,31 +64,31 @@ public class FindPatternTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void Run()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                  public class A
+                                  {
+                                      public void Run()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
         project.AddSource("B.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class B
-            {
-                public void Run()
-                {
-                    int alpha = 1;
-                    int beta = 2;
-                    System.Console.WriteLine(alpha + beta);
-                }
-            }
-            """);
+                                  public class B
+                                  {
+                                      public void Run()
+                                      {
+                                          int alpha = 1;
+                                          int beta = 2;
+                                          System.Console.WriteLine(alpha + beta);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -94,9 +96,9 @@ public class FindPatternTests
             var matches = await PatternMatcher.FindMatchesAsync(
                 sln,
                 FilePath(project, "A.cs"),
-                startLine: 7,
-                endLine: 9,
-                scope: null);
+                7,
+                9,
+                null);
 
             Assert.Single(matches);
             var subs = matches[0].Substitutions;
@@ -113,30 +115,30 @@ public class FindPatternTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void Run()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                  public class A
+                                  {
+                                      public void Run()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
         project.AddSource("B.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class B
-            {
-                public void Run()
-                {
-                    int x = 1;
-                    System.Console.WriteLine(x);
-                }
-            }
-            """);
+                                  public class B
+                                  {
+                                      public void Run()
+                                      {
+                                          int x = 1;
+                                          System.Console.WriteLine(x);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -144,9 +146,9 @@ public class FindPatternTests
             var matches = await PatternMatcher.FindMatchesAsync(
                 sln,
                 FilePath(project, "A.cs"),
-                startLine: 7,
-                endLine: 9,
-                scope: null);
+                7,
+                9,
+                null);
 
             Assert.Empty(matches);
         }
@@ -159,18 +161,18 @@ public class FindPatternTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void Run()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                  public class A
+                                  {
+                                      public void Run()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -178,9 +180,9 @@ public class FindPatternTests
             var matches = await PatternMatcher.FindMatchesAsync(
                 sln,
                 FilePath(project, "A.cs"),
-                startLine: 7,
-                endLine: 9,
-                scope: null);
+                7,
+                9,
+                null);
 
             // The only occurrence is the source itself — should be excluded
             Assert.Empty(matches);
@@ -194,31 +196,31 @@ public class FindPatternTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void Run()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                  public class A
+                                  {
+                                      public void Run()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
         project.AddSource("B.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class B
-            {
-                public void Run()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                  public class B
+                                  {
+                                      public void Run()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -227,9 +229,9 @@ public class FindPatternTests
             var matches = await PatternMatcher.FindMatchesAsync(
                 sln,
                 FilePath(project, "A.cs"),
-                startLine: 7,
-                endLine: 9,
-                scope: "NonExistentScope.Does.Not.Exist");
+                7,
+                9,
+                "NonExistentScope.Does.Not.Exist");
 
             Assert.Empty(matches);
         }
@@ -242,31 +244,31 @@ public class FindPatternTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void Run()
-                {
-                    int x = 1;
-                    int y = 2;
-                    System.Console.WriteLine(x + y);
-                }
-            }
-            """);
+                                  public class A
+                                  {
+                                      public void Run()
+                                      {
+                                          int x = 1;
+                                          int y = 2;
+                                          System.Console.WriteLine(x + y);
+                                      }
+                                  }
+                                  """);
         project.AddSource("B.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class B
-            {
-                public void Execute()
-                {
-                    int a = 1;
-                    int b = 2;
-                    System.Console.WriteLine(a + b);
-                }
-            }
-            """);
+                                  public class B
+                                  {
+                                      public void Execute()
+                                      {
+                                          int a = 1;
+                                          int b = 2;
+                                          System.Console.WriteLine(a + b);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -274,9 +276,9 @@ public class FindPatternTests
             var matches = await PatternMatcher.FindMatchesAsync(
                 sln,
                 FilePath(project, "A.cs"),
-                startLine: 7,
-                endLine: 9,
-                scope: null);
+                7,
+                9,
+                null);
 
             Assert.Single(matches);
             var m = matches[0];

@@ -9,20 +9,23 @@ namespace RoslynTools.Commands;
 
 internal sealed class CircularDepsCommand : IRtCommand
 {
-    private CircularDepsCommand() { }
+    private CircularDepsCommand()
+    {
+    }
 
     public static RtCommandInfo Info { get; } = new(
-        Name: "circular-deps",
-        Mutates: false,
-        JsonOutput: false,
-        Category: "analyze",
+        "circular-deps",
+        false,
+        false,
+        "analyze",
         Aliases: ["cdeps"],
-        WhenToUse: "Detecting circular namespace dependencies in a solution before a refactor, or after adding new inter-namespace references. Use --scope to limit analysis to your domain namespaces and ignore third-party noise.",
+        WhenToUse:
+        "Detecting circular namespace dependencies in a solution before a refactor, or after adding new inter-namespace references. Use --scope to limit analysis to your domain namespaces and ignore third-party noise.",
         Examples:
         [
             "rt analyze circular-deps --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt analyze cdeps --scope ProjectX.Core --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt analyze circular-deps --solution RoslynTools.slnx --scope RoslynTools",
+            "rt analyze circular-deps --solution RoslynTools.slnx --scope RoslynTools"
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );
@@ -53,8 +56,12 @@ internal sealed class CircularDepsCommand : IRtCommand
 
     // Kept for test backwards-compatibility — delegates to the service.
     internal static Task<IReadOnlyList<IReadOnlyList<string>>> AnalyzeCyclesAsync(Solution sln, string? scope)
-        => RtServiceProvider.Get<CircularDepsService>().AnalyzeCyclesAsync(sln, scope);
+    {
+        return RtServiceProvider.Get<CircularDepsService>().AnalyzeCyclesAsync(sln, scope);
+    }
 
     internal static Task<string> AnalyzeAsync(Solution sln, string? scope)
-        => RtServiceProvider.Get<CircularDepsService>().AnalyzeAsync(sln, scope);
+    {
+        return RtServiceProvider.Get<CircularDepsService>().AnalyzeAsync(sln, scope);
+    }
 }

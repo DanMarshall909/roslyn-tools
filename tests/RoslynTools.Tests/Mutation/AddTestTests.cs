@@ -33,30 +33,32 @@ public class AddTestTests
         using var proj = new AdhocProjectBuilder();
         // Source has no usings — command must add them
         proj.AddSource("MyTests.cs", """
-            namespace TestApp;
+                                     namespace TestApp;
 
-            public class MyTests
-            {
-            }
-            """);
+                                     public class MyTests
+                                     {
+                                     }
+                                     """);
 
         var (workspace, sln) = proj.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
             await AddTestCommand.ExecuteAsync(
-            className: "MyTests",
-            name: "Should_DoSomething",
-            acs: null,
-            nestedClass: null,
-            command: null,
-            scenario: null,
-            outcome: null,
-            concern: null,
-            beforePath: null,
-            afterPath: null,
-            filePath: null,
-            solutionPath: "ignored",
-            dryRun: false);
+                "MyTests",
+                "Should_DoSomething",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "ignored",
+                false);
+        }
 
         var content = await proj.ReadSourceAsync("MyTests.cs");
 
@@ -74,30 +76,32 @@ public class AddTestTests
     {
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("OrderTests.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class OrderTests
-            {
-            }
-            """);
+                                        public class OrderTests
+                                        {
+                                        }
+                                        """);
 
         var (workspace, sln) = proj.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
             await AddTestCommand.ExecuteAsync(
-                className: "OrderTests",
-                name: null,
-                acs: "Returns 404 when not found; Creates order successfully",
-                nestedClass: null,
-                command: null,
-                scenario: null,
-                outcome: null,
-                concern: null,
-                beforePath: null,
-                afterPath: null,
-                filePath: null,
-                solutionPath: "ignored",
-                dryRun: false);
+                "OrderTests",
+                null,
+                "Returns 404 when not found; Creates order successfully",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "ignored",
+                false);
+        }
 
         var content = await proj.ReadSourceAsync("OrderTests.cs");
 
@@ -115,30 +119,32 @@ public class AddTestTests
     {
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("OrderTests.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class OrderTests
-            {
-            }
-            """);
+                                        public class OrderTests
+                                        {
+                                        }
+                                        """);
 
         var (workspace, sln) = proj.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
             await AddTestCommand.ExecuteAsync(
-            className: "OrderTests",
-            name: null,
-            acs: "Returns 404 when not found",
-            nestedClass: "WhenOrderMissing",
-            command: null,
-            scenario: null,
-            outcome: null,
-            concern: null,
-            beforePath: null,
-            afterPath: null,
-            filePath: null,
-            solutionPath: "ignored",
-            dryRun: false);
+                "OrderTests",
+                null,
+                "Returns 404 when not found",
+                "WhenOrderMissing",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "ignored",
+                false);
+        }
 
         var content = await proj.ReadSourceAsync("OrderTests.cs");
 
@@ -160,31 +166,33 @@ public class AddTestTests
     {
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("MyTests.cs", """
-            namespace TestApp;
+                                     namespace TestApp;
 
-            public class MyTests
-            {
-            }
-            """);
+                                     public class MyTests
+                                     {
+                                     }
+                                     """);
 
         var (workspace, sln) = proj.Build();
         var originalContent = await proj.ReadSourceAsync("MyTests.cs");
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
             await AddTestCommand.ExecuteAsync(
-            className: "MyTests",
-            name: "Should_DoSomething",
-            acs: null,
-            nestedClass: null,
-            command: null,
-            scenario: null,
-            outcome: null,
-            concern: null,
-            beforePath: null,
-            afterPath: null,
-            filePath: null,
-            solutionPath: "ignored",
-            dryRun: true);
+                "MyTests",
+                "Should_DoSomething",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "ignored",
+                true);
+        }
 
         var afterContent = await proj.ReadSourceAsync("MyTests.cs");
         Assert.Equal(originalContent, afterContent);
@@ -199,30 +207,32 @@ public class AddTestTests
     {
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("MyTests.cs", """
-            namespace TestApp;
+                                     namespace TestApp;
 
-            public class MyTests
-            {
-            }
-            """);
+                                     public class MyTests
+                                     {
+                                     }
+                                     """);
 
         var (workspace, sln) = proj.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
             await AddTestCommand.ExecuteAsync(
-            className: "MyTests",
-            name: "Should_DoSomething",
-            acs: null,
-            nestedClass: null,
-            command: null,
-            scenario: null,
-            outcome: null,
-            concern: null,
-            beforePath: null,
-            afterPath: null,
-            filePath: null,
-            solutionPath: "ignored",
-            dryRun: false);
+                "MyTests",
+                "Should_DoSomething",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "ignored",
+                false);
+        }
 
         var content = await proj.ReadSourceAsync("MyTests.cs");
 

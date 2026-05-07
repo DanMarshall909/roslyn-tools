@@ -6,12 +6,12 @@ using RoslynTools.Core;
 namespace RoslynTools.Tests;
 
 /// <summary>
-/// Unit tests for DumpHelpCommand helper methods extracted in US-033:
-///   - BuildHeader
-///   - BuildContents
-///   - BuildGroupSection
-///   - BuildCommandSection
-/// Each helper is tested in isolation with a minimal synthetic registry.
+///     Unit tests for DumpHelpCommand helper methods extracted in US-033:
+///     - BuildHeader
+///     - BuildContents
+///     - BuildGroupSection
+///     - BuildCommandSection
+///     Each helper is tested in isolation with a minimal synthetic registry.
 /// </summary>
 public sealed class DumpHelpCommandTests
 {
@@ -28,14 +28,14 @@ public sealed class DumpHelpCommandTests
         string[]? examples = null)
     {
         var info = new RtCommandInfo(
-            Name: name,
-            Mutates: mutates,
-            JsonOutput: jsonOutput,
-            Category: category,
-            WhenToUse: "Use when needed.",
-            Examples: examples ?? [$"rt {category} {name}"],
-            KnownIssues: knownIssues,
-            Aliases: aliases);
+            name,
+            mutates,
+            jsonOutput,
+            category,
+            "Use when needed.",
+            examples ?? [$"rt {category} {name}"],
+            knownIssues,
+            aliases);
 
         var cmd = new Command(name, description);
         return (cmd, info);
@@ -61,7 +61,7 @@ public sealed class DumpHelpCommandTests
         var registry = new List<(Command, RtCommandInfo)>
         {
             MakeEntry("foo", "inspect"),
-            MakeEntry("bar", "analyze"),
+            MakeEntry("bar", "analyze")
         };
 
         DumpHelpCommand.BuildHeader(sb, registry);
@@ -102,7 +102,7 @@ public sealed class DumpHelpCommandTests
         var groups = new List<(Command, RtCommandInfo)>
             {
                 MakeEntry("describe", "inspect"),
-                MakeEntry("circular-deps", "analyze"),
+                MakeEntry("circular-deps", "analyze")
             }
             .GroupBy(e => e.Item2.Category)
             .OrderBy(g => g.Key);
@@ -133,7 +133,7 @@ public sealed class DumpHelpCommandTests
         var sb = new StringBuilder();
         var groups = new List<(Command, RtCommandInfo)>
             {
-                MakeEntry("find-refs", "inspect", aliases: ["refs"]),
+                MakeEntry("find-refs", "inspect", aliases: ["refs"])
             }
             .GroupBy(e => e.Item2.Category)
             .OrderBy(g => g.Key);

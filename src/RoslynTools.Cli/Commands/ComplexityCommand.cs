@@ -1,5 +1,4 @@
 using System.CommandLine;
-using System.CommandLine.Invocation;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
@@ -8,38 +7,44 @@ namespace RoslynTools.Commands;
 
 internal sealed class ComplexityCommand : IRtCommand
 {
-    private ComplexityCommand() { }
+    internal static readonly string[] ValidSortValues = ["cyclomatic", "cognitive", "loc", "params"];
+
+    private ComplexityCommand()
+    {
+    }
 
     public static RtCommandInfo Info { get; } = new(
-        Name: "complexity",
-        Mutates: false,
-        JsonOutput: true,
-        Category: "analyze",
+        "complexity",
+        false,
+        true,
+        "analyze",
         Aliases: ["cx"],
-        WhenToUse: "Measuring cyclomatic and cognitive complexity, lines of code, and parameter counts for methods in a solution. Use --threshold to surface only the most complex methods, --sort to rank by the metric of interest, and --top to limit output.",
+        WhenToUse:
+        "Measuring cyclomatic and cognitive complexity, lines of code, and parameter counts for methods in a solution. Use --threshold to surface only the most complex methods, --sort to rank by the metric of interest, and --top to limit output.",
         Examples:
         [
             "rt analyze complexity --solution RoslynTools.slnx",
             "rt analyze cx --threshold 10 --sort cyclomatic --solution RoslynTools.slnx",
-            "rt analyze complexity --threshold 5 --sort cognitive --top 20 --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt analyze complexity --threshold 5 --sort cognitive --top 20 --solution C:\\code\\libraries\\ProjectX.Libraries.sln"
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json]
     );
 
-    internal static readonly string[] ValidSortValues = ["cyclomatic", "cognitive", "loc", "params"];
-
     public static Command Build()
     {
         var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
-        var thresholdOpt = new Option<int>("--threshold", () => 0, "Minimum metric value to include a method (0 = include all)");
-        var sortOpt = new Option<string>("--sort", () => "cyclomatic", "Sort metric: cyclomatic, cognitive, loc, params");
+        var thresholdOpt = new Option<int>("--threshold", () => 0,
+            "Minimum metric value to include a method (0 = include all)");
+        var sortOpt =
+            new Option<string>("--sort", () => "cyclomatic", "Sort metric: cyclomatic, cognitive, loc, params");
         var topOpt = new Option<int>("--top", () => 0, "Return only top N results (0 = all)");
 
-        var cmd = new Command("complexity", "Measure cyclomatic/cognitive complexity, LOC, and param counts per method");
+        var cmd = new Command("complexity",
+            "Measure cyclomatic/cognitive complexity, LOC, and param counts per method");
         cmd.AddAlias("cx");
         cmd.AddAll(solutionOpt, thresholdOpt, sortOpt, topOpt);
 
-        cmd.SetHandler(async (InvocationContext context) =>
+        cmd.SetHandler(async context =>
         {
             context.ExitCode = await ExecuteAsync(
                 context.ParseResult.GetValueForOption(solutionOpt),
@@ -90,7 +95,7 @@ internal sealed class ComplexityCommand : IRtCommand
                     Cyclomatic = m.Cyclomatic,
                     Cognitive = m.Cognitive,
                     Loc = m.Loc,
-                    Params = m.Params,
+                    Params = m.Params
                 }).ToList(),
                 TypeRollups = report.TypeRollups.Select(t => new TypeRollupItem
                 {
@@ -100,7 +105,7 @@ internal sealed class ComplexityCommand : IRtCommand
                     CyclomaticTotal = t.CyclomaticTotal,
                     CognitiveTotal = t.CognitiveTotal,
                     LocTotal = t.LocTotal,
-                    ParamsTotal = t.ParamsTotal,
+                    ParamsTotal = t.ParamsTotal
                 }).ToList(),
                 NamespaceRollups = report.NamespaceRollups.Select(n => new NamespaceRollupItem
                 {
@@ -109,8 +114,8 @@ internal sealed class ComplexityCommand : IRtCommand
                     CyclomaticTotal = n.CyclomaticTotal,
                     CognitiveTotal = n.CognitiveTotal,
                     LocTotal = n.LocTotal,
-                    ParamsTotal = n.ParamsTotal,
-                }).ToList(),
+                    ParamsTotal = n.ParamsTotal
+                }).ToList()
             };
 
             RtSerializer.Write(result);

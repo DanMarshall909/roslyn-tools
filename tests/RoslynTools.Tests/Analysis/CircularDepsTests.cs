@@ -34,7 +34,7 @@ public class CircularDepsTests
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var result = await CircularDepsCommand.AnalyzeAsync(sln, scope: null);
+            var result = await CircularDepsCommand.AnalyzeAsync(sln, null);
 
             Assert.Contains("CycleApp.A", result);
             Assert.Contains("CycleApp.B", result);
@@ -53,7 +53,7 @@ public class CircularDepsTests
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var result = await CircularDepsCommand.AnalyzeAsync(sln, scope: null);
+            var result = await CircularDepsCommand.AnalyzeAsync(sln, null);
 
             Assert.Contains("->", result);
         }
@@ -70,7 +70,7 @@ public class CircularDepsTests
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var result = await CircularDepsCommand.AnalyzeAsync(sln, scope: null);
+            var result = await CircularDepsCommand.AnalyzeAsync(sln, null);
 
             Assert.Contains("No circular", result, StringComparison.OrdinalIgnoreCase);
         }
@@ -87,13 +87,13 @@ public class CircularDepsTests
         var (workspace, sln) = proj.Build();
 
         var originalOut = Console.Out;
-        using var sw = new System.IO.StringWriter();
+        using var sw = new StringWriter();
         Console.SetOut(sw);
         try
         {
             using (workspace)
             {
-                var result = await CircularDepsCommand.AnalyzeAsync(sln, scope: null);
+                var result = await CircularDepsCommand.AnalyzeAsync(sln, null);
                 Console.WriteLine(result);
             }
         }
@@ -127,7 +127,7 @@ public class CircularDepsTests
             var (workspace, sln) = proj.Build();
             using (workspace)
             {
-                var result = await CircularDepsCommand.AnalyzeAsync(sln, scope: "CycleApp");
+                var result = await CircularDepsCommand.AnalyzeAsync(sln, "CycleApp");
                 Assert.Contains("CycleApp", result);
                 Assert.DoesNotContain("External", result);
             }
@@ -148,7 +148,7 @@ public class CircularDepsTests
             var (workspace, sln) = proj.Build();
             using (workspace)
             {
-                var result = await CircularDepsCommand.AnalyzeAsync(sln, scope: "Clean");
+                var result = await CircularDepsCommand.AnalyzeAsync(sln, "Clean");
                 Assert.Contains("No circular", result, StringComparison.OrdinalIgnoreCase);
             }
         }
@@ -170,7 +170,7 @@ public class CircularDepsTests
             var (workspace, sln) = proj.Build();
             using (workspace)
             {
-                var result = await CircularDepsCommand.AnalyzeAsync(sln, scope: null);
+                var result = await CircularDepsCommand.AnalyzeAsync(sln, null);
                 Assert.Contains("Fs.P", result);
                 Assert.Contains("Fs.Q", result);
             }

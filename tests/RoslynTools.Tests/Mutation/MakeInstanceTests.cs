@@ -11,29 +11,31 @@ public class MakeInstanceTests
     public async Task Rewrites_call_sites_to_use_the_local_instance()
     {
         const string source = """
-            namespace App;
+                              namespace App;
 
-            public class Calculator
-            {
-                public static int Add(int a, int b) => a + b;
-            }
+                              public class Calculator
+                              {
+                                  public static int Add(int a, int b) => a + b;
+                              }
 
-            public class Consumer
-            {
-                public void Run()
-                {
-                    var calc = new Calculator();
-                    var result = Calculator.Add(1, 2);
-                }
-            }
-            """;
+                              public class Consumer
+                              {
+                                  public void Run()
+                                  {
+                                      var calc = new Calculator();
+                                      var result = Calculator.Add(1, 2);
+                                  }
+                              }
+                              """;
 
         using var proj = new AdhocProjectBuilder("App");
         proj.AddSource("Calc.cs", source);
         var (workspace, sln) = proj.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await MakeInstanceCommand.ExecuteAsync("Calculator.Add", "ignored", dryRun: false);
+        {
+            await MakeInstanceCommand.ExecuteAsync("Calculator.Add", "ignored", false);
+        }
 
         var content = await proj.ReadSourceAsync("Calc.cs");
         // Static modifier removed
@@ -50,30 +52,32 @@ public class MakeInstanceTests
     public async Task Rewrites_call_sites_to_use_the_field_instance()
     {
         const string source = """
-            namespace App;
+                              namespace App;
 
-            public class Formatter
-            {
-                public static string Format(string value) => value.Trim();
-            }
+                              public class Formatter
+                              {
+                                  public static string Format(string value) => value.Trim();
+                              }
 
-            public class Report
-            {
-                private readonly Formatter _formatter = new Formatter();
+                              public class Report
+                              {
+                                  private readonly Formatter _formatter = new Formatter();
 
-                public string Build(string raw)
-                {
-                    return Formatter.Format(raw);
-                }
-            }
-            """;
+                                  public string Build(string raw)
+                                  {
+                                      return Formatter.Format(raw);
+                                  }
+                              }
+                              """;
 
         using var proj = new AdhocProjectBuilder("App");
         proj.AddSource("Fmt.cs", source);
         var (workspace, sln) = proj.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await MakeInstanceCommand.ExecuteAsync("Formatter.Format", "ignored", dryRun: false);
+        {
+            await MakeInstanceCommand.ExecuteAsync("Formatter.Format", "ignored", false);
+        }
 
         var content = await proj.ReadSourceAsync("Fmt.cs");
         Assert.DoesNotContain("public static string Format", content);
@@ -88,21 +92,21 @@ public class MakeInstanceTests
     public async Task Updates_the_declaration_but_leaves_unreachable_static_call_sites_unchanged()
     {
         const string source = """
-            namespace App;
+                              namespace App;
 
-            public class Parser
-            {
-                public static int Parse(string s) => int.Parse(s);
-            }
+                              public class Parser
+                              {
+                                  public static int Parse(string s) => int.Parse(s);
+                              }
 
-            public class StaticCaller
-            {
-                public static int DoWork(string input)
-                {
-                    return Parser.Parse(input);
-                }
-            }
-            """;
+                              public class StaticCaller
+                              {
+                                  public static int DoWork(string input)
+                                  {
+                                      return Parser.Parse(input);
+                                  }
+                              }
+                              """;
 
         using var proj = new AdhocProjectBuilder("App");
         proj.AddSource("Parser.cs", source);
@@ -111,7 +115,9 @@ public class MakeInstanceTests
         var before = await proj.ReadSourceAsync("Parser.cs");
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await MakeInstanceCommand.ExecuteAsync("Parser.Parse", "ignored", dryRun: false);
+        {
+            await MakeInstanceCommand.ExecuteAsync("Parser.Parse", "ignored", false);
+        }
 
         var after = await proj.ReadSourceAsync("Parser.cs");
 
@@ -129,25 +135,27 @@ public class MakeInstanceTests
     public async Task Rewrites_call_sites_to_use_this()
     {
         const string source = """
-            namespace App;
+                              namespace App;
 
-            public class Service
-            {
-                public static string Sanitize(string s) => s.Trim();
+                              public class Service
+                              {
+                                  public static string Sanitize(string s) => s.Trim();
 
-                public string Process(string input)
-                {
-                    return Service.Sanitize(input);
-                }
-            }
-            """;
+                                  public string Process(string input)
+                                  {
+                                      return Service.Sanitize(input);
+                                  }
+                              }
+                              """;
 
         using var proj = new AdhocProjectBuilder("App");
         proj.AddSource("Service.cs", source);
         var (workspace, sln) = proj.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await MakeInstanceCommand.ExecuteAsync("Service.Sanitize", "ignored", dryRun: false);
+        {
+            await MakeInstanceCommand.ExecuteAsync("Service.Sanitize", "ignored", false);
+        }
 
         var content = await proj.ReadSourceAsync("Service.cs");
         Assert.DoesNotContain("public static string Sanitize", content);
@@ -162,25 +170,27 @@ public class MakeInstanceTests
     public async Task Updates_the_declaration_but_leaves_same_class_static_call_sites_unchanged()
     {
         const string source = """
-            namespace App;
+                              namespace App;
 
-            public class Helper
-            {
-                public static int Double(int x) => x * 2;
+                              public class Helper
+                              {
+                                  public static int Double(int x) => x * 2;
 
-                public static int QuadViaStatic(int x)
-                {
-                    return Helper.Double(Helper.Double(x));
-                }
-            }
-            """;
+                                  public static int QuadViaStatic(int x)
+                                  {
+                                      return Helper.Double(Helper.Double(x));
+                                  }
+                              }
+                              """;
 
         using var proj = new AdhocProjectBuilder("App");
         proj.AddSource("Helper.cs", source);
         var (workspace, sln) = proj.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await MakeInstanceCommand.ExecuteAsync("Helper.Double", "ignored", dryRun: false);
+        {
+            await MakeInstanceCommand.ExecuteAsync("Helper.Double", "ignored", false);
+        }
 
         var content = await proj.ReadSourceAsync("Helper.cs");
         // Declaration updated
@@ -196,22 +206,22 @@ public class MakeInstanceTests
     public async Task Does_not_modify_files()
     {
         const string source = """
-            namespace App;
+                              namespace App;
 
-            public class Greeter
-            {
-                public static string Hello(string name) => $"Hello {name}";
-            }
+                              public class Greeter
+                              {
+                                  public static string Hello(string name) => $"Hello {name}";
+                              }
 
-            public class App
-            {
-                public void Run()
-                {
-                    var g = new Greeter();
-                    _ = Greeter.Hello("world");
-                }
-            }
-            """;
+                              public class App
+                              {
+                                  public void Run()
+                                  {
+                                      var g = new Greeter();
+                                      _ = Greeter.Hello("world");
+                                  }
+                              }
+                              """;
 
         using var proj = new AdhocProjectBuilder("App");
         proj.AddSource("Greeter.cs", source);
@@ -220,7 +230,9 @@ public class MakeInstanceTests
         var before = await proj.ReadSourceAsync("Greeter.cs");
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await MakeInstanceCommand.ExecuteAsync("Greeter.Hello", "ignored", dryRun: true);
+        {
+            await MakeInstanceCommand.ExecuteAsync("Greeter.Hello", "ignored", true);
+        }
 
         var after = await proj.ReadSourceAsync("Greeter.cs");
         Assert.Equal(before, after);
@@ -232,27 +244,27 @@ public class MakeInstanceTests
     public async Task Rewrites_call_sites_in_other_files()
     {
         const string helperSource = """
-            namespace App;
+                                    namespace App;
 
-            public class MathUtil
-            {
-                public static int Square(int x) => x * x;
-            }
-            """;
+                                    public class MathUtil
+                                    {
+                                        public static int Square(int x) => x * x;
+                                    }
+                                    """;
 
         const string callerSource = """
-            namespace App;
+                                    namespace App;
 
-            public class Processor
-            {
-                private readonly MathUtil _util = new MathUtil();
+                                    public class Processor
+                                    {
+                                        private readonly MathUtil _util = new MathUtil();
 
-                public int Process(int value)
-                {
-                    return MathUtil.Square(value);
-                }
-            }
-            """;
+                                        public int Process(int value)
+                                        {
+                                            return MathUtil.Square(value);
+                                        }
+                                    }
+                                    """;
 
         using var proj = new AdhocProjectBuilder("App");
         proj.AddSource("MathUtil.cs", helperSource);
@@ -260,7 +272,9 @@ public class MakeInstanceTests
         var (workspace, sln) = proj.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await MakeInstanceCommand.ExecuteAsync("MathUtil.Square", "ignored", dryRun: false);
+        {
+            await MakeInstanceCommand.ExecuteAsync("MathUtil.Square", "ignored", false);
+        }
 
         var utilContent = await proj.ReadSourceAsync("MathUtil.cs");
         Assert.DoesNotContain("public static int Square", utilContent);
@@ -275,27 +289,27 @@ public class MakeInstanceTests
     public async Task Warns_for_ambiguous_reachability_and_still_rewrites_later_call_sites_in_the_same_document()
     {
         const string source = """
-            namespace App;
+                              namespace App;
 
-            public class Utility
-            {
-                public static void Ping() { }
-            }
+                              public class Utility
+                              {
+                                  public static void Ping() { }
+                              }
 
-            public class Consumer
-            {
-                private readonly Utility _first = new();
-                private readonly Utility _second = new();
+                              public class Consumer
+                              {
+                                  private readonly Utility _first = new();
+                                  private readonly Utility _second = new();
 
-                public void Run()
-                {
-                    Utility.Ping();
+                                  public void Run()
+                                  {
+                                      Utility.Ping();
 
-                    var utility = new Utility();
-                    Utility.Ping();
-                }
-            }
-            """;
+                                      var utility = new Utility();
+                                      Utility.Ping();
+                                  }
+                              }
+                              """;
 
         using var proj = new AdhocProjectBuilder("App");
         proj.AddSource("Utility.cs", source);
@@ -307,7 +321,9 @@ public class MakeInstanceTests
         try
         {
             using (WorkspaceLoader.UseOverride(workspace, sln))
-                await MakeInstanceCommand.ExecuteAsync("Utility.Ping", "ignored", dryRun: false);
+            {
+                await MakeInstanceCommand.ExecuteAsync("Utility.Ping", "ignored", false);
+            }
         }
         finally
         {

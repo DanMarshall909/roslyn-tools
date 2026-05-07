@@ -1,18 +1,19 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
+using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 using RoslynTools.Services.Results;
-using System.Diagnostics.CodeAnalysis;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class FindCallersService : IRtService
 {
-    private readonly ISymbolResolutionService _symbols;
     private readonly ILogger<FindCallersService> _logger;
+    private readonly ISymbolResolutionService _symbols;
 
     public FindCallersService()
         : this(new RtConsoleLogger<FindCallersService>())
@@ -26,6 +27,7 @@ internal class FindCallersService : IRtService
 
         _logger = logger;
     }
+
     internal async Task<FindCallersResult> FindAsync(
         Solution sln,
         string symbol,
@@ -39,46 +41,44 @@ internal class FindCallersService : IRtService
         var callers = new List<CallerResult>();
 
         foreach (var referencedSymbol in referencedSymbols)
+        foreach (var loc in referencedSymbol.Locations)
         {
-            foreach (var loc in referencedSymbol.Locations)
+            var doc = loc.Document;
+
+            if (!includeTests && IsTestProject(doc.Project.Name))
+                continue;
+
+            var root = await doc.GetSyntaxRootAsync();
+            if (root is null)
+                continue;
+
+            var node = root.FindNode(loc.Location.SourceSpan);
+
+            var invocation = node.AncestorsAndSelf()
+                .OfType<InvocationExpressionSyntax>()
+                .FirstOrDefault();
+
+            if (invocation is null || IsNameofExpression(invocation))
+                continue;
+
+            var lineSpan = loc.Location.GetLineSpan();
+            var line = lineSpan.StartLinePosition.Line + 1;
+
+            var containingMethod = invocation.Ancestors()
+                .OfType<MethodDeclarationSyntax>()
+                .FirstOrDefault()
+                ?.Identifier.Text ?? "<unknown>";
+
+            var text = await doc.GetTextAsync();
+            var sourceLine = text.Lines[line - 1].ToString().TrimStart();
+
+            callers.Add(new CallerResult
             {
-                var doc = loc.Document;
-
-                if (!includeTests && IsTestProject(doc.Project.Name))
-                    continue;
-
-                var root = await doc.GetSyntaxRootAsync();
-                if (root is null)
-                    continue;
-
-                var node = root.FindNode(loc.Location.SourceSpan);
-
-                var invocation = node.AncestorsAndSelf()
-                    .OfType<InvocationExpressionSyntax>()
-                    .FirstOrDefault();
-
-                if (invocation is null || IsNameofExpression(invocation))
-                    continue;
-
-                var lineSpan = loc.Location.GetLineSpan();
-                var line = lineSpan.StartLinePosition.Line + 1;
-
-                var containingMethod = invocation.Ancestors()
-                    .OfType<MethodDeclarationSyntax>()
-                    .FirstOrDefault()
-                    ?.Identifier.Text ?? "<unknown>";
-
-                var text = await doc.GetTextAsync();
-                var sourceLine = text.Lines[line - 1].ToString().TrimStart();
-
-                callers.Add(new CallerResult
-                {
-                    FilePath = doc.FilePath ?? string.Empty,
-                    Line = line,
-                    ContainingMethod = containingMethod,
-                    SourceLine = sourceLine,
-                });
-            }
+                FilePath = doc.FilePath ?? string.Empty,
+                Line = line,
+                ContainingMethod = containingMethod,
+                SourceLine = sourceLine
+            });
         }
 
         _logger.RtInfo("Found {Count} caller(s) of '{Name}'.", callers.Count, methodSymbol.Name);
@@ -86,14 +86,18 @@ internal class FindCallersService : IRtService
         return new FindCallersResult
         {
             SymbolName = methodSymbol.Name,
-            Callers = callers,
+            Callers = callers
         };
     }
 
-    internal bool IsNameofExpression(InvocationExpressionSyntax invocation) =>
-        invocation.Expression is IdentifierNameSyntax id &&
-        id.Identifier.ValueText == "nameof";
+    internal bool IsNameofExpression(InvocationExpressionSyntax invocation)
+    {
+        return invocation.Expression is IdentifierNameSyntax id &&
+               id.Identifier.ValueText == "nameof";
+    }
 
-    internal bool IsTestProject(string projectName) =>
-        projectName.Contains("Test", StringComparison.OrdinalIgnoreCase);
+    internal bool IsTestProject(string projectName)
+    {
+        return projectName.Contains("Test", StringComparison.OrdinalIgnoreCase);
+    }
 }

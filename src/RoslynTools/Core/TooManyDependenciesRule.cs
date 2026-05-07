@@ -23,11 +23,11 @@ internal static class TooManyDependenciesRule
         var startLine = lineSpan.StartLinePosition.Line;
 
         return new SmellResult(
-            SmellType: "TooManyDependencies",
-            TypeName: typeName,
-            MemberName: null,
-            FilePath: filePath,
-            Line: startLine + 1,
-            Detail: $"ctor ({paramCount} params)");
+            "TooManyDependencies",
+            typeName,
+            null,
+            filePath,
+            startLine + 1,
+            $"ctor ({paramCount} params)");
     }
 }

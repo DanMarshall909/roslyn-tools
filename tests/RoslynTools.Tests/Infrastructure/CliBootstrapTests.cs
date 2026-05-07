@@ -13,7 +13,7 @@ public class CliBootstrapTests
         var result = await RunAsync("dotnet", $"\"{rtDll}\" --help", repoRoot);
 
         Assert.Equal(0, result.ExitCode);
-        Assert.Contains("Usage:", result.Stdout);
+        Assert.Contains("rt Commands", result.Stdout);
         Assert.Equal(string.Empty, result.Stderr);
     }
 
@@ -26,11 +26,11 @@ public class CliBootstrapTests
             WorkingDirectory = workingDirectory,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
-            UseShellExecute = false,
+            UseShellExecute = false
         };
 
         using var process = Process.Start(startInfo)
-            ?? throw new InvalidOperationException($"Failed to start '{fileName}'.");
+                            ?? throw new InvalidOperationException($"Failed to start '{fileName}'.");
 
         var stdoutTask = process.StandardOutput.ReadToEndAsync();
         var stderrTask = process.StandardError.ReadToEndAsync();
@@ -47,10 +47,8 @@ public class CliBootstrapTests
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
              directory is not null;
              directory = directory.Parent)
-        {
             if (File.Exists(Path.Combine(directory.FullName, "RoslynTools.slnx")))
                 return directory.FullName;
-        }
 
         throw new InvalidOperationException("Could not locate repository root.");
     }

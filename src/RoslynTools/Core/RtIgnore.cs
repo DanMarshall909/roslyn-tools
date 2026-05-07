@@ -9,7 +9,10 @@ internal sealed class RtIgnore
 
     private readonly RtIgnorePattern[] _patterns;
 
-    private RtIgnore(RtIgnorePattern[] patterns) => _patterns = patterns;
+    private RtIgnore(RtIgnorePattern[] patterns)
+    {
+        _patterns = patterns;
+    }
 
     internal static RtIgnore Load(string? solutionDir)
     {
@@ -85,7 +88,7 @@ internal sealed class RtIgnore
 
     internal bool IsIgnored(string? absoluteFilePath)
     {
-        return IsIgnored(absoluteFilePath, commandName: null);
+        return IsIgnored(absoluteFilePath, null);
     }
 
     internal bool IsIgnored(string? absoluteFilePath, string? commandName)
@@ -126,8 +129,8 @@ internal sealed class RtIgnore
 
             // Glob match against the full normalised path and the filename.
             var fileName = Path.GetFileName(normalised);
-            if (FileSystemName.MatchesSimpleExpression(pattern, normalised, ignoreCase: true) ||
-                FileSystemName.MatchesSimpleExpression(pattern, fileName, ignoreCase: true))
+            if (FileSystemName.MatchesSimpleExpression(pattern, normalised, true) ||
+                FileSystemName.MatchesSimpleExpression(pattern, fileName, true))
                 return true;
         }
 
@@ -159,7 +162,7 @@ internal sealed class RtIgnore
         return FileSystemName.MatchesSimpleExpression(
             commandPattern,
             commandName,
-            ignoreCase: true);
+            true);
     }
 
     private sealed record RtIgnorePattern(string? CommandPattern, string PathPattern);

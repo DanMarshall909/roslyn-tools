@@ -5,8 +5,8 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace RoslynTools.Core;
 
 /// <summary>
-/// Builds the new extracted method declaration and the call-site statement
-/// for the extract-method refactoring.
+///     Builds the new extracted method declaration and the call-site statement
+///     for the extract-method refactoring.
 /// </summary>
 internal static class MethodExtractorBuilder
 {
@@ -45,7 +45,8 @@ internal static class MethodExtractorBuilder
         {
             // Stryker disable all
             // For tuple returns, all elements are always initialized before return, so remove nullable annotations
-            var tupleTypes = string.Join(", ", returnVars.Select(v => $"{RemoveNullableAnnotation(GetTypeName(v))} {v.Name}"));
+            var tupleTypes = string.Join(", ",
+                returnVars.Select(v => $"{RemoveNullableAnnotation(GetTypeName(v))} {v.Name}"));
             returnTypeStr = $"({tupleTypes})";
             var tupleValues = string.Join(", ", returnVars.Select(v => v.Name));
             returnStmtStr = "\n" + IndentOf(bodyStatements[^1]) + $"return ({tupleValues});";
@@ -55,11 +56,13 @@ internal static class MethodExtractorBuilder
         var bodyText = string.Join("", bodyStatements.Select(s => s.ToFullString()));
 
         var memberIndent = MemberIndentOf(bodyStatements[0]);
-        var methodText = $"{modifiers} {returnTypeStr} {name}({paramStr})\n{memberIndent}{{\n{bodyText}{returnStmtStr}\n{memberIndent}}}";
+        var methodText =
+            $"{modifiers} {returnTypeStr} {name}({paramStr})\n{memberIndent}{{\n{bodyText}{returnStmtStr}\n{memberIndent}}}";
 
         // Stryker disable all
         var method = (MethodDeclarationSyntax)(SyntaxFactory.ParseMemberDeclaration(methodText)
-            ?? throw new InvalidOperationException("Failed to parse the generated method."));
+                                               ?? throw new InvalidOperationException(
+                                                   "Failed to parse the generated method."));
         // Stryker restore all
 
         return method.WithLeadingTrivia(
@@ -82,9 +85,13 @@ internal static class MethodExtractorBuilder
 
         string stmtText;
         if (returnVars.Count == 0)
+        {
             stmtText = $"{methodName}({argStr});";
+        }
         else if (returnVars.Count == 1)
+        {
             stmtText = $"var {returnVars[0].Name} = {methodName}({argStr});";
+        }
         else
         {
             var varNames = string.Join(", ", returnVars.Select(v => v.Name));

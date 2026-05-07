@@ -8,20 +8,23 @@ namespace RoslynTools.Commands;
 
 internal sealed class ListImportsCommand : IRtCommand
 {
-    private ListImportsCommand() { }
+    private ListImportsCommand()
+    {
+    }
 
     public static RtCommandInfo Info { get; } = new(
-        Name: "list-imports",
-        Mutates: false,
-        JsonOutput: false,
-        Category: "analyze",
+        "list-imports",
+        false,
+        false,
+        "analyze",
         Aliases: ["imports"],
-        WhenToUse: "Auditing C# using directives, especially global using and using static directives, before consolidating imports or introducing static member imports.",
+        WhenToUse:
+        "Auditing C# using directives, especially global using and using static directives, before consolidating imports or introducing static member imports.",
         Examples:
         [
             "rt analyze list-imports --kind global --solution RoslynTools.slnx",
             "rt analyze imports --kind static --solution C:\\code\\app\\App.sln",
-            "rt analyze list-imports --kind all --json --solution RoslynTools.slnx",
+            "rt analyze list-imports --kind all --json --solution RoslynTools.slnx"
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );

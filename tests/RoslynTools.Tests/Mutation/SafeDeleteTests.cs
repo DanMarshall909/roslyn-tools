@@ -7,19 +7,19 @@ namespace RoslynTools.Tests.Mutation;
 public class SafeDeleteTests
 {
     private const string SafeAppSource = """
-        public class Orphan { }
+                                         public class Orphan { }
 
-        public class Used { public void Go() { } }
+                                         public class Used { public void Go() { } }
 
-        public class Caller { void Run() { var x = new Used(); } }
+                                         public class Caller { void Run() { var x = new Used(); } }
 
-        public class Svc
-        {
-            public void Dead() { }
-            public void Live() { }
-            void CallLive() { Live(); }
-        }
-        """;
+                                         public class Svc
+                                         {
+                                             public void Dead() { }
+                                             public void Live() { }
+                                             void CallLive() { Live(); }
+                                         }
+                                         """;
 
     private static (AdhocProjectBuilder Project, Workspace Workspace, Solution Solution) BuildFixture()
     {
@@ -36,7 +36,7 @@ public class SafeDeleteTests
         using (project)
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await SafeDeleteCommand.ExecuteAsync("Orphan", kind: null, solutionPath: "ignored", dryRun: false);
+            await SafeDeleteCommand.ExecuteAsync("Orphan", null, "ignored", false);
 
             var content = await project.ReadSourceAsync("SafeApp.cs");
             Assert.DoesNotContain("class Orphan", content);
@@ -50,8 +50,8 @@ public class SafeDeleteTests
         using (project)
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-                () => SafeDeleteCommand.ExecuteAsync("Used", kind: null, solutionPath: "ignored", dryRun: false));
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                SafeDeleteCommand.ExecuteAsync("Used", null, "ignored", false));
 
             Assert.Contains("Used", ex.Message);
         }
@@ -64,7 +64,7 @@ public class SafeDeleteTests
         using (project)
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await SafeDeleteCommand.ExecuteAsync("Svc.Dead", kind: "method", solutionPath: "ignored", dryRun: false);
+            await SafeDeleteCommand.ExecuteAsync("Svc.Dead", "method", "ignored", false);
 
             var content = await project.ReadSourceAsync("SafeApp.cs");
             Assert.DoesNotContain("void Dead()", content);
@@ -79,8 +79,8 @@ public class SafeDeleteTests
         using (project)
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-                () => SafeDeleteCommand.ExecuteAsync("Svc.Live", kind: "method", solutionPath: "ignored", dryRun: false));
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                SafeDeleteCommand.ExecuteAsync("Svc.Live", "method", "ignored", false));
 
             Assert.Contains("Live", ex.Message);
         }
@@ -95,7 +95,7 @@ public class SafeDeleteTests
         {
             var originalContent = await project.ReadSourceAsync("SafeApp.cs");
 
-            await SafeDeleteCommand.ExecuteAsync("Orphan", kind: null, solutionPath: "ignored", dryRun: true);
+            await SafeDeleteCommand.ExecuteAsync("Orphan", null, "ignored", true);
 
             var afterContent = await project.ReadSourceAsync("SafeApp.cs");
             Assert.Equal(originalContent, afterContent);
@@ -107,27 +107,27 @@ public class SafeDeleteTests
     {
         var project = new AdhocProjectBuilder("SafeApp");
         project.AddSource("SafeApp.cs", """
-            public class Logger
-            {
-                public void Log(string msg) { }
-            }
+                                        public class Logger
+                                        {
+                                            public void Log(string msg) { }
+                                        }
 
-            public class Client
-            {
-                void Setup()
-                {
-                    // nameof reference only — not a real usage
-                    var name = nameof(Logger);
-                }
-            }
-            """);
+                                        public class Client
+                                        {
+                                            void Setup()
+                                            {
+                                                // nameof reference only — not a real usage
+                                                var name = nameof(Logger);
+                                            }
+                                        }
+                                        """);
         var (workspace, sln) = project.Build();
 
         using (project)
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
             // Logger is only used inside nameof() — should be deletable
-            await SafeDeleteCommand.ExecuteAsync("Logger", kind: null, solutionPath: "ignored", dryRun: false);
+            await SafeDeleteCommand.ExecuteAsync("Logger", null, "ignored", false);
 
             var content = await project.ReadSourceAsync("SafeApp.cs");
             Assert.DoesNotContain("class Logger", content);

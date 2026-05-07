@@ -1,11 +1,11 @@
 <Solution>
-  <Folder Name="/src/">
-    <Project Path="src/RoslynTools/RoslynTools.csproj" />
-    <Project Path="src/RoslynTools.Cli/RoslynTools.Cli.csproj" />
-    <Project Path="src/RoslynTools.Mcp/RoslynTools.Mcp.csproj" />
-  </Folder>
-  <Folder Name="/tests/">
-    <Project Path="tests/RoslynTools.Tests/RoslynTools.Tests.csproj" />
-    <Project Path="tests/RoslynTools.Tests.Mcp/RoslynTools.Tests.Mcp.csproj" />
-  </Folder>
+    <Folder Name="/src/">
+        <Project Path="src/RoslynTools/RoslynTools.csproj"/>
+        <Project Path="src/RoslynTools.Cli/RoslynTools.Cli.csproj"/>
+        <Project Path="src/RoslynTools.Mcp/RoslynTools.Mcp.csproj"/>
+    </Folder>
+    <Folder Name="/tests/">
+        <Project Path="tests/RoslynTools.Tests/RoslynTools.Tests.csproj"/>
+        <Project Path="tests/RoslynTools.Tests.Mcp/RoslynTools.Tests.Mcp.csproj"/>
+    </Folder>
 </Solution>

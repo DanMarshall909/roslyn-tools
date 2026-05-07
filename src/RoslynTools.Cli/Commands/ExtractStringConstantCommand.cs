@@ -6,20 +6,23 @@ namespace RoslynTools.Commands;
 
 internal sealed class ExtractStringConstantCommand : IRtCommand
 {
-    private ExtractStringConstantCommand() { }
+    private ExtractStringConstantCommand()
+    {
+    }
 
     public static RtCommandInfo Info { get; } = new(
-        Name: "extract-string-constant",
-        Mutates: true,
-        JsonOutput: false,
-        Category: "refactor",
+        "extract-string-constant",
+        true,
+        false,
+        "refactor",
         Aliases: ["esc"],
-        WhenToUse: "Replacing a repeated string literal inside one containing type with a named private const string. Use find-magic-strings first to locate the file and line.",
+        WhenToUse:
+        "Replacing a repeated string literal inside one containing type with a named private const string. Use find-magic-strings first to locate the file and line.",
         Examples:
         [
             "rt refactor extract-string-constant --file src/App/Foo.cs --line 42 --name DefaultStatus --solution C:\\code\\app\\App.sln",
             "rt refactor esc --file tests/FooTests.cs --line 18 --name ExpectedMessage --dry-run --solution RoslynTools.slnx",
-            "rt refactor extract-string-constant --file src/Domain/Order.cs --line 27 --name SubmittedStatus --solution RoslynTools.slnx",
+            "rt refactor extract-string-constant --file src/Domain/Order.cs --line 27 --name SubmittedStatus --solution RoslynTools.slnx"
         ]
     );
 
@@ -47,4 +50,3 @@ internal sealed class ExtractStringConstantCommand : IRtCommand
         return cmd;
     }
 }
-

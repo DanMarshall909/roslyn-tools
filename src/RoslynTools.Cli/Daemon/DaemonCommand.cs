@@ -1,6 +1,7 @@
 using System.CommandLine;
-using System.CommandLine.Invocation;
+using System.ComponentModel;
 using System.Diagnostics;
+using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 
@@ -45,7 +46,7 @@ internal static class DaemonCommand
             Process.Start(new ProcessStartInfo(exe, "--daemon-serve")
             {
                 UseShellExecute = false,
-                CreateNoWindow = true,
+                CreateNoWindow = true
             });
 
             // Poll until daemon.json appears — the server writes it after MSBuild + DI init,
@@ -70,7 +71,7 @@ internal static class DaemonCommand
     private static Command BuildStop()
     {
         var cmd = new Command("stop", "Stop the running daemon");
-        cmd.SetHandler(async (InvocationContext ctx) =>
+        cmd.SetHandler(async ctx =>
         {
             var sp = ctx.BindingContext.GetService<IServiceProvider>();
             var client = sp?.GetService<DaemonClient>();
@@ -115,7 +116,8 @@ internal static class DaemonCommand
                 await proc.WaitForExitAsync(killCts.Token);
                 RtLog.Info("Daemon (PID {Pid}) killed.", state.Pid);
             }
-            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException)
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or Win32Exception
+                                           or NotSupportedException)
             {
                 RtLog.Warning("Could not kill PID {Pid}: {Reason}.", state.Pid, ex.Message);
             }
@@ -131,7 +133,11 @@ internal static class DaemonCommand
         cmd.SetHandler(() =>
         {
             var state = DaemonState.TryRead();
-            if (state is null) { RtLog.Info("Daemon: STOPPED"); return; }
+            if (state is null)
+            {
+                RtLog.Info("Daemon: STOPPED");
+                return;
+            }
 
             var alive = DaemonState.IsAlive(state);
             var uptime = DateTimeOffset.UtcNow - state.StartedAt;
@@ -140,7 +146,8 @@ internal static class DaemonCommand
             RtLog.Info("Daemon:   {Status}", status);
             RtLog.Info("PID:      {Pid}", state.Pid);
             RtLog.Info("Pipe:     {Pipe}", DaemonEncoding.DisplayPipePath(state.PipeName));
-            RtLog.Info("Uptime:   {Hours}h {Minutes}m {Seconds}s", (int)uptime.TotalHours, uptime.Minutes, uptime.Seconds);
+            RtLog.Info("Uptime:   {Hours}h {Minutes}m {Seconds}s", (int)uptime.TotalHours, uptime.Minutes,
+                uptime.Seconds);
             if (state.Solution is not null) RtLog.Info("Solution: {Solution}", state.Solution);
             RtLog.Info("Version:  {Version}", state.RtVersion);
 
@@ -164,8 +171,14 @@ internal static class DaemonCommand
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             await proc.WaitForExitAsync(cts.Token);
         }
-        catch (ArgumentException) { /* already gone */ }
-        catch (OperationCanceledException) { /* timed out — caller still reports success */ }
+        catch (ArgumentException)
+        {
+            /* already gone */
+        }
+        catch (OperationCanceledException)
+        {
+            /* timed out — caller still reports success */
+        }
     }
 
     private static Command BuildLogs()
@@ -173,9 +186,14 @@ internal static class DaemonCommand
         var cmd = new Command("logs", "Print the daemon activity log");
         cmd.SetHandler(() =>
         {
-            if (!File.Exists(DaemonState.LogFile)) { RtLog.Info("No daemon log found."); return; }
+            if (!File.Exists(DaemonState.LogFile))
+            {
+                RtLog.Info("No daemon log found.");
+                return;
+            }
+
             using var fs = new FileStream(DaemonState.LogFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            using var reader = new StreamReader(fs, System.Text.Encoding.UTF8);
+            using var reader = new StreamReader(fs, Encoding.UTF8);
             RtConsole.Write(RtOutputContext.Result, reader.ReadToEnd());
         });
         return cmd;

@@ -13,24 +13,18 @@ internal enum DependencyInjectionStatus
 }
 
 /// <summary>
-/// Rewrites a target class to inject a new dependency: adds a private readonly field,
-/// and either creates a constructor or updates existing constructors safely.
+///     Rewrites a target class to inject a new dependency: adds a private readonly field,
+///     and either creates a constructor or updates existing constructors safely.
 /// </summary>
 internal sealed class DependencyInjector : CSharpSyntaxRewriter
 {
-    private readonly string _targetClass;
-    private readonly INamedTypeSymbol? _targetTypeSymbol;
     private readonly string _depType;
     private readonly ITypeSymbol? _depTypeSymbol;
     private readonly string _fieldName;
     private readonly string _paramName;
     private readonly SemanticModel? _semanticModel;
-
-    public DependencyInjectionStatus Status { get; private set; } = DependencyInjectionStatus.ClassNotFound;
-
-    public bool Applied => Status == DependencyInjectionStatus.Applied;
-
-    public string? ValidationError { get; private set; }
+    private readonly string _targetClass;
+    private readonly INamedTypeSymbol? _targetTypeSymbol;
 
     public DependencyInjector(
         string targetClass,
@@ -50,6 +44,12 @@ internal sealed class DependencyInjector : CSharpSyntaxRewriter
         _semanticModel = semanticModel;
     }
 
+    public DependencyInjectionStatus Status { get; private set; } = DependencyInjectionStatus.ClassNotFound;
+
+    public bool Applied => Status == DependencyInjectionStatus.Applied;
+
+    public string? ValidationError { get; private set; }
+
     public override SyntaxNode? VisitClassDeclaration(ClassDeclarationSyntax node)
     {
         if (!IsTargetClass(node))
@@ -65,7 +65,8 @@ internal sealed class DependencyInjector : CSharpSyntaxRewriter
         foreach (var ctor in constructors)
         {
             var matchingParameter = FindMatchingParameter(ctor);
-            var hasAssignment = matchingParameter is not null && HasFieldAssignment(ctor, matchingParameter.Identifier.Text);
+            var hasAssignment = matchingParameter is not null &&
+                                HasFieldAssignment(ctor, matchingParameter.Identifier.Text);
 
             if (ctor.ExpressionBody is not null && (matchingParameter is null || !hasAssignment))
             {
@@ -100,11 +101,9 @@ internal sealed class DependencyInjector : CSharpSyntaxRewriter
         }
 
         if (needsConstructorUpdates)
-        {
             visited = visited.ReplaceNodes(
                 replacementMap.Keys,
                 (original, _) => replacementMap[original]);
-        }
 
         var members = visited.Members;
         var fieldInsertIndex = GetFieldInsertIndex(members);
@@ -144,8 +143,10 @@ internal sealed class DependencyInjector : CSharpSyntaxRewriter
         return SymbolEqualityComparer.Default.Equals(classSymbol, _targetTypeSymbol);
     }
 
-    private ParameterSyntax? FindMatchingParameter(ConstructorDeclarationSyntax ctor) =>
-        ctor.ParameterList.Parameters.FirstOrDefault(ParameterMatchesDependency);
+    private ParameterSyntax? FindMatchingParameter(ConstructorDeclarationSyntax ctor)
+    {
+        return ctor.ParameterList.Parameters.FirstOrDefault(ParameterMatchesDependency);
+    }
 
     private bool ParameterMatchesDependency(ParameterSyntax parameter)
     {
@@ -159,9 +160,7 @@ internal sealed class DependencyInjector : CSharpSyntaxRewriter
                 parameterType.TypeKind != TypeKind.Error &&
                 _depTypeSymbol.TypeKind != TypeKind.Error &&
                 SymbolEqualityComparer.Default.Equals(parameterType, _depTypeSymbol))
-            {
                 return true;
-            }
         }
 
         return NormalizeTypeName(parameter.Type.ToString()) == NormalizeTypeName(_depType);
@@ -170,11 +169,9 @@ internal sealed class DependencyInjector : CSharpSyntaxRewriter
     private bool HasFieldAssignment(ConstructorDeclarationSyntax ctor, string paramName)
     {
         if (ctor.Body is not null)
-        {
             return ctor.Body.DescendantNodes()
                 .OfType<AssignmentExpressionSyntax>()
                 .Any(a => IsFieldAssignment(a, paramName));
-        }
 
         if (ctor.ExpressionBody?.Expression is AssignmentExpressionSyntax assignment)
             return IsFieldAssignment(assignment, paramName);
@@ -187,7 +184,8 @@ internal sealed class DependencyInjector : CSharpSyntaxRewriter
         var leftName = assignment.Left switch
         {
             IdentifierNameSyntax identifier => identifier.Identifier.Text,
-            MemberAccessExpressionSyntax memberAccess when memberAccess.Expression is ThisExpressionSyntax => memberAccess.Name.Identifier.Text,
+            MemberAccessExpressionSyntax memberAccess when memberAccess.Expression is ThisExpressionSyntax =>
+                memberAccess.Name.Identifier.Text,
             _ => null
         };
 
@@ -208,7 +206,8 @@ internal sealed class DependencyInjector : CSharpSyntaxRewriter
     private ConstructorDeclarationSyntax AddAssignment(ConstructorDeclarationSyntax ctor, string paramName)
     {
         if (ctor.Body is null)
-            throw new InvalidOperationException("Cannot add a dependency assignment to a constructor without a block body.");
+            throw new InvalidOperationException(
+                "Cannot add a dependency assignment to a constructor without a block body.");
 
         var assignment = SyntaxFactory.ParseStatement($"        {_fieldName} = {paramName};{Environment.NewLine}");
         return ctor.WithBody(ctor.Body.WithStatements(ctor.Body.Statements.Insert(0, assignment)));
@@ -217,18 +216,18 @@ internal sealed class DependencyInjector : CSharpSyntaxRewriter
     private static int GetFieldInsertIndex(SyntaxList<MemberDeclarationSyntax> members)
     {
         var insertIndex = 0;
-        for (int i = 0; i < members.Count; i++)
-        {
+        for (var i = 0; i < members.Count; i++)
             if (members[i] is FieldDeclarationSyntax)
                 insertIndex = i + 1;
             else
                 break;
-        }
 
         return insertIndex;
     }
 
-    private static string NormalizeTypeName(string typeName) =>
-        typeName.Replace("global::", string.Empty, StringComparison.Ordinal)
+    private static string NormalizeTypeName(string typeName)
+    {
+        return typeName.Replace("global::", string.Empty, StringComparison.Ordinal)
             .Replace(" ", string.Empty, StringComparison.Ordinal);
+    }
 }

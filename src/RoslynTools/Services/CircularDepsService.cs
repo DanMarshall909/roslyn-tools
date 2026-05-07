@@ -1,10 +1,11 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using System.Diagnostics.CodeAnalysis;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class CircularDepsService : IRtService
 {
     internal async Task<IReadOnlyList<IReadOnlyList<string>>> AnalyzeCyclesAsync(Solution sln, string? scope)
@@ -12,66 +13,64 @@ internal class CircularDepsService : IRtService
         var graph = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
 
         foreach (var project in sln.Projects)
+        foreach (var document in project.Documents)
         {
-            foreach (var document in project.Documents)
+            var root = await document.GetSyntaxRootAsync();
+            if (root is null)
+                continue;
+
+            var declaredNamespaces = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var nsNode in root.DescendantNodesAndSelf())
             {
-                var root = await document.GetSyntaxRootAsync();
-                if (root is null)
+                var nsName = nsNode switch
+                {
+                    NamespaceDeclarationSyntax ns => ns.Name.ToString(),
+                    FileScopedNamespaceDeclarationSyntax fsns => fsns.Name.ToString(),
+                    _ => null
+                };
+                if (nsName is not null)
+                    declaredNamespaces.Add(nsName);
+            }
+
+            var compilationUnit = (CompilationUnitSyntax)root;
+            var topLevelUsings = compilationUnit.Usings
+                .Select(u => u.Name?.ToString())
+                .Where(n => n is not null)
+                .Cast<string>()
+                .ToList();
+
+            foreach (var declaredNs in declaredNamespaces)
+            {
+                if (!graph.ContainsKey(declaredNs))
+                    graph[declaredNs] = new HashSet<string>(StringComparer.Ordinal);
+
+                foreach (var used in topLevelUsings)
+                    AddEdge(graph, declaredNs, used);
+            }
+
+            foreach (var nsNode in root.DescendantNodes())
+            {
+                var declaredNs = nsNode switch
+                {
+                    NamespaceDeclarationSyntax ns => ns.Name.ToString(),
+                    FileScopedNamespaceDeclarationSyntax fsns => fsns.Name.ToString(),
+                    _ => null
+                };
+                if (declaredNs is null)
                     continue;
 
-                var declaredNamespaces = new HashSet<string>(StringComparer.Ordinal);
-                foreach (var nsNode in root.DescendantNodesAndSelf())
+                var usings = nsNode switch
                 {
-                    string? nsName = nsNode switch
-                    {
-                        NamespaceDeclarationSyntax ns => ns.Name.ToString(),
-                        FileScopedNamespaceDeclarationSyntax fsns => fsns.Name.ToString(),
-                        _ => null,
-                    };
-                    if (nsName is not null)
-                        declaredNamespaces.Add(nsName);
-                }
+                    NamespaceDeclarationSyntax ns => ns.Usings,
+                    FileScopedNamespaceDeclarationSyntax fsns => fsns.Usings,
+                    _ => Enumerable.Empty<UsingDirectiveSyntax>()
+                };
 
-                var compilationUnit = (CompilationUnitSyntax)root;
-                var topLevelUsings = compilationUnit.Usings
-                    .Select(u => u.Name?.ToString())
-                    .Where(n => n is not null)
-                    .Cast<string>()
-                    .ToList();
-
-                foreach (var declaredNs in declaredNamespaces)
+                foreach (var u in usings)
                 {
-                    if (!graph.ContainsKey(declaredNs))
-                        graph[declaredNs] = new HashSet<string>(StringComparer.Ordinal);
-
-                    foreach (var used in topLevelUsings)
-                        AddEdge(graph, declaredNs, used);
-                }
-
-                foreach (var nsNode in root.DescendantNodes())
-                {
-                    string? declaredNs = nsNode switch
-                    {
-                        NamespaceDeclarationSyntax ns => ns.Name.ToString(),
-                        FileScopedNamespaceDeclarationSyntax fsns => fsns.Name.ToString(),
-                        _ => null,
-                    };
-                    if (declaredNs is null)
-                        continue;
-
-                    IEnumerable<UsingDirectiveSyntax> usings = nsNode switch
-                    {
-                        NamespaceDeclarationSyntax ns => ns.Usings,
-                        FileScopedNamespaceDeclarationSyntax fsns => fsns.Usings,
-                        _ => Enumerable.Empty<UsingDirectiveSyntax>(),
-                    };
-
-                    foreach (var u in usings)
-                    {
-                        var usedNs = u.Name?.ToString();
-                        if (usedNs is not null)
-                            AddEdge(graph, declaredNs, usedNs);
-                    }
+                    var usedNs = u.Name?.ToString();
+                    if (usedNs is not null)
+                        AddEdge(graph, declaredNs, usedNs);
                 }
             }
         }
@@ -87,6 +86,7 @@ internal class CircularDepsService : IRtService
                     deps.Where(d => d.StartsWith(scope, StringComparison.Ordinal)),
                     StringComparer.Ordinal);
             }
+
             graph = filtered;
         }
 
@@ -97,10 +97,8 @@ internal class CircularDepsService : IRtService
         var stack = new Stack<string>();
 
         foreach (var node in graph.Keys.OrderBy(n => n))
-        {
             if (white.Contains(node))
                 DfsCollectStrings(node, graph, white, gray, black, stack, cycleStrings);
-        }
 
         return cycleStrings.Select(s => (IReadOnlyList<string>)s.Split(" -> ")).ToList();
     }
@@ -129,7 +127,6 @@ internal class CircularDepsService : IRtService
         stack.Push(node);
 
         if (graph.TryGetValue(node, out var neighbors))
-        {
             foreach (var neighbor in neighbors.OrderBy(n => n))
             {
                 if (black.Contains(neighbor))
@@ -146,7 +143,6 @@ internal class CircularDepsService : IRtService
                 if (white.Contains(neighbor))
                     DfsCollectStrings(neighbor, graph, white, gray, black, stack, cycles);
             }
-        }
 
         stack.Pop();
         gray.Remove(node);

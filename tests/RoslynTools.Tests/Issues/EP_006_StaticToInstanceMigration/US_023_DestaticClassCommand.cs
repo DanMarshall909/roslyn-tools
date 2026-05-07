@@ -3,11 +3,10 @@ using RoslynTools.Commands;
 namespace RoslynTools.Tests.Issues.EP_006_StaticToInstanceMigration;
 
 /// <summary>
-/// US-023: Add `rt refactor convert-static-class` command.
-///
-/// Drops the static modifier from a class, makes members instance, generates a matching
-/// interface, registers the class in DI, and rewrites all call sites to use injected
-/// references.
+///     US-023: Add `rt refactor convert-static-class` command.
+///     Drops the static modifier from a class, makes members instance, generates a matching
+///     interface, registers the class in DI, and rewrites all call sites to use injected
+///     references.
 /// </summary>
 [Trait("Epic", "EP-006")]
 [Trait("Story", "US-023")]

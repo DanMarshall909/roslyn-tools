@@ -3,7 +3,7 @@ using Microsoft.Extensions.Hosting;
 namespace RoslynTools.Tests;
 
 /// <summary>
-/// Tests for US-022: DI host scaffold wired in RoslynTools.Cli startup.
+///     Tests for US-022: DI host scaffold wired in RoslynTools.Cli startup.
 /// </summary>
 public sealed class BootstrapTests
 {

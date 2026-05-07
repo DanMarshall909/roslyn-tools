@@ -5,27 +5,27 @@ using RoslynTools.Services;
 namespace RoslynTools.Tests.Navigation;
 
 /// <summary>
-/// Service-level tests that exercise FindCallersService, FindRefsService,
-/// FindImplementationsService, OutlineService, and InspectService entry points.
-/// The existing navigation tests validate logic via Roslyn APIs directly;
-/// these tests validate the service wiring.
+///     Service-level tests that exercise FindCallersService, FindRefsService,
+///     FindImplementationsService, OutlineService, and InspectService entry points.
+///     The existing navigation tests validate logic via Roslyn APIs directly;
+///     these tests validate the service wiring.
 /// </summary>
 public class NavigationServicesTests
 {
     private const string GreeterSource = """
-        namespace App;
+                                         namespace App;
 
-        public class Greeter
-        {
-            public string Greet(string name) => $"Hello, {name}!";
-        }
+                                         public class Greeter
+                                         {
+                                             public string Greet(string name) => $"Hello, {name}!";
+                                         }
 
-        public class Runner
-        {
-            private readonly Greeter _g = new();
-            public void Run() { var r = _g.Greet("Alice"); }
-        }
-        """;
+                                         public class Runner
+                                         {
+                                             private readonly Greeter _g = new();
+                                             public void Run() { var r = _g.Greet("Alice"); }
+                                         }
+                                         """;
 
     // ── FindCallersService ────────────────────────────────────────────────
 
@@ -37,7 +37,7 @@ public class NavigationServicesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await new FindCallersService().FindAsync(sln, "Greet", includeTests: true);
+            var result = await new FindCallersService().FindAsync(sln, "Greet", true);
             Assert.Equal("Greet", result.SymbolName);
             Assert.NotEmpty(result.Callers);
         }
@@ -46,12 +46,12 @@ public class NavigationServicesTests
     [Fact]
     public async Task FindCallers_excludes_test_projects_by_default()
     {
-        using var project = new AdhocProjectBuilder("MyTests");  // name contains "Test"
+        using var project = new AdhocProjectBuilder("MyTests"); // name contains "Test"
         project.AddSource("Callers.cs", GreeterSource);
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await new FindCallersService().FindAsync(sln, "Greet", includeTests: false);
+            var result = await new FindCallersService().FindAsync(sln, "Greet", false);
             Assert.Empty(result.Callers);
         }
     }
@@ -74,7 +74,7 @@ public class NavigationServicesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await new FindRefsService().FindAsync(sln, "Greeter", kind: "type");
+            var result = await new FindRefsService().FindAsync(sln, "Greeter", "type");
             Assert.Equal("Greeter", result.SymbolName);
             Assert.NotEmpty(result.References);
         }
@@ -87,10 +87,10 @@ public class NavigationServicesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Contracts.cs", """
-            namespace App;
-            public interface IWorker { void Work(); }
-            public class ConcreteWorker : IWorker { public void Work() { } }
-            """);
+                                          namespace App;
+                                          public interface IWorker { void Work(); }
+                                          public class ConcreteWorker : IWorker { public void Work() { } }
+                                          """);
         var (workspace, sln) = project.Build();
         using (workspace)
         {
@@ -126,8 +126,8 @@ public class NavigationServicesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            await Assert.ThrowsAsync<InvalidOperationException>(
-                () => new OutlineService().OutlineNamespaceAsync(sln, "DoesNotExist"));
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                new OutlineService().OutlineNamespaceAsync(sln, "DoesNotExist"));
         }
     }
 
@@ -139,8 +139,8 @@ public class NavigationServicesTests
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            await Assert.ThrowsAsync<InvalidOperationException>(
-                () => new OutlineService().OutlineFileAsync(sln, "/nonexistent/path.cs"));
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                new OutlineService().OutlineFileAsync(sln, "/nonexistent/path.cs"));
         }
     }
 
@@ -196,9 +196,9 @@ public class NavigationServicesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Model.cs", """
-            namespace App;
-            public class Order { public int Id { get; set; } }
-            """);
+                                      namespace App;
+                                      public class Order { public int Id { get; set; } }
+                                      """);
         var (workspace, sln) = project.Build();
         using (workspace)
         {
@@ -216,9 +216,9 @@ public class NavigationServicesTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Model.cs", """
-            namespace App;
-            public class Config { public const int MaxSize = 100; }
-            """);
+                                      namespace App;
+                                      public class Config { public const int MaxSize = 100; }
+                                      """);
         var (workspace, sln) = project.Build();
         using (workspace)
         {

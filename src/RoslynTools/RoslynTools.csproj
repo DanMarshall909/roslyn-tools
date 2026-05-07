@@ -1,23 +1,23 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <RootNamespace>RoslynTools</RootNamespace>
-  </PropertyGroup>
-  <ItemGroup>
-    <InternalsVisibleTo Include="RoslynTools.Tests" />
-    <InternalsVisibleTo Include="RoslynTools.Mcp" />
-    <InternalsVisibleTo Include="RoslynTools.Tests.Mcp" />
-    <InternalsVisibleTo Include="rt" />
-  </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="System.CommandLine" />
-    <PackageReference Include="Microsoft.Build.Locator" />
-    <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
-    <PackageReference Include="DiffPlex" />
-    <PackageReference Include="YamlDotNet" />
-  </ItemGroup>
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <RootNamespace>RoslynTools</RootNamespace>
+    </PropertyGroup>
+    <ItemGroup>
+        <InternalsVisibleTo Include="RoslynTools.Tests"/>
+        <InternalsVisibleTo Include="RoslynTools.Mcp"/>
+        <InternalsVisibleTo Include="RoslynTools.Tests.Mcp"/>
+        <InternalsVisibleTo Include="rt"/>
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="System.CommandLine"/>
+        <PackageReference Include="Microsoft.Build.Locator"/>
+        <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild"/>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces"/>
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"/>
+        <PackageReference Include="DiffPlex"/>
+        <PackageReference Include="YamlDotNet"/>
+    </ItemGroup>
 </Project>

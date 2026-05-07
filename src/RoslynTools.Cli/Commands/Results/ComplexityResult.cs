@@ -6,70 +6,95 @@ internal sealed record MethodComplexityItem : IRtOutput
 {
     [OutputField(OutputLevel.Default, "method")]
     public required string Method { get; init; }
+
     [OutputField(OutputLevel.Default, "type")]
     public required string Type { get; init; }
+
     [OutputField(OutputLevel.Default, "namespace")]
     public required string Namespace { get; init; }
+
     [OutputField(OutputLevel.Default, "file")]
     public required string File { get; init; }
+
     [OutputField(OutputLevel.Default, "line")]
     public required int Line { get; init; }
+
     [OutputField(OutputLevel.Default, "cyclomatic")]
     public required int Cyclomatic { get; init; }
+
     [OutputField(OutputLevel.Default, "cognitive")]
     public required int Cognitive { get; init; }
+
     [OutputField(OutputLevel.Default, "loc")]
     public required int Loc { get; init; }
+
     [OutputField(OutputLevel.Default, "params")]
     public required int Params { get; init; }
 
     public void RenderText(TextWriter writer)
     {
-        writer.Write($"{Fit(Method, 40),-40}{Fit(Type, 30),-30}{Cyclomatic,4}  {Cognitive,4}  {Loc,5}  {Params,3}  {File}:{Line}");
+        writer.Write(
+            $"{Fit(Method, 40),-40}{Fit(Type, 30),-30}{Cyclomatic,4}  {Cognitive,4}  {Loc,5}  {Params,3}  {File}:{Line}");
     }
 
-    private static string Fit(string s, int width) =>
-        s.Length <= width ? s : "…" + s[^(width - 1)..];
+    private static string Fit(string s, int width)
+    {
+        return s.Length <= width ? s : "…" + s[^(width - 1)..];
+    }
 }
 
 internal sealed record TypeRollupItem : IRtOutput
 {
     [OutputField(OutputLevel.Default, "type")]
     public required string Type { get; init; }
+
     [OutputField(OutputLevel.Default, "namespace")]
     public required string Namespace { get; init; }
+
     [OutputField(OutputLevel.Default, "methodCount")]
     public required int MethodCount { get; init; }
+
     [OutputField(OutputLevel.Default, "cyclomaticTotal")]
     public required int CyclomaticTotal { get; init; }
+
     [OutputField(OutputLevel.Default, "cognitiveTotal")]
     public required int CognitiveTotal { get; init; }
+
     [OutputField(OutputLevel.Default, "locTotal")]
     public required int LocTotal { get; init; }
+
     [OutputField(OutputLevel.Default, "paramsTotal")]
     public required int ParamsTotal { get; init; }
 
     public void RenderText(TextWriter writer)
     {
-        writer.Write($"{Fit(Type, 40),-40}{Fit(Namespace, 40),-40}{MethodCount,4}  {CyclomaticTotal,6}  {CognitiveTotal,6}  {LocTotal,7}");
+        writer.Write(
+            $"{Fit(Type, 40),-40}{Fit(Namespace, 40),-40}{MethodCount,4}  {CyclomaticTotal,6}  {CognitiveTotal,6}  {LocTotal,7}");
     }
 
-    private static string Fit(string s, int width) =>
-        s.Length <= width ? s : "…" + s[^(width - 1)..];
+    private static string Fit(string s, int width)
+    {
+        return s.Length <= width ? s : "…" + s[^(width - 1)..];
+    }
 }
 
 internal sealed record NamespaceRollupItem : IRtOutput
 {
     [OutputField(OutputLevel.Default, "namespace")]
     public required string Namespace { get; init; }
+
     [OutputField(OutputLevel.Default, "methodCount")]
     public required int MethodCount { get; init; }
+
     [OutputField(OutputLevel.Default, "cyclomaticTotal")]
     public required int CyclomaticTotal { get; init; }
+
     [OutputField(OutputLevel.Default, "cognitiveTotal")]
     public required int CognitiveTotal { get; init; }
+
     [OutputField(OutputLevel.Default, "locTotal")]
     public required int LocTotal { get; init; }
+
     [OutputField(OutputLevel.Default, "paramsTotal")]
     public required int ParamsTotal { get; init; }
 
@@ -78,16 +103,20 @@ internal sealed record NamespaceRollupItem : IRtOutput
         writer.Write($"{Fit(Namespace, 60),-60}{MethodCount,4}  {CyclomaticTotal,6}  {CognitiveTotal,6}  {LocTotal,7}");
     }
 
-    private static string Fit(string s, int width) =>
-        s.Length <= width ? s : "…" + s[^(width - 1)..];
+    private static string Fit(string s, int width)
+    {
+        return s.Length <= width ? s : "…" + s[^(width - 1)..];
+    }
 }
 
 internal sealed record ComplexityResult : IRtOutput
 {
     [OutputField(OutputLevel.Default, "methods")]
     public IReadOnlyList<MethodComplexityItem> Methods { get; init; } = [];
+
     [OutputField(OutputLevel.Default, "typeRollups")]
     public IReadOnlyList<TypeRollupItem> TypeRollups { get; init; } = [];
+
     [OutputField(OutputLevel.Default, "namespaceRollups")]
     public IReadOnlyList<NamespaceRollupItem> NamespaceRollups { get; init; } = [];
 

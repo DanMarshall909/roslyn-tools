@@ -4,7 +4,10 @@ namespace RoslynTools.Tests.Infrastructure;
 
 public class WorkspaceLoaderResolutionTests
 {
-    static WorkspaceLoaderResolutionTests() => MsBuildFixture.Ensure();
+    static WorkspaceLoaderResolutionTests()
+    {
+        MsBuildFixture.Ensure();
+    }
 
     [Fact]
     public async Task Child_solution_is_chosen_when_it_is_the_nearest_match()

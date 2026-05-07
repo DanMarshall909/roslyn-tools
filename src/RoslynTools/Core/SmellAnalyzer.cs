@@ -24,40 +24,36 @@ internal static class SmellAnalyzer
         var rtIgnore = RtIgnore.ForSolution(solution);
 
         foreach (var project in solution.Projects)
+        foreach (var document in project.Documents)
         {
-            foreach (var document in project.Documents)
+            if (rtIgnore.IsIgnored(document.FilePath))
+                continue;
+
+            var root = await document.GetSyntaxRootAsync();
+            if (root is null)
+                continue;
+
+            var filePath = document.FilePath;
+
+            var typeDeclarations = root.DescendantNodes()
+                .OfType<TypeDeclarationSyntax>()
+                .Where(t => t is ClassDeclarationSyntax or RecordDeclarationSyntax);
+
+            foreach (var typeDecl in typeDeclarations)
             {
-                if (rtIgnore.IsIgnored(document.FilePath))
+                if (!MatchesScope(GetTypeScopeName(typeDecl), scope)
+                    && !MatchesScope(project.Name, scope))
                     continue;
 
-                var root = await document.GetSyntaxRootAsync();
-                if (root is null)
-                    continue;
+                var largeClass = LargeClassRule.Check(typeDecl, filePath, maxClassLines);
+                if (largeClass is not null)
+                    results.Add(largeClass);
 
-                var filePath = document.FilePath;
+                results.AddRange(LongMethodRule.Check(typeDecl, filePath, maxMethodLines));
 
-                var typeDeclarations = root.DescendantNodes()
-                    .OfType<TypeDeclarationSyntax>()
-                    .Where(t => t is ClassDeclarationSyntax or RecordDeclarationSyntax);
-
-                foreach (var typeDecl in typeDeclarations)
-                {
-                    if (!MatchesScope(GetTypeScopeName(typeDecl), scope)
-                        && !MatchesScope(project.Name, scope))
-                    {
-                        continue;
-                    }
-
-                    var largeClass = LargeClassRule.Check(typeDecl, filePath, maxClassLines);
-                    if (largeClass is not null)
-                        results.Add(largeClass);
-
-                    results.AddRange(LongMethodRule.Check(typeDecl, filePath, maxMethodLines));
-
-                    var tooManyDeps = TooManyDependenciesRule.Check(typeDecl, filePath, maxParams);
-                    if (tooManyDeps is not null)
-                        results.Add(tooManyDeps);
-                }
+                var tooManyDeps = TooManyDependenciesRule.Check(typeDecl, filePath, maxParams);
+                if (tooManyDeps is not null)
+                    results.Add(tooManyDeps);
             }
         }
 
@@ -78,7 +74,6 @@ internal static class SmellAnalyzer
         names.Push(typeDecl.Identifier.Text);
 
         for (var parent = typeDecl.Parent; parent is not null; parent = parent.Parent)
-        {
             switch (parent)
             {
                 case TypeDeclarationSyntax containingType:
@@ -89,7 +84,6 @@ internal static class SmellAnalyzer
                 case NamespaceDeclarationSyntax namespaceDeclaration:
                     return namespaceDeclaration.Name + "." + string.Join(".", names);
             }
-        }
 
         return string.Join(".", names);
     }

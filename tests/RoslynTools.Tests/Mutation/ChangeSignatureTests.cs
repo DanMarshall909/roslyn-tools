@@ -12,27 +12,27 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public void Foo(int count)
-                {
-                }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public void Foo(int count)
+                                            {
+                                            }
+                                        }
+                                        """);
         project.AddSource("Caller.cs", """
-            namespace TestApp;
+                                       namespace TestApp;
 
-            public class Caller
-            {
-                public void Run(Service service)
-                {
-                    service.Foo(count: 5);
-                    service.Foo(5);
-                }
-            }
-            """);
+                                       public class Caller
+                                       {
+                                           public void Run(Service service)
+                                           {
+                                               service.Foo(count: 5);
+                                               service.Foo(5);
+                                           }
+                                       }
+                                       """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
@@ -57,37 +57,37 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public void Foo(int count)
-                {
-                }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public void Foo(int count)
+                                            {
+                                            }
+                                        }
+                                        """);
         project.AddSource("Caller1.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Caller1
-            {
-                public void Run(Service service)
-                {
-                    service.Foo(count: 1);
-                }
-            }
-            """);
+                                        public class Caller1
+                                        {
+                                            public void Run(Service service)
+                                            {
+                                                service.Foo(count: 1);
+                                            }
+                                        }
+                                        """);
         project.AddSource("Caller2.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Caller2
-            {
-                public void Run(Service service)
-                {
-                    service.Foo(count: 2);
-                }
-            }
-            """);
+                                        public class Caller2
+                                        {
+                                            public void Run(Service service)
+                                            {
+                                                service.Foo(count: 2);
+                                            }
+                                        }
+                                        """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
@@ -109,26 +109,26 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Widget.cs", """
-            namespace TestApp;
+                                       namespace TestApp;
 
-            public class Widget
-            {
-                public Widget(int count)
-                {
-                }
-            }
-            """);
+                                       public class Widget
+                                       {
+                                           public Widget(int count)
+                                           {
+                                           }
+                                       }
+                                       """);
         project.AddSource("Caller.cs", """
-            namespace TestApp;
+                                       namespace TestApp;
 
-            public class Caller
-            {
-                public void Run()
-                {
-                    _ = new Widget(count: 5);
-                }
-            }
-            """);
+                                       public class Caller
+                                       {
+                                           public void Run()
+                                           {
+                                               _ = new Widget(count: 5);
+                                           }
+                                       }
+                                       """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
@@ -149,20 +149,20 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Container.cs", """
-            namespace TestApp;
+                                          namespace TestApp;
 
-            public class Container
-            {
-                public void Run()
-                {
-                    void Local(int count)
-                    {
-                    }
+                                          public class Container
+                                          {
+                                              public void Run()
+                                              {
+                                                  void Local(int count)
+                                                  {
+                                                  }
 
-                    Local(count: 5);
-                }
-            }
-            """);
+                                                  Local(count: 5);
+                                              }
+                                          }
+                                          """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
@@ -184,15 +184,15 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public void Foo(int count)
-                {
-                }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public void Foo(int count)
+                                            {
+                                            }
+                                        }
+                                        """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
@@ -209,15 +209,15 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public void Foo(int count, int total)
-                {
-                }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public void Foo(int count, int total)
+                                            {
+                                            }
+                                        }
+                                        """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
@@ -234,19 +234,19 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public void Foo(int count)
-                {
-                }
+                                        public class Service
+                                        {
+                                            public void Foo(int count)
+                                            {
+                                            }
 
-                public void Foo(string name)
-                {
-                }
-            }
-            """);
+                                            public void Foo(string name)
+                                            {
+                                            }
+                                        }
+                                        """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
@@ -283,7 +283,8 @@ public class ChangeSignatureTests
         Assert.Equal("change-signature", ChangeSignatureCommand.Info.Name);
         Assert.True(ChangeSignatureCommand.Info.Mutates);
         Assert.False(ChangeSignatureCommand.Info.JsonOutput);
-        Assert.Contains(ChangeSignatureCommand.Info.Examples, example => example.Contains("rename-param", StringComparison.Ordinal));
+        Assert.Contains(ChangeSignatureCommand.Info.Examples,
+            example => example.Contains("rename-param", StringComparison.Ordinal));
 
         var command = ChangeSignatureCommand.Build();
         var renameParam = command.Subcommands.Single(subcommand => subcommand.Name == "rename-param");
@@ -300,26 +301,26 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public void Foo(int count)
-                {
-                }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public void Foo(int count)
+                                            {
+                                            }
+                                        }
+                                        """);
         project.AddSource("Caller.cs", """
-            namespace TestApp;
+                                       namespace TestApp;
 
-            public class Caller
-            {
-                public void Run(Service service)
-                {
-                    service.Foo(count: 5);
-                }
-            }
-            """);
+                                       public class Caller
+                                       {
+                                           public void Run(Service service)
+                                           {
+                                               service.Foo(count: 5);
+                                           }
+                                       }
+                                       """);
 
         var (workspace, solution) = project.Build();
         var beforeService = await project.ReadSourceAsync("Service.cs");
@@ -367,26 +368,26 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public void Foo(int count)
-                {
-                }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public void Foo(int count)
+                                            {
+                                            }
+                                        }
+                                        """);
         project.AddSource("Caller.cs", """
-            namespace TestApp;
+                                       namespace TestApp;
 
-            public class Caller
-            {
-                public void Run(Service service)
-                {
-                    service.Foo(count: 5);
-                }
-            }
-            """);
+                                       public class Caller
+                                       {
+                                           public void Run(Service service)
+                                           {
+                                               service.Foo(count: 5);
+                                           }
+                                       }
+                                       """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
@@ -415,15 +416,15 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public void Foo(int count)
-                {
-                }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public void Foo(int count)
+                                            {
+                                            }
+                                        }
+                                        """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
@@ -480,9 +481,9 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
-            public class Service { public void Foo(int a, int b, int c) { } }
-            """);
+                                        namespace TestApp;
+                                        public class Service { public void Foo(int a, int b, int c) { } }
+                                        """);
         var (workspace, solution) = project.Build();
         using (workspace)
         {
@@ -497,9 +498,9 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
-            public class Service { public void Foo(int a, int b) { } }
-            """);
+                                        namespace TestApp;
+                                        public class Service { public void Foo(int a, int b) { } }
+                                        """);
         var (workspace, solution) = project.Build();
         using (workspace)
         {
@@ -514,9 +515,9 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
-            public class Service { public void Foo(int a, int b) { } }
-            """);
+                                        namespace TestApp;
+                                        public class Service { public void Foo(int a, int b) { } }
+                                        """);
         var (workspace, solution) = project.Build();
         using (workspace)
         {
@@ -531,9 +532,9 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
-            public class Service { public void Foo(int a, int b) { } }
-            """);
+                                        namespace TestApp;
+                                        public class Service { public void Foo(int a, int b) { } }
+                                        """);
         var (workspace, solution) = project.Build();
         using (workspace)
         {
@@ -548,9 +549,9 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
-            public class Service { public void Foo(int a, int b) { } }
-            """);
+                                        namespace TestApp;
+                                        public class Service { public void Foo(int a, int b) { } }
+                                        """);
         var (workspace, solution) = project.Build();
         using (workspace)
         {
@@ -565,9 +566,9 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
-            public class Service { public void Foo(int a, params int[] rest) { } }
-            """);
+                                        namespace TestApp;
+                                        public class Service { public void Foo(int a, params int[] rest) { } }
+                                        """);
         var (workspace, solution) = project.Build();
         using (workspace)
         {
@@ -584,19 +585,19 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
-            public class Service
-            {
-                public void Foo(int a, int b, int c) { }
-            }
-            """);
+                                        namespace TestApp;
+                                        public class Service
+                                        {
+                                            public void Foo(int a, int b, int c) { }
+                                        }
+                                        """);
         project.AddSource("Caller.cs", """
-            namespace TestApp;
-            public class Caller
-            {
-                public void Run(Service s) { s.Foo(1, 2, 3); }
-            }
-            """);
+                                       namespace TestApp;
+                                       public class Caller
+                                       {
+                                           public void Run(Service s) { s.Foo(1, 2, 3); }
+                                       }
+                                       """);
         var (workspace, solution) = project.Build();
         using (workspace)
         {
@@ -614,19 +615,19 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
-            public class Service
-            {
-                public void Foo(int a, int b, int c) { }
-            }
-            """);
+                                        namespace TestApp;
+                                        public class Service
+                                        {
+                                            public void Foo(int a, int b, int c) { }
+                                        }
+                                        """);
         project.AddSource("Caller.cs", """
-            namespace TestApp;
-            public class Caller
-            {
-                public void Run(Service s) { s.Foo(1, 2, 3); }
-            }
-            """);
+                                       namespace TestApp;
+                                       public class Caller
+                                       {
+                                           public void Run(Service s) { s.Foo(1, 2, 3); }
+                                       }
+                                       """);
         var (workspace, solution) = project.Build();
         using (workspace)
         {
@@ -648,19 +649,19 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
-            public class Service
-            {
-                public void Foo(int a, int b, int c) { }
-            }
-            """);
+                                        namespace TestApp;
+                                        public class Service
+                                        {
+                                            public void Foo(int a, int b, int c) { }
+                                        }
+                                        """);
         project.AddSource("Caller.cs", """
-            namespace TestApp;
-            public class Caller
-            {
-                public void Run(Service s) { s.Foo(1, 2, 3); }
-            }
-            """);
+                                       namespace TestApp;
+                                       public class Caller
+                                       {
+                                           public void Run(Service s) { s.Foo(1, 2, 3); }
+                                       }
+                                       """);
         var (workspace, solution) = project.Build();
         using (workspace)
         {
@@ -682,19 +683,19 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
-            public class Service
-            {
-                public void Foo(int a, int b) { }
-            }
-            """);
+                                        namespace TestApp;
+                                        public class Service
+                                        {
+                                            public void Foo(int a, int b) { }
+                                        }
+                                        """);
         project.AddSource("Caller.cs", """
-            namespace TestApp;
-            public class Caller
-            {
-                public void Run(Service s) { s.Foo(a: 1, b: 2); }
-            }
-            """);
+                                       namespace TestApp;
+                                       public class Caller
+                                       {
+                                           public void Run(Service s) { s.Foo(a: 1, b: 2); }
+                                       }
+                                       """);
         var (workspace, solution) = project.Build();
         using (workspace)
         {
@@ -716,19 +717,19 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
-            public class Service
-            {
-                public void Foo(int a, int b, int c) { }
-            }
-            """);
+                                        namespace TestApp;
+                                        public class Service
+                                        {
+                                            public void Foo(int a, int b, int c) { }
+                                        }
+                                        """);
         project.AddSource("Caller.cs", """
-            namespace TestApp;
-            public class Caller
-            {
-                public void Run(Service s) { s.Foo(1, b: 2, c: 3); }
-            }
-            """);
+                                       namespace TestApp;
+                                       public class Caller
+                                       {
+                                           public void Run(Service s) { s.Foo(1, b: 2, c: 3); }
+                                       }
+                                       """);
         var (workspace, solution) = project.Build();
         using (workspace)
         {
@@ -748,23 +749,23 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
-            public class Service
-            {
-                public void Foo(int a, int b) { }
-            }
-            """);
+                                        namespace TestApp;
+                                        public class Service
+                                        {
+                                            public void Foo(int a, int b) { }
+                                        }
+                                        """);
         project.AddSource("Caller.cs", """
-            namespace TestApp;
-            public class Caller
-            {
-                public void Run(Service s)
-                {
-                    s.Foo(1, 2);
-                    s.Foo(3, 4);
-                }
-            }
-            """);
+                                       namespace TestApp;
+                                       public class Caller
+                                       {
+                                           public void Run(Service s)
+                                           {
+                                               s.Foo(1, 2);
+                                               s.Foo(3, 4);
+                                           }
+                                       }
+                                       """);
         var (workspace, solution) = project.Build();
         using (workspace)
         {
@@ -784,20 +785,20 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
-            public class Service
-            {
-                public void Foo(int a, int b) { }
-            }
-            """);
+                                        namespace TestApp;
+                                        public class Service
+                                        {
+                                            public void Foo(int a, int b) { }
+                                        }
+                                        """);
         project.AddSource("Caller1.cs", """
-            namespace TestApp;
-            public class Caller1 { public void Run(Service s) { s.Foo(10, 20); } }
-            """);
+                                        namespace TestApp;
+                                        public class Caller1 { public void Run(Service s) { s.Foo(10, 20); } }
+                                        """);
         project.AddSource("Caller2.cs", """
-            namespace TestApp;
-            public class Caller2 { public void Run(Service s) { s.Foo(30, 40); } }
-            """);
+                                        namespace TestApp;
+                                        public class Caller2 { public void Run(Service s) { s.Foo(30, 40); } }
+                                        """);
         var (workspace, solution) = project.Build();
         using (workspace)
         {
@@ -817,19 +818,19 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Widget.cs", """
-            namespace TestApp;
-            public class Widget
-            {
-                public Widget(int a, int b) { }
-            }
-            """);
+                                       namespace TestApp;
+                                       public class Widget
+                                       {
+                                           public Widget(int a, int b) { }
+                                       }
+                                       """);
         project.AddSource("Caller.cs", """
-            namespace TestApp;
-            public class Caller
-            {
-                public void Run() { _ = new Widget(1, 2); }
-            }
-            """);
+                                       namespace TestApp;
+                                       public class Caller
+                                       {
+                                           public void Run() { _ = new Widget(1, 2); }
+                                       }
+                                       """);
         var (workspace, solution) = project.Build();
         using (workspace)
         {
@@ -848,16 +849,16 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Container.cs", """
-            namespace TestApp;
-            public class Container
-            {
-                public void Run()
-                {
-                    void Local(int a, int b) { }
-                    Local(1, 2);
-                }
-            }
-            """);
+                                          namespace TestApp;
+                                          public class Container
+                                          {
+                                              public void Run()
+                                              {
+                                                  void Local(int a, int b) { }
+                                                  Local(1, 2);
+                                              }
+                                          }
+                                          """);
         var (workspace, solution) = project.Build();
         using (workspace)
         {
@@ -877,19 +878,19 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
-            public class Service
-            {
-                public void Foo(int a, int b, int c = 0) { }
-            }
-            """);
+                                        namespace TestApp;
+                                        public class Service
+                                        {
+                                            public void Foo(int a, int b, int c = 0) { }
+                                        }
+                                        """);
         project.AddSource("Caller.cs", """
-            namespace TestApp;
-            public class Caller
-            {
-                public void Run(Service s) { s.Foo(1, 2); }
-            }
-            """);
+                                       namespace TestApp;
+                                       public class Caller
+                                       {
+                                           public void Run(Service s) { s.Foo(1, 2); }
+                                       }
+                                       """);
         var (workspace, solution) = project.Build();
         using (workspace)
         {
@@ -910,19 +911,19 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
-            public class Service
-            {
-                public void Foo(int a, int b = 0, int c = 0) { }
-            }
-            """);
+                                        namespace TestApp;
+                                        public class Service
+                                        {
+                                            public void Foo(int a, int b = 0, int c = 0) { }
+                                        }
+                                        """);
         project.AddSource("Caller.cs", """
-            namespace TestApp;
-            public class Caller
-            {
-                public void Run(Service s) { s.Foo(1); }
-            }
-            """);
+                                       namespace TestApp;
+                                       public class Caller
+                                       {
+                                           public void Run(Service s) { s.Foo(1); }
+                                       }
+                                       """);
         var (workspace, solution) = project.Build();
         using (workspace)
         {
@@ -941,23 +942,23 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public void Foo(int a, int b)
-                {
-                }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public void Foo(int a, int b)
+                                            {
+                                            }
+                                        }
+                                        """);
         project.AddSource("Caller.cs", """
-            namespace TestApp;
+                                       namespace TestApp;
 
-            public class Caller
-            {
-                public void Run(Service svc) => svc.Foo(1, 2);
-            }
-            """);
+                                       public class Caller
+                                       {
+                                           public void Run(Service svc) => svc.Foo(1, 2);
+                                       }
+                                       """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
@@ -966,7 +967,7 @@ public class ChangeSignatureTests
                 solution,
                 "TestApp.Service.Foo",
                 "int count = 0",
-                afterParam: null);
+                null);
 
             var serviceText = await GetDocumentTextAsync(updated, "Service.cs");
             // Declaration updated: count appended after b
@@ -983,15 +984,15 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public void Foo(int a, int b, int c)
-                {
-                }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public void Foo(int a, int b, int c)
+                                            {
+                                            }
+                                        }
+                                        """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
@@ -1000,7 +1001,7 @@ public class ChangeSignatureTests
                 solution,
                 "TestApp.Service.Foo",
                 "int x = 0",
-                afterParam: "b");
+                "b");
 
             var serviceText = await GetDocumentTextAsync(updated, "Service.cs");
             Assert.Contains("Foo(int a, int b, int x = 0, int c)", serviceText);
@@ -1012,21 +1013,21 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public void Foo(int a)
-                {
-                }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public void Foo(int a)
+                                            {
+                                            }
+                                        }
+                                        """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                new ChangeSignatureService().AddParamAsync(solution, "TestApp.Service.Foo", "int x = 0", afterParam: "z"));
+                new ChangeSignatureService().AddParamAsync(solution, "TestApp.Service.Foo", "int x = 0", "z"));
 
             Assert.Contains("z", ex.Message);
         }
@@ -1037,21 +1038,21 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public void Foo(int a)
-                {
-                }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public void Foo(int a)
+                                            {
+                                            }
+                                        }
+                                        """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                new ChangeSignatureService().AddParamAsync(solution, "TestApp.Service.Foo", "int count", afterParam: null));
+                new ChangeSignatureService().AddParamAsync(solution, "TestApp.Service.Foo", "int count", null));
 
             Assert.Contains("default value", ex.Message);
         }
@@ -1062,21 +1063,21 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public void Foo(int a, int b)
-                {
-                }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public void Foo(int a, int b)
+                                            {
+                                            }
+                                        }
+                                        """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                new ChangeSignatureService().AddParamAsync(solution, "TestApp.Service.Foo", "int a = 0", afterParam: null));
+                new ChangeSignatureService().AddParamAsync(solution, "TestApp.Service.Foo", "int a = 0", null));
 
             Assert.Contains("parameter named 'a'", ex.Message);
         }
@@ -1087,15 +1088,15 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Widget.cs", """
-            namespace TestApp;
+                                       namespace TestApp;
 
-            public class Widget
-            {
-                public Widget(int x)
-                {
-                }
-            }
-            """);
+                                       public class Widget
+                                       {
+                                           public Widget(int x)
+                                           {
+                                           }
+                                       }
+                                       """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
@@ -1104,7 +1105,7 @@ public class ChangeSignatureTests
                 solution,
                 "TestApp.Widget.Widget",
                 "string label = \"\"",
-                afterParam: null);
+                null);
 
             var text = await GetDocumentTextAsync(updated, "Widget.cs");
             Assert.Contains("Widget(int x, string label = \"\")", text);
@@ -1116,20 +1117,20 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Container.cs", """
-            namespace TestApp;
+                                          namespace TestApp;
 
-            public class Container
-            {
-                public void Run()
-                {
-                    void Local(int a)
-                    {
-                    }
+                                          public class Container
+                                          {
+                                              public void Run()
+                                              {
+                                                  void Local(int a)
+                                                  {
+                                                  }
 
-                    Local(1);
-                }
-            }
-            """);
+                                                  Local(1);
+                                              }
+                                          }
+                                          """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
@@ -1138,7 +1139,7 @@ public class ChangeSignatureTests
                 solution,
                 "TestApp.Container.Run.Local",
                 "int b = 0",
-                afterParam: null);
+                null);
 
             var text = await GetDocumentTextAsync(updated, "Container.cs");
             Assert.Contains("Local(int a, int b = 0)", text);
@@ -1152,21 +1153,21 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public void Foo(int a, int b)
-                {
-                }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public void Foo(int a, int b)
+                                            {
+                                            }
+                                        }
+                                        """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                new ChangeSignatureService().RemoveParamAsync(solution, "TestApp.Service.Foo", "a", force: false));
+                new ChangeSignatureService().RemoveParamAsync(solution, "TestApp.Service.Foo", "a", false));
 
             Assert.Contains("default value", ex.Message);
         }
@@ -1177,29 +1178,29 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public void Foo(int a, int b)
-                {
-                }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public void Foo(int a, int b)
+                                            {
+                                            }
+                                        }
+                                        """);
         project.AddSource("Caller.cs", """
-            namespace TestApp;
+                                       namespace TestApp;
 
-            public class Caller
-            {
-                public void Run(Service svc) => svc.Foo(1, 2);
-            }
-            """);
+                                       public class Caller
+                                       {
+                                           public void Run(Service svc) => svc.Foo(1, 2);
+                                       }
+                                       """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
         {
             var updated = await new ChangeSignatureService().RemoveParamAsync(
-                solution, "TestApp.Service.Foo", "a", force: true);
+                solution, "TestApp.Service.Foo", "a", true);
 
             var serviceText = await GetDocumentTextAsync(updated, "Service.cs");
             Assert.DoesNotContain("int a", serviceText);
@@ -1215,29 +1216,29 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public void Foo(int a = 0, int b = 0)
-                {
-                }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public void Foo(int a = 0, int b = 0)
+                                            {
+                                            }
+                                        }
+                                        """);
         project.AddSource("Caller.cs", """
-            namespace TestApp;
+                                       namespace TestApp;
 
-            public class Caller
-            {
-                public void Run(Service svc) => svc.Foo(1, 2);
-            }
-            """);
+                                       public class Caller
+                                       {
+                                           public void Run(Service svc) => svc.Foo(1, 2);
+                                       }
+                                       """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
         {
             var updated = await new ChangeSignatureService().RemoveParamAsync(
-                solution, "TestApp.Service.Foo", "a", force: false);
+                solution, "TestApp.Service.Foo", "a", false);
 
             var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
             Assert.Contains("Foo(2)", callerText);
@@ -1249,33 +1250,33 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public void Foo(int a = 0, int b = 0)
-                {
-                }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public void Foo(int a = 0, int b = 0)
+                                            {
+                                            }
+                                        }
+                                        """);
         project.AddSource("Caller.cs", """
-            namespace TestApp;
+                                       namespace TestApp;
 
-            public class Caller
-            {
-                public void Run(Service svc)
-                {
-                    svc.Foo(1, 2);
-                    svc.Foo(3, 4);
-                }
-            }
-            """);
+                                       public class Caller
+                                       {
+                                           public void Run(Service svc)
+                                           {
+                                               svc.Foo(1, 2);
+                                               svc.Foo(3, 4);
+                                           }
+                                       }
+                                       """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
         {
             var updated = await new ChangeSignatureService().RemoveParamAsync(
-                solution, "TestApp.Service.Foo", "a", force: false);
+                solution, "TestApp.Service.Foo", "a", false);
 
             var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
             Assert.Contains("Foo(2)", callerText);
@@ -1288,37 +1289,37 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public void Foo(int a = 0, int b = 0)
-                {
-                }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public void Foo(int a = 0, int b = 0)
+                                            {
+                                            }
+                                        }
+                                        """);
         project.AddSource("Caller1.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Caller1
-            {
-                public void Run(Service svc) => svc.Foo(1, 2);
-            }
-            """);
+                                        public class Caller1
+                                        {
+                                            public void Run(Service svc) => svc.Foo(1, 2);
+                                        }
+                                        """);
         project.AddSource("Caller2.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Caller2
-            {
-                public void Run(Service svc) => svc.Foo(3, 4);
-            }
-            """);
+                                        public class Caller2
+                                        {
+                                            public void Run(Service svc) => svc.Foo(3, 4);
+                                        }
+                                        """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
         {
             var updated = await new ChangeSignatureService().RemoveParamAsync(
-                solution, "TestApp.Service.Foo", "a", force: false);
+                solution, "TestApp.Service.Foo", "a", false);
 
             var caller1Text = await GetDocumentTextAsync(updated, "Caller1.cs");
             var caller2Text = await GetDocumentTextAsync(updated, "Caller2.cs");
@@ -1333,29 +1334,29 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public void Foo(int a = 0, int b = 0)
-                {
-                }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public void Foo(int a = 0, int b = 0)
+                                            {
+                                            }
+                                        }
+                                        """);
         project.AddSource("Caller.cs", """
-            namespace TestApp;
+                                       namespace TestApp;
 
-            public class Caller
-            {
-                public void Run(Service svc) => svc.Foo(a: 1, b: 2);
-            }
-            """);
+                                       public class Caller
+                                       {
+                                           public void Run(Service svc) => svc.Foo(a: 1, b: 2);
+                                       }
+                                       """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
         {
             var updated = await new ChangeSignatureService().RemoveParamAsync(
-                solution, "TestApp.Service.Foo", "a", force: false);
+                solution, "TestApp.Service.Foo", "a", false);
 
             var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
             Assert.Contains("Foo(b: 2)", callerText);
@@ -1368,33 +1369,33 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public void Foo(int a = 0, int b = 0)
-                {
-                }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public void Foo(int a = 0, int b = 0)
+                                            {
+                                            }
+                                        }
+                                        """);
         project.AddSource("Caller.cs", """
-            namespace TestApp;
+                                       namespace TestApp;
 
-            public class Caller
-            {
-                public void Run(Service svc)
-                {
-                    svc.Foo(1, 2);
-                    svc.Foo(a: 3, b: 4);
-                }
-            }
-            """);
+                                       public class Caller
+                                       {
+                                           public void Run(Service svc)
+                                           {
+                                               svc.Foo(1, 2);
+                                               svc.Foo(a: 3, b: 4);
+                                           }
+                                       }
+                                       """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
         {
             var updated = await new ChangeSignatureService().RemoveParamAsync(
-                solution, "TestApp.Service.Foo", "a", force: false);
+                solution, "TestApp.Service.Foo", "a", false);
 
             var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
             Assert.Contains("Foo(2)", callerText);
@@ -1408,21 +1409,21 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public void Foo(int a)
-                {
-                }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public void Foo(int a)
+                                            {
+                                            }
+                                        }
+                                        """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                new ChangeSignatureService().RemoveParamAsync(solution, "TestApp.Service.Foo", "missing", force: true));
+                new ChangeSignatureService().RemoveParamAsync(solution, "TestApp.Service.Foo", "missing", true));
 
             Assert.Contains("missing", ex.Message);
         }
@@ -1433,29 +1434,29 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Widget.cs", """
-            namespace TestApp;
+                                       namespace TestApp;
 
-            public class Widget
-            {
-                public Widget(int x = 0, int y = 0)
-                {
-                }
-            }
-            """);
+                                       public class Widget
+                                       {
+                                           public Widget(int x = 0, int y = 0)
+                                           {
+                                           }
+                                       }
+                                       """);
         project.AddSource("Caller.cs", """
-            namespace TestApp;
+                                       namespace TestApp;
 
-            public class Caller
-            {
-                public void Run() => _ = new Widget(1, 2);
-            }
-            """);
+                                       public class Caller
+                                       {
+                                           public void Run() => _ = new Widget(1, 2);
+                                       }
+                                       """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
         {
             var updated = await new ChangeSignatureService().RemoveParamAsync(
-                solution, "TestApp.Widget.Widget", "x", force: false);
+                solution, "TestApp.Widget.Widget", "x", false);
 
             var widgetText = await GetDocumentTextAsync(updated, "Widget.cs");
             var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
@@ -1471,26 +1472,26 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Container.cs", """
-            namespace TestApp;
+                                          namespace TestApp;
 
-            public class Container
-            {
-                public void Run()
-                {
-                    void Local(int a = 0, int b = 0)
-                    {
-                    }
+                                          public class Container
+                                          {
+                                              public void Run()
+                                              {
+                                                  void Local(int a = 0, int b = 0)
+                                                  {
+                                                  }
 
-                    Local(1, 2);
-                }
-            }
-            """);
+                                                  Local(1, 2);
+                                              }
+                                          }
+                                          """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
         {
             var updated = await new ChangeSignatureService().RemoveParamAsync(
-                solution, "TestApp.Container.Run.Local", "a", force: false);
+                solution, "TestApp.Container.Run.Local", "a", false);
 
             var text = await GetDocumentTextAsync(updated, "Container.cs");
             Assert.Contains("Local(int b = 0)", text);
@@ -1506,15 +1507,15 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public void Foo()
-                {
-                }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public void Foo()
+                                            {
+                                            }
+                                        }
+                                        """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
@@ -1523,7 +1524,7 @@ public class ChangeSignatureTests
                 solution,
                 "TestApp.Service.Foo",
                 "int count = 0",
-                afterParam: null);
+                null);
 
             var text = await GetDocumentTextAsync(updated, "Service.cs");
             Assert.Contains("Foo(int count = 0)", text);
@@ -1536,25 +1537,25 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("All.cs", """
-            namespace TestApp;
+                                    namespace TestApp;
 
-            public class Service
-            {
-                public void Foo(int a = 0, int b = 0) { }
+                                    public class Service
+                                    {
+                                        public void Foo(int a = 0, int b = 0) { }
 
-                public void Run()
-                {
-                    Foo(1, 2);
-                    Foo(3, 4);
-                }
-            }
-            """);
+                                        public void Run()
+                                        {
+                                            Foo(1, 2);
+                                            Foo(3, 4);
+                                        }
+                                    }
+                                    """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
         {
             var updated = await new ChangeSignatureService().RemoveParamAsync(
-                solution, "TestApp.Service.Foo", "a", force: false);
+                solution, "TestApp.Service.Foo", "a", false);
 
             var text = await GetDocumentTextAsync(updated, "All.cs");
             Assert.Contains("Foo(int b = 0)", text);
@@ -1570,33 +1571,33 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Extensions.cs", """
-            namespace TestApp;
+                                           namespace TestApp;
 
-            public static class Extensions
-            {
-                public static void Foo(this Service s, int a = 0, int b = 0) { }
-            }
-            """);
+                                           public static class Extensions
+                                           {
+                                               public static void Foo(this Service s, int a = 0, int b = 0) { }
+                                           }
+                                           """);
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service { }
-            """);
+                                        public class Service { }
+                                        """);
         project.AddSource("Caller.cs", """
-            namespace TestApp;
+                                       namespace TestApp;
 
-            public class Caller
-            {
-                public void Run(Service svc) => svc.Foo(1, 2);
-            }
-            """);
+                                       public class Caller
+                                       {
+                                           public void Run(Service svc) => svc.Foo(1, 2);
+                                       }
+                                       """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
         {
             // Remove 'a' (param index 1 on the symbol, arg index 0 at call site)
             var updated = await new ChangeSignatureService().RemoveParamAsync(
-                solution, "TestApp.Extensions.Foo", "a", force: false);
+                solution, "TestApp.Extensions.Foo", "a", false);
 
             var extText = await GetDocumentTextAsync(updated, "Extensions.cs");
             var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
@@ -1613,25 +1614,25 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public void Foo(int a = 0, int b = 0) { }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public void Foo(int a = 0, int b = 0) { }
+                                        }
+                                        """);
         project.AddSource("Caller.cs", """
-            namespace TestApp;
+                                       namespace TestApp;
 
-            public class Caller
-            {
-                public void Run(Service svc)
-                {
-                    System.Action<int, int> fn = svc.Foo;
-                    svc.Foo(1, 2);
-                }
-            }
-            """);
+                                       public class Caller
+                                       {
+                                           public void Run(Service svc)
+                                           {
+                                               System.Action<int, int> fn = svc.Foo;
+                                               svc.Foo(1, 2);
+                                           }
+                                       }
+                                       """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
@@ -1643,7 +1644,7 @@ public class ChangeSignatureTests
             try
             {
                 var updated = await new ChangeSignatureService().RemoveParamAsync(
-                    solution, "TestApp.Service.Foo", "a", force: false);
+                    solution, "TestApp.Service.Foo", "a", false);
 
                 var stderr = stderrCapture.ToString();
                 Assert.Contains("[WARNING] Reference at", stderr); // method-group ref warned
@@ -1664,39 +1665,39 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Base.cs", """
-            namespace TestApp;
+                                     namespace TestApp;
 
-            public class Base
-            {
-                public virtual void Foo(int a = 0, int b = 0) { }
-            }
-            """);
+                                     public class Base
+                                     {
+                                         public virtual void Foo(int a = 0, int b = 0) { }
+                                     }
+                                     """);
         project.AddSource("Derived.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Derived : Base
-            {
-                public override void Foo(int a = 0, int b = 0) { }
-            }
-            """);
+                                        public class Derived : Base
+                                        {
+                                            public override void Foo(int a = 0, int b = 0) { }
+                                        }
+                                        """);
         project.AddSource("Caller.cs", """
-            namespace TestApp;
+                                       namespace TestApp;
 
-            public class Caller
-            {
-                public void Run(Base b, Derived d)
-                {
-                    b.Foo(1, 2);
-                    d.Foo(3, 4);
-                }
-            }
-            """);
+                                       public class Caller
+                                       {
+                                           public void Run(Base b, Derived d)
+                                           {
+                                               b.Foo(1, 2);
+                                               d.Foo(3, 4);
+                                           }
+                                       }
+                                       """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
         {
             var updated = await new ChangeSignatureService().RemoveParamAsync(
-                solution, "TestApp.Base.Foo", "a", force: false);
+                solution, "TestApp.Base.Foo", "a", false);
 
             var baseText = await GetDocumentTextAsync(updated, "Base.cs");
             var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
@@ -1728,7 +1729,8 @@ public class ChangeSignatureTests
         Assert.Contains(removeParam.Options, o => o.Name == "solution");
 
         Assert.Contains(ChangeSignatureCommand.Info.Examples, e => e.Contains("add-param", StringComparison.Ordinal));
-        Assert.Contains(ChangeSignatureCommand.Info.Examples, e => e.Contains("remove-param", StringComparison.Ordinal));
+        Assert.Contains(ChangeSignatureCommand.Info.Examples,
+            e => e.Contains("remove-param", StringComparison.Ordinal));
     }
 
     // ── AC24: unresolved methodSpec on add-param / remove-param ──────────────
@@ -1738,9 +1740,9 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
-            public class Service { public void Foo(int a) { } }
-            """);
+                                        namespace TestApp;
+                                        public class Service { public void Foo(int a) { } }
+                                        """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
@@ -1774,9 +1776,9 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
-            public class Service { public void Foo(int a = 0) { } }
-            """);
+                                        namespace TestApp;
+                                        public class Service { public void Foo(int a = 0) { } }
+                                        """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
@@ -1812,9 +1814,9 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
-            public class Service { public void Foo(int a) { } }
-            """);
+                                        namespace TestApp;
+                                        public class Service { public void Foo(int a) { } }
+                                        """);
 
         var (workspace, solution) = project.Build();
         var before = await project.ReadSourceAsync("Service.cs");
@@ -1854,9 +1856,9 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
-            public class Service { public void Foo(int a = 0) { } }
-            """);
+                                        namespace TestApp;
+                                        public class Service { public void Foo(int a = 0) { } }
+                                        """);
 
         var (workspace, solution) = project.Build();
         var before = await project.ReadSourceAsync("Service.cs");
@@ -1898,9 +1900,9 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
-            public class Service { public void Foo(int a) { } }
-            """);
+                                        namespace TestApp;
+                                        public class Service { public void Foo(int a) { } }
+                                        """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
@@ -1924,9 +1926,9 @@ public class ChangeSignatureTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
-            public class Service { public void Foo(int a = 0) { } }
-            """);
+                                        namespace TestApp;
+                                        public class Service { public void Foo(int a = 0) { } }
+                                        """);
 
         var (workspace, solution) = project.Build();
         using (workspace)

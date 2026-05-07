@@ -8,12 +8,12 @@ public class RenameIntegrationTests
     public async Task RenameClass_renames_source_file_when_basename_matches_old_name()
     {
         const string source = """
-            namespace Foo;
-            public class OldType
-            {
-                public void Run() { }
-            }
-            """;
+                              namespace Foo;
+                              public class OldType
+                              {
+                                  public void Run() { }
+                              }
+                              """;
 
         using var project = new AdhocProjectBuilder("RenameSample")
             .AddSource("OldType.cs", source);
@@ -21,11 +21,11 @@ public class RenameIntegrationTests
         var (workspace, solution) = project.Build();
 
         await new RenameService().ExecuteSingleAsync(
-            sln: solution,
-            symbol: "Foo.OldType",
-            newName: "NewType",
-            kind: "type",
-            dryRun: false);
+            solution,
+            "Foo.OldType",
+            "NewType",
+            "type",
+            false);
 
         Assert.False(project.SourceExists("OldType.cs"), "old file should be gone");
         Assert.True(project.SourceExists("NewType.cs"), "new file should exist");
@@ -38,13 +38,13 @@ public class RenameIntegrationTests
     public async Task BatchRename_renames_each_source_file_when_basename_matches_old_name()
     {
         const string sourceA = """
-            namespace Foo;
-            public class OldA { }
-            """;
+                               namespace Foo;
+                               public class OldA { }
+                               """;
         const string sourceB = """
-            namespace Foo;
-            public class OldB { }
-            """;
+                               namespace Foo;
+                               public class OldB { }
+                               """;
 
         using var project = new AdhocProjectBuilder("RenameBatchSample")
             .AddSource("OldA.cs", sourceA)
@@ -55,7 +55,7 @@ public class RenameIntegrationTests
         var csvPath = Path.Combine(project.ProjectDir, "rename.csv");
         File.WriteAllText(csvPath, "source_symbol,target_name\nFoo.OldA,NewA\nFoo.OldB,NewB\n");
 
-        await new RenameService().ExecuteBatchAsync(solution, csvPath, dryRun: false);
+        await new RenameService().ExecuteBatchAsync(solution, csvPath, false);
 
         Assert.False(project.SourceExists("OldA.cs"), "old file A should be gone");
         Assert.True(project.SourceExists("NewA.cs"), "new file A should exist");

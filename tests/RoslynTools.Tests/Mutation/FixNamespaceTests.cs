@@ -10,21 +10,23 @@ public class FixNamespaceTests
     {
         using var project = new AdhocProjectBuilder("MyApp");
         project.AddSource("Services/AgentService.cs", """
-            namespace WrongNamespace;
-            public class AgentService { }
-            """);
+                                                      namespace WrongNamespace;
+                                                      public class AgentService { }
+                                                      """);
         project.AddSource("Program.cs", """
-            using WrongNamespace;
-            public class Program { AgentService s = new(); }
-            """);
+                                        using WrongNamespace;
+                                        public class Program { AgentService s = new(); }
+                                        """);
 
         var (workspace, sln) = project.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
             await FixNamespaceCommand.ExecuteAsync(
-            filePath: Path.Combine(project.ProjectDir, "Services", "AgentService.cs"),
-            solutionPath: "ignored",
-            dryRun: false);
+                Path.Combine(project.ProjectDir, "Services", "AgentService.cs"),
+                "ignored",
+                false);
+        }
 
         var content = await project.ReadSourceAsync("Services/AgentService.cs");
         Assert.Contains("namespace MyApp.Services", content);
@@ -36,21 +38,23 @@ public class FixNamespaceTests
     {
         using var project = new AdhocProjectBuilder("MyApp");
         project.AddSource("Services/AgentService.cs", """
-            namespace WrongNamespace;
-            public class AgentService { }
-            """);
+                                                      namespace WrongNamespace;
+                                                      public class AgentService { }
+                                                      """);
         project.AddSource("Program.cs", """
-            using WrongNamespace;
-            public class Program { AgentService s = new(); }
-            """);
+                                        using WrongNamespace;
+                                        public class Program { AgentService s = new(); }
+                                        """);
 
         var (workspace, sln) = project.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
             await FixNamespaceCommand.ExecuteAsync(
-            filePath: Path.Combine(project.ProjectDir, "Services", "AgentService.cs"),
-            solutionPath: "ignored",
-            dryRun: false);
+                Path.Combine(project.ProjectDir, "Services", "AgentService.cs"),
+                "ignored",
+                false);
+        }
 
         var programContent = await project.ReadSourceAsync("Program.cs");
         Assert.Contains("using MyApp.Services;", programContent);
@@ -62,28 +66,31 @@ public class FixNamespaceTests
     {
         using var project = new AdhocProjectBuilder("MyApp");
         project.AddSource("Services/AgentService.cs", """
-            namespace WrongNamespace;
-            public class AgentService { }
-            """);
+                                                      namespace WrongNamespace;
+                                                      public class AgentService { }
+                                                      """);
         project.AddSource("Program.cs", """
-            using WrongNamespace;
-            public class Program { AgentService s = new(); }
-            """);
+                                        using WrongNamespace;
+                                        public class Program { AgentService s = new(); }
+                                        """);
 
         var (workspace, sln) = project.Build();
 
         var originalAgentService = await project.ReadSourceAsync("Services/AgentService.cs");
         var originalProgram = await project.ReadSourceAsync("Program.cs");
 
-        var output = new System.IO.StringWriter();
+        var output = new StringWriter();
         var previousOut = Console.Out;
         Console.SetOut(output);
         try
         {
-            using (WorkspaceLoader.UseOverride(workspace, sln)) await FixNamespaceCommand.ExecuteAsync(
-                filePath: Path.Combine(project.ProjectDir, "Services", "AgentService.cs"),
-                solutionPath: "ignored",
-                dryRun: true);
+            using (WorkspaceLoader.UseOverride(workspace, sln))
+            {
+                await FixNamespaceCommand.ExecuteAsync(
+                    Path.Combine(project.ProjectDir, "Services", "AgentService.cs"),
+                    "ignored",
+                    true);
+            }
         }
         finally
         {

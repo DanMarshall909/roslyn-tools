@@ -1,19 +1,20 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
-using System.Diagnostics.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class MoveService : IRtService
 {
-    private readonly ISymbolResolutionService _symbols;
     private readonly ILogger<MoveService> _logger;
     private readonly ISolutionChangeWriter _solutionChangeWriter;
+    private readonly ISymbolResolutionService _symbols;
 
     public MoveService()
         : this(new RtConsoleLogger<MoveService>(), new SolutionChangeWriter())
@@ -60,7 +61,8 @@ internal class MoveService : IRtService
 
         await _solutionChangeWriter.ApplyChangesAsync(originalSolution, updated, dryRun);
 
-        ApplyFileMoveOrNote(declarationFiles, projectDir, rootNamespace, sourceNamespace, targetNamespace, moveFile, dryRun);
+        ApplyFileMoveOrNote(declarationFiles, projectDir, rootNamespace, sourceNamespace, targetNamespace, moveFile,
+            dryRun);
     }
 
     internal async Task ExecuteSingleTypeMoveAsync(
@@ -74,7 +76,8 @@ internal class MoveService : IRtService
         var sym = await _symbols.FindTypeByFqnAsync(sln, fqn);
         var oldNamespace = sym.ContainingNamespace.ToDisplayString();
 
-        _logger.RtInfo("Moving '{TypeName}' from '{OldNamespace}' to '{TargetNamespace}'...", sym.ToDisplayString(), oldNamespace, targetNamespace);
+        _logger.RtInfo("Moving '{TypeName}' from '{OldNamespace}' to '{TargetNamespace}'...", sym.ToDisplayString(),
+            oldNamespace, targetNamespace);
 
         var (declarationFiles, projectDir, rootNamespace) = CollectDeclarationPaths(sln, sym);
 
@@ -97,50 +100,44 @@ internal class MoveService : IRtService
         if (moveFile && projectDir != null && rootNamespace != null)
             MoveSourceFiles(declarationFiles, projectDir, rootNamespace, oldNamespace, targetNamespace, dryRun);
         else if (!moveFile)
-            RtConsole.WriteLine(RtOutputContext.Result, "\nNOTE: File path unchanged. Consider moving the source file to match the new namespace.");
+            RtConsole.WriteLine(RtOutputContext.Result,
+                "\nNOTE: File path unchanged. Consider moving the source file to match the new namespace.");
     }
 
     // ──────────────────────────────────────────────────────────────
     //  Namespace-move helpers
     // ──────────────────────────────────────────────────────────────
 
-    private async Task<(Solution Solution, List<string> DeclarationFiles, string? ProjectDir, string? RootNamespace, int ChangedFiles)>
+    private async Task<(Solution Solution, List<string> DeclarationFiles, string? ProjectDir, string? RootNamespace, int
+            ChangedFiles)>
         ScanSolutionForNamespaceAsync(Solution solution, string sourceNamespace, string targetNamespace)
     {
         var declarationFiles = new List<string>();
         string? projectDir = null;
         string? rootNamespace = null;
-        int changedFiles = 0;
+        var changedFiles = 0;
 
         foreach (var project in solution.Projects)
+        foreach (var doc in project.Documents)
         {
-            foreach (var doc in project.Documents)
+            if (doc.FilePath == null) continue;
+
+            var result = await RewriteDocumentNamespaceAsync(solution, doc, sourceNamespace, targetNamespace);
+            if (!result.Changed) continue;
+
+            solution = result.Solution;
+            changedFiles++;
+
+            if (result.IsDeclarationFile)
             {
-                if (doc.FilePath == null) continue;
-
-                var result = await RewriteDocumentNamespaceAsync(solution, doc, sourceNamespace, targetNamespace);
-                if (!result.Changed) continue;
-
-                solution = result.Solution;
-                changedFiles++;
-
-                if (result.IsDeclarationFile)
-                {
-                    declarationFiles.Add(doc.FilePath);
-                    if (projectDir == null)
-                        (projectDir, rootNamespace) = result.ProjectMeta ?? (null, null);
-                }
+                declarationFiles.Add(doc.FilePath);
+                if (projectDir == null)
+                    (projectDir, rootNamespace) = result.ProjectMeta ?? (null, null);
             }
         }
 
         return (solution, declarationFiles, projectDir, rootNamespace, changedFiles);
     }
-
-    private record DocumentRewriteResult(
-        bool Changed,
-        Solution Solution,
-        bool IsDeclarationFile,
-        (string? ProjectDir, string? RootNamespace)? ProjectMeta);
 
     private async Task<DocumentRewriteResult> RewriteDocumentNamespaceAsync(
         Solution solution,
@@ -183,7 +180,8 @@ internal class MoveService : IRtService
         if (moveFile && projectDir != null && rootNamespace != null)
             MoveSourceFiles(declarationFiles, projectDir, rootNamespace, sourceNamespace, targetNamespace, dryRun);
         else if (!moveFile && declarationFiles.Count > 0)
-            RtConsole.WriteLine(RtOutputContext.Result, "\nNOTE: File paths unchanged. Use --move-file to relocate declaration files.");
+            RtConsole.WriteLine(RtOutputContext.Result,
+                "\nNOTE: File paths unchanged. Use --move-file to relocate declaration files.");
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -210,10 +208,8 @@ internal class MoveService : IRtService
 
             var root = await tree.GetRootAsync();
             foreach (var typeDecl in root.DescendantNodes().OfType<BaseTypeDeclarationSyntax>())
-            {
                 if (semanticModel.GetDeclaredSymbol(typeDecl) is INamedTypeSymbol named && seen.Add(named))
                     result.Add(named);
-            }
         }
 
         return result;
@@ -266,7 +262,7 @@ internal class MoveService : IRtService
 
             if (needsOldNsUsing)
             {
-                bool _ = false;
+                var _ = false;
                 newRoot = EnsureTargetNamespaceUsing(newRoot, oldNamespace, ref _);
             }
 
@@ -339,7 +335,7 @@ internal class MoveService : IRtService
         string oldNamespace,
         string targetNamespace)
     {
-        bool changed = false;
+        var changed = false;
         var currentRoot = tracker;
 
         foreach (var loc in group)
@@ -379,7 +375,7 @@ internal class MoveService : IRtService
             return root;
 
         var newUsing = SyntaxFactory.UsingDirective(
-            SyntaxFactory.ParseName(" " + targetNamespace))
+                SyntaxFactory.ParseName(" " + targetNamespace))
             .WithTrailingTrivia(SyntaxFactory.CarriageReturnLineFeed);
 
         changed = true;
@@ -388,7 +384,7 @@ internal class MoveService : IRtService
 
     private SyntaxNode? FindOutermostQualifiedName(SyntaxNode node)
     {
-        SyntaxNode current = node;
+        var current = node;
         while (current.Parent is QualifiedNameSyntax or MemberAccessExpressionSyntax)
             current = current.Parent;
         return current != node ? current : null;
@@ -415,7 +411,8 @@ internal class MoveService : IRtService
 
             if (!fileRelPath.StartsWith(oldRelDir, StringComparison.OrdinalIgnoreCase))
             {
-                RtConsole.WriteLine(RtOutputContext.Result, $"WARNING: '{fileRelPath}' does not start with '{oldRelDir}' -- file not moved.");
+                RtConsole.WriteLine(RtOutputContext.Result,
+                    $"WARNING: '{fileRelPath}' does not start with '{oldRelDir}' -- file not moved.");
                 continue;
             }
 
@@ -431,7 +428,8 @@ internal class MoveService : IRtService
 
             if (File.Exists(newFilePath))
             {
-                RtConsole.WriteLine(RtOutputContext.Result, $"WARNING: Target already exists: {newFilePath} -- file not moved.");
+                RtConsole.WriteLine(RtOutputContext.Result,
+                    $"WARNING: Target already exists: {newFilePath} -- file not moved.");
                 continue;
             }
 
@@ -455,4 +453,9 @@ internal class MoveService : IRtService
         return ns.Replace('.', Path.DirectorySeparatorChar);
     }
 
+    private record DocumentRewriteResult(
+        bool Changed,
+        Solution Solution,
+        bool IsDeclarationFile,
+        (string? ProjectDir, string? RootNamespace)? ProjectMeta);
 }

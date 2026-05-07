@@ -8,20 +8,23 @@ namespace RoslynTools.Commands;
 
 internal sealed class FindRefsCommand : IRtCommand
 {
-    private FindRefsCommand() { }
+    private FindRefsCommand()
+    {
+    }
 
     public static RtCommandInfo Info { get; } = new(
-        Name: "find-refs",
-        Mutates: false,
-        JsonOutput: false,
-        Category: "inspect",
+        "find-refs",
+        false,
+        false,
+        "inspect",
         Aliases: null,
-        WhenToUse: "Finding all references to any symbol (type, method, property, field, namespace) across the solution using Roslyn's semantic analysis. Prefer this over grep because it resolves overloads and type inference correctly and skips string literals/comments.",
+        WhenToUse:
+        "Finding all references to any symbol (type, method, property, field, namespace) across the solution using Roslyn's semantic analysis. Prefer this over grep because it resolves overloads and type inference correctly and skips string literals/comments.",
         Examples:
         [
             "rt inspect find-refs --symbol BookingService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt inspect find-refs --symbol CreateBooking --kind method --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt inspect find-refs --symbol IEmailService --kind type --solution RoslynTools.slnx",
+            "rt inspect find-refs --symbol IEmailService --kind type --solution RoslynTools.slnx"
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );

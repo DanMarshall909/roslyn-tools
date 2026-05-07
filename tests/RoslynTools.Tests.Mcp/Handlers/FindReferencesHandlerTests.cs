@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
-using RoslynTools;
 using RoslynTools.Core;
 using RoslynTools.Mcp;
 using RoslynTools.Mcp.Tools;
@@ -15,22 +14,22 @@ public class FindRefsToolTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Model.cs", """
-            namespace TestApp;
+                                      namespace TestApp;
 
-            public class Invoice
-            {
-                public int Id { get; set; }
-            }
-            """);
+                                      public class Invoice
+                                      {
+                                          public int Id { get; set; }
+                                      }
+                                      """);
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class InvoiceService
-            {
-                public Invoice Create() => new Invoice();
-                public void Process(Invoice invoice) { }
-            }
-            """);
+                                        public class InvoiceService
+                                        {
+                                            public Invoice Create() => new Invoice();
+                                            public void Process(Invoice invoice) { }
+                                        }
+                                        """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -39,8 +38,8 @@ public class FindRefsToolTests
         {
             var registry = provider.GetRequiredService<ToolRegistry>();
             using var args = JsonDocument.Parse("""
-                {"symbol":"Invoice","solution":"ignored.slnx"}
-                """);
+                                                {"symbol":"Invoice","solution":"ignored.slnx"}
+                                                """);
 
             var result = await registry.InvokeAsync("find_refs", args.RootElement);
 
@@ -54,10 +53,10 @@ public class FindRefsToolTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Orphan.cs", """
-            namespace TestApp;
+                                       namespace TestApp;
 
-            public class NeverUsed { }
-            """);
+                                       public class NeverUsed { }
+                                       """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -66,8 +65,8 @@ public class FindRefsToolTests
         {
             var registry = provider.GetRequiredService<ToolRegistry>();
             using var args = JsonDocument.Parse("""
-                {"symbol":"NeverUsed","solution":"ignored.slnx"}
-                """);
+                                                {"symbol":"NeverUsed","solution":"ignored.slnx"}
+                                                """);
 
             var result = await registry.InvokeAsync("find_refs", args.RootElement);
 

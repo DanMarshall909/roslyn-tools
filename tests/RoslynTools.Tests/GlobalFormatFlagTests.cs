@@ -3,11 +3,10 @@ using RoslynTools.Core.Output;
 namespace RoslynTools.Tests;
 
 /// <summary>
-/// Integration tests for US-210: global --json/--llm/--markdown flags set RtContext.Format
-/// via CommandLineBuilder middleware before any command handler runs.
-///
-/// We invoke "dump-help" (a real subcommand) so the full middleware pipeline executes and we
-/// can observe RtContext.Format side-effects after App.RunAsync returns.
+///     Integration tests for US-210: global --json/--llm/--markdown flags set RtContext.Format
+///     via CommandLineBuilder middleware before any command handler runs.
+///     We invoke "dump-help" (a real subcommand) so the full middleware pipeline executes and we
+///     can observe RtContext.Format side-effects after App.RunAsync returns.
 /// </summary>
 public sealed class GlobalFormatFlagTests : IDisposable
 {

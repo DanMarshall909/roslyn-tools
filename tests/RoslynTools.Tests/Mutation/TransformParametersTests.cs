@@ -5,7 +5,9 @@ namespace RoslynTools.Tests.Mutation;
 public class TransformParametersTests
 {
     private static string FilePath(AdhocProjectBuilder project, string relativePath)
-        => Path.Combine(project.ProjectDir, relativePath);
+    {
+        return Path.Combine(project.ProjectDir, relativePath);
+    }
 
     // ──────────────────────────────────────────────────────────────────────────
     //  Simple 3-param method: record generated, signature rewritten, call site updated
@@ -16,33 +18,34 @@ public class TransformParametersTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("OrderService.cs", """
-            namespace TestApp;
+                                             namespace TestApp;
 
-            public class OrderService
-            {
-                public void PlaceOrder(string customerId, string productId, int quantity)
-                {
-                    _ = customerId + productId + quantity;
-                }
-            }
-            """);
+                                             public class OrderService
+                                             {
+                                                 public void PlaceOrder(string customerId, string productId, int quantity)
+                                                 {
+                                                     _ = customerId + productId + quantity;
+                                                 }
+                                             }
+                                             """);
         project.AddSource("Caller.cs", """
-            namespace TestApp;
+                                       namespace TestApp;
 
-            public class Caller
-            {
-                public void Run()
-                {
-                    var svc = new OrderService();
-                    svc.PlaceOrder("c1", "p1", 3);
-                }
-            }
-            """);
+                                       public class Caller
+                                       {
+                                           public void Run()
+                                           {
+                                               var svc = new OrderService();
+                                               svc.PlaceOrder("c1", "p1", 3);
+                                           }
+                                       }
+                                       """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            await new TransformParametersService().RunAsync(sln, "OrderService.PlaceOrder", "PlaceOrderArgs", null, dryRun: false);
+            await new TransformParametersService().RunAsync(sln, "OrderService.PlaceOrder", "PlaceOrderArgs", null,
+                false);
         }
 
         var serviceContent = await project.ReadSourceAsync("OrderService.cs");
@@ -72,22 +75,22 @@ public class TransformParametersTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Greeter.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Greeter
-            {
-                public void Greet(string name, int times = 1)
-                {
-                    for (int i = 0; i < times; i++)
-                        System.Console.WriteLine(name);
-                }
-            }
-            """);
+                                        public class Greeter
+                                        {
+                                            public void Greet(string name, int times = 1)
+                                            {
+                                                for (int i = 0; i < times; i++)
+                                                    System.Console.WriteLine(name);
+                                            }
+                                        }
+                                        """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            await new TransformParametersService().RunAsync(sln, "Greeter.Greet", "GreetArgs", null, dryRun: false);
+            await new TransformParametersService().RunAsync(sln, "Greeter.Greet", "GreetArgs", null, false);
         }
 
         var content = await project.ReadSourceAsync("Greeter.cs");
@@ -106,23 +109,23 @@ public class TransformParametersTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Parser.cs", """
-            namespace TestApp;
+                                       namespace TestApp;
 
-            public class Parser
-            {
-                public bool TryParse(string input, out int result)
-                {
-                    result = 0;
-                    return int.TryParse(input, out result);
-                }
-            }
-            """);
+                                       public class Parser
+                                       {
+                                           public bool TryParse(string input, out int result)
+                                           {
+                                               result = 0;
+                                               return int.TryParse(input, out result);
+                                           }
+                                       }
+                                       """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                new TransformParametersService().RunAsync(sln, "Parser.TryParse", "ParseArgs", null, dryRun: false));
+                new TransformParametersService().RunAsync(sln, "Parser.TryParse", "ParseArgs", null, false));
 
             Assert.Contains("result", ex.Message);
             Assert.Contains("out/ref/in", ex.Message);
@@ -134,22 +137,22 @@ public class TransformParametersTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Modifier.cs", """
-            namespace TestApp;
+                                         namespace TestApp;
 
-            public class Modifier
-            {
-                public void Increment(ref int counter, int amount)
-                {
-                    counter += amount;
-                }
-            }
-            """);
+                                         public class Modifier
+                                         {
+                                             public void Increment(ref int counter, int amount)
+                                             {
+                                                 counter += amount;
+                                             }
+                                         }
+                                         """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                new TransformParametersService().RunAsync(sln, "Modifier.Increment", "IncrementArgs", null, dryRun: false));
+                new TransformParametersService().RunAsync(sln, "Modifier.Increment", "IncrementArgs", null, false));
 
             Assert.Contains("counter", ex.Message);
         }
@@ -164,43 +167,43 @@ public class TransformParametersTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
-            namespace TestApp;
+                                           namespace TestApp;
 
-            public class Calculator
-            {
-                public int Add(int x, int y) => x + y;
-            }
-            """);
+                                           public class Calculator
+                                           {
+                                               public int Add(int x, int y) => x + y;
+                                           }
+                                           """);
         project.AddSource("Client1.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Client1
-            {
-                public void Run()
-                {
-                    var calc = new Calculator();
-                    var r1 = calc.Add(1, 2);
-                    var r2 = calc.Add(3, 4);
-                }
-            }
-            """);
+                                        public class Client1
+                                        {
+                                            public void Run()
+                                            {
+                                                var calc = new Calculator();
+                                                var r1 = calc.Add(1, 2);
+                                                var r2 = calc.Add(3, 4);
+                                            }
+                                        }
+                                        """);
         project.AddSource("Client2.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Client2
-            {
-                public void Run()
-                {
-                    var calc = new Calculator();
-                    var r = calc.Add(10, 20);
-                }
-            }
-            """);
+                                        public class Client2
+                                        {
+                                            public void Run()
+                                            {
+                                                var calc = new Calculator();
+                                                var r = calc.Add(10, 20);
+                                            }
+                                        }
+                                        """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            await new TransformParametersService().RunAsync(sln, "Calculator.Add", "AddArgs", null, dryRun: false);
+            await new TransformParametersService().RunAsync(sln, "Calculator.Add", "AddArgs", null, false);
         }
 
         var calcContent = await project.ReadSourceAsync("Calculator.cs");
@@ -227,22 +230,22 @@ public class TransformParametersTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public void Execute(string name, int value)
-                {
-                    _ = name + value;
-                }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public void Execute(string name, int value)
+                                            {
+                                                _ = name + value;
+                                            }
+                                        }
+                                        """);
 
         var (workspace, sln) = project.Build();
         var originalContent = await project.ReadSourceAsync("Service.cs");
         using (workspace)
         {
-            await new TransformParametersService().RunAsync(sln, "Service.Execute", "ExecuteArgs", null, dryRun: true);
+            await new TransformParametersService().RunAsync(sln, "Service.Execute", "ExecuteArgs", null, true);
         }
 
         var afterContent = await project.ReadSourceAsync("Service.cs");
@@ -258,19 +261,19 @@ public class TransformParametersTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Dummy.cs", """
-            namespace TestApp;
+                                      namespace TestApp;
 
-            public class Dummy
-            {
-                public void DoSomething(int x) { }
-            }
-            """);
+                                      public class Dummy
+                                      {
+                                          public void DoSomething(int x) { }
+                                      }
+                                      """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                new TransformParametersService().RunAsync(sln, "Dummy.NonExistentMethod", "Args", null, dryRun: false));
+                new TransformParametersService().RunAsync(sln, "Dummy.NonExistentMethod", "Args", null, false));
         }
     }
 
@@ -283,19 +286,19 @@ public class TransformParametersTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Empty.cs", """
-            namespace TestApp;
+                                      namespace TestApp;
 
-            public class Empty
-            {
-                public void Run() { }
-            }
-            """);
+                                      public class Empty
+                                      {
+                                          public void Run() { }
+                                      }
+                                      """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                new TransformParametersService().RunAsync(sln, "Empty.Run", "RunArgs", null, dryRun: false));
+                new TransformParametersService().RunAsync(sln, "Empty.Run", "RunArgs", null, false));
 
             Assert.Contains("no parameters", ex.Message);
         }
@@ -310,16 +313,16 @@ public class TransformParametersTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Stub.cs", """
-            namespace TestApp;
+                                     namespace TestApp;
 
-            public class Stub { }
-            """);
+                                     public class Stub { }
+                                     """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                new TransformParametersService().RunAsync(sln, "NoMethodSeparatorHere", "Args", null, dryRun: false));
+                new TransformParametersService().RunAsync(sln, "NoMethodSeparatorHere", "Args", null, false));
 
             Assert.Contains("TypeName.MethodName", ex.Message);
         }
@@ -334,38 +337,39 @@ public class TransformParametersTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("OrderArgs.cs", """
-            namespace TestApp;
+                                          namespace TestApp;
 
-            public record OrderArgs(string CustomerId, string ProductId, int Quantity);
-            """);
+                                          public record OrderArgs(string CustomerId, string ProductId, int Quantity);
+                                          """);
         project.AddSource("OrderService.cs", """
-            namespace TestApp;
+                                             namespace TestApp;
 
-            public class OrderService
-            {
-                public void PlaceOrder(string customerId, string productId, int quantity)
-                {
-                    _ = customerId + productId + quantity;
-                }
-            }
-            """);
+                                             public class OrderService
+                                             {
+                                                 public void PlaceOrder(string customerId, string productId, int quantity)
+                                                 {
+                                                     _ = customerId + productId + quantity;
+                                                 }
+                                             }
+                                             """);
         project.AddSource("Caller.cs", """
-            namespace TestApp;
+                                       namespace TestApp;
 
-            public class Caller
-            {
-                public void Run()
-                {
-                    var svc = new OrderService();
-                    svc.PlaceOrder("c1", "p1", 3);
-                }
-            }
-            """);
+                                       public class Caller
+                                       {
+                                           public void Run()
+                                           {
+                                               var svc = new OrderService();
+                                               svc.PlaceOrder("c1", "p1", 3);
+                                           }
+                                       }
+                                       """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            await new TransformParametersService().RunAsync(sln, "OrderService.PlaceOrder", null, "TestApp.OrderArgs", dryRun: false);
+            await new TransformParametersService().RunAsync(sln, "OrderService.PlaceOrder", null, "TestApp.OrderArgs",
+                false);
         }
 
         var serviceContent = await project.ReadSourceAsync("OrderService.cs");
@@ -392,42 +396,43 @@ public class TransformParametersTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("SearchArgs.cs", """
-            namespace TestApp;
+                                           namespace TestApp;
 
-            public class SearchArgs
-            {
-                public string Query { get; set; } = string.Empty;
-                public int MaxResults { get; set; }
-            }
-            """);
+                                           public class SearchArgs
+                                           {
+                                               public string Query { get; set; } = string.Empty;
+                                               public int MaxResults { get; set; }
+                                           }
+                                           """);
         project.AddSource("SearchService.cs", """
-            namespace TestApp;
+                                              namespace TestApp;
 
-            public class SearchService
-            {
-                public void Search(string query, int maxResults)
-                {
-                    _ = query + maxResults;
-                }
-            }
-            """);
+                                              public class SearchService
+                                              {
+                                                  public void Search(string query, int maxResults)
+                                                  {
+                                                      _ = query + maxResults;
+                                                  }
+                                              }
+                                              """);
         project.AddSource("SearchCaller.cs", """
-            namespace TestApp;
+                                             namespace TestApp;
 
-            public class SearchCaller
-            {
-                public void Run()
-                {
-                    var svc = new SearchService();
-                    svc.Search("hello", 10);
-                }
-            }
-            """);
+                                             public class SearchCaller
+                                             {
+                                                 public void Run()
+                                                 {
+                                                     var svc = new SearchService();
+                                                     svc.Search("hello", 10);
+                                                 }
+                                             }
+                                             """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            await new TransformParametersService().RunAsync(sln, "SearchService.Search", null, "TestApp.SearchArgs", dryRun: false);
+            await new TransformParametersService().RunAsync(sln, "SearchService.Search", null, "TestApp.SearchArgs",
+                false);
         }
 
         var serviceContent = await project.ReadSourceAsync("SearchService.cs");
@@ -452,31 +457,32 @@ public class TransformParametersTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("IncompleteArgs.cs", """
-            namespace TestApp;
+                                               namespace TestApp;
 
-            public class IncompleteArgs
-            {
-                public string Name { get; set; } = string.Empty;
-                // Missing: Age, Email
-            }
-            """);
+                                               public class IncompleteArgs
+                                               {
+                                                   public string Name { get; set; } = string.Empty;
+                                                   // Missing: Age, Email
+                                               }
+                                               """);
         project.AddSource("PersonService.cs", """
-            namespace TestApp;
+                                              namespace TestApp;
 
-            public class PersonService
-            {
-                public void Register(string name, int age, string email)
-                {
-                    _ = name + age + email;
-                }
-            }
-            """);
+                                              public class PersonService
+                                              {
+                                                  public void Register(string name, int age, string email)
+                                                  {
+                                                      _ = name + age + email;
+                                                  }
+                                              }
+                                              """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                new TransformParametersService().RunAsync(sln, "PersonService.Register", null, "TestApp.IncompleteArgs", dryRun: false));
+                new TransformParametersService().RunAsync(sln, "PersonService.Register", null, "TestApp.IncompleteArgs",
+                    false));
 
             Assert.Contains("age", ex.Message);
             Assert.Contains("email", ex.Message);
@@ -493,24 +499,24 @@ public class TransformParametersTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("PartialArgs.cs", """
-            namespace TestApp;
+                                            namespace TestApp;
 
-            public record PartialArgs(string X);
-            """);
+                                            public record PartialArgs(string X);
+                                            """);
         project.AddSource("MathService.cs", """
-            namespace TestApp;
+                                            namespace TestApp;
 
-            public class MathService
-            {
-                public int Add(string x, string y) => x.Length + y.Length;
-            }
-            """);
+                                            public class MathService
+                                            {
+                                                public int Add(string x, string y) => x.Length + y.Length;
+                                            }
+                                            """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                new TransformParametersService().RunAsync(sln, "MathService.Add", null, "TestApp.PartialArgs", dryRun: false));
+                new TransformParametersService().RunAsync(sln, "MathService.Add", null, "TestApp.PartialArgs", false));
 
             // 'y' is missing; 'x' is present
             Assert.Contains("y", ex.Message);
@@ -527,19 +533,20 @@ public class TransformParametersTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("BothFlagsService.cs", """
-            namespace TestApp;
+                                                 namespace TestApp;
 
-            public class BothFlagsService
-            {
-                public void Do(int x, int y) { }
-            }
-            """);
+                                                 public class BothFlagsService
+                                                 {
+                                                     public void Do(int x, int y) { }
+                                                 }
+                                                 """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                new TransformParametersService().RunAsync(sln, "BothFlagsService.Do", "NewArgs", "TestApp.ExistingArgs", dryRun: false));
+                new TransformParametersService().RunAsync(sln, "BothFlagsService.Do", "NewArgs", "TestApp.ExistingArgs",
+                    false));
 
             Assert.Contains("mutually exclusive", ex.Message);
         }
@@ -554,19 +561,19 @@ public class TransformParametersTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("NeitherService.cs", """
-            namespace TestApp;
+                                               namespace TestApp;
 
-            public class NeitherService
-            {
-                public void Do(int x, int y) { }
-            }
-            """);
+                                               public class NeitherService
+                                               {
+                                                   public void Do(int x, int y) { }
+                                               }
+                                               """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                new TransformParametersService().RunAsync(sln, "NeitherService.Do", null, null, dryRun: false));
+                new TransformParametersService().RunAsync(sln, "NeitherService.Do", null, null, false));
 
             Assert.Contains("--new-type", ex.Message);
             Assert.Contains("--existing-type", ex.Message);

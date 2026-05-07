@@ -5,6 +5,30 @@ namespace RoslynTools.Tests.Infrastructure;
 
 public class SymbolFormatterTests : IDisposable
 {
+    // Shared source used by most tests: a class that extends a base and implements an interface.
+    private const string SharedSource = """
+                                        namespace TestApp;
+
+                                        public interface IShape
+                                        {
+                                            double Area();
+                                        }
+
+                                        public abstract class BaseShape
+                                        {
+                                            public string Color { get; set; } = "red";
+                                        }
+
+                                        public class Circle : BaseShape, IShape
+                                        {
+                                            public double Radius { get; set; }
+
+                                            public double Area() => Math.PI * Radius * Radius;
+
+                                            public static Circle Unit() => new() { Radius = 1.0 };
+                                        }
+                                        """;
+
     private readonly AdhocProjectBuilder _project = new();
 
     public void Dispose()
@@ -12,30 +36,6 @@ public class SymbolFormatterTests : IDisposable
         _project.Dispose();
         GC.SuppressFinalize(this);
     }
-
-    // Shared source used by most tests: a class that extends a base and implements an interface.
-    private const string SharedSource = """
-        namespace TestApp;
-
-        public interface IShape
-        {
-            double Area();
-        }
-
-        public abstract class BaseShape
-        {
-            public string Color { get; set; } = "red";
-        }
-
-        public class Circle : BaseShape, IShape
-        {
-            public double Radius { get; set; }
-
-            public double Area() => Math.PI * Radius * Radius;
-
-            public static Circle Unit() => new() { Radius = 1.0 };
-        }
-        """;
 
     private async Task<INamedTypeSymbol> LoadCircleSymbolAsync()
     {
@@ -67,10 +67,11 @@ public class SymbolFormatterTests : IDisposable
     {
         var type = await LoadCircleSymbolAsync();
 
-        var members = SymbolFormatter.ExtractMembers(type, includeStaticFlag: true);
+        var members = SymbolFormatter.ExtractMembers(type, true);
 
         Assert.NotEmpty(members);
-        Assert.All(members, m => Assert.True(m.ContainsKey("isStatic"), "Expected 'isStatic' key when includeStaticFlag=true."));
+        Assert.All(members,
+            m => Assert.True(m.ContainsKey("isStatic"), "Expected 'isStatic' key when includeStaticFlag=true."));
 
         // The static factory method Unit() should be present and marked isStatic=true
         var unit = members.FirstOrDefault(m => m["name"] is "Unit");
@@ -83,10 +84,11 @@ public class SymbolFormatterTests : IDisposable
     {
         var type = await LoadCircleSymbolAsync();
 
-        var members = SymbolFormatter.ExtractMembers(type, includeStaticFlag: false);
+        var members = SymbolFormatter.ExtractMembers(type, false);
 
         Assert.NotEmpty(members);
-        Assert.All(members, m => Assert.False(m.ContainsKey("isStatic"), "Expected no 'isStatic' key when includeStaticFlag=false."));
+        Assert.All(members,
+            m => Assert.False(m.ContainsKey("isStatic"), "Expected no 'isStatic' key when includeStaticFlag=false."));
     }
 
     [Fact]

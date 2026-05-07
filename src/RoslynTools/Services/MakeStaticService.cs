@@ -1,14 +1,15 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
-using System.Diagnostics.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class MakeStaticService : IRtService
 {
     private readonly IDocumentLocatorService _documents;
@@ -28,6 +29,7 @@ internal class MakeStaticService : IRtService
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
     }
+
     internal async Task<int> RunAsync(Solution sln, string methodSpec, bool dryRun)
     {
         var (typeName, methodName) = ParseMethodSpec(methodSpec);
@@ -81,8 +83,8 @@ internal class MakeStaticService : IRtService
                 if (method == null) continue;
 
                 var docId = _documents.FindDocumentId(sln, method)
-                    ?? throw new InvalidOperationException(
-                        $"Cannot locate source document for '{typeName}.{methodName}'.");
+                            ?? throw new InvalidOperationException(
+                                $"Cannot locate source document for '{typeName}.{methodName}'.");
 
                 return (method, docId);
             }
@@ -157,13 +159,11 @@ internal class MakeStaticService : IRtService
             // Skip if this identifier is the right-hand part of a type-qualified member access
             // e.g. SomeType.FieldName — we only block bare access
             if (id.Parent is MemberAccessExpressionSyntax mae && mae.Name == id)
-            {
                 // Left side is an explicit object — could be 'this' (already caught) or another
                 // instance. Either way, if it's not a type name, it's instance access.
                 // For our purposes: 'this.X' → 'this' already caught above.
                 // We skip this path to avoid false positives from SomeOtherObject.FieldName.
                 continue;
-            }
 
             var lineNumber = id.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
             return $"accesses instance member '{id.Identifier.Text}' at line {lineNumber}.";
@@ -184,22 +184,20 @@ internal class MakeStaticService : IRtService
         var root = (await doc.GetSyntaxRootAsync())!;
 
         var oldNode = root.FindNode(syntaxRef.Span) as MethodDeclarationSyntax
-            ?? throw new InvalidOperationException("Cannot locate method syntax node in document.");
+                      ?? throw new InvalidOperationException("Cannot locate method syntax node in document.");
 
         var staticToken = SyntaxFactory.Token(SyntaxKind.StaticKeyword)
             .WithTrailingTrivia(SyntaxFactory.Space);
 
         // Insert static after access modifiers (public/private/protected/internal) but before others
         var modifiers = oldNode.Modifiers;
-        int insertIndex = 0;
-        for (int i = 0; i < modifiers.Count; i++)
+        var insertIndex = 0;
+        for (var i = 0; i < modifiers.Count; i++)
         {
             var kind = modifiers[i].Kind();
             if (kind is SyntaxKind.PublicKeyword or SyntaxKind.PrivateKeyword
-                     or SyntaxKind.ProtectedKeyword or SyntaxKind.InternalKeyword)
-            {
+                or SyntaxKind.ProtectedKeyword or SyntaxKind.InternalKeyword)
                 insertIndex = i + 1;
-            }
         }
 
         var newModifiers = modifiers.Insert(insertIndex, staticToken);
@@ -241,7 +239,7 @@ internal class MakeStaticService : IRtService
                 .OrderByDescending(s => s.Start)
                 .ToList();
 
-            bool changed = false;
+            var changed = false;
             foreach (var span in spans)
             {
                 var node = root.FindNode(span);
@@ -270,10 +268,7 @@ internal class MakeStaticService : IRtService
                 }
             }
 
-            if (changed)
-            {
-                sln = sln.WithDocumentSyntaxRoot(doc.Id, root);
-            }
+            if (changed) sln = sln.WithDocumentSyntaxRoot(doc.Id, root);
         }
 
         return sln;

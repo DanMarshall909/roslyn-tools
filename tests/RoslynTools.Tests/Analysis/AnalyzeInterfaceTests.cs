@@ -39,7 +39,7 @@ public sealed class AnalyzeInterfaceTests : IDisposable
             Assert.Equal(
                 [
                     "string Demo.Contracts.IWorker.Name { get; }",
-                    "void Demo.Contracts.IWorker.Run()",
+                    "void Demo.Contracts.IWorker.Run()"
                 ],
                 runAndNameConsumer.UsedMembers.Select(m => m.DisplayName).ToArray());
 
@@ -47,7 +47,7 @@ public sealed class AnalyzeInterfaceTests : IDisposable
             Assert.Equal(
                 [
                     "event System.EventHandler? Demo.Contracts.IWorker.Changed",
-                    "void Demo.Contracts.IWorker.Stop()",
+                    "void Demo.Contracts.IWorker.Stop()"
                 ],
                 stopAndEventConsumer.UsedMembers.Select(m => m.DisplayName).ToArray());
 
@@ -135,8 +135,10 @@ public sealed class AnalyzeInterfaceTests : IDisposable
                 "Demo.Contracts.IWorker",
                 new AnalyzeInterfaceOptions());
 
-            Assert.DoesNotContain(report.Consumers, consumer => consumer.ConsumerDisplayName == "Demo.App.NameofOnlyConsumer");
-            Assert.DoesNotContain(report.Consumers, consumer => consumer.ConsumerDisplayName == "Demo.App.SameNameConcreteConsumer");
+            Assert.DoesNotContain(report.Consumers,
+                consumer => consumer.ConsumerDisplayName == "Demo.App.NameofOnlyConsumer");
+            Assert.DoesNotContain(report.Consumers,
+                consumer => consumer.ConsumerDisplayName == "Demo.App.SameNameConcreteConsumer");
         }
     }
 
@@ -151,10 +153,12 @@ public sealed class AnalyzeInterfaceTests : IDisposable
             var report = await new AnalyzeInterfaceService().AnalyzeAsync(
                 sln,
                 "Demo.Contracts.IWorker",
-                new AnalyzeInterfaceOptions(Scope: "Demo.App"));
+                new AnalyzeInterfaceOptions("Demo.App"));
 
-            Assert.DoesNotContain(report.Consumers, consumer => consumer.ConsumerDisplayName == "Demo.Other.ScopedOutConsumer");
-            Assert.Contains(report.Consumers, consumer => consumer.ConsumerDisplayName == "Demo.App.RunAndNameConsumer");
+            Assert.DoesNotContain(report.Consumers,
+                consumer => consumer.ConsumerDisplayName == "Demo.Other.ScopedOutConsumer");
+            Assert.Contains(report.Consumers,
+                consumer => consumer.ConsumerDisplayName == "Demo.App.RunAndNameConsumer");
         }
     }
 
@@ -179,7 +183,8 @@ public sealed class AnalyzeInterfaceTests : IDisposable
             using var json = JsonDocument.Parse(output.ToString());
             var root = json.RootElement;
 
-            Assert.Equal("Demo.Contracts.IWorker", root.GetProperty("interface").GetProperty("displayName").GetString());
+            Assert.Equal("Demo.Contracts.IWorker",
+                root.GetProperty("interface").GetProperty("displayName").GetString());
             Assert.True(root.GetProperty("consumerCount").GetInt32() >= 1);
 
             var consumers = root.GetProperty("consumers").EnumerateArray().ToList();
@@ -209,7 +214,7 @@ public sealed class AnalyzeInterfaceTests : IDisposable
                 "analyze-interface",
                 "Demo.Contracts.ConcreteWorker",
                 "--solution",
-                "ignored",
+                "ignored"
             ]);
 
             Assert.NotEqual(0, exitCode);
@@ -362,7 +367,7 @@ public sealed class AnalyzeInterfaceTests : IDisposable
                 "Suggest.Contracts.IService",
                 new AnalyzeInterfaceOptions(Suggest: true));
 
-            var result = AnalyzeInterfaceResult.FromReport(report, suggest: true);
+            var result = AnalyzeInterfaceResult.FromReport(report, true);
             using var output = new StringWriter();
             RtContext.Format = OutputFormat.Json;
             RtSerializer.Write(result, output);
@@ -398,7 +403,7 @@ public sealed class AnalyzeInterfaceTests : IDisposable
                 "Suggest.Contracts.IService",
                 new AnalyzeInterfaceOptions(Suggest: true));
 
-            var result = AnalyzeInterfaceResult.FromReport(report, suggest: true);
+            var result = AnalyzeInterfaceResult.FromReport(report, true);
             using var output = new StringWriter();
             result.RenderText(output);
             var text = output.ToString();
@@ -414,44 +419,44 @@ public sealed class AnalyzeInterfaceTests : IDisposable
     {
         var project = new AdhocProjectBuilder("SuggestApp");
         project.AddSource("Contracts.cs", """
-            namespace Suggest.Contracts;
+                                          namespace Suggest.Contracts;
 
-            public interface IService
-            {
-                void Alpha();
-                void Beta();
-                void Gamma();
-            }
-            """);
+                                          public interface IService
+                                          {
+                                              void Alpha();
+                                              void Beta();
+                                              void Gamma();
+                                          }
+                                          """);
 
         project.AddSource("Consumers.cs", """
-            namespace Suggest.App;
+                                          namespace Suggest.App;
 
-            using Suggest.Contracts;
+                                          using Suggest.Contracts;
 
-            // Uses only Alpha — strict subset, same as ConsumerB
-            public sealed class ConsumerA
-            {
-                public void Use(IService svc) => svc.Alpha();
-            }
+                                          // Uses only Alpha — strict subset, same as ConsumerB
+                                          public sealed class ConsumerA
+                                          {
+                                              public void Use(IService svc) => svc.Alpha();
+                                          }
 
-            // Uses only Alpha — strict subset, same as ConsumerA
-            public sealed class ConsumerB
-            {
-                public void Use(IService svc) => svc.Alpha();
-            }
+                                          // Uses only Alpha — strict subset, same as ConsumerA
+                                          public sealed class ConsumerB
+                                          {
+                                              public void Use(IService svc) => svc.Alpha();
+                                          }
 
-            // Uses all three members — no narrowing benefit
-            public sealed class FullConsumer
-            {
-                public void Use(IService svc)
-                {
-                    svc.Alpha();
-                    svc.Beta();
-                    svc.Gamma();
-                }
-            }
-            """);
+                                          // Uses all three members — no narrowing benefit
+                                          public sealed class FullConsumer
+                                          {
+                                              public void Use(IService svc)
+                                              {
+                                                  svc.Alpha();
+                                                  svc.Beta();
+                                                  svc.Gamma();
+                                              }
+                                          }
+                                          """);
 
         return project;
     }
@@ -460,179 +465,181 @@ public sealed class AnalyzeInterfaceTests : IDisposable
     {
         var project = new AdhocProjectBuilder("DemoApp");
         project.AddSource("Contracts.cs", """
-            namespace Demo.Contracts;
+                                          namespace Demo.Contracts;
 
-            public interface IWorker
-            {
-                string Name { get; }
-                event System.EventHandler? Changed;
-                void Run();
-                void Stop();
-            }
+                                          public interface IWorker
+                                          {
+                                              string Name { get; }
+                                              event System.EventHandler? Changed;
+                                              void Run();
+                                              void Stop();
+                                          }
 
-            public interface IWorkerFactory
-            {
-                IWorker Create();
-            }
+                                          public interface IWorkerFactory
+                                          {
+                                              IWorker Create();
+                                          }
 
-            public sealed class ConcreteWorker
-            {
-                public string Name => "concrete";
-                public void Run() { }
-                public void Stop() { }
-            }
-            """);
+                                          public sealed class ConcreteWorker
+                                          {
+                                              public string Name => "concrete";
+                                              public void Run() { }
+                                              public void Stop() { }
+                                          }
+                                          """);
 
         project.AddSource("Consumers.cs", """
-            namespace Demo.App;
+                                          namespace Demo.App;
 
-            using Demo.Contracts;
+                                          using Demo.Contracts;
 
-            public sealed class RunAndNameConsumer
-            {
-                private readonly IWorker _worker;
+                                          public sealed class RunAndNameConsumer
+                                          {
+                                              private readonly IWorker _worker;
 
-                public RunAndNameConsumer(IWorker worker)
-                {
-                    _worker = worker;
-                }
+                                              public RunAndNameConsumer(IWorker worker)
+                                              {
+                                                  _worker = worker;
+                                              }
 
-                public string Use()
-                {
-                    _worker.Run();
-                    return _worker.Name;
-                }
-            }
+                                              public string Use()
+                                              {
+                                                  _worker.Run();
+                                                  return _worker.Name;
+                                              }
+                                          }
 
-            public sealed class StopAndEventConsumer
-            {
-                public void Use(IWorker worker)
-                {
-                    worker.Stop();
-                    worker.Changed += HandleChanged;
-                }
+                                          public sealed class StopAndEventConsumer
+                                          {
+                                              public void Use(IWorker worker)
+                                              {
+                                                  worker.Stop();
+                                                  worker.Changed += HandleChanged;
+                                              }
 
-                private static void HandleChanged(object? sender, System.EventArgs args)
-                {
-                }
-            }
+                                              private static void HandleChanged(object? sender, System.EventArgs args)
+                                              {
+                                              }
+                                          }
 
-            public sealed class LocalVariableConsumer
-            {
-                private readonly IWorkerFactory _factory;
+                                          public sealed class LocalVariableConsumer
+                                          {
+                                              private readonly IWorkerFactory _factory;
 
-                public LocalVariableConsumer(IWorkerFactory factory)
-                {
-                    _factory = factory;
-                }
+                                              public LocalVariableConsumer(IWorkerFactory factory)
+                                              {
+                                                  _factory = factory;
+                                              }
 
-                public void Use()
-                {
-                    var worker = _factory.Create();
-                    worker.Stop();
-                }
-            }
+                                              public void Use()
+                                              {
+                                                  var worker = _factory.Create();
+                                                  worker.Stop();
+                                              }
+                                          }
 
-            public sealed class ZeroMemberConsumer
-            {
-                private readonly IWorker _worker;
+                                          public sealed class ZeroMemberConsumer
+                                          {
+                                              private readonly IWorker _worker;
 
-                public ZeroMemberConsumer(IWorker worker)
-                {
-                    _worker = worker;
-                }
-            }
+                                              public ZeroMemberConsumer(IWorker worker)
+                                              {
+                                                  _worker = worker;
+                                              }
+                                          }
 
-            public sealed class TypeOnlyPropertyConsumer
-            {
-                public TypeOnlyPropertyConsumer(IWorker worker)
-                {
-                    Worker = worker;
-                }
+                                          public sealed class TypeOnlyPropertyConsumer
+                                          {
+                                              public TypeOnlyPropertyConsumer(IWorker worker)
+                                              {
+                                                  Worker = worker;
+                                              }
 
-                public IWorker Worker { get; }
-            }
+                                              public IWorker Worker { get; }
+                                          }
 
-            public sealed class LocalTypeOnlyConsumer
-            {
-                public void Use(IWorkerFactory factory)
-                {
-                    IWorker worker = factory.Create();
-                }
-            }
+                                          public sealed class LocalTypeOnlyConsumer
+                                          {
+                                              public void Use(IWorkerFactory factory)
+                                              {
+                                                  IWorker worker = factory.Create();
+                                              }
+                                          }
 
-            public sealed class NameofOnlyConsumer
-            {
-                public string GetName() => nameof(IWorker.Run) + nameof(IWorker.Name);
-            }
+                                          public sealed class NameofOnlyConsumer
+                                          {
+                                              public string GetName() => nameof(IWorker.Run) + nameof(IWorker.Name);
+                                          }
 
-            public sealed class SameNameConcreteConsumer
-            {
-                private readonly ConcreteWorker _worker;
+                                          public sealed class SameNameConcreteConsumer
+                                          {
+                                              private readonly ConcreteWorker _worker;
 
-                public SameNameConcreteConsumer(ConcreteWorker worker)
-                {
-                    _worker = worker;
-                }
+                                              public SameNameConcreteConsumer(ConcreteWorker worker)
+                                              {
+                                                  _worker = worker;
+                                              }
 
-                public string Use()
-                {
-                    _worker.Run();
-                    return _worker.Name;
-                }
-            }
-            """);
+                                              public string Use()
+                                              {
+                                                  _worker.Run();
+                                                  return _worker.Name;
+                                              }
+                                          }
+                                          """);
 
         project.AddSource("CrossFileConsumer.Fields.cs", """
-            namespace Demo.App;
+                                                         namespace Demo.App;
 
-            using Demo.Contracts;
+                                                         using Demo.Contracts;
 
-            public sealed partial class CrossFileConsumer
-            {
-                private readonly IWorker _worker;
+                                                         public sealed partial class CrossFileConsumer
+                                                         {
+                                                             private readonly IWorker _worker;
 
-                public CrossFileConsumer(IWorker worker)
-                {
-                    _worker = worker;
-                }
-            }
-            """);
+                                                             public CrossFileConsumer(IWorker worker)
+                                                             {
+                                                                 _worker = worker;
+                                                             }
+                                                         }
+                                                         """);
 
         project.AddSource("CrossFileConsumer.Use.cs", """
-            namespace Demo.App;
+                                                      namespace Demo.App;
 
-            public sealed partial class CrossFileConsumer
-            {
-                public void Use()
-                {
-                    _worker.Run();
-                }
-            }
-            """);
+                                                      public sealed partial class CrossFileConsumer
+                                                      {
+                                                          public void Use()
+                                                          {
+                                                              _worker.Run();
+                                                          }
+                                                      }
+                                                      """);
 
         project.AddSource("ScopedOutConsumer.cs", """
-            namespace Demo.Other;
+                                                  namespace Demo.Other;
 
-            using Demo.Contracts;
+                                                  using Demo.Contracts;
 
-            public sealed class ScopedOutConsumer
-            {
-                public void Use(IWorker worker)
-                {
-                    worker.Run();
-                }
-            }
-            """);
+                                                  public sealed class ScopedOutConsumer
+                                                  {
+                                                      public void Use(IWorker worker)
+                                                      {
+                                                          worker.Run();
+                                                      }
+                                                  }
+                                                  """);
 
         return project;
     }
 
     private static AnalyzeInterfaceConsumerReport FindConsumer(
         AnalyzeInterfaceReport report,
-        string consumerDisplayName) =>
-        report.Consumers.Single(consumer =>
+        string consumerDisplayName)
+    {
+        return report.Consumers.Single(consumer =>
             consumer.ConsumerDisplayName == consumerDisplayName);
+    }
 
     private static async Task<(int ExitCode, string StdOut, string StdErr)> InvokeAsync(string[] args)
     {

@@ -13,16 +13,22 @@ internal sealed class ToolRegistry
         _tools = schemaBuilder.Build().ToArray();
     }
 
-    public ToolDefinition[] GetTools() => _tools;
+    public ToolDefinition[] GetTools()
+    {
+        return _tools;
+    }
 
     public Task<ToolResult> InvokeAsync(
         string toolName,
         JsonElement arguments,
         CancellationToken cancellationToken = default)
-        => _bridge.InvokeAsync(toolName, arguments, cancellationToken);
+    {
+        return _bridge.InvokeAsync(toolName, arguments, cancellationToken);
+    }
 }
 
 internal sealed record ToolDefinition(string name, string description, Dictionary<string, object> inputSchema);
+
 internal sealed record ToolResult(bool isError, string content);
 
 internal static class JsonSchemaBuilder
@@ -40,10 +46,14 @@ internal static class JsonSchemaBuilder
     }
 
     public static Dictionary<string, object> String(string description = "")
-        => Scalar("string", description);
+    {
+        return Scalar("string", description);
+    }
 
     public static Dictionary<string, object> Boolean(string description = "")
-        => Scalar("boolean", description);
+    {
+        return Scalar("boolean", description);
+    }
 
     private static Dictionary<string, object> Scalar(string type, string description)
     {

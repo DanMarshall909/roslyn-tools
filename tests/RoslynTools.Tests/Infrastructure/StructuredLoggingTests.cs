@@ -4,9 +4,9 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace RoslynTools.Tests.Infrastructure;
 
 /// <summary>
-/// Architecture gate: all RtLog.* and RtConsole.Log template arguments must be plain string
-/// literals — no interpolated strings, concatenation, or variables.
-/// See docs/logging-standards.md.
+///     Architecture gate: all RtLog.* and RtConsole.Log template arguments must be plain string
+///     literals — no interpolated strings, concatenation, or variables.
+///     See docs/logging-standards.md.
 /// </summary>
 public class StructuredLoggingTests
 {
@@ -70,10 +70,12 @@ public class StructuredLoggingTests
         };
     }
 
-    private static bool IsGeneratedOrObj(string path) =>
-        path.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar) ||
-        path.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar) ||
-        path.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase);
+    private static bool IsGeneratedOrObj(string path)
+    {
+        return path.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar) ||
+               path.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar) ||
+               path.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase);
+    }
 
     private static string FindSrcRoot()
     {

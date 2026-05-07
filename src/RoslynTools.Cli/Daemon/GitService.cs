@@ -26,6 +26,7 @@ internal sealed class GitService
             var candidate = Path.Combine(dir, ".git");
             if (Directory.Exists(candidate)) return candidate;
         }
+
         return null;
     }
 
@@ -37,6 +38,7 @@ internal sealed class GitService
             var refPath = Path.Combine(gitDir, headContent[5..].Replace('/', Path.DirectorySeparatorChar));
             if (File.Exists(refPath)) return File.ReadAllText(refPath).Trim();
         }
+
         return headContent;
     }
 }

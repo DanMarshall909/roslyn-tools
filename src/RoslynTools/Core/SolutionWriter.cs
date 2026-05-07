@@ -1,8 +1,8 @@
+using System.Text;
 using DiffPlex;
 using DiffPlex.DiffBuilder;
 using DiffPlex.DiffBuilder.Model;
 using Microsoft.CodeAnalysis;
-using System.Text;
 
 namespace RoslynTools.Core;
 
@@ -14,7 +14,7 @@ internal static class SolutionWriter
         bool dryRun)
     {
         var changes = newSolution.GetChanges(originalSolution);
-        int fileCount = 0;
+        var fileCount = 0;
 
         foreach (var projectChanges in changes.GetProjectChanges())
         {
@@ -75,17 +75,11 @@ internal static class SolutionWriter
         }
 
         if (fileCount == 0)
-        {
             RtConsole.WriteLine(RtOutputContext.Result, "No changes.");
-        }
         else if (dryRun)
-        {
             RtConsole.WriteLine(RtOutputContext.Diff, $"\n[dry-run] {fileCount} file(s) would be modified.");
-        }
         else
-        {
             RtConsole.WriteLine(RtOutputContext.Result, $"\nDone. {fileCount} file(s) updated.");
-        }
     }
 
     internal static void PrintDiff(string oldText, string newText, string filePath)
@@ -99,7 +93,7 @@ internal static class SolutionWriter
 
         var entries = CollectDiffEntries(diff);
 
-        int i = 0;
+        var i = 0;
         while (i < entries.Count)
         {
             if (entries[i].Type == ChangeType.Unchanged)
@@ -108,8 +102,8 @@ internal static class SolutionWriter
                 continue;
             }
 
-            int hunkStart = Math.Max(0, i - contextSize);
-            int hunkEnd = ExtendHunkEnd(entries, i, contextSize);
+            var hunkStart = Math.Max(0, i - contextSize);
+            var hunkEnd = ExtendHunkEnd(entries, i, contextSize);
 
             EmitHunk(entries, hunkStart, hunkEnd);
 
@@ -150,7 +144,7 @@ internal static class SolutionWriter
         int changeStart,
         int contextSize)
     {
-        int hunkEnd = changeStart;
+        var hunkEnd = changeStart;
 
         while (hunkEnd < entries.Count)
         {
@@ -159,8 +153,8 @@ internal static class SolutionWriter
                 hunkEnd++;
 
             // Count consecutive unchanged lines ahead
-            int unchangedRun = 0;
-            int peek = hunkEnd;
+            var unchangedRun = 0;
+            var peek = hunkEnd;
             while (peek < entries.Count && entries[peek].Type == ChangeType.Unchanged)
             {
                 unchangedRun++;
@@ -188,8 +182,7 @@ internal static class SolutionWriter
         int hunkEnd)
     {
         int oldCount = 0, newCount = 0;
-        for (int k = hunkStart; k < hunkEnd; k++)
-        {
+        for (var k = hunkStart; k < hunkEnd; k++)
             switch (entries[k].Type)
             {
                 case ChangeType.Unchanged:
@@ -203,11 +196,11 @@ internal static class SolutionWriter
                     newCount++;
                     break;
             }
-        }
 
-        RtConsole.WriteLine(RtOutputContext.Diff, $"@@ -{entries[hunkStart].OldLine},{oldCount} +{entries[hunkStart].NewLine},{newCount} @@");
+        RtConsole.WriteLine(RtOutputContext.Diff,
+            $"@@ -{entries[hunkStart].OldLine},{oldCount} +{entries[hunkStart].NewLine},{newCount} @@");
 
-        for (int k = hunkStart; k < hunkEnd; k++)
+        for (var k = hunkStart; k < hunkEnd; k++)
         {
             var prefix = entries[k].Type switch
             {

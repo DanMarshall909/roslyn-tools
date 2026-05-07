@@ -5,7 +5,8 @@ namespace RoslynTools.Tests.Mutation;
 
 public sealed class NamespaceMoveRewriterTests
 {
-    private static (string Result, bool Changed, bool IsDeclarationFile) Rewrite(string source, string oldNs, string newNs)
+    private static (string Result, bool Changed, bool IsDeclarationFile) Rewrite(string source, string oldNs,
+        string newNs)
     {
         var tree = CSharpSyntaxTree.ParseText(source);
         var root = tree.GetRoot();

@@ -10,37 +10,37 @@ public class FindRefsTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Model.cs", """
-            namespace TestApp;
+                                      namespace TestApp;
 
-            public class Invoice
-            {
-                public int Id { get; set; }
-                public decimal Amount { get; set; }
-            }
-            """);
+                                      public class Invoice
+                                      {
+                                          public int Id { get; set; }
+                                          public decimal Amount { get; set; }
+                                      }
+                                      """);
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class InvoiceService
-            {
-                public Invoice Create(decimal amount)
-                {
-                    return new Invoice { Amount = amount };
-                }
+                                        public class InvoiceService
+                                        {
+                                            public Invoice Create(decimal amount)
+                                            {
+                                                return new Invoice { Amount = amount };
+                                            }
 
-                public void Process(Invoice invoice) { }
-            }
-            """);
+                                            public void Process(Invoice invoice) { }
+                                        }
+                                        """);
         project.AddSource("Controller.cs", """
-            namespace TestApp;
+                                           namespace TestApp;
 
-            public class InvoiceController
-            {
-                private readonly InvoiceService _service = new();
+                                           public class InvoiceController
+                                           {
+                                               private readonly InvoiceService _service = new();
 
-                public Invoice Get(int id) => new Invoice();
-            }
-            """);
+                                               public Invoice Get(int id) => new Invoice();
+                                           }
+                                           """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -68,23 +68,23 @@ public class FindRefsTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("App.cs", """
-            namespace TestApp;
+                                    namespace TestApp;
 
-            public static class MathHelper
-            {
-                public static int Square(int x) => x * x;
-            }
+                                    public static class MathHelper
+                                    {
+                                        public static int Square(int x) => x * x;
+                                    }
 
-            public class Consumer
-            {
-                public int DoWork()
-                {
-                    var a = MathHelper.Square(3);
-                    var b = MathHelper.Square(5);
-                    return a + b;
-                }
-            }
-            """);
+                                    public class Consumer
+                                    {
+                                        public int DoWork()
+                                        {
+                                            var a = MathHelper.Square(3);
+                                            var b = MathHelper.Square(5);
+                                            return a + b;
+                                        }
+                                    }
+                                    """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -102,13 +102,13 @@ public class FindRefsTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Unused.cs", """
-            namespace TestApp;
+                                       namespace TestApp;
 
-            public class NeverUsed
-            {
-                public void Orphan() { }
-            }
-            """);
+                                       public class NeverUsed
+                                       {
+                                           public void Orphan() { }
+                                       }
+                                       """);
 
         var (workspace, sln) = project.Build();
         using (workspace)

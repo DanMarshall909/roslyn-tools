@@ -10,21 +10,21 @@ public sealed class DestaticClassTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Helper.cs", """
-            namespace TestApp;
+                                       namespace TestApp;
 
-            public static class Helper
-            {
-                public static string Format(string value) => value.Trim();
-            }
-            """);
+                                       public static class Helper
+                                       {
+                                           public static string Format(string value) => value.Trim();
+                                       }
+                                       """);
         project.AddSource("Consumer.cs", """
-            namespace TestApp;
+                                         namespace TestApp;
 
-            public class Consumer
-            {
-                public string Run(string value) => Helper.Format(value);
-            }
-            """);
+                                         public class Consumer
+                                         {
+                                             public string Run(string value) => Helper.Format(value);
+                                         }
+                                         """);
 
         var (_, solution) = project.Build();
         var writer = new CapturingSolutionChangeWriter();
@@ -32,7 +32,7 @@ public sealed class DestaticClassTests
         await new DestaticClassService(
             new SymbolResolutionService(),
             new DocumentLocatorService(),
-            writer).RunAsync(solution, "TestApp.Helper", dryRun: false);
+            writer).RunAsync(solution, "TestApp.Helper", false);
 
         var consumerText = await GetDocumentTextAsync(writer.Solution!, "Consumer.cs");
 
@@ -48,21 +48,21 @@ public sealed class DestaticClassTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Helper.cs", """
-            namespace TestApp;
+                                       namespace TestApp;
 
-            public static class Helper
-            {
-                public static string Format(string value) => value.Trim();
-            }
-            """);
+                                       public static class Helper
+                                       {
+                                           public static string Format(string value) => value.Trim();
+                                       }
+                                       """);
         project.AddSource("Consumer.cs", """
-            namespace TestApp;
+                                         namespace TestApp;
 
-            public static class Consumer
-            {
-                public static string Run(string value) => Helper.Format(value);
-            }
-            """);
+                                         public static class Consumer
+                                         {
+                                             public static string Run(string value) => Helper.Format(value);
+                                         }
+                                         """);
 
         var (_, solution) = project.Build();
         var writer = new CapturingSolutionChangeWriter();
@@ -70,7 +70,7 @@ public sealed class DestaticClassTests
         await new DestaticClassService(
             new SymbolResolutionService(),
             new DocumentLocatorService(),
-            writer).RunAsync(solution, "TestApp.Helper", dryRun: false);
+            writer).RunAsync(solution, "TestApp.Helper", false);
 
         var consumerText = await GetDocumentTextAsync(writer.Solution!, "Consumer.cs");
 

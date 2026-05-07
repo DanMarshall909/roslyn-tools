@@ -267,26 +267,38 @@ public sealed class RendererTests : IDisposable
 
         public string UntaggedField { get; } = "untagged-value";
 
-        public void RenderText(TextWriter writer) => writer.Write("fake");
+        public void RenderText(TextWriter writer)
+        {
+            writer.Write("fake");
+        }
     }
 
     private sealed class FakeChild : IRtOutput
     {
-        public FakeChild(string name) => Name = name;
+        public FakeChild(string name)
+        {
+            Name = name;
+        }
 
         [OutputField(OutputLevel.Default, "name")]
         public string Name { get; }
 
-        public void RenderText(TextWriter writer) => writer.Write(Name);
+        public void RenderText(TextWriter writer)
+        {
+            writer.Write(Name);
+        }
     }
 
     private sealed class FakeParent : IRtOutput
     {
         [OutputField(OutputLevel.Default, "children")]
         public IReadOnlyList<FakeChild> Children { get; } =
-            [new FakeChild("Alice"), new FakeChild("Bob")];
+            [new("Alice"), new("Bob")];
 
-        public void RenderText(TextWriter writer) => writer.Write("parent");
+        public void RenderText(TextWriter writer)
+        {
+            writer.Write("parent");
+        }
     }
 
     private sealed class FakeWithNullChild : IRtOutput
@@ -294,7 +306,10 @@ public sealed class RendererTests : IDisposable
         [OutputField(OutputLevel.Llm, "child")]
         public FakeChild? Child { get; } = null;
 
-        public void RenderText(TextWriter writer) => writer.Write("null-child");
+        public void RenderText(TextWriter writer)
+        {
+            writer.Write("null-child");
+        }
     }
 
     private sealed class TrackingOutput : IRtOutput

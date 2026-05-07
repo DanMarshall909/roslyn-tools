@@ -16,8 +16,10 @@ internal sealed record CallerResult : IRtOutput
     [OutputField(OutputLevel.Default, "sourceLine")]
     public required string SourceLine { get; init; }
 
-    public void RenderText(TextWriter writer) =>
+    public void RenderText(TextWriter writer)
+    {
         writer.Write($"{FilePath}:{Line}: {ContainingMethod}: {SourceLine}");
+    }
 }
 
 internal sealed record FindCallersResult : IRtOutput

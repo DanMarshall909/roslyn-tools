@@ -9,26 +9,28 @@ public class ReplaceTypeCommandTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("MyService.cs", """
-            namespace TestApp;
+                                          namespace TestApp;
 
-            public class MyService
-            {
-                public MyService()
-                {
-                    var now = DateTime.UtcNow;
-                }
+                                          public class MyService
+                                          {
+                                              public MyService()
+                                              {
+                                                  var now = DateTime.UtcNow;
+                                              }
 
-                public MyService(string name)
-                {
-                    var now = DateTime.UtcNow;
-                }
-            }
-            """);
+                                              public MyService(string name)
+                                              {
+                                                  var now = DateTime.UtcNow;
+                                              }
+                                          }
+                                          """);
 
         var (workspace, sln) = project.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
             await App.RunAsync(["replace-datetime", "--solution", "ignored"]);
+        }
 
         var content = await project.ReadSourceAsync("MyService.cs");
 
@@ -44,6 +46,7 @@ public class ReplaceTypeCommandTests
             count++;
             idx += pattern.Length;
         }
+
         return count;
     }
 }

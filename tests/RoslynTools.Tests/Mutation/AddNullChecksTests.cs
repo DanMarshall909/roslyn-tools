@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using RoslynTools.Commands;
 using RoslynTools.Core;
 
@@ -6,35 +7,35 @@ namespace RoslynTools.Tests.Mutation;
 public class AddNullChecksTests
 {
     private const string ServiceSource = """
-        public class OrderService
-        {
-            public void Process(string name, int count, object? tag)
-            {
-            }
-        }
-        """;
+                                         public class OrderService
+                                         {
+                                             public void Process(string name, int count, object? tag)
+                                             {
+                                             }
+                                         }
+                                         """;
 
     private const string AlreadyGuardedSource = """
-        using System;
+                                                using System;
 
-        public class OrderService
-        {
-            public void Process(string name, object payload)
-            {
-                ArgumentNullException.ThrowIfNull(name);
-                ArgumentNullException.ThrowIfNull(payload);
-            }
-        }
-        """;
+                                                public class OrderService
+                                                {
+                                                    public void Process(string name, object payload)
+                                                    {
+                                                        ArgumentNullException.ThrowIfNull(name);
+                                                        ArgumentNullException.ThrowIfNull(payload);
+                                                    }
+                                                }
+                                                """;
 
     private const string NullableAnnotatedSource = """
-        public class OrderService
-        {
-            public void Process(string? name, object? payload)
-            {
-            }
-        }
-        """;
+                                                   public class OrderService
+                                                   {
+                                                       public void Process(string? name, object? payload)
+                                                       {
+                                                       }
+                                                   }
+                                                   """;
 
     // ──────────────────────────────────────────────────────────────────────────
     //  1. Eligible reference-type params get ThrowIfNull inserted at top
@@ -48,12 +49,14 @@ public class AddNullChecksTests
         var (workspace, sln) = proj.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", "ignored", dryRun: false);
+        {
+            await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", "ignored", false);
+        }
 
         var content = await proj.ReadSourceAsync("OrderService.cs");
         Assert.Contains("ArgumentNullException.ThrowIfNull(name)", content);
-        Assert.DoesNotContain("ThrowIfNull(count)", content);   // int is value type
-        Assert.DoesNotContain("ThrowIfNull(tag)", content);     // object? is annotated nullable
+        Assert.DoesNotContain("ThrowIfNull(count)", content); // int is value type
+        Assert.DoesNotContain("ThrowIfNull(tag)", content); // object? is annotated nullable
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -65,18 +68,20 @@ public class AddNullChecksTests
     {
         using var proj = new AdhocProjectBuilder("NullApp");
         proj.AddSource("OrderService.cs", """
-            public class OrderService
-            {
-                public void Process(string name, string value)
-                {
-                    var x = name.ToUpper();
-                }
-            }
-            """);
+                                          public class OrderService
+                                          {
+                                              public void Process(string name, string value)
+                                              {
+                                                  var x = name.ToUpper();
+                                              }
+                                          }
+                                          """);
         var (workspace, sln) = proj.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", "ignored", dryRun: false);
+        {
+            await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", "ignored", false);
+        }
 
         var content = await proj.ReadSourceAsync("OrderService.cs");
 
@@ -98,12 +103,14 @@ public class AddNullChecksTests
         var (workspace, sln) = proj.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", "ignored", dryRun: false);
+        {
+            await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", "ignored", false);
+        }
 
         var content = await proj.ReadSourceAsync("OrderService.cs");
 
         // Should not have duplicated guards
-        var count = System.Text.RegularExpressions.Regex
+        var count = Regex
             .Matches(content, @"ThrowIfNull\(name\)")
             .Count;
         Assert.Equal(1, count);
@@ -121,7 +128,9 @@ public class AddNullChecksTests
         var (workspace, sln) = proj.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", "ignored", dryRun: false);
+        {
+            await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", "ignored", false);
+        }
 
         var content = await proj.ReadSourceAsync("OrderService.cs");
         Assert.DoesNotContain("ThrowIfNull", content);
@@ -141,7 +150,9 @@ public class AddNullChecksTests
         var before = await proj.ReadSourceAsync("OrderService.cs");
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", "ignored", dryRun: true);
+        {
+            await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", "ignored", true);
+        }
 
         var after = await proj.ReadSourceAsync("OrderService.cs");
         Assert.Equal(before, after);
@@ -156,17 +167,19 @@ public class AddNullChecksTests
     {
         using var proj = new AdhocProjectBuilder("NullApp");
         proj.AddSource("OrderService.cs", """
-            public class OrderService
-            {
-                public string Process(string name) => name.ToUpper();
-            }
-            """);
+                                          public class OrderService
+                                          {
+                                              public string Process(string name) => name.ToUpper();
+                                          }
+                                          """);
         var (workspace, sln) = proj.Build();
 
         var before = await proj.ReadSourceAsync("OrderService.cs");
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", "ignored", dryRun: false);
+        {
+            await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", "ignored", false);
+        }
 
         var after = await proj.ReadSourceAsync("OrderService.cs");
         // No ThrowIfNull inserted into an expression-bodied method
@@ -183,18 +196,20 @@ public class AddNullChecksTests
     {
         using var proj = new AdhocProjectBuilder("NullApp");
         proj.AddSource("OrderService.cs", """
-            public class OrderService
-            {
-                public void Process(string name)
-                {
-                    if (name != null) { }
-                }
-            }
-            """);
+                                          public class OrderService
+                                          {
+                                              public void Process(string name)
+                                              {
+                                                  if (name != null) { }
+                                              }
+                                          }
+                                          """);
         var (workspace, sln) = proj.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", "ignored", dryRun: false);
+        {
+            await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", "ignored", false);
+        }
 
         var content = await proj.ReadSourceAsync("OrderService.cs");
         Assert.DoesNotContain("ThrowIfNull(name)", content);
@@ -205,18 +220,20 @@ public class AddNullChecksTests
     {
         using var proj = new AdhocProjectBuilder("NullApp");
         proj.AddSource("OrderService.cs", """
-            public class OrderService
-            {
-                public void Process(string name)
-                {
-                    if (null != name) { }
-                }
-            }
-            """);
+                                          public class OrderService
+                                          {
+                                              public void Process(string name)
+                                              {
+                                                  if (null != name) { }
+                                              }
+                                          }
+                                          """);
         var (workspace, sln) = proj.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", "ignored", dryRun: false);
+        {
+            await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", "ignored", false);
+        }
 
         var content = await proj.ReadSourceAsync("OrderService.cs");
         Assert.DoesNotContain("ThrowIfNull(name)", content);
@@ -227,18 +244,20 @@ public class AddNullChecksTests
     {
         using var proj = new AdhocProjectBuilder("NullApp");
         proj.AddSource("OrderService.cs", """
-            public class OrderService
-            {
-                public void Process(string name)
-                {
-                    if (name is null) throw new System.ArgumentNullException(nameof(name));
-                }
-            }
-            """);
+                                          public class OrderService
+                                          {
+                                              public void Process(string name)
+                                              {
+                                                  if (name is null) throw new System.ArgumentNullException(nameof(name));
+                                              }
+                                          }
+                                          """);
         var (workspace, sln) = proj.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", "ignored", dryRun: false);
+        {
+            await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", "ignored", false);
+        }
 
         var content = await proj.ReadSourceAsync("OrderService.cs");
         Assert.DoesNotContain("ThrowIfNull(name)", content);
@@ -249,18 +268,20 @@ public class AddNullChecksTests
     {
         using var proj = new AdhocProjectBuilder("NullApp");
         proj.AddSource("OrderService.cs", """
-            public class OrderService
-            {
-                public void Process(string name)
-                {
-                    if (name == null) throw new System.ArgumentNullException(nameof(name));
-                }
-            }
-            """);
+                                          public class OrderService
+                                          {
+                                              public void Process(string name)
+                                              {
+                                                  if (name == null) throw new System.ArgumentNullException(nameof(name));
+                                              }
+                                          }
+                                          """);
         var (workspace, sln) = proj.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", "ignored", dryRun: false);
+        {
+            await AddNullChecksCommand.ExecuteAsync("OrderService", "Process", "ignored", false);
+        }
 
         var content = await proj.ReadSourceAsync("OrderService.cs");
         Assert.DoesNotContain("ThrowIfNull(name)", content);
@@ -279,8 +300,8 @@ public class AddNullChecksTests
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await Assert.ThrowsAsync<InvalidOperationException>(
-                () => AddNullChecksCommand.ExecuteAsync("OrderService", "NonExistent", "ignored", dryRun: false));
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                AddNullChecksCommand.ExecuteAsync("OrderService", "NonExistent", "ignored", false));
         }
     }
 }

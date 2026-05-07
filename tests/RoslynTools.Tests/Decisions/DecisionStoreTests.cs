@@ -29,8 +29,8 @@ public class DecisionStoreTests
                 Options = new Dictionary<int, string>
                 {
                     [0] = "Class    Foo  (P1)",
-                    [1] = "Method   Bar.Foo()  (P1)",
-                },
+                    [1] = "Method   Bar.Foo()  (P1)"
+                }
             });
             store.Save(path);
 
@@ -53,13 +53,13 @@ public class DecisionStoreTests
         try
         {
             File.WriteAllText(path, """
-                - id: ambig-Foo-2
-                  q: 2 symbols match 'Foo'
-                  options:
-                    0: 'Class    Foo  (P1)'
-                    1: 'Method   Bar.Foo()  (P1)'
-                  choose: 1
-                """);
+                                    - id: ambig-Foo-2
+                                      q: 2 symbols match 'Foo'
+                                      options:
+                                        0: 'Class    Foo  (P1)'
+                                        1: 'Method   Bar.Foo()  (P1)'
+                                      choose: 1
+                                    """);
 
             var store = DecisionStore.Load(path);
 
@@ -95,7 +95,7 @@ public class DecisionStoreTests
             {
                 Id = "ambig-Foo-2",
                 Q = "2 symbols match 'Foo'",
-                Options = new Dictionary<int, string> { [0] = "a", [1] = "b" },
+                Options = new Dictionary<int, string> { [0] = "a", [1] = "b" }
             });
             store.Save(path);
 

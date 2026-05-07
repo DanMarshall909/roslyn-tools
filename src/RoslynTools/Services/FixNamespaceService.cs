@@ -1,13 +1,14 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using System.Diagnostics.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class FixNamespaceService : IRtService
 {
     private readonly ILogger<FixNamespaceService> _logger;
@@ -23,6 +24,7 @@ internal class FixNamespaceService : IRtService
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
     }
+
     internal async Task ExecuteAsync(string filePath, string? solutionPath, bool dryRun)
     {
         filePath = Path.GetFullPath(filePath);
@@ -39,22 +41,22 @@ internal class FixNamespaceService : IRtService
         var originalSolution = solution;
 
         var targetDoc = solution.Projects
-            .SelectMany(p => p.Documents)
-            .FirstOrDefault(d => string.Equals(
-                d.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
-            ?? throw new InvalidOperationException($"File '{filePath}' not found in solution.");
+                            .SelectMany(p => p.Documents)
+                            .FirstOrDefault(d => string.Equals(
+                                d.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
+                        ?? throw new InvalidOperationException($"File '{filePath}' not found in solution.");
 
         var project = solution.GetProject(targetDoc.Project.Id)
-            ?? throw new InvalidOperationException("Cannot resolve project for document.");
+                      ?? throw new InvalidOperationException("Cannot resolve project for document.");
 
         var projectFilePath = project.FilePath
-            ?? throw new InvalidOperationException("Project has no file path.");
+                              ?? throw new InvalidOperationException("Project has no file path.");
         var projectDir = Path.GetDirectoryName(projectFilePath)!;
 
         var expectedNamespace = ComputeExpectedNamespace(filePath, projectDir, project.AssemblyName);
 
         var syntaxRoot = await targetDoc.GetSyntaxRootAsync()
-            ?? throw new InvalidOperationException("Cannot get syntax root.");
+                         ?? throw new InvalidOperationException("Cannot get syntax root.");
 
         var currentNamespace = GetDeclaredNamespace(syntaxRoot);
         if (currentNamespace == null)
@@ -80,21 +82,19 @@ internal class FixNamespaceService : IRtService
         solution = solution.WithDocumentSyntaxRoot(targetDoc.Id, newRoot);
 
         foreach (var proj in solution.Projects)
+        foreach (var doc in proj.Documents)
         {
-            foreach (var doc in proj.Documents)
-            {
-                if (doc.Id == targetDoc.Id) continue;
-                if (doc.FilePath == null) continue;
+            if (doc.Id == targetDoc.Id) continue;
+            if (doc.FilePath == null) continue;
 
-                var root = await doc.GetSyntaxRootAsync();
-                if (root == null) continue;
+            var root = await doc.GetSyntaxRootAsync();
+            if (root == null) continue;
 
-                var usingRewriter = new UsingDirectiveRenamer(currentNamespace, expectedNamespace);
-                var updatedRoot = usingRewriter.Visit(root);
+            var usingRewriter = new UsingDirectiveRenamer(currentNamespace, expectedNamespace);
+            var updatedRoot = usingRewriter.Visit(root);
 
-                if (usingRewriter.Changed)
-                    solution = solution.WithDocumentSyntaxRoot(doc.Id, updatedRoot);
-            }
+            if (usingRewriter.Changed)
+                solution = solution.WithDocumentSyntaxRoot(doc.Id, updatedRoot);
         }
 
         await _solutionChangeWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
@@ -132,8 +132,8 @@ internal class FixNamespaceService : IRtService
 
     internal sealed class NamespaceDeclarationRenamer : CSharpSyntaxRewriter
     {
-        private readonly string _oldNs;
         private readonly string _newNs;
+        private readonly string _oldNs;
 
         public NamespaceDeclarationRenamer(string oldNs, string newNs)
         {
@@ -158,16 +158,16 @@ internal class FixNamespaceService : IRtService
 
     internal sealed class UsingDirectiveRenamer : CSharpSyntaxRewriter
     {
-        private readonly string _oldNs;
         private readonly string _newNs;
-
-        public bool Changed { get; private set; }
+        private readonly string _oldNs;
 
         public UsingDirectiveRenamer(string oldNs, string newNs)
         {
             _oldNs = oldNs;
             _newNs = newNs;
         }
+
+        public bool Changed { get; private set; }
 
         public override SyntaxNode? VisitUsingDirective(UsingDirectiveSyntax node)
         {

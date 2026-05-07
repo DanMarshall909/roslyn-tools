@@ -1,14 +1,13 @@
 using System.CommandLine;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using RoslynTools.Services;
 
 namespace RoslynTools.Tests;
 
 /// <summary>
-/// Unit tests for App.RegisterGlobalOptions — extracted helper (US-033).
-/// Verifies that the five global options are registered on a RootCommand by name,
-/// without needing to run the full middleware pipeline.
+///     Unit tests for App.RegisterGlobalOptions — extracted helper (US-033).
+///     Verifies that the five global options are registered on a RootCommand by name,
+///     without needing to run the full middleware pipeline.
 /// </summary>
 public sealed class AppRegistrationTests
 {
@@ -128,7 +127,8 @@ public sealed class AppRegistrationTests
 
         var directUsages = serviceFiles
             .Where(path => !Path.GetFileName(path).Equals("SolutionChangeWriter.cs", StringComparison.Ordinal))
-            .Where(path => File.ReadAllText(path).Contains("SolutionWriter.ApplyChangesAsync", StringComparison.Ordinal))
+            .Where(path =>
+                File.ReadAllText(path).Contains("SolutionWriter.ApplyChangesAsync", StringComparison.Ordinal))
             .Select(path => Path.GetRelativePath(repoRoot, path))
             .OrderBy(path => path, StringComparer.Ordinal)
             .ToArray();
@@ -175,10 +175,12 @@ public sealed class AppRegistrationTests
         throw new InvalidOperationException("Could not locate repository root.");
     }
 
-    private static Type[] GetConcreteServiceTypes() =>
-        typeof(MigrateToIOptionsService).Assembly.GetTypes()
+    private static Type[] GetConcreteServiceTypes()
+    {
+        return typeof(MigrateToIOptionsService).Assembly.GetTypes()
             .Where(type => type is { IsClass: true, IsAbstract: false }
                            && type.Namespace == "RoslynTools.Services"
                            && type.Name.EndsWith("Service", StringComparison.Ordinal))
             .ToArray();
+    }
 }

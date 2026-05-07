@@ -1,9 +1,9 @@
 namespace RoslynTools.Tests;
 
 /// <summary>
-/// Registers MSBuild once per test run. Must be referenced via
-/// [assembly: TestFramework] or ICollectionFixture to ensure it
-/// runs before any test that loads Roslyn workspace types.
+///     Registers MSBuild once per test run. Must be referenced via
+///     [assembly: TestFramework] or ICollectionFixture to ensure it
+///     runs before any test that loads Roslyn workspace types.
 /// </summary>
 public static class MsBuildFixture
 {

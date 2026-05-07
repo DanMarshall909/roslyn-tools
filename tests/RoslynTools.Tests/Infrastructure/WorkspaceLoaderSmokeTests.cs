@@ -3,27 +3,29 @@ using RoslynTools.Core;
 namespace RoslynTools.Tests.Infrastructure;
 
 /// <summary>
-/// The rest of the suite runs on AdhocWorkspace (no MSBuild). This file keeps the
-/// real MSBuildWorkspace path covered end-to-end so a regression in
-/// <see cref="WorkspaceLoader"/> itself won't slip through silently.
-///
-/// Lives outside any xunit Collection so it runs in parallel with the rest, but
-/// the BuildHost-netcore subprocess startup (~1–2s) is paid here rather than
-/// by every test.
+///     The rest of the suite runs on AdhocWorkspace (no MSBuild). This file keeps the
+///     real MSBuildWorkspace path covered end-to-end so a regression in
+///     <see cref="WorkspaceLoader" /> itself won't slip through silently.
+///     Lives outside any xunit Collection so it runs in parallel with the rest, but
+///     the BuildHost-netcore subprocess startup (~1–2s) is paid here rather than
+///     by every test.
 /// </summary>
 public class WorkspaceLoaderSmokeTests
 {
-    static WorkspaceLoaderSmokeTests() => MsBuildFixture.Ensure();
+    static WorkspaceLoaderSmokeTests()
+    {
+        MsBuildFixture.Ensure();
+    }
 
     [Fact]
     public async Task Opens_the_solution_and_finds_a_known_type()
     {
         using var project = new WorkspaceLoaderTestProject();
         var sln = project.AddSolution(
-            relativeDirectory: "",
-            solutionName: "Smoke",
-            projectName: "SmokeProject",
-            source: """
+            "",
+            "Smoke",
+            "SmokeProject",
+            """
             namespace SmokeProject;
 
             public class SmokeType
@@ -47,9 +49,9 @@ public class WorkspaceLoaderSmokeTests
     {
         using var project = new WorkspaceLoaderTestProject();
         var sln = project.AddSolution(
-            relativeDirectory: "",
-            solutionName: "Smoke",
-            projectName: "SmokeProject");
+            "",
+            "Smoke",
+            "SmokeProject");
         using var sink = new StringWriter();
         WorkspaceLoader.DiagnosticSinkOverride.Value = sink;
         try
@@ -87,8 +89,7 @@ public class WorkspaceLoaderSmokeTests
         {
             var missing = Path.Combine(Path.GetTempPath(), $"rt-nonexistent-{Guid.NewGuid():N}.sln");
 
-            await Assert.ThrowsAsync<FileNotFoundException>(
-                () => WorkspaceLoader.LoadAsync(missing));
+            await Assert.ThrowsAsync<FileNotFoundException>(() => WorkspaceLoader.LoadAsync(missing));
 
             Assert.Equal(string.Empty, sink.ToString());
         }

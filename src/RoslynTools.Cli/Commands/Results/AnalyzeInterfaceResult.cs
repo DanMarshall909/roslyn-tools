@@ -7,8 +7,7 @@ namespace RoslynTools.Commands.Results;
 
 internal sealed record AnalyzeInterfaceMemberOutput : IRtOutput
 {
-    [OutputField(OutputLevel.Llm, "name")]
-    public required string Name { get; init; }
+    [OutputField(OutputLevel.Llm, "name")] public required string Name { get; init; }
 
     [OutputField(OutputLevel.Default, "kind")]
     public required string Kind { get; init; }
@@ -16,7 +15,10 @@ internal sealed record AnalyzeInterfaceMemberOutput : IRtOutput
     [OutputField(OutputLevel.Default, "displayName")]
     public required string DisplayName { get; init; }
 
-    public void RenderText(TextWriter writer) => writer.Write(DisplayName);
+    public void RenderText(TextWriter writer)
+    {
+        writer.Write(DisplayName);
+    }
 }
 
 internal sealed record AnalyzeInterfaceSuggestionOutput : IRtOutput
@@ -30,7 +32,10 @@ internal sealed record AnalyzeInterfaceSuggestionOutput : IRtOutput
     [OutputField(OutputLevel.Llm, "suggestedMembers")]
     public required IReadOnlyList<AnalyzeInterfaceMemberOutput> SuggestedMembers { get; init; }
 
-    public void RenderText(TextWriter writer) => writer.Write(HasNarrowingBenefit ? "narrowing possible" : "no narrowing benefit");
+    public void RenderText(TextWriter writer)
+    {
+        writer.Write(HasNarrowingBenefit ? "narrowing possible" : "no narrowing benefit");
+    }
 }
 
 internal sealed record AnalyzeInterfaceConsumerOutput : IRtOutput
@@ -55,7 +60,10 @@ internal sealed record AnalyzeInterfaceConsumerOutput : IRtOutput
 
     public AnalyzeInterfaceSuggestionOutput? Suggestion { get; init; }
 
-    public void RenderText(TextWriter writer) => writer.Write(ConsumerDisplayName);
+    public void RenderText(TextWriter writer)
+    {
+        writer.Write(ConsumerDisplayName);
+    }
 }
 
 internal sealed record AnalyzeInterfaceResult : IRtOutput, IRtJsonOutput, IRtMarkdownOutput
@@ -75,48 +83,50 @@ internal sealed record AnalyzeInterfaceResult : IRtOutput, IRtJsonOutput, IRtMar
     [OutputField(OutputLevel.Llm, "consumers")]
     public required IReadOnlyList<AnalyzeInterfaceConsumerOutput> Consumers { get; init; }
 
-    public void RenderText(TextWriter writer)
+    public void RenderJson(TextWriter writer)
     {
-        writer.WriteLine($"Interface {InterfaceDisplayName}");
-        writer.WriteLine($"Consumers: {ConsumerCount}");
-
-        if (Consumers.Count == 0)
-            return;
-
-        writer.WriteLine();
-        foreach (var consumer in Consumers)
+        var document = new
         {
-            writer.WriteLine($"{consumer.ConsumerDisplayName} [{consumer.UsageKind}]");
-            if (consumer.UsedMembers.Count == 0)
+            @interface = new
             {
-                writer.WriteLine("  - no interface members used");
-            }
-            else
+                displayName = InterfaceDisplayName
+            },
+            consumerCount = ConsumerCount,
+            scope = Scope,
+            includeTests = IncludeTests,
+            consumers = Consumers.Select(consumer => new
             {
-                foreach (var member in consumer.UsedMembers)
+                consumer = new
                 {
-                    writer.WriteLine($"  - {member.DisplayName}");
-                }
-            }
-
-            if (consumer.Suggestion is { } suggestion)
-            {
-                writer.WriteLine($"  [advisory] suggestion (group: {suggestion.SharedGroupId}):");
-                if (!suggestion.HasNarrowingBenefit)
+                    displayName = consumer.ConsumerDisplayName,
+                    kind = consumer.ConsumerKind,
+                    project = consumer.ProjectName,
+                    documents = consumer.Documents
+                },
+                usageKind = consumer.UsageKind,
+                usedMembers = consumer.UsedMembers.Select(member => new
                 {
-                    writer.WriteLine("    no narrowing benefit — consumer uses every interface member");
-                }
-                else
-                {
-                    foreach (var member in suggestion.SuggestedMembers)
+                    name = member.Name,
+                    kind = member.Kind,
+                    displayName = member.DisplayName
+                }).ToArray(),
+                suggestion = consumer.Suggestion is { } s
+                    ? new
                     {
-                        writer.WriteLine($"    ~ {member.DisplayName}");
+                        hasNarrowingBenefit = s.HasNarrowingBenefit,
+                        sharedGroupId = s.SharedGroupId,
+                        suggestedMembers = s.SuggestedMembers.Select(member => new
+                        {
+                            name = member.Name,
+                            kind = member.Kind,
+                            displayName = member.DisplayName
+                        }).ToArray()
                     }
-                }
-            }
+                    : (object?)null
+            }).ToArray()
+        };
 
-            writer.WriteLine();
-        }
+        writer.Write(JsonSerializer.Serialize(document, SymbolFormatter.DefaultJsonOptions));
     }
 
     public void RenderMarkdown(TextWriter writer)
@@ -147,10 +157,7 @@ internal sealed record AnalyzeInterfaceResult : IRtOutput, IRtJsonOutput, IRtMar
                 continue;
             }
 
-            foreach (var member in consumer.UsedMembers)
-            {
-                writer.WriteLine($"- `{member.DisplayName}`");
-            }
+            foreach (var member in consumer.UsedMembers) writer.WriteLine($"- `{member.DisplayName}`");
 
             if (consumer.Suggestion is { } suggestion)
             {
@@ -163,10 +170,7 @@ internal sealed record AnalyzeInterfaceResult : IRtOutput, IRtJsonOutput, IRtMar
                 else
                 {
                     writer.WriteLine($"Shared group: `{suggestion.SharedGroupId}`");
-                    foreach (var member in suggestion.SuggestedMembers)
-                    {
-                        writer.WriteLine($"- `{member.DisplayName}`");
-                    }
+                    foreach (var member in suggestion.SuggestedMembers) writer.WriteLine($"- `{member.DisplayName}`");
                 }
             }
 
@@ -174,50 +178,36 @@ internal sealed record AnalyzeInterfaceResult : IRtOutput, IRtJsonOutput, IRtMar
         }
     }
 
-    public void RenderJson(TextWriter writer)
+    public void RenderText(TextWriter writer)
     {
-        var document = new
-        {
-            @interface = new
-            {
-                displayName = InterfaceDisplayName,
-            },
-            consumerCount = ConsumerCount,
-            scope = Scope,
-            includeTests = IncludeTests,
-            consumers = Consumers.Select(consumer => new
-            {
-                consumer = new
-                {
-                    displayName = consumer.ConsumerDisplayName,
-                    kind = consumer.ConsumerKind,
-                    project = consumer.ProjectName,
-                    documents = consumer.Documents,
-                },
-                usageKind = consumer.UsageKind,
-                usedMembers = consumer.UsedMembers.Select(member => new
-                {
-                    name = member.Name,
-                    kind = member.Kind,
-                    displayName = member.DisplayName,
-                }).ToArray(),
-                suggestion = consumer.Suggestion is { } s
-                    ? new
-                    {
-                        hasNarrowingBenefit = s.HasNarrowingBenefit,
-                        sharedGroupId = s.SharedGroupId,
-                        suggestedMembers = s.SuggestedMembers.Select(member => new
-                        {
-                            name = member.Name,
-                            kind = member.Kind,
-                            displayName = member.DisplayName,
-                        }).ToArray(),
-                    }
-                    : (object?)null,
-            }).ToArray(),
-        };
+        writer.WriteLine($"Interface {InterfaceDisplayName}");
+        writer.WriteLine($"Consumers: {ConsumerCount}");
 
-        writer.Write(JsonSerializer.Serialize(document, SymbolFormatter.DefaultJsonOptions));
+        if (Consumers.Count == 0)
+            return;
+
+        writer.WriteLine();
+        foreach (var consumer in Consumers)
+        {
+            writer.WriteLine($"{consumer.ConsumerDisplayName} [{consumer.UsageKind}]");
+            if (consumer.UsedMembers.Count == 0)
+                writer.WriteLine("  - no interface members used");
+            else
+                foreach (var member in consumer.UsedMembers)
+                    writer.WriteLine($"  - {member.DisplayName}");
+
+            if (consumer.Suggestion is { } suggestion)
+            {
+                writer.WriteLine($"  [advisory] suggestion (group: {suggestion.SharedGroupId}):");
+                if (!suggestion.HasNarrowingBenefit)
+                    writer.WriteLine("    no narrowing benefit — consumer uses every interface member");
+                else
+                    foreach (var member in suggestion.SuggestedMembers)
+                        writer.WriteLine($"    ~ {member.DisplayName}");
+            }
+
+            writer.WriteLine();
+        }
     }
 
     internal static AnalyzeInterfaceResult FromReport(AnalyzeInterfaceReport report, bool suggest = false)
@@ -239,7 +229,7 @@ internal sealed record AnalyzeInterfaceResult : IRtOutput, IRtJsonOutput, IRtMar
                 {
                     Name = member.Name,
                     Kind = member.Kind,
-                    DisplayName = member.DisplayName,
+                    DisplayName = member.DisplayName
                 }).ToList(),
                 Suggestion = consumer.Suggestion is { } s
                     ? new AnalyzeInterfaceSuggestionOutput
@@ -250,11 +240,11 @@ internal sealed record AnalyzeInterfaceResult : IRtOutput, IRtJsonOutput, IRtMar
                         {
                             Name = member.Name,
                             Kind = member.Kind,
-                            DisplayName = member.DisplayName,
-                        }).ToList(),
+                            DisplayName = member.DisplayName
+                        }).ToList()
                     }
-                    : null,
-            }).ToList(),
+                    : null
+            }).ToList()
         };
     }
 }

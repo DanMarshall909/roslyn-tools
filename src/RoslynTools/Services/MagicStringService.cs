@@ -1,7 +1,7 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using System.Diagnostics.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
@@ -17,7 +17,9 @@ internal sealed record MagicStringGroup(
     string Value,
     int Count,
     IReadOnlyList<MagicStringOccurrence> Occurrences);
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class MagicStringService : IRtService
 {
     private readonly ISolutionChangeWriter _solutionChangeWriter;
@@ -31,6 +33,7 @@ internal class MagicStringService : IRtService
     {
         _solutionChangeWriter = solutionChangeWriter;
     }
+
     internal async Task<IReadOnlyList<MagicStringGroup>> AnalyzeAsync(
         Solution solution,
         int minLength,
@@ -40,32 +43,28 @@ internal class MagicStringService : IRtService
         var rtIgnore = RtIgnore.ForSolution(solution);
 
         foreach (var project in solution.Projects)
+        foreach (var document in project.Documents)
         {
-            foreach (var document in project.Documents)
+            if (rtIgnore.IsIgnored(document.FilePath, "find-magic-strings")
+                || IsGeneratedOrIntermediate(document.FilePath))
+                continue;
+
+            var root = await document.GetSyntaxRootAsync();
+            if (root is null)
+                continue;
+
+            foreach (var literal in root.DescendantNodes().OfType<LiteralExpressionSyntax>())
             {
-                if (rtIgnore.IsIgnored(document.FilePath, "find-magic-strings")
-                    || IsGeneratedOrIntermediate(document.FilePath))
-                {
-                    continue;
-                }
-
-                var root = await document.GetSyntaxRootAsync();
-                if (root is null)
+                if (!IsCandidateLiteral(literal, minLength))
                     continue;
 
-                foreach (var literal in root.DescendantNodes().OfType<LiteralExpressionSyntax>())
-                {
-                    if (!IsCandidateLiteral(literal, minLength))
-                        continue;
-
-                    var line = literal.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
-                    occurrences.Add(new MagicStringOccurrence(
-                        Value: literal.Token.ValueText,
-                        FilePath: document.FilePath ?? document.Name,
-                        Line: line,
-                        TypeName: literal.Ancestors().OfType<TypeDeclarationSyntax>().FirstOrDefault()?.Identifier.Text,
-                        MemberName: GetMemberName(literal)));
-                }
+                var line = literal.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+                occurrences.Add(new MagicStringOccurrence(
+                    literal.Token.ValueText,
+                    document.FilePath ?? document.Name,
+                    line,
+                    literal.Ancestors().OfType<TypeDeclarationSyntax>().FirstOrDefault()?.Identifier.Text,
+                    GetMemberName(literal)));
             }
         }
 
@@ -88,26 +87,27 @@ internal class MagicStringService : IRtService
         var originalSolution = solution;
         var document = FindDocument(solution, filePath);
         var root = await document.GetSyntaxRootAsync()
-            ?? throw new InvalidOperationException($"Cannot read syntax root for '{document.FilePath}'.");
+                   ?? throw new InvalidOperationException($"Cannot read syntax root for '{document.FilePath}'.");
 
         var literal = root.DescendantNodes()
-            .OfType<LiteralExpressionSyntax>()
-            .FirstOrDefault(l => l.IsKind(SyntaxKind.StringLiteralExpression)
-                && l.GetLocation().GetLineSpan().StartLinePosition.Line + 1 == line)
-            ?? throw new InvalidOperationException($"No string literal found at line {line} in '{filePath}'.");
+                          .OfType<LiteralExpressionSyntax>()
+                          .FirstOrDefault(l => l.IsKind(SyntaxKind.StringLiteralExpression)
+                                               && l.GetLocation().GetLineSpan().StartLinePosition.Line + 1 == line)
+                      ?? throw new InvalidOperationException(
+                          $"No string literal found at line {line} in '{filePath}'.");
 
-        if (!IsCandidateLiteral(literal, minLength: 1))
+        if (!IsCandidateLiteral(literal, 1))
             throw new InvalidOperationException($"String literal at line {line} is not a candidate for extraction.");
 
         var containingType = literal.Ancestors().OfType<TypeDeclarationSyntax>().FirstOrDefault()
-            ?? throw new InvalidOperationException("Magic string extraction requires the literal to be inside a type declaration.");
+                             ?? throw new InvalidOperationException(
+                                 "Magic string extraction requires the literal to be inside a type declaration.");
 
         if (containingType.Members
             .OfType<FieldDeclarationSyntax>()
             .Any(f => f.Declaration.Variables.Any(v => v.Identifier.ValueText == constantName)))
-        {
-            throw new InvalidOperationException($"Type '{containingType.Identifier.Text}' already contains a member named '{constantName}'.");
-        }
+            throw new InvalidOperationException(
+                $"Type '{containingType.Identifier.Text}' already contains a member named '{constantName}'.");
 
         var value = literal.Token.ValueText;
         var rewrittenType = ReplaceMatchingLiterals(containingType, value, constantName);
@@ -126,8 +126,8 @@ internal class MagicStringService : IRtService
         var literals = containingType.DescendantNodes()
             .OfType<LiteralExpressionSyntax>()
             .Where(l => l.IsKind(SyntaxKind.StringLiteralExpression)
-                && l.Token.ValueText == value
-                && !IsInConstStringDeclaration(l))
+                        && l.Token.ValueText == value
+                        && !IsInConstStringDeclaration(l))
             .ToList();
 
         return containingType.ReplaceNodes(
@@ -166,27 +166,31 @@ internal class MagicStringService : IRtService
 
         var value = literal.Token.ValueText;
         return value.Length >= minLength
-            && !string.IsNullOrWhiteSpace(value)
-            && !IsInConstStringDeclaration(literal)
-            && !IsInUsingDirective(literal);
+               && !string.IsNullOrWhiteSpace(value)
+               && !IsInConstStringDeclaration(literal)
+               && !IsInUsingDirective(literal);
     }
 
-    private bool IsInConstStringDeclaration(SyntaxNode node) =>
-        node.Ancestors().OfType<FieldDeclarationSyntax>().Any(field =>
+    private bool IsInConstStringDeclaration(SyntaxNode node)
+    {
+        return node.Ancestors().OfType<FieldDeclarationSyntax>().Any(field =>
             field.Modifiers.Any(SyntaxKind.ConstKeyword)
             && field.Declaration.Type is PredefinedTypeSyntax predefined
             && predefined.Keyword.IsKind(SyntaxKind.StringKeyword));
+    }
 
-    private bool IsInUsingDirective(SyntaxNode node) =>
-        node.Ancestors().OfType<UsingDirectiveSyntax>().Any();
+    private bool IsInUsingDirective(SyntaxNode node)
+    {
+        return node.Ancestors().OfType<UsingDirectiveSyntax>().Any();
+    }
 
     private Document FindDocument(Solution solution, string filePath)
     {
         var fullPath = Path.GetFullPath(filePath);
         return solution.Projects
-            .SelectMany(p => p.Documents)
-            .FirstOrDefault(d => string.Equals(d.FilePath, fullPath, StringComparison.OrdinalIgnoreCase))
-            ?? throw new InvalidOperationException($"File '{filePath}' not found in solution.");
+                   .SelectMany(p => p.Documents)
+                   .FirstOrDefault(d => string.Equals(d.FilePath, fullPath, StringComparison.OrdinalIgnoreCase))
+               ?? throw new InvalidOperationException($"File '{filePath}' not found in solution.");
     }
 
     private string? GetMemberName(SyntaxNode node)
@@ -213,7 +217,7 @@ internal class MagicStringService : IRtService
 
         var normalized = filePath.Replace('\\', '/');
         return normalized.Contains("/obj/", StringComparison.OrdinalIgnoreCase)
-            || normalized.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase)
-            || normalized.EndsWith(".generated.cs", StringComparison.OrdinalIgnoreCase);
+               || normalized.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase)
+               || normalized.EndsWith(".generated.cs", StringComparison.OrdinalIgnoreCase);
     }
 }

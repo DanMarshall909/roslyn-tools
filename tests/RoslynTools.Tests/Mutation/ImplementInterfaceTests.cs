@@ -8,16 +8,16 @@ public class ImplementInterfaceTests
     // Source that compiles: Repo and PartialRepo don't yet declare IRepository,
     // so they build successfully before implement-interface runs.
     private const string ImplAppSource = """
-        interface IRepository {
-          System.Threading.Tasks.Task<string> GetAsync(int id);
-          void Delete(int id);
-          string Name { get; }
-        }
-        class Repo { }
-        class PartialRepo {
-          public System.Threading.Tasks.Task<string> GetAsync(int id) => System.Threading.Tasks.Task.FromResult("x");
-        }
-        """;
+                                         interface IRepository {
+                                           System.Threading.Tasks.Task<string> GetAsync(int id);
+                                           void Delete(int id);
+                                           string Name { get; }
+                                         }
+                                         class Repo { }
+                                         class PartialRepo {
+                                           public System.Threading.Tasks.Task<string> GetAsync(int id) => System.Threading.Tasks.Task.FromResult("x");
+                                         }
+                                         """;
 
     // ──────────────────────────────────────────────────────────────────────────
     //  1. Repo gets stubs for all three unimplemented members
@@ -31,7 +31,9 @@ public class ImplementInterfaceTests
         var (workspace, sln) = proj.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await ImplementInterfaceCommand.ExecuteAsync("Repo", "IRepository", "ignored", dryRun: false);
+        {
+            await ImplementInterfaceCommand.ExecuteAsync("Repo", "IRepository", "ignored", false);
+        }
 
         var content = await proj.ReadSourceAsync("Types.cs");
         Assert.Contains("GetAsync", content);
@@ -51,7 +53,9 @@ public class ImplementInterfaceTests
         var (workspace, sln) = proj.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await ImplementInterfaceCommand.ExecuteAsync("Repo", "IRepository", "ignored", dryRun: false);
+        {
+            await ImplementInterfaceCommand.ExecuteAsync("Repo", "IRepository", "ignored", false);
+        }
 
         var content = await proj.ReadSourceAsync("Types.cs");
         Assert.Contains("throw new NotImplementedException()", content);
@@ -69,7 +73,9 @@ public class ImplementInterfaceTests
         var (workspace, sln) = proj.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await ImplementInterfaceCommand.ExecuteAsync("PartialRepo", "IRepository", "ignored", dryRun: false);
+        {
+            await ImplementInterfaceCommand.ExecuteAsync("PartialRepo", "IRepository", "ignored", false);
+        }
 
         var content = await proj.ReadSourceAsync("Types.cs");
         // Delete and Name should be added as stubs
@@ -93,7 +99,9 @@ public class ImplementInterfaceTests
         var (workspace, sln) = proj.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await ImplementInterfaceCommand.ExecuteAsync("Repo", "IRepository", "ignored", dryRun: false);
+        {
+            await ImplementInterfaceCommand.ExecuteAsync("Repo", "IRepository", "ignored", false);
+        }
 
         var content = await proj.ReadSourceAsync("Types.cs");
         Assert.Contains("get =>", content);
@@ -114,7 +122,9 @@ public class ImplementInterfaceTests
         var before = await proj.ReadSourceAsync("Types.cs");
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await ImplementInterfaceCommand.ExecuteAsync("Repo", "IRepository", "ignored", dryRun: true);
+        {
+            await ImplementInterfaceCommand.ExecuteAsync("Repo", "IRepository", "ignored", true);
+        }
 
         var after = await proj.ReadSourceAsync("Types.cs");
         Assert.Equal(before, after);

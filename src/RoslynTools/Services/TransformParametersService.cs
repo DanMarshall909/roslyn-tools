@@ -1,15 +1,16 @@
+using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
-using System.Collections.Immutable;
-using System.Diagnostics.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 /// <summary>
 /// Core logic for the <c>transform-parameters</c> command.
 /// Generates a new <c>record ParamObj(...)</c> in the same file as the target method,
@@ -27,14 +28,16 @@ internal class TransformParametersService : IRtService
     {
     }
 
-    public TransformParametersService(ILogger<TransformParametersService> logger, ISolutionChangeWriter solutionChangeWriter)
+    public TransformParametersService(ILogger<TransformParametersService> logger,
+        ISolutionChangeWriter solutionChangeWriter)
     {
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
     }
+
     /// <summary>
-    /// Entry point called by <see cref="RoslynTools.Commands.TransformParametersCommand"/>.
-    /// Exactly one of <paramref name="newTypeName"/> or <paramref name="existingTypeFqn"/> must be non-null.
+    ///     Entry point called by <see cref="RoslynTools.Commands.TransformParametersCommand" />.
+    ///     Exactly one of <paramref name="newTypeName" /> or <paramref name="existingTypeFqn" /> must be non-null.
     /// </summary>
     internal async Task RunAsync(
         Solution sln,
@@ -67,7 +70,8 @@ internal class TransformParametersService : IRtService
         string newTypeName,
         bool dryRun)
     {
-        _logger.RtInfo("Transforming parameters of '{MethodSpec}' → record '{NewTypeName}'...", methodSpec, newTypeName);
+        _logger.RtInfo("Transforming parameters of '{MethodSpec}' → record '{NewTypeName}'...", methodSpec,
+            newTypeName);
         var originalSln = sln;
 
         var (methodSymbol, doc) = await FindMethodAsync(sln, methodSpec);
@@ -86,7 +90,7 @@ internal class TransformParametersService : IRtService
                 $"Method '{methodSpec}' has no parameters to transform.");
 
         // Rewrite call sites FIRST while spans are still valid against the original solution.
-        sln = await RewriteCallSitesAsync(sln, methodSymbol, newTypeName, isRecord: true);
+        sln = await RewriteCallSitesAsync(sln, methodSymbol, newTypeName, true);
 
         // Insert record declaration into the method's file.
         // doc still valid — call-site rewrite only touches call-site documents.
@@ -109,7 +113,8 @@ internal class TransformParametersService : IRtService
         string existingTypeFqn,
         bool dryRun)
     {
-        _logger.RtInfo("Transforming parameters of '{MethodSpec}' → existing type '{ExistingTypeFqn}'...", methodSpec, existingTypeFqn);
+        _logger.RtInfo("Transforming parameters of '{MethodSpec}' → existing type '{ExistingTypeFqn}'...", methodSpec,
+            existingTypeFqn);
         var originalSln = sln;
 
         var (methodSymbol, doc) = await FindMethodAsync(sln, methodSpec);
@@ -165,10 +170,10 @@ internal class TransformParametersService : IRtService
         {
             // For records: match against primary constructor parameters
             var ctorParams = existingType.InstanceConstructors
-                .Where(c => c.Parameters.Length > 0)
-                .OrderByDescending(c => c.Parameters.Length)
-                .FirstOrDefault()?.Parameters
-                ?? ImmutableArray<IParameterSymbol>.Empty;
+                                 .Where(c => c.Parameters.Length > 0)
+                                 .OrderByDescending(c => c.Parameters.Length)
+                                 .FirstOrDefault()?.Parameters
+                             ?? ImmutableArray<IParameterSymbol>.Empty;
 
             var paramNames = ctorParams.Select(p => p.Name).ToHashSet(StringComparer.Ordinal);
             foreach (var param in method.Parameters)
@@ -235,8 +240,8 @@ internal class TransformParametersService : IRtService
                 if (syntaxRef == null) continue;
 
                 var doc = sln.GetDocument(syntaxRef.SyntaxTree)
-                    ?? throw new InvalidOperationException(
-                        $"Cannot find document for method '{methodSpec}'.");
+                          ?? throw new InvalidOperationException(
+                              $"Cannot find document for method '{methodSpec}'.");
 
                 return (method, doc);
             }
@@ -269,15 +274,16 @@ internal class TransformParametersService : IRtService
         string newTypeName)
     {
         var root = await doc.GetSyntaxRootAsync()
-            ?? throw new InvalidOperationException("Cannot get syntax root.");
+                   ?? throw new InvalidOperationException("Cannot get syntax root.");
 
         var methodSyntax = (MethodDeclarationSyntax)await method.DeclaringSyntaxReferences[0].GetSyntaxAsync();
         var containingType = methodSyntax.Ancestors().OfType<TypeDeclarationSyntax>().FirstOrDefault()
-            ?? throw new InvalidOperationException("Method is not inside a type declaration.");
+                             ?? throw new InvalidOperationException("Method is not inside a type declaration.");
 
         var recordText = BuildRecordText(method.Parameters, newTypeName);
         var recordDecl = (RecordDeclarationSyntax)(SyntaxFactory.ParseMemberDeclaration(recordText)
-            ?? throw new InvalidOperationException("Failed to parse generated record declaration."));
+                                                   ?? throw new InvalidOperationException(
+                                                       "Failed to parse generated record declaration."));
 
         // Place the record just before the containing type's closing brace, as a sibling
         // at the namespace/file level — after the containing type
@@ -325,7 +331,7 @@ internal class TransformParametersService : IRtService
         if (parent is BaseNamespaceDeclarationSyntax nsDecl)
         {
             var members = nsDecl.Members.ToList();
-            int idx = members.IndexOf(containingType);
+            var idx = members.IndexOf(containingType);
             if (idx < 0)
                 throw new InvalidOperationException("Cannot locate containing type in namespace members.");
 
@@ -340,7 +346,7 @@ internal class TransformParametersService : IRtService
         if (parent is CompilationUnitSyntax compilationUnit)
         {
             var members = compilationUnit.Members.ToList();
-            int idx = members.IndexOf(containingType);
+            var idx = members.IndexOf(containingType);
             if (idx < 0)
                 throw new InvalidOperationException("Cannot locate containing type in compilation unit.");
 
@@ -367,13 +373,13 @@ internal class TransformParametersService : IRtService
         string newTypeName)
     {
         var root = await doc.GetSyntaxRootAsync()
-            ?? throw new InvalidOperationException("Cannot get syntax root.");
+                   ?? throw new InvalidOperationException("Cannot get syntax root.");
 
         var methodSyntax = (MethodDeclarationSyntax)await method.DeclaringSyntaxReferences[0].GetSyntaxAsync();
 
         // Find the node in the (potentially updated) root by location
         var targetNode = root.FindNode(methodSyntax.Span) as MethodDeclarationSyntax
-            ?? throw new InvalidOperationException("Cannot locate method syntax in updated document.");
+                         ?? throw new InvalidOperationException("Cannot locate method syntax in updated document.");
 
         var newParam = SyntaxFactory.Parameter(
                 SyntaxFactory.Identifier("args"))
@@ -402,19 +408,17 @@ internal class TransformParametersService : IRtService
         // Collect all source locations and group by document ID
         var locationsByDocId = new Dictionary<DocumentId, List<Location>>();
         foreach (var refSymbol in references)
+        foreach (var loc in refSymbol.Locations)
         {
-            foreach (var loc in refSymbol.Locations)
+            if (!loc.Location.IsInSource) continue;
+            var docId = loc.Document.Id;
+            if (!locationsByDocId.TryGetValue(docId, out var locs))
             {
-                if (!loc.Location.IsInSource) continue;
-                var docId = loc.Document.Id;
-                if (!locationsByDocId.TryGetValue(docId, out var locs))
-                {
-                    locs = new List<Location>();
-                    locationsByDocId[docId] = locs;
-                }
-
-                locs.Add(loc.Location);
+                locs = new List<Location>();
+                locationsByDocId[docId] = locs;
             }
+
+            locs.Add(loc.Location);
         }
 
         // Capture method parameters for class-style object initializer
@@ -492,8 +496,8 @@ internal class TransformParametersService : IRtService
 
             var initExpressions = SyntaxFactory.SeparatedList(initAssignments);
             var initializer = SyntaxFactory.InitializerExpression(
-                SyntaxKind.ObjectInitializerExpression,
-                initExpressions)
+                    SyntaxKind.ObjectInitializerExpression,
+                    initExpressions)
                 .WithLeadingTrivia(SyntaxFactory.Space);
 
             newObjectCreation = SyntaxFactory.ObjectCreationExpression(
@@ -515,7 +519,9 @@ internal class TransformParametersService : IRtService
     // ──────────────────────────────────────────────────────────────────────────
 
     private string Capitalize(string name)
-        => name.Length == 0 ? name : char.ToUpperInvariant(name[0]) + name[1..];
+    {
+        return name.Length == 0 ? name : char.ToUpperInvariant(name[0]) + name[1..];
+    }
 
     private string MemberIndent(TypeDeclarationSyntax type)
     {

@@ -28,7 +28,7 @@ internal static class LlmRenderer
 
             if (value is IEnumerable enumerable && value is not string)
             {
-                bool first = true;
+                var first = true;
                 foreach (var item in enumerable)
                 {
                     if (!first)

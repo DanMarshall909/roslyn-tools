@@ -45,9 +45,9 @@ public class CircularDepsMigrationTests : IDisposable
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var legacyText = await CircularDepsCommand.AnalyzeAsync(sln, scope: null);
+            var legacyText = await CircularDepsCommand.AnalyzeAsync(sln, null);
 
-            var cycles = await CircularDepsCommand.AnalyzeCyclesAsync(sln, scope: null);
+            var cycles = await CircularDepsCommand.AnalyzeCyclesAsync(sln, null);
             var result = CircularDepsResult.FromCycles(cycles);
 
             var sw = new StringWriter();
@@ -68,7 +68,7 @@ public class CircularDepsMigrationTests : IDisposable
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var cycles = await CircularDepsCommand.AnalyzeCyclesAsync(sln, scope: null);
+            var cycles = await CircularDepsCommand.AnalyzeCyclesAsync(sln, null);
             var result = CircularDepsResult.FromCycles(cycles);
 
             var sw = new StringWriter();
@@ -87,7 +87,7 @@ public class CircularDepsMigrationTests : IDisposable
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var cycles = await CircularDepsCommand.AnalyzeCyclesAsync(sln, scope: null);
+            var cycles = await CircularDepsCommand.AnalyzeCyclesAsync(sln, null);
             Assert.NotEmpty(cycles);
 
             var result = CircularDepsResult.FromCycles(cycles);
@@ -124,7 +124,7 @@ public class CircularDepsMigrationTests : IDisposable
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var cycles = await CircularDepsCommand.AnalyzeCyclesAsync(sln, scope: null);
+            var cycles = await CircularDepsCommand.AnalyzeCyclesAsync(sln, null);
             Assert.NotEmpty(cycles);
 
             var result = CircularDepsResult.FromCycles(cycles);
@@ -147,7 +147,7 @@ public class CircularDepsMigrationTests : IDisposable
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var cycles = await CircularDepsCommand.AnalyzeCyclesAsync(sln, scope: null);
+            var cycles = await CircularDepsCommand.AnalyzeCyclesAsync(sln, null);
             var result = CircularDepsResult.FromCycles(cycles);
 
             var sw = new StringWriter();
@@ -169,7 +169,7 @@ public class CircularDepsMigrationTests : IDisposable
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var cycles = await CircularDepsCommand.AnalyzeCyclesAsync(sln, scope: null);
+            var cycles = await CircularDepsCommand.AnalyzeCyclesAsync(sln, null);
             Assert.NotEmpty(cycles);
 
             var result = CircularDepsResult.FromCycles(cycles);
@@ -194,9 +194,9 @@ public class CircularDepsMigrationTests : IDisposable
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var legacyText = await CircularDepsCommand.AnalyzeAsync(sln, scope: null);
+            var legacyText = await CircularDepsCommand.AnalyzeAsync(sln, null);
 
-            var cycles = await CircularDepsCommand.AnalyzeCyclesAsync(sln, scope: null);
+            var cycles = await CircularDepsCommand.AnalyzeCyclesAsync(sln, null);
             var result = CircularDepsResult.FromCycles(cycles);
 
             var sw = new StringWriter();

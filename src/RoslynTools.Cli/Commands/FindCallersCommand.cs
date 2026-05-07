@@ -8,20 +8,23 @@ namespace RoslynTools.Commands;
 
 internal sealed class FindCallersCommand : IRtCommand
 {
-    private FindCallersCommand() { }
+    private FindCallersCommand()
+    {
+    }
 
     public static RtCommandInfo Info { get; } = new(
-        Name: "find-callers",
-        Mutates: false,
-        JsonOutput: false,
-        Category: "inspect",
+        "find-callers",
+        false,
+        false,
+        "inspect",
         Aliases: ["callers"],
-        WhenToUse: "Finding all invocation sites of a method before renaming or deleting it, or to understand the blast radius of a signature change. Unlike find-refs, this filters to true call sites only, excluding nameof() and other non-invocation references.",
+        WhenToUse:
+        "Finding all invocation sites of a method before renaming or deleting it, or to understand the blast radius of a signature change. Unlike find-refs, this filters to true call sites only, excluding nameof() and other non-invocation references.",
         Examples:
         [
             "rt inspect find-callers --symbol SendEmail --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt inspect callers --symbol ProcessPayment --include-tests --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt inspect find-callers --symbol BuildGraphAsync --solution RoslynTools.slnx",
+            "rt inspect find-callers --symbol BuildGraphAsync --solution RoslynTools.slnx"
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );
@@ -52,6 +55,8 @@ internal sealed class FindCallersCommand : IRtCommand
     }
 
     // Forwarding stubs kept for backwards compatibility with tests
-    internal static bool IsNameofExpression(InvocationExpressionSyntax invocation) =>
-        RtServiceProvider.Get<FindCallersService>().IsNameofExpression(invocation);
+    internal static bool IsNameofExpression(InvocationExpressionSyntax invocation)
+    {
+        return RtServiceProvider.Get<FindCallersService>().IsNameofExpression(invocation);
+    }
 }

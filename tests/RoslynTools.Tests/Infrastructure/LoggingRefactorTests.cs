@@ -14,43 +14,48 @@ public class LoggingRefactorTests
         {
             using var recordProject = new AdhocProjectBuilder("RecordApp");
             recordProject.AddSource("Types.cs", """
-                class WithMutableProp
-                {
-                    public int Id { get; set; }
-                    public string Name { get; init; } = "";
-                }
-                """);
+                                                class WithMutableProp
+                                                {
+                                                    public int Id { get; set; }
+                                                    public string Name { get; init; } = "";
+                                                }
+                                                """);
 
             var (recordWorkspace, recordSolution) = recordProject.Build();
             using (recordWorkspace)
             using (WorkspaceLoader.UseOverride(recordWorkspace, recordSolution))
             {
-                await ConvertToRecordCommand.ExecuteAsync("WithMutableProp", "ignored", dryRun: false);
+                await ConvertToRecordCommand.ExecuteAsync("WithMutableProp", "ignored", false);
             }
 
             using var staticProject = new AdhocProjectBuilder("StaticApp");
             staticProject.AddSource("Service.cs", """
-                class Service
-                {
-                    private int _value = 0;
-                    public int GetValue() { return this._value; }
-                }
-                """);
+                                                  class Service
+                                                  {
+                                                      private int _value = 0;
+                                                      public int GetValue() { return this._value; }
+                                                  }
+                                                  """);
 
             var (staticWorkspace, staticSolution) = staticProject.Build();
             using (staticWorkspace)
             using (WorkspaceLoader.UseOverride(staticWorkspace, staticSolution))
             {
                 Environment.ExitCode = 0;
-                await MakeStaticCommand.ExecuteAsync("Service.GetValue", "ignored", dryRun: false);
+                await MakeStaticCommand.ExecuteAsync("Service.GetValue", "ignored", false);
                 Assert.Equal(1, Environment.ExitCode);
                 Environment.ExitCode = 0;
             }
         }
 
-        Assert.Contains(console.LogEntries, e => e.Level == RtLogLevel.Info && e.RenderedMessage.Contains("Converting", StringComparison.Ordinal));
-        Assert.Contains(console.LogEntries, e => e.Level == RtLogLevel.Warning && e.RenderedMessage.Contains("mutable", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(console.LogEntries, e => e.Level == RtLogLevel.Error && e.RenderedMessage.Contains("Cannot make static", StringComparison.Ordinal));
+        Assert.Contains(console.LogEntries,
+            e => e.Level == RtLogLevel.Info && e.RenderedMessage.Contains("Converting", StringComparison.Ordinal));
+        Assert.Contains(console.LogEntries,
+            e => e.Level == RtLogLevel.Warning &&
+                 e.RenderedMessage.Contains("mutable", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(console.LogEntries,
+            e => e.Level == RtLogLevel.Error &&
+                 e.RenderedMessage.Contains("Cannot make static", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -58,17 +63,17 @@ public class LoggingRefactorTests
     {
         using var project = new AdhocProjectBuilder("GraphApp");
         project.AddSource("OrderService.cs", """
-            namespace GraphApp;
+                                             namespace GraphApp;
 
-            public class OrderService
-            {
-                public InvoiceService Invoices { get; } = new();
-            }
+                                             public class OrderService
+                                             {
+                                                 public InvoiceService Invoices { get; } = new();
+                                             }
 
-            public class InvoiceService
-            {
-            }
-            """);
+                                             public class InvoiceService
+                                             {
+                                             }
+                                             """);
 
         var (workspace, solution) = project.Build();
         var console = new CollectingConsole();
@@ -100,13 +105,13 @@ public class LoggingRefactorTests
     {
         using var project = new AdhocProjectBuilder("MyApp");
         project.AddSource("Services/AgentService.cs", """
-            namespace WrongNamespace;
-            public class AgentService { }
-            """);
+                                                      namespace WrongNamespace;
+                                                      public class AgentService { }
+                                                      """);
         project.AddSource("Program.cs", """
-            using WrongNamespace;
-            public class Program { AgentService s = new(); }
-            """);
+                                        using WrongNamespace;
+                                        public class Program { AgentService s = new(); }
+                                        """);
 
         var console = new CollectingConsole();
         var (workspace, solution) = project.Build();
@@ -115,9 +120,9 @@ public class LoggingRefactorTests
         using (RtConsole.UseConsole(console))
         {
             await FixNamespaceCommand.ExecuteAsync(
-                filePath: Path.Combine(project.ProjectDir, "Services", "AgentService.cs"),
-                solutionPath: "ignored",
-                dryRun: true);
+                Path.Combine(project.ProjectDir, "Services", "AgentService.cs"),
+                "ignored",
+                true);
         }
 
         var diffOutput = string.Join("\n", console.WriteEntries
@@ -128,7 +133,9 @@ public class LoggingRefactorTests
         Assert.Contains("+++ ", diffOutput);
         Assert.Contains("[dry-run]", diffOutput);
 
-        Assert.Contains(console.LogEntries, e => e.Level == RtLogLevel.Info && e.RenderedMessage.Contains("Fixing namespace", StringComparison.Ordinal));
+        Assert.Contains(console.LogEntries,
+            e => e.Level == RtLogLevel.Info &&
+                 e.RenderedMessage.Contains("Fixing namespace", StringComparison.Ordinal));
         Assert.DoesNotContain("Fixing namespace", diffOutput);
     }
 
@@ -137,48 +144,48 @@ public class LoggingRefactorTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("IWideFacade.cs", """
-            namespace MyApp;
+                                            namespace MyApp;
 
-            public interface IWideFacade
-            {
-                void Send(string message);
-                void Receive();
-            }
-            """);
+                                            public interface IWideFacade
+                                            {
+                                                void Send(string message);
+                                                void Receive();
+                                            }
+                                            """);
         project.AddSource("Consumers.cs", """
-            namespace MyApp;
+                                          namespace MyApp;
 
-            public sealed class SenderOnlyConsumer
-            {
-                private readonly IWideFacade _facade;
+                                          public sealed class SenderOnlyConsumer
+                                          {
+                                              private readonly IWideFacade _facade;
 
-                public SenderOnlyConsumer(IWideFacade facade)
-                {
-                    _facade = facade;
-                }
+                                              public SenderOnlyConsumer(IWideFacade facade)
+                                              {
+                                                  _facade = facade;
+                                              }
 
-                public void Run()
-                {
-                    _facade.Send("hi");
-                }
-            }
+                                              public void Run()
+                                              {
+                                                  _facade.Send("hi");
+                                              }
+                                          }
 
-            public sealed class MixedConsumer
-            {
-                private readonly IWideFacade _facade;
+                                          public sealed class MixedConsumer
+                                          {
+                                              private readonly IWideFacade _facade;
 
-                public MixedConsumer(IWideFacade facade)
-                {
-                    _facade = facade;
-                }
+                                              public MixedConsumer(IWideFacade facade)
+                                              {
+                                                  _facade = facade;
+                                              }
 
-                public void Run()
-                {
-                    _facade.Send("hi");
-                    _facade.Receive();
-                }
-            }
-            """);
+                                              public void Run()
+                                              {
+                                                  _facade.Send("hi");
+                                                  _facade.Receive();
+                                              }
+                                          }
+                                          """);
 
         var console = new CollectingConsole();
         var (workspace, solution) = project.Build();
@@ -187,11 +194,11 @@ public class LoggingRefactorTests
         using (RtConsole.UseConsole(console))
         {
             await NarrowDependencyCommand.ExecuteAsync(
-                sourceInterface: "IWideFacade",
-                members: ["Send"],
-                newInterfaceName: "ISender",
-                solutionPath: "ignored",
-                dryRun: false);
+                "IWideFacade",
+                ["Send"],
+                "ISender",
+                "ignored",
+                false);
         }
 
         var allOutput = string.Join("", console.WriteEntries.Select(e => e.Message));
@@ -200,9 +207,12 @@ public class LoggingRefactorTests
         Assert.Contains("MixedConsumer: skipped", allOutput, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("DI registration", allOutput, StringComparison.OrdinalIgnoreCase);
 
-        Assert.DoesNotContain(console.LogEntries, e => e.RenderedMessage.Contains("Narrowed 1 consumer(s)", StringComparison.Ordinal));
-        Assert.DoesNotContain(console.LogEntries, e => e.RenderedMessage.Contains("DI registration", StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(console.LogEntries, e => e.RenderedMessage.Contains("MixedConsumer", StringComparison.Ordinal));
+        Assert.DoesNotContain(console.LogEntries,
+            e => e.RenderedMessage.Contains("Narrowed 1 consumer(s)", StringComparison.Ordinal));
+        Assert.DoesNotContain(console.LogEntries,
+            e => e.RenderedMessage.Contains("DI registration", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(console.LogEntries,
+            e => e.RenderedMessage.Contains("MixedConsumer", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -218,8 +228,8 @@ public class LoggingRefactorTests
 
         try
         {
-            RtConsole.DefaultConsole.Log(RtLogLevel.Warning, "Test warning {Value}", ["x"]);
-            RtConsole.DefaultConsole.Log(RtLogLevel.Error, "Test error", []);
+            RtConsole.DefaultConsole.Log(RtLogLevel.Warning, "Test warning {Value}", "x");
+            RtConsole.DefaultConsole.Log(RtLogLevel.Error, "Test error");
             RtConsole.DefaultConsole.WriteLine(RtOutputContext.Result, "result line");
         }
         finally
@@ -242,14 +252,14 @@ public class LoggingRefactorTests
 
         using (RtConsole.UseConsole(outer))
         {
-            RtConsole.Log(RtLogLevel.Info, "outer before", []);
+            RtConsole.Log(RtLogLevel.Info, "outer before");
 
             using (RtConsole.UseConsole(inner))
             {
-                RtConsole.Log(RtLogLevel.Info, "inner", []);
+                RtConsole.Log(RtLogLevel.Info, "inner");
             }
 
-            RtConsole.Log(RtLogLevel.Info, "outer after", []);
+            RtConsole.Log(RtLogLevel.Info, "outer after");
         }
 
         Assert.Equal(2, outer.LogEntries.Count);
@@ -267,11 +277,12 @@ public class LoggingRefactorTests
         using (RtConsole.UseConsole(console))
         {
             RtConsole.WriteLine(RtOutputContext.Result, "json payload");
-            RtConsole.Log(RtLogLevel.Info, "diagnostic message", []);
+            RtConsole.Log(RtLogLevel.Info, "diagnostic message");
         }
 
         Assert.Single(console.WriteEntries, e => e.Context.HasFlag(RtOutputContext.Result));
-        Assert.Equal("json payload", console.WriteEntries.First(e => e.Context.HasFlag(RtOutputContext.Result)).Message);
+        Assert.Equal("json payload",
+            console.WriteEntries.First(e => e.Context.HasFlag(RtOutputContext.Result)).Message);
         Assert.Single(console.LogEntries);
         Assert.DoesNotContain(console.WriteEntries, e => e.Context.HasFlag(RtOutputContext.Diagnostic));
     }
@@ -287,16 +298,25 @@ public class LoggingRefactorTests
             LogEntries.Add(new LogEntry(level, template, args, rendered));
         }
 
-        public void WriteLine(RtOutputContext context, string message = "", ConsoleColor? color = null) =>
+        public void WriteLine(RtOutputContext context, string message = "", ConsoleColor? color = null)
+        {
             WriteEntries.Add(new WriteEntry(context, message, color));
+        }
 
-        public void Write(RtOutputContext context, string message, ConsoleColor? color = null) =>
+        public void Write(RtOutputContext context, string message, ConsoleColor? color = null)
+        {
             WriteEntries.Add(new WriteEntry(context, message, color));
+        }
 
-        public string? ReadLine() => null;
+        public string? ReadLine()
+        {
+            return null;
+        }
+
         public bool IsOutputRedirected => false;
 
         public sealed record LogEntry(RtLogLevel Level, string Template, object?[] Args, string RenderedMessage);
+
         public sealed record WriteEntry(RtOutputContext Context, string Message, ConsoleColor? Color);
     }
 }

@@ -1,3 +1,5 @@
+using System.Globalization;
+using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
 
 namespace RoslynTools.Tests.Refactor;
@@ -5,7 +7,9 @@ namespace RoslynTools.Tests.Refactor;
 public class ExtractMethod
 {
     private static string FilePath(AdhocProjectBuilder project, string relativePath)
-        => Path.Combine(project.ProjectDir, relativePath);
+    {
+        return Path.Combine(project.ProjectDir, relativePath);
+    }
 
     [Fact]
     [Trait("Concern", "SourceFileCallSite")]
@@ -14,32 +18,32 @@ public class ExtractMethod
         // Setup: Create two files with identical method patterns
         using var project = new AdhocProjectBuilder();
         project.AddSource("ServiceA.cs", """
-            namespace TestProject;
+                                         namespace TestProject;
 
-            public class ServiceA
-            {
-                public void Process()
-                {
-                    var result = DoWork("alpha");
-                }
+                                         public class ServiceA
+                                         {
+                                             public void Process()
+                                             {
+                                                 var result = DoWork("alpha");
+                                             }
 
-                private string DoWork(string name) => $"Service: {name}";
-            }
-            """);
+                                             private string DoWork(string name) => $"Service: {name}";
+                                         }
+                                         """);
 
         project.AddSource("ServiceB.cs", """
-            namespace TestProject;
+                                         namespace TestProject;
 
-            public class ServiceB
-            {
-                public void Process()
-                {
-                    var result = DoWork("beta");
-                }
+                                         public class ServiceB
+                                         {
+                                             public void Process()
+                                             {
+                                                 var result = DoWork("beta");
+                                             }
 
-                private string DoWork(string name) => $"Service: {name}";
-            }
-            """);
+                                             private string DoWork(string name) => $"Service: {name}";
+                                         }
+                                         """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -49,10 +53,10 @@ public class ExtractMethod
                 sln,
                 FilePath(project, "ServiceA.cs"),
                 "DoWork_Extracted",
-                startLine: 7,
-                endLine: 7);
+                7,
+                7);
 
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         // Assert: Extraction succeeds (documents the bug exists)
@@ -67,45 +71,45 @@ public class ExtractMethod
         // Setup: Create duplicate patterns where source file has the first occurrence
         using var project = new AdhocProjectBuilder();
         project.AddSource("ServiceA.cs", """
-            namespace TestProject;
+                                         namespace TestProject;
 
-            public class ServiceA
-            {
-                private Service _svc = new();
+                                         public class ServiceA
+                                         {
+                                             private Service _svc = new();
 
-                public void Process()
-                {
-                    var result = DoWork(_svc);
-                }
+                                             public void Process()
+                                             {
+                                                 var result = DoWork(_svc);
+                                             }
 
-                private string DoWork(Service svc) => $"Service: {svc.Name}";
-            }
-            """);
+                                             private string DoWork(Service svc) => $"Service: {svc.Name}";
+                                         }
+                                         """);
 
         project.AddSource("ServiceB.cs", """
-            namespace TestProject;
+                                         namespace TestProject;
 
-            public class ServiceB
-            {
-                private Service _svc = new();
+                                         public class ServiceB
+                                         {
+                                             private Service _svc = new();
 
-                public void Process()
-                {
-                    var result = DoWork(_svc);
-                }
+                                             public void Process()
+                                             {
+                                                 var result = DoWork(_svc);
+                                             }
 
-                private string DoWork(Service svc) => $"Service: {svc.Name}";
-            }
-            """);
+                                             private string DoWork(Service svc) => $"Service: {svc.Name}";
+                                         }
+                                         """);
 
         project.AddSource("Service.cs", """
-            namespace TestProject;
+                                        namespace TestProject;
 
-            public class Service
-            {
-                public string Name => "Test";
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public string Name => "Test";
+                                        }
+                                        """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -114,10 +118,10 @@ public class ExtractMethod
                 sln,
                 FilePath(project, "ServiceA.cs"),
                 "DoWork_Extracted",
-                startLine: 9,
-                endLine: 9);
+                9,
+                9);
 
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var serviceAContent = await project.ReadSourceAsync("ServiceA.cs");
@@ -141,32 +145,32 @@ public class ExtractMethod
 
         using var project = new AdhocProjectBuilder();
         project.AddSource("ServiceA.cs", """
-            namespace TestProject;
+                                         namespace TestProject;
 
-            public class ServiceA
-            {
-                public void Process()
-                {
-                    var result = DoWork("alpha");
-                }
+                                         public class ServiceA
+                                         {
+                                             public void Process()
+                                             {
+                                                 var result = DoWork("alpha");
+                                             }
 
-                private string DoWork(string name) => $"Service: {name}";
-            }
-            """);
+                                             private string DoWork(string name) => $"Service: {name}";
+                                         }
+                                         """);
 
         project.AddSource("ServiceB.cs", """
-            namespace TestProject;
+                                         namespace TestProject;
 
-            public class ServiceB
-            {
-                public void Process()
-                {
-                    var result = DoWork("beta");
-                }
+                                         public class ServiceB
+                                         {
+                                             public void Process()
+                                             {
+                                                 var result = DoWork("beta");
+                                             }
 
-                private string DoWork(string name) => $"Service: {name}";
-            }
-            """);
+                                             private string DoWork(string name) => $"Service: {name}";
+                                         }
+                                         """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -175,10 +179,10 @@ public class ExtractMethod
                 sln,
                 FilePath(project, "ServiceA.cs"),
                 "DoWork_Extracted",
-                startLine: 7,
-                endLine: 7);
+                7,
+                7);
 
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         // Cross-file call site should be updated
@@ -196,14 +200,14 @@ public class ExtractMethod
                 if (compilation != null)
                 {
                     var errors = compilation.GetDiagnostics()
-                        .Where(d => d.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
-                        .Select(d => d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))
+                        .Where(d => d.Severity == DiagnosticSeverity.Error)
+                        .Select(d => d.GetMessage(CultureInfo.InvariantCulture))
                         .ToList();
                     allErrors.AddRange(errors);
                 }
             }
 
-            Assert.Empty(allErrors);  // No compilation errors
+            Assert.Empty(allErrors); // No compilation errors
         }
     }
 
@@ -215,32 +219,32 @@ public class ExtractMethod
         // Regression test: verify that duplicates in other files are found and replaced
         using var project = new AdhocProjectBuilder();
         project.AddSource("ServiceA.cs", """
-            namespace TestProject;
+                                         namespace TestProject;
 
-            public class ServiceA
-            {
-                public void Process()
-                {
-                    var result = DoWork("alpha");
-                }
+                                         public class ServiceA
+                                         {
+                                             public void Process()
+                                             {
+                                                 var result = DoWork("alpha");
+                                             }
 
-                private string DoWork(string name) => $"Service: {name}";
-            }
-            """);
+                                             private string DoWork(string name) => $"Service: {name}";
+                                         }
+                                         """);
 
         project.AddSource("ServiceB.cs", """
-            namespace TestProject;
+                                         namespace TestProject;
 
-            public class ServiceB
-            {
-                public void Process()
-                {
-                    var result = DoWork("beta");
-                }
+                                         public class ServiceB
+                                         {
+                                             public void Process()
+                                             {
+                                                 var result = DoWork("beta");
+                                             }
 
-                private string DoWork(string name) => $"Service: {name}";
-            }
-            """);
+                                             private string DoWork(string name) => $"Service: {name}";
+                                         }
+                                         """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -249,10 +253,10 @@ public class ExtractMethod
                 sln,
                 FilePath(project, "ServiceA.cs"),
                 "DoWork_Extracted",
-                startLine: 7,
-                endLine: 7);
+                7,
+                7);
 
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         // Cross-file call site should be updated (regression check)
@@ -267,39 +271,39 @@ public class ExtractMethod
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("ServiceA.cs", """
-            namespace TestProject;
+                                         namespace TestProject;
 
-            public class ServiceA
-            {
-                public void Process()
-                {
-                    var result = DoWork("alpha");
-                }
+                                         public class ServiceA
+                                         {
+                                             public void Process()
+                                             {
+                                                 var result = DoWork("alpha");
+                                             }
 
-                private string DoWork(string name) => $"Service: {name}";
-            }
-            """);
+                                             private string DoWork(string name) => $"Service: {name}";
+                                         }
+                                         """);
 
         project.AddSource("ServiceB.cs", """
-            namespace TestProject;
+                                         namespace TestProject;
 
-            public class ServiceB
-            {
-                public void Process()
-                {
-                    var result = DoWork("beta");
-                }
+                                         public class ServiceB
+                                         {
+                                             public void Process()
+                                             {
+                                                 var result = DoWork("beta");
+                                             }
 
-                private string DoWork(string name) => $"Service: {name}";
-            }
-            """);
+                                             private string DoWork(string name) => $"Service: {name}";
+                                         }
+                                         """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
             var newSln = await MethodExtractor.ExtractAsync(
                 sln, FilePath(project, "ServiceA.cs"), "DoWork_Extracted", 7, 7);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var serviceAContent = await project.ReadSourceAsync("ServiceA.cs");
@@ -320,46 +324,46 @@ public class ExtractMethod
         // This test uses IDENTICAL string literals across all files to test cross-file replacement.
         using var project = new AdhocProjectBuilder();
         project.AddSource("ServiceA.cs", """
-            namespace TestProject;
+                                         namespace TestProject;
 
-            public class ServiceA
-            {
-                public void Process()
-                {
-                    var result = DoWork("test");
-                }
+                                         public class ServiceA
+                                         {
+                                             public void Process()
+                                             {
+                                                 var result = DoWork("test");
+                                             }
 
-                private string DoWork(string name) => $"Service: {name}";
-            }
-            """);
+                                             private string DoWork(string name) => $"Service: {name}";
+                                         }
+                                         """);
 
         project.AddSource("ServiceB.cs", """
-            namespace TestProject;
+                                         namespace TestProject;
 
-            public class ServiceB
-            {
-                public void Process()
-                {
-                    var result = DoWork("test");
-                }
+                                         public class ServiceB
+                                         {
+                                             public void Process()
+                                             {
+                                                 var result = DoWork("test");
+                                             }
 
-                private string DoWork(string name) => $"Service: {name}";
-            }
-            """);
+                                             private string DoWork(string name) => $"Service: {name}";
+                                         }
+                                         """);
 
         project.AddSource("ServiceC.cs", """
-            namespace TestProject;
+                                         namespace TestProject;
 
-            public class ServiceC
-            {
-                public void Process()
-                {
-                    var result = DoWork("test");
-                }
+                                         public class ServiceC
+                                         {
+                                             public void Process()
+                                             {
+                                                 var result = DoWork("test");
+                                             }
 
-                private string DoWork(string name) => $"Service: {name}";
-            }
-            """);
+                                             private string DoWork(string name) => $"Service: {name}";
+                                         }
+                                         """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -368,11 +372,11 @@ public class ExtractMethod
                 sln,
                 FilePath(project, "ServiceA.cs"),
                 "DoWork_Extracted",
-                startLine: 7,
-                endLine: 7,
+                7,
+                7,
                 replaceDuplicates: true);
 
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         // All call sites with identical literals should reference the extracted method

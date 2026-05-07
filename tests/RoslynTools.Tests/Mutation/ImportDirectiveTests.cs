@@ -9,15 +9,15 @@ public class ImportDirectiveTests
     {
         using var project = new AdhocProjectBuilder("ImportApp");
         project.AddSource("GlobalUsings.cs", """
-            global using System;
-            global using static System.Math;
-            """);
+                                             global using System;
+                                             global using static System.Math;
+                                             """);
         project.AddSource("App.cs", """
-            using Alias = System.Text.StringBuilder;
-            using static System.Console;
+                                    using Alias = System.Text.StringBuilder;
+                                    using static System.Console;
 
-            class App { }
-            """);
+                                    class App { }
+                                    """);
         var (workspace, solution) = project.Build();
 
         using (workspace)
@@ -40,11 +40,11 @@ public class ImportDirectiveTests
     {
         using var project = new AdhocProjectBuilder("ImportApp");
         project.AddSource("obj/Debug/ImportApp.GlobalUsings.g.cs", """
-            global using System;
-            """);
+                                                                   global using System;
+                                                                   """);
         project.AddSource("GlobalUsings.cs", """
-            global using Xunit;
-            """);
+                                             global using Xunit;
+                                             """);
         var (workspace, solution) = project.Build();
 
         using (workspace)
@@ -61,11 +61,11 @@ public class ImportDirectiveTests
     {
         using var project = new AdhocProjectBuilder("ImportApp");
         project.AddSource("Ignored/IgnoredImports.cs", """
-            global using System;
-            """);
+                                                       global using System;
+                                                       """);
         project.AddSource("GlobalUsings.cs", """
-            global using Xunit;
-            """);
+                                             global using Xunit;
+                                             """);
         var (workspace, solution) = project.Build();
         File.WriteAllText(Path.Combine(project.ProjectDir, ".rtignore"), "Ignored");
 
@@ -83,11 +83,11 @@ public class ImportDirectiveTests
     {
         using var project = new AdhocProjectBuilder("ImportApp");
         project.AddSource("Ignored/IgnoredImports.cs", """
-            global using System;
-            """);
+                                                       global using System;
+                                                       """);
         project.AddSource("GlobalUsings.cs", """
-            global using Xunit;
-            """);
+                                             global using Xunit;
+                                             """);
         var (workspace, solution) = project.Build();
         File.WriteAllText(Path.Combine(project.ProjectDir, ".rtignore"), "list-imports:Ignored");
 
@@ -105,10 +105,10 @@ public class ImportDirectiveTests
     {
         using var project = new AdhocProjectBuilder("ImportApp");
         project.AddSource("App.cs", """
-            using System;
+                                    using System;
 
-            class App { }
-            """);
+                                    class App { }
+                                    """);
         var (workspace, solution) = project.Build();
         var filePath = Path.Combine(project.ProjectDir, "App.cs");
 
@@ -118,7 +118,7 @@ public class ImportDirectiveTests
                 solution,
                 filePath,
                 "System.Console",
-                dryRun: false);
+                false);
         }
 
         var content = await project.ReadSourceAsync("App.cs");
@@ -130,8 +130,8 @@ public class ImportDirectiveTests
     {
         using var project = new AdhocProjectBuilder("ImportApp");
         project.AddSource("GlobalUsings.cs", """
-            global using System;
-            """);
+                                             global using System;
+                                             """);
         var (workspace, solution) = project.Build();
         var filePath = Path.Combine(project.ProjectDir, "GlobalUsings.cs");
 
@@ -141,7 +141,7 @@ public class ImportDirectiveTests
                 solution,
                 filePath,
                 "System.Text",
-                dryRun: false);
+                false);
         }
 
         var content = await project.ReadSourceAsync("GlobalUsings.cs");
@@ -153,9 +153,9 @@ public class ImportDirectiveTests
     {
         using var project = new AdhocProjectBuilder("ImportApp");
         project.AddSource("GlobalUsings.cs", """
-            global using System;
-            using static System.Console;
-            """);
+                                             global using System;
+                                             using static System.Console;
+                                             """);
         var (workspace, solution) = project.Build();
         var filePath = Path.Combine(project.ProjectDir, "GlobalUsings.cs");
 
@@ -165,13 +165,13 @@ public class ImportDirectiveTests
                 solution,
                 filePath,
                 "System",
-                dryRun: false);
+                false);
 
             await new ImportDirectiveService().AddStaticUsingAsync(
                 solution,
                 filePath,
                 "System.Console",
-                dryRun: false);
+                false);
         }
 
         var content = await project.ReadSourceAsync("GlobalUsings.cs");

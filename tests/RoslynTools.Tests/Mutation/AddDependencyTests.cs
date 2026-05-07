@@ -13,31 +13,31 @@ public class AddDependencyTests
     {
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("AgentService.cs", """
-            public interface IEmailService { void Send(); }
+                                          public interface IEmailService { void Send(); }
 
-            public class AgentService
-            {
-                private readonly string _name;
-                public AgentService(string name)
-                {
-                    _name = name;
-                }
-                public void DoWork() { }
-            }
-            """);
+                                          public class AgentService
+                                          {
+                                              private readonly string _name;
+                                              public AgentService(string name)
+                                              {
+                                                  _name = name;
+                                              }
+                                              public void DoWork() { }
+                                          }
+                                          """);
         proj.AddSource("NoCtor.cs", """
-            public interface ILogService { void Log(string msg); }
-            public class NoCtor { }
-            """);
+                                    public interface ILogService { void Log(string msg); }
+                                    public class NoCtor { }
+                                    """);
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
             await AddDependencyCommand.ExecuteCoreAsync(
                 sln,
-                typeName: "AgentService",
-                depType: "IEmailService",
-                fieldName: null,
-                dryRun: false);
+                "AgentService",
+                "IEmailService",
+                null,
+                false);
         }
 
         var content = await proj.ReadSourceAsync("AgentService.cs");
@@ -56,31 +56,31 @@ public class AddDependencyTests
     {
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("AgentService.cs", """
-            public interface IEmailService { void Send(); }
+                                          public interface IEmailService { void Send(); }
 
-            public class AgentService
-            {
-                private readonly string _name;
-                public AgentService(string name)
-                {
-                    _name = name;
-                }
-                public void DoWork() { }
-            }
-            """);
+                                          public class AgentService
+                                          {
+                                              private readonly string _name;
+                                              public AgentService(string name)
+                                              {
+                                                  _name = name;
+                                              }
+                                              public void DoWork() { }
+                                          }
+                                          """);
         proj.AddSource("NoCtor.cs", """
-            public interface ILogService { void Log(string msg); }
-            public class NoCtor { }
-            """);
+                                    public interface ILogService { void Log(string msg); }
+                                    public class NoCtor { }
+                                    """);
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
             await AddDependencyCommand.ExecuteCoreAsync(
                 sln,
-                typeName: "AgentService",
-                depType: "IEmailService",
-                fieldName: "_mailer",
-                dryRun: false);
+                "AgentService",
+                "IEmailService",
+                "_mailer",
+                false);
         }
 
         var content = await proj.ReadSourceAsync("AgentService.cs");
@@ -100,31 +100,31 @@ public class AddDependencyTests
     {
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("AgentService.cs", """
-            public interface IEmailService { void Send(); }
+                                          public interface IEmailService { void Send(); }
 
-            public class AgentService
-            {
-                private readonly string _name;
-                public AgentService(string name)
-                {
-                    _name = name;
-                }
-                public void DoWork() { }
-            }
-            """);
+                                          public class AgentService
+                                          {
+                                              private readonly string _name;
+                                              public AgentService(string name)
+                                              {
+                                                  _name = name;
+                                              }
+                                              public void DoWork() { }
+                                          }
+                                          """);
         proj.AddSource("NoCtor.cs", """
-            public interface ILogService { void Log(string msg); }
-            public class NoCtor { }
-            """);
+                                    public interface ILogService { void Log(string msg); }
+                                    public class NoCtor { }
+                                    """);
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
             await AddDependencyCommand.ExecuteCoreAsync(
                 sln,
-                typeName: "NoCtor",
-                depType: "ILogService",
-                fieldName: null,
-                dryRun: false);
+                "NoCtor",
+                "ILogService",
+                null,
+                false);
         }
 
         var content = await proj.ReadSourceAsync("NoCtor.cs");
@@ -143,22 +143,22 @@ public class AddDependencyTests
     {
         using var proj = new AdhocProjectBuilder();
         proj.AddSource("AgentService.cs", """
-            public interface IEmailService { void Send(); }
+                                          public interface IEmailService { void Send(); }
 
-            public class AgentService
-            {
-                private readonly string _name;
-                public AgentService(string name)
-                {
-                    _name = name;
-                }
-                public void DoWork() { }
-            }
-            """);
+                                          public class AgentService
+                                          {
+                                              private readonly string _name;
+                                              public AgentService(string name)
+                                              {
+                                                  _name = name;
+                                              }
+                                              public void DoWork() { }
+                                          }
+                                          """);
         proj.AddSource("NoCtor.cs", """
-            public interface ILogService { void Log(string msg); }
-            public class NoCtor { }
-            """);
+                                    public interface ILogService { void Log(string msg); }
+                                    public class NoCtor { }
+                                    """);
         var (workspace, sln) = proj.Build();
         var originalContent = await proj.ReadSourceAsync("AgentService.cs");
 
@@ -166,10 +166,10 @@ public class AddDependencyTests
         {
             await AddDependencyCommand.ExecuteCoreAsync(
                 sln,
-                typeName: "AgentService",
-                depType: "IEmailService",
-                fieldName: null,
-                dryRun: true);
+                "AgentService",
+                "IEmailService",
+                null,
+                true);
         }
 
         var afterContent = await proj.ReadSourceAsync("AgentService.cs");

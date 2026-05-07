@@ -1,13 +1,14 @@
-using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.CodeAnalysis.CSharp;
 using System.Diagnostics.CodeAnalysis;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class ReplaceNewService : IRtService
 {
     private readonly ILogger<ReplaceNewService> _logger;
@@ -23,7 +24,9 @@ internal class ReplaceNewService : IRtService
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
     }
-    internal async Task RunAsync(Solution solution, string typeName, string with_method, bool dryRun, int? ifArgIndex = null, string? ifArgLiteral = null)
+
+    internal async Task RunAsync(Solution solution, string typeName, string with_method, bool dryRun,
+        int? ifArgIndex = null, string? ifArgLiteral = null)
     {
         var originalSolution = solution;
 
@@ -38,7 +41,8 @@ internal class ReplaceNewService : IRtService
         }
 
         var totalCallSites = objectCreations.Values.Sum(l => l.Count);
-        _logger.RtInfo("Found {TotalCallSites} constructor call site(s). Replacing '{TypeName}' → '{With}'...", totalCallSites, typeName, with_method);
+        _logger.RtInfo("Found {TotalCallSites} constructor call site(s). Replacing '{TypeName}' → '{With}'...",
+            totalCallSites, typeName, with_method);
 
         foreach (var (docId, locations) in objectCreations)
         {
@@ -70,35 +74,31 @@ internal class ReplaceNewService : IRtService
         var locationsByDocument = new Dictionary<DocumentId, List<Location>>();
 
         foreach (var project in solution.Projects)
+        foreach (var document in project.Documents)
         {
-            foreach (var document in project.Documents)
+            var root = await document.GetSyntaxRootAsync();
+            if (root is null)
+                continue;
+
+            var creations = root.DescendantNodes()
+                .OfType<ObjectCreationExpressionSyntax>()
+                .Where(oc => MatchesType(oc, typeName))
+                .ToList();
+
+            foreach (var creation in creations)
             {
-                var root = await document.GetSyntaxRootAsync();
-                if (root is null)
-                    continue;
+                if (ifArgIndex.HasValue && ifArgLiteral is not null)
+                    if (!ArgumentMatchesFilter(creation, ifArgIndex.Value, ifArgLiteral))
+                        continue;
 
-                var creations = root.DescendantNodes()
-                    .OfType<ObjectCreationExpressionSyntax>()
-                    .Where(oc => MatchesType(oc, typeName))
-                    .ToList();
-
-                foreach (var creation in creations)
+                var location = creation.GetLocation();
+                if (!locationsByDocument.TryGetValue(document.Id, out var locs))
                 {
-                    if (ifArgIndex.HasValue && ifArgLiteral is not null)
-                    {
-                        if (!ArgumentMatchesFilter(creation, ifArgIndex.Value, ifArgLiteral))
-                            continue;
-                    }
-
-                    var location = creation.GetLocation();
-                    if (!locationsByDocument.TryGetValue(document.Id, out var locs))
-                    {
-                        locs = new List<Location>();
-                        locationsByDocument[document.Id] = locs;
-                    }
-
-                    locs.Add(location);
+                    locs = new List<Location>();
+                    locationsByDocument[document.Id] = locs;
                 }
+
+                locs.Add(location);
             }
         }
 
@@ -141,7 +141,7 @@ internal class ReplaceNewService : IRtService
         {
             var node = root.FindNode(loc.SourceSpan);
             var creation = node as ObjectCreationExpressionSyntax
-                ?? node.AncestorsAndSelf().OfType<ObjectCreationExpressionSyntax>().FirstOrDefault();
+                           ?? node.AncestorsAndSelf().OfType<ObjectCreationExpressionSyntax>().FirstOrDefault();
 
             if (creation is null)
                 continue;
@@ -151,10 +151,7 @@ internal class ReplaceNewService : IRtService
             var newCall = SyntaxFactory.InvocationExpression(methodExpr, argList)
                 .WithTriviaFrom(creation);
 
-            if (!replacements.ContainsKey(creation))
-            {
-                replacements[creation] = newCall;
-            }
+            if (!replacements.ContainsKey(creation)) replacements[creation] = newCall;
         }
 
         return replacements;

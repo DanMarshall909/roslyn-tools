@@ -9,20 +9,20 @@ public class ConvertConsoleLoggingTests
     {
         using var project = new AdhocProjectBuilder("LogApp");
         project.AddSource("LogApp.cs", """
-            class App
-            {
-                void Run()
-                {
-                    Console.WriteLine("started");
-                    Console.Write("still running");
-                }
-            }
-            """);
+                                       class App
+                                       {
+                                           void Run()
+                                           {
+                                               Console.WriteLine("started");
+                                               Console.Write("still running");
+                                           }
+                                       }
+                                       """);
         var (workspace, solution) = project.Build();
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, dryRun: false, apply: true);
+            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -36,20 +36,20 @@ public class ConvertConsoleLoggingTests
     {
         using var project = new AdhocProjectBuilder("LogApp");
         project.AddSource("LogApp.cs", """
-            class App
-            {
-                void Run(Exception ex)
-                {
-                    Console.Error.WriteLine("failed: " + ex.Message);
-                    System.Console.Error.Write("retrying");
-                }
-            }
-            """);
+                                       class App
+                                       {
+                                           void Run(Exception ex)
+                                           {
+                                               Console.Error.WriteLine("failed: " + ex.Message);
+                                               System.Console.Error.Write("retrying");
+                                           }
+                                       }
+                                       """);
         var (workspace, solution) = project.Build();
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, dryRun: false, apply: true);
+            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -63,25 +63,25 @@ public class ConvertConsoleLoggingTests
     {
         using var project = new AdhocProjectBuilder("LogApp");
         project.AddSource("LogApp.cs", """
-            class App
-            {
-                void Run(Symbol symbol, string path)
-                {
-                    Console.Error.WriteLine($"Found {symbol.ToDisplayString()} in {Path.GetFileName(path)}");
-                }
-            }
-            class Symbol
-            {
-                public string ToDisplayString() => "";
-            }
-            """);
+                                       class App
+                                       {
+                                           void Run(Symbol symbol, string path)
+                                           {
+                                               Console.Error.WriteLine($"Found {symbol.ToDisplayString()} in {Path.GetFileName(path)}");
+                                           }
+                                       }
+                                       class Symbol
+                                       {
+                                           public string ToDisplayString() => "";
+                                       }
+                                       """);
         var (workspace, solution) = project.Build();
 
         using (workspace)
         {
             await ConvertConsoleLoggingCommand.ExecuteCoreAsync(
                 solution,
-                dryRun: false,
+                false,
                 stream: "stderr",
                 apply: true);
         }
@@ -95,23 +95,23 @@ public class ConvertConsoleLoggingTests
     {
         using var project = new AdhocProjectBuilder("LogApp");
         project.AddSource("LogApp.cs", """
-            class App
-            {
-                void Run()
-                {
-                    Console.Error.WriteLine("Warning: skipped item");
-                    Console.Error.WriteLine("Finding matches...");
-                    Console.Error.WriteLine("Error: failed");
-                }
-            }
-            """);
+                                       class App
+                                       {
+                                           void Run()
+                                           {
+                                               Console.Error.WriteLine("Warning: skipped item");
+                                               Console.Error.WriteLine("Finding matches...");
+                                               Console.Error.WriteLine("Error: failed");
+                                           }
+                                       }
+                                       """);
         var (workspace, solution) = project.Build();
 
         using (workspace)
         {
             await ConvertConsoleLoggingCommand.ExecuteCoreAsync(
                 solution,
-                dryRun: false,
+                false,
                 stream: "stderr",
                 apply: true);
         }
@@ -127,19 +127,19 @@ public class ConvertConsoleLoggingTests
     {
         using var project = new AdhocProjectBuilder("LogApp");
         project.AddSource("LogApp.cs", """
-            class App
-            {
-                void Run(string name, int count)
-                {
-                    Console.WriteLine($"Processed {count} item(s) for {name}");
-                }
-            }
-            """);
+                                       class App
+                                       {
+                                           void Run(string name, int count)
+                                           {
+                                               Console.WriteLine($"Processed {count} item(s) for {name}");
+                                           }
+                                       }
+                                       """);
         var (workspace, solution) = project.Build();
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, dryRun: false, apply: true);
+            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -153,19 +153,19 @@ public class ConvertConsoleLoggingTests
     {
         using var project = new AdhocProjectBuilder("LogApp");
         project.AddSource("LogApp.cs", """
-            class App
-            {
-                void Run(int count, string name)
-                {
-                    Console.WriteLine($"Processed {count} item(s) for {name}; " + "see logs for details.");
-                }
-            }
-            """);
+                                       class App
+                                       {
+                                           void Run(int count, string name)
+                                           {
+                                               Console.WriteLine($"Processed {count} item(s) for {name}; " + "see logs for details.");
+                                           }
+                                       }
+                                       """);
         var (workspace, solution) = project.Build();
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, dryRun: false, apply: true);
+            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -181,19 +181,19 @@ public class ConvertConsoleLoggingTests
     {
         using var project = new AdhocProjectBuilder("LogApp");
         project.AddSource("LogApp.cs", """
-            class App
-            {
-                void Run(string name, int count)
-                {
-                    Console.WriteLine("Processed {0} item(s) for {1}", count, name);
-                }
-            }
-            """);
+                                       class App
+                                       {
+                                           void Run(string name, int count)
+                                           {
+                                               Console.WriteLine("Processed {0} item(s) for {1}", count, name);
+                                           }
+                                       }
+                                       """);
         var (workspace, solution) = project.Build();
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, dryRun: false, apply: true);
+            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -207,23 +207,23 @@ public class ConvertConsoleLoggingTests
     {
         using var project = new AdhocProjectBuilder("LogApp");
         project.AddSource("LogApp.cs", """
-            class App
-            {
-                void Run()
-                {
-                    Console.WriteLine("started");
-                }
-            }
-            """);
+                                       class App
+                                       {
+                                           void Run()
+                                           {
+                                               Console.WriteLine("started");
+                                           }
+                                       }
+                                       """);
         var (workspace, solution) = project.Build();
 
         using (workspace)
         {
             await ConvertConsoleLoggingCommand.ExecuteCoreAsync(
                 solution,
-                dryRun: false,
-                loggerExpression: "_log",
-                informationMethod: "Info",
+                false,
+                "_log",
+                "Info",
                 errorMethod: "Error",
                 apply: true);
         }
@@ -237,20 +237,20 @@ public class ConvertConsoleLoggingTests
     {
         using var project = new AdhocProjectBuilder("LogApp");
         project.AddSource("LogApp.cs", """
-            class App
-            {
-                void Run()
-                {
-                    Console.WriteLine("started");
-                }
-            }
-            """);
+                                       class App
+                                       {
+                                           void Run()
+                                           {
+                                               Console.WriteLine("started");
+                                           }
+                                       }
+                                       """);
         var (workspace, solution) = project.Build();
         var original = await project.ReadSourceAsync("LogApp.cs");
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, dryRun: true);
+            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -262,14 +262,14 @@ public class ConvertConsoleLoggingTests
     {
         using var project = new AdhocProjectBuilder("LogApp");
         project.AddSource("LogApp.cs", """
-            class App
-            {
-                void Run()
-                {
-                    Console.Error.WriteLine("Starting");
-                }
-            }
-            """);
+                                       class App
+                                       {
+                                           void Run()
+                                           {
+                                               Console.Error.WriteLine("Starting");
+                                           }
+                                       }
+                                       """);
         var (workspace, solution) = project.Build();
         var original = await project.ReadSourceAsync("LogApp.cs");
 
@@ -282,7 +282,7 @@ public class ConvertConsoleLoggingTests
             {
                 await ConvertConsoleLoggingCommand.ExecuteCoreAsync(
                     solution,
-                    dryRun: false,
+                    false,
                     stream: "stderr");
             }
         }
@@ -301,22 +301,22 @@ public class ConvertConsoleLoggingTests
     {
         using var project = new AdhocProjectBuilder("LogApp");
         project.AddSource("LogApp.cs", """
-            class App
-            {
-                void Run()
-                {
-                    Console.WriteLine("payload");
-                    Console.Error.WriteLine("diagnostic");
-                }
-            }
-            """);
+                                       class App
+                                       {
+                                           void Run()
+                                           {
+                                               Console.WriteLine("payload");
+                                               Console.Error.WriteLine("diagnostic");
+                                           }
+                                       }
+                                       """);
         var (workspace, solution) = project.Build();
 
         using (workspace)
         {
             await ConvertConsoleLoggingCommand.ExecuteCoreAsync(
                 solution,
-                dryRun: false,
+                false,
                 stream: "stderr",
                 apply: true);
         }
@@ -331,30 +331,30 @@ public class ConvertConsoleLoggingTests
     {
         using var project = new AdhocProjectBuilder("LogApp");
         project.AddSource("Include.cs", """
-            class Include
-            {
-                void Run()
-                {
-                    Console.Error.WriteLine("include");
-                }
-            }
-            """);
+                                        class Include
+                                        {
+                                            void Run()
+                                            {
+                                                Console.Error.WriteLine("include");
+                                            }
+                                        }
+                                        """);
         project.AddSource("Exclude.cs", """
-            class Exclude
-            {
-                void Run()
-                {
-                    Console.Error.WriteLine("exclude");
-                }
-            }
-            """);
+                                        class Exclude
+                                        {
+                                            void Run()
+                                            {
+                                                Console.Error.WriteLine("exclude");
+                                            }
+                                        }
+                                        """);
         var (workspace, solution) = project.Build();
 
         using (workspace)
         {
             await ConvertConsoleLoggingCommand.ExecuteCoreAsync(
                 solution,
-                dryRun: false,
+                false,
                 stream: "stderr",
                 excludePaths: ["Exclude.cs"],
                 apply: true);
@@ -371,15 +371,15 @@ public class ConvertConsoleLoggingTests
     {
         using var project = new AdhocProjectBuilder("LogApp");
         project.AddSource("LogApp.cs", """
-            class App
-            {
-                void Run(object value)
-                {
-                    Console.WriteLine(value);
-                    Console.Error.WriteLine("Warning: skipped");
-                }
-            }
-            """);
+                                       class App
+                                       {
+                                           void Run(object value)
+                                           {
+                                               Console.WriteLine(value);
+                                               Console.Error.WriteLine("Warning: skipped");
+                                           }
+                                       }
+                                       """);
         var (workspace, solution) = project.Build();
         var original = await project.ReadSourceAsync("LogApp.cs");
 
@@ -392,7 +392,7 @@ public class ConvertConsoleLoggingTests
             {
                 await ConvertConsoleLoggingCommand.ExecuteCoreAsync(
                     solution,
-                    dryRun: false,
+                    false,
                     stream: "all",
                     review: true);
             }
@@ -417,33 +417,33 @@ public class ConvertConsoleLoggingTests
     {
         using var project = new AdhocProjectBuilder("LogApp");
         project.AddSource("LogApp.cs", """
-            public interface ILogger<T>
-            {
-                void LogInformation(string message);
-            }
+                                       public interface ILogger<T>
+                                       {
+                                           void LogInformation(string message);
+                                       }
 
-            public class App
-            {
-                private readonly string _name;
+                                       public class App
+                                       {
+                                           private readonly string _name;
 
-                public App(string name)
-                {
-                    _name = name;
-                }
+                                           public App(string name)
+                                           {
+                                               _name = name;
+                                           }
 
-                public void Run()
-                {
-                    Console.Error.WriteLine("Starting");
-                }
-            }
-            """);
+                                           public void Run()
+                                           {
+                                               Console.Error.WriteLine("Starting");
+                                           }
+                                       }
+                                       """);
         var (workspace, solution) = project.Build();
 
         using (workspace)
         {
             await ConvertConsoleLoggingCommand.ExecuteCoreAsync(
                 solution,
-                dryRun: false,
+                false,
                 stream: "stderr",
                 apply: true,
                 injectLogger: true);
@@ -462,14 +462,14 @@ public class ConvertConsoleLoggingTests
     {
         using var project = new AdhocProjectBuilder("LogApp");
         project.AddSource("LogApp.cs", """
-            public class App
-            {
-                public void Run()
-                {
-                    Console.Error.WriteLine("Starting");
-                }
-            }
-            """);
+                                       public class App
+                                       {
+                                           public void Run()
+                                           {
+                                               Console.Error.WriteLine("Starting");
+                                           }
+                                       }
+                                       """);
         var (workspace, solution) = project.Build();
 
         using var stdout = new StringWriter();
@@ -481,7 +481,7 @@ public class ConvertConsoleLoggingTests
             {
                 await ConvertConsoleLoggingCommand.ExecuteCoreAsync(
                     solution,
-                    dryRun: false,
+                    false,
                     stream: "stderr",
                     review: true,
                     injectLogger: true);
@@ -505,19 +505,19 @@ public class ConvertConsoleLoggingTests
         // AC#7a: Console.WriteLine(string.Format("x={0}", x))
         using var project = new AdhocProjectBuilder("LogApp");
         project.AddSource("LogApp.cs", """
-            class App
-            {
-                void Run(int x)
-                {
-                    Console.WriteLine(string.Format("x={0}", x));
-                }
-            }
-            """);
+                                       class App
+                                       {
+                                           void Run(int x)
+                                           {
+                                               Console.WriteLine(string.Format("x={0}", x));
+                                           }
+                                       }
+                                       """);
         var (workspace, solution) = project.Build();
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, dryRun: false, apply: true);
+            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -532,19 +532,19 @@ public class ConvertConsoleLoggingTests
         // AC#7b: Console.Write with two string.Format args
         using var project = new AdhocProjectBuilder("LogApp");
         project.AddSource("LogApp.cs", """
-            class App
-            {
-                void Run(string name, int count)
-                {
-                    Console.Write(string.Format("Hello {0}, count={1}", name, count));
-                }
-            }
-            """);
+                                       class App
+                                       {
+                                           void Run(string name, int count)
+                                           {
+                                               Console.Write(string.Format("Hello {0}, count={1}", name, count));
+                                           }
+                                       }
+                                       """);
         var (workspace, solution) = project.Build();
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, dryRun: false, apply: true);
+            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -561,19 +561,19 @@ public class ConvertConsoleLoggingTests
         // AC#7c: string.Format with no args (constant string) → plain string
         using var project = new AdhocProjectBuilder("LogApp");
         project.AddSource("LogApp.cs", """
-            class App
-            {
-                void Run()
-                {
-                    Console.WriteLine(string.Format("hello world"));
-                }
-            }
-            """);
+                                       class App
+                                       {
+                                           void Run()
+                                           {
+                                               Console.WriteLine(string.Format("hello world"));
+                                           }
+                                       }
+                                       """);
         var (workspace, solution) = project.Build();
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, dryRun: false, apply: true);
+            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -588,20 +588,20 @@ public class ConvertConsoleLoggingTests
         // Expect graceful degradation: falls back to {Value} wrapping the entire string.Format call
         using var project = new AdhocProjectBuilder("LogApp");
         project.AddSource("LogApp.cs", """
-            using System.Globalization;
-            class App
-            {
-                void Run(double price)
-                {
-                    Console.WriteLine(string.Format(CultureInfo.InvariantCulture, "price={0}", price));
-                }
-            }
-            """);
+                                       using System.Globalization;
+                                       class App
+                                       {
+                                           void Run(double price)
+                                           {
+                                               Console.WriteLine(string.Format(CultureInfo.InvariantCulture, "price={0}", price));
+                                           }
+                                       }
+                                       """);
         var (workspace, solution) = project.Build();
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, dryRun: false, apply: true);
+            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -615,21 +615,21 @@ public class ConvertConsoleLoggingTests
         // AC#7e: non-string.Format invocation as first arg → {Value} placeholder unchanged
         using var project = new AdhocProjectBuilder("LogApp");
         project.AddSource("LogApp.cs", """
-            class App
-            {
-                string GetMessage() => "hello";
+                                       class App
+                                       {
+                                           string GetMessage() => "hello";
 
-                void Run()
-                {
-                    Console.WriteLine(GetMessage());
-                }
-            }
-            """);
+                                           void Run()
+                                           {
+                                               Console.WriteLine(GetMessage());
+                                           }
+                                       }
+                                       """);
         var (workspace, solution) = project.Build();
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, dryRun: false, apply: true);
+            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");

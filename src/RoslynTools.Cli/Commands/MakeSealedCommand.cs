@@ -6,21 +6,24 @@ namespace RoslynTools.Commands;
 
 internal sealed class MakeSealedCommand : IRtCommand
 {
-    private MakeSealedCommand() { }
+    private MakeSealedCommand()
+    {
+    }
 
     // Stryker disable all
     public static RtCommandInfo Info { get; } = new(
-        Name: "make-sealed",
-        Mutates: true,
-        JsonOutput: false,
-        Category: "refactor",
+        "make-sealed",
+        true,
+        false,
+        "refactor",
         Aliases: ["ms"],
-        WhenToUse: "Adding the sealed modifier to a class that has no derived types in the solution. Sealing classes improves runtime dispatch performance and communicates design intent. The command verifies no derived classes exist before modifying, making it safe to run without a prior manual check.",
+        WhenToUse:
+        "Adding the sealed modifier to a class that has no derived types in the solution. Sealing classes improves runtime dispatch performance and communicates design intent. The command verifies no derived classes exist before modifying, making it safe to run without a prior manual check.",
         Examples:
         [
             "rt refactor make-sealed --type BookingValidator --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt refactor ms --type CsvFormatter --dry-run",
-            "rt refactor make-sealed --type RtCommandInfo --solution RoslynTools.slnx",
+            "rt refactor make-sealed --type RtCommandInfo --solution RoslynTools.slnx"
         ]
     );
     // Stryker restore all
@@ -36,10 +39,8 @@ internal sealed class MakeSealedCommand : IRtCommand
         cmd.AddAlias("ms");
         cmd.AddAll(typeOpt, solutionOpt, dryRunOpt);
 
-        cmd.SetHandler(async (type, solution, dryRun) =>
-        {
-            await ExecuteAsync(type, solution, dryRun);
-        }, typeOpt, solutionOpt, dryRunOpt);
+        cmd.SetHandler(async (type, solution, dryRun) => { await ExecuteAsync(type, solution, dryRun); }, typeOpt,
+            solutionOpt, dryRunOpt);
 
         return cmd;
     }
@@ -54,4 +55,3 @@ internal sealed class MakeSealedCommand : IRtCommand
         }
     }
 }
-

@@ -6,9 +6,9 @@ namespace RoslynTools.Mcp.Handlers;
 
 internal sealed class RenameSymbolHandler
 {
-    private readonly WorkspaceLoader _workspaceLoader;
     private readonly RenameService _rename;
     private readonly ISolutionChangeWriter _solutionChangeWriter;
+    private readonly WorkspaceLoader _workspaceLoader;
 
     public RenameSymbolHandler(
         WorkspaceLoader workspaceLoader,
@@ -27,7 +27,7 @@ internal sealed class RenameSymbolHandler
         var sln = await _workspaceLoader.GetSolutionAsync(request.Solution);
 
         cancellationToken.ThrowIfCancellationRequested();
-        var newSln = await _rename.RenameAsync(sln, request.OldName, request.NewName, kind: null);
+        var newSln = await _rename.RenameAsync(sln, request.OldName, request.NewName, null);
 
         var changedFiles = newSln.GetChanges(sln)
             .GetProjectChanges()
@@ -36,11 +36,11 @@ internal sealed class RenameSymbolHandler
 
         if (request.Apply)
         {
-            await _solutionChangeWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
-            return new RenameSymbolResult(ChangedFiles: changedFiles, Applied: true);
+            await _solutionChangeWriter.ApplyChangesAsync(sln, newSln, false);
+            return new RenameSymbolResult(changedFiles, true);
         }
 
-        return new RenameSymbolResult(ChangedFiles: changedFiles, Applied: false);
+        return new RenameSymbolResult(changedFiles, false);
     }
 }
 

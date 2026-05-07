@@ -6,12 +6,12 @@ namespace RoslynTools.Tests.Mutation;
 public class MakeSealedTests
 {
     private const string SealAppSource = """
-        class Standalone { public void Go() { } }
-        class Animal { }
-        class Dog : Animal { }
-        abstract class Shape { }
-        sealed class Circle { }
-        """;
+                                         class Standalone { public void Go() { } }
+                                         class Animal { }
+                                         class Dog : Animal { }
+                                         abstract class Shape { }
+                                         sealed class Circle { }
+                                         """;
 
     // ──────────────────────────────────────────────────────────────────────────
     //  1. Class with no derived types gets sealed modifier
@@ -25,7 +25,9 @@ public class MakeSealedTests
         var (workspace, sln) = proj.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await MakeSealedCommand.ExecuteAsync("Standalone", "ignored", dryRun: false);
+        {
+            await MakeSealedCommand.ExecuteAsync("Standalone", "ignored", false);
+        }
 
         var content = await proj.ReadSourceAsync("Types.cs");
         Assert.Contains("sealed class Standalone", content);
@@ -44,8 +46,8 @@ public class MakeSealedTests
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-                () => MakeSealedCommand.ExecuteAsync("Animal", "ignored", dryRun: false));
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                MakeSealedCommand.ExecuteAsync("Animal", "ignored", false));
 
             Assert.Contains("Dog", ex.Message);
         }
@@ -65,7 +67,10 @@ public class MakeSealedTests
         var before = await proj.ReadSourceAsync("Types.cs");
 
         // Should not throw — just skip
-        using (WorkspaceLoader.UseOverride(workspace, sln)) await MakeSealedCommand.ExecuteAsync("Shape", "ignored", dryRun: false);
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
+            await MakeSealedCommand.ExecuteAsync("Shape", "ignored", false);
+        }
 
         var after = await proj.ReadSourceAsync("Types.cs");
         Assert.Equal(before, after);
@@ -85,7 +90,9 @@ public class MakeSealedTests
         var before = await proj.ReadSourceAsync("Types.cs");
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await MakeSealedCommand.ExecuteAsync("Circle", "ignored", dryRun: false);
+        {
+            await MakeSealedCommand.ExecuteAsync("Circle", "ignored", false);
+        }
 
         var after = await proj.ReadSourceAsync("Types.cs");
         Assert.Equal(before, after);
@@ -105,7 +112,9 @@ public class MakeSealedTests
         var before = await proj.ReadSourceAsync("Types.cs");
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await MakeSealedCommand.ExecuteAsync("Standalone", "ignored", dryRun: true);
+        {
+            await MakeSealedCommand.ExecuteAsync("Standalone", "ignored", true);
+        }
 
         var after = await proj.ReadSourceAsync("Types.cs");
         Assert.Equal(before, after);

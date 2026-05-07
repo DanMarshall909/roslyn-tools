@@ -1,5 +1,6 @@
 using System.CommandLine;
 using System.CommandLine.Builder;
+using System.CommandLine.Help;
 using System.CommandLine.Invocation;
 using System.CommandLine.Parsing;
 using System.Reflection;
@@ -13,10 +14,23 @@ namespace RoslynTools;
 internal static class App
 {
     /// <summary>
-    /// Enforces the convention "every class in RoslynTools.Commands ending with 'Command'
-    /// implements IRtCommand". Runs at first access to any <see cref="App"/> member, so it fires
-    /// during startup — including the post-build <c>rt dump-help</c> target, which makes this a
-    /// build-time check in practice.
+    ///     The three top-level groups under which every command is filed. Each command's
+    ///     <see cref="RtCommandInfo.Category" /> must equal one of these keys exactly — checked
+    ///     at startup in <see cref="RunAsync" />.
+    /// </summary>
+    internal static readonly IReadOnlyDictionary<string, string> GroupDescriptions =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["inspect"] = "Read-only: examine a single symbol or file",
+            ["analyze"] = "Read-only: scan for cross-cutting issues",
+            ["refactor"] = "Mutations: rename, move, extract, replace, modify"
+        };
+
+    /// <summary>
+    ///     Enforces the convention "every class in RoslynTools.Commands ending with 'Command'
+    ///     implements IRtCommand". Runs at first access to any <see cref="App" /> member, so it fires
+    ///     during startup — including the post-build <c>rt dump-help</c> target, which makes this a
+    ///     build-time check in practice.
     /// </summary>
     static App()
     {
@@ -33,36 +47,23 @@ internal static class App
             .ToList();
 
         if (missing.Count > 0)
-        {
             throw new InvalidOperationException(
                 "These classes in RoslynTools.Commands end with 'Command' but do not implement IRtCommand: "
                 + string.Join(", ", missing)
                 + ". Add `: IRtCommand` and supply static `Info` + `Build()`.");
-        }
     }
 
     /// <summary>
-    /// The three top-level groups under which every command is filed. Each command's
-    /// <see cref="RtCommandInfo.Category"/> must equal one of these keys exactly — checked
-    /// at startup in <see cref="RunAsync"/>.
-    /// </summary>
-    internal static readonly IReadOnlyDictionary<string, string> GroupDescriptions = new Dictionary<string, string>(StringComparer.Ordinal)
-    {
-        ["inspect"] = "Read-only: examine a single symbol or file",
-        ["analyze"] = "Read-only: scan for cross-cutting issues",
-        ["refactor"] = "Mutations: rename, move, extract, replace, modify",
-    };
-
-    /// <summary>
-    /// Registry of every <see cref="IRtCommand"/> in this assembly, with its <see cref="RtCommandInfo"/>.
-    /// Discovered via reflection — add a new command by creating a class that implements
-    /// <see cref="IRtCommand"/>; no edit to this file required. Each entry's <c>Build</c> is
-    /// a factory that produces a fresh <see cref="Command"/> per call, so the same command can
-    /// be added to multiple parents (root shortcut + category group).
+    ///     Registry of every <see cref="IRtCommand" /> in this assembly, with its <see cref="RtCommandInfo" />.
+    ///     Discovered via reflection — add a new command by creating a class that implements
+    ///     <see cref="IRtCommand" />; no edit to this file required. Each entry's <c>Build</c> is
+    ///     a factory that produces a fresh <see cref="Command" /> per call, so the same command can
+    ///     be added to multiple parents (root shortcut + category group).
     /// </summary>
     internal static IReadOnlyList<(Func<Command> Build, RtCommandInfo Info)> Commands { get; } = Discover();
 
-    internal static async Task<int> RunAsync(string[] args, IServiceProvider? services = null, IReadOnlyList<Command>? additionalCommands = null)
+    internal static async Task<int> RunAsync(string[] args, IServiceProvider? services = null,
+        IReadOnlyList<Command>? additionalCommands = null)
     {
         var root = new RootCommand("Roslyn-based C# refactoring tool");
 
@@ -74,26 +75,18 @@ internal static class App
         foreach (var (build, info) in Commands)
         {
             if (!groups.TryGetValue(info.Category, out var group))
-            {
                 throw new InvalidOperationException(
                     $"Command '{info.Name}' has Category='{info.Category}'. Must be one of: "
                     + string.Join(", ", groups.Keys) + ".");
-            }
 
             // Always available under the category group: `rt <group> <name>`.
             group.AddCommand(build());
 
             // Also expose at root as a shortcut when the name doesn't collide with a group name.
-            if (!groups.ContainsKey(info.Name))
-            {
-                root.AddCommand(build());
-            }
+            if (!groups.ContainsKey(info.Name)) root.AddCommand(build());
         }
 
-        foreach (var group in groups.Values)
-        {
-            root.AddCommand(group);
-        }
+        foreach (var group in groups.Values) root.AddCommand(group);
 
         // Hidden meta-command, not part of the public registry (does not implement IRtCommand).
         root.AddCommand(DumpHelpCommand.Build());
@@ -105,7 +98,16 @@ internal static class App
         var (jsonOpt, llmOpt, markdownOpt, yamlOpt, decisionsOpt) = RegisterGlobalOptions(root);
 
         return await new CommandLineBuilder(root)
-            .UseDefaults()
+            .UseVersionOption()
+            .UseHelp(ctx => ctx.HelpBuilder.CustomizeLayout(BuildHelpLayout))
+            .UseEnvironmentVariableDirective()
+            .UseParseDirective()
+            .UseSuggestDirective()
+            .RegisterWithDotnetSuggest()
+            .UseTypoCorrections()
+            .UseParseErrorReporting()
+            .UseExceptionHandler()
+            .CancelOnProcessTermination()
             .AddMiddleware((context, next) =>
             {
                 if (services is not null)
@@ -119,10 +121,10 @@ internal static class App
                 var json = context.ParseResult.GetValueForOption(jsonOpt);
                 var llm = context.ParseResult.GetValueForOption(llmOpt);
                 RtContext.Format = md ? OutputFormat.Markdown
-                                 : yaml ? OutputFormat.Yaml
-                                 : json ? OutputFormat.Json
-                                 : llm ? OutputFormat.Llm
-                                 : OutputFormat.Text;
+                    : yaml ? OutputFormat.Yaml
+                    : json ? OutputFormat.Json
+                    : llm ? OutputFormat.Llm
+                    : OutputFormat.Text;
 
                 var decisionsFile = context.ParseResult.GetValueForOption(decisionsOpt);
                 if (decisionsFile is not null)
@@ -131,7 +133,9 @@ internal static class App
                     try
                     {
                         using (RtServiceProvider.Use(services))
+                        {
                             await next(context);
+                        }
                     }
                     catch (DecisionsRequiredException)
                     {
@@ -151,14 +155,17 @@ internal static class App
                 else
                 {
                     using (RtServiceProvider.Use(services))
+                    {
                         await next(context);
+                    }
                 }
             }, MiddlewareOrder.Configuration)
             .Build()
             .InvokeAsync(args);
     }
 
-    internal static (Option<bool> jsonOpt, Option<bool> llmOpt, Option<bool> markdownOpt, Option<bool> yamlOpt, Option<FileInfo?> decisionsOpt) RegisterGlobalOptions(RootCommand root)
+    internal static (Option<bool> jsonOpt, Option<bool> llmOpt, Option<bool> markdownOpt, Option<bool> yamlOpt,
+        Option<FileInfo?> decisionsOpt) RegisterGlobalOptions(RootCommand root)
     {
         var jsonOpt = new Option<bool>("--json", "Emit results as JSON");
         var llmOpt = new Option<bool>("--llm", "Emit compact output for LLM consumption");
@@ -175,6 +182,38 @@ internal static class App
         root.AddGlobalOption(decisionsOpt);
 
         return (jsonOpt, llmOpt, markdownOpt, yamlOpt, decisionsOpt);
+    }
+
+    private static IEnumerable<HelpSectionDelegate> BuildHelpLayout(HelpContext ctx)
+    {
+        if (ctx.Command is RootCommand)
+        {
+            var snapshot = Commands.Select(e => (Cmd: e.Build(), e.Info)).ToList();
+            return [_ => DumpHelpCommand.RenderColoured(snapshot)];
+        }
+
+        if (GroupDescriptions.ContainsKey(ctx.Command.Name))
+        {
+            var cat = ctx.Command.Name;
+            var snapshot = Commands
+                .Where(e => e.Info.Category == cat)
+                .Select(e => (Cmd: e.Build(), e.Info))
+                .ToList();
+            return [_ => DumpHelpCommand.RenderColouredGroup(cat, snapshot)];
+        }
+
+        var entry = Commands.FirstOrDefault(e =>
+            e.Info.Name == ctx.Command.Name ||
+            e.Info.Aliases?.Contains(ctx.Command.Name) == true);
+
+        if (entry.Info is not null)
+            return
+            [
+                c => DumpHelpCommand.RenderColouredCommandHeader(c, entry.Info),
+                HelpBuilder.Default.OptionsSection()
+            ];
+
+        return HelpBuilder.Default.GetLayout();
     }
 
     private static List<(Func<Command>, RtCommandInfo)> Discover()

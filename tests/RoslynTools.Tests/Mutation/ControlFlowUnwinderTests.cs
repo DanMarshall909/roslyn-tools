@@ -5,8 +5,8 @@ using RoslynTools.Core;
 namespace RoslynTools.Tests.Mutation;
 
 /// <summary>
-/// Tests for ControlFlowUnwinder — classification and strategy proposals for
-/// duplicate groups blocked by control flow.
+///     Tests for ControlFlowUnwinder — classification and strategy proposals for
+///     duplicate groups blocked by control flow.
 /// </summary>
 public class ControlFlowUnwinderTests
 {
@@ -117,20 +117,20 @@ public class ControlFlowUnwinderTests
         // After guard-unwinding, extraction succeeds.
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class ServiceA
-            {
-                private bool IsGeneratedOrIntermediate(string? filePath)
-                {
-                    if (string.IsNullOrWhiteSpace(filePath))
-                        return false;
-                    if (filePath.Contains(".g.cs", System.StringComparison.Ordinal))
-                        return true;
-                    return false;
-                }
-            }
-            """);
+                                  public class ServiceA
+                                  {
+                                      private bool IsGeneratedOrIntermediate(string? filePath)
+                                      {
+                                          if (string.IsNullOrWhiteSpace(filePath))
+                                              return false;
+                                          if (filePath.Contains(".g.cs", System.StringComparison.Ordinal))
+                                              return true;
+                                          return false;
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -141,9 +141,9 @@ public class ControlFlowUnwinderTests
                 sln,
                 filePath,
                 "CheckFilePath",
-                startLine: 7,
-                endLine: 8);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+                7,
+                8);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var contentA = await project.ReadSourceAsync("A.cs");
@@ -154,7 +154,8 @@ public class ControlFlowUnwinderTests
         // The call site uses the guard pattern
         Assert.Contains("if (CheckFilePath(", contentA);
         // The original guard if-statement is gone
-        Assert.DoesNotContain("if (string.IsNullOrWhiteSpace(filePath))", GetMethodBody(contentA, "IsGeneratedOrIntermediate"));
+        Assert.DoesNotContain("if (string.IsNullOrWhiteSpace(filePath))",
+            GetMethodBody(contentA, "IsGeneratedOrIntermediate"));
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -167,18 +168,18 @@ public class ControlFlowUnwinderTests
         // Arrange: extract a guard block that returns false when null
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public bool Validate(string? input)
-                {
-                    if (string.IsNullOrWhiteSpace(input))
-                        return false;
-                    return true;
-                }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public bool Validate(string? input)
+                                            {
+                                                if (string.IsNullOrWhiteSpace(input))
+                                                    return false;
+                                                return true;
+                                            }
+                                        }
+                                        """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -188,9 +189,9 @@ public class ControlFlowUnwinderTests
                 sln,
                 filePath,
                 "IsInputBlank",
-                startLine: 7,
-                endLine: 8);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+                7,
+                8);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var content = await project.ReadSourceAsync("Service.cs");
@@ -279,5 +280,3 @@ public class ControlFlowUnwinderTests
         return method?.Body?.ToFullString() ?? string.Empty;
     }
 }
-
-

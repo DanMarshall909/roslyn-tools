@@ -8,15 +8,18 @@ namespace RoslynTools.Commands;
 
 internal sealed class FindDuplicatesCommand : IRtCommand
 {
-    private FindDuplicatesCommand() { }
+    private FindDuplicatesCommand()
+    {
+    }
 
     public static RtCommandInfo Info { get; } = new(
-        Name: "find-duplicates",
-        Mutates: false,
-        JsonOutput: true,
-        Category: "analyze",
+        "find-duplicates",
+        false,
+        true,
+        "analyze",
         Aliases: ["fd"],
-        WhenToUse: "Discovering repeated code blocks (exact clones) across a solution before an extract-method pass. Use --min-statements to tune noise vs. signal, --min-occurrences to target the most-duplicated blocks, and --scope to focus on one subsystem.",
+        WhenToUse:
+        "Discovering repeated code blocks (exact clones) across a solution before an extract-method pass. Use --min-statements to tune noise vs. signal, --min-occurrences to target the most-duplicated blocks, and --scope to focus on one subsystem.",
         Examples:
         [
             "rt analyze find-duplicates --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
@@ -25,7 +28,7 @@ internal sealed class FindDuplicatesCommand : IRtCommand
             "rt analyze find-duplicates --scope MyApp.Services --solution RoslynTools.slnx",
             "rt analyze find-duplicates --include-tests --solution RoslynTools.slnx",
             "rt analyze find-duplicates --max-statements 20 --solution RoslynTools.slnx",
-            "rt analyze find-duplicates --json --solution RoslynTools.slnx",
+            "rt analyze find-duplicates --json --solution RoslynTools.slnx"
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );
@@ -33,10 +36,13 @@ internal sealed class FindDuplicatesCommand : IRtCommand
     public static Command Build()
     {
         var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
-        var minStatementsOpt = new Option<int>("--min-statements", () => 3, "Minimum number of statements in a duplicate window");
-        var minOccurrencesOpt = new Option<int>("--min-occurrences", () => 2, "Minimum number of occurrences to report a group");
+        var minStatementsOpt = new Option<int>("--min-statements", () => 3,
+            "Minimum number of statements in a duplicate window");
+        var minOccurrencesOpt =
+            new Option<int>("--min-occurrences", () => 2, "Minimum number of occurrences to report a group");
         var scopeOpt = new Option<string?>("--scope", "Project name or namespace prefix to restrict search to");
-        var includeTestsOpt = new Option<bool>("--include-tests", () => false, "Include test projects (excluded by default)");
+        var includeTestsOpt =
+            new Option<bool>("--include-tests", () => false, "Include test projects (excluded by default)");
         var maxStatementsOpt = new Option<int>("--max-statements", () => 40, "Hard cap on duplicate window size");
 
         var cmd = new Command("find-duplicates", "Report exact-clone code blocks repeated across the solution");
@@ -53,7 +59,8 @@ internal sealed class FindDuplicatesCommand : IRtCommand
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
             using (workspace)
             {
-                var options = new FindDuplicatesOptions(minStatements, minOccurrences, scope, includeTests, maxStatements);
+                var options =
+                    new FindDuplicatesOptions(minStatements, minOccurrences, scope, includeTests, maxStatements);
                 var groups = await RtServiceProvider.Get<FindDuplicatesService>().RunAsync(sln, options);
 
                 var solutionDir = sln.FilePath is not null

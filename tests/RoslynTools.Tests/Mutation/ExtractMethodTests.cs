@@ -1,11 +1,16 @@
+using System.Text;
+using System.Text.RegularExpressions;
 using RoslynTools.Core;
+using Xunit.Sdk;
 
 namespace RoslynTools.Tests.Mutation;
 
 public class ExtractMethodTests
 {
     private static string FilePath(AdhocProjectBuilder project, string relativePath)
-        => Path.Combine(project.ProjectDir, relativePath);
+    {
+        return Path.Combine(project.ProjectDir, relativePath);
+    }
 
     // ──────────────────────────────────────────────────────────────────────────
     //  Void extraction — no variables flow in or out
@@ -16,18 +21,18 @@ public class ExtractMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
-            namespace TestApp;
+                                           namespace TestApp;
 
-            public class Calculator
-            {
-                public void Process()
-                {
-                    int a = 1;
-                    int b = 2;
-                    System.Console.WriteLine(a + b);
-                }
-            }
-            """);
+                                           public class Calculator
+                                           {
+                                               public void Process()
+                                               {
+                                                   int a = 1;
+                                                   int b = 2;
+                                                   System.Console.WriteLine(a + b);
+                                               }
+                                           }
+                                           """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -36,9 +41,9 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "Calculator.cs"),
                 "DoWork",
-                startLine: 7,
-                endLine: 9);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+                7,
+                9);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var content = await project.ReadSourceAsync("Calculator.cs");
@@ -57,17 +62,17 @@ public class ExtractMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
-            namespace TestApp;
+                                           namespace TestApp;
 
-            public class Calculator
-            {
-                public void Compute(int x, int y)
-                {
-                    var result = x + y;
-                    var doubled = result * 2;
-                }
-            }
-            """);
+                                           public class Calculator
+                                           {
+                                               public void Compute(int x, int y)
+                                               {
+                                                   var result = x + y;
+                                                   var doubled = result * 2;
+                                               }
+                                           }
+                                           """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -76,9 +81,9 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "Calculator.cs"),
                 "Calculate",
-                startLine: 7,
-                endLine: 8);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+                7,
+                8);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var content = await project.ReadSourceAsync("Calculator.cs");
@@ -96,18 +101,18 @@ public class ExtractMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
-            namespace TestApp;
+                                           namespace TestApp;
 
-            public class Calculator
-            {
-                public int GetTotal(int x, int y)
-                {
-                    var sum = x + y;
-                    sum = sum * 2;
-                    return sum;
-                }
-            }
-            """);
+                                           public class Calculator
+                                           {
+                                               public int GetTotal(int x, int y)
+                                               {
+                                                   var sum = x + y;
+                                                   sum = sum * 2;
+                                                   return sum;
+                                               }
+                                           }
+                                           """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -117,9 +122,9 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "Calculator.cs"),
                 "ComputeSum",
-                startLine: 7,
-                endLine: 8);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+                7,
+                8);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var content = await project.ReadSourceAsync("Calculator.cs");
@@ -137,18 +142,18 @@ public class ExtractMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
-            namespace TestApp;
+                                           namespace TestApp;
 
-            public class Calculator
-            {
-                public int Process(int n)
-                {
-                    var temp = n * 2;
-                    var result = temp + 1;
-                    return result;
-                }
-            }
-            """);
+                                           public class Calculator
+                                           {
+                                               public int Process(int n)
+                                               {
+                                                   var temp = n * 2;
+                                                   var result = temp + 1;
+                                                   return result;
+                                               }
+                                           }
+                                           """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -158,9 +163,9 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "Calculator.cs"),
                 "ComputeResult",
-                startLine: 7,
-                endLine: 8);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+                7,
+                8);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var content = await project.ReadSourceAsync("Calculator.cs");
@@ -179,19 +184,19 @@ public class ExtractMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
-            namespace TestApp;
+                                           namespace TestApp;
 
-            public class Calculator
-            {
-                public void GetBoth(int x)
-                {
-                    var a = x + 1;
-                    var b = x * 2;
-                    System.Console.WriteLine(a);
-                    System.Console.WriteLine(b);
-                }
-            }
-            """);
+                                           public class Calculator
+                                           {
+                                               public void GetBoth(int x)
+                                               {
+                                                   var a = x + 1;
+                                                   var b = x * 2;
+                                                   System.Console.WriteLine(a);
+                                                   System.Console.WriteLine(b);
+                                               }
+                                           }
+                                           """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -201,9 +206,9 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "Calculator.cs"),
                 "Compute",
-                startLine: 7,
-                endLine: 8);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+                7,
+                8);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var content = await project.ReadSourceAsync("Calculator.cs");
@@ -223,17 +228,17 @@ public class ExtractMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("MathUtil.cs", """
-            namespace TestApp;
+                                         namespace TestApp;
 
-            public static class MathUtil
-            {
-                public static int Calculate(int n)
-                {
-                    var doubled = n * 2;
-                    return doubled;
-                }
-            }
-            """);
+                                         public static class MathUtil
+                                         {
+                                             public static int Calculate(int n)
+                                             {
+                                                 var doubled = n * 2;
+                                                 return doubled;
+                                             }
+                                         }
+                                         """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -242,9 +247,9 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "MathUtil.cs"),
                 "ComputeDoubled",
-                startLine: 7,
-                endLine: 7);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+                7,
+                7);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var content = await project.ReadSourceAsync("MathUtil.cs");
@@ -261,21 +266,21 @@ public class ExtractMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("MyClass.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class MyClass
-            {
-                public void MethodA()
-                {
-                    int x = 1;
-                    int y = 2;
-                }
+                                        public class MyClass
+                                        {
+                                            public void MethodA()
+                                            {
+                                                int x = 1;
+                                                int y = 2;
+                                            }
 
-                public void OtherMethod()
-                {
-                }
-            }
-            """);
+                                            public void OtherMethod()
+                                            {
+                                            }
+                                        }
+                                        """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -284,9 +289,9 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "MyClass.cs"),
                 "DoWork",
-                startLine: 7,
-                endLine: 8);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+                7,
+                8);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var content = await project.ReadSourceAsync("MyClass.cs");
@@ -308,21 +313,21 @@ public class ExtractMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("MyClass.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class MyClass
-            {
-                public void MethodA()
-                {
-                    int x = 1;
-                    int y = 2;
-                }
+                                        public class MyClass
+                                        {
+                                            public void MethodA()
+                                            {
+                                                int x = 1;
+                                                int y = 2;
+                                            }
 
-                public void OtherMethod()
-                {
-                }
-            }
-            """);
+                                            public void OtherMethod()
+                                            {
+                                            }
+                                        }
+                                        """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -331,10 +336,10 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "MyClass.cs"),
                 "DoWork",
-                startLine: 7,
-                endLine: 8,
-                insertAfter: "OtherMethod");
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+                7,
+                8,
+                "OtherMethod");
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var content = await project.ReadSourceAsync("MyClass.cs");
@@ -352,21 +357,21 @@ public class ExtractMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("MyClass.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class MyClass
-            {
-                public void MethodA()
-                {
-                    int x = 1;
-                    int y = 2;
-                }
+                                        public class MyClass
+                                        {
+                                            public void MethodA()
+                                            {
+                                                int x = 1;
+                                                int y = 2;
+                                            }
 
-                public void OtherMethod()
-                {
-                }
-            }
-            """);
+                                            public void OtherMethod()
+                                            {
+                                            }
+                                        }
+                                        """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -375,10 +380,10 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "MyClass.cs"),
                 "DoWork",
-                startLine: 7,
-                endLine: 8,
+                7,
+                8,
                 insertBefore: "OtherMethod");
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var content = await project.ReadSourceAsync("MyClass.cs");
@@ -396,18 +401,18 @@ public class ExtractMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
-            namespace TestApp;
+                                           namespace TestApp;
 
-            public class Calculator
-            {
-                public void Process()
-                {
-                    int a = 1;
-                    int b = 2;
-                    System.Console.WriteLine(a + b);
-                }
-            }
-            """);
+                                           public class Calculator
+                                           {
+                                               public void Process()
+                                               {
+                                                   int a = 1;
+                                                   int b = 2;
+                                                   System.Console.WriteLine(a + b);
+                                               }
+                                           }
+                                           """);
 
         var (workspace, sln) = project.Build();
         var originalContent = await project.ReadSourceAsync("Calculator.cs");
@@ -417,9 +422,9 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "Calculator.cs"),
                 "DoWork",
-                startLine: 7,
-                endLine: 9);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: true);
+                7,
+                9);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, true);
         }
 
         var afterContent = await project.ReadSourceAsync("Calculator.cs");
@@ -435,16 +440,16 @@ public class ExtractMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
-            namespace TestApp;
+                                           namespace TestApp;
 
-            public class Calculator
-            {
-                public void Process()
-                {
-                    int a = 1;
-                }
-            }
-            """);
+                                           public class Calculator
+                                           {
+                                               public void Process()
+                                               {
+                                                   int a = 1;
+                                               }
+                                           }
+                                           """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -454,8 +459,8 @@ public class ExtractMethodTests
                     sln,
                     FilePath(project, "Calculator.cs"),
                     "DoWork",
-                    startLine: 50,
-                    endLine: 60));
+                    50,
+                    60));
         }
     }
 
@@ -468,17 +473,17 @@ public class ExtractMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
-            namespace TestApp;
+                                           namespace TestApp;
 
-            public class Calculator
-            {
-                public void Process()
-                {
-                    int a = 1;
-                    int b = 2;
-                }
-            }
-            """);
+                                           public class Calculator
+                                           {
+                                               public void Process()
+                                               {
+                                                   int a = 1;
+                                                   int b = 2;
+                                               }
+                                           }
+                                           """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -488,9 +493,9 @@ public class ExtractMethodTests
                     sln,
                     FilePath(project, "Calculator.cs"),
                     "DoWork",
-                    startLine: 7,
-                    endLine: 8,
-                    insertAfter: "NonExistentMethod"));
+                    7,
+                    8,
+                    "NonExistentMethod"));
         }
     }
 
@@ -503,18 +508,18 @@ public class ExtractMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
-            namespace TestApp;
+                                           namespace TestApp;
 
-            public class Calculator
-            {
-                public void Process()
-                {
-                    int a = 1;
-                    int b = 2;
-                    System.Console.WriteLine(a + b);
-                }
-            }
-            """);
+                                           public class Calculator
+                                           {
+                                               public void Process()
+                                               {
+                                                   int a = 1;
+                                                   int b = 2;
+                                                   System.Console.WriteLine(a + b);
+                                               }
+                                           }
+                                           """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -523,13 +528,13 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "Calculator.cs"),
                 "DoWork",
-                startLine: 7,
-                endLine: 9);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+                7,
+                9);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var rawBytes = await File.ReadAllBytesAsync(FilePath(project, "Calculator.cs"));
-        var rawContent = System.Text.Encoding.UTF8.GetString(rawBytes);
+        var rawContent = Encoding.UTF8.GetString(rawBytes);
         Assert.DoesNotContain("\r\n", rawContent);
     }
 
@@ -542,16 +547,16 @@ public class ExtractMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
-            namespace TestApp;
+                                           namespace TestApp;
 
-            public class Calculator
-            {
-                public void Process()
-                {
-                    int a = 1;
-                }
-            }
-            """);
+                                           public class Calculator
+                                           {
+                                               public void Process()
+                                               {
+                                                   int a = 1;
+                                               }
+                                           }
+                                           """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -561,8 +566,8 @@ public class ExtractMethodTests
                     sln,
                     FilePath(project, "Calculator.cs"),
                     "DoWork",
-                    startLine: 0,
-                    endLine: 5));
+                    0,
+                    5));
         }
     }
 
@@ -571,16 +576,16 @@ public class ExtractMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
-            namespace TestApp;
+                                           namespace TestApp;
 
-            public class Calculator
-            {
-                public void Process()
-                {
-                    int a = 1;
-                }
-            }
-            """);
+                                           public class Calculator
+                                           {
+                                               public void Process()
+                                               {
+                                                   int a = 1;
+                                               }
+                                           }
+                                           """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -590,8 +595,8 @@ public class ExtractMethodTests
                     sln,
                     FilePath(project, "Calculator.cs"),
                     "DoWork",
-                    startLine: 5,
-                    endLine: 3));
+                    5,
+                    3));
         }
     }
 
@@ -605,30 +610,30 @@ public class ExtractMethodTests
         using var project = new AdhocProjectBuilder();
         // File A: contains the extraction target
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void Process()
-                {
-                    System.Console.WriteLine("hello");
-                    System.Console.WriteLine("world");
-                }
-            }
-            """);
+                                  public class A
+                                  {
+                                      public void Process()
+                                      {
+                                          System.Console.WriteLine("hello");
+                                          System.Console.WriteLine("world");
+                                      }
+                                  }
+                                  """);
         // File B: identical body — should be replaced with a call to the extracted method
         project.AddSource("B.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class B
-            {
-                public void Run()
-                {
-                    System.Console.WriteLine("hello");
-                    System.Console.WriteLine("world");
-                }
-            }
-            """);
+                                  public class B
+                                  {
+                                      public void Run()
+                                      {
+                                          System.Console.WriteLine("hello");
+                                          System.Console.WriteLine("world");
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -637,10 +642,10 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "A.cs"),
                 "PrintMessages",
-                startLine: 7,
-                endLine: 8,
+                7,
+                8,
                 replaceDuplicates: true);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var contentA = await project.ReadSourceAsync("A.cs");
@@ -665,30 +670,30 @@ public class ExtractMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void Compute(int x, int y)
-                {
-                    var sum = x + y;
-                    System.Console.WriteLine(sum);
-                }
-            }
-            """);
+                                  public class A
+                                  {
+                                      public void Compute(int x, int y)
+                                      {
+                                          var sum = x + y;
+                                          System.Console.WriteLine(sum);
+                                      }
+                                  }
+                                  """);
         // B has same structure but different identifier names
         project.AddSource("B.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class B
-            {
-                public void Compute(int a, int b)
-                {
-                    var total = a + b;
-                    System.Console.WriteLine(total);
-                }
-            }
-            """);
+                                  public class B
+                                  {
+                                      public void Compute(int a, int b)
+                                      {
+                                          var total = a + b;
+                                          System.Console.WriteLine(total);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -697,10 +702,10 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "A.cs"),
                 "PrintSum",
-                startLine: 7,
-                endLine: 8,
+                7,
+                8,
                 replaceDuplicates: true);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var contentA = await project.ReadSourceAsync("A.cs");
@@ -725,18 +730,18 @@ public class ExtractMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
-            namespace TestApp;
+                                           namespace TestApp;
 
-            public class Calculator
-            {
-                public void Process()
-                {
-                    int a = 1;
-                    int b = 2;
-                    System.Console.WriteLine(a + b);
-                }
-            }
-            """);
+                                           public class Calculator
+                                           {
+                                               public void Process()
+                                               {
+                                                   int a = 1;
+                                                   int b = 2;
+                                                   System.Console.WriteLine(a + b);
+                                               }
+                                           }
+                                           """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -746,10 +751,10 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "Calculator.cs"),
                 "DoWork",
-                startLine: 7,
-                endLine: 9,
+                7,
+                9,
                 replaceDuplicates: true);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var content = await project.ReadSourceAsync("Calculator.cs");
@@ -768,29 +773,29 @@ public class ExtractMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void Process()
-                {
-                    System.Console.WriteLine("hello");
-                    System.Console.WriteLine("world");
-                }
-            }
-            """);
+                                  public class A
+                                  {
+                                      public void Process()
+                                      {
+                                          System.Console.WriteLine("hello");
+                                          System.Console.WriteLine("world");
+                                      }
+                                  }
+                                  """);
         project.AddSource("B.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class B
-            {
-                public void Run()
-                {
-                    System.Console.WriteLine("hello");
-                    System.Console.WriteLine("world");
-                }
-            }
-            """);
+                                  public class B
+                                  {
+                                      public void Run()
+                                      {
+                                          System.Console.WriteLine("hello");
+                                          System.Console.WriteLine("world");
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         var originalA = await project.ReadSourceAsync("A.cs");
@@ -801,12 +806,12 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "A.cs"),
                 "PrintMessages",
-                startLine: 7,
-                endLine: 8,
+                7,
+                8,
                 replaceDuplicates: true);
 
             // Dry-run: in-memory solution contains the changes but files are not written
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: true);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, true);
         }
 
         // Files on disk must be unchanged
@@ -828,30 +833,30 @@ public class ExtractMethodTests
         // becomes a no-op (0 matches), which is the correct safe behaviour.
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void Compute(int x)
-                {
-                    var doubled = x * 2;
-                    System.Console.WriteLine(doubled);
-                }
-            }
-            """);
+                                  public class A
+                                  {
+                                      public void Compute(int x)
+                                      {
+                                          var doubled = x * 2;
+                                          System.Console.WriteLine(doubled);
+                                      }
+                                  }
+                                  """);
         // B has a literal where A uses a parameter — structurally different, no match expected
         project.AddSource("B.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class B
-            {
-                public void Compute()
-                {
-                    var doubled = 42 * 2;
-                    System.Console.WriteLine(doubled);
-                }
-            }
-            """);
+                                  public class B
+                                  {
+                                      public void Compute()
+                                      {
+                                          var doubled = 42 * 2;
+                                          System.Console.WriteLine(doubled);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -861,10 +866,10 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "A.cs"),
                 "ComputeDoubled",
-                startLine: 7,
-                endLine: 8,
+                7,
+                8,
                 replaceDuplicates: true);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         // A is correctly refactored
@@ -892,29 +897,29 @@ public class ExtractMethodTests
         // line numbers and SelectStatementsInRange picks up the wrong statements (or nothing).
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void Source()
-                {
-                    System.Console.WriteLine("hello");
-                    System.Console.WriteLine("world");
-                }
+                                  public class A
+                                  {
+                                      public void Source()
+                                      {
+                                          System.Console.WriteLine("hello");
+                                          System.Console.WriteLine("world");
+                                      }
 
-                public void Dupe1()
-                {
-                    System.Console.WriteLine("hello");
-                    System.Console.WriteLine("world");
-                }
+                                      public void Dupe1()
+                                      {
+                                          System.Console.WriteLine("hello");
+                                          System.Console.WriteLine("world");
+                                      }
 
-                public void Dupe2()
-                {
-                    System.Console.WriteLine("hello");
-                    System.Console.WriteLine("world");
-                }
-            }
-            """);
+                                      public void Dupe2()
+                                      {
+                                          System.Console.WriteLine("hello");
+                                          System.Console.WriteLine("world");
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -923,10 +928,10 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "A.cs"),
                 "PrintMessages",
-                startLine: 7,
-                endLine: 8,
+                7,
+                8,
                 replaceDuplicates: true);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var content = await project.ReadSourceAsync("A.cs");
@@ -944,7 +949,7 @@ public class ExtractMethodTests
         Assert.DoesNotContain("Console.WriteLine(\"hello\")", GetMethodBody(content, "Dupe2"));
 
         // The extracted method exists exactly once (not duplicated per match).
-        var extractedCount = System.Text.RegularExpressions.Regex.Matches(
+        var extractedCount = Regex.Matches(
             content, @"private\s+void\s+PrintMessages\s*\(").Count;
         Assert.Equal(1, extractedCount);
     }
@@ -958,27 +963,27 @@ public class ExtractMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void Source(string user)
-                {
-                    var uri = "otpauth://" + user;
-                    Register(uri);
-                }
+                                  public class A
+                                  {
+                                      public void Source(string user)
+                                      {
+                                          var uri = "otpauth://" + user;
+                                          Register(uri);
+                                      }
 
-                public void Duplicate(string name)
-                {
-                    var otpauthUri = "otpauth://" + name;
-                    Register(otpauthUri);
-                }
+                                      public void Duplicate(string name)
+                                      {
+                                          var otpauthUri = "otpauth://" + name;
+                                          Register(otpauthUri);
+                                      }
 
-                private void Register(string value)
-                {
-                }
-            }
-            """);
+                                      private void Register(string value)
+                                      {
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -987,10 +992,10 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "A.cs"),
                 "BuildOtpAuthUri",
-                startLine: 7,
-                endLine: 7,
+                7,
+                7,
                 replaceDuplicates: true);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var content = await project.ReadSourceAsync("A.cs");
@@ -1021,24 +1026,24 @@ public class ExtractMethodTests
         // conditional expression must be selectable by line range and extractable.
         using var project = new AdhocProjectBuilder();
         project.AddSource("Controller.cs", """
-            using System.Collections.Generic;
-            using System.Linq;
+                                           using System.Collections.Generic;
+                                           using System.Linq;
 
-            namespace TestApp;
+                                           namespace TestApp;
 
-            public class Controller
-            {
-                public List<string?> ParseImages(List<string> raw)
-                {
-                    var images = raw
-                        .Select(x => x.Length > 0
-                            ? x.ToUpper()
-                            : null)
-                        .ToList();
-                    return images;
-                }
-            }
-            """);
+                                           public class Controller
+                                           {
+                                               public List<string?> ParseImages(List<string> raw)
+                                               {
+                                                   var images = raw
+                                                       .Select(x => x.Length > 0
+                                                           ? x.ToUpper()
+                                                           : null)
+                                                       .ToList();
+                                                   return images;
+                                               }
+                                           }
+                                           """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -1049,8 +1054,8 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "Controller.cs"),
                 "BuildImages",
-                startLine: 10,
-                endLine: 14);
+                10,
+                14);
 
             // Must produce at least one changed document — no silent no-op
             var changedDocs = newSln.GetChanges(sln)
@@ -1059,7 +1064,7 @@ public class ExtractMethodTests
                 .ToList();
             Assert.NotEmpty(changedDocs);
 
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var content = await project.ReadSourceAsync("Controller.cs");
@@ -1076,24 +1081,24 @@ public class ExtractMethodTests
         // InvalidOperationException with "No statements found" — never exits 0 silently.
         using var project = new AdhocProjectBuilder();
         project.AddSource("Controller.cs", """
-            using System.Collections.Generic;
-            using System.Linq;
+                                           using System.Collections.Generic;
+                                           using System.Linq;
 
-            namespace TestApp;
+                                           namespace TestApp;
 
-            public class Controller
-            {
-                public List<string?> ParseImages(List<string> raw)
-                {
-                    var images = raw
-                        .Select(x => x.Length > 0
-                            ? x.ToUpper()
-                            : null)
-                        .ToList();
-                    return images;
-                }
-            }
-            """);
+                                           public class Controller
+                                           {
+                                               public List<string?> ParseImages(List<string> raw)
+                                               {
+                                                   var images = raw
+                                                       .Select(x => x.Length > 0
+                                                           ? x.ToUpper()
+                                                           : null)
+                                                       .ToList();
+                                                   return images;
+                                               }
+                                           }
+                                           """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -1104,8 +1109,8 @@ public class ExtractMethodTests
                     sln,
                     FilePath(project, "Controller.cs"),
                     "BuildImages",
-                    startLine: 11,
-                    endLine: 13));
+                    11,
+                    13));
 
             Assert.Contains("No statements found", ex.Message);
         }
@@ -1129,17 +1134,17 @@ public class ExtractMethodTests
         // and explicitly assert it never returns a zero-change solution silently.
         using var project = new AdhocProjectBuilder();
         project.AddSource("Sample.cs", """
-            namespace TestApp;
+                                       namespace TestApp;
 
-            public class Sample
-            {
-                public void Run()
-                {
-                    int x = 1;
-                    int y = 2;
-                }
-            }
-            """);
+                                       public class Sample
+                                       {
+                                           public void Run()
+                                           {
+                                               int x = 1;
+                                               int y = 2;
+                                           }
+                                       }
+                                       """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -1148,8 +1153,8 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "Sample.cs"),
                 "DoWork",
-                startLine: 7,
-                endLine: 8);
+                7,
+                8);
 
             var changedDocs = newSln.GetChanges(sln)
                 .GetProjectChanges()
@@ -1181,23 +1186,23 @@ public class ExtractMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void Source()
-                {
-                    System.Console.WriteLine("hello");
-                    System.Console.WriteLine("world");
-                }
+                                  public class A
+                                  {
+                                      public void Source()
+                                      {
+                                          System.Console.WriteLine("hello");
+                                          System.Console.WriteLine("world");
+                                      }
 
-                public void Dupe1()
-                {
-                    System.Console.WriteLine("hello");
-                    System.Console.WriteLine("world");
-                }
-            }
-            """);
+                                      public void Dupe1()
+                                      {
+                                          System.Console.WriteLine("hello");
+                                          System.Console.WriteLine("world");
+                                      }
+                                  }
+                                  """);
 
         var warnings = new List<string>();
         var (workspace, sln) = project.Build();
@@ -1208,10 +1213,10 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "A.cs"),
                 "PrintMessages",
-                startLine: 7,
-                endLine: 8,
+                7,
+                8,
                 replaceDuplicates: true);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var content = await project.ReadSourceAsync("A.cs");
@@ -1230,17 +1235,17 @@ public class ExtractMethodTests
         // test will be RED until that overload exists AND the guard emits a warning.
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void Method()
-                {
-                    System.Console.WriteLine("hello");
-                    System.Console.WriteLine("world");
-                }
-            }
-            """);
+                                  public class A
+                                  {
+                                      public void Method()
+                                      {
+                                          System.Console.WriteLine("hello");
+                                          System.Console.WriteLine("world");
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -1249,31 +1254,31 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "A.cs"),
                 "PrintMessages",
-                startLine: 7,
-                endLine: 8);
+                7,
+                8);
 
             // Synthesise two overlapping matches in A.cs: match A covers lines 7-8,
             // match B also covers lines 7-8 (same range — maximally overlapping).
             // Bottom-up order: match A (higher or equal line) processed first, range
             // 7-8 claimed. Match B overlaps → should emit a warning, not silently skip.
             var absPath = FilePath(project, "A.cs");
-            var matchA = new PatternMatch(absPath, Line: 7, EndLine: 8,
-                Substitutions: new Dictionary<string, string>(), Preview: "");
-            var matchB = new PatternMatch(absPath, Line: 7, EndLine: 8,
-                Substitutions: new Dictionary<string, string>(), Preview: "");
+            var matchA = new PatternMatch(absPath, 7, 8,
+                new Dictionary<string, string>(), "");
+            var matchB = new PatternMatch(absPath, 7, 8,
+                new Dictionary<string, string>(), "");
 
             var warnings = new List<string>();
             using (RtLog.UseLogger(new CollectingLogger(warnings)))
             {
                 await MethodExtractorDuplicates.ApplyMatchesAsync(
                     newSln,
-                    filePath: absPath,
-                    sourceStartLine: 7,
-                    sourceEndLine: 8,
-                    matches: [matchA, matchB],
-                    newMethodName: "PrintMessages",
-                    orderedParameters: [],
-                    returnVars: []);
+                    absPath,
+                    7,
+                    8,
+                    [matchA, matchB],
+                    "PrintMessages",
+                    [],
+                    []);
             }
 
             // One match replaced, one skipped with a warning.
@@ -1294,7 +1299,8 @@ public class ExtractMethodTests
         using var project = new AdhocProjectBuilder();
         // Deliberately no trailing blank line after the closing brace so the last
         // statement is as close to the end of the file as possible.
-        project.AddSource("A.cs", "namespace TestApp;\n\npublic class A\n{\n    public void Source()\n    {\n        System.Console.WriteLine(\"hello\");\n        System.Console.WriteLine(\"world\");\n    }\n\n    public void Dupe()\n    {\n        System.Console.WriteLine(\"hello\");\n        System.Console.WriteLine(\"world\");\n    }\n}");
+        project.AddSource("A.cs",
+            "namespace TestApp;\n\npublic class A\n{\n    public void Source()\n    {\n        System.Console.WriteLine(\"hello\");\n        System.Console.WriteLine(\"world\");\n    }\n\n    public void Dupe()\n    {\n        System.Console.WriteLine(\"hello\");\n        System.Console.WriteLine(\"world\");\n    }\n}");
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -1304,10 +1310,10 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "A.cs"),
                 "PrintMessages",
-                startLine: 7,
-                endLine: 8,
+                7,
+                8,
                 replaceDuplicates: true);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var content = await project.ReadSourceAsync("A.cs");
@@ -1324,27 +1330,27 @@ public class ExtractMethodTests
         // GREEN: Verify PatternMatcher finds structurally-identical duplicates with different literals
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace Test;
-            public class A
-            {
-                public void M()
-                {
-                    var x = "hello";
-                    var y = "world";
-                }
-            }
-            """);
+                                  namespace Test;
+                                  public class A
+                                  {
+                                      public void M()
+                                      {
+                                          var x = "hello";
+                                          var y = "world";
+                                      }
+                                  }
+                                  """);
         project.AddSource("B.cs", """
-            namespace Test;
-            public class B
-            {
-                public void M()
-                {
-                    var x = "goodbye";
-                    var y = "universe";
-                }
-            }
-            """);
+                                  namespace Test;
+                                  public class B
+                                  {
+                                      public void M()
+                                      {
+                                          var x = "goodbye";
+                                          var y = "universe";
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -1353,7 +1359,7 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "A.cs"),
                 6, 7,
-                scope: null);
+                null);
 
             // Should find A and B as matches
             var matchesInB = matches
@@ -1371,27 +1377,27 @@ public class ExtractMethodTests
         using var project = new AdhocProjectBuilder();
 
         project.AddSource("A.cs", """
-            namespace Test;
-            public class A
-            {
-                public void M()
-                {
-                    var x = "hello";
-                    var y = "world";
-                }
-            }
-            """);
+                                  namespace Test;
+                                  public class A
+                                  {
+                                      public void M()
+                                      {
+                                          var x = "hello";
+                                          var y = "world";
+                                      }
+                                  }
+                                  """);
         project.AddSource("B.cs", """
-            namespace Test;
-            public class B
-            {
-                public void M()
-                {
-                    var x = "goodbye";
-                    var y = "universe";
-                }
-            }
-            """);
+                                  namespace Test;
+                                  public class B
+                                  {
+                                      public void M()
+                                      {
+                                          var x = "goodbye";
+                                          var y = "universe";
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -1401,7 +1407,7 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "A.cs"),
                 6, 7,
-                scope: null);
+                null);
 
             // Should find B.cs (PatternMatcher excludes source file)
             Assert.Single(matches);
@@ -1418,30 +1424,30 @@ public class ExtractMethodTests
         using var project = new AdhocProjectBuilder();
         // File A: contains the extraction target
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void Process()
-                {
-                    System.Console.WriteLine("hello");
-                    System.Console.WriteLine("world");
-                }
-            }
-            """);
+                                  public class A
+                                  {
+                                      public void Process()
+                                      {
+                                          System.Console.WriteLine("hello");
+                                          System.Console.WriteLine("world");
+                                      }
+                                  }
+                                  """);
         // File B: identical structure but different string literals
         project.AddSource("B.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class B
-            {
-                public void Run()
-                {
-                    System.Console.WriteLine("goodbye");
-                    System.Console.WriteLine("universe");
-                }
-            }
-            """);
+                                  public class B
+                                  {
+                                      public void Run()
+                                      {
+                                          System.Console.WriteLine("goodbye");
+                                          System.Console.WriteLine("universe");
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -1450,10 +1456,10 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "A.cs"),
                 "PrintMessages",
-                startLine: 7,
-                endLine: 8,
+                7,
+                8,
                 replaceDuplicates: true);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var contentA = await project.ReadSourceAsync("A.cs");
@@ -1469,7 +1475,7 @@ public class ExtractMethodTests
 
         // Call site should pass literal arguments (check if it's there, with or without spaces)
         var hasGoodbyeUniverse = contentB.Contains("PrintMessages(\"goodbye\", \"universe\")") ||
-                                  contentB.Contains("PrintMessages(\"goodbye\",\"universe\")");
+                                 contentB.Contains("PrintMessages(\"goodbye\",\"universe\")");
 
         if (!hasGoodbyeUniverse)
         {
@@ -1480,7 +1486,8 @@ public class ExtractMethodTests
                 var actualCall = callEnd > callIdx
                     ? contentB[callIdx..(callEnd + 2)]
                     : "NOT FOUND";
-                throw new Xunit.Sdk.XunitException("Expected PrintMessages call with goodbye/universe literals, but got: " + actualCall);
+                throw new XunitException("Expected PrintMessages call with goodbye/universe literals, but got: " +
+                                         actualCall);
             }
         }
 
@@ -1498,21 +1505,21 @@ public class ExtractMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
-            namespace TestApp;
+                                           namespace TestApp;
 
-            public class Calculator
-            {
-                public void GetAll(int x)
-                {
-                    var a = x + 1;
-                    var b = x * 2;
-                    var c = x - 1;
-                    System.Console.WriteLine(a);
-                    System.Console.WriteLine(b);
-                    System.Console.WriteLine(c);
-                }
-            }
-            """);
+                                           public class Calculator
+                                           {
+                                               public void GetAll(int x)
+                                               {
+                                                   var a = x + 1;
+                                                   var b = x * 2;
+                                                   var c = x - 1;
+                                                   System.Console.WriteLine(a);
+                                                   System.Console.WriteLine(b);
+                                                   System.Console.WriteLine(c);
+                                               }
+                                           }
+                                           """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -1522,9 +1529,9 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "Calculator.cs"),
                 "ComputeAll",
-                startLine: 7,
-                endLine: 9);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+                7,
+                9);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var content = await project.ReadSourceAsync("Calculator.cs");
@@ -1550,19 +1557,19 @@ public class ExtractMethodTests
         // starts inside the block and continues outside).
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public int Process(int x, int y)
-                {
-                    var sum = x + y;
-                    var product = x * y;
-                    sum = sum + product;
-                    return sum;
-                }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public int Process(int x, int y)
+                                            {
+                                                var sum = x + y;
+                                                var product = x * y;
+                                                sum = sum + product;
+                                                return sum;
+                                            }
+                                        }
+                                        """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -1572,9 +1579,9 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "Service.cs"),
                 "ComputeParts",
-                startLine: 7,
-                endLine: 8);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+                7,
+                8);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var content = await project.ReadSourceAsync("Service.cs");
@@ -1591,19 +1598,19 @@ public class ExtractMethodTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
+                                        namespace TestApp;
 
-            public class Service
-            {
-                public void Run(int n)
-                {
-                    var doubled = n * 2;
-                    var tripled = n * 3;
-                    System.Console.WriteLine(doubled);
-                    System.Console.WriteLine(tripled);
-                }
-            }
-            """);
+                                        public class Service
+                                        {
+                                            public void Run(int n)
+                                            {
+                                                var doubled = n * 2;
+                                                var tripled = n * 3;
+                                                System.Console.WriteLine(doubled);
+                                                System.Console.WriteLine(tripled);
+                                            }
+                                        }
+                                        """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -1613,9 +1620,9 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "Service.cs"),
                 "ComputeMultiples",
-                startLine: 7,
-                endLine: 8);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+                7,
+                8);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var content = await project.ReadSourceAsync("Service.cs");
@@ -1635,33 +1642,33 @@ public class ExtractMethodTests
         // or single-variable assignment.
         using var project = new AdhocProjectBuilder();
         project.AddSource("A.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class A
-            {
-                public void Source(int x)
-                {
-                    var lo = x - 1;
-                    var hi = x + 1;
-                    System.Console.WriteLine(lo);
-                    System.Console.WriteLine(hi);
-                }
-            }
-            """);
+                                  public class A
+                                  {
+                                      public void Source(int x)
+                                      {
+                                          var lo = x - 1;
+                                          var hi = x + 1;
+                                          System.Console.WriteLine(lo);
+                                          System.Console.WriteLine(hi);
+                                      }
+                                  }
+                                  """);
         project.AddSource("B.cs", """
-            namespace TestApp;
+                                  namespace TestApp;
 
-            public class B
-            {
-                public void Source(int n)
-                {
-                    var lo = n - 1;
-                    var hi = n + 1;
-                    System.Console.WriteLine(lo);
-                    System.Console.WriteLine(hi);
-                }
-            }
-            """);
+                                  public class B
+                                  {
+                                      public void Source(int n)
+                                      {
+                                          var lo = n - 1;
+                                          var hi = n + 1;
+                                          System.Console.WriteLine(lo);
+                                          System.Console.WriteLine(hi);
+                                      }
+                                  }
+                                  """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -1670,10 +1677,10 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "A.cs"),
                 "ComputeBounds",
-                startLine: 7,
-                endLine: 8,
+                7,
+                8,
                 replaceDuplicates: true);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var contentA = await project.ReadSourceAsync("A.cs");
@@ -1704,18 +1711,18 @@ public class ExtractMethodTests
         // then read after → should become an `out` parameter, not throw.
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calculator.cs", """
-            namespace TestApp;
+                                           namespace TestApp;
 
-            public class Calculator
-            {
-                public int Compute(int x)
-                {
-                    int result;
-                    result = x * 2;
-                    return result;
-                }
-            }
-            """);
+                                           public class Calculator
+                                           {
+                                               public int Compute(int x)
+                                               {
+                                                   int result;
+                                                   result = x * 2;
+                                                   return result;
+                                               }
+                                           }
+                                           """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -1725,9 +1732,9 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "Calculator.cs"),
                 "ComputeResult",
-                startLine: 8,
-                endLine: 8);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+                8,
+                8);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var content = await project.ReadSourceAsync("Calculator.cs");
@@ -1752,22 +1759,22 @@ public class ExtractMethodTests
         // (used in the computation) AND WRITTEN inside (reassigned) → ref parameters.
         using var project = new AdhocProjectBuilder();
         project.AddSource("Accumulator.cs", """
-            namespace TestApp;
+                                            namespace TestApp;
 
-            public class Accumulator
-            {
-                public void Accumulate(int x, int y)
-                {
-                    int total = 0;
-                    int count = 0;
-                    total = total + x;
-                    count = count + 1;
-                    total = total + y;
-                    count = count + 1;
-                    System.Console.WriteLine(total + count);
-                }
-            }
-            """);
+                                            public class Accumulator
+                                            {
+                                                public void Accumulate(int x, int y)
+                                                {
+                                                    int total = 0;
+                                                    int count = 0;
+                                                    total = total + x;
+                                                    count = count + 1;
+                                                    total = total + y;
+                                                    count = count + 1;
+                                                    System.Console.WriteLine(total + count);
+                                                }
+                                            }
+                                            """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -1777,9 +1784,9 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "Accumulator.cs"),
                 "AddBoth",
-                startLine: 9,
-                endLine: 12);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+                9,
+                12);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var content = await project.ReadSourceAsync("Accumulator.cs");
@@ -1804,21 +1811,21 @@ public class ExtractMethodTests
         // `label` — declared before, only written → out parameter
         using var project = new AdhocProjectBuilder();
         project.AddSource("Processor.cs", """
-            namespace TestApp;
+                                          namespace TestApp;
 
-            public class Processor
-            {
-                public void Process(int x)
-                {
-                    int total = 5;
-                    string label;
-                    total = total + x;
-                    label = "value:" + x.ToString();
-                    System.Console.WriteLine(total);
-                    System.Console.WriteLine(label);
-                }
-            }
-            """);
+                                          public class Processor
+                                          {
+                                              public void Process(int x)
+                                              {
+                                                  int total = 5;
+                                                  string label;
+                                                  total = total + x;
+                                                  label = "value:" + x.ToString();
+                                                  System.Console.WriteLine(total);
+                                                  System.Console.WriteLine(label);
+                                              }
+                                          }
+                                          """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -1828,9 +1835,9 @@ public class ExtractMethodTests
                 sln,
                 FilePath(project, "Processor.cs"),
                 "UpdateState",
-                startLine: 9,
-                endLine: 10);
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun: false);
+                9,
+                10);
+            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var content = await project.ReadSourceAsync("Processor.cs");
@@ -1846,22 +1853,9 @@ public class ExtractMethodTests
         Assert.Contains("out label", content);
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    //  Helpers
-    // ──────────────────────────────────────────────────────────────────────────
-
-    private sealed class CollectingLogger(List<string> sink) : RoslynTools.Core.IRtLogger
-    {
-        public void Log(RoslynTools.Core.RtLogLevel level, string message)
-        {
-            if (level == RoslynTools.Core.RtLogLevel.Warning)
-                sink.Add(message);
-        }
-    }
-
     /// <summary>
-    /// Naively extracts the body of the first method with the given name from C# source.
-    /// Good enough for assertions — not a full parser.
+    ///     Naively extracts the body of the first method with the given name from C# source.
+    ///     Good enough for assertions — not a full parser.
     /// </summary>
     private static string GetMethodBody(string source, string methodName)
     {
@@ -1871,18 +1865,36 @@ public class ExtractMethodTests
         var openBrace = source.IndexOf('{', sigIdx);
         if (openBrace < 0) return string.Empty;
 
-        int depth = 0;
-        int closeBrace = openBrace;
-        for (int i = openBrace; i < source.Length; i++)
-        {
-            if (source[i] == '{') depth++;
+        var depth = 0;
+        var closeBrace = openBrace;
+        for (var i = openBrace; i < source.Length; i++)
+            if (source[i] == '{')
+            {
+                depth++;
+            }
             else if (source[i] == '}')
             {
                 depth--;
-                if (depth == 0) { closeBrace = i; break; }
+                if (depth == 0)
+                {
+                    closeBrace = i;
+                    break;
+                }
             }
-        }
 
         return source[openBrace..(closeBrace + 1)];
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    //  Helpers
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private sealed class CollectingLogger(List<string> sink) : IRtLogger
+    {
+        public void Log(RtLogLevel level, string message)
+        {
+            if (level == RtLogLevel.Warning)
+                sink.Add(message);
+        }
     }
 }

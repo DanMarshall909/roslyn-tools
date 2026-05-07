@@ -9,106 +9,110 @@ public class StaticClassInventoryCommandTests
     // ──────────────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// LeafService — static class called only from one InstanceClass (not from any static class).
-    /// Expected: migrationDifficulty = "leaf"
+    ///     LeafService — static class called only from one InstanceClass (not from any static class).
+    ///     Expected: migrationDifficulty = "leaf"
     /// </summary>
     private static AdhocProjectBuilder BuildLeafFixture()
     {
         var proj = new AdhocProjectBuilder("Inventory");
 
         proj.AddSource("LeafService.cs", """
-            namespace Inventory;
-            public static class LeafService
-            {
-                public static void DoWork() { }
-            }
-            """);
+                                         namespace Inventory;
+                                         public static class LeafService
+                                         {
+                                             public static void DoWork() { }
+                                         }
+                                         """);
 
         proj.AddSource("InstanceCaller.cs", """
-            namespace Inventory;
-            public class InstanceCaller
-            {
-                public void Run() => LeafService.DoWork();
-            }
-            """);
+                                            namespace Inventory;
+                                            public class InstanceCaller
+                                            {
+                                                public void Run() => LeafService.DoWork();
+                                            }
+                                            """);
 
         return proj;
     }
 
     /// <summary>
-    /// MidService — static class called from exactly 2 static classes.
-    /// Expected: migrationDifficulty = "mid"
+    ///     MidService — static class called from exactly 2 static classes.
+    ///     Expected: migrationDifficulty = "mid"
     /// </summary>
     private static AdhocProjectBuilder BuildMidFixture()
     {
         var proj = new AdhocProjectBuilder("Inventory");
 
         proj.AddSource("MidService.cs", """
-            namespace Inventory;
-            public static class MidService
-            {
-                public static void DoWork() { }
-            }
-            """);
+                                        namespace Inventory;
+                                        public static class MidService
+                                        {
+                                            public static void DoWork() { }
+                                        }
+                                        """);
 
         proj.AddSource("StaticCallerA.cs", """
-            namespace Inventory;
-            public static class StaticCallerA
-            {
-                public static void Run() => MidService.DoWork();
-            }
-            """);
+                                           namespace Inventory;
+                                           public static class StaticCallerA
+                                           {
+                                               public static void Run() => MidService.DoWork();
+                                           }
+                                           """);
 
         proj.AddSource("StaticCallerB.cs", """
-            namespace Inventory;
-            public static class StaticCallerB
-            {
-                public static void Run() => MidService.DoWork();
-            }
-            """);
+                                           namespace Inventory;
+                                           public static class StaticCallerB
+                                           {
+                                               public static void Run() => MidService.DoWork();
+                                           }
+                                           """);
 
         return proj;
     }
 
     /// <summary>
-    /// HubService — static class called from 4 static classes.
-    /// Expected: migrationDifficulty = "hub"
+    ///     HubService — static class called from 4 static classes.
+    ///     Expected: migrationDifficulty = "hub"
     /// </summary>
     private static AdhocProjectBuilder BuildHubFixture()
     {
         var proj = new AdhocProjectBuilder("Inventory");
 
         proj.AddSource("HubService.cs", """
-            namespace Inventory;
-            public static class HubService
-            {
-                public static void DoWork() { }
-            }
-            """);
+                                        namespace Inventory;
+                                        public static class HubService
+                                        {
+                                            public static void DoWork() { }
+                                        }
+                                        """);
 
-        proj.AddSource("S1.cs", "namespace Inventory; public static class S1 { public static void R() => HubService.DoWork(); }");
-        proj.AddSource("S2.cs", "namespace Inventory; public static class S2 { public static void R() => HubService.DoWork(); }");
-        proj.AddSource("S3.cs", "namespace Inventory; public static class S3 { public static void R() => HubService.DoWork(); }");
-        proj.AddSource("S4.cs", "namespace Inventory; public static class S4 { public static void R() => HubService.DoWork(); }");
+        proj.AddSource("S1.cs",
+            "namespace Inventory; public static class S1 { public static void R() => HubService.DoWork(); }");
+        proj.AddSource("S2.cs",
+            "namespace Inventory; public static class S2 { public static void R() => HubService.DoWork(); }");
+        proj.AddSource("S3.cs",
+            "namespace Inventory; public static class S3 { public static void R() => HubService.DoWork(); }");
+        proj.AddSource("S4.cs",
+            "namespace Inventory; public static class S4 { public static void R() => HubService.DoWork(); }");
 
         return proj;
     }
 
     /// <summary>
-    /// Isolated static class — no callers at all.
-    /// Expected: migrationDifficulty = "leaf" (zero static callers → leaf)
+    ///     Isolated static class — no callers at all.
+    ///     Expected: migrationDifficulty = "leaf" (zero static callers → leaf)
     /// </summary>
     private static AdhocProjectBuilder BuildIsolatedFixture()
     {
         var proj = new AdhocProjectBuilder("Inventory");
 
         proj.AddSource("IsolatedService.cs", """
-            namespace Inventory;
-            public static class IsolatedService
-            {
-                public static void DoWork() { }
-            }
-            """);
+                                             namespace Inventory;
+                                             public static class IsolatedService
+                                             {
+                                                 public static void DoWork() { }
+                                             }
+                                             """);
 
         return proj;
     }
@@ -199,7 +203,8 @@ public class StaticClassInventoryCommandTests
             var report = await new StaticClassInventoryService().AnalyzeAsync(sln);
 
             var leaf = report.Classes.Single(c => c.Fqn.EndsWith("LeafService", StringComparison.Ordinal));
-            Assert.Contains(leaf.CalledFromInstanceClasses, fqn => fqn.EndsWith("InstanceCaller", StringComparison.Ordinal));
+            Assert.Contains(leaf.CalledFromInstanceClasses,
+                fqn => fqn.EndsWith("InstanceCaller", StringComparison.Ordinal));
             Assert.Empty(leaf.CalledFromStaticClasses);
         }
     }
@@ -228,20 +233,30 @@ public class StaticClassInventoryCommandTests
         var proj = new AdhocProjectBuilder("Mixed");
 
         // HubService — 4 static callers
-        proj.AddSource("HubService.cs", "namespace Mixed; public static class HubService { public static void Do() { } }");
-        proj.AddSource("H1.cs", "namespace Mixed; public static class H1 { public static void R() => HubService.Do(); }");
-        proj.AddSource("H2.cs", "namespace Mixed; public static class H2 { public static void R() => HubService.Do(); }");
-        proj.AddSource("H3.cs", "namespace Mixed; public static class H3 { public static void R() => HubService.Do(); }");
-        proj.AddSource("H4.cs", "namespace Mixed; public static class H4 { public static void R() => HubService.Do(); }");
+        proj.AddSource("HubService.cs",
+            "namespace Mixed; public static class HubService { public static void Do() { } }");
+        proj.AddSource("H1.cs",
+            "namespace Mixed; public static class H1 { public static void R() => HubService.Do(); }");
+        proj.AddSource("H2.cs",
+            "namespace Mixed; public static class H2 { public static void R() => HubService.Do(); }");
+        proj.AddSource("H3.cs",
+            "namespace Mixed; public static class H3 { public static void R() => HubService.Do(); }");
+        proj.AddSource("H4.cs",
+            "namespace Mixed; public static class H4 { public static void R() => HubService.Do(); }");
 
         // MidService — 2 static callers
-        proj.AddSource("MidService.cs", "namespace Mixed; public static class MidService { public static void Do() { } }");
-        proj.AddSource("M1.cs", "namespace Mixed; public static class M1 { public static void R() => MidService.Do(); }");
-        proj.AddSource("M2.cs", "namespace Mixed; public static class M2 { public static void R() => MidService.Do(); }");
+        proj.AddSource("MidService.cs",
+            "namespace Mixed; public static class MidService { public static void Do() { } }");
+        proj.AddSource("M1.cs",
+            "namespace Mixed; public static class M1 { public static void R() => MidService.Do(); }");
+        proj.AddSource("M2.cs",
+            "namespace Mixed; public static class M2 { public static void R() => MidService.Do(); }");
 
         // LeafService — called only from instance
-        proj.AddSource("LeafService.cs", "namespace Mixed; public static class LeafService { public static void Do() { } }");
-        proj.AddSource("Instance.cs", "namespace Mixed; public class Instance { public void R() => LeafService.Do(); }");
+        proj.AddSource("LeafService.cs",
+            "namespace Mixed; public static class LeafService { public static void Do() { } }");
+        proj.AddSource("Instance.cs",
+            "namespace Mixed; public class Instance { public void R() => LeafService.Do(); }");
 
         using (proj)
         {
@@ -291,13 +306,13 @@ public class StaticClassInventoryCommandTests
     {
         var proj = new AdhocProjectBuilder("Count");
         proj.AddSource("TwoMember.cs", """
-            namespace Count;
-            public static class TwoMember
-            {
-                public static void Alpha() { }
-                public static void Beta() { }
-            }
-            """);
+                                       namespace Count;
+                                       public static class TwoMember
+                                       {
+                                           public static void Alpha() { }
+                                           public static void Beta() { }
+                                       }
+                                       """);
 
         using (proj)
         {

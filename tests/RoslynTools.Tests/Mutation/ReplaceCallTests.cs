@@ -7,14 +7,14 @@ namespace RoslynTools.Tests.Mutation;
 public class ReplaceCallTests
 {
     private const string LogAppSource = """
-        class Logger {
-          public static void Log(string msg) { }
-          public static void LogInfo(string msg) { }
-        }
-        class App {
-          void Run() { Logger.Log("a"); Logger.Log("b"); Logger.Log("c"); }
-        }
-        """;
+                                        class Logger {
+                                          public static void Log(string msg) { }
+                                          public static void LogInfo(string msg) { }
+                                        }
+                                        class App {
+                                          void Run() { Logger.Log("a"); Logger.Log("b"); Logger.Log("c"); }
+                                        }
+                                        """;
 
     private static (AdhocProjectBuilder Project, Workspace Workspace, Solution Solution) BuildFixture()
     {
@@ -31,7 +31,7 @@ public class ReplaceCallTests
         using (project)
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await ReplaceCallCommand.ExecuteAsync("Logger.Log", "LogInfo", "ignored", dryRun: false);
+            await ReplaceCallCommand.ExecuteAsync("Logger.Log", "LogInfo", "ignored", false);
 
             var content = await project.ReadSourceAsync("LogApp.cs");
 
@@ -45,18 +45,20 @@ public class ReplaceCallTests
     {
         using var project = new AdhocProjectBuilder("LogApp");
         project.AddSource("LogApp.cs", """
-            class Logger {
-              public static void Log(string msg) { }
-              public static void LogInfo(string msg) { }
-            }
-            class App {
-              void Run() { Logger.Log(string.Format("x={0}", 1)); }
-            }
-            """);
+                                       class Logger {
+                                         public static void Log(string msg) { }
+                                         public static void LogInfo(string msg) { }
+                                       }
+                                       class App {
+                                         void Run() { Logger.Log(string.Format("x={0}", 1)); }
+                                       }
+                                       """);
         var (workspace, sln) = project.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await ReplaceCallCommand.ExecuteAsync("Logger.Log", "LogInfo", "ignored", dryRun: false);
+        {
+            await ReplaceCallCommand.ExecuteAsync("Logger.Log", "LogInfo", "ignored", false);
+        }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
         Assert.Contains("Logger.LogInfo(string.Format(\"x={0}\", 1))", content);
@@ -67,23 +69,25 @@ public class ReplaceCallTests
     {
         using var project = new AdhocProjectBuilder("LogApp");
         project.AddSource("LogApp.cs", """
-            class Logger {
-              public static void Log(string msg) { }
-              public static void LogInfo(string msg) { }
-            }
-            class App {
-              void Run() { }
-            }
-            """);
+                                       class Logger {
+                                         public static void Log(string msg) { }
+                                         public static void LogInfo(string msg) { }
+                                       }
+                                       class App {
+                                         void Run() { }
+                                       }
+                                       """);
         var (workspace, sln) = project.Build();
 
-        var sw = new System.IO.StringWriter();
+        var sw = new StringWriter();
         var previousOut = Console.Out;
         Console.SetOut(sw);
         try
         {
             using (WorkspaceLoader.UseOverride(workspace, sln))
-                await ReplaceCallCommand.ExecuteAsync("Logger.Log", "LogInfo", "ignored", dryRun: false);
+            {
+                await ReplaceCallCommand.ExecuteAsync("Logger.Log", "LogInfo", "ignored", false);
+            }
         }
         finally
         {
@@ -103,12 +107,12 @@ public class ReplaceCallTests
         {
             var originalContent = await project.ReadSourceAsync("LogApp.cs");
 
-            var sw = new System.IO.StringWriter();
+            var sw = new StringWriter();
             var previousOut = Console.Out;
             Console.SetOut(sw);
             try
             {
-                await ReplaceCallCommand.ExecuteAsync("Logger.Log", "LogInfo", "ignored", dryRun: true);
+                await ReplaceCallCommand.ExecuteAsync("Logger.Log", "LogInfo", "ignored", true);
             }
             finally
             {
@@ -128,22 +132,25 @@ public class ReplaceCallTests
     {
         using var project = new AdhocProjectBuilder("FactoryApp");
         project.AddSource("FactoryApp.cs", """
-            class Factory {
-              public static Option<string> CreateStringOption(string name, string help) => null;
-              public static Option<string> CreateMethodOption(string help) => null;
-            }
-            class App {
-              void Build() {
-                var methodOpt = Factory.CreateStringOption("--method", "Method to process");
-                var fileOpt = Factory.CreateStringOption("--file", "File to process");
-                var anotherMethod = Factory.CreateStringOption("--method", "Another method");
-              }
-            }
-            """);
+                                           class Factory {
+                                             public static Option<string> CreateStringOption(string name, string help) => null;
+                                             public static Option<string> CreateMethodOption(string help) => null;
+                                           }
+                                           class App {
+                                             void Build() {
+                                               var methodOpt = Factory.CreateStringOption("--method", "Method to process");
+                                               var fileOpt = Factory.CreateStringOption("--file", "File to process");
+                                               var anotherMethod = Factory.CreateStringOption("--method", "Another method");
+                                             }
+                                           }
+                                           """);
         var (workspace, sln) = project.Build();
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
-            await ReplaceCallCommand.ExecuteAsync("Factory.CreateStringOption", "Factory.CreateMethodOption", "ignored", dryRun: false, ifArgIndex: 0, ifArgLiteral: "--method");
+        {
+            await ReplaceCallCommand.ExecuteAsync("Factory.CreateStringOption", "Factory.CreateMethodOption", "ignored",
+                false, 0, "--method");
+        }
 
         var content = await project.ReadSourceAsync("FactoryApp.cs");
 
@@ -161,6 +168,7 @@ public class ReplaceCallTests
             count++;
             idx += pattern.Length;
         }
+
         return count;
     }
 }

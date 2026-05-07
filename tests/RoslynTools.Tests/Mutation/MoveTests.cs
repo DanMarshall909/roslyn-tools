@@ -12,23 +12,23 @@ public class MoveTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Model.cs", """
-            namespace TestApp.OldNamespace;
+                                      namespace TestApp.OldNamespace;
 
-            public class Widget
-            {
-                public int Id { get; set; }
-            }
-            """);
+                                      public class Widget
+                                      {
+                                          public int Id { get; set; }
+                                      }
+                                      """);
         project.AddSource("Consumer.cs", """
-            using TestApp.OldNamespace;
+                                         using TestApp.OldNamespace;
 
-            namespace TestApp;
+                                         namespace TestApp;
 
-            public class WidgetService
-            {
-                public Widget Get() => new Widget();
-            }
-            """);
+                                         public class WidgetService
+                                         {
+                                             public Widget Get() => new Widget();
+                                         }
+                                         """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -47,7 +47,7 @@ public class MoveTests
                 sln = sln.WithDocumentSyntaxRoot(doc.Id, newRoot);
             }
 
-            await SolutionWriter.ApplyChangesAsync(workspace.CurrentSolution, sln, dryRun: false);
+            await SolutionWriter.ApplyChangesAsync(workspace.CurrentSolution, sln, false);
         }
 
         var modelContent = await project.ReadSourceAsync("Model.cs");
@@ -60,54 +60,52 @@ public class MoveTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("ModelsA.cs", """
-            namespace TestApp.Legacy;
+                                        namespace TestApp.Legacy;
 
-            public class Customer
-            {
-                public int Id { get; set; }
-            }
-            """);
+                                        public class Customer
+                                        {
+                                            public int Id { get; set; }
+                                        }
+                                        """);
         project.AddSource("ModelsB.cs", """
-            namespace TestApp.Legacy;
+                                        namespace TestApp.Legacy;
 
-            public class Order
-            {
-                public int Id { get; set; }
-                public int CustomerId { get; set; }
-            }
-            """);
+                                        public class Order
+                                        {
+                                            public int Id { get; set; }
+                                            public int CustomerId { get; set; }
+                                        }
+                                        """);
         project.AddSource("Service.cs", """
-            using TestApp.Legacy;
+                                        using TestApp.Legacy;
 
-            namespace TestApp.Services;
+                                        namespace TestApp.Services;
 
-            public class OrderService
-            {
-                public Customer GetCustomer(int id) => new Customer();
-                public Order CreateOrder(Customer c) => new Order { CustomerId = c.Id };
-            }
-            """);
+                                        public class OrderService
+                                        {
+                                            public Customer GetCustomer(int id) => new Customer();
+                                            public Order CreateOrder(Customer c) => new Order { CustomerId = c.Id };
+                                        }
+                                        """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
             // Batch rewrite: change all "TestApp.Legacy" -> "TestApp.Domain"
             foreach (var proj in sln.Projects)
+            foreach (var doc in proj.Documents)
             {
-                foreach (var doc in proj.Documents)
-                {
-                    var root = await doc.GetSyntaxRootAsync();
-                    if (root == null) continue;
+                var root = await doc.GetSyntaxRootAsync();
+                if (root == null) continue;
 
-                    var rewriter = new NamespaceRewriter("TestApp.Legacy", "TestApp.Domain");
-                    var newRoot = rewriter.Visit(root);
+                var rewriter = new NamespaceRewriter("TestApp.Legacy", "TestApp.Domain");
+                var newRoot = rewriter.Visit(root);
 
-                    if (rewriter.Changed)
-                        sln = sln.WithDocumentSyntaxRoot(doc.Id, newRoot);
-                }
+                if (rewriter.Changed)
+                    sln = sln.WithDocumentSyntaxRoot(doc.Id, newRoot);
             }
 
-            await SolutionWriter.ApplyChangesAsync(workspace.CurrentSolution, sln, dryRun: false);
+            await SolutionWriter.ApplyChangesAsync(workspace.CurrentSolution, sln, false);
         }
 
         var modelsA = await project.ReadSourceAsync("ModelsA.cs");
@@ -127,13 +125,13 @@ public class MoveTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Target.cs", """
-            namespace TestApp.Old;
+                                       namespace TestApp.Old;
 
-            public class Thing
-            {
-                public int Value { get; set; }
-            }
-            """);
+                                       public class Thing
+                                       {
+                                           public int Value { get; set; }
+                                       }
+                                       """);
 
         var (workspace, sln) = project.Build();
         var original = await project.ReadSourceAsync("Target.cs");
@@ -152,7 +150,7 @@ public class MoveTests
                 sln = sln.WithDocumentSyntaxRoot(doc.Id, newRoot);
             }
 
-            await SolutionWriter.ApplyChangesAsync(workspace.CurrentSolution, sln, dryRun: true);
+            await SolutionWriter.ApplyChangesAsync(workspace.CurrentSolution, sln, true);
         }
 
         var afterContent = await project.ReadSourceAsync("Target.cs");
@@ -160,19 +158,20 @@ public class MoveTests
     }
 
     /// <summary>
-    /// Minimal syntax rewriter for test purposes — mirrors the pattern in MoveCommand.
+    ///     Minimal syntax rewriter for test purposes — mirrors the pattern in MoveCommand.
     /// </summary>
     private sealed class NamespaceRewriter : CSharpSyntaxRewriter
     {
-        private readonly string _oldNs;
         private readonly string _newNs;
-        public bool Changed { get; private set; }
+        private readonly string _oldNs;
 
         public NamespaceRewriter(string oldNs, string newNs)
         {
             _oldNs = oldNs;
             _newNs = newNs;
         }
+
+        public bool Changed { get; private set; }
 
         public override SyntaxNode? VisitFileScopedNamespaceDeclaration(FileScopedNamespaceDeclarationSyntax node)
         {
@@ -182,6 +181,7 @@ public class MoveTests
                 Changed = true;
                 return visited.WithName(SyntaxFactory.ParseName(_newNs).WithTriviaFrom(visited.Name));
             }
+
             return visited;
         }
 
@@ -193,6 +193,7 @@ public class MoveTests
                 Changed = true;
                 return SyntaxFactory.ParseName(_newNs).WithTriviaFrom(visited);
             }
+
             return visited;
         }
     }

@@ -1,14 +1,15 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
-using System.Diagnostics.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Instance class created by rt destatic-class migration.")]
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Instance class created by rt destatic-class migration.")]
 internal class MakeSealedService : IRtService
 {
     private readonly IDocumentLocatorService _documents;
@@ -28,6 +29,7 @@ internal class MakeSealedService : IRtService
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
     }
+
     internal async Task RunAsync(Solution sln, string typeName, bool dryRun)
     {
         var originalSolution = sln;
@@ -46,13 +48,13 @@ internal class MakeSealedService : IRtService
         FindClassAndDocumentAsync(Solution sln, string typeName)
     {
         var classSymbol = await FindClassSymbolAsync(sln, typeName)
-            ?? throw new InvalidOperationException($"Class '{typeName}' not found in solution.");
+                          ?? throw new InvalidOperationException($"Class '{typeName}' not found in solution.");
 
         var syntaxRef = classSymbol.DeclaringSyntaxReferences.FirstOrDefault()
-            ?? throw new InvalidOperationException($"No source declaration found for '{typeName}'.");
+                        ?? throw new InvalidOperationException($"No source declaration found for '{typeName}'.");
 
         var docId = _documents.FindDocumentId(sln, classSymbol)
-            ?? throw new InvalidOperationException("Cannot locate source document for the target class.");
+                    ?? throw new InvalidOperationException("Cannot locate source document for the target class.");
 
         return (classSymbol, syntaxRef, docId);
     }
@@ -93,7 +95,7 @@ internal class MakeSealedService : IRtService
         var doc = sln.GetDocument(docId)!;
         var root = (await doc.GetSyntaxRootAsync())!;
         var oldNode = root.FindNode(syntaxRef.Span) as ClassDeclarationSyntax
-            ?? throw new InvalidOperationException("Cannot locate class syntax node in document.");
+                      ?? throw new InvalidOperationException("Cannot locate class syntax node in document.");
 
         var newClassSyntax = classSyntax.WithModifiers(BuildSealedModifiers(classSyntax.Modifiers));
         root = root.ReplaceNode(oldNode, newClassSyntax);
@@ -109,14 +111,10 @@ internal class MakeSealedService : IRtService
             if (compilation == null) continue;
 
             foreach (var symbol in compilation.GetSymbolsWithName(typeName, SymbolFilter.Type))
-            {
                 if (symbol is INamedTypeSymbol namedType &&
                     namedType.TypeKind == TypeKind.Class &&
                     namedType.Name == typeName)
-                {
                     return namedType;
-                }
-            }
         }
 
         return null;
@@ -128,8 +126,8 @@ internal class MakeSealedService : IRtService
             .WithTrailingTrivia(SyntaxFactory.Space);
 
         // Insert sealed after access/static/partial modifiers, before any others
-        int insertIndex = existingModifiers.Count;
-        for (int i = 0; i < existingModifiers.Count; i++)
+        var insertIndex = existingModifiers.Count;
+        for (var i = 0; i < existingModifiers.Count; i++)
         {
             var kind = existingModifiers[i].Kind();
             if (kind != SyntaxKind.PublicKeyword &&

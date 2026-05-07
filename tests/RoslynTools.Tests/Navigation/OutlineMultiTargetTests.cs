@@ -9,8 +9,8 @@ public class OutlineMultiTargetTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Program.cs", """
-            Console.WriteLine("Hello");
-            """);
+                                        Console.WriteLine("Hello");
+                                        """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -26,13 +26,13 @@ public class OutlineMultiTargetTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Models/Product.cs", """
-            namespace TestApp.Models;
-            public class Product { }
-            """);
+                                               namespace TestApp.Models;
+                                               public class Product { }
+                                               """);
         project.AddSource("Services/OrderService.cs", """
-            namespace TestApp.Services;
-            public class OrderService { }
-            """);
+                                                      namespace TestApp.Services;
+                                                      public class OrderService { }
+                                                      """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -51,13 +51,13 @@ public class OutlineMultiTargetTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Models/Product.cs", """
-            namespace TestApp.Models;
-            public class Product { }
-            """);
+                                               namespace TestApp.Models;
+                                               public class Product { }
+                                               """);
         project.AddSource("Services/OrderService.cs", """
-            namespace TestApp.Services;
-            public class OrderService { }
-            """);
+                                                      namespace TestApp.Services;
+                                                      public class OrderService { }
+                                                      """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -76,17 +76,17 @@ public class OutlineMultiTargetTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Models/Product.cs", """
-            namespace TestApp.Models;
-            public class Product { }
-            """);
+                                               namespace TestApp.Models;
+                                               public class Product { }
+                                               """);
         project.AddSource("Services/OrderService.cs", """
-            namespace TestApp.Services;
-            public class OrderService { }
-            """);
+                                                      namespace TestApp.Services;
+                                                      public class OrderService { }
+                                                      """);
         project.AddSource("Unrelated.cs", """
-            namespace Other;
-            public class Unrelated { }
-            """);
+                                          namespace Other;
+                                          public class Unrelated { }
+                                          """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -105,13 +105,13 @@ public class OutlineMultiTargetTests
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Models/Product.cs", """
-            namespace TestApp.Models;
-            public class Product { }
-            """);
+                                               namespace TestApp.Models;
+                                               public class Product { }
+                                               """);
         project.AddSource("Services/OrderService.cs", """
-            namespace TestApp.Services;
-            public class OrderService { }
-            """);
+                                                      namespace TestApp.Services;
+                                                      public class OrderService { }
+                                                      """);
 
         var (workspace, sln) = project.Build();
         using (workspace)

@@ -6,20 +6,23 @@ namespace RoslynTools.Commands;
 
 internal sealed class ExtractMethodCommand : IRtCommand
 {
-    private ExtractMethodCommand() { }
+    private ExtractMethodCommand()
+    {
+    }
 
     public static RtCommandInfo Info { get; } = new(
-        Name: "extract-method",
-        Mutates: true,
-        JsonOutput: false,
-        Category: "refactor",
+        "extract-method",
+        true,
+        false,
+        "refactor",
         Aliases: ["em"],
-        WhenToUse: "Pulling a consecutive range of statements out of a long method body into a new private method. Specify the line range from the source file; the command infers parameter and return types from context. Use --after/--before to control insertion point.",
+        WhenToUse:
+        "Pulling a consecutive range of statements out of a long method body into a new private method. Specify the line range from the source file; the command infers parameter and return types from context. Use --after/--before to control insertion point.",
         Examples:
         [
             "rt refactor extract-method src/Services/BookingService.cs ValidateBooking --start-line 42 --end-line 58 --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt refactor em src/Controllers/AdminController.cs BuildCsvRow --start-line 110 --end-line 125 --dry-run",
-            "rt refactor extract-method src/RoslynTools/Commands/RenameCommand.cs BuildOptions --start-line 30 --end-line 45 --after Build --solution RoslynTools.slnx",
+            "rt refactor extract-method src/RoslynTools/Commands/RenameCommand.cs BuildOptions --start-line 30 --end-line 45 --after Build --solution RoslynTools.slnx"
         ],
         KnownIssues:
         [
@@ -31,7 +34,7 @@ internal sealed class ExtractMethodCommand : IRtCommand
 
             "--replace-duplicates generic type parameterization: only user-defined type arguments (IdentifierNameSyntax) " +
             "are detected as varying. Predefined keyword types (int, string, bool, etc.) produce a PatternMatcher " +
-            "structural mismatch so duplicates differing only in keyword types are not detected as generic candidates.",
+            "structural mismatch so duplicates differing only in keyword types are not detected as generic candidates."
         ]
     );
 
@@ -40,17 +43,22 @@ internal sealed class ExtractMethodCommand : IRtCommand
         var fileArg = new Argument<string>("file", "Path to the .cs file containing the method to extract from.");
         var newNameArg = new Argument<string>("new-name", "Name for the extracted method.");
 
-        var startLineOpt = new Option<int>("--start-line", "First line of the statements to extract (1-based).") { IsRequired = true };
-        var endLineOpt = new Option<int>("--end-line", "Last line of the statements to extract (1-based, inclusive).") { IsRequired = true };
-        var afterOpt = new Option<string?>("--after", "Insert the new method after this member name. Default: after the containing method.");
+        var startLineOpt = new Option<int>("--start-line", "First line of the statements to extract (1-based).")
+            { IsRequired = true };
+        var endLineOpt = new Option<int>("--end-line", "Last line of the statements to extract (1-based, inclusive).")
+            { IsRequired = true };
+        var afterOpt = new Option<string?>("--after",
+            "Insert the new method after this member name. Default: after the containing method.");
         var beforeOpt = new Option<string?>("--before", "Insert the new method before this member name.");
         var solutionOpt = new Option<string?>("--solution", "Path to the .sln file. Auto-detected if omitted.");
         var dryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk.");
-        var replaceDuplicatesOpt = new Option<bool>("--replace-duplicates", "After extraction, find structurally-matching code elsewhere in the solution and replace it with calls to the new method.");
+        var replaceDuplicatesOpt = new Option<bool>("--replace-duplicates",
+            "After extraction, find structurally-matching code elsewhere in the solution and replace it with calls to the new method.");
 
         var cmd = new Command("extract-method", "Extract a range of statements into a new private method.")
         {
-            fileArg, newNameArg, startLineOpt, endLineOpt, afterOpt, beforeOpt, solutionOpt, dryRunOpt, replaceDuplicatesOpt
+            fileArg, newNameArg, startLineOpt, endLineOpt, afterOpt, beforeOpt, solutionOpt, dryRunOpt,
+            replaceDuplicatesOpt
         };
         cmd.AddAlias("em");
 
@@ -69,7 +77,8 @@ internal sealed class ExtractMethodCommand : IRtCommand
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
             using (workspace)
             {
-                RtLog.Info("Extracting lines {StartLine}–{EndLine} of '{File}' → '{NewName}'...", startLine, endLine, file, newName);
+                RtLog.Info("Extracting lines {StartLine}–{EndLine} of '{File}' → '{NewName}'...", startLine, endLine,
+                    file, newName);
 
                 Solution newSln;
                 try
@@ -80,9 +89,9 @@ internal sealed class ExtractMethodCommand : IRtCommand
                         newName,
                         startLine,
                         endLine,
-                        insertAfter: after,
-                        insertBefore: before,
-                        replaceDuplicates: replaceDuplicates);
+                        after,
+                        before,
+                        replaceDuplicates);
                 }
                 catch (InvalidOperationException ex)
                 {
