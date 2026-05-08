@@ -1,6 +1,10 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.Extensions.Logging.Abstractions;
 using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Services;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -132,5 +136,73 @@ public class SafeDelete
             var content = await project.ReadSourceAsync("SafeApp.cs");
             Assert.DoesNotContain("class Logger", content);
         }
+    }
+
+    [Fact]
+    public async Task delete_a_simple_member_name_after_type_lookup_falls_back()
+    {
+        var project = new AdhocProjectBuilder("SafeApp");
+        project.AddSource("SafeApp.cs", """
+                                        public class Svc
+                                        {
+                                            public void Dead() { }
+                                            public void Live() { }
+                                        }
+                                        """);
+        var (_, solution) = project.Build();
+        var writer = new CapturingSolutionChangeWriter();
+
+        using (project)
+        {
+            await new SafeDeleteService(NullLogger<SafeDeleteService>.Instance, writer)
+                .RunAsync(solution, "Dead", null, false);
+
+            var content = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "SafeApp.cs");
+            Assert.DoesNotContain("void Dead()", content);
+            Assert.Contains("void Live()", content);
+        }
+    }
+
+    [Fact]
+    public void support_all_top_level_member_declarations_that_safe_delete_can_remove()
+    {
+        var root = CSharpSyntaxTree.ParseText("""
+                                             public class C { }
+                                             public interface I { }
+                                             public struct S { }
+                                             public record R;
+                                             public enum E { A }
+                                             public delegate void D();
+                                             public class Members
+                                             {
+                                                 public int Field;
+                                                 public event EventHandler? Changed;
+                                                 public int Property { get; set; }
+                                                 public void Method() { }
+                                             }
+                                             """).GetCompilationUnitRoot();
+        var service = new SafeDeleteService(NullLogger<SafeDeleteService>.Instance, new CapturingSolutionChangeWriter());
+
+        Assert.All(root.DescendantNodes().OfType<ClassDeclarationSyntax>(), node =>
+            Assert.Same(node, service.FindDeclarationNode(node)));
+        Assert.All(root.DescendantNodes().OfType<InterfaceDeclarationSyntax>(), node =>
+            Assert.Same(node, service.FindDeclarationNode(node)));
+        Assert.All(root.DescendantNodes().OfType<StructDeclarationSyntax>(), node =>
+            Assert.Same(node, service.FindDeclarationNode(node)));
+        Assert.All(root.DescendantNodes().OfType<RecordDeclarationSyntax>(), node =>
+            Assert.Same(node, service.FindDeclarationNode(node)));
+        Assert.All(root.DescendantNodes().OfType<EnumDeclarationSyntax>(), node =>
+            Assert.Same(node, service.FindDeclarationNode(node)));
+        Assert.All(root.DescendantNodes().OfType<DelegateDeclarationSyntax>(), node =>
+            Assert.Same(node, service.FindDeclarationNode(node)));
+        Assert.All(root.DescendantNodes().OfType<MethodDeclarationSyntax>(), node =>
+            Assert.Same(node, service.FindDeclarationNode(node)));
+        Assert.All(root.DescendantNodes().OfType<PropertyDeclarationSyntax>(), node =>
+            Assert.Same(node, service.FindDeclarationNode(node)));
+        Assert.All(root.DescendantNodes().OfType<FieldDeclarationSyntax>(), node =>
+            Assert.Same(node, service.FindDeclarationNode(node)));
+        Assert.All(root.DescendantNodes().OfType<EventDeclarationSyntax>(), node =>
+            Assert.Same(node, service.FindDeclarationNode(node)));
+        Assert.Null(service.FindDeclarationNode(root));
     }
 }

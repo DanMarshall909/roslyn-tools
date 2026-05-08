@@ -1,5 +1,7 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Services;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -118,5 +120,19 @@ public class MakeSealed
 
         var after = await proj.ReadSourceAsync("Types.cs");
         Assert.Equal(before, after);
+    }
+
+    [Fact]
+    public async Task reject_missing_types()
+    {
+        using var proj = new AdhocProjectBuilder("SealApp");
+        proj.AddSource("Types.cs", SealAppSource);
+        var (_, sln) = proj.Build();
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            new MakeSealedService(NullLogger<MakeSealedService>.Instance, new CapturingSolutionChangeWriter())
+                .RunAsync(sln, "Missing", false));
+
+        Assert.Contains("Class 'Missing' not found", exception.Message);
     }
 }

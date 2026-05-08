@@ -1,4 +1,4 @@
-using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging.Abstractions;
 using RoslynTools.Services;
 
 namespace RoslynTools.Tests.Mutation;
@@ -30,11 +30,12 @@ public sealed class DestaticClass
         var writer = new CapturingSolutionChangeWriter();
 
         await new DestaticClassService(
+            NullLogger<DestaticClassService>.Instance,
             new SymbolResolutionService(),
             new DocumentLocatorService(),
             writer).RunAsync(solution, "TestApp.Helper", false);
 
-        var consumerText = await GetDocumentTextAsync(writer.Solution!, "Consumer.cs");
+        var consumerText = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "Consumer.cs");
 
         Assert.Contains("private readonly Helper _helper;", consumerText);
         Assert.Contains("public Consumer(Helper helper)", consumerText);
@@ -68,33 +69,158 @@ public sealed class DestaticClass
         var writer = new CapturingSolutionChangeWriter();
 
         await new DestaticClassService(
+            NullLogger<DestaticClassService>.Instance,
             new SymbolResolutionService(),
             new DocumentLocatorService(),
             writer).RunAsync(solution, "TestApp.Helper", false);
 
-        var consumerText = await GetDocumentTextAsync(writer.Solution!, "Consumer.cs");
+        var consumerText = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "Consumer.cs");
 
         Assert.Contains("new Helper().Format(value)", consumerText);
         Assert.DoesNotContain("private readonly Helper _helper;", consumerText);
     }
 
-    private static async Task<string> GetDocumentTextAsync(Solution solution, string fileName)
+    [Fact]
+    public async Task removes_static_modifiers_from_the_migrated_type()
     {
-        var document = solution.Projects
-            .SelectMany(project => project.Documents)
-            .Single(document => Path.GetFileName(document.FilePath) == fileName);
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Helper.cs", """
+                                       namespace TestApp;
 
-        return (await document.GetTextAsync()).ToString();
+                                       public static class Helper
+                                       {
+                                           public static string Prefix = ">";
+                                           public static string Name { get; set; } = "helper";
+                                           public static string Format(string value) => Prefix + value;
+                                       }
+                                       """);
+
+        var (_, solution) = project.Build();
+        var writer = new CapturingSolutionChangeWriter();
+
+        await new DestaticClassService(
+            NullLogger<DestaticClassService>.Instance,
+            new SymbolResolutionService(),
+            new DocumentLocatorService(),
+            writer).RunAsync(solution, "TestApp.Helper", false);
+
+        var helperText = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "Helper.cs");
+
+        Assert.Contains("using System.Diagnostics.CodeAnalysis;", helperText);
+        Assert.Contains("[SuppressMessage", helperText);
+        Assert.Contains("public class Helper", helperText);
+        Assert.Contains("public string Prefix", helperText);
+        Assert.Contains("public string Name", helperText);
+        Assert.Contains("public string Format(string value)", helperText);
+        Assert.DoesNotContain("public static class Helper", helperText);
+        Assert.False(writer.DryRun);
     }
 
-    private sealed class CapturingSolutionChangeWriter : ISolutionChangeWriter
+    [Fact]
+    public async Task reject_types_that_are_not_static_classes()
     {
-        public Solution? Solution { get; private set; }
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Helper.cs", """
+                                       namespace TestApp;
 
-        public Task ApplyChangesAsync(Solution originalSolution, Solution newSolution, bool dryRun)
-        {
-            Solution = newSolution;
-            return Task.CompletedTask;
-        }
+                                       public class Helper
+                                       {
+                                       }
+                                       """);
+
+        var (_, solution) = project.Build();
+        var writer = new CapturingSolutionChangeWriter();
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            new DestaticClassService(
+                NullLogger<DestaticClassService>.Instance,
+                new SymbolResolutionService(),
+                new DocumentLocatorService(),
+                writer).RunAsync(solution, "TestApp.Helper", false));
+
+        Assert.Contains("is not a static class", exception.Message);
+        Assert.Null(writer.Solution);
+    }
+
+    [Fact]
+    public async Task add_dependencies_to_existing_instance_constructors()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Helper.cs", """
+                                       namespace TestApp;
+
+                                       public static class Helper
+                                       {
+                                           public static string Format(string value) => value.Trim();
+                                       }
+                                       """);
+        project.AddSource("Consumer.cs", """
+                                         namespace TestApp;
+
+                                         public class Consumer
+                                         {
+                                             private readonly string _name;
+
+                                             public Consumer(string name)
+                                             {
+                                                 _name = name;
+                                             }
+
+                                             public string Run(string value) => Helper.Format(value);
+                                         }
+                                         """);
+
+        var (_, solution) = project.Build();
+        var writer = new CapturingSolutionChangeWriter();
+
+        await new DestaticClassService(
+            NullLogger<DestaticClassService>.Instance,
+            new SymbolResolutionService(),
+            new DocumentLocatorService(),
+            writer).RunAsync(solution, "TestApp.Helper", false);
+
+        var consumerText = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "Consumer.cs");
+
+        Assert.Contains("private readonly Helper _helper;", consumerText);
+        Assert.Contains("public Consumer(", consumerText);
+        Assert.True(consumerText.Contains("Helper helper", StringComparison.Ordinal), consumerText);
+        Assert.Contains("_helper = helper;", consumerText);
+        Assert.Contains("_name = name;", consumerText);
+    }
+
+    [Fact]
+    public async Task use_new_receivers_for_field_initializers()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Helper.cs", """
+                                       namespace TestApp;
+
+                                       public static class Helper
+                                       {
+                                           public static string Format(string value) => value.Trim();
+                                       }
+                                       """);
+        project.AddSource("Consumer.cs", """
+                                         namespace TestApp;
+
+                                         public class Consumer
+                                         {
+                                             private readonly string _value = Helper.Format("x");
+                                         }
+                                         """);
+
+        var (_, solution) = project.Build();
+        var writer = new CapturingSolutionChangeWriter();
+
+        await new DestaticClassService(
+            NullLogger<DestaticClassService>.Instance,
+            new SymbolResolutionService(),
+            new DocumentLocatorService(),
+            writer).RunAsync(solution, "TestApp.Helper", false);
+
+        var consumerText = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "Consumer.cs");
+
+        Assert.Contains("private readonly string _value = new Helper().Format(\"x\");", consumerText);
+        Assert.DoesNotContain("private readonly Helper _helper;", consumerText);
     }
 }

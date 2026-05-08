@@ -90,4 +90,97 @@ public sealed class InterfaceAnalyzerService
         Assert.Contains("Send", text);
         Assert.DoesNotContain("Receive", text);
     }
+
+    [Fact]
+    public async Task gets_used_members_async_includes_properties_and_events()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("IWidgetEvents.cs", """
+                                             using System;
+
+                                             namespace MyApp;
+
+                                             public interface IWidgetEvents
+                                             {
+                                                 int Count { get; set; }
+                                                 event EventHandler Changed;
+                                                 void Reset();
+                                             }
+                                             """);
+        project.AddSource("WidgetConsumer.cs", """
+                                              using System;
+
+                                              namespace MyApp;
+
+                                              public sealed class WidgetConsumer
+                                              {
+                                                  private readonly IWidgetEvents _events;
+
+                                                  public WidgetConsumer(IWidgetEvents events)
+                                                  {
+                                                      _events = events;
+                                                  }
+
+                                                  public void Use()
+                                                  {
+                                                      _events.Count = _events.Count + 1;
+                                                      _events.Changed += OnChanged;
+                                                  }
+
+                                                  private void OnChanged(object? sender, EventArgs args)
+                                                  {
+                                                  }
+                                              }
+                                              """);
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var interfaceSymbol = await GetTypeAsync(sln, "MyApp.IWidgetEvents");
+            var consumerSymbol = await GetTypeAsync(sln, "MyApp.WidgetConsumer");
+
+            var used = await new Services.InterfaceAnalyzerService()
+                .GetUsedMembersAsync(sln, consumerSymbol, interfaceSymbol);
+
+            Assert.Contains("Count", used);
+            Assert.Contains("Changed", used);
+            Assert.DoesNotContain("Reset", used);
+        }
+    }
+
+    [Fact]
+    public async Task builds_interface_text_includes_methods_properties_and_events()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("IWidgetEvents.cs", """
+                                             using System;
+
+                                             namespace MyApp;
+
+                                             public interface IWidgetEvents
+                                             {
+                                                 string Format(int id, string name);
+                                                 int Count { get; set; }
+                                                 event EventHandler Changed;
+                                             }
+                                             """);
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var interfaceSymbol = await GetTypeAsync(sln, "MyApp.IWidgetEvents");
+            var text = new Services.InterfaceAnalyzerService()
+                .BuildInterfaceText("", "INarrowWidgetEvents", interfaceSymbol.GetMembers().ToList());
+
+            Assert.DoesNotContain("namespace", text);
+            Assert.Contains("public interface INarrowWidgetEvents", text);
+            Assert.Contains("string Format(int id, string name);", text);
+            Assert.Contains("int Count { get; set; }", text);
+            Assert.Contains("event EventHandler Changed;", text);
+        }
+    }
+
+    private static async Task<INamedTypeSymbol> GetTypeAsync(Solution solution, string metadataName)
+    {
+        var compilation = await solution.Projects.Single().GetCompilationAsync();
+        return Assert.IsAssignableFrom<INamedTypeSymbol>(compilation!.GetTypeByMetadataName(metadataName));
+    }
 }

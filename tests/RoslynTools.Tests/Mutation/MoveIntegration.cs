@@ -146,4 +146,41 @@ public class MoveIntegration
 
         Assert.Contains("using Bar;", consumerAfter);
     }
+
+    [Fact]
+    public async Task handles_single_type_move_rewrites_fully_qualified_consumers()
+    {
+        const string targetSource = """
+                                    namespace Foo;
+                                    public class Target
+                                    {
+                                    }
+                                    """;
+
+        const string consumerSource = """
+                                      namespace App;
+                                      public class Consumer
+                                      {
+                                          public Foo.Target Build() => new Foo.Target();
+                                      }
+                                      """;
+
+        using var project = new AdhocProjectBuilder("MoveSample")
+            .AddSource("Target.cs", targetSource)
+            .AddSource("Consumer.cs", consumerSource);
+
+        var (workspace, solution) = project.Build();
+
+        await new MoveService().ExecuteSingleTypeMoveAsync(
+            workspace,
+            solution,
+            "Foo.Target",
+            "Bar",
+            false,
+            false);
+
+        var consumerAfter = await project.ReadSourceAsync("Consumer.cs");
+
+        Assert.Contains("public Bar.Target Build() => new Bar.Target();", consumerAfter);
+    }
 }

@@ -147,4 +147,59 @@ public class DependencyGraph
             Assert.Contains(edges, e => e.From == "A" && e.To == "B");
         }
     }
+
+    [Fact]
+    public async Task returns_empty_graph_for_unknown_type_in_json()
+    {
+        using var proj = BuildGraphProject();
+        var (workspace, sln) = proj.Build();
+        using (workspace)
+        {
+            var json = await DependencyGraphCommand.BuildGraphAsync(sln, "NoSuchType", null, "json", null);
+
+            using var doc = JsonDocument.Parse(json);
+            var nodes = doc.RootElement.GetProperty("nodes").EnumerateArray().ToList();
+            var edges = doc.RootElement.GetProperty("edges").EnumerateArray().ToList();
+
+            Assert.Empty(nodes);
+            Assert.Empty(edges);
+        }
+    }
+
+    [Fact]
+    public async Task returns_empty_digraph_for_unknown_type_in_dot()
+    {
+        using var proj = BuildGraphProject();
+        var (workspace, sln) = proj.Build();
+        using (workspace)
+        {
+            var dot = await DependencyGraphCommand.BuildGraphAsync(sln, "NoSuchType", null, "dot", null);
+
+            Assert.Contains("digraph", dot, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("->", dot);
+        }
+    }
+
+    [Fact]
+    public async Task scope_filter_restricts_nodes_to_matching_namespace()
+    {
+        using var proj = new AdhocProjectBuilder("ScopeApp");
+        proj.AddSource("Types.cs", """
+                                   namespace Foo { class Alpha { Beta _b; } class Beta { } }
+                                   namespace Bar { class Gamma { } }
+                                   """);
+        var (workspace, sln) = proj.Build();
+        using (workspace)
+        {
+            var json = await DependencyGraphCommand.BuildGraphAsync(sln, null, null, "json", "Foo");
+
+            using var doc = JsonDocument.Parse(json);
+            var nodeNames = doc.RootElement.GetProperty("nodes")
+                .EnumerateArray().Select(n => n.GetString()).ToList();
+
+            Assert.Contains("Alpha", nodeNames);
+            Assert.Contains("Beta", nodeNames);
+            Assert.DoesNotContain("Gamma", nodeNames);
+        }
+    }
 }

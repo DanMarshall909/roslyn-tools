@@ -357,5 +357,124 @@ public class ExtractClass
         Assert.Contains("private readonly PathFormatter _pathFormatter", sourceContent);
     }
 
+    [Fact]
+    public async Task reports_an_error_when_source_class_is_not_found()
+    {
+        using var project = new AdhocProjectBuilder("MyApp");
+        project.AddSource("BigService.cs", """
+                                           namespace MyApp;
+                                           public class BigService { public void Go() { } }
+                                           """);
+        var (workspace, sln) = project.Build();
+        var before = await project.ReadSourceAsync("BigService.cs");
+
+        CommandCapture capture;
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
+            capture = await RunExtractClassAsync("Missing", "Go", "Helper", false, "ignored", null, false);
+        }
+
+        Assert.Equal(1, capture.ExitCode);
+        Assert.Contains("Missing", capture.StdErr);
+        Assert.Equal(before, await project.ReadSourceAsync("BigService.cs"));
+    }
+
+    [Fact]
+    public async Task reports_an_error_when_no_specified_members_exist()
+    {
+        using var project = new AdhocProjectBuilder("MyApp");
+        project.AddSource("BigService.cs", """
+                                           namespace MyApp;
+                                           public class BigService { public void Go() { } }
+                                           """);
+        var (workspace, sln) = project.Build();
+        var before = await project.ReadSourceAsync("BigService.cs");
+
+        CommandCapture capture;
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
+            capture = await RunExtractClassAsync("BigService", "Nonexistent", "Helper", true, "ignored", null, false);
+        }
+
+        Assert.Equal(1, capture.ExitCode);
+        Assert.Contains("Nonexistent", capture.StdErr);
+        Assert.False(project.SourceExists("Helper.cs"));
+        Assert.Equal(before, await project.ReadSourceAsync("BigService.cs"));
+    }
+
+    [Fact]
+    public async Task reports_an_error_when_only_some_specified_members_are_missing()
+    {
+        using var project = new AdhocProjectBuilder("MyApp");
+        project.AddSource("BigService.cs", """
+                                           namespace MyApp;
+                                           public class BigService { public void Go() { } }
+                                           """);
+        var (workspace, sln) = project.Build();
+        var before = await project.ReadSourceAsync("BigService.cs");
+
+        CommandCapture capture;
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
+            capture = await RunExtractClassAsync("BigService", "Go,Missing", "Helper", true, "ignored", null, false);
+        }
+
+        Assert.Equal(1, capture.ExitCode);
+        Assert.Contains("Missing", capture.StdErr);
+        Assert.False(project.SourceExists("Helper.cs"));
+        Assert.Equal(before, await project.ReadSourceAsync("BigService.cs"));
+    }
+
+    [Fact]
+    public async Task refuses_extraction_when_selected_member_uses_this_directly()
+    {
+        using var project = new AdhocProjectBuilder("MyApp");
+        project.AddSource("BigService.cs", """
+                                           namespace MyApp;
+                                           public class BigService
+                                           {
+                                               public BigService Clone() => this;
+                                           }
+                                           """);
+        var (workspace, sln) = project.Build();
+        var before = await project.ReadSourceAsync("BigService.cs");
+
+        CommandCapture capture;
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
+            capture = await RunExtractClassAsync("BigService", "Clone", "Helper", false, "ignored", null, false);
+        }
+
+        Assert.Equal(1, capture.ExitCode);
+        Assert.Contains("this", capture.StdErr);
+        Assert.False(project.SourceExists("Helper.cs"));
+        Assert.Equal(before, await project.ReadSourceAsync("BigService.cs"));
+    }
+
+    [Fact]
+    public async Task extracts_a_property_to_the_new_class()
+    {
+        using var project = new AdhocProjectBuilder("MyApp");
+        project.AddSource("BigService.cs", """
+                                           namespace MyApp;
+                                           public class BigService
+                                           {
+                                               public string Version { get; set; } = "1.0";
+                                               public void Process() { }
+                                           }
+                                           """);
+        var (workspace, sln) = project.Build();
+
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
+            await ExtractClassCommand.ExecuteAsync("BigService", "Version", "VersionInfo", true, "ignored", null, false);
+        }
+
+        var extracted = await project.ReadSourceAsync("VersionInfo.cs");
+        var source = await project.ReadSourceAsync("BigService.cs");
+        Assert.Contains("string Version", extracted);
+        Assert.DoesNotContain("string Version", source);
+    }
+
     private sealed record CommandCapture(string StdOut, string StdErr, int ExitCode);
 }

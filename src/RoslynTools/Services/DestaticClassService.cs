@@ -107,20 +107,20 @@ internal sealed class DestaticClassService : IRtService
     private static async Task<Solution> RewriteCallSitesAsync(Solution solution, INamedTypeSymbol typeSymbol)
     {
         foreach (var project in solution.Projects.ToArray())
-        foreach (var document in project.Documents.ToArray())
-        {
-            var root = await document.GetSyntaxRootAsync();
-            var semanticModel = await document.GetSemanticModelAsync();
-            if (root is null || semanticModel is null)
-                continue;
+            foreach (var document in project.Documents.ToArray())
+            {
+                var root = await document.GetSyntaxRootAsync();
+                var semanticModel = await document.GetSemanticModelAsync();
+                if (root is null || semanticModel is null)
+                    continue;
 
-            var rewriter = new StaticTypeCallRewriter(semanticModel, typeSymbol);
-            var newRoot = rewriter.Visit(root);
-            if (!rewriter.Changed || newRoot is null)
-                continue;
+                var rewriter = new StaticTypeCallRewriter(semanticModel, typeSymbol);
+                var newRoot = rewriter.Visit(root);
+                if (!rewriter.Changed || newRoot is null)
+                    continue;
 
-            solution = solution.WithDocumentSyntaxRoot(document.Id, newRoot);
-        }
+                solution = solution.WithDocumentSyntaxRoot(document.Id, newRoot);
+            }
 
         return solution;
     }
@@ -271,14 +271,16 @@ internal sealed class DestaticClassService : IRtService
                 return classDeclaration.WithMembers(classDeclaration.Members.InsertRange(0, [field, constructor]));
             }
 
-            var updatedClass = classDeclaration.WithMembers(classDeclaration.Members.Insert(0, field));
             var parameterName = ToParameterName(typeSymbol.Name);
+            var rewrittenMembers = classDeclaration.Members
+                .Select(member => member is ConstructorDeclarationSyntax constructor
+                                  && !constructor.Modifiers.Any(SyntaxKind.StaticKeyword)
+                    ? AddConstructorParameter(constructor, parameterName)
+                    : member);
 
-            updatedClass = updatedClass.ReplaceNodes(
-                constructors,
-                (_, constructor) => AddConstructorParameter(constructor, parameterName));
+            var updatedClass = classDeclaration.WithMembers(SyntaxFactory.List(rewrittenMembers));
 
-            return updatedClass;
+            return updatedClass.WithMembers(updatedClass.Members.Insert(0, field));
         }
 
         private ConstructorDeclarationSyntax AddConstructorParameter(
@@ -288,8 +290,8 @@ internal sealed class DestaticClassService : IRtService
             if (constructor.ParameterList.Parameters.Any(parameter => parameter.Identifier.ValueText == parameterName))
                 return constructor;
 
-            var parameter = SyntaxFactory.Parameter(SyntaxFactory.Identifier(parameterName))
-                .WithType(SyntaxFactory.ParseTypeName(typeSymbol.Name));
+            var parameter = SyntaxFactory.ParseParameterList($"({typeSymbol.Name} {parameterName})")
+                .Parameters[0];
 
             var assignment = SyntaxFactory.ParseStatement($"{_fieldName} = {parameterName};");
             var body = constructor.Body ?? SyntaxFactory.Block();
