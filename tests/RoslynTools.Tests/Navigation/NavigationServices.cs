@@ -132,15 +132,15 @@ public class NavigationServices
     }
 
     [Fact]
-    public async Task throws_when_outline_file_is_not_found()
+    public async Task returns_empty_list_when_outline_file_is_not_in_solution()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Greeter.cs", GreeterSource);
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                new OutlineService().OutlineFileAsync(sln, "/nonexistent/path.cs"));
+            var result = await new OutlineService().OutlineFileAsync(sln, "/nonexistent/path.cs");
+            Assert.Empty(result);
         }
     }
 

@@ -21,17 +21,16 @@ internal class OutlineService : IRtService
         Solution solution,
         string filePath)
     {
-        var fullPath = Path.GetFullPath(filePath);
+        var fullPath = Path.GetFullPath(filePath.Replace('/', Path.DirectorySeparatorChar));
         var results = new List<Dictionary<string, object?>>();
-        var documentFound = false;
 
         foreach (var project in solution.Projects)
         foreach (var doc in project.Documents)
         {
-            if (!string.Equals(doc.FilePath, fullPath, StringComparison.OrdinalIgnoreCase))
+            if (doc.FilePath is null) continue;
+            var docPath = Path.GetFullPath(doc.FilePath.Replace('/', Path.DirectorySeparatorChar));
+            if (!string.Equals(docPath, fullPath, StringComparison.OrdinalIgnoreCase))
                 continue;
-
-            documentFound = true;
 
             var semanticModel = await doc.GetSemanticModelAsync();
             if (semanticModel == null) continue;
@@ -49,9 +48,6 @@ internal class OutlineService : IRtService
             foreach (var type in declaredSymbols)
                 results.Add(BuildTypeOutline(type));
         }
-
-        if (!documentFound)
-            throw new InvalidOperationException($"No types found in file: {fullPath}");
 
         return results;
     }

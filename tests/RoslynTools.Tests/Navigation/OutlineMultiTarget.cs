@@ -5,6 +5,48 @@ namespace RoslynTools.Tests.Navigation;
 public class OutlineMultiTarget
 {
     [Fact]
+    public async Task outlines_nested_types_when_file_uses_unix_style_separators_in_argv()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Container.cs", """
+                                          namespace TestApp;
+                                          public class Container
+                                          {
+                                              public class NestedHelper { }
+                                              public class NestedProcessor { }
+                                          }
+                                          """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var svc = new OutlineService();
+            var path = Path.Combine(project.ProjectDir, "Container.cs").Replace('\\', '/');
+            var result = await svc.OutlineFileAsync(sln, path);
+            var names = result.Select(r => (string)r["name"]!).ToList();
+            Assert.Contains("Container", names);
+            Assert.Contains("NestedHelper", names);
+            Assert.Contains("NestedProcessor", names);
+        }
+    }
+
+    [Fact]
+    public async Task returns_empty_list_for_file_not_in_solution()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Real.cs", "namespace Foo; public class Real { }");
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var svc = new OutlineService();
+            var missingPath = Path.Combine(project.ProjectDir, "DoesNotExist.cs");
+            var result = await svc.OutlineFileAsync(sln, missingPath);
+            Assert.Empty(result);
+        }
+    }
+
+    [Fact]
     public async Task returns_empty_list_for_typeless_file()
     {
         using var project = new AdhocProjectBuilder();
