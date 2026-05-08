@@ -23,7 +23,7 @@ internal sealed class RenameCommand : IRtCommand
         [
             "rt refactor rename OldTypeName NewTypeName --solution MySolution.sln",
             "rt refactor rename MyNs.MyType.OldProp NewProp --kind property --dry-run",
-            "rt refactor rename --csv scripts/test-renames.csv --solution RoslynTools.slnx --dry-run",
+            "rt refactor rename --csv scripts/renames.csv --solution MySolution.sln --dry-run",
             "rt refactor ren FooService BarService              # short alias, auto-detect solution"
         ]
     );
@@ -42,7 +42,7 @@ internal sealed class RenameCommand : IRtCommand
             "Path to the .sln/.slnx file. Defaults to the single solution in current directory.");
         var kindOpt = new Option<string?>("--kind", "Symbol kind: type, method, property, field, namespace");
         var csvOpt = new Option<string?>("--csv",
-            "Path to a CSV file with source_symbol and target_name columns for batch renames.");
+            "Path to a CSV file with source_symbol/target_name, or prefixed *_fqn plus *_name_new columns.");
         var dryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk");
 
         var cmd = new Command("rename", "Rename a symbol and all its references across the solution")

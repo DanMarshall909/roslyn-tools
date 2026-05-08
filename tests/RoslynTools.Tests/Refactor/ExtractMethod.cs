@@ -13,7 +13,7 @@ public class ExtractMethod
 
     [Fact]
     [Trait("Concern", "SourceFileCallSite")]
-    public async Task with_source_file_as_first_occurrence_updates_call_site()
+    public async Task source_file_as_first_occurrence_updates_call_site()
     {
         // Setup: Create two files with identical method patterns
         using var project = new AdhocProjectBuilder();
@@ -66,7 +66,7 @@ public class ExtractMethod
 
     [Fact(Skip = "US-050: pending — source-file call site not yet updated with new parameters")]
     [Trait("Concern", "SourceFileCallSite")]
-    public async Task with_signature_changes_source_file_receives_new_parameters()
+    public async Task signature_changes_source_file_receives_new_parameters()
     {
         // Setup: Create duplicate patterns where source file has the first occurrence
         using var project = new AdhocProjectBuilder();
@@ -135,7 +135,7 @@ public class ExtractMethod
 
     [Fact]
     [Trait("Concern", "CrossFileCallSites")]
-    public async Task with_cross_file_duplicates_extracted_code_compiles()
+    public async Task cross_file_duplicates_extracted_code_compiles()
     {
         // This test verifies that when duplicates exist across files, the extracted method
         // is accessible to all call sites. Currently fails because the extracted method is
@@ -214,7 +214,7 @@ public class ExtractMethod
     [Fact]
     [Trait("Concern", "CrossFileCallSites")]
     [Trait("Category", "Regression")]
-    public async Task with_cross_file_duplicates_still_get_updated()
+    public async Task cross_file_duplicates_still_get_updated()
     {
         // Regression test: verify that duplicates in other files are found and replaced
         using var project = new AdhocProjectBuilder();
@@ -317,7 +317,7 @@ public class ExtractMethod
     [Fact]
     [Trait("Concern", "SourceFileCallSite")]
     [Trait("Concern", "CrossFileCallSites")]
-    public async Task with_same_literal_values_cross_file_call_sites_get_updated()
+    public async Task same_literal_values_cross_file_call_sites_get_updated()
     {
         // BLOCKER: Cross-file duplicates with DIFFERENT string literals ("alpha" vs "beta" vs "gamma")
         // are filtered out by semantic validation (dogfood-gaps line 11-13).

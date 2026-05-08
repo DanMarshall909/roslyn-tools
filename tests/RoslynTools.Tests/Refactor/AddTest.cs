@@ -4,7 +4,7 @@ public class AddTest
 {
     [Fact(Skip = "rt add-test command not yet implemented")]
     [Trait("Concern", "MethodNameGeneration")]
-    public void with_scenario_and_outcome_generates_method_name()
+    public void scenario_and_outcome_generates_method_name()
     {
         // `rt refactor add-test` should convert:
         //   --scenario "source file as first occurrence"
@@ -20,7 +20,7 @@ public class AddTest
 
     [Fact(Skip = "rt add-test command not yet implemented")]
     [Trait("Concern", "FileGeneration")]
-    public void with_command_name_determines_directory_structure()
+    public void command_name_determines_directory_structure()
     {
         // `rt refactor add-test --command ExtractMethod` should create/modify:
         //   tests/RoslynTools.Tests/Refactor/ExtractMethod.cs
@@ -33,7 +33,7 @@ public class AddTest
 
     [Fact(Skip = "rt add-test command not yet implemented")]
     [Trait("Concern", "FileGeneration")]
-    public void with_existing_class_adds_method_to_file()
+    public void existing_class_adds_method_to_file()
     {
         // If tests/RoslynTools.Tests/Refactor/ExtractMethod.cs exists,
         // add the new test method to the existing class.
@@ -42,7 +42,7 @@ public class AddTest
 
     [Fact(Skip = "rt add-test command not yet implemented")]
     [Trait("Concern", "TraitGeneration")]
-    public void with_concern_flag_adds_trait_attribute()
+    public void concern_flag_adds_trait_attribute()
     {
         // `--concern SourceFileCallSite` should add:
         //   [Trait("Concern", "SourceFileCallSite")]

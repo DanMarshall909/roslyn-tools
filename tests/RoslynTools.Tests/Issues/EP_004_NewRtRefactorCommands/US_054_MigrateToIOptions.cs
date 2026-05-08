@@ -14,7 +14,7 @@ public class MigrateToIOptions
 {
     [Fact]
     [Trait("Concern", "PocoGeneration")]
-    public async Task with_section_run_writes_internal_sealed_poco_under_host_project()
+    public async Task section_run_writes_internal_sealed_poco_under_host_project()
     {
         using var fixture = BuildFixture();
 
@@ -28,7 +28,7 @@ public class MigrateToIOptions
 
     [Fact]
     [Trait("Concern", "TypeInference")]
-    public async Task with_section_keys_types_inferred_from_getvalue_and_appsettings()
+    public async Task section_keys_types_inferred_from_getvalue_and_appsettings()
     {
         using var fixture = BuildFixture();
 
@@ -42,7 +42,7 @@ public class MigrateToIOptions
 
     [Fact]
     [Trait("Concern", "DIRegistration")]
-    public async Task with_section_run_inserts_services_configure_at_detected_di_site()
+    public async Task section_run_inserts_services_configure_at_detected_di_site()
     {
         using var fixture = BuildFixture();
 
@@ -56,7 +56,7 @@ public class MigrateToIOptions
 
     [Fact]
     [Trait("Concern", "DIRegistration")]
-    public async Task with_builder_services_registration_preserves_the_full_services_expression()
+    public async Task builder_services_registration_preserves_the_full_services_expression()
     {
         using var fixture = BuildFixture(builderStyleRegistration: true);
 
@@ -70,7 +70,7 @@ public class MigrateToIOptions
 
     [Fact]
     [Trait("Concern", "ConsumerWorklist")]
-    public async Task with_consuming_files_distributed_stdout_lists_them_sorted_by_path()
+    public async Task consuming_files_distributed_stdout_lists_them_sorted_by_path()
     {
         using var fixture = BuildFixture();
 
@@ -87,7 +87,7 @@ public class MigrateToIOptions
 
     [Fact]
     [Trait("Concern", "Validation")]
-    public async Task with_section_omitted_exits_one_with_stderr_message()
+    public async Task section_omitted_exits_one_with_stderr_message()
     {
         var output = new CollectingConsole();
 
@@ -102,7 +102,7 @@ public class MigrateToIOptions
 
     [Fact]
     [Trait("Concern", "Validation")]
-    public async Task with_name_omitted_exits_one_with_stderr_message()
+    public async Task name_omitted_exits_one_with_stderr_message()
     {
         var output = new CollectingConsole();
 
@@ -117,7 +117,7 @@ public class MigrateToIOptions
 
     [Fact]
     [Trait("Concern", "Validation")]
-    public async Task with_name_not_pascalcase_exits_one_and_writes_no_files()
+    public async Task name_not_pascalcase_exits_one_and_writes_no_files()
     {
         using var fixture = BuildFixture();
         var output = new CollectingConsole();
@@ -135,7 +135,7 @@ public class MigrateToIOptions
 
     [Fact]
     [Trait("Concern", "Validation")]
-    public async Task with_malformed_section_exits_one_and_writes_no_files()
+    public async Task malformed_section_exits_one_and_writes_no_files()
     {
         using var fixture = BuildFixture();
         var output = new CollectingConsole();
@@ -153,7 +153,7 @@ public class MigrateToIOptions
 
     [Fact]
     [Trait("Concern", "Validation")]
-    public async Task with_name_collides_with_existing_type_exits_one_and_writes_no_files()
+    public async Task name_collides_with_existing_type_exits_one_and_writes_no_files()
     {
         using var fixture = BuildFixture();
         await File.WriteAllTextAsync(Path.Combine(fixture.ProjectDir, "MyFeatureOptions.cs"),
@@ -167,7 +167,7 @@ public class MigrateToIOptions
 
     [Fact]
     [Trait("Concern", "SolutionAutoDetect")]
-    public async Task with_solution_omitted_and_single_slnx_in_cwd_auto_detects()
+    public async Task solution_omitted_and_single_slnx_in_cwd_auto_detects()
     {
         using var fixture = BuildFixture();
 
@@ -180,7 +180,7 @@ public class MigrateToIOptions
 
     [Fact]
     [Trait("Concern", "ErrorHandling")]
-    public async Task with_workspace_load_failure_exits_one_with_no_unhandled_exception()
+    public async Task workspace_load_failure_exits_one_with_no_unhandled_exception()
     {
         var output = new CollectingConsole();
 
@@ -196,7 +196,7 @@ public class MigrateToIOptions
 
     [Fact]
     [Trait("Concern", "DIRegistration")]
-    public async Task with_zero_di_registration_sites_exits_one_with_no_writes()
+    public async Task zero_di_registration_sites_exits_one_with_no_writes()
     {
         using var fixture = BuildFixture(false);
 
@@ -209,7 +209,7 @@ public class MigrateToIOptions
 
     [Fact]
     [Trait("Concern", "DIRegistration")]
-    public async Task with_multiple_di_registration_sites_picks_first_and_warns()
+    public async Task multiple_di_registration_sites_picks_first_and_warns()
     {
         using var fixture = BuildFixture(includeSecondRegistration: true);
 
@@ -222,7 +222,7 @@ public class MigrateToIOptions
 
     [Fact]
     [Trait("Concern", "Idempotence")]
-    public async Task with_re_run_after_success_exits_zero_and_makes_no_changes()
+    public async Task re_run_after_success_exits_zero_and_makes_no_changes()
     {
         using var fixture = BuildFixture();
         await RunMigrationAsync(fixture);
@@ -237,7 +237,7 @@ public class MigrateToIOptions
 
     [Fact]
     [Trait("Concern", "DryRun")]
-    public async Task with_dry_run_emits_diff_with_synthesized_poco_and_no_writes()
+    public async Task dry_run_emits_diff_with_synthesized_poco_and_no_writes()
     {
         using var fixture = BuildFixture();
 
@@ -253,7 +253,7 @@ public class MigrateToIOptions
 
     [Fact]
     [Trait("Concern", "OutputFormat")]
-    public async Task with_successful_run_stdout_is_plain_text_and_diagnostics_on_stderr()
+    public async Task successful_run_stdout_is_plain_text_and_diagnostics_on_stderr()
     {
         using var fixture = BuildFixture();
 
@@ -265,7 +265,7 @@ public class MigrateToIOptions
 
     [Fact]
     [Trait("Concern", "PocoFormatting")]
-    public async Task with_generated_poco_passes_dotnet_format_verify_no_changes()
+    public async Task generated_poco_passes_dotnet_format_verify_no_changes()
     {
         using var fixture = BuildFixture();
 
@@ -278,14 +278,14 @@ public class MigrateToIOptions
 
     [Fact]
     [Trait("Concern", "BuildGates")]
-    public void with_post_run_state_build_format_and_test_all_pass()
+    public void post_run_state_build_format_and_test_all_pass()
     {
         Assert.Contains(App.Commands, c => c.Info.Name == "migrate-to-ioptions");
     }
 
     [Fact]
     [Trait("Concern", "DumpHelp")]
-    public void with_dump_help_lists_command_under_refactor_with_correct_metadata()
+    public void dump_help_lists_command_under_refactor_with_correct_metadata()
     {
         var entry = App.Commands.Single(c => c.Info.Name == "migrate-to-ioptions");
         var markdown = DumpHelpCommand.RenderMarkdown([(entry.Build(), entry.Info)]);
@@ -299,7 +299,7 @@ public class MigrateToIOptions
 
     [Fact]
     [Trait("Concern", "Metadata")]
-    public void with_command_metadata_category_is_refactor_and_mutates()
+    public void command_metadata_category_is_refactor_and_mutates()
     {
         Assert.Equal("refactor", MigrateToIOptionsCommand.Info.Category);
         Assert.True(MigrateToIOptionsCommand.Info.Mutates);

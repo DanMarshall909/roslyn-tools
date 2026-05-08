@@ -77,7 +77,7 @@ public class FindRefsToolTests
     private static ServiceProvider CreateProvider()
     {
         var services = new ServiceCollection();
-        Bootstrap.RegisterServices(services);
+        RoslynTools.Bootstrap.RegisterServices(services);
         services.AddMcpServices(new StringReader(string.Empty), new StringWriter());
         return services.BuildServiceProvider();
     }

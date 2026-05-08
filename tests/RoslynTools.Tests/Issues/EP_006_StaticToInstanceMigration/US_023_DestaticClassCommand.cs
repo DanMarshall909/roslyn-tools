@@ -14,7 +14,7 @@ public class DestaticClass
 {
     [Fact]
     [Trait("Concern", "Metadata")]
-    public void with_command_metadata_category_is_refactor_and_mutates()
+    public void command_metadata_category_is_refactor_and_mutates()
     {
         var info = DestaticClassCommand.Info;
 

@@ -21,7 +21,7 @@ public class ExtractMethod
 
     [Fact]
     [Trait("Concern", "SourceFileCallSite")]
-    public async Task with_source_file_first_occurrence_call_site_updated()
+    public async Task source_file_first_occurrence_call_site_updated()
     {
         // Setup: Create two files with identical method patterns
         using var project = new AdhocProjectBuilder();
@@ -73,7 +73,7 @@ public class ExtractMethod
     }
 
     [Fact(Skip = "US-050: pending — source-file call site not yet updated with new parameters")]
-    public async Task with_signature_changes_source_file_receives_new_parameters()
+    public async Task signature_changes_source_file_receives_new_parameters()
     {
         // Setup: Create duplicate patterns where source file has the first occurrence
         using var project = new AdhocProjectBuilder();
@@ -141,7 +141,7 @@ public class ExtractMethod
     }
 
     [Fact]
-    public async Task with_cross_file_call_sites_still_updated_correctly()
+    public async Task cross_file_call_sites_still_updated_correctly()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("ServiceA.cs", """
@@ -191,7 +191,7 @@ public class ExtractMethod
     }
 
     [Fact]
-    public async Task with_all_call_sites_source_and_cross_file_updated()
+    public async Task all_call_sites_source_and_cross_file_updated()
     {
         // BLOCKER: Cross-file duplicates with DIFFERENT string literals ("alpha" vs "beta" vs "gamma")
         // are filtered out by semantic validation. This test uses IDENTICAL string literals

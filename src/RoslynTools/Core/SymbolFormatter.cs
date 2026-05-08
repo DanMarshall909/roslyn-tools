@@ -64,9 +64,36 @@ internal static class SymbolFormatter
                 };
                 if (includeStaticFlag)
                     entry["isStatic"] = m.IsStatic;
+                var attrs = m.GetAttributes()
+                    .Where(a => a.AttributeClass != null)
+                    .Select(FormatAttribute)
+                    .ToList();
+                if (attrs.Count > 0)
+                    entry["attributes"] = attrs;
                 return entry;
             })
             .ToList();
+
+        static string FormatAttribute(AttributeData attr)
+        {
+            var name = attr.AttributeClass!.Name;
+            if (name.EndsWith("Attribute", StringComparison.Ordinal) && name.Length > 9)
+                name = name[..^9];
+            var parts = new List<string>();
+            foreach (var arg in attr.ConstructorArguments)
+                parts.Add(FormatConstant(arg));
+            foreach (var (key, val) in attr.NamedArguments)
+                parts.Add($"{key} = {FormatConstant(val)}");
+            return parts.Count == 0 ? name : $"{name}({string.Join(", ", parts)})";
+        }
+
+        static string FormatConstant(TypedConstant c)
+        {
+            if (c.IsNull) return "null";
+            if (c.Kind == TypedConstantKind.Array)
+                return $"new[] {{ {string.Join(", ", c.Values.Select(FormatConstant))} }}";
+            return c.Value is string s ? $"\"{s}\"" : c.Value?.ToString() ?? "null";
+        }
     }
 
     /// <summary>

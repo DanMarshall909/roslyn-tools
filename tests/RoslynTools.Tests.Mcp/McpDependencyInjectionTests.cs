@@ -13,7 +13,7 @@ public sealed class McpDependencyInjectionTests
     public void Mcp_registers_cli_services_and_mcp_runtime_services()
     {
         var services = new ServiceCollection();
-        Bootstrap.RegisterServices(services);
+        RoslynTools.Bootstrap.RegisterServices(services);
         services.AddMcpServices(new StringReader(string.Empty), new StringWriter());
 
         using var provider = services.BuildServiceProvider();
@@ -122,7 +122,7 @@ public sealed class McpDependencyInjectionTests
     private static ServiceProvider CreateProvider()
     {
         var services = new ServiceCollection();
-        Bootstrap.RegisterServices(services);
+        RoslynTools.Bootstrap.RegisterServices(services);
         services.AddMcpServices(new StringReader(string.Empty), new StringWriter());
         return services.BuildServiceProvider();
     }
