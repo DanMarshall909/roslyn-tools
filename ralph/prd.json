@@ -108,6 +108,31 @@
             "notes": "New ComplexityCommand.cs in src/RoslynTools/Commands/. IRtCommand contract: Category=analyze, JsonOutput=true, Mutates=false. Metrics: cyclomatic (decision branches), cognitive (nesting-weighted), LOC (non-blank non-comment lines in body), params (excl. this for extensions). Flags: --threshold 0 (show all, >= filter), --sort cyclomatic|cognitive|loc|params, --top N. JSON output: methods[] + typeRollups[] + namespaceRollups[]. Rollups always cover all methods regardless of threshold/top. Solution auto-detection via existing pattern.",
             "resolution": "ComplexityAnalyzer service in RoslynTools.Core; ComplexityCommand (alias: cx) in RoslynTools.Cli/Commands. Metrics: cyclomatic, cognitive, LOC, params per method with type/namespace rollups. Flags: --threshold, --sort, --top. 37 tests all green.",
             "resolvedAt": "2026-05-06"
+        },
+        {
+            "id": "US-002",
+            "title": "Add --to-project flag to rt refactor move (cross-project file move, keep namespace)",
+            "description": "As a developer using rt to enforce Clean Architecture, I want to run \rt refactor move --type X --to-project TourStore.Domain so that a .cs file physically moves to the target project's folder while keeping its existing namespace declaration unchanged.",
+            "acceptanceCriteria": [
+                "Running `rt refactor move --type TourStore.Domain.Models.Product --to-project TourStore.Domain --solution tour-store.sln` on a solution where Product.cs lives in TourStore.Api/Domain/Models/Catalog/ moves the file to TourStore.Domain/Catalog/Product.cs (preserving subfolder hierarchy) and leaves the `namespace TourStore.Domain.Models;` declaration unchanged.",
+                "When --to-project is provided WITHOUT --to-namespace, the handler does not rewrite the namespace token in the moved file and does not modify any using directives in any consumer .cs files across the solution.",
+                "When --to-project is provided WITHOUT --to-namespace and the source file lives in a subfolder, the destination path mirrors the relative subfolder under the target project root; behaviour is covered by an explicit test asserting the resulting absolute path.",
+                "When BOTH --to-project and --to-namespace are provided, the file is written to the target project's folder AND the namespace declaration is rewritten to the supplied --to-namespace value AND consumer using directives are updated solution-wide.",
+                "When --to-project references a project name that does not exist in the supplied --solution, the command exits non-zero with an error message containing the missing project name; no files are moved.",
+                "When --type refers to a type whose source file is NOT inside the source project's folder on disk, the command exits non-zero with a descriptive error and makes no filesystem changes.",
+                "When --to-project is the SAME project the type already lives in, the command exits zero (no-op) and reports `nothing to move` without touching any files.",
+                "Running with --dry-run alongside --to-project prints the planned source path, planned destination path, and any planned <Compile Include> removals but writes nothing to disk.",
+                "If the source project's .csproj contains an explicit `<Compile Include>` item for the file, the handler removes that item from the .csproj after a successful move.",
+                "If the source project's .csproj has NO explicit `<Compile Include>` for the file (modern SDK glob), the .csproj is left byte-identical post-move.",
+                "The --move-file flag is silently ignored when --to-project is set: passing `--move-file false --to-project TourStore.Domain` still moves the file.",
+                "RtCommandInfo for `refactor move` lists --to-project as an option with help text mentioning that --to-namespace becomes optional when --to-project is provided; verified by snapshot test against `rt refactor move --help` output.",
+                "MoveCommandHandler unit test covers: target project resolution via MSBuildWorkspace, file path computation, and .csproj <Compile Include> removal — each in a separate test method.",
+                "`dotnet build RoslynTools.slnx --nologo -v quiet` exits 0 with zero new warnings introduced by the change.",
+                "`dotnet test RoslynTools.Tests.csproj --nologo -v quiet` exits 0 with all new MoveCommandTests passing."
+            ],
+            "priority": 2,
+            "passes": false,
+            "notes": "Required by tour-store EP-007 (US-022, US-023). Target: MoveCommand.cs + MoveCommandHandler.cs + MoveCommandTests.cs in C:\\code\\roslyn-tools. --to-namespace becomes optional when --to-project is provided. Modern SDK projects auto-include by glob so no .csproj edits needed in typical case. Explicit <Compile Include> items must be removed when present."
         }
     ]
 }
