@@ -1,21 +1,10 @@
 roslyn-tools
-Branch: backlog
+Branch: feat/analyze-complexity
 
-Current Status: 1/11 stories complete (9%)
+Current Status: 4/4 stories complete (100%)
 
-EP-005 — codebase consistency sweep (1/5)
-[x] US-025 fix formatting violations: CRLF and encoding errors in 4 files
-[ ] US-027 remove duplicate FindDocumentId — use SymbolDocumentLocator.FindDocumentId from both callers
-[ ] US-028 extract shared IsGeneratedOrIntermediate helper from ImportDirectiveService and MagicStringService
-[ ] US-029 extract shared BuildInterfaceText from ExtractInterfaceService and InterfaceAnalyzerService
-[ ] US-030 extract shared BuildPreview helper from PatternMatcher and FindDuplicatesService
-
-EP-006 — SOLID Adherence Analysis (0/5)
-[ ] US-032 rt analyze solid: SRP detector — flag classes with high method/dependency count
-[ ] US-033 rt analyze solid: ISP detector — flag fat interfaces and NotImplementedException members
-[ ] US-034 rt analyze solid: DIP detector — flag concrete constructor params and inline new calls
-[ ] US-035 rt analyze solid: OCP detector — flag switch/if chains branching on concrete types
-[ ] US-036 rt analyze solid: LSP detector — flag overrides throwing or narrowing contracts
-
-Loose stories
-[ ] US-031 rt: replace-new argument-reshaping — drop matched arg, keep remaining args
+Stories
+[x] US-001 Add rt analyze complexity command
+[x] US-002 Add --to-project flag to rt refactor move (cross-project file move, keep namespace)
+[x] US-004 rt refactor add-dependency: mangles fallback constructors and parameter list formatting
+[x] US-026 standardise --solution option construction via CommandOptionFactory across all commands

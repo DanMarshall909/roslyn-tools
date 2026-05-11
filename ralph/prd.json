@@ -178,8 +178,10 @@
                 "rt dump-help output for each command's --solution flag description is byte-identical to its pre-refactor text (no incidental help-text normalisation)"
             ],
             "priority": 26,
-            "passes": false,
-            "notes": "P2. Actual scope: 33 commands bypass the factory (story notes listed 10 — outdated). 6 help-text variants exist; all must be preserved verbatim (Option A chosen). Bypassing commands include: AddDependencyCommand, AddTestCommand, AnalyzeInterfaceCommand, CircularDepsCommand, ComplexityCommand, ConvertConsoleLoggingCommand, DependencyGraphCommand, DescribeCommand, ExtractClassCommand, ExtractInterfaceCommand, ExtractMethodCommand, FindDuplicatesCommand, FindImplementationsCommand, FindMagicStringsCommand, FindPatternCommand, FindRefsCommand, FindUnusedCommand, ImplementInterfaceCommand, ListImportsCommand, ListSmellsCommand, MakeAsyncCommand, MoveCommand, MoveMethodCommand, OutlineCommand, RenameCommand, ReplaceCallCommand, ReplaceNewCommand, ReplaceTypeCommand, ReplaceXunitAssertsCommand, SafeDeleteCommand, SourceCommand, StaticClassInventoryCommand, TransformParametersCommand."
+            "passes": true,
+            "notes": "P2. Actual scope: 33 commands bypass the factory (story notes listed 10 — outdated). 6 help-text variants exist; all must be preserved verbatim (Option A chosen). Bypassing commands include: AddDependencyCommand, AddTestCommand, AnalyzeInterfaceCommand, CircularDepsCommand, ComplexityCommand, ConvertConsoleLoggingCommand, DependencyGraphCommand, DescribeCommand, ExtractClassCommand, ExtractInterfaceCommand, ExtractMethodCommand, FindDuplicatesCommand, FindImplementationsCommand, FindMagicStringsCommand, FindPatternCommand, FindRefsCommand, FindUnusedCommand, ImplementInterfaceCommand, ListImportsCommand, ListSmellsCommand, MakeAsyncCommand, MoveCommand, MoveMethodCommand, OutlineCommand, RenameCommand, ReplaceCallCommand, ReplaceNewCommand, ReplaceTypeCommand, ReplaceXunitAssertsCommand, SafeDeleteCommand, SourceCommand, StaticClassInventoryCommand, TransformParametersCommand.",
+            "resolution": "Added CreateSolutionOption(string helpText) overload to CommandOptionFactory; swept all 33 commands that bypassed the factory to use it, preserving each command's original help text verbatim. 3 new tests. Build, format, and test gates all green.",
+            "resolvedAt": "2026-05-11"
         }
     ]
 }
