@@ -33,6 +33,51 @@ public class Move
 
     [Fact]
     [Trait("Concern", "CrossProjectMove")]
+    public async Task namespace_is_preserved_when_to_namespace_is_omitted()
+    {
+        const string src = """
+                           namespace Source.Models;
+                           public class Order { }
+                           """;
+        const string consumerSrc = """
+                                   using Source.Models;
+                                   namespace App;
+                                   public class Handler
+                                   {
+                                       public void Handle(Order o) { }
+                                   }
+                                   """;
+
+        using var builder = new AdhocProjectBuilder("SourceProject")
+            .AddSource("Models/Order.cs", src)
+            .AddSource("Handler.cs", consumerSrc);
+        builder.AddProject("TargetProject");
+
+        var (workspace, solution) = builder.Build();
+
+        await new MoveService().ExecuteCrossProjectMoveAsync(
+            workspace, solution,
+            "Source.Models.Order",
+            "TargetProject",
+            null,   // no --to-namespace
+            false);
+
+        var targetDir = Path.GetDirectoryName(
+            solution.Projects.First(p => p.Name == "TargetProject").FilePath)!;
+
+        var movedContent = await File.ReadAllTextAsync(Path.Combine(targetDir, "Models", "Order.cs"));
+
+        // Namespace declaration must be byte-identical
+        Assert.Contains("namespace Source.Models;", movedContent);
+
+        // Consumer file must be untouched
+        var consumerContent = await builder.ReadSourceAsync("Handler.cs");
+        Assert.Contains("using Source.Models;", consumerContent);
+        Assert.DoesNotContain("using TargetProject", consumerContent);
+    }
+
+    [Fact]
+    [Trait("Concern", "CrossProjectMove")]
     public async Task file_moves_to_target_project_dir_with_subfolder_mirrored()
     {
         const string src = """
