@@ -1,4 +1,7 @@
 using System.CommandLine;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Text;
 using RoslynTools.Commands;
 using RoslynTools.Services;
 
@@ -51,5 +54,70 @@ public class Move
                 false));
 
         Assert.Contains("NonExistentProject", ex.Message);
+    }
+
+    [Fact]
+    [Trait("Concern", "Validation")]
+    public async Task source_file_outside_source_project_directory_throws_with_descriptive_message()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var sourceDir = Path.Combine(tempDir, "SourceProject");
+        var targetDir = Path.Combine(tempDir, "TargetProject");
+        var outsideDir = Path.Combine(tempDir, "outside");
+
+        Directory.CreateDirectory(sourceDir);
+        Directory.CreateDirectory(targetDir);
+        Directory.CreateDirectory(outsideDir);
+
+        // Source file intentionally placed OUTSIDE the source project directory
+        var outsideFile = Path.Combine(outsideDir, "Orphan.cs");
+        const string src = "namespace Foo;\npublic class Orphan { }";
+        await File.WriteAllTextAsync(outsideFile, src);
+
+        try
+        {
+            var bclRef = MetadataReference.CreateFromFile(typeof(object).Assembly.Location);
+            var sourceId = ProjectId.CreateNewId();
+            var targetId = ProjectId.CreateNewId();
+
+            var doc = DocumentInfo.Create(
+                DocumentId.CreateNewId(sourceId),
+                "Orphan.cs",
+                filePath: outsideFile,
+                loader: TextLoader.From(TextAndVersion.Create(
+                    SourceText.From(src), VersionStamp.Create(), outsideFile)));
+
+            var sourceInfo = ProjectInfo.Create(
+                sourceId, VersionStamp.Create(), "SourceProject", "SourceProject",
+                LanguageNames.CSharp,
+                filePath: Path.Combine(sourceDir, "SourceProject.csproj"),
+                documents: [doc],
+                metadataReferences: [bclRef]);
+
+            var targetInfo = ProjectInfo.Create(
+                targetId, VersionStamp.Create(), "TargetProject", "TargetProject",
+                LanguageNames.CSharp,
+                filePath: Path.Combine(targetDir, "TargetProject.csproj"),
+                metadataReferences: [bclRef]);
+
+            var workspace = new AdhocWorkspace();
+            workspace.AddProject(sourceInfo);
+            workspace.AddProject(targetInfo);
+
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                new MoveService().ExecuteCrossProjectMoveAsync(
+                    workspace, workspace.CurrentSolution,
+                    "Foo.Orphan",
+                    "TargetProject",
+                    null,
+                    false));
+
+            Assert.Contains("Orphan", ex.Message);
+            Assert.Contains(outsideFile, ex.Message);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
     }
 }
