@@ -65,6 +65,17 @@ internal class MoveService : IRtService
             dryRun);
     }
 
+    internal Task ExecuteCrossProjectMoveAsync(
+        Workspace workspace,
+        Solution solution,
+        string fqn,
+        string targetProjectName,
+        string? targetNamespace,
+        bool dryRun)
+    {
+        throw new NotImplementedException("Cross-project move is not yet implemented.");
+    }
+
     internal async Task ExecuteSingleTypeMoveAsync(
         Workspace workspace,
         Solution sln,
