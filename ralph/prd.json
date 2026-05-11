@@ -135,6 +135,31 @@
             "notes": "Required by tour-store EP-007 (US-022, US-023). Target: MoveCommand.cs + MoveCommandHandler.cs + MoveCommandTests.cs in C:\\code\\roslyn-tools. --to-namespace becomes optional when --to-project is provided. Modern SDK projects auto-include by glob so no .csproj edits needed in typical case. Explicit <Compile Include> items must be removed when present.",
             "resolution": "Added --to-project flag to rt refactor move. Cross-project file moves with subfolder mirroring, optional namespace rewrite, explicit <Compile Include> cleanup, dry-run output, same-project no-op guard, and source-outside-project-dir validation. 15 new tests covering all ACs.",
             "resolvedAt": "2026-05-11"
+        },
+        {
+            "id": "US-004",
+            "epicId": "EP-001",
+            "priority": 1,
+            "passes": true,
+            "title": "rt refactor add-dependency: mangles fallback constructors and parameter list formatting",
+            "description": "Injecting into an existing service rewrites the fallback constructor instead of delegating it. Also emits poorly formatted constructor parameter lists.",
+            "acceptanceCriteria": [
+                "Given a target class with a fallback constructor that delegates via `: this(...)` AND a full constructor that already has the dependency parameter and assignment, when `add-dependency` runs, the rewriter exits with status `AlreadyInjected` and reports no changes (Changed == false).",
+                "Given a class with a delegating fallback constructor (`: this(...)`) and a full constructor missing the dependency, when `add-dependency` runs, only the full (non-delegating) constructor receives the new parameter and field assignment; the fallback constructor is left textually unchanged.",
+                "Given a class with multiple chained delegating constructors (`: this(...)`) plus one terminal full constructor, the rewriter modifies only the terminal full constructor and leaves all delegating constructors untouched.",
+                "Existing behaviour preserved: a class with a single constructor that does NOT have `: this(...)` initializer still gets the parameter and assignment added (regression guard for non-delegating ctors).",
+                "Existing behaviour preserved: a class with no constructors at all still gets a fresh constructor synthesized (regression guard for the `needsNewConstructor` branch).",
+                "Given a constructor whose existing parameters are each on their own line (one-per-line formatting), when a new parameter is appended, the new parameter is emitted on its own line with leading trivia (newline + indent) matching the prior parameter.",
+                "Given a constructor whose existing parameters are all on a single line, when a new parameter is appended, the new parameter is separated from the previous one by a single space after the comma.",
+                "Given a constructor with zero existing parameters, when a new parameter is appended, it appears as `(NewType newParam)` with no stray leading space, newline, or comma.",
+                "Dogfood: `rt refactor add-dependency --type AddDependencyService --dependency ISolutionChangeWriter --solution RoslynTools.slnx --dry-run` reports the dependency is already injected with no diff emitted and exit code 0.",
+                "Build gate: `dotnet build RoslynTools.slnx` succeeds with no new warnings.",
+                "Format gate: `dotnet format RoslynTools.slnx --verify-no-changes` exits 0.",
+                "Test gate: `dotnet test tests/RoslynTools.Tests/RoslynTools.Tests.csproj --filter \"FullyQualifiedName~AddDependency\"` exits 0 with all new and existing add-dependency tests passing."
+            ],
+            "notes": "Repro: add-dependency --type AddDependencyService --dependency ISolutionChangeWriter --solution RoslynTools.slnx --dry-run",
+            "resolution": "DependencyInjector now skips constructors with this(...) initialisers, fixing AlreadyInjected detection for the delegating-ctor pattern and preventing fallback ctors from being modified. AddParameterAndAssignment derives leading trivia from the existing parameter list: newline+indent for multi-line, space for single-line. 8 new tests.",
+            "resolvedAt": "2026-05-11"
         }
     ]
 }
