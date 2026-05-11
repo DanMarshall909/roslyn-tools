@@ -81,6 +81,20 @@ internal class MoveService : IRtService
                 $"Project '{targetProjectName}' not found in the solution. " +
                 $"Available projects: {string.Join(", ", solution.Projects.Select(p => p.Name))}");
 
+        var sym = await _symbols.FindTypeByFqnAsync(solution, fqn);
+        var (declarationFiles, sourceProjectDir, _) = CollectDeclarationPaths(solution, sym);
+
+        if (sourceProjectDir != null)
+        {
+            foreach (var filePath in declarationFiles)
+            {
+                if (!filePath.StartsWith(sourceProjectDir, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException(
+                        $"Source file for '{sym.Name}' is at '{filePath}', which is outside the source " +
+                        $"project directory '{sourceProjectDir}'. Cannot determine destination path.");
+            }
+        }
+
         throw new NotImplementedException("Cross-project move body not yet implemented.");
     }
 
