@@ -157,10 +157,15 @@ internal class MoveMethodService : IRtService
             ? targetTypeFqn[(targetTypeFqn.LastIndexOf('.') + 1)..]
             : targetTypeFqn;
 
-        // Normalise the method declaration: strip leading trivia for insertion,
-        // keep the method clean with a normalised newline.
+        // Normalise leading trivia: keep a blank line prefix plus any XML doc comments;
+        // strip whitespace-only trivia that would mis-indent at the new insertion point.
+        var docTrivia = methodDecl.GetLeadingTrivia()
+            .Where(t => t.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia)
+                     || t.IsKind(SyntaxKind.MultiLineDocumentationCommentTrivia));
+        var newLeadingTrivia = SyntaxFactory.TriviaList(SyntaxFactory.ElasticCarriageReturnLineFeed)
+            .AddRange(docTrivia);
         var movedMethodDecl = methodDecl
-            .WithLeadingTrivia(SyntaxFactory.ElasticCarriageReturnLineFeed)
+            .WithLeadingTrivia(newLeadingTrivia)
             .WithTrailingTrivia(SyntaxFactory.ElasticCarriageReturnLineFeed);
 
         // Collect all document IDs that need touching.

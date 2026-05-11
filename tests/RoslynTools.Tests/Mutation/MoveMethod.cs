@@ -332,6 +332,38 @@ public class MoveMethod
         Assert.Equal(originalCaller, await project.ReadSourceAsync("Caller.cs"));
     }
 
+    // ─── xml doc comments are preserved ──────────────────────────────────────
+
+    [Fact]
+    public async Task xml_doc_comment_is_preserved_on_moved_method()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Source.cs", """
+                                       namespace App;
+                                       public static class Source
+                                       {
+                                           /// <summary>Adds two integers.</summary>
+                                           public static int Add(int a, int b) => a + b;
+                                       }
+                                       """);
+        project.AddSource("Target.cs", """
+                                       namespace App;
+                                       public static class Target { }
+                                       """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var result = await new MoveMethodService().RunAsync(
+                sln, "App.Source.Add", "App.Target", false, false);
+
+            Assert.True(result);
+        }
+
+        var tgt = await project.ReadSourceAsync("Target.cs");
+        Assert.Contains("/// <summary>Adds two integers.</summary>", tgt);
+    }
+
     // ─── utility ─────────────────────────────────────────────────────────────
 
     private static int CountOccurrences(string text, string pattern)
