@@ -1,0 +1,7 @@
+{
+    "project": "roslyn-tools",
+    "branchName": "backlog",
+    "description": "Triaged backlog — work pending promotion to prd.json for execution. Add stories via /task; execute via /execute.",
+    "epics": [],
+    "userStories": []
+}

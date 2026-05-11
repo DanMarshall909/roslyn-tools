@@ -118,7 +118,7 @@ When you:
 - **Rename a command** — update `Info.Name` to match the `new Command("new-name", ...)` first arg.
 - **Add / remove / rename a flag** — update `Info.Examples` so it reflects real invocations.
 - **Change mutation or output semantics** — update `Info.Mutates` (writes files? true) and `Info.JsonOutput` (stdout is JSON? true) accordingly.
-- **Discover a bug / gap** — log to `tasks/dogfood-gaps.md` and either raise a new row in `tasks/ai-improvements.md` or add a line to the affected command's `Info.KnownIssues`.
+- **Discover a bug / gap** — log a backlog story via `/task` (writes to `ralph/backlog-prd.json`; priority reflects severity) and optionally add a line to the affected command's `Info.KnownIssues`.
 
 After any change:
 

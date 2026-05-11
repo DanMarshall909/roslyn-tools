@@ -1,5 +1,7 @@
 # Dogfood Gaps
 
+> **ARCHIVED 2026-05-08.** New rt gaps go to `ralph/backlog-prd.json` via `/task`. This file is a historical record — do not add new entries here.
+
 | Date | Area | Outstanding issue | Repro / evidence | Suggested fix |
 | --- | --- | --- | --- | --- |
 | 2026-05-08 | `rt inspect outline` | ~~File not in solution causes a typoed or wrong path to silently return `[]` instead of a clean error.~~ **Tracked — deferred pending `RtResult<T>` migration.** | Commit 1 of urgent-zany-pancake replaced the throw with `return []` to fix the unhandled-exception repro. The tradeoff is that a typoed path now silently returns empty. | Once `RtResult<T>` lands, restore exit-1 + clean stderr for "file not in solution" by returning `RtResult.Fail(...)` from `OutlineFileAsync`. |

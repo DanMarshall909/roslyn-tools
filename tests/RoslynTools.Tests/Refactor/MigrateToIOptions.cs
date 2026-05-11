@@ -3,13 +3,8 @@ using Microsoft.CodeAnalysis;
 using RoslynTools.Commands;
 using RoslynTools.Core;
 
-namespace RoslynTools.Tests.Issues.EP_004_NewRtRefactorCommands;
+namespace RoslynTools.Tests.Refactor;
 
-/// <summary>
-///     US-054: Add `rt refactor migrate-to-ioptions --section &lt;name&gt; --name &lt;T&gt;` command.
-/// </summary>
-[Trait("Epic", "EP-004")]
-[Trait("Story", "US-054")]
 public class MigrateToIOptions
 {
     [Fact]
