@@ -55,12 +55,12 @@ internal sealed class DestaticClassCommand : IRtCommand
         cmd.SetHandler(async (type, interfaceName, noInterface, noDiRegistration, lifetime, solution, dryRun) =>
         {
             if (!noInterface)
-                throw new InvalidOperationException(
-                    "convert-static-class interface generation is not implemented yet. Re-run with --no-interface.");
+                RtConsole.Log(RtLogLevel.Warning,
+                    "interface generation is not yet implemented — skipping (track: US-037).");
 
             if (!noDiRegistration)
-                throw new InvalidOperationException(
-                    "convert-static-class DI registration is not implemented yet. Re-run with --no-di-registration.");
+                RtConsole.Log(RtLogLevel.Warning,
+                    "DI registration is not yet implemented — skipping (track: US-038).");
 
             if (!string.Equals(lifetime, "singleton", StringComparison.Ordinal)
                 && !string.Equals(lifetime, "scoped", StringComparison.Ordinal)

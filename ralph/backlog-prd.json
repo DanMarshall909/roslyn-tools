@@ -34,21 +34,6 @@
             "resolvedAt": "2026-05-11"
         },
         {
-            "id": "US-027",
-            "epicId": "EP-005",
-            "title": "remove duplicate FindDocumentId — use SymbolDocumentLocator.FindDocumentId from both callers",
-            "description": "As a developer, I want a single FindDocumentId implementation so both callers use the same logic.",
-            "acceptanceCriteria": [
-                "ConvertToRecordService.FindDocumentId private method is removed",
-                "ConvertToRecordService calls SymbolDocumentLocator.FindDocumentId from RoslynSyntax.cs",
-                "Behaviour is identical: returns null when symbol has no in-source location",
-                "All existing tests pass"
-            ],
-            "priority": 27,
-            "passes": false,
-            "notes": "P2. Duplication: src/RoslynTools/Core/RoslynSyntax.cs:41 vs src/RoslynTools/Services/ConvertToRecordService.cs:84. find-duplicates GRP-4-18336c84."
-        },
-        {
             "id": "US-028",
             "epicId": "EP-005",
             "title": "extract shared IsGeneratedOrIntermediate helper from ImportDirectiveService and MagicStringService",
@@ -194,6 +179,53 @@
             "passes": false,
             "epicId": "EP-006",
             "notes": "P2. Two sub-checks: (1) override methods whose body throws NotImplementedException/NotSupportedException; (2) explicit interface implementations that throw on every code path. Output grouped under 'LSP' detector key."
+        },
+        {
+            "id": "US-037",
+            "title": "rt: convert-static-class — interface generation",
+            "description": "When --no-interface is not passed, generate an I<TypeName> interface file alongside the destated class, extracting all public/internal instance methods and properties. Interface only matters when consumers need to mock the dependency in tests. Discovered during US-027 df pass; command currently warns and skips.",
+            "acceptanceCriteria": [
+                "rt analyze solid --principle LSP --solution <sln> exits 0 and emits JSON to stdout",
+                "Output has a top-level 'LSP' key with sub-arrays for 'ThrowingOverrides' and 'ContractNarrowings'",
+                "Each ThrowingOverride item includes: TypeName, MemberName, ExceptionType, FilePath, Line",
+                "Each ContractNarrowing item includes: TypeName, MemberName, BaseType, FilePath, Line",
+                "Flags override methods whose body contains throw new NotImplementedException() or NotSupportedException()",
+                "Flags explicit interface implementations that throw on every code path",
+                "rt analyze solid --principle all includes LSP results"
+            ],
+            "priority": 37,
+            "passes": false,
+            "notes": "P2. Enables mock-friendly DI patterns in roslyn-tools tests. Relates to US-027 df."
+        },
+        {
+            "id": "US-038",
+            "title": "rt: convert-static-class — DI registration in Bootstrap.cs",
+            "description": "When --no-di-registration is not passed, find a Bootstrap.RegisterServices method in the solution and add a services.Add<Lifetime><ITypeName, TypeName>() line. Discovered during US-027 df pass; command currently warns and skips.",
+            "acceptanceCriteria": [
+                "When --no-di-registration is not passed and a Bootstrap.RegisterServices method exists in the solution, a services.AddSingleton<ITypeName, TypeName>() line is added",
+                "If --lifetime is scoped or transient, the correct Add method is used",
+                "If no Bootstrap-style registration method is found, a warning is emitted and the step is skipped",
+                "Running with --dry-run shows the Bootstrap.cs diff without writing it",
+                "If --no-interface was also passed (no interface generated), registers the concrete type: services.AddSingleton<TypeName>()"
+            ],
+            "priority": 38,
+            "passes": false,
+            "notes": "P2. Pairs with US-037 (interface gen). Relates to US-027 df."
+        },
+        {
+            "id": "US-039",
+            "title": "rt: convert-static-class — fix field and ctor formatting in existing-constructor path",
+            "description": "When a consumer class already has constructors, AddConstructorInjection inserts the new field without a trailing newline, causing it to merge with the existing first member on the same line. Similarly, AddConstructorParameter inserts parameters without comma spacing and prepends assignments without newlines before the closing brace. dotnet format corrects these cosmetically but they should be emitted correctly. Discovered during US-027 df dry-run.",
+            "acceptanceCriteria": [
+                "When a consumer class already has a constructor, the injected field is inserted on its own line (with correct indentation), not concatenated with the existing first member on the same line",
+                "When AddConstructorParameter adds a parameter to an existing constructor, a space follows the preceding comma in the parameter list",
+                "When AddConstructorParameter prepends an assignment to the constructor body, the assignment is on its own line before the closing brace",
+                "All three fixes apply when multiple constructors are present in the consumer class",
+                "Existing tests for add_dependencies_to_existing_instance_constructors remain green"
+            ],
+            "priority": 39,
+            "passes": false,
+            "notes": "P2. df dogfood bug. Sibling of the no-constructor formatting bug fixed in the df/convert-static-class-interface-and-di branch commit 1fcf269."
         }
     ]
 }

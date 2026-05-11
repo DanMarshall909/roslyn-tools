@@ -272,7 +272,8 @@ internal sealed class DestaticClassService : IRtService
                     $"public {classDeclaration.Identifier.ValueText}({typeSymbol.Name} {ToParameterName(typeSymbol.Name)})\r\n"
                     + "{\r\n"
                     + $"    {_fieldName} = {ToParameterName(typeSymbol.Name)};\r\n"
-                    + "}")!;
+                    + "}")!
+                    .WithLeadingTrivia(SyntaxFactory.CarriageReturnLineFeed);
 
                 return classDeclaration.WithMembers(classDeclaration.Members.InsertRange(0, [field, constructor]));
             }

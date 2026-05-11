@@ -189,6 +189,46 @@ public sealed class DestaticClass
     }
 
     [Fact]
+    public async Task injected_field_and_synthesised_constructor_appear_on_separate_lines()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Helper.cs", """
+                                       namespace TestApp;
+
+                                       public static class Helper
+                                       {
+                                           public static string Format(string value) => value.Trim();
+                                       }
+                                       """);
+        project.AddSource("Consumer.cs", """
+                                         namespace TestApp;
+
+                                         public class Consumer
+                                         {
+                                             public string Run(string value) => Helper.Format(value);
+                                         }
+                                         """);
+
+        var (_, solution) = project.Build();
+        var writer = new CapturingSolutionChangeWriter();
+
+        await new DestaticClassService(
+            NullLogger<DestaticClassService>.Instance,
+            new SymbolResolutionService(),
+            new DocumentLocatorService(),
+            writer).RunAsync(solution, "TestApp.Helper", false);
+
+        var consumerText = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "Consumer.cs");
+        var lines = consumerText.Split('\n');
+        var fieldLineIndex = Array.FindIndex(lines, l => l.Contains("private readonly Helper _helper;"));
+        var ctorLineIndex = Array.FindIndex(lines, l => l.Contains("public Consumer(Helper helper)"));
+
+        Assert.True(fieldLineIndex >= 0, "Field declaration not found");
+        Assert.True(ctorLineIndex >= 0, "Constructor not found");
+        Assert.NotEqual(fieldLineIndex, ctorLineIndex);
+    }
+
+    [Fact]
     public async Task use_new_receivers_for_field_initializers()
     {
         using var project = new AdhocProjectBuilder();
