@@ -33,6 +33,52 @@ public class Move
 
     [Fact]
     [Trait("Concern", "CrossProjectMove")]
+    public async Task file_moves_and_namespace_rewritten_and_consumers_updated_when_both_options_provided()
+    {
+        const string src = """
+                           namespace Source.Models;
+                           public class Invoice { }
+                           """;
+        const string consumerSrc = """
+                                   using Source.Models;
+                                   namespace App;
+                                   public class Processor
+                                   {
+                                       public void Process(Invoice i) { }
+                                   }
+                                   """;
+
+        using var builder = new AdhocProjectBuilder("SourceProject")
+            .AddSource("Models/Invoice.cs", src)
+            .AddSource("Consumer.cs", consumerSrc);
+        builder.AddProject("TargetProject");
+
+        var (workspace, solution) = builder.Build();
+
+        await new MoveService().ExecuteCrossProjectMoveAsync(
+            workspace, solution,
+            "Source.Models.Invoice",
+            "TargetProject",
+            "Target.Domain",  // --to-namespace provided
+            false);
+
+        var targetDir = Path.GetDirectoryName(
+            solution.Projects.First(p => p.Name == "TargetProject").FilePath)!;
+
+        // File moved to mirrored path
+        var movedContent = await File.ReadAllTextAsync(Path.Combine(targetDir, "Models", "Invoice.cs"));
+
+        // Namespace rewritten in moved file
+        Assert.Contains("namespace Target.Domain;", movedContent);
+        Assert.DoesNotContain("namespace Source.Models;", movedContent);
+
+        // Consumer using directive updated
+        var consumerContent = await builder.ReadSourceAsync("Consumer.cs");
+        Assert.Contains("using Target.Domain;", consumerContent);
+    }
+
+    [Fact]
+    [Trait("Concern", "CrossProjectMove")]
     public async Task namespace_is_preserved_when_to_namespace_is_omitted()
     {
         const string src = """
