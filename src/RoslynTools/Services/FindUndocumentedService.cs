@@ -107,16 +107,18 @@ internal sealed class FindUndocumentedService : IRtService
         {
             switch (level.Trim().ToLowerInvariant())
             {
-                case "all":       return null;
-                case "public":    kinds.Add(SyntaxKind.PublicKeyword);    break;
-                case "internal":  kinds.Add(SyntaxKind.InternalKeyword);  break;
-                case "private":   kinds.Add(SyntaxKind.PrivateKeyword);   break;
+                case "all": return null;
+                case "public": kinds.Add(SyntaxKind.PublicKeyword); break;
+                case "internal": kinds.Add(SyntaxKind.InternalKeyword); break;
+                case "private": kinds.Add(SyntaxKind.PrivateKeyword); break;
                 case "protected": kinds.Add(SyntaxKind.ProtectedKeyword); break;
                 default:
-                    RtLog.Error($"Unknown accessibility level: '{level}'. Use: public, internal, protected, private, all");
+                    RtLog.Error(
+                        $"Unknown accessibility level: '{level}'. Use: public, internal, protected, private, all");
                     return null;
             }
         }
+
         return kinds.Count == 0 ? new HashSet<SyntaxKind> { SyntaxKind.PublicKeyword } : kinds;
     }
 
