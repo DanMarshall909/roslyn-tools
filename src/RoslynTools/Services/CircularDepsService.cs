@@ -13,67 +13,67 @@ internal class CircularDepsService : IRtService
         var graph = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
 
         foreach (var project in sln.Projects)
-        foreach (var document in project.Documents)
-        {
-            var root = await document.GetSyntaxRootAsync();
-            if (root is null)
-                continue;
-
-            var declaredNamespaces = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var nsNode in root.DescendantNodesAndSelf())
+            foreach (var document in project.Documents)
             {
-                var nsName = nsNode switch
-                {
-                    NamespaceDeclarationSyntax ns => ns.Name.ToString(),
-                    FileScopedNamespaceDeclarationSyntax fsns => fsns.Name.ToString(),
-                    _ => null
-                };
-                if (nsName is not null)
-                    declaredNamespaces.Add(nsName);
-            }
-
-            var compilationUnit = (CompilationUnitSyntax)root;
-            var topLevelUsings = compilationUnit.Usings
-                .Select(u => u.Name?.ToString())
-                .Where(n => n is not null)
-                .Cast<string>()
-                .ToList();
-
-            foreach (var declaredNs in declaredNamespaces)
-            {
-                if (!graph.ContainsKey(declaredNs))
-                    graph[declaredNs] = new HashSet<string>(StringComparer.Ordinal);
-
-                foreach (var used in topLevelUsings)
-                    AddEdge(graph, declaredNs, used);
-            }
-
-            foreach (var nsNode in root.DescendantNodes())
-            {
-                var declaredNs = nsNode switch
-                {
-                    NamespaceDeclarationSyntax ns => ns.Name.ToString(),
-                    FileScopedNamespaceDeclarationSyntax fsns => fsns.Name.ToString(),
-                    _ => null
-                };
-                if (declaredNs is null)
+                var root = await document.GetSyntaxRootAsync();
+                if (root is null)
                     continue;
 
-                var usings = nsNode switch
+                var declaredNamespaces = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var nsNode in root.DescendantNodesAndSelf())
                 {
-                    NamespaceDeclarationSyntax ns => ns.Usings,
-                    FileScopedNamespaceDeclarationSyntax fsns => fsns.Usings,
-                    _ => Enumerable.Empty<UsingDirectiveSyntax>()
-                };
+                    var nsName = nsNode switch
+                    {
+                        NamespaceDeclarationSyntax ns => ns.Name.ToString(),
+                        FileScopedNamespaceDeclarationSyntax fsns => fsns.Name.ToString(),
+                        _ => null
+                    };
+                    if (nsName is not null)
+                        declaredNamespaces.Add(nsName);
+                }
 
-                foreach (var u in usings)
+                var compilationUnit = (CompilationUnitSyntax)root;
+                var topLevelUsings = compilationUnit.Usings
+                    .Select(u => u.Name?.ToString())
+                    .Where(n => n is not null)
+                    .Cast<string>()
+                    .ToList();
+
+                foreach (var declaredNs in declaredNamespaces)
                 {
-                    var usedNs = u.Name?.ToString();
-                    if (usedNs is not null)
-                        AddEdge(graph, declaredNs, usedNs);
+                    if (!graph.ContainsKey(declaredNs))
+                        graph[declaredNs] = new HashSet<string>(StringComparer.Ordinal);
+
+                    foreach (var used in topLevelUsings)
+                        AddEdge(graph, declaredNs, used);
+                }
+
+                foreach (var nsNode in root.DescendantNodes())
+                {
+                    var declaredNs = nsNode switch
+                    {
+                        NamespaceDeclarationSyntax ns => ns.Name.ToString(),
+                        FileScopedNamespaceDeclarationSyntax fsns => fsns.Name.ToString(),
+                        _ => null
+                    };
+                    if (declaredNs is null)
+                        continue;
+
+                    var usings = nsNode switch
+                    {
+                        NamespaceDeclarationSyntax ns => ns.Usings,
+                        FileScopedNamespaceDeclarationSyntax fsns => fsns.Usings,
+                        _ => Enumerable.Empty<UsingDirectiveSyntax>()
+                    };
+
+                    foreach (var u in usings)
+                    {
+                        var usedNs = u.Name?.ToString();
+                        if (usedNs is not null)
+                            AddEdge(graph, declaredNs, usedNs);
+                    }
                 }
             }
-        }
 
         if (scope is not null)
         {

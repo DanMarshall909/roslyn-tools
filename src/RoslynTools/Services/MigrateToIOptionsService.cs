@@ -160,44 +160,44 @@ internal sealed class MigrateToIOptionsService : IRtService
     {
         var sites = new List<RegistrationSite>();
         foreach (var project in solution.Projects)
-        foreach (var document in project.Documents)
-        {
-            var text = document.FilePath is not null && File.Exists(document.FilePath)
-                ? await File.ReadAllTextAsync(document.FilePath)
-                : (await document.GetTextAsync()).ToString();
-            var match = Regex.Match(
-                text,
-                @"(?<services>[A-Za-z_][A-Za-z0-9_]*(?:\s*\.\s*[A-Za-z_][A-Za-z0-9_]*)*)\s*\.\s*(?:Add\w+|Configure)\s*\(");
-            if (!match.Success)
-                continue;
-
-            var configurationName = Regex.Match(text, @"\bIConfiguration\s+(?<name>\w+)\b").Groups["name"].Value;
-            if (string.IsNullOrEmpty(configurationName))
-                configurationName = Regex.Match(text, @"\b(?<name>[A-Za-z_][A-Za-z0-9_]*\s*\.\s*Configuration)\b")
-                    .Groups["name"].Value;
-            if (string.IsNullOrEmpty(configurationName))
+            foreach (var document in project.Documents)
             {
-                var servicesExpression = NormalizeExpression(match.Groups["services"].Value);
-                configurationName = servicesExpression.EndsWith(".Services", StringComparison.Ordinal)
-                    ? servicesExpression[..^".Services".Length] + ".Configuration"
-                    : "configuration";
+                var text = document.FilePath is not null && File.Exists(document.FilePath)
+                    ? await File.ReadAllTextAsync(document.FilePath)
+                    : (await document.GetTextAsync()).ToString();
+                var match = Regex.Match(
+                    text,
+                    @"(?<services>[A-Za-z_][A-Za-z0-9_]*(?:\s*\.\s*[A-Za-z_][A-Za-z0-9_]*)*)\s*\.\s*(?:Add\w+|Configure)\s*\(");
+                if (!match.Success)
+                    continue;
+
+                var configurationName = Regex.Match(text, @"\bIConfiguration\s+(?<name>\w+)\b").Groups["name"].Value;
+                if (string.IsNullOrEmpty(configurationName))
+                    configurationName = Regex.Match(text, @"\b(?<name>[A-Za-z_][A-Za-z0-9_]*\s*\.\s*Configuration)\b")
+                        .Groups["name"].Value;
+                if (string.IsNullOrEmpty(configurationName))
+                {
+                    var servicesExpression = NormalizeExpression(match.Groups["services"].Value);
+                    configurationName = servicesExpression.EndsWith(".Services", StringComparison.Ordinal)
+                        ? servicesExpression[..^".Services".Length] + ".Configuration"
+                        : "configuration";
+                }
+
+                var insertOffset = text.IndexOf(';', match.Index);
+                if (insertOffset < 0)
+                    continue;
+
+                var line = text.Take(match.Index).Count(c => c == '\n') + 1;
+                sites.Add(new RegistrationSite(
+                    project,
+                    document,
+                    document.FilePath!,
+                    text,
+                    NormalizeExpression(match.Groups["services"].Value),
+                    NormalizeExpression(configurationName),
+                    insertOffset + 1,
+                    line));
             }
-
-            var insertOffset = text.IndexOf(';', match.Index);
-            if (insertOffset < 0)
-                continue;
-
-            var line = text.Take(match.Index).Count(c => c == '\n') + 1;
-            sites.Add(new RegistrationSite(
-                project,
-                document,
-                document.FilePath!,
-                text,
-                NormalizeExpression(match.Groups["services"].Value),
-                NormalizeExpression(configurationName),
-                insertOffset + 1,
-                line));
-        }
 
         return sites;
     }
@@ -213,23 +213,23 @@ internal sealed class MigrateToIOptionsService : IRtService
     {
         var properties = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var project in solution.Projects)
-        foreach (var document in project.Documents)
-        {
-            var text = (await document.GetTextAsync()).ToString();
-            foreach (Match match in GetValueRegex.Matches(text))
+            foreach (var document in project.Documents)
             {
-                var key = match.Groups["key"].Value;
-                if (!key.StartsWith(section + ":", StringComparison.Ordinal))
-                    continue;
+                var text = (await document.GetTextAsync()).ToString();
+                foreach (Match match in GetValueRegex.Matches(text))
+                {
+                    var key = match.Groups["key"].Value;
+                    if (!key.StartsWith(section + ":", StringComparison.Ordinal))
+                        continue;
 
-                var leaf = key[(section.Length + 1)..].Split(':', StringSplitOptions.RemoveEmptyEntries)
-                    .LastOrDefault();
-                if (string.IsNullOrWhiteSpace(leaf))
-                    continue;
+                    var leaf = key[(section.Length + 1)..].Split(':', StringSplitOptions.RemoveEmptyEntries)
+                        .LastOrDefault();
+                    if (string.IsNullOrWhiteSpace(leaf))
+                        continue;
 
-                properties[ToPascalCase(leaf)] = NormalizeType(match.Groups["type"].Value);
+                    properties[ToPascalCase(leaf)] = NormalizeType(match.Groups["type"].Value);
+                }
             }
-        }
 
         foreach (var project in solution.Projects)
         {
@@ -328,13 +328,13 @@ internal sealed class MigrateToIOptionsService : IRtService
     {
         var files = new SortedSet<string>(StringComparer.InvariantCulture);
         foreach (var project in solution.Projects)
-        foreach (var document in project.Documents)
-        {
-            var text = (await document.GetTextAsync()).ToString();
-            if (text.Contains($"\"{section}:", StringComparison.Ordinal)
-                || text.Contains($"GetSection(\"{section}\")", StringComparison.Ordinal))
-                files.Add(document.FilePath!);
-        }
+            foreach (var document in project.Documents)
+            {
+                var text = (await document.GetTextAsync()).ToString();
+                if (text.Contains($"\"{section}:", StringComparison.Ordinal)
+                    || text.Contains($"GetSection(\"{section}\")", StringComparison.Ordinal))
+                    files.Add(document.FilePath!);
+            }
 
         return files.ToList();
     }

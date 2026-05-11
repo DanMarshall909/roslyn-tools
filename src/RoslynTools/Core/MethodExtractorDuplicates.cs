@@ -756,11 +756,11 @@ internal static class MethodExtractorDuplicates
         // Check each match: the substitution map should map source names to the same names
         // If any source var name maps to a different name in a match, return false
         foreach (var match in matches)
-        foreach (var varName in sourceVarNames)
-            if (match.Substitutions.TryGetValue(varName, out var mappedName))
-                // If the variable is renamed (e.g., methodOpt -> typeOpt), return false
-                if (!varName.Equals(mappedName, StringComparison.Ordinal))
-                    return false;
+            foreach (var varName in sourceVarNames)
+                if (match.Substitutions.TryGetValue(varName, out var mappedName))
+                    // If the variable is renamed (e.g., methodOpt -> typeOpt), return false
+                    if (!varName.Equals(mappedName, StringComparison.Ordinal))
+                        return false;
 
         return true;
     }

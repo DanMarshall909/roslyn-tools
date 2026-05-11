@@ -41,32 +41,32 @@ internal class SafeDeleteService : IRtService
         var trueRefs = new List<(string FilePath, int Line, string LineText)>();
 
         foreach (var referencedSymbol in referencedSymbols)
-        foreach (var loc in referencedSymbol.Locations)
-        {
-            var span = loc.Location.SourceSpan;
-            var filePath = loc.Document.FilePath ?? string.Empty;
+            foreach (var loc in referencedSymbol.Locations)
+            {
+                var span = loc.Location.SourceSpan;
+                var filePath = loc.Document.FilePath ?? string.Empty;
 
-            var declSyntaxRef = sym.DeclaringSyntaxReferences.FirstOrDefault(r =>
-                string.Equals(r.SyntaxTree.FilePath, filePath, StringComparison.OrdinalIgnoreCase)
-                && r.Span.Contains(span));
-            if (declSyntaxRef != null)
-                continue;
+                var declSyntaxRef = sym.DeclaringSyntaxReferences.FirstOrDefault(r =>
+                    string.Equals(r.SyntaxTree.FilePath, filePath, StringComparison.OrdinalIgnoreCase)
+                    && r.Span.Contains(span));
+                if (declSyntaxRef != null)
+                    continue;
 
-            var syntaxNode = loc.Location.SourceTree is not null
-                ? (await loc.Location.SourceTree.GetRootAsync())
-                .FindNode(span)
-                : null;
+                var syntaxNode = loc.Location.SourceTree is not null
+                    ? (await loc.Location.SourceTree.GetRootAsync())
+                    .FindNode(span)
+                    : null;
 
-            if (syntaxNode != null && IsInsideNameOf(syntaxNode))
-                continue;
+                if (syntaxNode != null && IsInsideNameOf(syntaxNode))
+                    continue;
 
-            var text = await loc.Document.GetTextAsync();
-            var linePos = text.Lines.GetLineFromPosition(span.Start);
-            var lineNumber = linePos.LineNumber + 1;
-            var lineText = linePos.ToString().TrimStart();
+                var text = await loc.Document.GetTextAsync();
+                var linePos = text.Lines.GetLineFromPosition(span.Start);
+                var lineNumber = linePos.LineNumber + 1;
+                var lineText = linePos.ToString().TrimStart();
 
-            trueRefs.Add((filePath, lineNumber, lineText));
-        }
+                trueRefs.Add((filePath, lineNumber, lineText));
+            }
 
         if (trueRefs.Count > 0)
         {

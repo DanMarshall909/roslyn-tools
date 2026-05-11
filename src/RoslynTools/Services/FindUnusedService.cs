@@ -18,48 +18,48 @@ internal class FindUnusedService : IRtService
         var rtIgnore = RtIgnore.ForSolution(solution);
 
         foreach (var project in solution.Projects)
-        foreach (var document in project.Documents)
-        {
-            if (rtIgnore.IsIgnored(document.FilePath))
-                continue;
+            foreach (var document in project.Documents)
+            {
+                if (rtIgnore.IsIgnored(document.FilePath))
+                    continue;
 
-            var root = await document.GetSyntaxRootAsync();
-            var semanticModel = await document.GetSemanticModelAsync();
-            if (root == null || semanticModel == null)
-                continue;
+                var root = await document.GetSyntaxRootAsync();
+                var semanticModel = await document.GetSemanticModelAsync();
+                if (root == null || semanticModel == null)
+                    continue;
 
-            if (scope is "all" or "types")
-                foreach (var typeDecl in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
-                {
-                    var symbol = semanticModel.GetDeclaredSymbol(typeDecl);
-                    if (symbol == null) continue;
-                    if (ShouldExclude(symbol)) continue;
-
-                    var refs = await SymbolFinder.FindReferencesAsync(symbol, solution);
-                    var count = refs.Sum(r => r.Locations.Count());
-                    if (count == 0)
+                if (scope is "all" or "types")
+                    foreach (var typeDecl in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
                     {
-                        var line = typeDecl.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
-                        results.Add(new UnusedSymbol(symbol.Name, "type", document.FilePath, line));
+                        var symbol = semanticModel.GetDeclaredSymbol(typeDecl);
+                        if (symbol == null) continue;
+                        if (ShouldExclude(symbol)) continue;
+
+                        var refs = await SymbolFinder.FindReferencesAsync(symbol, solution);
+                        var count = refs.Sum(r => r.Locations.Count());
+                        if (count == 0)
+                        {
+                            var line = typeDecl.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+                            results.Add(new UnusedSymbol(symbol.Name, "type", document.FilePath, line));
+                        }
                     }
-                }
 
-            if (scope is "all" or "methods")
-                foreach (var methodDecl in root.DescendantNodes().OfType<MethodDeclarationSyntax>())
-                {
-                    var symbol = semanticModel.GetDeclaredSymbol(methodDecl);
-                    if (symbol == null) continue;
-                    if (ShouldExclude(symbol)) continue;
-
-                    var refs = await SymbolFinder.FindReferencesAsync(symbol, solution);
-                    var count = refs.Sum(r => r.Locations.Count());
-                    if (count == 0)
+                if (scope is "all" or "methods")
+                    foreach (var methodDecl in root.DescendantNodes().OfType<MethodDeclarationSyntax>())
                     {
-                        var line = methodDecl.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
-                        results.Add(new UnusedSymbol(symbol.Name, "method", document.FilePath, line));
+                        var symbol = semanticModel.GetDeclaredSymbol(methodDecl);
+                        if (symbol == null) continue;
+                        if (ShouldExclude(symbol)) continue;
+
+                        var refs = await SymbolFinder.FindReferencesAsync(symbol, solution);
+                        var count = refs.Sum(r => r.Locations.Count());
+                        if (count == 0)
+                        {
+                            var line = methodDecl.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+                            results.Add(new UnusedSymbol(symbol.Name, "method", document.FilePath, line));
+                        }
                     }
-                }
-        }
+            }
 
         return results;
     }

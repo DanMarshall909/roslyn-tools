@@ -30,7 +30,7 @@ internal sealed class ExtractClassCommand : IRtCommand
     {
         var typeOpt = new Option<string>("--type", "Source class name") { IsRequired = true };
         var membersOpt = new Option<string>("--members", "Comma-separated member names to extract")
-            { IsRequired = true };
+        { IsRequired = true };
         var newTypeOpt = new Option<string>("--new-type", "Name for the new class") { IsRequired = true };
         var staticOpt = new Option<bool>("--static", "Make the new class static (no injection)");
         var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");

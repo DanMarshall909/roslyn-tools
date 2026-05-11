@@ -117,7 +117,8 @@ internal sealed class Server
             id,
             result = new
             {
-                content = new[] { new { type = "text", text = result.content } }, result.isError
+                content = new[] { new { type = "text", text = result.content } },
+                result.isError
             }
         };
     }

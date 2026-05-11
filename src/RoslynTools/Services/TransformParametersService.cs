@@ -408,18 +408,18 @@ internal class TransformParametersService : IRtService
         // Collect all source locations and group by document ID
         var locationsByDocId = new Dictionary<DocumentId, List<Location>>();
         foreach (var refSymbol in references)
-        foreach (var loc in refSymbol.Locations)
-        {
-            if (!loc.Location.IsInSource) continue;
-            var docId = loc.Document.Id;
-            if (!locationsByDocId.TryGetValue(docId, out var locs))
+            foreach (var loc in refSymbol.Locations)
             {
-                locs = new List<Location>();
-                locationsByDocId[docId] = locs;
-            }
+                if (!loc.Location.IsInSource) continue;
+                var docId = loc.Document.Id;
+                if (!locationsByDocId.TryGetValue(docId, out var locs))
+                {
+                    locs = new List<Location>();
+                    locationsByDocId[docId] = locs;
+                }
 
-            locs.Add(loc.Location);
-        }
+                locs.Add(loc.Location);
+            }
 
         // Capture method parameters for class-style object initializer
         var methodParams = method.Parameters;

@@ -24,38 +24,38 @@ internal static class SmellAnalyzer
         var rtIgnore = RtIgnore.ForSolution(solution);
 
         foreach (var project in solution.Projects)
-        foreach (var document in project.Documents)
-        {
-            if (rtIgnore.IsIgnored(document.FilePath))
-                continue;
-
-            var root = await document.GetSyntaxRootAsync();
-            if (root is null)
-                continue;
-
-            var filePath = document.FilePath;
-
-            var typeDeclarations = root.DescendantNodes()
-                .OfType<TypeDeclarationSyntax>()
-                .Where(t => t is ClassDeclarationSyntax or RecordDeclarationSyntax);
-
-            foreach (var typeDecl in typeDeclarations)
+            foreach (var document in project.Documents)
             {
-                if (!MatchesScope(GetTypeScopeName(typeDecl), scope)
-                    && !MatchesScope(project.Name, scope))
+                if (rtIgnore.IsIgnored(document.FilePath))
                     continue;
 
-                var largeClass = LargeClassRule.Check(typeDecl, filePath, maxClassLines);
-                if (largeClass is not null)
-                    results.Add(largeClass);
+                var root = await document.GetSyntaxRootAsync();
+                if (root is null)
+                    continue;
 
-                results.AddRange(LongMethodRule.Check(typeDecl, filePath, maxMethodLines));
+                var filePath = document.FilePath;
 
-                var tooManyDeps = TooManyDependenciesRule.Check(typeDecl, filePath, maxParams);
-                if (tooManyDeps is not null)
-                    results.Add(tooManyDeps);
+                var typeDeclarations = root.DescendantNodes()
+                    .OfType<TypeDeclarationSyntax>()
+                    .Where(t => t is ClassDeclarationSyntax or RecordDeclarationSyntax);
+
+                foreach (var typeDecl in typeDeclarations)
+                {
+                    if (!MatchesScope(GetTypeScopeName(typeDecl), scope)
+                        && !MatchesScope(project.Name, scope))
+                        continue;
+
+                    var largeClass = LargeClassRule.Check(typeDecl, filePath, maxClassLines);
+                    if (largeClass is not null)
+                        results.Add(largeClass);
+
+                    results.AddRange(LongMethodRule.Check(typeDecl, filePath, maxMethodLines));
+
+                    var tooManyDeps = TooManyDependenciesRule.Check(typeDecl, filePath, maxParams);
+                    if (tooManyDeps is not null)
+                        results.Add(tooManyDeps);
+                }
             }
-        }
 
         return results;
     }

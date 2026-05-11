@@ -1,5 +1,6 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Unicode;
 using Microsoft.CodeAnalysis;
 
 namespace RoslynTools.Core;
@@ -10,13 +11,21 @@ namespace RoslynTools.Core;
 /// </summary>
 internal static class SymbolFormatter
 {
-    // UnsafeRelaxedJsonEscaping renders &lt; and &gt; as the actual `<` and `>` characters
-    // instead of < / >, so generic types like Task<int> stay readable in CLI
-    // output. Safe here because we emit to stdout, not into HTML pages.
+    // UnicodeRanges.All lets non-ASCII chars (arrows, CJK, etc.) appear as-is in CLI output
+    // while still escaping control chars (U+0000-U+001F) as required by RFC 8259.
+    // Unlike UnsafeRelaxedJsonEscaping, this produces spec-compliant JSON.
     internal static readonly JsonSerializerOptions DefaultJsonOptions = new()
     {
         WriteIndented = true,
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        Encoder = JavaScriptEncoder.Create(UnicodeRanges.All)
+    };
+
+    // Used by --strict-json: escapes all non-ASCII and control characters as \uXXXX.
+    // Maximally portable for piping into tools that don't handle raw Unicode.
+    internal static readonly JsonSerializerOptions StrictJsonOptions = new()
+    {
+        WriteIndented = true,
+        Encoder = JavaScriptEncoder.Default
     };
 
     /// <summary>

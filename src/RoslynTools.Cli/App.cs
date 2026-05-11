@@ -95,7 +95,7 @@ internal static class App
             foreach (var cmd in additionalCommands)
                 root.AddCommand(cmd);
 
-        var (jsonOpt, llmOpt, markdownOpt, yamlOpt, decisionsOpt) = RegisterGlobalOptions(root);
+        var (jsonOpt, llmOpt, markdownOpt, yamlOpt, decisionsOpt, strictJsonOpt) = RegisterGlobalOptions(root);
 
         return await new CommandLineBuilder(root)
             .UseVersionOption()
@@ -125,6 +125,7 @@ internal static class App
                     : json ? OutputFormat.Json
                     : llm ? OutputFormat.Llm
                     : OutputFormat.Text;
+                RtContext.StrictJson = context.ParseResult.GetValueForOption(strictJsonOpt);
 
                 var decisionsFile = context.ParseResult.GetValueForOption(decisionsOpt);
                 if (decisionsFile is not null)
@@ -165,12 +166,14 @@ internal static class App
     }
 
     internal static (Option<bool> jsonOpt, Option<bool> llmOpt, Option<bool> markdownOpt, Option<bool> yamlOpt,
-        Option<FileInfo?> decisionsOpt) RegisterGlobalOptions(RootCommand root)
+        Option<FileInfo?> decisionsOpt, Option<bool> strictJsonOpt) RegisterGlobalOptions(RootCommand root)
     {
         var jsonOpt = new Option<bool>("--json", "Emit results as JSON");
         var llmOpt = new Option<bool>("--llm", "Emit compact output for LLM consumption");
         var markdownOpt = new Option<bool>("--markdown", "Emit results as Markdown");
         var yamlOpt = new Option<bool>("--yaml", "Emit results as YAML");
+        var strictJsonOpt = new Option<bool>("--strict-json",
+            "Escape all non-ASCII and control characters as \\uXXXX in JSON output (RFC 8259 compliant)");
         var decisionsOpt = new Option<FileInfo?>(
             "--decisions",
             "Path to a YAML file recording disambiguation choices. "
@@ -179,9 +182,10 @@ internal static class App
         root.AddGlobalOption(llmOpt);
         root.AddGlobalOption(markdownOpt);
         root.AddGlobalOption(yamlOpt);
+        root.AddGlobalOption(strictJsonOpt);
         root.AddGlobalOption(decisionsOpt);
 
-        return (jsonOpt, llmOpt, markdownOpt, yamlOpt, decisionsOpt);
+        return (jsonOpt, llmOpt, markdownOpt, yamlOpt, decisionsOpt, strictJsonOpt);
     }
 
     private static IEnumerable<HelpSectionDelegate> BuildHelpLayout(HelpContext ctx)

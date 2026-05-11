@@ -30,7 +30,7 @@ internal sealed class NarrowDependencyCommand : IRtCommand
     {
         var interfaceArg = new Argument<string>("interface", "Source interface to extract members from");
         var membersOpt = new Option<string[]>("--members", "Comma-separated or repeated member names to extract")
-            { IsRequired = true, AllowMultipleArgumentsPerToken = true };
+        { IsRequired = true, AllowMultipleArgumentsPerToken = true };
         var newNameOpt = CommandOptionFactory.CreateStringOption("--new-name", "Name for the new narrower interface");
         var solutionOpt = CommandOptionFactory.CreateSolutionOption();
         var dryRunOpt = CommandOptionFactory.CreateDryRunOption();

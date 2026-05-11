@@ -145,25 +145,25 @@ internal class ExtractClassService : IRtService
         var matches = new List<ResolvedSourceType>();
 
         foreach (var project in solution.Projects)
-        foreach (var document in project.Documents)
-        {
-            var root = await document.GetSyntaxRootAsync();
-            if (root is null) continue;
-
-            var semanticModel = await document.GetSemanticModelAsync();
-            if (semanticModel is null) continue;
-
-            foreach (var declaration in root.DescendantNodes().OfType<ClassDeclarationSyntax>())
+            foreach (var document in project.Documents)
             {
-                if (semanticModel.GetDeclaredSymbol(declaration) is not INamedTypeSymbol symbol)
-                    continue;
+                var root = await document.GetSyntaxRootAsync();
+                if (root is null) continue;
 
-                if (!IsTypeMatch(symbol, normalizedTypeName, isQualifiedName))
-                    continue;
+                var semanticModel = await document.GetSemanticModelAsync();
+                if (semanticModel is null) continue;
 
-                matches.Add(new ResolvedSourceType(document, root, semanticModel, declaration, symbol));
+                foreach (var declaration in root.DescendantNodes().OfType<ClassDeclarationSyntax>())
+                {
+                    if (semanticModel.GetDeclaredSymbol(declaration) is not INamedTypeSymbol symbol)
+                        continue;
+
+                    if (!IsTypeMatch(symbol, normalizedTypeName, isQualifiedName))
+                        continue;
+
+                    matches.Add(new ResolvedSourceType(document, root, semanticModel, declaration, symbol));
+                }
             }
-        }
 
         if (matches.Count == 0)
         {

@@ -133,24 +133,24 @@ public class Outline
     {
         var results = new List<INamedTypeSymbol>();
         foreach (var proj in solution.Projects)
-        foreach (var doc in proj.Documents)
-        {
-            if (!string.Equals(doc.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
-                continue;
+            foreach (var doc in proj.Documents)
+            {
+                if (!string.Equals(doc.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
+                    continue;
 
-            var model = await doc.GetSemanticModelAsync();
-            var root = await doc.GetSyntaxRootAsync();
-            if (model == null || root == null) continue;
+                var model = await doc.GetSemanticModelAsync();
+                var root = await doc.GetSyntaxRootAsync();
+                if (model == null || root == null) continue;
 
-            var types = root.DescendantNodes()
-                .Select(n => model.GetDeclaredSymbol(n))
-                .OfType<INamedTypeSymbol>()
-                .Distinct(SymbolEqualityComparer.Default)
-                .Cast<INamedTypeSymbol>()
-                .ToList();
+                var types = root.DescendantNodes()
+                    .Select(n => model.GetDeclaredSymbol(n))
+                    .OfType<INamedTypeSymbol>()
+                    .Distinct(SymbolEqualityComparer.Default)
+                    .Cast<INamedTypeSymbol>()
+                    .ToList();
 
-            results.AddRange(types);
-        }
+                results.AddRange(types);
+            }
 
         return results;
     }

@@ -57,7 +57,7 @@ internal sealed class OutlineCommand : IRtCommand
                     {
                         result = await svc.OutlineRegexAsync(sln, regex, summary);
                     }
-                    else if (target is not null && target.EndsWith(".*", StringComparison.Ordinal)
+                    else if (target?.EndsWith(".*", StringComparison.Ordinal) == true
                                                 && !target.Contains('/') && !target.Contains('\\'))
                     {
                         result = await svc.OutlineNamespaceAsync(sln, target, summary);

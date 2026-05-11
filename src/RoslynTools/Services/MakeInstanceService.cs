@@ -221,10 +221,10 @@ internal class MakeInstanceService : IRtService
     private DocumentId? FindDocumentIdForLocation(Solution sln, Location location)
     {
         foreach (var project in sln.Projects)
-        foreach (var doc in project.Documents)
-            if (doc.FilePath != null &&
-                string.Equals(doc.FilePath, location.SourceTree?.FilePath, StringComparison.OrdinalIgnoreCase))
-                return doc.Id;
+            foreach (var doc in project.Documents)
+                if (doc.FilePath != null &&
+                    string.Equals(doc.FilePath, location.SourceTree?.FilePath, StringComparison.OrdinalIgnoreCase))
+                    return doc.Id;
 
         return null;
     }

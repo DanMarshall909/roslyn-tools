@@ -31,10 +31,10 @@ internal static class SymbolDocumentLocator
             return null;
 
         foreach (var project in solution.Projects)
-        foreach (var doc in project.Documents)
-            if (doc.FilePath != null &&
-                string.Equals(doc.FilePath, location.SourceTree?.FilePath, StringComparison.OrdinalIgnoreCase))
-                return doc.Id;
+            foreach (var doc in project.Documents)
+                if (doc.FilePath != null &&
+                    string.Equals(doc.FilePath, location.SourceTree?.FilePath, StringComparison.OrdinalIgnoreCase))
+                    return doc.Id;
 
         return null;
     }

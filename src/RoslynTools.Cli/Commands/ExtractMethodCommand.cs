@@ -44,9 +44,9 @@ internal sealed class ExtractMethodCommand : IRtCommand
         var newNameArg = new Argument<string>("new-name", "Name for the extracted method.");
 
         var startLineOpt = new Option<int>("--start-line", "First line of the statements to extract (1-based).")
-            { IsRequired = true };
+        { IsRequired = true };
         var endLineOpt = new Option<int>("--end-line", "Last line of the statements to extract (1-based, inclusive).")
-            { IsRequired = true };
+        { IsRequired = true };
         var afterOpt = new Option<string?>("--after",
             "Insert the new method after this member name. Default: after the containing method.");
         var beforeOpt = new Option<string?>("--before", "Insert the new method before this member name.");

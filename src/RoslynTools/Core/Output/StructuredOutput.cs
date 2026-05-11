@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using YamlDotNet.Serialization;
 
 namespace RoslynTools.Core.Output;
@@ -12,6 +13,11 @@ internal static class StructuredOutput
 {
     private static readonly ISerializer YamlSerializer = new SerializerBuilder().Build();
 
+    // Belt-and-suspenders: escape any raw control chars that slipped past the encoder
+    // (e.g. encoding-corrupted source files whose XML docs contain 0x00-0x1F bytes).
+    private static readonly Regex ControlCharRegex =
+        new(@"[\x00-\x08\x0B\x0C\x0E-\x1F]", RegexOptions.Compiled);
+
     internal static void Write(object data, JsonSerializerOptions jsonOptions)
     {
         if (RtContext.Format == OutputFormat.Yaml)
@@ -20,6 +26,9 @@ internal static class StructuredOutput
             return;
         }
 
-        RtConsole.WriteLine(RtOutputContext.Result, JsonSerializer.Serialize(data, jsonOptions));
+        var opts = RtContext.StrictJson ? SymbolFormatter.StrictJsonOptions : jsonOptions;
+        var json = JsonSerializer.Serialize(data, opts);
+        json = ControlCharRegex.Replace(json, m => $"\\u{(int)m.Value[0]:x4}");
+        RtConsole.WriteLine(RtOutputContext.Result, json);
     }
 }
