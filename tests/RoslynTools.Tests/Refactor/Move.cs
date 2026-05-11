@@ -32,6 +32,40 @@ public class Move
     }
 
     [Fact]
+    [Trait("Concern", "CsprojEdit")]
+    public async Task explicit_compile_include_is_removed_from_source_csproj_after_move()
+    {
+        const string src = """
+                           namespace Pkg;
+                           public class Widget { }
+                           """;
+
+        using var builder = new AdhocProjectBuilder("SourceProject")
+            .AddSource("Widget.cs", src);
+        builder.AddProject("TargetProject");
+
+        var (workspace, solution) = builder.Build();
+
+        // Inject an explicit <Compile Include="Widget.cs" /> into the source .csproj
+        var sourceCsproj = solution.Projects.First(p => p.Name == "SourceProject").FilePath!;
+        var originalXml = await File.ReadAllTextAsync(sourceCsproj);
+        var xmlWithCompile = originalXml.Replace(
+            "</Project>",
+            "  <ItemGroup><Compile Include=\"Widget.cs\" /></ItemGroup>\n</Project>");
+        await File.WriteAllTextAsync(sourceCsproj, xmlWithCompile);
+
+        await new MoveService().ExecuteCrossProjectMoveAsync(
+            workspace, solution,
+            "Pkg.Widget",
+            "TargetProject",
+            null,
+            false);
+
+        var updatedXml = await File.ReadAllTextAsync(sourceCsproj);
+        Assert.DoesNotContain("<Compile Include=\"Widget.cs\"", updatedXml);
+    }
+
+    [Fact]
     [Trait("Concern", "CrossProjectMove")]
     public async Task file_moves_and_namespace_rewritten_and_consumers_updated_when_both_options_provided()
     {
