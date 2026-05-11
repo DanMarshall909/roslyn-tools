@@ -32,6 +32,36 @@ public class Move
     }
 
     [Fact]
+    [Trait("Concern", "CrossProjectMove")]
+    public async Task file_moves_to_target_project_dir_with_subfolder_mirrored()
+    {
+        const string src = """
+                           namespace Source.Models;
+                           public class Product { }
+                           """;
+
+        using var builder = new AdhocProjectBuilder("SourceProject")
+            .AddSource("Models/Product.cs", src);
+        builder.AddProject("TargetProject");
+
+        var (workspace, solution) = builder.Build();
+
+        var targetDir = Path.GetDirectoryName(
+            solution.Projects.First(p => p.Name == "TargetProject").FilePath)!;
+
+        await new MoveService().ExecuteCrossProjectMoveAsync(
+            workspace, solution,
+            "Source.Models.Product",
+            "TargetProject",
+            null,
+            false);
+
+        var expectedDest = Path.Combine(targetDir, "Models", "Product.cs");
+        Assert.True(File.Exists(expectedDest), $"Expected file at {expectedDest}");
+        Assert.False(builder.SourceExists("Models/Product.cs"), "Original file should have been removed");
+    }
+
+    [Fact]
     [Trait("Concern", "Validation")]
     public async Task moving_to_same_project_is_a_no_op_with_nothing_to_move_message()
     {
