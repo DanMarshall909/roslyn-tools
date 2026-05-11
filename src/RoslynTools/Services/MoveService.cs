@@ -84,6 +84,15 @@ internal class MoveService : IRtService
         var sym = await _symbols.FindTypeByFqnAsync(solution, fqn);
         var (declarationFiles, sourceProjectDir, _) = CollectDeclarationPaths(solution, sym);
 
+        // Same-project no-op
+        var sourceProject = solution.GetDocument(sym.DeclaringSyntaxReferences.First().SyntaxTree)?.Project;
+        if (sourceProject != null &&
+            string.Equals(sourceProject.Name, targetProjectName, StringComparison.OrdinalIgnoreCase))
+        {
+            RtConsole.WriteLine(RtOutputContext.Result, "nothing to move");
+            return;
+        }
+
         if (sourceProjectDir != null)
         {
             foreach (var filePath in declarationFiles)
