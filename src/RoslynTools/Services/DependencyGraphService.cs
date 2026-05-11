@@ -234,34 +234,34 @@ internal class DependencyGraphService : IRtService
             var seen = new HashSet<string>(StringComparer.Ordinal);
 
             foreach (var method in type.GetMembers().OfType<IMethodSymbol>())
-            foreach (var syntaxRef in method.DeclaringSyntaxReferences)
-            {
-                var node = await syntaxRef.GetSyntaxAsync();
-                if (node is not BaseMethodDeclarationSyntax decl)
-                    continue;
+                foreach (var syntaxRef in method.DeclaringSyntaxReferences)
+                {
+                    var node = await syntaxRef.GetSyntaxAsync();
+                    if (node is not BaseMethodDeclarationSyntax decl)
+                        continue;
 
-                var body = decl.Body ?? (SyntaxNode?)decl.ExpressionBody;
-                if (body == null)
-                    continue;
+                    var body = decl.Body ?? (SyntaxNode?)decl.ExpressionBody;
+                    if (body == null)
+                        continue;
 
-                var doc = sln.GetDocument(node.SyntaxTree);
-                if (doc == null)
-                    continue;
-                var model = await doc.GetSemanticModelAsync();
-                if (model == null)
-                    continue;
+                    var doc = sln.GetDocument(node.SyntaxTree);
+                    if (doc == null)
+                        continue;
+                    var model = await doc.GetSemanticModelAsync();
+                    if (model == null)
+                        continue;
 
-                foreach (var name in body.DescendantNodes().OfType<SimpleNameSyntax>())
-                    if (model.GetSymbolInfo(name).Symbol is INamedTypeSymbol named &&
-                        ExtractNamedType(named) is { } resolved &&
-                        seen.Add(resolved.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
-                        deps.Add(resolved);
+                    foreach (var name in body.DescendantNodes().OfType<SimpleNameSyntax>())
+                        if (model.GetSymbolInfo(name).Symbol is INamedTypeSymbol named &&
+                            ExtractNamedType(named) is { } resolved &&
+                            seen.Add(resolved.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
+                            deps.Add(resolved);
 
-                foreach (var oce in body.DescendantNodes().OfType<BaseObjectCreationExpressionSyntax>())
-                    if (ExtractNamedType(model.GetTypeInfo(oce).Type) is { } resolved &&
-                        seen.Add(resolved.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
-                        deps.Add(resolved);
-            }
+                    foreach (var oce in body.DescendantNodes().OfType<BaseObjectCreationExpressionSyntax>())
+                        if (ExtractNamedType(model.GetTypeInfo(oce).Type) is { } resolved &&
+                            seen.Add(resolved.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
+                            deps.Add(resolved);
+                }
 
             if (deps.Count > 0)
                 result[type] = deps;

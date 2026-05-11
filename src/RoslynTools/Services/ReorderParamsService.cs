@@ -130,46 +130,46 @@ internal class ReorderParamsService : IRtService
 
         // Find all declaration syntax nodes for this method across the solution
         foreach (var project in solution.Projects)
-        foreach (var document in project.Documents)
-        {
-            var root = await document.GetSyntaxRootAsync();
-            var semanticModel = await document.GetSemanticModelAsync();
-            if (root is null || semanticModel is null)
-                continue;
-
-            foreach (var node in root.DescendantNodes())
+            foreach (var document in project.Documents)
             {
-                var paramList = _parameterChangeHelper.GetParameterList(node);
-                if (paramList is null)
+                var root = await document.GetSyntaxRootAsync();
+                var semanticModel = await document.GetSemanticModelAsync();
+                if (root is null || semanticModel is null)
                     continue;
 
-                var declared = semanticModel.GetDeclaredSymbol(node) as IMethodSymbol;
-                if (declared is null)
-                    continue;
+                foreach (var node in root.DescendantNodes())
+                {
+                    var paramList = _parameterChangeHelper.GetParameterList(node);
+                    if (paramList is null)
+                        continue;
 
-                if (!SymbolEqualityComparer.Default.Equals(declared, methodSymbol)
-                    && !SymbolEqualityComparer.Default.Equals(declared.OriginalDefinition,
-                        methodSymbol.OriginalDefinition))
-                    continue;
+                    var declared = semanticModel.GetDeclaredSymbol(node) as IMethodSymbol;
+                    if (declared is null)
+                        continue;
 
-                // Reorder the parameter list
-                var oldParams = paramList.Parameters;
-                if (oldParams.Count != newParamOrder.Length)
-                    continue;
+                    if (!SymbolEqualityComparer.Default.Equals(declared, methodSymbol)
+                        && !SymbolEqualityComparer.Default.Equals(declared.OriginalDefinition,
+                            methodSymbol.OriginalDefinition))
+                        continue;
 
-                var reordered = newParamOrder.Select(i => oldParams[i]).ToArray();
+                    // Reorder the parameter list
+                    var oldParams = paramList.Parameters;
+                    if (oldParams.Count != newParamOrder.Length)
+                        continue;
 
-                // Rebuild parameter list preserving separators style
-                var newParams = SyntaxFactory.SeparatedList(
-                    reordered,
-                    Enumerable.Repeat(
-                        SyntaxFactory.Token(SyntaxKind.CommaToken).WithTrailingTrivia(SyntaxFactory.Space),
-                        reordered.Length - 1));
+                    var reordered = newParamOrder.Select(i => oldParams[i]).ToArray();
 
-                var newParamList = paramList.WithParameters(newParams);
-                AddEdit(document.Id, paramList.Span, newParamList.ToFullString());
+                    // Rebuild parameter list preserving separators style
+                    var newParams = SyntaxFactory.SeparatedList(
+                        reordered,
+                        Enumerable.Repeat(
+                            SyntaxFactory.Token(SyntaxKind.CommaToken).WithTrailingTrivia(SyntaxFactory.Space),
+                            reordered.Length - 1));
+
+                    var newParamList = paramList.WithParameters(newParams);
+                    AddEdit(document.Id, paramList.Span, newParamList.ToFullString());
+                }
             }
-        }
 
         // Process call sites
         var paramCount = methodSymbol.Parameters.Length;
@@ -182,72 +182,72 @@ internal class ReorderParamsService : IRtService
             reverseMap[newParamOrder[newPos]] = newPos;
 
         foreach (var referenceGroup in references)
-        foreach (var location in referenceGroup.Locations)
-        {
-            if (location.Location.SourceTree is null)
-                continue;
-
-            var document = solution.GetDocument(location.Location.SourceTree);
-            if (document is null)
-                continue;
-
-            var root = await document.GetSyntaxRootAsync();
-            if (root is null)
-                continue;
-
-            var node = root.FindNode(location.Location.SourceSpan);
-
-            // Walk up to find the invocation or object creation
-            var invocationOrCreation = node.AncestorsAndSelf()
-                .FirstOrDefault(n => n is InvocationExpressionSyntax or ObjectCreationExpressionSyntax);
-
-            if (invocationOrCreation is null)
-                continue;
-
-            var argList = invocationOrCreation switch
+            foreach (var location in referenceGroup.Locations)
             {
-                InvocationExpressionSyntax inv => inv.ArgumentList,
-                ObjectCreationExpressionSyntax oc => oc.ArgumentList,
-                _ => null
-            };
+                if (location.Location.SourceTree is null)
+                    continue;
 
-            if (argList is null)
-                continue;
+                var document = solution.GetDocument(location.Location.SourceTree);
+                if (document is null)
+                    continue;
 
-            var args = argList.Arguments;
-            if (args.Count == 0)
-                continue;
+                var root = await document.GetSyntaxRootAsync();
+                if (root is null)
+                    continue;
 
-            if (args.Count < paramCount)
-            {
-                // Trailing args with default values may be legitimately omitted.
-                // Throw only if any omitted param is required, or if any omitted
-                // param would move to a non-trailing position after reorder.
-                var allOmittedHaveDefaults = methodSymbol.Parameters
-                    .Skip(args.Count)
-                    .All(p => p.HasExplicitDefaultValue);
-                if (!allOmittedHaveDefaults)
-                    throw new InvalidOperationException(
-                        $"Call site at {location.Location} is missing required arguments, which is not supported in v1.");
-                var omittedPositions = Enumerable.Range(args.Count, paramCount - args.Count).ToHashSet();
-                if (omittedPositions.Any(oldPos => reverseMap[oldPos] < args.Count))
-                    throw new InvalidOperationException(
-                        $"Call site at {location.Location} omits optional argument(s) that would move to a non-trailing position after reorder. Specify all arguments explicitly first.");
-                continue;
+                var node = root.FindNode(location.Location.SourceSpan);
+
+                // Walk up to find the invocation or object creation
+                var invocationOrCreation = node.AncestorsAndSelf()
+                    .FirstOrDefault(n => n is InvocationExpressionSyntax or ObjectCreationExpressionSyntax);
+
+                if (invocationOrCreation is null)
+                    continue;
+
+                var argList = invocationOrCreation switch
+                {
+                    InvocationExpressionSyntax inv => inv.ArgumentList,
+                    ObjectCreationExpressionSyntax oc => oc.ArgumentList,
+                    _ => null
+                };
+
+                if (argList is null)
+                    continue;
+
+                var args = argList.Arguments;
+                if (args.Count == 0)
+                    continue;
+
+                if (args.Count < paramCount)
+                {
+                    // Trailing args with default values may be legitimately omitted.
+                    // Throw only if any omitted param is required, or if any omitted
+                    // param would move to a non-trailing position after reorder.
+                    var allOmittedHaveDefaults = methodSymbol.Parameters
+                        .Skip(args.Count)
+                        .All(p => p.HasExplicitDefaultValue);
+                    if (!allOmittedHaveDefaults)
+                        throw new InvalidOperationException(
+                            $"Call site at {location.Location} is missing required arguments, which is not supported in v1.");
+                    var omittedPositions = Enumerable.Range(args.Count, paramCount - args.Count).ToHashSet();
+                    if (omittedPositions.Any(oldPos => reverseMap[oldPos] < args.Count))
+                        throw new InvalidOperationException(
+                            $"Call site at {location.Location} omits optional argument(s) that would move to a non-trailing position after reorder. Specify all arguments explicitly first.");
+                    continue;
+                }
+
+                var newArgs = ReorderArguments(args, paramNames, reverseMap);
+
+                // Rebuild argument list
+                var newArgList = argList.WithArguments(
+                    SyntaxFactory.SeparatedList(
+                        newArgs,
+                        Enumerable.Repeat(
+                            SyntaxFactory.Token(SyntaxKind.CommaToken).WithTrailingTrivia(SyntaxFactory.Space),
+                            newArgs.Length - 1)));
+
+                AddEdit(document.Id, argList.Span, newArgList.ToFullString());
             }
-
-            var newArgs = ReorderArguments(args, paramNames, reverseMap);
-
-            // Rebuild argument list
-            var newArgList = argList.WithArguments(
-                SyntaxFactory.SeparatedList(
-                    newArgs,
-                    Enumerable.Repeat(
-                        SyntaxFactory.Token(SyntaxKind.CommaToken).WithTrailingTrivia(SyntaxFactory.Space),
-                        newArgs.Length - 1)));
-
-            AddEdit(document.Id, argList.Span, newArgList.ToFullString());
-        }
 
         // Apply all edits per document — spans are stable relative to the original text,
         // so SourceText.WithChanges can apply them all at once without offset drift.

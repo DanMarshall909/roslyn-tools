@@ -30,7 +30,7 @@ internal sealed class MoveMethodCommand : IRtCommand
     {
         var methodFqnArg = new Argument<string>("method-fqn", "Fully-qualified method name (e.g. App.Source.Add)");
         var toTypeOpt = new Option<string>("--to-type", "Fully-qualified target class name (e.g. App.Target)")
-            { IsRequired = true };
+        { IsRequired = true };
         var createFileOpt = new Option<bool>("--create-file", "Create the target class file if it does not exist");
         var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx. Auto-detected if omitted.");
         var dryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk");

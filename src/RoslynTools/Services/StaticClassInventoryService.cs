@@ -70,57 +70,57 @@ internal sealed class StaticClassInventoryService : IRtService
                 .ToList();
 
             foreach (var project in solution.Projects)
-            foreach (var document in project.Documents)
-            {
-                var root = await document.GetSyntaxRootAsync();
-                if (root is null)
-                    continue;
-
-                var semanticModel = await document.GetSemanticModelAsync();
-                if (semanticModel is null)
-                    continue;
-
-                foreach (var nameNode in root.DescendantNodes().OfType<SimpleNameSyntax>())
+                foreach (var document in project.Documents)
                 {
-                    // Skip nameof() expressions.
-                    if (IsWithinNameof(nameNode))
+                    var root = await document.GetSyntaxRootAsync();
+                    if (root is null)
                         continue;
 
-                    var symbolInfo = semanticModel.GetSymbolInfo(nameNode);
-                    var referencedSymbol = symbolInfo.Symbol ?? (symbolInfo.CandidateSymbols.Length == 1
-                        ? symbolInfo.CandidateSymbols[0]
-                        : null);
-
-                    if (referencedSymbol is null)
+                    var semanticModel = await document.GetSemanticModelAsync();
+                    if (semanticModel is null)
                         continue;
 
-                    // Check if this name refers to a member of our static class.
-                    var containingType = referencedSymbol.ContainingType;
-                    if (containingType is null)
-                        continue;
+                    foreach (var nameNode in root.DescendantNodes().OfType<SimpleNameSyntax>())
+                    {
+                        // Skip nameof() expressions.
+                        if (IsWithinNameof(nameNode))
+                            continue;
 
-                    var containingFqn = containingType.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
-                    if (!string.Equals(containingFqn, classFqn, StringComparison.Ordinal))
-                        continue;
+                        var symbolInfo = semanticModel.GetSymbolInfo(nameNode);
+                        var referencedSymbol = symbolInfo.Symbol ?? (symbolInfo.CandidateSymbols.Length == 1
+                            ? symbolInfo.CandidateSymbols[0]
+                            : null);
 
-                    // Found a call site. Determine the caller's enclosing type.
-                    var callerType = GetEnclosingNamedType(semanticModel, nameNode.SpanStart);
-                    if (callerType is null)
-                        continue;
+                        if (referencedSymbol is null)
+                            continue;
 
-                    // Don't count self-references.
-                    var callerFqn = callerType.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
-                    if (string.Equals(callerFqn, classFqn, StringComparison.Ordinal))
-                        continue;
+                        // Check if this name refers to a member of our static class.
+                        var containingType = referencedSymbol.ContainingType;
+                        if (containingType is null)
+                            continue;
 
-                    totalCallSites++;
+                        var containingFqn = containingType.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
+                        if (!string.Equals(containingFqn, classFqn, StringComparison.Ordinal))
+                            continue;
 
-                    if (callerType.IsStatic)
-                        callerStaticFqns.Add(callerFqn);
-                    else
-                        callerInstanceFqns.Add(callerFqn);
+                        // Found a call site. Determine the caller's enclosing type.
+                        var callerType = GetEnclosingNamedType(semanticModel, nameNode.SpanStart);
+                        if (callerType is null)
+                            continue;
+
+                        // Don't count self-references.
+                        var callerFqn = callerType.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
+                        if (string.Equals(callerFqn, classFqn, StringComparison.Ordinal))
+                            continue;
+
+                        totalCallSites++;
+
+                        if (callerType.IsStatic)
+                            callerStaticFqns.Add(callerFqn);
+                        else
+                            callerInstanceFqns.Add(callerFqn);
+                    }
                 }
-            }
 
             // Determine file path from first location.
             var locationFile = staticClass.Locations

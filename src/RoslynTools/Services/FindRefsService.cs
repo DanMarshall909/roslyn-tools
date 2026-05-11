@@ -46,21 +46,21 @@ internal class FindRefsService : IRtService
         var references = new List<ReferenceResult>();
 
         foreach (var referencedSymbol in referencedSymbols)
-        foreach (var loc in referencedSymbol.Locations)
-        {
-            var doc = loc.Document;
-            var text = await doc.GetTextAsync();
-            var linePos = text.Lines.GetLineFromPosition(loc.Location.SourceSpan.Start);
-            var lineNumber = linePos.LineNumber + 1;
-            var lineText = linePos.ToString().TrimStart();
-
-            references.Add(new ReferenceResult
+            foreach (var loc in referencedSymbol.Locations)
             {
-                FilePath = doc.FilePath ?? string.Empty,
-                Line = lineNumber,
-                LineText = lineText
-            });
-        }
+                var doc = loc.Document;
+                var text = await doc.GetTextAsync();
+                var linePos = text.Lines.GetLineFromPosition(loc.Location.SourceSpan.Start);
+                var lineNumber = linePos.LineNumber + 1;
+                var lineText = linePos.ToString().TrimStart();
+
+                references.Add(new ReferenceResult
+                {
+                    FilePath = doc.FilePath ?? string.Empty,
+                    Line = lineNumber,
+                    LineText = lineText
+                });
+            }
 
         return new FindRefsResult
         {

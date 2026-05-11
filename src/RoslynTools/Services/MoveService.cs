@@ -212,23 +212,23 @@ internal class MoveService : IRtService
         var changedFiles = 0;
 
         foreach (var project in solution.Projects)
-        foreach (var doc in project.Documents)
-        {
-            if (doc.FilePath == null) continue;
-
-            var result = await RewriteDocumentNamespaceAsync(solution, doc, sourceNamespace, targetNamespace);
-            if (!result.Changed) continue;
-
-            solution = result.Solution;
-            changedFiles++;
-
-            if (result.IsDeclarationFile)
+            foreach (var doc in project.Documents)
             {
-                declarationFiles.Add(doc.FilePath);
-                if (projectDir == null)
-                    (projectDir, rootNamespace) = result.ProjectMeta ?? (null, null);
+                if (doc.FilePath == null) continue;
+
+                var result = await RewriteDocumentNamespaceAsync(solution, doc, sourceNamespace, targetNamespace);
+                if (!result.Changed) continue;
+
+                solution = result.Solution;
+                changedFiles++;
+
+                if (result.IsDeclarationFile)
+                {
+                    declarationFiles.Add(doc.FilePath);
+                    if (projectDir == null)
+                        (projectDir, rootNamespace) = result.ProjectMeta ?? (null, null);
+                }
             }
-        }
 
         return (solution, declarationFiles, projectDir, rootNamespace, changedFiles);
     }

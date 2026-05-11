@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -40,35 +40,35 @@ internal class ConsumerNarrowerService : IRtService
         var result = new List<(INamedTypeSymbol, Document)>();
 
         foreach (var project in solution.Projects)
-        foreach (var document in project.Documents)
-        {
-            var root = await document.GetSyntaxRootAsync();
-            var semanticModel = await document.GetSemanticModelAsync();
-            if (root is null || semanticModel is null)
-                continue;
+            foreach (var document in project.Documents)
+            {
+                var root = await document.GetSyntaxRootAsync();
+                var semanticModel = await document.GetSemanticModelAsync();
+                if (root is null || semanticModel is null)
+                    continue;
 
-            // Find fields typed as the interface
-            foreach (var field in root.DescendantNodes().OfType<VariableDeclaratorSyntax>())
-                if (semanticModel.GetDeclaredSymbol(field) is IFieldSymbol fieldSym
-                    && SymbolEqualityComparer.Default.Equals(fieldSym.Type, interfaceSymbol))
-                {
-                    var containingType = fieldSym.ContainingType;
-                    if (containingType is not null) result.Add((containingType, document));
-                }
-
-            // Find ctor parameters typed as the interface
-            foreach (var param in root.DescendantNodes().OfType<ParameterSyntax>())
-                if (semanticModel.GetDeclaredSymbol(param) is IParameterSymbol paramSym
-                    && SymbolEqualityComparer.Default.Equals(paramSym.Type, interfaceSymbol)
-                    && paramSym.ContainingSymbol is IMethodSymbol
+                // Find fields typed as the interface
+                foreach (var field in root.DescendantNodes().OfType<VariableDeclaratorSyntax>())
+                    if (semanticModel.GetDeclaredSymbol(field) is IFieldSymbol fieldSym
+                        && SymbolEqualityComparer.Default.Equals(fieldSym.Type, interfaceSymbol))
                     {
-                        MethodKind: MethodKind.Constructor
-                    } ctorSym)
-                {
-                    var containingType = ctorSym.ContainingType;
-                    if (containingType is not null) result.Add((containingType, document));
-                }
-        }
+                        var containingType = fieldSym.ContainingType;
+                        if (containingType is not null) result.Add((containingType, document));
+                    }
+
+                // Find ctor parameters typed as the interface
+                foreach (var param in root.DescendantNodes().OfType<ParameterSyntax>())
+                    if (semanticModel.GetDeclaredSymbol(param) is IParameterSymbol paramSym
+                        && SymbolEqualityComparer.Default.Equals(paramSym.Type, interfaceSymbol)
+                        && paramSym.ContainingSymbol is IMethodSymbol
+                        {
+                            MethodKind: MethodKind.Constructor
+                        } ctorSym)
+                    {
+                        var containingType = ctorSym.ContainingType;
+                        if (containingType is not null) result.Add((containingType, document));
+                    }
+            }
 
         // Deduplicate by type display name
         return result

@@ -49,17 +49,17 @@ internal static class ConsoleLoggingCore
         var review = new ConsoleLoggingReview();
 
         foreach (var project in solution.Projects)
-        foreach (var document in project.Documents)
-        {
-            var root = await document.GetSyntaxRootAsync();
-            if (root is null || ShouldExclude(document.FilePath, options.ExcludePaths))
-                continue;
+            foreach (var document in project.Documents)
+            {
+                var root = await document.GetSyntaxRootAsync();
+                if (root is null || ShouldExclude(document.FilePath, options.ExcludePaths))
+                    continue;
 
-            var semanticModel = await document.GetSemanticModelAsync();
-            var analyzer = new ConsoleLoggingAnalyzer(options, document.FilePath ?? document.Name, semanticModel);
-            analyzer.Visit(root);
-            review.AddRange(analyzer.Entries);
-        }
+                var semanticModel = await document.GetSemanticModelAsync();
+                var analyzer = new ConsoleLoggingAnalyzer(options, document.FilePath ?? document.Name, semanticModel);
+                analyzer.Visit(root);
+                review.AddRange(analyzer.Entries);
+            }
 
         return review;
     }
@@ -84,20 +84,20 @@ internal static class ConsoleLoggingCore
         ArgumentNullException.ThrowIfNull(options);
 
         foreach (var project in solution.Projects)
-        foreach (var document in project.Documents)
-        {
-            var root = await document.GetSyntaxRootAsync();
-            if (root is null)
-                continue;
+            foreach (var document in project.Documents)
+            {
+                var root = await document.GetSyntaxRootAsync();
+                if (root is null)
+                    continue;
 
-            if (ShouldExclude(document.FilePath, options.ExcludePaths))
-                continue;
+                if (ShouldExclude(document.FilePath, options.ExcludePaths))
+                    continue;
 
-            var rewriter = new ConsoleLoggingRewriter(options);
-            var newRoot = rewriter.Visit(root);
-            if (newRoot is not null && !ReferenceEquals(root, newRoot))
-                solution = solution.WithDocumentSyntaxRoot(document.Id, newRoot);
-        }
+                var rewriter = new ConsoleLoggingRewriter(options);
+                var newRoot = rewriter.Visit(root);
+                if (newRoot is not null && !ReferenceEquals(root, newRoot))
+                    solution = solution.WithDocumentSyntaxRoot(document.Id, newRoot);
+            }
 
         return solution;
     }

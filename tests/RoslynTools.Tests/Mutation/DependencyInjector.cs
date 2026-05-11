@@ -241,9 +241,9 @@ public sealed class DependencyInjector
         var result = Rewrite(source, "MyService", "IBar", "_bar", "bar");
         // locate the ctor param list
         var ctorStart = result.IndexOf("public MyService(", StringComparison.Ordinal);
-        var parenOpen  = result.IndexOf('(', ctorStart);
+        var parenOpen = result.IndexOf('(', ctorStart);
         var parenClose = result.IndexOf(')', parenOpen);
-        var paramText  = result[parenOpen..parenClose];
+        var paramText = result[parenOpen..parenClose];
         Assert.Contains("IFoo foo", paramText);
         Assert.Contains("IBar bar", paramText);
         // the two params must be on separate lines

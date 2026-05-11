@@ -158,30 +158,30 @@ internal static class SymbolLocator
         var matches = new List<SymbolMatch>();
 
         foreach (var project in solution.Projects)
-        foreach (var document in project.Documents)
-        {
-            var root = await document.GetSyntaxRootAsync();
-            var semanticModel = await document.GetSemanticModelAsync();
-            if (root is null || semanticModel is null)
-                continue;
-
-            foreach (var declaration in root.DescendantNodes().Where(IsMethodLikeDeclaration))
+            foreach (var document in project.Documents)
             {
-                var method = semanticModel.GetDeclaredSymbol(declaration) as IMethodSymbol;
-                if (method is null || !IsSupportedMethod(method))
+                var root = await document.GetSyntaxRootAsync();
+                var semanticModel = await document.GetSemanticModelAsync();
+                if (root is null || semanticModel is null)
                     continue;
 
-                if (!MatchesMethodSpec(method, input, inputWithoutSignature, specSegments))
-                    continue;
-
-                matches.Add(new SymbolMatch
+                foreach (var declaration in root.DescendantNodes().Where(IsMethodLikeDeclaration))
                 {
-                    Symbol = method,
-                    DisplayName = method.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
-                    ProjectName = method.ContainingAssembly?.Name ?? "?"
-                });
+                    var method = semanticModel.GetDeclaredSymbol(declaration) as IMethodSymbol;
+                    if (method is null || !IsSupportedMethod(method))
+                        continue;
+
+                    if (!MatchesMethodSpec(method, input, inputWithoutSignature, specSegments))
+                        continue;
+
+                    matches.Add(new SymbolMatch
+                    {
+                        Symbol = method,
+                        DisplayName = method.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
+                        ProjectName = method.ContainingAssembly?.Name ?? "?"
+                    });
+                }
             }
-        }
 
         matches = matches
             .GroupBy(match => match.DisplayName, StringComparer.Ordinal)

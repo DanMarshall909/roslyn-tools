@@ -51,35 +51,35 @@ internal class ImportDirectiveService : IRtService
         var rtIgnore = RtIgnore.ForSolution(solution);
 
         foreach (var project in solution.Projects)
-        foreach (var document in project.Documents)
-        {
-            if (rtIgnore.IsIgnored(document.FilePath, "list-imports") || IsGeneratedOrIntermediate(document.FilePath))
-                continue;
-
-            var root = await document.GetSyntaxRootAsync();
-            if (root is null)
-                continue;
-
-            foreach (var directive in root.DescendantNodes().OfType<UsingDirectiveSyntax>())
+            foreach (var document in project.Documents)
             {
-                var isGlobal = directive.GlobalKeyword.IsKind(SyntaxKind.GlobalKeyword);
-                var isStatic = directive.StaticKeyword.IsKind(SyntaxKind.StaticKeyword);
-                var alias = directive.Alias?.Name.Identifier.ValueText;
-
-                if (!MatchesKind(kind, isGlobal, isStatic, alias))
+                if (rtIgnore.IsIgnored(document.FilePath, "list-imports") || IsGeneratedOrIntermediate(document.FilePath))
                     continue;
 
-                var line = directive.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
-                results.Add(new ImportDirectiveInfo(
-                    GetKind(isGlobal, isStatic, alias),
-                    directive.Name?.ToString() ?? string.Empty,
-                    document.FilePath ?? document.Name,
-                    line,
-                    isGlobal,
-                    isStatic,
-                    alias));
+                var root = await document.GetSyntaxRootAsync();
+                if (root is null)
+                    continue;
+
+                foreach (var directive in root.DescendantNodes().OfType<UsingDirectiveSyntax>())
+                {
+                    var isGlobal = directive.GlobalKeyword.IsKind(SyntaxKind.GlobalKeyword);
+                    var isStatic = directive.StaticKeyword.IsKind(SyntaxKind.StaticKeyword);
+                    var alias = directive.Alias?.Name.Identifier.ValueText;
+
+                    if (!MatchesKind(kind, isGlobal, isStatic, alias))
+                        continue;
+
+                    var line = directive.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+                    results.Add(new ImportDirectiveInfo(
+                        GetKind(isGlobal, isStatic, alias),
+                        directive.Name?.ToString() ?? string.Empty,
+                        document.FilePath ?? document.Name,
+                        line,
+                        isGlobal,
+                        isStatic,
+                        alias));
+                }
             }
-        }
 
         return results
             .OrderBy(r => r.FilePath, StringComparer.OrdinalIgnoreCase)

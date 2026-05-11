@@ -91,20 +91,20 @@ internal class FixNamespaceService : IRtService
         solution = solution.WithDocumentSyntaxRoot(targetDoc.Id, newRoot);
 
         foreach (var proj in solution.Projects)
-        foreach (var doc in proj.Documents)
-        {
-            if (doc.Id == targetDoc.Id) continue;
-            if (doc.FilePath == null) continue;
+            foreach (var doc in proj.Documents)
+            {
+                if (doc.Id == targetDoc.Id) continue;
+                if (doc.FilePath == null) continue;
 
-            var root = await doc.GetSyntaxRootAsync();
-            if (root == null) continue;
+                var root = await doc.GetSyntaxRootAsync();
+                if (root == null) continue;
 
-            var usingRewriter = new UsingDirectiveRenamer(currentNamespace, expectedNamespace);
-            var updatedRoot = usingRewriter.Visit(root);
+                var usingRewriter = new UsingDirectiveRenamer(currentNamespace, expectedNamespace);
+                var updatedRoot = usingRewriter.Visit(root);
 
-            if (usingRewriter.Changed)
-                solution = solution.WithDocumentSyntaxRoot(doc.Id, updatedRoot);
-        }
+                if (usingRewriter.Changed)
+                    solution = solution.WithDocumentSyntaxRoot(doc.Id, updatedRoot);
+            }
 
         await _solutionChangeWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
     }

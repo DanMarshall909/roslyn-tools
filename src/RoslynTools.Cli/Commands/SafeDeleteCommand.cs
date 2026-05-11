@@ -32,7 +32,7 @@ internal sealed class SafeDeleteCommand : IRtCommand
     public static Command Build()
     {
         var symbolOpt = new Option<string>("--symbol", "Type or member FQN or simple name to delete")
-            { IsRequired = true };
+        { IsRequired = true };
         var kindOpt = new Option<string?>("--kind", "Kind of symbol: type, method, or property");
         var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
         var dryRunOpt = new Option<bool>("--dry-run", "Preview without writing");

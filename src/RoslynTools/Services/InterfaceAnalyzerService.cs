@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -66,36 +66,36 @@ internal class InterfaceAnalyzerService : IRtService
                 .ToList();
 
             foreach (var typeDecl in typeDecls)
-            foreach (var simpleName in typeDecl.DescendantNodes().OfType<SimpleNameSyntax>())
-            {
-                var symbolInfo = semanticModel.GetSymbolInfo(simpleName);
-                var sym = symbolInfo.Symbol
-                          ?? (symbolInfo.CandidateSymbols.Length == 1 ? symbolInfo.CandidateSymbols[0] : null);
-
-                if (sym is null)
-                    continue;
-
-                // Normalize accessors back to their parent member
-                sym = sym switch
+                foreach (var simpleName in typeDecl.DescendantNodes().OfType<SimpleNameSyntax>())
                 {
-                    IMethodSymbol
+                    var symbolInfo = semanticModel.GetSymbolInfo(simpleName);
+                    var sym = symbolInfo.Symbol
+                              ?? (symbolInfo.CandidateSymbols.Length == 1 ? symbolInfo.CandidateSymbols[0] : null);
+
+                    if (sym is null)
+                        continue;
+
+                    // Normalize accessors back to their parent member
+                    sym = sym switch
                     {
-                        MethodKind: MethodKind.PropertyGet or MethodKind.PropertySet
-                        or MethodKind.EventAdd or MethodKind.EventRemove,
-                        AssociatedSymbol: { } assoc
-                    } => assoc,
-                    _ => sym
-                };
+                        IMethodSymbol
+                        {
+                            MethodKind: MethodKind.PropertyGet or MethodKind.PropertySet
+                            or MethodKind.EventAdd or MethodKind.EventRemove,
+                            AssociatedSymbol: { } assoc
+                        } => assoc,
+                        _ => sym
+                    };
 
-                // Match by containing-type FQN to avoid cross-compilation reference issues
-                var containingFqn = sym.ContainingType?
-                    .ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
+                    // Match by containing-type FQN to avoid cross-compilation reference issues
+                    var containingFqn = sym.ContainingType?
+                        .ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
 
-                if (containingFqn != interfaceFqn)
-                    continue;
+                    if (containingFqn != interfaceFqn)
+                        continue;
 
-                used.Add(sym.Name);
-            }
+                    used.Add(sym.Name);
+                }
         }
 
         return used;

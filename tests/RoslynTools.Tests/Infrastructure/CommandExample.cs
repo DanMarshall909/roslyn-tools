@@ -13,16 +13,16 @@ public class CommandExample
         var failures = new List<string>();
 
         foreach (var (_, info) in App.Commands.OrderBy(c => c.Info.Name, StringComparer.Ordinal))
-        foreach (var example in info.Examples)
-        {
-            var commandLine = StripExecutableName(example);
-            var result = parser.Parse(commandLine);
-            if (result.Errors.Count == 0)
-                continue;
+            foreach (var example in info.Examples)
+            {
+                var commandLine = StripExecutableName(example);
+                var result = parser.Parse(commandLine);
+                if (result.Errors.Count == 0)
+                    continue;
 
-            failures.Add(
-                $"{info.Name}: `{example}` => {string.Join("; ", result.Errors.Select(e => e.Message))}");
-        }
+                failures.Add(
+                    $"{info.Name}: `{example}` => {string.Join("; ", result.Errors.Select(e => e.Message))}");
+            }
 
         Assert.True(
             failures.Count == 0,

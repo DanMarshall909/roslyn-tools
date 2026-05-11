@@ -93,17 +93,17 @@ public class Move
         {
             // Batch rewrite: change all "TestApp.Legacy" -> "TestApp.Domain"
             foreach (var proj in sln.Projects)
-            foreach (var doc in proj.Documents)
-            {
-                var root = await doc.GetSyntaxRootAsync();
-                if (root == null) continue;
+                foreach (var doc in proj.Documents)
+                {
+                    var root = await doc.GetSyntaxRootAsync();
+                    if (root == null) continue;
 
-                var rewriter = new NamespaceRewriter("TestApp.Legacy", "TestApp.Domain");
-                var newRoot = rewriter.Visit(root);
+                    var rewriter = new NamespaceRewriter("TestApp.Legacy", "TestApp.Domain");
+                    var newRoot = rewriter.Visit(root);
 
-                if (rewriter.Changed)
-                    sln = sln.WithDocumentSyntaxRoot(doc.Id, newRoot);
-            }
+                    if (rewriter.Changed)
+                        sln = sln.WithDocumentSyntaxRoot(doc.Id, newRoot);
+                }
 
             await SolutionWriter.ApplyChangesAsync(workspace.CurrentSolution, sln, false);
         }

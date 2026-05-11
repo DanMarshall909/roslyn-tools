@@ -39,22 +39,22 @@ public static class PatternMatcher
         var rtIgnore = RtIgnore.ForSolution(solution);
 
         foreach (var project in solution.Projects)
-        foreach (var document in project.Documents)
-        {
-            if (document.FilePath == null || rtIgnore.IsIgnored(document.FilePath))
-                continue;
+            foreach (var document in project.Documents)
+            {
+                if (document.FilePath == null || rtIgnore.IsIgnored(document.FilePath))
+                    continue;
 
-            if (scope != null && !IsInScope(document, project, scope))
-                continue;
+                if (scope != null && !IsInScope(document, project, scope))
+                    continue;
 
-            var root = await document.GetSyntaxRootAsync();
-            if (root == null)
-                continue;
+                var root = await document.GetSyntaxRootAsync();
+                if (root == null)
+                    continue;
 
-            var matches =
-                FindMatchesInDocument(document.FilePath, root, patternStatements, absPath, startLine, endLine);
-            results.AddRange(matches);
-        }
+                var matches =
+                    FindMatchesInDocument(document.FilePath, root, patternStatements, absPath, startLine, endLine);
+                results.AddRange(matches);
+            }
 
         return results;
     }

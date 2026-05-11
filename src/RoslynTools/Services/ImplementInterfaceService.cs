@@ -166,22 +166,22 @@ internal class ImplementInterfaceService : IRtService
     {
         var unimplemented = new List<ISymbol>();
         foreach (var iface in interfacesToImplement)
-        foreach (var member in iface.GetMembers())
-        {
-            if (member is not IMethodSymbol and not IPropertySymbol)
-                continue;
-            if (member is IMethodSymbol ms && ms.MethodKind != MethodKind.Ordinary)
-                continue;
+            foreach (var member in iface.GetMembers())
+            {
+                if (member is not IMethodSymbol and not IPropertySymbol)
+                    continue;
+                if (member is IMethodSymbol ms && ms.MethodKind != MethodKind.Ordinary)
+                    continue;
 
-            var implementation = classSymbol.FindImplementationForInterfaceMember(member);
-            if (implementation != null)
-                continue;
+                var implementation = classSymbol.FindImplementationForInterfaceMember(member);
+                if (implementation != null)
+                    continue;
 
-            if (ClassAlreadyHasMember(classSymbol, member))
-                continue;
+                if (ClassAlreadyHasMember(classSymbol, member))
+                    continue;
 
-            unimplemented.Add(member);
-        }
+                unimplemented.Add(member);
+            }
 
         return unimplemented;
     }

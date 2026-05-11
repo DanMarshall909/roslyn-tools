@@ -31,7 +31,7 @@ internal sealed class ReplaceNewCommand : IRtCommand
     public static Command Build()
     {
         var typeOpt = new Option<string>("--type", "Type name to replace, e.g. Option<string> or Option<string?>")
-            { IsRequired = true };
+        { IsRequired = true };
         var withOpt = new Option<string>("--with", "Replacement: method name or factory call") { IsRequired = true };
         var solutionOpt = new Option<string?>("--solution", "Path to the .sln file");
         var dryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk");

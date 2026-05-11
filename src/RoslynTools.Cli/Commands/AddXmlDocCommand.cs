@@ -34,9 +34,9 @@ internal sealed class AddXmlDocCommand : IRtCommand
 
     public static Command Build()
     {
-        var fromJsonOpt  = new Option<FileInfo>("--from-json", "JSON file mapping FQN → summary string") { IsRequired = true };
-        var solutionOpt  = CommandOptionFactory.CreateSolutionOption();
-        var dryRunOpt    = CommandOptionFactory.CreateDryRunOption();
+        var fromJsonOpt = new Option<FileInfo>("--from-json", "JSON file mapping FQN → summary string") { IsRequired = true };
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption();
+        var dryRunOpt = CommandOptionFactory.CreateDryRunOption();
 
         var cmd = new Command("add-xml-doc", "Insert XML <summary> doc comments from a JSON map");
         cmd.AddAlias("xmldoc");

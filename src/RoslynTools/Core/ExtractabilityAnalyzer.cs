@@ -206,19 +206,19 @@ internal static class ExtractabilityAnalyzer
             SubstitutionMap)> occurrences)
     {
         foreach (var (window, model, _) in occurrences)
-        foreach (var stmt in window)
-        {
-            // Check for ref/out argument usage in invocations.
-            var hasRefOut = stmt.DescendantNodesAndSelf()
-                .OfType<ArgumentSyntax>()
-                .Any(a => a.RefKindKeyword.IsKind(SyntaxKind.RefKeyword)
-                          || a.RefKindKeyword.IsKind(SyntaxKind.OutKeyword)
-                          || a.RefKindKeyword.IsKind(SyntaxKind.InKeyword));
+            foreach (var stmt in window)
+            {
+                // Check for ref/out argument usage in invocations.
+                var hasRefOut = stmt.DescendantNodesAndSelf()
+                    .OfType<ArgumentSyntax>()
+                    .Any(a => a.RefKindKeyword.IsKind(SyntaxKind.RefKeyword)
+                              || a.RefKindKeyword.IsKind(SyntaxKind.OutKeyword)
+                              || a.RefKindKeyword.IsKind(SyntaxKind.InKeyword));
 
-            if (hasRefOut)
-                return new ExtractabilityCheck("no-ref-out-params", "fail",
-                    "block passes arguments with ref/out/in modifiers");
-        }
+                if (hasRefOut)
+                    return new ExtractabilityCheck("no-ref-out-params", "fail",
+                        "block passes arguments with ref/out/in modifiers");
+            }
 
         return new ExtractabilityCheck("no-ref-out-params", "pass", null);
     }
@@ -237,12 +237,12 @@ internal static class ExtractabilityAnalyzer
         {
             var fields = new HashSet<string>(StringComparer.Ordinal);
             foreach (var stmt in window)
-            foreach (var ident in stmt.DescendantNodesAndSelf().OfType<IdentifierNameSyntax>())
-            {
-                var sym = model.GetSymbolInfo(ident).Symbol;
-                if (sym is IFieldSymbol or IPropertySymbol)
-                    fields.Add(sym.ToDisplayString());
-            }
+                foreach (var ident in stmt.DescendantNodesAndSelf().OfType<IdentifierNameSyntax>())
+                {
+                    var sym = model.GetSymbolInfo(ident).Symbol;
+                    if (sym is IFieldSymbol or IPropertySymbol)
+                        fields.Add(sym.ToDisplayString());
+                }
 
             perOccurrenceFields.Add(fields);
         }

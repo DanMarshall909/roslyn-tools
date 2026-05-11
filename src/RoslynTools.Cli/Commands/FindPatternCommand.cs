@@ -35,11 +35,11 @@ internal sealed class FindPatternCommand : IRtCommand
     public static Command Build()
     {
         var fileOpt = new Option<string>("--file", "Path to the .cs file containing the pattern.")
-            { IsRequired = true };
+        { IsRequired = true };
         var startLineOpt = new Option<int>("--start-line", "First line of the pattern range (1-based).")
-            { IsRequired = true };
+        { IsRequired = true };
         var endLineOpt = new Option<int>("--end-line", "Last line of the pattern range (1-based, inclusive).")
-            { IsRequired = true };
+        { IsRequired = true };
         var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx. Auto-detected if omitted.");
         var scopeOpt = new Option<string?>("--scope",
             "Filter matches to documents in this namespace prefix or project name.");

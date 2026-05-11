@@ -33,16 +33,16 @@ internal sealed class FindUndocumentedService : IRtService
         var results = new List<UndocumentedSymbol>();
 
         foreach (var project in solution.Projects)
-        foreach (var document in project.Documents)
-        {
-            if (!IsSourceDocument(document)) continue;
+            foreach (var document in project.Documents)
+            {
+                if (!IsSourceDocument(document)) continue;
 
-            var root = await document.GetSyntaxRootAsync();
-            var model = await document.GetSemanticModelAsync();
-            if (root is null || model is null || document.FilePath is null) continue;
+                var root = await document.GetSyntaxRootAsync();
+                var model = await document.GetSemanticModelAsync();
+                if (root is null || model is null || document.FilePath is null) continue;
 
-            Collect(root, model, document.FilePath, includeMembers, scope, accessibilityKinds, seen, results);
-        }
+                Collect(root, model, document.FilePath, includeMembers, scope, accessibilityKinds, seen, results);
+            }
 
         return [.. results.OrderBy(s => s.FilePath).ThenBy(s => s.Line)];
     }

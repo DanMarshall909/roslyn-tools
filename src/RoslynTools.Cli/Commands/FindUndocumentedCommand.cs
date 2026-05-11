@@ -35,9 +35,9 @@ internal sealed class FindUndocumentedCommand : IRtCommand
     public static Command Build()
     {
         var solutionOpt = CommandOptionFactory.CreateSolutionOption();
-        var membersOpt  = new Option<bool>("--members", "Also report undocumented public methods and properties");
-        var scopeOpt    = new Option<string?>("--scope", "Namespace prefix filter (e.g. RoslynTools.Core)");
-        var levelOpt    = new Option<string>("--level",
+        var membersOpt = new Option<bool>("--members", "Also report undocumented public methods and properties");
+        var scopeOpt = new Option<string?>("--scope", "Namespace prefix filter (e.g. RoslynTools.Core)");
+        var levelOpt = new Option<string>("--level",
             "Comma-separated accessibility levels to check: public, internal, protected, private, all (default: public)")
         {
             ArgumentHelpName = "levels"

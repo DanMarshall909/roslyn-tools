@@ -32,16 +32,16 @@ internal class ReplaceXunitAssertsService : IRtService
         var review = new ReplaceXunitAssertsReview();
 
         foreach (var project in solution.Projects)
-        foreach (var document in project.Documents)
-        {
-            var root = await document.GetSyntaxRootAsync();
-            if (root is null)
-                continue;
+            foreach (var document in project.Documents)
+            {
+                var root = await document.GetSyntaxRootAsync();
+                if (root is null)
+                    continue;
 
-            var analyzer = new ReplaceXunitAssertsAnalyzer(document.FilePath ?? document.Name, this);
-            analyzer.Visit(root);
-            review.AddRange(analyzer.Entries);
-        }
+                var analyzer = new ReplaceXunitAssertsAnalyzer(document.FilePath ?? document.Name, this);
+                analyzer.Visit(root);
+                review.AddRange(analyzer.Entries);
+            }
 
         return review;
     }
@@ -62,22 +62,22 @@ internal class ReplaceXunitAssertsService : IRtService
     internal async Task<Solution> ApplyAsync(Solution solution)
     {
         foreach (var project in solution.Projects)
-        foreach (var document in project.Documents)
-        {
-            var root = await document.GetSyntaxRootAsync();
-            if (root is null)
-                continue;
+            foreach (var document in project.Documents)
+            {
+                var root = await document.GetSyntaxRootAsync();
+                if (root is null)
+                    continue;
 
-            var rewriter = new ReplaceXunitAssertsRewriter(this);
-            var rewritten = rewriter.Visit(root);
-            if (rewritten is null || rewriter.ReplacementCount == 0)
-                continue;
+                var rewriter = new ReplaceXunitAssertsRewriter(this);
+                var rewritten = rewriter.Visit(root);
+                if (rewritten is null || rewriter.ReplacementCount == 0)
+                    continue;
 
-            if (rewritten is CompilationUnitSyntax compilationUnit)
-                rewritten = AddShouldlyUsing(compilationUnit);
+                if (rewritten is CompilationUnitSyntax compilationUnit)
+                    rewritten = AddShouldlyUsing(compilationUnit);
 
-            solution = solution.WithDocumentSyntaxRoot(document.Id, rewritten);
-        }
+                solution = solution.WithDocumentSyntaxRoot(document.Id, rewritten);
+            }
 
         return solution;
     }
