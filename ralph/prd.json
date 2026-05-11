@@ -131,8 +131,10 @@
                 "`dotnet test RoslynTools.Tests.csproj --nologo -v quiet` exits 0 with all new MoveCommandTests passing."
             ],
             "priority": 2,
-            "passes": false,
-            "notes": "Required by tour-store EP-007 (US-022, US-023). Target: MoveCommand.cs + MoveCommandHandler.cs + MoveCommandTests.cs in C:\\code\\roslyn-tools. --to-namespace becomes optional when --to-project is provided. Modern SDK projects auto-include by glob so no .csproj edits needed in typical case. Explicit <Compile Include> items must be removed when present."
+            "passes": true,
+            "notes": "Required by tour-store EP-007 (US-022, US-023). Target: MoveCommand.cs + MoveCommandHandler.cs + MoveCommandTests.cs in C:\\code\\roslyn-tools. --to-namespace becomes optional when --to-project is provided. Modern SDK projects auto-include by glob so no .csproj edits needed in typical case. Explicit <Compile Include> items must be removed when present.",
+            "resolution": "Added --to-project flag to rt refactor move. Cross-project file moves with subfolder mirroring, optional namespace rewrite, explicit <Compile Include> cleanup, dry-run output, same-project no-op guard, and source-outside-project-dir validation. 15 new tests covering all ACs.",
+            "resolvedAt": "2026-05-11"
         }
     ]
 }
