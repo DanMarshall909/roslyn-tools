@@ -1,5 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Commands;
+using RoslynTools.Services;
 
 namespace RoslynTools.Tests.Refactor;
 
@@ -22,9 +23,33 @@ public class Move
         var toProjectOpt = cmd.Options.FirstOrDefault(o => o.Name == "to-project");
         Assert.NotNull(toProjectOpt);
 
-        // --to-namespace description must mention it is optional when --to-project is supplied
         var toNsOpt = cmd.Options.FirstOrDefault(o => o.Name == "to-namespace");
         Assert.NotNull(toNsOpt);
         Assert.Contains("--to-project", toNsOpt.Description, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    [Trait("Concern", "Validation")]
+    public async Task unknown_target_project_reports_project_name_and_throws()
+    {
+        const string src = """
+                           namespace Foo;
+                           public class Bar { }
+                           """;
+
+        using var project = new AdhocProjectBuilder("SourceProject")
+            .AddSource("Bar.cs", src);
+
+        var (workspace, solution) = project.Build();
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            new MoveService().ExecuteCrossProjectMoveAsync(
+                workspace, solution,
+                "Foo.Bar",
+                "NonExistentProject",
+                null,
+                false));
+
+        Assert.Contains("NonExistentProject", ex.Message);
     }
 }
