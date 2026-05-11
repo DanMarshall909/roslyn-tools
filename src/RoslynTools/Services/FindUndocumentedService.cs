@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
@@ -17,7 +18,7 @@ internal sealed record UndocumentedSymbol(
 internal sealed class FindUndocumentedService : IRtService
 {
     internal async Task<List<UndocumentedSymbol>> AnalyzeAsync(
-        Solution solution, bool includeMembers, string? scope)
+        Solution solution, bool includeMembers, string? scope, IReadOnlySet<SyntaxKind>? accessibilityKinds)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var results = new List<UndocumentedSymbol>();
@@ -31,7 +32,7 @@ internal sealed class FindUndocumentedService : IRtService
             var model = await document.GetSemanticModelAsync();
             if (root is null || model is null || document.FilePath is null) continue;
 
-            Collect(root, model, document.FilePath, includeMembers, scope, seen, results);
+            Collect(root, model, document.FilePath, includeMembers, scope, accessibilityKinds, seen, results);
         }
 
         return [.. results.OrderBy(s => s.FilePath).ThenBy(s => s.Line)];
@@ -39,12 +40,12 @@ internal sealed class FindUndocumentedService : IRtService
 
     private static void Collect(
         SyntaxNode root, SemanticModel model, string filePath,
-        bool includeMembers, string? scope,
+        bool includeMembers, string? scope, IReadOnlySet<SyntaxKind>? accessibilityKinds,
         HashSet<string> seen, List<UndocumentedSymbol> results)
     {
         foreach (var typeDecl in root.DescendantNodes().OfType<BaseTypeDeclarationSyntax>())
         {
-            if (!IsPublic(typeDecl.Modifiers)) continue;
+            if (!MatchesAccessibility(typeDecl.Modifiers, accessibilityKinds)) continue;
             if (model.GetDeclaredSymbol(typeDecl) is not { } typeSymbol) continue;
 
             var fqn = typeSymbol.ToDisplayString();
@@ -59,7 +60,7 @@ internal sealed class FindUndocumentedService : IRtService
             foreach (var member in typeWithMembers.Members)
             {
                 if (member is not MemberDeclarationSyntax memberDecl) continue;
-                if (!IsPublic(memberDecl.Modifiers)) continue;
+                if (!MatchesAccessibility(memberDecl.Modifiers, accessibilityKinds)) continue;
                 if (HasXmlDoc(memberDecl)) continue;
                 if (model.GetDeclaredSymbol(memberDecl) is not { } memberSymbol) continue;
 
@@ -92,9 +93,31 @@ internal sealed class FindUndocumentedService : IRtService
             t.IsKind(SyntaxKind.MultiLineDocumentationCommentTrivia));
     }
 
-    private static bool IsPublic(SyntaxTokenList modifiers)
+    // null means "all" — no filter applied.
+    private static bool MatchesAccessibility(SyntaxTokenList modifiers, IReadOnlySet<SyntaxKind>? kinds)
     {
-        return modifiers.Any(m => m.IsKind(SyntaxKind.PublicKeyword));
+        if (kinds is null) return true;
+        return modifiers.Any(m => kinds.Contains(m.Kind()));
+    }
+
+    internal static IReadOnlySet<SyntaxKind>? ParseAccessibilityLevels(IEnumerable<string> levels)
+    {
+        var kinds = new HashSet<SyntaxKind>();
+        foreach (var level in levels)
+        {
+            switch (level.Trim().ToLowerInvariant())
+            {
+                case "all":       return null;
+                case "public":    kinds.Add(SyntaxKind.PublicKeyword);    break;
+                case "internal":  kinds.Add(SyntaxKind.InternalKeyword);  break;
+                case "private":   kinds.Add(SyntaxKind.PrivateKeyword);   break;
+                case "protected": kinds.Add(SyntaxKind.ProtectedKeyword); break;
+                default:
+                    RtLog.Error($"Unknown accessibility level: '{level}'. Use: public, internal, protected, private, all");
+                    return null;
+            }
+        }
+        return kinds.Count == 0 ? new HashSet<SyntaxKind> { SyntaxKind.PublicKeyword } : kinds;
     }
 
     private static bool IsSourceDocument(Document doc)
