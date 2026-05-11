@@ -46,13 +46,15 @@ public class Move
 
         var (workspace, solution) = builder.Build();
 
-        // Inject an explicit <Compile Include="Widget.cs" /> into the source .csproj
+        // Write a minimal .csproj with an explicit <Compile Include>
         var sourceCsproj = solution.Projects.First(p => p.Name == "SourceProject").FilePath!;
-        var originalXml = await File.ReadAllTextAsync(sourceCsproj);
-        var xmlWithCompile = originalXml.Replace(
-            "</Project>",
-            "  <ItemGroup><Compile Include=\"Widget.cs\" /></ItemGroup>\n</Project>");
-        await File.WriteAllTextAsync(sourceCsproj, xmlWithCompile);
+        await File.WriteAllTextAsync(sourceCsproj, """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <ItemGroup>
+                <Compile Include="Widget.cs" />
+              </ItemGroup>
+            </Project>
+            """);
 
         await new MoveService().ExecuteCrossProjectMoveAsync(
             workspace, solution,

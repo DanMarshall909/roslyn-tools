@@ -122,6 +122,10 @@ internal class MoveService : IRtService
         }
 
         // Physically move each declaration file to the mirrored path under target project dir
+        var sourceProjectFilePath = solution.Projects
+            .FirstOrDefault(p => p.Documents.Any(d => declarationFiles.Contains(d.FilePath ?? "")))
+            ?.FilePath;
+
         foreach (var filePath in declarationFiles)
         {
             if (sourceProjectDir == null) continue;
@@ -133,6 +137,7 @@ internal class MoveService : IRtService
             {
                 RtConsole.WriteLine(RtOutputContext.Result, $"source: {filePath}");
                 RtConsole.WriteLine(RtOutputContext.Result, $"destination: {destPath}");
+                RemoveCompileIncludeFromCsproj(sourceProjectFilePath, relPath, dryRun: true);
                 continue;
             }
 
@@ -142,6 +147,7 @@ internal class MoveService : IRtService
 
             File.Move(filePath, destPath, overwrite: false);
             _logger.RtInfo("Moved '{Source}' -> '{Destination}'", filePath, destPath);
+            RemoveCompileIncludeFromCsproj(sourceProjectFilePath, relPath, dryRun: false);
         }
     }
 
@@ -520,6 +526,45 @@ internal class MoveService : IRtService
             File.Move(filePath, newFilePath);
             RtConsole.WriteLine(RtOutputContext.Result, $"Moved: {filePath} -> {newFilePath}");
         }
+    }
+
+    private void RemoveCompileIncludeFromCsproj(string? csprojPath, string relPath, bool dryRun)
+    {
+        if (csprojPath == null || !File.Exists(csprojPath)) return;
+
+        var xml = File.ReadAllText(csprojPath);
+
+        // Normalise to forward slashes for comparison
+        var normalised = relPath.Replace('\\', '/');
+
+        var doc = System.Xml.Linq.XDocument.Parse(xml, System.Xml.Linq.LoadOptions.PreserveWhitespace);
+        var toRemove = doc.Descendants("Compile")
+            .Where(e =>
+            {
+                var include = (string?)e.Attribute("Include") ?? "";
+                return string.Equals(include.Replace('\\', '/'), normalised, StringComparison.OrdinalIgnoreCase);
+            })
+            .ToList();
+
+        if (toRemove.Count == 0) return;
+
+        if (dryRun)
+        {
+            foreach (var el in toRemove)
+                RtConsole.WriteLine(RtOutputContext.Result, $"compile-remove: {el}");
+            return;
+        }
+
+        foreach (var el in toRemove)
+        {
+            var parent = el.Parent;
+            el.Remove();
+            // Drop empty ItemGroup
+            if (parent?.IsEmpty == true && parent.Name.LocalName == "ItemGroup")
+                parent.Remove();
+        }
+
+        doc.Save(csprojPath);
     }
 
     internal string NamespaceToRelativeDir(string ns, string rootNamespace)
