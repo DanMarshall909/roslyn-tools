@@ -205,6 +205,23 @@ internal sealed class DependencyInjector : CSharpSyntaxRewriter
     {
         var newParam = SyntaxFactory.ParseParameterList($"({_depType} {_paramName})").Parameters[0];
 
+        var existing = ctor.ParameterList.Parameters;
+        if (existing.Count > 0)
+        {
+            var openParenTrailing = ctor.ParameterList.OpenParenToken.TrailingTrivia;
+            var isMultiLine = openParenTrailing.Any(t => t.ToFullString().Contains('\n'));
+            if (isMultiLine)
+            {
+                // newline lives in the open-paren trailing trivia; indentation in the param's leading trivia
+                var indent = existing[existing.Count - 1].GetLeadingTrivia();
+                newParam = newParam.WithLeadingTrivia(openParenTrailing.AddRange(indent));
+            }
+            else
+            {
+                newParam = newParam.WithLeadingTrivia(SyntaxFactory.Space);
+            }
+        }
+
         var rewritten = ctor.WithParameterList(ctor.ParameterList.AddParameters(newParam));
         return AddAssignment(rewritten, _paramName);
     }
