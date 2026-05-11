@@ -28,7 +28,7 @@ internal sealed class FindUndocumentedCommand : IRtCommand
             "rt inspect find-undocumented --solution RoslynTools.slnx",
             "rt inspect undoc --members --level internal --solution RoslynTools.slnx",
             "rt inspect undoc --members --level public,internal --scope RoslynTools.Core --solution RoslynTools.slnx",
-            "rt inspect find-undocumented --level all --json --solution RoslynTools.slnx > undocumented.json"
+            "rt inspect find-undocumented --level all --json --solution RoslynTools.slnx"
         ]
     );
 

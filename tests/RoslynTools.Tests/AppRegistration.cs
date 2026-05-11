@@ -69,7 +69,7 @@ public sealed class AppRegistration
 
         App.RegisterGlobalOptions(root);
 
-        Assert.Equal(before + 5, root.Options.Count);
+        Assert.Equal(before + 6, root.Options.Count);
     }
 
     [Fact]

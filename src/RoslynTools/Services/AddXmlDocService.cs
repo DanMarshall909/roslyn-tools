@@ -10,11 +10,16 @@ namespace RoslynTools.Services;
 /// </summary>
 internal sealed class AddXmlDocService : IRtService
 {
+    private readonly ISymbolResolutionService _symbols;
     private readonly ISolutionChangeWriter _writer;
 
-    public AddXmlDocService() : this(new SolutionChangeWriter()) { }
+    public AddXmlDocService() : this(new SymbolResolutionService(), new SolutionChangeWriter()) { }
 
-    public AddXmlDocService(ISolutionChangeWriter writer) => _writer = writer;
+    public AddXmlDocService(ISymbolResolutionService symbols, ISolutionChangeWriter writer)
+    {
+        _symbols = symbols;
+        _writer = writer;
+    }
 
     /// <summary>
     /// An asynchronous method to run XML documentation services.
@@ -28,12 +33,12 @@ internal sealed class AddXmlDocService : IRtService
         foreach (var (fqn, summary) in docs)
         {
             ISymbol? symbol;
-            try { symbol = await SymbolLocator.FindSymbolByFqnAsync(updated, fqn, null); }
+            try { symbol = await _symbols.FindSymbolByFqnAsync(updated, fqn, null); }
             catch { symbol = null; }
 
             if (symbol is null)
             {
-                RtLog.Error($"Symbol not found, skipping: {fqn}");
+                RtLog.Error("Symbol not found, skipping: {Fqn}", fqn);
                 skipped++;
                 continue;
             }
@@ -56,7 +61,7 @@ internal sealed class AddXmlDocService : IRtService
             }
         }
 
-        RtLog.Info($"XML docs: {applied} applied, {skipped} symbols not found.");
+        RtLog.Info("XML docs: {Applied} applied, {Skipped} symbols not found.", applied, skipped);
         await _writer.ApplyChangesAsync(sln, updated, dryRun);
     }
 
