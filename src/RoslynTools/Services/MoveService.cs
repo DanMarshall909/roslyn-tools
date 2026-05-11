@@ -65,7 +65,7 @@ internal class MoveService : IRtService
             dryRun);
     }
 
-    internal Task ExecuteCrossProjectMoveAsync(
+    internal async Task ExecuteCrossProjectMoveAsync(
         Workspace workspace,
         Solution solution,
         string fqn,
@@ -73,7 +73,15 @@ internal class MoveService : IRtService
         string? targetNamespace,
         bool dryRun)
     {
-        throw new NotImplementedException("Cross-project move is not yet implemented.");
+        var targetProject = solution.Projects.FirstOrDefault(p =>
+            string.Equals(p.Name, targetProjectName, StringComparison.OrdinalIgnoreCase));
+
+        if (targetProject == null)
+            throw new InvalidOperationException(
+                $"Project '{targetProjectName}' not found in the solution. " +
+                $"Available projects: {string.Join(", ", solution.Projects.Select(p => p.Name))}");
+
+        throw new NotImplementedException("Cross-project move body not yet implemented.");
     }
 
     internal async Task ExecuteSingleTypeMoveAsync(
