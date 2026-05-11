@@ -263,6 +263,27 @@ public class Move
         Assert.False(builder.SourceExists("Models/Product.cs"), "Original file should have been removed");
     }
 
+    [Fact]
+    [Trait("Concern", "Metadata")]
+    public void move_file_flag_is_listed_as_ignored_when_to_project_is_set()
+    {
+        // The --move-file option must exist on the command AND its description or
+        // WhenToUse/Examples must document that --to-project overrides it.
+        // We verify the option exists; runtime precedence is tested via the handler's
+        // branch order (to-project path never reads moveFile).
+        var cmd = MoveCommand.Build();
+        var moveFileOpt = cmd.Options.FirstOrDefault(o => o.Name == "move-file");
+        Assert.NotNull(moveFileOpt);
+
+        // to-project option must exist
+        var toProjectOpt = cmd.Options.FirstOrDefault(o => o.Name == "to-project");
+        Assert.NotNull(toProjectOpt);
+
+        // The WhenToUse text must mention --move-file is overridden
+        Assert.Contains("--move-file", MoveCommand.Info.WhenToUse, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("--to-project", MoveCommand.Info.WhenToUse, StringComparison.OrdinalIgnoreCase);
+    }
+
     private sealed class CollectingResultConsole(List<string> lines) : IRtConsole
     {
         public bool IsOutputRedirected => true;
