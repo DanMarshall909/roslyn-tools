@@ -22,8 +22,10 @@
                 "ControlFlowUnwinder.cs, ConsumerNarrowerService.cs, InterfaceAnalyzerService.cs use project-standard encoding (no BOM)"
             ],
             "priority": 25,
-            "passes": false,
-            "notes": "P1. Run dotnet format RoslynTools.slnx to auto-fix. Affected: src/RoslynTools/Services/TransformParametersService.cs (CRLF lines 13-14), src/RoslynTools/Core/ControlFlowUnwinder.cs, src/RoslynTools/Services/ConsumerNarrowerService.cs, src/RoslynTools/Services/InterfaceAnalyzerService.cs (encoding)."
+            "passes": true,
+            "notes": "P1. Run dotnet format RoslynTools.slnx to auto-fix. Affected: src/RoslynTools/Services/TransformParametersService.cs (CRLF lines 13-14), src/RoslynTools/Core/ControlFlowUnwinder.cs, src/RoslynTools/Services/ConsumerNarrowerService.cs, src/RoslynTools/Services/InterfaceAnalyzerService.cs (encoding).",
+            "resolution": "Fixed: ran dotnet format; 55 files normalised to LF + encoding cleaned. .gitattributes eol=lf prevents recurrence. Commit 206326a.",
+            "resolvedAt": "2026-05-11"
         },
         {
             "id": "US-026",
