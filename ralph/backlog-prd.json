@@ -8,6 +8,12 @@
             "title": "codebase consistency sweep",
             "description": "Fix formatting violations and consolidate structural duplication identified in the May 2026 consistency analysis.",
             "notes": "Findings from rt analyze list-smells + find-duplicates sweep on 2026-05-11."
+        },
+        {
+            "id": "EP-006",
+            "title": "SOLID Adherence Analysis",
+            "description": "Family of rt analyze solid subcommands that detect likely SOLID-principle violations using Roslyn semantic model. One detector per principle; output is JSON grouped by detector name.",
+            "notes": "P2. Five child stories: SRP, ISP, DIP, OCP, LSP. Each independently shippable."
         }
     ],
     "userStories": [
@@ -26,21 +32,6 @@
             "notes": "P1. Run dotnet format RoslynTools.slnx to auto-fix. Affected: src/RoslynTools/Services/TransformParametersService.cs (CRLF lines 13-14), src/RoslynTools/Core/ControlFlowUnwinder.cs, src/RoslynTools/Services/ConsumerNarrowerService.cs, src/RoslynTools/Services/InterfaceAnalyzerService.cs (encoding).",
             "resolution": "Fixed: ran dotnet format; 55 files normalised to LF + encoding cleaned. .gitattributes eol=lf prevents recurrence. Commit 206326a.",
             "resolvedAt": "2026-05-11"
-        },
-        {
-            "id": "US-026",
-            "epicId": "EP-005",
-            "title": "standardise --solution option construction via CommandOptionFactory across all commands",
-            "description": "As a maintainer, I want every command to use CommandOptionFactory.CreateSolutionOption() so that the solution option is consistent across commands.",
-            "acceptanceCriteria": [
-                "No command Build() method contains a raw new Option<string?>(\"--solution\", ...) construction",
-                "All commands delegate to CommandOptionFactory.CreateSolutionOption()",
-                "rt dump-help output descriptions are unchanged",
-                "All existing tests pass"
-            ],
-            "priority": 26,
-            "passes": false,
-            "notes": "P2. Bypassing factory: AddDependencyCommand, DependencyGraphCommand, ExtractInterfaceCommand, FindDuplicatesCommand, FindMagicStringsCommand, FindPatternCommand, ListSmellsCommand, MakeAsyncCommand, MoveMethodCommand, TransformParametersCommand. Groups GRP-20/26/36/57 from find-duplicates."
         },
         {
             "id": "US-027",
@@ -100,6 +91,109 @@
             "priority": 30,
             "passes": false,
             "notes": "P3. Duplication: src/RoslynTools/Core/PatternMatcher.cs:293 and src/RoslynTools/Services/FindDuplicatesService.cs:416. find-duplicates GRP-3-74806dae."
+        },
+        {
+            "id": "US-031",
+            "title": "rt: replace-new argument-reshaping — drop matched arg, keep remaining args",
+            "description": "As a developer dogfooding rt, I want replace-new to support argument reshaping so that I can replace new Option<string?>(\"--solution\", helpText) with Factory.CreateSolutionOption(helpText) in one command.",
+            "acceptanceCriteria": [
+                "rt refactor replace-new --with accepts a template syntax (e.g. --with \"Factory.X({arg1})\") that maps constructor argument positions to factory call arguments",
+                "When --if-arg 0 --if-arg-literal \"--solution\" is used, the matched first arg is dropped and remaining args are passed to the replacement method",
+                "Dry-run output shows the reshaped call correctly",
+                "The feature handles the common single-remaining-arg case: new Foo(\"lit\", help) -> Factory.Method(help)"
+            ],
+            "priority": 31,
+            "passes": false,
+            "notes": "P2. Discovered during US-026 EP-005 planning. rt gap prevents dogfooding replace-new for option factory standardisation pattern. Manual edit fallback was used for US-026."
+        },
+        {
+            "id": "US-032",
+            "title": "rt analyze solid: SRP detector — flag classes with high method/dependency count",
+            "description": "As a developer, I want rt analyze solid --principle SRP to flag classes likely violating SRP so that I can identify candidates for decomposition.",
+            "acceptanceCriteria": [
+                "rt analyze solid --principle SRP --solution <sln> exits 0 and emits JSON to stdout",
+                "Output has a top-level 'SRP' key containing an array of violation items",
+                "Each item includes: TypeName, FilePath, Line, PublicMethodCount, DependencyCount, Detail",
+                "--min-methods <N> (default 10) and --min-deps <N> (default 5) are configurable thresholds",
+                "Classes below both thresholds are excluded from output",
+                "rt analyze solid --principle all includes SRP results alongside other active detectors"
+            ],
+            "priority": 32,
+            "passes": false,
+            "epicId": "EP-006",
+            "notes": "P2. Heuristic: classes where public method count AND distinct constructor-injected type count both exceed configurable thresholds. Output grouped under 'SRP' detector key."
+        },
+        {
+            "id": "US-033",
+            "title": "rt analyze solid: ISP detector — flag fat interfaces and NotImplementedException members",
+            "description": "As a developer, I want rt analyze solid --principle ISP to flag over-broad interfaces and implementing classes that throw on members they cannot fulfill.",
+            "acceptanceCriteria": [
+                "rt analyze solid --principle ISP --solution <sln> exits 0 and emits JSON to stdout",
+                "Output has a top-level 'ISP' key with sub-arrays for 'FatInterfaces' and 'UnimplementedMembers'",
+                "Each FatInterface item includes: InterfaceName, FilePath, Line, MemberCount",
+                "Each UnimplementedMember item includes: TypeName, MemberName, InterfaceName, FilePath, Line",
+                "--min-members <N> (default 7) is configurable for the fat-interface threshold",
+                "Classes throwing NotImplementedException or NotSupportedException on implemented interface members are flagged under UnimplementedMembers",
+                "rt analyze solid --principle all includes ISP results"
+            ],
+            "priority": 33,
+            "passes": false,
+            "epicId": "EP-006",
+            "notes": "P2. Two sub-checks: (1) interfaces with member count above threshold; (2) classes implementing an interface but throwing NotImplementedException/NotSupportedException on one or more members. Output grouped under 'ISP' detector key."
+        },
+        {
+            "id": "US-034",
+            "title": "rt analyze solid: DIP detector — flag concrete constructor params and inline new calls",
+            "description": "As a developer, I want rt analyze solid --principle DIP to flag high-level classes that depend directly on concrete types rather than abstractions.",
+            "acceptanceCriteria": [
+                "rt analyze solid --principle DIP --solution <sln> exits 0 and emits JSON to stdout",
+                "Output has a top-level 'DIP' key with sub-arrays for 'ConcreteConstructorParams' and 'InlineNewCalls'",
+                "Each ConcreteConstructorParam item includes: TypeName, ParamName, ConcreteType, FilePath, Line",
+                "Each InlineNewCall item includes: TypeName, MemberName, ConcreteType, FilePath, Line",
+                "Value types, record types, and Exception-derived types are excluded from InlineNewCalls",
+                "Classes named *Factory, *Builder, or *Provider are excluded from InlineNewCalls (they are expected to new things)",
+                "rt analyze solid --principle all includes DIP results"
+            ],
+            "priority": 34,
+            "passes": false,
+            "epicId": "EP-006",
+            "notes": "P2. Two sub-checks: (1) constructors accepting concrete class params (not interfaces/abstract); (2) non-factory class bodies calling new ConcreteType() where ConcreteType is not a value type, DTO, or exception. Output grouped under 'DIP' detector key."
+        },
+        {
+            "id": "US-035",
+            "title": "rt analyze solid: OCP detector — flag switch/if chains branching on concrete types",
+            "description": "As a developer, I want rt analyze solid --principle OCP to flag code that must be modified every time a new concrete type is added.",
+            "acceptanceCriteria": [
+                "rt analyze solid --principle OCP --solution <sln> exits 0 and emits JSON to stdout",
+                "Output has a top-level 'OCP' key containing an array of violation items",
+                "Each item includes: TypeName, MemberName, FilePath, Line, BranchCount, ViolationType ('switch' or 'if-chain')",
+                "Flags switch expressions/statements matching on 'is ConcreteType' patterns",
+                "Flags if/else chains using 'is ConcreteType' or 'obj.GetType() == typeof(X)' with 2 or more concrete-type branches",
+                "--min-branches <N> (default 2) is configurable",
+                "rt analyze solid --principle all includes OCP results"
+            ],
+            "priority": 35,
+            "passes": false,
+            "epicId": "EP-006",
+            "notes": "P2. Detects: (1) switch expressions/statements matching on 'is ConcreteType'; (2) if/else chains using 'is ConcreteType' or obj.GetType() == typeof(X) with 2+ branches. Output grouped under 'OCP' detector key."
+        },
+        {
+            "id": "US-036",
+            "title": "rt analyze solid: LSP detector — flag overrides throwing or narrowing contracts",
+            "description": "As a developer, I want rt analyze solid --principle LSP to flag override methods that break Liskov substitutability so that I can identify types that cannot safely replace their base.",
+            "acceptanceCriteria": [
+                "rt analyze solid --principle LSP --solution <sln> exits 0 and emits JSON to stdout",
+                "Output has a top-level 'LSP' key with sub-arrays for 'ThrowingOverrides' and 'ContractNarrowings'",
+                "Each ThrowingOverride item includes: TypeName, MemberName, ExceptionType, FilePath, Line",
+                "Each ContractNarrowing item includes: TypeName, MemberName, BaseType, FilePath, Line",
+                "Flags override methods whose body contains throw new NotImplementedException() or NotSupportedException()",
+                "Flags explicit interface implementations that throw on every code path",
+                "rt analyze solid --principle all includes LSP results"
+            ],
+            "priority": 36,
+            "passes": false,
+            "epicId": "EP-006",
+            "notes": "P2. Two sub-checks: (1) override methods whose body throws NotImplementedException/NotSupportedException; (2) explicit interface implementations that throw on every code path. Output grouped under 'LSP' detector key."
         }
     ]
 }
