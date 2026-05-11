@@ -17,9 +17,13 @@ internal class OutlineService : IRtService
     // Anything not in this list (rare — e.g. ErrorType) sorts alphabetically at the end.
     private readonly string[] KindOrder = ["Field", "Property", "Event", "Method", "NamedType"];
 
+    private static readonly Regex XmlSummaryRegex =
+        new(@"<summary>(.*?)</summary>", RegexOptions.Singleline | RegexOptions.Compiled);
+
     internal async Task<List<Dictionary<string, object?>>> OutlineFileAsync(
         Solution solution,
-        string filePath)
+        string filePath,
+        bool summary = false)
     {
         var fullPath = Path.GetFullPath(filePath.Replace('/', Path.DirectorySeparatorChar));
         var results = new List<Dictionary<string, object?>>();
@@ -45,8 +49,50 @@ internal class OutlineService : IRtService
                 .Distinct(SymbolEqualityComparer.Default)
                 .Cast<INamedTypeSymbol>();
 
+            if (summary)
+                declaredSymbols = declaredSymbols.Where(t => t.ContainingType is null);
+
             foreach (var type in declaredSymbols)
-                results.Add(BuildTypeOutline(type));
+                results.Add(summary ? BuildTypeSummary(type) : BuildTypeOutline(type));
+        }
+
+        return results;
+    }
+
+    internal async Task<List<Dictionary<string, object?>>> OutlineDirectoryAsync(
+        Solution solution,
+        string directoryPath,
+        bool summary = false)
+    {
+        var fullDir = Path.GetFullPath(directoryPath.Replace('/', Path.DirectorySeparatorChar));
+        var results = new List<Dictionary<string, object?>>();
+
+        foreach (var project in solution.Projects)
+        foreach (var doc in project.Documents)
+        {
+            if (doc.FilePath is null) continue;
+            var docDir = Path.GetDirectoryName(Path.GetFullPath(doc.FilePath));
+            if (!string.Equals(docDir, fullDir, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var semanticModel = await doc.GetSemanticModelAsync();
+            if (semanticModel == null) continue;
+
+            var root = await doc.GetSyntaxRootAsync();
+            if (root == null) continue;
+
+            var types = root.DescendantNodes()
+                .Select(n => semanticModel.GetDeclaredSymbol(n))
+                .Where(s => s is INamedTypeSymbol)
+                .Cast<INamedTypeSymbol>()
+                .Distinct(SymbolEqualityComparer.Default)
+                .Cast<INamedTypeSymbol>();
+
+            if (summary)
+                types = types.Where(t => t.ContainingType is null);
+
+            foreach (var type in types)
+                results.Add(summary ? BuildTypeSummary(type) : BuildTypeOutline(type));
         }
 
         return results;
@@ -54,7 +100,8 @@ internal class OutlineService : IRtService
 
     internal async Task<List<Dictionary<string, object?>>> OutlineNamespaceAsync(
         Solution solution,
-        string namespaceName)
+        string namespaceName,
+        bool summary = false)
     {
         var results = new List<Dictionary<string, object?>>();
         var seen = new HashSet<string>();
@@ -71,11 +118,14 @@ internal class OutlineService : IRtService
                 ? FindNamespaceTypesByPrefix(compilation.GlobalNamespace, lookupName)
                 : FindNamespaceTypes(compilation.GlobalNamespace, lookupName);
 
+            if (summary)
+                nsSymbols = nsSymbols.Where(t => t.ContainingType is null);
+
             foreach (var type in nsSymbols)
             {
                 var key = type.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
                 if (seen.Add(key))
-                    results.Add(BuildTypeOutline(type));
+                    results.Add(summary ? BuildTypeSummary(type) : BuildTypeOutline(type));
             }
         }
 
@@ -87,7 +137,8 @@ internal class OutlineService : IRtService
 
     internal async Task<List<Dictionary<string, object?>>> OutlineGlobAsync(
         Solution solution,
-        string globPattern)
+        string globPattern,
+        bool summary = false)
     {
         var matchingPaths = ExpandGlob(globPattern);
         var results = new List<Dictionary<string, object?>>();
@@ -111,8 +162,11 @@ internal class OutlineService : IRtService
                 .Distinct(SymbolEqualityComparer.Default)
                 .Cast<INamedTypeSymbol>();
 
+            if (summary)
+                types = types.Where(t => t.ContainingType is null);
+
             foreach (var type in types)
-                results.Add(BuildTypeOutline(type));
+                results.Add(summary ? BuildTypeSummary(type) : BuildTypeOutline(type));
         }
 
         return results;
@@ -120,7 +174,8 @@ internal class OutlineService : IRtService
 
     internal async Task<List<Dictionary<string, object?>>> OutlineRegexAsync(
         Solution solution,
-        string regexPattern)
+        string regexPattern,
+        bool summary = false)
     {
         var regex = new Regex(regexPattern, RegexOptions.IgnoreCase);
         var results = new List<Dictionary<string, object?>>();
@@ -143,8 +198,11 @@ internal class OutlineService : IRtService
                 .Distinct(SymbolEqualityComparer.Default)
                 .Cast<INamedTypeSymbol>();
 
+            if (summary)
+                types = types.Where(t => t.ContainingType is null);
+
             foreach (var type in types)
-                results.Add(BuildTypeOutline(type));
+                results.Add(summary ? BuildTypeSummary(type) : BuildTypeOutline(type));
         }
 
         return results;
@@ -230,6 +288,32 @@ internal class OutlineService : IRtService
             SymbolFormatter.ExtractMembers(type, false));
 
         return outline;
+    }
+
+    internal Dictionary<string, object?> BuildTypeSummary(INamedTypeSymbol type)
+    {
+        var (lineFrom, lineTo) = SymbolFormatter.GetSourceLineRange(type);
+        var summary = new Dictionary<string, object?>
+        {
+            ["fqn"] = type.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
+            ["kind"] = type.TypeKind.ToString(),
+            ["lineFrom"] = lineFrom,
+            ["lineTo"] = lineTo
+        };
+
+        var xml = type.GetDocumentationCommentXml();
+        if (!string.IsNullOrWhiteSpace(xml))
+        {
+            var match = XmlSummaryRegex.Match(xml);
+            if (match.Success)
+            {
+                var desc = Regex.Replace(match.Groups[1].Value.Trim(), @"\s+", " ");
+                if (!string.IsNullOrEmpty(desc))
+                    summary["description"] = desc;
+            }
+        }
+
+        return summary;
     }
 
     private Dictionary<string, object?> GroupMembersByKindAndAccessibility(

@@ -11,7 +11,7 @@ namespace RoslynTools.Tests.Architecture;
 public sealed class SmellsFixture : IAsyncLifetime
 {
     private Workspace? _workspace;
-    public IReadOnlyList<SmellResult> Smells { get; private set; } = [];
+    internal IReadOnlyList<SmellResult> Smells { get; private set; } = [];
 
     public async Task InitializeAsync()
     {

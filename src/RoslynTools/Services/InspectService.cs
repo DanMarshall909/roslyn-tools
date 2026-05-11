@@ -80,4 +80,26 @@ internal class InspectService : IRtService
 
         return result;
     }
+
+    internal async Task<List<Dictionary<string, object?>>> GetSourceAsync(ISymbol symbol)
+    {
+        var results = new List<Dictionary<string, object?>>();
+
+        foreach (var syntaxRef in symbol.DeclaringSyntaxReferences)
+        {
+            var node = await syntaxRef.GetSyntaxAsync();
+            var lineSpan = node.SyntaxTree.GetLineSpan(node.Span);
+
+            results.Add(new Dictionary<string, object?>
+            {
+                ["fqn"] = symbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
+                ["file"] = syntaxRef.SyntaxTree.FilePath,
+                ["lineFrom"] = lineSpan.StartLinePosition.Line + 1,
+                ["lineTo"] = lineSpan.EndLinePosition.Line + 1,
+                ["source"] = node.ToFullString().TrimEnd()
+            });
+        }
+
+        return results;
+    }
 }
