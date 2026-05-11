@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
 using RoslynTools.Commands;
+using RoslynTools.Core;
 using RoslynTools.Services;
 
 namespace RoslynTools.Tests.Refactor;
@@ -29,6 +30,49 @@ public class Move
         var toNsOpt = cmd.Options.FirstOrDefault(o => o.Name == "to-namespace");
         Assert.NotNull(toNsOpt);
         Assert.Contains("--to-project", toNsOpt.Description, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    [Trait("Concern", "DryRun")]
+    public async Task dry_run_prints_source_destination_and_compile_remove_lines_without_moving_files()
+    {
+        const string src = """
+                           namespace Pkg;
+                           public class Draft { }
+                           """;
+
+        using var builder = new AdhocProjectBuilder("SourceProject")
+            .AddSource("Draft.cs", src);
+        builder.AddProject("TargetProject");
+
+        var (workspace, solution) = builder.Build();
+
+        var sourceCsproj = solution.Projects.First(p => p.Name == "SourceProject").FilePath!;
+        await File.WriteAllTextAsync(sourceCsproj, """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <ItemGroup>
+                <Compile Include="Draft.cs" />
+              </ItemGroup>
+            </Project>
+            """);
+
+        var stdout = new List<string>();
+        using (Core.RtConsole.UseConsole(new CollectingResultConsole(stdout)))
+        {
+            await new MoveService().ExecuteCrossProjectMoveAsync(
+                workspace, solution,
+                "Pkg.Draft",
+                "TargetProject",
+                null,
+                dryRun: true);
+        }
+
+        Assert.Contains(stdout, l => l.StartsWith("source:", StringComparison.Ordinal));
+        Assert.Contains(stdout, l => l.StartsWith("destination:", StringComparison.Ordinal));
+        Assert.Contains(stdout, l => l.StartsWith("compile-remove:", StringComparison.Ordinal));
+
+        // No files moved
+        Assert.True(builder.SourceExists("Draft.cs"), "Original file must not be moved in dry-run");
     }
 
     [Fact]
@@ -217,6 +261,20 @@ public class Move
         var expectedDest = Path.Combine(targetDir, "Models", "Product.cs");
         Assert.True(File.Exists(expectedDest), $"Expected file at {expectedDest}");
         Assert.False(builder.SourceExists("Models/Product.cs"), "Original file should have been removed");
+    }
+
+    private sealed class CollectingResultConsole(List<string> lines) : IRtConsole
+    {
+        public bool IsOutputRedirected => true;
+        public void Log(RtLogLevel level, string template, object?[] args) { }
+        public void Write(RtOutputContext context, string message, ConsoleColor? color = null) { }
+        public string? ReadLine() => null;
+
+        public void WriteLine(RtOutputContext context, string message = "", ConsoleColor? color = null)
+        {
+            if (context == RtOutputContext.Result)
+                lines.Add(message);
+        }
     }
 
     [Fact]
