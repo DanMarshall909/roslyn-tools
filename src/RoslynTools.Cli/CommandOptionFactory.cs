@@ -27,6 +27,11 @@ internal static class CommandOptionFactory
         return new Option<string?>("--solution", "Path to .sln/.slnx");
     }
 
+    public static Option<string?> CreateSolutionOption(string helpText)
+    {
+        throw new NotImplementedException();
+    }
+
     public static Option<bool> CreateDryRunOption()
     {
         return new Option<bool>("--dry-run", "Preview without writing");

@@ -160,6 +160,26 @@
             "notes": "Repro: add-dependency --type AddDependencyService --dependency ISolutionChangeWriter --solution RoslynTools.slnx --dry-run",
             "resolution": "DependencyInjector now skips constructors with this(...) initialisers, fixing AlreadyInjected detection for the delegating-ctor pattern and preventing fallback ctors from being modified. AddParameterAndAssignment derives leading trivia from the existing parameter list: newline+indent for multi-line, space for single-line. 8 new tests.",
             "resolvedAt": "2026-05-11"
+        },
+        {
+            "id": "US-026",
+            "epicId": "EP-005",
+            "title": "standardise --solution option construction via CommandOptionFactory across all commands",
+            "description": "As a maintainer, I want every command to use CommandOptionFactory.CreateSolutionOption() so that the solution option is consistent across commands.",
+            "acceptanceCriteria": [
+                "CommandOptionFactory.CreateSolutionOption(string helpText) overload exists and returns Option<string?> with name '--solution' and the supplied help text",
+                "The existing parameterless CreateSolutionOption() continues to return Option<string?> with name '--solution' and description 'Path to .sln/.slnx'",
+                "Tests for the new overload verify: option name is '--solution', help text matches the supplied argument, option type is nullable string, and option is not required",
+                "No file under src/RoslynTools.Cli/Commands/ contains the pattern new Option<string?>(\"--solution\", (raw construction bypassing the factory)",
+                "All 33 commands that previously bypassed the factory now call CommandOptionFactory.CreateSolutionOption() with their original help text preserved verbatim",
+                "dotnet build RoslynTools.slnx succeeds with 0 warnings and 0 errors",
+                "dotnet format RoslynTools.slnx --verify-no-changes exits 0",
+                "dotnet test RoslynTools.slnx -v minimal passes with the same pass count as before the refactor",
+                "rt dump-help output for each command's --solution flag description is byte-identical to its pre-refactor text (no incidental help-text normalisation)"
+            ],
+            "priority": 26,
+            "passes": false,
+            "notes": "P2. Actual scope: 33 commands bypass the factory (story notes listed 10 — outdated). 6 help-text variants exist; all must be preserved verbatim (Option A chosen). Bypassing commands include: AddDependencyCommand, AddTestCommand, AnalyzeInterfaceCommand, CircularDepsCommand, ComplexityCommand, ConvertConsoleLoggingCommand, DependencyGraphCommand, DescribeCommand, ExtractClassCommand, ExtractInterfaceCommand, ExtractMethodCommand, FindDuplicatesCommand, FindImplementationsCommand, FindMagicStringsCommand, FindPatternCommand, FindRefsCommand, FindUnusedCommand, ImplementInterfaceCommand, ListImportsCommand, ListSmellsCommand, MakeAsyncCommand, MoveCommand, MoveMethodCommand, OutlineCommand, RenameCommand, ReplaceCallCommand, ReplaceNewCommand, ReplaceTypeCommand, ReplaceXunitAssertsCommand, SafeDeleteCommand, SourceCommand, StaticClassInventoryCommand, TransformParametersCommand."
         }
     ]
 }
