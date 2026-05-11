@@ -62,7 +62,17 @@ public sealed class AppRegistration
     }
 
     [Fact]
-    public void registers_global_options_registers_all_five_options_at_once()
+    public void registers_global_options_adds_strict_json_option()
+    {
+        var root = new RootCommand("test");
+
+        App.RegisterGlobalOptions(root);
+
+        Assert.Contains(root.Options, o => o.Name == "strict-json");
+    }
+
+    [Fact]
+    public void registers_global_options_registers_all_six_options_at_once()
     {
         var root = new RootCommand("test");
         var before = root.Options.Count;
