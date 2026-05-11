@@ -243,6 +243,28 @@
             "priority": 4,
             "passes": false,
             "notes": "P2. Signal from rt analyze find-duplicates (groups scoring 4.4-7.2, 8-17 occurrences each, all in Commands/*.Build()). Two parts: (1) introduce CommandBuilder fluent wrapper over CommandOptionFactory, migrate MakeSealedCommand first, then dogfood with find-duplicates to confirm scores drop, then roll out; (2) move 49 flat files into Inspect/Analyze/Refactor subfolders using rt refactor move. Namespace stays RoslynTools.Commands. Plan at ~/.claude/plans/how-could-we-restructure-curried-harp.md."
+        },
+        {
+            "id": "US-024",
+            "title": "Reorganise Core/ into Analysis, Refactoring, Workspace, Logging, Utilities sub-namespaces",
+            "description": "As a developer reading or extending the library, I want Core/ split into purposeful sub-namespaces so that 40 flat files are navigable and each type's role is clear from its namespace alone.",
+            "acceptanceCriteria": [
+                "Core/Analysis/ exists containing BlockNormalizer, ComplexityAnalyzer, ControlFlowUnwinder, ExtractabilityAnalyzer, PatternMatcher, SmellAnalyzer, LargeClassRule, LongMethodRule, TooManyDependenciesRule — all in RoslynTools.Core.Analysis namespace",
+                "Core/Refactoring/ exists containing MethodExtractor, MethodExtractorBuilder, MethodExtractorDuplicates, NamespaceMoveRewriter, InstanceReachabilityAnalyzer, IdentifierVariationDetector, TypeParameterVariationDetector, ConsoleLoggingCore — all in RoslynTools.Core.Refactoring namespace",
+                "Core/Workspace/ exists containing WorkspaceLoader, SymbolLocator, SolutionWriter, RtServiceProvider, DependencyInjector, RtIgnore, RtOutputContext — all in RoslynTools.Core.Workspace namespace",
+                "Core/Logging/ exists containing RtLog, RtLogLevel, RtConsole, RtConsoleLogger, RtLoggerExtensions — all in RoslynTools.Core.Logging namespace",
+                "Core/Utilities/ exists containing StringBuilderExtensions, StringExtensions, RoslynSyntax, CommandExtensions, SymbolFormatter — all in RoslynTools.Core.Utilities namespace",
+                "IRtCommand, IRtConsole, IRtLogger, RtCommandInfo remain at RoslynTools.Core (the root contract namespace) — no subfolder",
+                "Core/Output/ and Core/Decisions/ are unchanged",
+                "Each move is done via `rt refactor move --type <FQN> --to-namespace <target>` — solution-wide using directives are updated automatically",
+                "dotnet build succeeds with 0 errors and 0 warnings after all moves",
+                "dotnet format --verify-no-changes passes after all moves",
+                "All existing tests pass unchanged",
+                "rt dump-help output is identical before and after"
+            ],
+            "priority": 5,
+            "passes": false,
+            "notes": "P2. Core/ currently has ~40 flat files in RoslynTools.Core. Proposed split: Core/Analysis (9 types — analyzers + rules), Core/Refactoring (8 types — extractors + rewriters), Core/Workspace (7 types — loader/locator/writer/DI), Core/Logging (5 types — RtLog/Console/Logger), Core/Utilities (5 types — extensions + formatters). Root RoslynTools.Core keeps only the 4 contracts: IRtCommand, IRtConsole, IRtLogger, RtCommandInfo. Core/Output and Core/Decisions are already correct. Each type moved via: rt refactor move --type <FQN> --to-namespace <target> — rt handles all solution-wide using-directive updates. Run in dry-run batches per group, then apply, then build+format+test between each batch."
         }
     ]
 }
