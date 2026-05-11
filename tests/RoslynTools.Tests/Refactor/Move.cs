@@ -33,6 +33,37 @@ public class Move
 
     [Fact]
     [Trait("Concern", "CsprojEdit")]
+    public async Task sdk_glob_csproj_is_untouched_after_move()
+    {
+        const string src = """
+                           namespace Pkg;
+                           public class Gadget { }
+                           """;
+
+        using var builder = new AdhocProjectBuilder("SourceProject")
+            .AddSource("Gadget.cs", src);
+        builder.AddProject("TargetProject");
+
+        var (workspace, solution) = builder.Build();
+
+        // Write a csproj with NO explicit Compile Include (SDK-glob style)
+        var sourceCsproj = solution.Projects.First(p => p.Name == "SourceProject").FilePath!;
+        const string sdkCsproj = "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>";
+        await File.WriteAllTextAsync(sourceCsproj, sdkCsproj);
+
+        await new MoveService().ExecuteCrossProjectMoveAsync(
+            workspace, solution,
+            "Pkg.Gadget",
+            "TargetProject",
+            null,
+            false);
+
+        var postMoveXml = await File.ReadAllTextAsync(sourceCsproj);
+        Assert.Equal(sdkCsproj, postMoveXml);
+    }
+
+    [Fact]
+    [Trait("Concern", "CsprojEdit")]
     public async Task explicit_compile_include_is_removed_from_source_csproj_after_move()
     {
         const string src = """
