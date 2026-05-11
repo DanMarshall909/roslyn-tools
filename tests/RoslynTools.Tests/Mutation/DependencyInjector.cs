@@ -220,6 +220,91 @@ public sealed class DependencyInjector
             "expression-bodied constructors must not gain an injected parameter without a corresponding assignment rewrite");
     }
 
+    // ─── delegating constructor (this(...)) scenarios ─────────────────────────
+
+    [Fact]
+    public void delegating_ctor_with_dep_already_in_full_ctor_reports_already_injected()
+    {
+        var source = """
+                     class MyService
+                     {
+                         private readonly ILogger _logger;
+                         public MyService() : this(new DefaultLogger()) { }
+                         public MyService(ILogger logger) { _logger = logger; }
+                     }
+                     """;
+        var tree = CSharpSyntaxTree.ParseText(source);
+        var injector = new Core.DependencyInjector("MyService", "ILogger", "_logger", "logger");
+        injector.Visit(tree.GetRoot());
+        Assert.Equal(DependencyInjectionStatus.AlreadyInjected, injector.Status);
+    }
+
+    [Fact]
+    public void delegating_ctor_with_new_dep_only_modifies_full_ctor()
+    {
+        var source = """
+                     class MyService
+                     {
+                         private readonly IFoo _foo;
+                         public MyService() : this(new DefaultFoo()) { }
+                         public MyService(IFoo foo) { _foo = foo; }
+                     }
+                     """;
+        var result = Rewrite(source, "MyService", "IBar", "_bar", "bar");
+        // fallback ctor stays parameterless
+        Assert.DoesNotContain("public MyService(IBar", result);
+        Assert.DoesNotContain("MyService() : this(new DefaultFoo()) {\r\n        _bar", result);
+        // full ctor gets the new param
+        Assert.Contains("IBar bar", result);
+        Assert.Contains("_bar = bar;", result);
+    }
+
+    [Fact]
+    public void multiple_chained_delegating_ctors_only_modifies_terminal_ctor()
+    {
+        var source = """
+                     class MyService
+                     {
+                         private readonly IFoo _foo;
+                         public MyService() : this(42) { }
+                         public MyService(int value) : this(value, new DefaultFoo()) { }
+                         public MyService(int value, IFoo foo) { _foo = foo; }
+                     }
+                     """;
+        var result = Rewrite(source, "MyService", "IBar", "_bar", "bar");
+        // only one occurrence of new param — in the terminal ctor
+        Assert.Equal(1, CountOccurrences(result, "IBar bar"));
+        // neither delegating ctor was touched
+        Assert.Contains("public MyService() : this(42) { }", result);
+        Assert.Contains("public MyService(int value) : this(value, new DefaultFoo()) { }", result);
+    }
+
+    [Fact]
+    public void single_non_delegating_ctor_still_gets_parameter_added()
+    {
+        // regression guard: the fix must not break the normal (non-delegating) ctor path
+        var source = """
+                     class MyService
+                     {
+                         private readonly IFoo _foo;
+                         public MyService(IFoo foo) { _foo = foo; }
+                     }
+                     """;
+        var result = Rewrite(source, "MyService", "IBar", "_bar", "bar");
+        Assert.Contains("IBar bar", result);
+        Assert.Contains("_bar = bar;", result);
+    }
+
+    [Fact]
+    public void no_ctor_class_still_gets_synthesized_constructor()
+    {
+        // regression guard: the fix must not break the zero-ctor synthesis path
+        var source = "class MyService { }";
+        var result = Rewrite(source, "MyService", "IBar", "_bar", "bar");
+        Assert.Contains("public MyService(IBar bar)", result);
+        Assert.Contains("_bar = bar;", result);
+    }
+
     private static int CountOccurrences(string text, string pattern)
     {
         var count = 0;
