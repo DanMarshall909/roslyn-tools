@@ -67,6 +67,9 @@ internal sealed class DependencyInjector : CSharpSyntaxRewriter
 
         foreach (var ctor in constructors)
         {
+            if (ctor.Initializer?.IsKind(SyntaxKind.ThisConstructorInitializer) == true)
+                continue;
+
             var matchingParameter = FindMatchingParameter(ctor);
             var hasAssignment = matchingParameter is not null &&
                                 HasFieldAssignment(ctor, matchingParameter.Identifier.Text);
