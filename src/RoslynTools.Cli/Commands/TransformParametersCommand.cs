@@ -4,6 +4,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// A command for transforming parameters.
+/// </summary>
 internal sealed class TransformParametersCommand : IRtCommand
 {
     private TransformParametersCommand()

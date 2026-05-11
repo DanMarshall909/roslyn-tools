@@ -1,5 +1,8 @@
 namespace RoslynTools.Core.Output;
 
+/// <summary>
+/// Context class for managing structured output from Roslyn.
+/// </summary>
 internal static class RtContext
 {
     public static OutputFormat Format { get; set; } = OutputFormat.Text;

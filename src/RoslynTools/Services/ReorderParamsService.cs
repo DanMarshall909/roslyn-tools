@@ -7,6 +7,9 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Provides methods for reordering parameters in code.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class ReorderParamsService : IRtService

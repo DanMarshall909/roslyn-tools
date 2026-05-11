@@ -2,6 +2,9 @@ using System.Text.Json;
 
 namespace RoslynTools.Mcp.Tools;
 
+/// <summary>
+/// Class for managing the tool registry in the Roslyn MCP system.
+/// </summary>
 internal sealed class ToolRegistry
 {
     private readonly CliCommandBridge _bridge;
@@ -27,10 +30,19 @@ internal sealed class ToolRegistry
     }
 }
 
+/// <summary>
+/// Class defining the structure of a tool in the Roslyn MCP system.
+/// </summary>
 internal sealed record ToolDefinition(string name, string description, Dictionary<string, object> inputSchema);
 
+/// <summary>
+/// Class representing the result of a tool execution in the Roslyn MCP system.
+/// </summary>
 internal sealed record ToolResult(bool isError, string content);
 
+/// <summary>
+/// Class for building JSON schemas in the Roslyn MCP system.
+/// </summary>
 internal static class JsonSchemaBuilder
 {
     public static Dictionary<string, object> Object(

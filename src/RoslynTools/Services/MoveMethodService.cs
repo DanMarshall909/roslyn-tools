@@ -10,6 +10,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Moves methods between projects or files
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class MoveMethodService : IRtService
@@ -221,6 +224,9 @@ internal class MoveMethodService : IRtService
 
     // ── Syntax transformation ─────────────────────────────────────────────────
 
+    /// <summary>
+    /// Transforms a document when moving a method
+    /// </summary>
     internal SyntaxNode TransformDocument(
         SyntaxNode root,
         bool isSourceDoc,

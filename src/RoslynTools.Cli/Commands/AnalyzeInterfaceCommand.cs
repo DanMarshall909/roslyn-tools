@@ -7,6 +7,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Command for analyzing an interface for issues.
+/// </summary>
 internal sealed class AnalyzeInterfaceCommand : IRtCommand
 {
     private AnalyzeInterfaceCommand()

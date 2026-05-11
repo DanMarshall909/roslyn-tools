@@ -9,6 +9,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Supports migration to IOptions patterns
+/// </summary>
 internal sealed class MigrateToIOptionsService : IRtService
 {
     private static readonly Regex GetValueRegex = new(

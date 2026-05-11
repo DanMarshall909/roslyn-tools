@@ -5,6 +5,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Generates a dependency graph for a solution.
+/// </summary>
 internal sealed class DependencyGraphCommand : IRtCommand
 {
     private DependencyGraphCommand()

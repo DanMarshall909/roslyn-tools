@@ -4,6 +4,9 @@ using System.Text.Json;
 
 namespace RoslynTools.Daemon;
 
+/// <summary>
+/// Class representing the state file for the Roslyn Daemon.
+/// </summary>
 internal sealed record DaemonStateFile(
     int Pid,
     string PipeName,
@@ -14,6 +17,9 @@ internal sealed record DaemonStateFile(
     DateTimeOffset StartedAt,
     string RtVersion);
 
+/// <summary>
+/// Class representing the state of the Roslyn Daemon.
+/// </summary>
 internal static class DaemonState
 {
     internal static readonly string StateDir =
@@ -28,6 +34,9 @@ internal static class DaemonState
         WriteIndented = true
     };
 
+    /// <summary>
+    /// Method to attempt reading the Daemon State file.
+    /// </summary>
     internal static DaemonStateFile? TryRead()
     {
         if (!File.Exists(StateFile)) return null;
@@ -42,6 +51,9 @@ internal static class DaemonState
         }
     }
 
+    /// <summary>
+    /// Method to write the Daemon State file.
+    /// </summary>
     internal static void Write(DaemonStateFile state)
     {
         Directory.CreateDirectory(StateDir);
@@ -50,6 +62,9 @@ internal static class DaemonState
         File.Move(tmp, StateFile, true);
     }
 
+    /// <summary>
+    /// Method to remove the Daemon State.
+    /// </summary>
     internal static void Remove()
     {
         try
@@ -62,6 +77,9 @@ internal static class DaemonState
         }
     }
 
+    /// <summary>
+    /// Method to check if the Daemon State file is alive.
+    /// </summary>
     internal static bool IsAlive(DaemonStateFile state)
     {
         try
@@ -76,6 +94,9 @@ internal static class DaemonState
     }
 
     // Uses exe mtime as version so any rebuild causes a daemon restart.
+    /// <summary>
+    /// Method to get the current version of the Daemon State.
+    /// </summary>
     internal static string CurrentVersion()
     {
         var exe = Environment.ProcessPath;

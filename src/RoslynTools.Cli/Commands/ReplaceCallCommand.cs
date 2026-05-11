@@ -4,6 +4,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Replaces a call with a new implementation or method.
+/// </summary>
 internal sealed class ReplaceCallCommand : IRtCommand
 {
     private ReplaceCallCommand()
@@ -53,6 +56,9 @@ internal sealed class ReplaceCallCommand : IRtCommand
         return cmd;
     }
 
+    /// <summary>
+    /// Asynchronously replaces a call with new parameters.
+    /// </summary>
     internal static async Task ExecuteAsync(string from, string to, string? solutionPath, bool dryRun,
         int? ifArgIndex = null, string? ifArgLiteral = null)
     {

@@ -2,8 +2,14 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace RoslynTools.Core;
 
+/// <summary>
+/// Identifies code that has too many dependencies.
+/// </summary>
 internal static class TooManyDependenciesRule
 {
+    /// <summary>
+    /// Checks if a type declaration has too many dependencies.
+    /// </summary>
     internal static SmellResult? Check(TypeDeclarationSyntax typeDecl, string? filePath, int maxParams)
     {
         var typeName = typeDecl.Identifier.Text;

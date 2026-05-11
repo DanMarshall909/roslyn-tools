@@ -9,6 +9,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Provides methods for extracting and building interface-related information.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class ExtractInterfaceService : IRtService
@@ -31,6 +34,9 @@ internal class ExtractInterfaceService : IRtService
         _solutionChangeWriter = solutionChangeWriter;
     }
 
+    /// <summary>
+    /// Runs an asynchronous interface extraction process with provided parameters.
+    /// </summary>
     internal async Task RunAsync(
         Solution sln,
         string typeName,
@@ -103,6 +109,9 @@ internal class ExtractInterfaceService : IRtService
         await _solutionChangeWriter.ApplyChangesAsync(originalSln, finalSolution, dryRun);
     }
 
+    /// <summary>
+    /// Builds interface text based on method and property symbols.
+    /// </summary>
     internal string BuildInterfaceText(
         string namespaceName,
         string interfaceName,
@@ -139,6 +148,9 @@ internal class ExtractInterfaceService : IRtService
         return sb.ToString();
     }
 
+    /// <summary>
+    /// Constructs a parameter list from a method declaration.
+    /// </summary>
     internal string BuildParamList(IMethodSymbol method)
     {
         return string.Join(", ", method.Parameters.Select(p =>
@@ -148,6 +160,9 @@ internal class ExtractInterfaceService : IRtService
         }));
     }
 
+    /// <summary>
+    /// Generates accessors for a given property.
+    /// </summary>
     internal string BuildAccessors(IPropertySymbol property)
     {
         var parts = new List<string>();
@@ -158,6 +173,9 @@ internal class ExtractInterfaceService : IRtService
         return string.Join(" ", parts);
     }
 
+    /// <summary>
+    /// Asynchronously adds an interface to a class in a solution.
+    /// </summary>
     internal async Task<Solution> AddInterfaceToClassAsync(
         Solution solution,
         Document classDocument,

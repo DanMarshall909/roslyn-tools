@@ -6,6 +6,9 @@ using RoslynTools.Models;
 
 namespace RoslynTools.Core;
 
+/// <summary>
+/// Locates symbols in a solution.
+/// </summary>
 internal static class SymbolLocator
 {
     private static readonly SymbolDisplayFormat TypeFqnFormat = new(
@@ -57,6 +60,9 @@ internal static class SymbolLocator
         return Disambiguate(matches, symbolName);
     }
 
+    /// <summary>
+    /// Finds a symbol by its fully-qualified name.
+    /// </summary>
     internal static async Task<ISymbol> FindSymbolByFqnAsync(
         Solution solution,
         string fullyQualifiedName,
@@ -141,6 +147,9 @@ internal static class SymbolLocator
         return Disambiguate(symbolMatches, fqn);
     }
 
+    /// <summary>
+    /// Finds a method by its specification.
+    /// </summary>
     internal static async Task<IMethodSymbol> FindMethodBySpecAsync(Solution solution, string methodSpec)
     {
         var input = NormalizeFqn(methodSpec);

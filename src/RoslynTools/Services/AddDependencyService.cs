@@ -8,6 +8,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// A method for adding dependency services to a solution.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class AddDependencyService : IRtService
@@ -31,6 +34,9 @@ internal class AddDependencyService : IRtService
         _solutionChangeWriter = solutionChangeWriter;
     }
 
+    /// <summary>
+    /// An asynchronous method to run dependency service operations.
+    /// </summary>
     internal async Task RunAsync(
         Solution solution,
         string typeName,
@@ -47,6 +53,9 @@ internal class AddDependencyService : IRtService
         _logger.RtInfo("Injected {DepType} into {TargetType}.", depType, result.TargetType ?? typeName);
     }
 
+    /// <summary>
+    /// An asynchronous method to apply dependency services.
+    /// </summary>
     internal async Task<DependencyInjectionResult> ApplyAsync(
         Solution solution,
         string typeName,
@@ -99,6 +108,9 @@ internal class AddDependencyService : IRtService
         }
     }
 
+    /// <summary>
+    /// An asynchronous method to resolve target classes.
+    /// </summary>
     internal async Task<ResolvedTarget?> ResolveTargetClassAsync(Solution solution, string typeName)
     {
         var normalizedTypeName = NormalizeTypeName(typeName);
@@ -150,6 +162,9 @@ internal class AddDependencyService : IRtService
         return matches[0];
     }
 
+    /// <summary>
+    /// An asynchronous method to resolve dependency type symbols.
+    /// </summary>
     internal ITypeSymbol? ResolveDependencyTypeSymbol(
         SemanticModel semanticModel,
         ClassDeclarationSyntax declaration,
@@ -169,6 +184,9 @@ internal class AddDependencyService : IRtService
             .FirstOrDefault();
     }
 
+    /// <summary>
+    /// A method to check if two types match.
+    /// </summary>
     internal bool IsTypeMatch(INamedTypeSymbol symbol, string normalizedTypeName, bool isQualifiedName)
     {
         if (isQualifiedName)
@@ -177,11 +195,17 @@ internal class AddDependencyService : IRtService
         return symbol.Name == normalizedTypeName;
     }
 
+    /// <summary>
+    /// A method to normalize type names.
+    /// </summary>
     internal string NormalizeTypeName(string typeName)
     {
         return typeName.Replace("global::", string.Empty, StringComparison.Ordinal).Trim();
     }
 
+    /// <summary>
+    /// A method to derive field names from type information.
+    /// </summary>
     internal string DeriveFieldName(string depType)
     {
         var name = depType;
@@ -192,6 +216,9 @@ internal class AddDependencyService : IRtService
         return "_" + name;
     }
 
+    /// <summary>
+    /// A named type representing the resolved target.
+    /// </summary>
     internal sealed record ResolvedTarget(
         Document Document,
         SyntaxNode Root,
@@ -199,6 +226,9 @@ internal class AddDependencyService : IRtService
         ClassDeclarationSyntax Declaration,
         INamedTypeSymbol Symbol);
 
+    /// <summary>
+    /// A named type representing the result of dependency service operations.
+    /// </summary>
     internal sealed record DependencyInjectionResult(
         Solution Solution,
         bool Changed,

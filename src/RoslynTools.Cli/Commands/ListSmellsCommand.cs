@@ -5,6 +5,9 @@ using RoslynTools.Core.Output;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Lists all smells detected in the current file
+/// </summary>
 internal sealed class ListSmellsCommand : IRtCommand
 {
     private ListSmellsCommand()

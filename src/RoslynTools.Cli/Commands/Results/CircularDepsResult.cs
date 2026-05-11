@@ -2,6 +2,9 @@ using RoslynTools.Core.Output;
 
 namespace RoslynTools.Commands.Results;
 
+/// <summary>
+/// Indicates the presence of cyclic dependencies in a project.
+/// </summary>
 internal sealed record CycleResult : IRtOutput
 {
     [OutputField(OutputLevel.Llm, "path")] public required string Path { get; init; }
@@ -15,6 +18,9 @@ internal sealed record CycleResult : IRtOutput
     }
 }
 
+/// <summary>
+/// Describes the detection of circular dependencies in a project's type hierarchy.
+/// </summary>
 internal sealed record CircularDepsResult : IRtOutput, IRtMarkdownOutput
 {
     [OutputField(OutputLevel.Llm, "hasCycles")]

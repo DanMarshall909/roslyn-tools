@@ -4,6 +4,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// A command for safe deletion with asynchronous execution.
+/// </summary>
 internal sealed class SafeDeleteCommand : IRtCommand
 {
     private SafeDeleteCommand()

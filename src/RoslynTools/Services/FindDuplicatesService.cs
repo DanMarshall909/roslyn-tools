@@ -8,6 +8,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Provides options for finding duplicate occurrences in a solution.
+/// </summary>
 internal sealed record FindDuplicatesOptions(
     int MinStatements = 3,
     int MinOccurrences = 2,
@@ -17,6 +20,9 @@ internal sealed record FindDuplicatesOptions(
     // and significantly increase enumeration time on large solutions.
     int MaxStatements = 40);
 
+/// <summary>
+/// Represents a duplicate occurrence of a type symbol.
+/// </summary>
 internal sealed record DuplicateOccurrence(
     string FilePath,
     int StartLine,
@@ -25,6 +31,9 @@ internal sealed record DuplicateOccurrence(
     string ContainingMember,
     IReadOnlyDictionary<string, string>? SubstitutionMap = null);
 
+/// <summary>
+/// Groups duplicate occurrences together for reporting.
+/// </summary>
 internal sealed record DuplicateGroup(
     string GroupHash,
     string GroupId,
@@ -37,6 +46,9 @@ internal sealed record DuplicateGroup(
     string Extractability = "unknown",
     IReadOnlyList<ExtractabilityCheck>? Checks = null);
 
+/// <summary>
+/// Provides methods for finding duplicate occurrences in a solution.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class FindDuplicatesService : IRtService

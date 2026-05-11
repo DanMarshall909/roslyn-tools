@@ -7,6 +7,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// A class used to replace new services in a solution.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class ReplaceNewService : IRtService
@@ -25,6 +28,9 @@ internal class ReplaceNewService : IRtService
         _solutionChangeWriter = solutionChangeWriter;
     }
 
+    /// <summary>
+    /// Runs an asynchronous method to replace new services in a solution with specified parameters.
+    /// </summary>
     internal async Task RunAsync(Solution solution, string typeName, string with_method, bool dryRun,
         int? ifArgIndex = null, string? ifArgLiteral = null)
     {

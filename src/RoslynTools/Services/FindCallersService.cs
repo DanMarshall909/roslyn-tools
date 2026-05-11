@@ -8,6 +8,9 @@ using RoslynTools.Services.Results;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Provides methods for finding callers of a given type symbol.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class FindCallersService : IRtService
@@ -28,6 +31,9 @@ internal class FindCallersService : IRtService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Async method to find callers based on a string and a boolean flag.
+    /// </summary>
     internal async Task<FindCallersResult> FindAsync(
         Solution sln,
         string symbol,
@@ -90,12 +96,18 @@ internal class FindCallersService : IRtService
         };
     }
 
+    /// <summary>
+    /// Checks if an invocation expression represents a nameof expression.
+    /// </summary>
     internal bool IsNameofExpression(InvocationExpressionSyntax invocation)
     {
         return invocation.Expression is IdentifierNameSyntax id &&
                id.Identifier.ValueText == "nameof";
     }
 
+    /// <summary>
+    /// Determines if a given project is a test project.
+    /// </summary>
     internal bool IsTestProject(string projectName)
     {
         return projectName.Contains("Test", StringComparison.OrdinalIgnoreCase);

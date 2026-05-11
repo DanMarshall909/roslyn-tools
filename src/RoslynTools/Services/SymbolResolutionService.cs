@@ -4,6 +4,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// An interface for symbol resolution services in the Roslyn tooling ecosystem
+/// </summary>
 internal interface ISymbolResolutionService
 {
     Task<ISymbol> FindSymbolAsync(Solution solution, string symbolName, string? kind);
@@ -17,6 +20,9 @@ internal interface ISymbolResolutionService
     Task<IMethodSymbol?> FindMethodInTypeAsync(Solution solution, string typeName, string methodName);
 }
 
+/// <summary>
+/// A class for symbol resolution in the Roslyn tooling ecosystem
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance service registered through DI for dependency inversion.")]
 internal sealed class SymbolResolutionService : ISymbolResolutionService, IRtService

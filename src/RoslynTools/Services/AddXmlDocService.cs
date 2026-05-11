@@ -5,6 +5,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// A class for managing XML documentation services.
+/// </summary>
 internal sealed class AddXmlDocService : IRtService
 {
     private readonly ISolutionChangeWriter _writer;
@@ -13,6 +16,9 @@ internal sealed class AddXmlDocService : IRtService
 
     public AddXmlDocService(ISolutionChangeWriter writer) => _writer = writer;
 
+    /// <summary>
+    /// An asynchronous method to run XML documentation services.
+    /// </summary>
     internal async Task RunAsync(Solution sln, IReadOnlyDictionary<string, string> docs, bool dryRun)
     {
         var updated = sln;

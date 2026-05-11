@@ -4,6 +4,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Mcp.Tools;
 
+/// <summary>
+/// Class for the command bridge in the Roslyn MCP system.
+/// </summary>
 internal sealed class CliCommandBridge
 {
     private readonly Dictionary<string, List<string>> _positionalArgNames;

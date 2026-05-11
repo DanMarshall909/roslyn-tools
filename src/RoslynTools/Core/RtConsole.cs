@@ -16,42 +16,72 @@ internal static class RtConsole
 
     private static IRtConsole Current => Override.Value ?? DefaultConsole;
 
+    /// <summary>
+    /// Reads input from the console.
+    /// </summary>
     internal static TextReader In => Console.In;
 
+    /// <summary>
+    /// Writes output to the console.
+    /// </summary>
     internal static TextWriter Out => Current.Out;
 
+    /// <summary>
+    /// Checks if the console output is redirected.
+    /// </summary>
     internal static bool IsOutputRedirected => Current.IsOutputRedirected;
 
+    /// <summary>
+    /// Registers a handler for cancel key presses.
+    /// </summary>
     internal static void AddCancelKeyPressHandler(ConsoleCancelEventHandler handler)
     {
         Console.CancelKeyPress += handler;
     }
 
+    /// <summary>
+    /// Sets the output encoding for the console.
+    /// </summary>
     internal static void SetOutputEncoding(Encoding encoding)
     {
         Console.OutputEncoding = encoding;
     }
 
+    /// <summary>
+    /// Logs a message with the specified log level.
+    /// </summary>
     internal static void Log(RtLogLevel level, string template, params object?[] args)
     {
         Current.Log(level, template, args);
     }
 
+    /// <summary>
+    /// Writes a formatted string to the console with optional color.
+    /// </summary>
     internal static void WriteLine(RtOutputContext context, string message = "", ConsoleColor? color = null)
     {
         Current.WriteLine(context, message, color);
     }
 
+    /// <summary>
+    /// Writes a string to the console with optional color.
+    /// </summary>
     internal static void Write(RtOutputContext context, string message, ConsoleColor? color = null)
     {
         Current.Write(context, message, color);
     }
 
+    /// <summary>
+    /// Reads a line of input from the console.
+    /// </summary>
     internal static string? ReadLine()
     {
         return Current.ReadLine();
     }
 
+    /// <summary>
+    /// Configures the console for use with the specified provider.
+    /// </summary>
     internal static IDisposable UseConsole(IRtConsole console)
     {
         ArgumentNullException.ThrowIfNull(console);
@@ -61,6 +91,9 @@ internal static class RtConsole
         return new Scope(previous);
     }
 
+    /// <summary>
+    /// Renders a template with the provided data.
+    /// </summary>
     internal static string RenderTemplate(string template, object?[] args)
     {
         if (args.Length == 0)

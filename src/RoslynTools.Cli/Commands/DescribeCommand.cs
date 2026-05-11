@@ -5,6 +5,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Provides a description of a command or its usage.
+/// </summary>
 internal sealed class DescribeCommand : IRtCommand
 {
     private DescribeCommand()

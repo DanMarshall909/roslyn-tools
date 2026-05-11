@@ -1,5 +1,8 @@
 namespace RoslynTools.Core.Decisions;
 
+/// <summary>
+/// DecisionContext
+/// </summary>
 internal static class DecisionContext
 {
     private static readonly AsyncLocal<DecisionStore?> store = new();

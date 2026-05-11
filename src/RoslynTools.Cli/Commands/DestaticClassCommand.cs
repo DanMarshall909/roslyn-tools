@@ -4,6 +4,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Converts a class to a static class.
+/// </summary>
 internal sealed class DestaticClassCommand : IRtCommand
 {
     private DestaticClassCommand()

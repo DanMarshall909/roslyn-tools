@@ -2,6 +2,9 @@ using RoslynTools.Core.Output;
 
 namespace RoslynTools.Services.Results;
 
+/// <summary>
+/// A class representing the result of finding callers for a symbol in a solution.
+/// </summary>
 internal sealed record CallerResult : IRtOutput
 {
     [OutputField(OutputLevel.Llm, "filePath")]
@@ -22,6 +25,9 @@ internal sealed record CallerResult : IRtOutput
     }
 }
 
+/// <summary>
+/// A method that finds callers for a symbol in a solution.
+/// </summary>
 internal sealed record FindCallersResult : IRtOutput
 {
     [OutputField(OutputLevel.Llm, "symbolName")]

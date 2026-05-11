@@ -3,6 +3,9 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace RoslynTools.Core;
 
+/// <summary>
+/// Represents the result of a smell analysis.
+/// </summary>
 internal record SmellResult(
     string SmellType,
     string TypeName,
@@ -11,8 +14,14 @@ internal record SmellResult(
     int Line,
     string Detail);
 
+/// <summary>
+/// Analyzes code for smells and provides reports.
+/// </summary>
 internal static class SmellAnalyzer
 {
+    /// <summary>
+    /// Asynchronously analyzes a solution for smells with specified parameters.
+    /// </summary>
     internal static async Task<List<SmellResult>> AnalyzeAsync(
         Solution solution,
         int maxClassLines,
@@ -60,6 +69,9 @@ internal static class SmellAnalyzer
         return results;
     }
 
+    /// <summary>
+    /// Determines if a symbol matches a given scope.
+    /// </summary>
     internal static bool MatchesScope(string typeName, string? scope)
     {
         if (scope is null)

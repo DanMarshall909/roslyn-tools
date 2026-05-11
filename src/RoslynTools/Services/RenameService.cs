@@ -7,6 +7,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Provides methods for renaming symbols within a solution.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class RenameService : IRtService
@@ -29,6 +32,9 @@ internal class RenameService : IRtService
         _solutionChangeWriter = solutionChangeWriter;
     }
 
+    /// <summary>
+    /// Asynchronously renames symbols within a solution.
+    /// </summary>
     internal async Task<Solution> RenameAsync(
         Solution sln,
         string symbol,
@@ -48,6 +54,9 @@ internal class RenameService : IRtService
         return await Renamer.RenameSymbolAsync(sln, sym, options, newName);
     }
 
+    /// <summary>
+    /// Asynchronously renames a single symbol within a solution.
+    /// </summary>
     internal async Task ExecuteSingleAsync(
         Solution sln,
         string symbol,
@@ -197,6 +206,9 @@ internal class RenameService : IRtService
             yield return row.AppliedFqn!;
     }
 
+    /// <summary>
+    /// Reads batch rows for renaming operations within a solution.
+    /// </summary>
     internal List<RenameCsvRow> ReadBatchRows(string csvPath)
     {
         using var parser = new TextFieldParser(csvPath);
@@ -395,11 +407,17 @@ internal class RenameService : IRtService
             : fqn.Count(ch => ch == '.');
     }
 
+    /// <summary>
+    /// Gets the field at a specific index for renaming operations within a solution.
+    /// </summary>
     internal string? GetField(string[] fields, int index)
     {
         return index >= 0 && index < fields.Length ? fields[index] : null;
     }
 
+    /// <summary>
+    /// A named type used for renaming CSV rows within a solution.
+    /// </summary>
     internal sealed record RenameCsvRow(
         string? OldFqn,
         string? NewName,

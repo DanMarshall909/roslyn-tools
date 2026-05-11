@@ -8,6 +8,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Provides services for making classes sealed
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class MakeSealedService : IRtService
@@ -30,6 +33,9 @@ internal class MakeSealedService : IRtService
         _solutionChangeWriter = solutionChangeWriter;
     }
 
+    /// <summary>
+    /// Runs asynchronous sealed class transformation operations
+    /// </summary>
     internal async Task RunAsync(Solution sln, string typeName, bool dryRun)
     {
         var originalSolution = sln;

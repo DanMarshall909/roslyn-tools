@@ -4,6 +4,9 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace RoslynTools.Core;
 
+/// <summary>
+/// MethodComplexity
+/// </summary>
 internal record MethodComplexity(
     string Method,
     string Type,
@@ -15,6 +18,9 @@ internal record MethodComplexity(
     int Loc,
     int Params);
 
+/// <summary>
+/// TypeComplexityRollup
+/// </summary>
 internal record TypeComplexityRollup(
     string Type,
     string Namespace,
@@ -24,6 +30,9 @@ internal record TypeComplexityRollup(
     int LocTotal,
     int ParamsTotal);
 
+/// <summary>
+/// NamespaceComplexityRollup
+/// </summary>
 internal record NamespaceComplexityRollup(
     string Namespace,
     int MethodCount,
@@ -32,11 +41,17 @@ internal record NamespaceComplexityRollup(
     int LocTotal,
     int ParamsTotal);
 
+/// <summary>
+/// ComplexityReport
+/// </summary>
 internal record ComplexityReport(
     IReadOnlyList<MethodComplexity> Methods,
     IReadOnlyList<TypeComplexityRollup> TypeRollups,
     IReadOnlyList<NamespaceComplexityRollup> NamespaceRollups);
 
+/// <summary>
+/// ComplexityAnalyzer
+/// </summary>
 internal static class ComplexityAnalyzer
 {
     internal static async Task<ComplexityReport> AnalyzeAsync(

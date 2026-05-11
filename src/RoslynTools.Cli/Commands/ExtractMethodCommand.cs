@@ -4,6 +4,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Extracts methods from the current file
+/// </summary>
 internal sealed class ExtractMethodCommand : IRtCommand
 {
     private ExtractMethodCommand()

@@ -4,6 +4,9 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace RoslynTools.Core;
 
+/// <summary>
+/// A class used to extract methods from the code.
+/// </summary>
 internal static class MethodExtractor
 {
     /// <summary>

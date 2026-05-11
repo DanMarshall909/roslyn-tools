@@ -5,11 +5,17 @@ using RoslynTools.Models;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// A service for managing static class inventory in a solution
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification =
         "Instance class registered in DI per the static-to-instance migration (EP-006). CA1822 enforces the old static-when-stateless rule that conflicts with this direction; suppress per class until the migration completes and the rule is reviewed project-wide.")]
 internal sealed class StaticClassInventoryService : IRtService
 {
+    /// <summary>
+    /// Analyzes a solution to gather static class inventory data
+    /// </summary>
     internal async Task<StaticClassInventoryReport> AnalyzeAsync(Solution solution)
     {
         // 1. Collect all static class symbols across the solution.

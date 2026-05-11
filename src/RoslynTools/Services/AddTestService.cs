@@ -7,6 +7,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// A class for managing test services in the solution.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class AddTestService : IRtService
@@ -25,6 +28,9 @@ internal class AddTestService : IRtService
         _solutionChangeWriter = solutionChangeWriter;
     }
 
+    /// <summary>
+    /// An asynchronous method to run test services.
+    /// </summary>
     internal async Task RunAsync(
         Solution sln,
         string className,
@@ -138,6 +144,9 @@ internal class AddTestService : IRtService
         return classDecl.AddMembers(methods);
     }
 
+    /// <summary>
+    /// A method to convert a method to its corresponding name.
+    /// </summary>
     internal string AcToMethodName(string ac)
     {
         var cleaned = new string(ac.Where(c => char.IsLetterOrDigit(c) || c == ' ').ToArray());
@@ -165,6 +174,9 @@ internal class AddTestService : IRtService
     //  Command-based test scaffolding
     // ──────────────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// An asynchronous method to run test commands based on command information.
+    /// </summary>
     internal async Task RunCommandBasedAsync(
         Solution sln,
         RtCommandInfo commandInfo,
@@ -205,6 +217,9 @@ internal class AddTestService : IRtService
         await _solutionChangeWriter.ApplyChangesAsync(originalSolution, updatedSln, dryRun);
     }
 
+    /// <summary>
+    /// A method to convert scenario outcomes to method names.
+    /// </summary>
     internal string ScenarioOutcomeToMethodName(string scenario, string outcome)
     {
         // Convert to snake_case with 'with_' prefix

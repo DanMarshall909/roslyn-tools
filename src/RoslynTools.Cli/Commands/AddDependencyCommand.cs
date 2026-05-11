@@ -5,6 +5,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Command for adding dependencies to a solution.
+/// </summary>
 internal sealed class AddDependencyCommand : IRtCommand
 {
     private AddDependencyCommand()
@@ -48,6 +51,9 @@ internal sealed class AddDependencyCommand : IRtCommand
         return cmd;
     }
 
+    /// <summary>
+    /// Executes the add dependency command asynchronously.
+    /// </summary>
     internal static async Task ExecuteAsync(string typeName, string depType, string? fieldName, string? solutionPath,
         bool dryRun)
     {
@@ -60,6 +66,9 @@ internal sealed class AddDependencyCommand : IRtCommand
     }
 
     // Forwarding stub kept for backwards compatibility
+    /// <summary>
+    /// Executes the add dependency command in the core context.
+    /// </summary>
     internal static Task ExecuteCoreAsync(Solution solution, string typeName, string depType, string? fieldName,
         bool dryRun)
     {

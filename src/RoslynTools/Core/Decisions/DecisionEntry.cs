@@ -1,5 +1,8 @@
 namespace RoslynTools.Core.Decisions;
 
+/// <summary>
+/// DecisionEntry
+/// </summary>
 internal sealed class DecisionEntry
 {
     public string Id { get; set; } = "";

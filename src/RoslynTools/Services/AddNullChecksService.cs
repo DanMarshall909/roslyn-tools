@@ -6,6 +6,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// A class for managing null checks in the solution.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class AddNullChecksService : IRtService
@@ -29,6 +32,9 @@ internal class AddNullChecksService : IRtService
         _solutionChangeWriter = solutionChangeWriter;
     }
 
+    /// <summary>
+    /// An asynchronous method to run null checks.
+    /// </summary>
     internal async Task RunAsync(Solution sln, string typeName, string methodName, bool dryRun)
     {
         var originalSolution = sln;
@@ -91,6 +97,9 @@ internal class AddNullChecksService : IRtService
         await _solutionChangeWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
     }
 
+    /// <summary>
+    /// A method to check for existing guards in a block syntax.
+    /// </summary>
     internal bool HasExistingGuard(BlockSyntax body, string paramName)
     {
         foreach (var stmt in body.Statements)

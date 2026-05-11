@@ -4,6 +4,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Extracts a class from the solution.
+/// </summary>
 internal sealed class ExtractClassCommand : IRtCommand
 {
     private ExtractClassCommand()
@@ -50,6 +53,9 @@ internal sealed class ExtractClassCommand : IRtCommand
         return cmd;
     }
 
+    /// <summary>
+    /// Executes the extraction of a class with optional parameters.
+    /// </summary>
     internal static async Task ExecuteAsync(
         string typeName,
         string members,

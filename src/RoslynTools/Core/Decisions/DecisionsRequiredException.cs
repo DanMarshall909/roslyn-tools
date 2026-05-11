@@ -1,5 +1,8 @@
 namespace RoslynTools.Core.Decisions;
 
+/// <summary>
+/// DecisionsRequiredException
+/// </summary>
 internal sealed class DecisionsRequiredException : Exception
 {
     public DecisionsRequiredException()

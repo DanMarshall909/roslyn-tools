@@ -5,6 +5,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Provides methods for outlining files, directories, and namespaces within a solution.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class OutlineService : IRtService
@@ -20,6 +23,9 @@ internal class OutlineService : IRtService
     private static readonly Regex XmlSummaryRegex =
         new(@"<summary>(.*?)</summary>", RegexOptions.Singleline | RegexOptions.Compiled);
 
+    /// <summary>
+    /// Outlines a file within a solution asynchronously.
+    /// </summary>
     internal async Task<List<Dictionary<string, object?>>> OutlineFileAsync(
         Solution solution,
         string filePath,
@@ -59,6 +65,9 @@ internal class OutlineService : IRtService
         return results;
     }
 
+    /// <summary>
+    /// Outlines a directory within a solution asynchronously.
+    /// </summary>
     internal async Task<List<Dictionary<string, object?>>> OutlineDirectoryAsync(
         Solution solution,
         string directoryPath,
@@ -99,6 +108,9 @@ internal class OutlineService : IRtService
         return results;
     }
 
+    /// <summary>
+    /// Outlines a namespace within a solution asynchronously.
+    /// </summary>
     internal async Task<List<Dictionary<string, object?>>> OutlineNamespaceAsync(
         Solution solution,
         string namespaceName,
@@ -136,6 +148,9 @@ internal class OutlineService : IRtService
         return results;
     }
 
+    /// <summary>
+    /// Outlines files matching a glob pattern within a solution asynchronously.
+    /// </summary>
     internal async Task<List<Dictionary<string, object?>>> OutlineGlobAsync(
         Solution solution,
         string globPattern,
@@ -173,6 +188,9 @@ internal class OutlineService : IRtService
         return results;
     }
 
+    /// <summary>
+    /// Outlines files matching a regular expression pattern within a solution asynchronously.
+    /// </summary>
     internal async Task<List<Dictionary<string, object?>>> OutlineRegexAsync(
         Solution solution,
         string regexPattern,
@@ -209,6 +227,9 @@ internal class OutlineService : IRtService
         return results;
     }
 
+    /// <summary>
+    /// Finds and outlines namespace types within a solution.
+    /// </summary>
     internal IEnumerable<INamedTypeSymbol> FindNamespaceTypes(
         INamespaceSymbol ns,
         string targetName)
@@ -267,6 +288,9 @@ internal class OutlineService : IRtService
         }
     }
 
+    /// <summary>
+    /// Builds an outline for a named type within a solution.
+    /// </summary>
     internal Dictionary<string, object?> BuildTypeOutline(INamedTypeSymbol type)
     {
         var (lineFrom, lineTo) = SymbolFormatter.GetSourceLineRange(type);
@@ -291,6 +315,9 @@ internal class OutlineService : IRtService
         return outline;
     }
 
+    /// <summary>
+    /// Generates a summary for a named type's build type within a solution.
+    /// </summary>
     internal Dictionary<string, object?> BuildTypeSummary(INamedTypeSymbol type)
     {
         var (lineFrom, lineTo) = SymbolFormatter.GetSourceLineRange(type);

@@ -2,6 +2,9 @@ using RoslynTools.Core.Output;
 
 namespace RoslynTools.Commands.Results;
 
+/// <summary>
+/// Indicates the presence of a code smell item, including its type and location.
+/// </summary>
 internal sealed record SmellItemResult : IRtOutput
 {
     [OutputField(OutputLevel.Llm, "smellType")]
@@ -29,6 +32,9 @@ internal sealed record SmellItemResult : IRtOutput
     }
 }
 
+/// <summary>
+/// Lists all code smell items found in the project.
+/// </summary>
 internal sealed record ListSmellsResult : IRtOutput, IRtMarkdownOutput
 {
     [OutputField(OutputLevel.Llm, "smells")]

@@ -1,7 +1,13 @@
 namespace RoslynTools.Daemon;
 
+/// <summary>
+/// Class providing Git service functionality for the Roslyn Daemon.
+/// </summary>
 internal sealed class GitService
 {
+    /// <summary>
+    /// Method to retrieve the Git state based on a string identifier.
+    /// </summary>
     internal GitState GetState(string workingDirectory)
     {
         try

@@ -23,7 +23,8 @@ Usage: node scripts/add-xml-doc.mjs [options]
 Options:
   --solution <path>   .slnx/.sln file (default: RoslynTools.slnx)
   --scope <ns>        Namespace prefix filter (e.g. RoslynTools.Core)
-  --members           Include undocumented public methods/properties
+  --members           Include undocumented methods/properties (not just types)
+  --level <levels>    Comma-separated accessibility levels: public, internal, protected, private, all (default: public)
   --dry-run           Preview changes without writing files
   --llm-url <url>     LLM endpoint (default: http://localhost:8080/v1/chat/completions)
   --model <name>      Model name (default: Bonsai-8B.gguf)
@@ -38,6 +39,7 @@ const { values: args } = parseArgs({
     solution: { type: "string", default: "RoslynTools.slnx" },
     scope:    { type: "string" },
     members:  { type: "boolean", default: false },
+    level:    { type: "string",  default: "public" },
     "dry-run":{ type: "boolean", default: false },
     "llm-url":{ type: "string",  default: "http://localhost:8080/v1/chat/completions" },
     "model":  { type: "string",  default: "Bonsai-8B.gguf" },
@@ -61,6 +63,7 @@ const rtArgs = [
   "--json",
   ...(args.members ? ["--members"] : []),
   ...(args.scope   ? ["--scope", args.scope] : []),
+  "--level", args.level,
 ];
 
 console.error(`[1/3] Running: rt ${rtArgs.join(" ")}`);

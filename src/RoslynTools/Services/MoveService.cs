@@ -8,6 +8,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Provides services for moving code elements between projects
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class MoveService : IRtService
@@ -33,6 +36,9 @@ internal class MoveService : IRtService
     //  Entry points
     // ──────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Moves a namespace between projects
+    /// </summary>
     internal async Task ExecuteNamespaceMoveAsync(
         Workspace workspace,
         Solution solution,
@@ -65,6 +71,9 @@ internal class MoveService : IRtService
             dryRun);
     }
 
+    /// <summary>
+    /// Moves code between cross-project solutions
+    /// </summary>
     internal async Task ExecuteCrossProjectMoveAsync(
         Workspace workspace,
         Solution solution,
@@ -147,6 +156,9 @@ internal class MoveService : IRtService
         }
     }
 
+    /// <summary>
+    /// Moves a single type between projects
+    /// </summary>
     internal async Task ExecuteSingleTypeMoveAsync(
         Workspace workspace,
         Solution sln,
@@ -476,6 +488,9 @@ internal class MoveService : IRtService
     //  File movement helpers
     // ──────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Moves source files from one directory to another within a solution.
+    /// </summary>
     internal void MoveSourceFiles(
         List<string> filePaths,
         string projectDir,
@@ -563,6 +578,9 @@ internal class MoveService : IRtService
         doc.Save(csprojPath);
     }
 
+    /// <summary>
+    /// Converts a namespace to its relative path within the solution.
+    /// </summary>
     internal string NamespaceToRelativeDir(string ns, string rootNamespace)
     {
         if (ns == rootNamespace)

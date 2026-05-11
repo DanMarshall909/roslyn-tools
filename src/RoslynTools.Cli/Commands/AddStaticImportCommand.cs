@@ -4,6 +4,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Command for adding static imports to the project.
+/// </summary>
 internal sealed class AddStaticImportCommand : IRtCommand
 {
     private AddStaticImportCommand()

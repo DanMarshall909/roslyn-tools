@@ -5,10 +5,16 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Provides methods for finding implementations of a type symbol.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class FindImplementationsService : IRtService
 {
+    /// <summary>
+    /// Async method to find implementations based on a type symbol.
+    /// </summary>
     internal async Task<List<Dictionary<string, object?>>> FindAsync(
         Solution solution,
         INamedTypeSymbol typeSymbol)

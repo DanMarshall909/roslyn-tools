@@ -6,8 +6,14 @@ using Microsoft.CodeAnalysis;
 
 namespace RoslynTools.Core;
 
+/// <summary>
+/// Handles writing and applying changes to a solution.
+/// </summary>
 internal static class SolutionWriter
 {
+    /// <summary>
+    /// Applies changes to a solution asynchronously.
+    /// </summary>
     internal static async Task ApplyChangesAsync(
         Solution originalSolution,
         Solution newSolution,
@@ -82,6 +88,9 @@ internal static class SolutionWriter
             RtConsole.WriteLine(RtOutputContext.Result, $"\nDone. {fileCount} file(s) updated.");
     }
 
+    /// <summary>
+    /// Prints the difference between two strings.
+    /// </summary>
     internal static void PrintDiff(string oldText, string newText, string filePath)
     {
         RtConsole.WriteLine(RtOutputContext.Diff, $"\n--- {filePath}");

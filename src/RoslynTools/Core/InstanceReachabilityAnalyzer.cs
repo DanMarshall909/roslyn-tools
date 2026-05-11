@@ -4,6 +4,9 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace RoslynTools.Core;
 
+/// <summary>
+/// An enum representing different kinds of reachable instances in the code.
+/// </summary>
 internal enum ReachableInstanceKind
 {
     None,
@@ -11,11 +14,23 @@ internal enum ReachableInstanceKind
     Ambiguous
 }
 
+/// <summary>
+/// A struct indicating the result of an instance reachability analysis.
+/// </summary>
 internal readonly record struct ReachableInstanceResult(ReachableInstanceKind Kind, ExpressionSyntax? Expression)
 {
+    /// <summary>
+    /// A property indicating no reachable instance was found.
+    /// </summary>
     internal static ReachableInstanceResult None { get; } = new(ReachableInstanceKind.None, null);
+    /// <summary>
+    /// A property indicating an ambiguous reachable instance was found.
+    /// </summary>
     internal static ReachableInstanceResult Ambiguous { get; } = new(ReachableInstanceKind.Ambiguous, null);
 
+    /// <summary>
+    /// A method that creates a reachable instance result from an expression.
+    /// </summary>
     internal static ReachableInstanceResult FromExpression(ExpressionSyntax expression)
     {
         return new ReachableInstanceResult(ReachableInstanceKind.Match, expression);
@@ -84,6 +99,9 @@ internal static class InstanceReachabilityAnalyzer
         return ReachableInstanceResult.None;
     }
 
+    /// <summary>
+    /// A method that finds the enclosing type symbol for a syntax node.
+    /// </summary>
     internal static INamedTypeSymbol? GetEnclosingTypeSymbol(SyntaxNode memberNode, SemanticModel semanticModel)
     {
         var typeDecl = memberNode.Ancestors().OfType<TypeDeclarationSyntax>().FirstOrDefault();
@@ -91,6 +109,9 @@ internal static class InstanceReachabilityAnalyzer
         return semanticModel.GetDeclaredSymbol(typeDecl);
     }
 
+    /// <summary>
+    /// A method that checks if a syntax node is in an instance context.
+    /// </summary>
     internal static bool IsInstanceContext(SyntaxNode memberNode)
     {
         return memberNode switch
@@ -107,6 +128,9 @@ internal static class InstanceReachabilityAnalyzer
         };
     }
 
+    /// <summary>
+    /// A method that finds the local variable name for an invocation expression.
+    /// </summary>
     internal static string? FindLocalVariableName(
         InvocationExpressionSyntax callSite,
         SemanticModel semanticModel,
@@ -115,6 +139,9 @@ internal static class InstanceReachabilityAnalyzer
         return FindLocalVariableCandidate(callSite, semanticModel, targetType).Name;
     }
 
+    /// <summary>
+    /// A method that finds the parameter name for a syntax node.
+    /// </summary>
     internal static string? FindParameterName(
         SyntaxNode enclosingMember,
         SemanticModel semanticModel,
@@ -123,6 +150,9 @@ internal static class InstanceReachabilityAnalyzer
         return FindParameterCandidate(enclosingMember, semanticModel, targetType).Name;
     }
 
+    /// <summary>
+    /// A method that finds a field or property name for two type symbols.
+    /// </summary>
     internal static string? FindFieldOrPropertyName(INamedTypeSymbol enclosingType, INamedTypeSymbol targetType)
     {
         return FindFieldOrPropertyCandidate(enclosingType, targetType).Name;

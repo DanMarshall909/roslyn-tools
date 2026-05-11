@@ -9,6 +9,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Provides services for creating and transforming instances
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class MakeInstanceService : IRtService
@@ -27,6 +30,9 @@ internal class MakeInstanceService : IRtService
         _solutionChangeWriter = solutionChangeWriter;
     }
 
+    /// <summary>
+    /// Runs asynchronous instance transformation operations
+    /// </summary>
     internal async Task RunAsync(Solution sln, string methodSpec, bool dryRun)
     {
         var originalSolution = sln;

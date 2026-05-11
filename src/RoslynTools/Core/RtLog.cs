@@ -5,21 +5,33 @@ namespace RoslynTools.Core;
 /// </summary>
 internal static class RtLog
 {
+    /// <summary>
+    /// Logs an informational message with the provided parameters.
+    /// </summary>
     internal static void Info(string template, params object?[] args)
     {
         RtConsole.Log(RtLogLevel.Info, template, args);
     }
 
+    /// <summary>
+    /// Logs a warning message with the provided parameters.
+    /// </summary>
     internal static void Warning(string template, params object?[] args)
     {
         RtConsole.Log(RtLogLevel.Warning, template, args);
     }
 
+    /// <summary>
+    /// Logs an error message with the provided parameters.
+    /// </summary>
     internal static void Error(string template, params object?[] args)
     {
         RtConsole.Log(RtLogLevel.Error, template, args);
     }
 
+    /// <summary>
+    /// Configures the logger to use the specified logger provider.
+    /// </summary>
     internal static IDisposable UseLogger(IRtLogger logger)
     {
         ArgumentNullException.ThrowIfNull(logger);

@@ -1,9 +1,15 @@
 namespace RoslynTools.Core;
 
+/// <summary>
+/// A class for providing services in the console.
+/// </summary>
 internal static class RtServiceProvider
 {
     private static readonly AsyncLocal<IServiceProvider?> CurrentProvider = new();
 
+    /// <summary>
+    /// Returns an instance of the service provider if provided, otherwise creates a new one.
+    /// </summary>
     internal static IDisposable Use(IServiceProvider? services)
     {
         var previous = CurrentProvider.Value;

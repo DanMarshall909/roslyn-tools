@@ -4,6 +4,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Command for adding null checks to the project.
+/// </summary>
 internal sealed class AddNullChecksCommand : IRtCommand
 {
     private AddNullChecksCommand()
@@ -45,6 +48,9 @@ internal sealed class AddNullChecksCommand : IRtCommand
         return cmd;
     }
 
+    /// <summary>
+    /// Executes the add null checks command asynchronously.
+    /// </summary>
     internal static async Task ExecuteAsync(string typeName, string methodName, string? solutionPath, bool dryRun)
     {
         var (workspace, sln) = await WorkspaceLoader.LoadAsync(solutionPath);

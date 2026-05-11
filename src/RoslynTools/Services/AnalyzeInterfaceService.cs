@@ -7,6 +7,9 @@ using RoslynTools.Models;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// A class for analyzing interface declarations.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class AnalyzeInterfaceService : IRtService
@@ -27,6 +30,9 @@ internal class AnalyzeInterfaceService : IRtService
         _findCallers = findCallers;
     }
 
+    /// <summary>
+    /// Analyzes an interface in a solution and returns the results.
+    /// </summary>
     internal async Task<AnalyzeInterfaceReport> AnalyzeAsync(
         Solution solution,
         string interfaceSymbolSpec,

@@ -4,10 +4,16 @@ using YamlDotNet.Serialization;
 
 namespace RoslynTools.Core.Output.Renderers;
 
+/// <summary>
+/// Renderer for generating YAML output from Roslyn.
+/// </summary>
 internal static class YamlRenderer
 {
     private static readonly ISerializer Serializer = new SerializerBuilder().Build();
 
+    /// <summary>
+    /// Method to write YAML output to a text writer.
+    /// </summary>
     internal static void Write(IRtOutput result, TextWriter writer)
     {
         if (result is IRtYamlOutput custom)

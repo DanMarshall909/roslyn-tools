@@ -1,5 +1,8 @@
 namespace RoslynTools.Core;
 
+/// <summary>
+/// An enum representing the output context.
+/// </summary>
 [Flags]
 internal enum RtOutputContext
 {

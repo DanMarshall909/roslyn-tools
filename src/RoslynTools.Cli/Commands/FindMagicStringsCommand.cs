@@ -6,6 +6,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Identifies magic string literals in the current file
+/// </summary>
 internal sealed class FindMagicStringsCommand : IRtCommand
 {
     private FindMagicStringsCommand()

@@ -4,6 +4,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Creates an instance of a given type
+/// </summary>
 internal sealed class MakeInstanceCommand : IRtCommand
 {
     private MakeInstanceCommand()
@@ -42,6 +45,9 @@ internal sealed class MakeInstanceCommand : IRtCommand
         return cmd;
     }
 
+    /// <summary>
+    /// Executes the MakeInstanceCommand with async parameters
+    /// </summary>
     internal static async Task ExecuteAsync(string methodSpec, string? solutionPath, bool dryRun)
     {
         var (workspace, sln) = await WorkspaceLoader.LoadAsync(solutionPath);

@@ -4,6 +4,9 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Helps with parameter changes in code by identifying and modifying relevant elements.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal sealed class ParameterChangeHelper

@@ -3,6 +3,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands.Results;
 
+/// <summary>
+/// Tracks the occurrence of magic strings in the project, including their file and line locations.
+/// </summary>
 internal sealed record MagicStringOccurrenceResult : IRtOutput
 {
     [OutputField(OutputLevel.Llm, "filePath")]
@@ -24,6 +27,9 @@ internal sealed record MagicStringOccurrenceResult : IRtOutput
     }
 }
 
+/// <summary>
+/// Identifies magic string groups in the project, highlighting their usage patterns.
+/// </summary>
 internal sealed record MagicStringGroupResult : IRtOutput
 {
     [OutputField(OutputLevel.Llm, "value")]
@@ -47,6 +53,9 @@ internal sealed record MagicStringGroupResult : IRtOutput
     }
 }
 
+/// <summary>
+/// A class representing the result of a magic string command.
+/// </summary>
 internal sealed record MagicStringResult : IRtOutput
 {
     [OutputField(OutputLevel.Llm, "groups")]

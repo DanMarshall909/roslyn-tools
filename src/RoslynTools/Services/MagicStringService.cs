@@ -6,6 +6,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Identifies occurrences of magic strings in source code
+/// </summary>
 internal sealed record MagicStringOccurrence(
     string Value,
     string FilePath,
@@ -13,6 +16,9 @@ internal sealed record MagicStringOccurrence(
     string? TypeName,
     string? MemberName);
 
+/// <summary>
+/// Groups occurrences of magic strings for analysis
+/// </summary>
 internal sealed record MagicStringGroup(
     string Value,
     int Count,
@@ -34,6 +40,9 @@ internal class MagicStringService : IRtService
         _solutionChangeWriter = solutionChangeWriter;
     }
 
+    /// <summary>
+    /// Analyzes magic strings in a solution with specified parameters
+    /// </summary>
     internal async Task<IReadOnlyList<MagicStringGroup>> AnalyzeAsync(
         Solution solution,
         int minLength,
@@ -77,6 +86,9 @@ internal class MagicStringService : IRtService
             .ToList();
     }
 
+    /// <summary>
+    /// Extracts constant occurrences of magic strings from a solution
+    /// </summary>
     internal async Task ExtractConstantAsync(
         Solution solution,
         string filePath,

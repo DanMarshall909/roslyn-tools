@@ -8,6 +8,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Provides services for making classes static
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class MakeStaticService : IRtService
@@ -30,6 +33,9 @@ internal class MakeStaticService : IRtService
         _solutionChangeWriter = solutionChangeWriter;
     }
 
+    /// <summary>
+    /// Runs asynchronous static class transformation operations
+    /// </summary>
     internal async Task<int> RunAsync(Solution sln, string methodSpec, bool dryRun)
     {
         var (typeName, methodName) = ParseMethodSpec(methodSpec);

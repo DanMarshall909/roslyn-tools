@@ -1,10 +1,16 @@
 namespace RoslynTools.Models;
 
+/// <summary>
+/// Stores options for analyzing interfaces.
+/// </summary>
 internal sealed record AnalyzeInterfaceOptions(
     string? Scope = null,
     bool IncludeTests = false,
     bool Suggest = false);
 
+/// <summary>
+/// Provides a report on interface member analysis.
+/// </summary>
 internal sealed record AnalyzeInterfaceMemberReport(
     string Name,
     string Kind,
@@ -19,6 +25,9 @@ internal sealed record AnalyzeInterfaceSuggestion(
     string SharedGroupId,
     IReadOnlyList<AnalyzeInterfaceMemberReport> SuggestedMembers);
 
+/// <summary>
+/// Provides a report on interface consumer analysis.
+/// </summary>
 internal sealed record AnalyzeInterfaceConsumerReport(
     string ConsumerName,
     string ConsumerDisplayName,
@@ -30,6 +39,9 @@ internal sealed record AnalyzeInterfaceConsumerReport(
     IReadOnlyList<AnalyzeInterfaceMemberReport> UsedMembers,
     AnalyzeInterfaceSuggestion? Suggestion = null);
 
+/// <summary>
+/// Combines member and consumer reports for interface analysis.
+/// </summary>
 internal sealed record AnalyzeInterfaceReport(
     string InterfaceName,
     string InterfaceDisplayName,

@@ -4,10 +4,16 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Provides inspection capabilities for the codebase.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class InspectService : IRtService
 {
+    /// <summary>
+    /// Builds an inspection for a symbol in a solution
+    /// </summary>
     internal Dictionary<string, object?> BuildInspection(ISymbol symbol, Solution solution)
     {
         var result = new Dictionary<string, object?>
@@ -81,6 +87,9 @@ internal class InspectService : IRtService
         return result;
     }
 
+    /// <summary>
+    /// Gets the source code for a symbol asynchronously
+    /// </summary>
     internal async Task<List<Dictionary<string, object?>>> GetSourceAsync(ISymbol symbol)
     {
         var results = new List<Dictionary<string, object?>>();

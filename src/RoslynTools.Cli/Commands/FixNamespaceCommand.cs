@@ -4,6 +4,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Fixes namespace issues in the current file
+/// </summary>
 internal sealed class FixNamespaceCommand : IRtCommand
 {
     private FixNamespaceCommand()
@@ -45,6 +48,9 @@ internal sealed class FixNamespaceCommand : IRtCommand
         return cmd;
     }
 
+    /// <summary>
+    /// Executes the FixNamespaceCommand with async parameters
+    /// </summary>
     internal static Task ExecuteAsync(string filePath, string? solutionPath, bool dryRun)
     {
         return RtServiceProvider.Get<FixNamespaceService>().ExecuteAsync(filePath, solutionPath, dryRun);

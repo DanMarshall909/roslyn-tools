@@ -3,6 +3,9 @@ using Microsoft.CodeAnalysis;
 
 namespace RoslynTools.Core;
 
+/// <summary>
+/// A class for managing ignored items in the solution.
+/// </summary>
 internal sealed class RtIgnore
 {
     private static readonly RtIgnore Empty = new([]);
@@ -14,6 +17,9 @@ internal sealed class RtIgnore
         _patterns = patterns;
     }
 
+    /// <summary>
+    /// Loads ignored items from a file.
+    /// </summary>
     internal static RtIgnore Load(string? solutionDir)
     {
         if (string.IsNullOrWhiteSpace(solutionDir))
@@ -32,6 +38,9 @@ internal sealed class RtIgnore
         return patterns.Length == 0 ? Empty : new RtIgnore(patterns);
     }
 
+    /// <summary>
+    /// Returns the ignored items for the given solution.
+    /// </summary>
     internal static RtIgnore ForSolution(Solution solution)
     {
         var solutionDir = Path.GetDirectoryName(solution.FilePath);
@@ -86,11 +95,17 @@ internal sealed class RtIgnore
         return string.Join(Path.DirectorySeparatorChar, commonParts);
     }
 
+    /// <summary>
+    /// Checks if an item is ignored.
+    /// </summary>
     internal bool IsIgnored(string? absoluteFilePath)
     {
         return IsIgnored(absoluteFilePath, null);
     }
 
+    /// <summary>
+    /// Checks if an item is ignored with additional context.
+    /// </summary>
     internal bool IsIgnored(string? absoluteFilePath, string? commandName)
     {
         if (absoluteFilePath is null || _patterns.Length == 0)

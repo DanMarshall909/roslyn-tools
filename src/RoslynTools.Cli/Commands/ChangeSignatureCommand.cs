@@ -4,6 +4,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Command for changing the signature of a command.
+/// </summary>
 internal sealed class ChangeSignatureCommand : IRtCommand
 {
     private ChangeSignatureCommand()

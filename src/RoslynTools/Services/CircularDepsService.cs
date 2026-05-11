@@ -4,10 +4,16 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Identifies and analyzes cycles in a dependency graph.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class CircularDepsService : IRtService
 {
+    /// <summary>
+    /// Analyzes cycles in a dependency graph and returns results.
+    /// </summary>
     internal async Task<IReadOnlyList<IReadOnlyList<string>>> AnalyzeCyclesAsync(Solution sln, string? scope)
     {
         var graph = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
@@ -103,6 +109,9 @@ internal class CircularDepsService : IRtService
         return cycleStrings.Select(s => (IReadOnlyList<string>)s.Split(" -> ")).ToList();
     }
 
+    /// <summary>
+    /// Analyzes dependencies for cycles and returns results.
+    /// </summary>
     internal async Task<string> AnalyzeAsync(Solution sln, string? scope)
     {
         var cycles = await AnalyzeCyclesAsync(sln, scope);

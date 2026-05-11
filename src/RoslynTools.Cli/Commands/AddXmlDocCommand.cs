@@ -5,6 +5,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Command for adding XML documentation to the project.
+/// </summary>
 internal sealed class AddXmlDocCommand : IRtCommand
 {
     private static readonly JsonSerializerOptions JsonOptions =

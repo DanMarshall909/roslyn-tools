@@ -5,6 +5,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Replaces XUnit assertions with alternative testing methods.
+/// </summary>
 internal sealed class ReplaceXunitAssertsCommand : IRtCommand
 {
     private ReplaceXunitAssertsCommand()
@@ -53,6 +56,9 @@ internal sealed class ReplaceXunitAssertsCommand : IRtCommand
         return cmd;
     }
 
+    /// <summary>
+    /// Asynchronously replaces XUnit assertions with alternative testing methods.
+    /// </summary>
     internal static async Task ExecuteAsync(string? solutionPath, bool dryRun, bool apply, bool review)
     {
         var (workspace, solution) = await WorkspaceLoader.LoadAsync(solutionPath);
@@ -62,6 +68,9 @@ internal sealed class ReplaceXunitAssertsCommand : IRtCommand
         }
     }
 
+    /// <summary>
+    /// Asynchronously replaces XUnit assertions with alternative testing methods using core analysis.
+    /// </summary>
     internal static async Task ExecuteCoreAsync(
         Solution solution,
         bool dryRun,

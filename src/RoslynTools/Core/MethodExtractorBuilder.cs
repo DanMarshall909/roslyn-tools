@@ -10,6 +10,9 @@ namespace RoslynTools.Core;
 /// </summary>
 internal static class MethodExtractorBuilder
 {
+    /// <summary>
+    /// A method that builds a new method from symbol and statement lists.
+    /// </summary>
     internal static MethodDeclarationSyntax BuildNewMethod(
         string name,
         IReadOnlyList<ISymbol> parameters,
@@ -70,6 +73,9 @@ internal static class MethodExtractorBuilder
             SyntaxFactory.Whitespace(memberIndent));
     }
 
+    /// <summary>
+    /// A method that builds a call site from symbol and statement lists.
+    /// </summary>
     internal static StatementSyntax BuildCallSite(
         string methodName,
         IReadOnlyList<ISymbol> parameters,
@@ -103,6 +109,9 @@ internal static class MethodExtractorBuilder
             .WithTrailingTrivia(SyntaxFactory.LineFeed);
     }
 
+    /// <summary>
+    /// A method that gets the type name from a symbol.
+    /// </summary>
     internal static string GetTypeName(ISymbol symbol)
     {
         var type = symbol switch

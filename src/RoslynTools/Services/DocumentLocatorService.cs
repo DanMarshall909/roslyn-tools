@@ -4,6 +4,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Interface for locating documents in a Roslyn analysis.
+/// </summary>
 internal interface IDocumentLocatorService
 {
     DocumentId? FindDocumentId(Solution solution, ISymbol symbol);
@@ -14,6 +17,9 @@ internal interface IDocumentLocatorService
     Task<SyntaxNode> GetSyntaxRootAsync(Document document);
 }
 
+/// <summary>
+/// Service for locating documents in a Roslyn project.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance service registered through DI for dependency inversion.")]
 internal sealed class DocumentLocatorService : IDocumentLocatorService, IRtService

@@ -6,6 +6,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Finds all references to a given symbol in the current file
+/// </summary>
 internal sealed class FindRefsCommand : IRtCommand
 {
     private FindRefsCommand()

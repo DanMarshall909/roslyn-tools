@@ -3,6 +3,9 @@ using RoslynTools.Mcp.Tools;
 
 namespace RoslynTools.Mcp;
 
+/// <summary>
+/// Class for registering MCP services.
+/// </summary>
 internal static class McpServiceRegistration
 {
     public static IServiceCollection AddMcpServices(

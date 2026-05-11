@@ -6,6 +6,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Identifies duplicate symbols in the current file
+/// </summary>
 internal sealed class FindDuplicatesCommand : IRtCommand
 {
     private FindDuplicatesCommand()

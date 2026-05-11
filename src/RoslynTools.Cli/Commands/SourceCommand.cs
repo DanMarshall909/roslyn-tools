@@ -5,6 +5,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// A command for source-related operations.
+/// </summary>
 internal sealed class SourceCommand : IRtCommand
 {
     private SourceCommand()

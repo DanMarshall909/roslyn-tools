@@ -2,8 +2,14 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace RoslynTools.Core;
 
+/// <summary>
+/// A class that enforces rules on long methods in the code.
+/// </summary>
 internal static class LongMethodRule
 {
+    /// <summary>
+    /// A method that checks if a method declaration meets the long method rule criteria.
+    /// </summary>
     internal static IEnumerable<SmellResult> Check(TypeDeclarationSyntax typeDecl, string? filePath, int maxMethodLines)
     {
         var typeName = typeDecl.Identifier.Text;

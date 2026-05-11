@@ -6,6 +6,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Lists all imported namespaces in the current file
+/// </summary>
 internal sealed class ListImportsCommand : IRtCommand
 {
     private ListImportsCommand()

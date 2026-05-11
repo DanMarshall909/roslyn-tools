@@ -4,6 +4,9 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace RoslynTools.Core;
 
+/// <summary>
+/// DependencyInjectionStatus
+/// </summary>
 internal enum DependencyInjectionStatus
 {
     ClassNotFound,

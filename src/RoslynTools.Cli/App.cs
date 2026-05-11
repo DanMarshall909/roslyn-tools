@@ -11,6 +11,9 @@ using RoslynTools.Core.Output;
 
 namespace RoslynTools;
 
+/// <summary>
+/// The main application class for Roslyn tools.
+/// </summary>
 internal static class App
 {
     /// <summary>
@@ -62,6 +65,9 @@ internal static class App
     /// </summary>
     internal static IReadOnlyList<(Func<Command> Build, RtCommandInfo Info)> Commands { get; } = Discover();
 
+    /// <summary>
+    /// Runs the application asynchronously with command-line arguments and service provider.
+    /// </summary>
     internal static async Task<int> RunAsync(string[] args, IServiceProvider? services = null,
         IReadOnlyList<Command>? additionalCommands = null)
     {
@@ -165,6 +171,9 @@ internal static class App
             .InvokeAsync(args);
     }
 
+    /// <summary>
+    /// Registers global command options with the root command.
+    /// </summary>
     internal static (Option<bool> jsonOpt, Option<bool> llmOpt, Option<bool> markdownOpt, Option<bool> yamlOpt,
         Option<FileInfo?> decisionsOpt, Option<bool> strictJsonOpt) RegisterGlobalOptions(RootCommand root)
     {

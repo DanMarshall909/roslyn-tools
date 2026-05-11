@@ -8,6 +8,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Removes parameters from code by identifying and modifying relevant elements.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class RemoveParamService : IRtService
@@ -30,6 +33,9 @@ internal class RemoveParamService : IRtService
         _parameterChangeHelper = parameterChangeHelper;
     }
 
+    /// <summary>
+    /// Asynchronously removes a parameter from code within a solution.
+    /// </summary>
     internal async Task<Solution> RemoveParamAsync(
         Solution solution,
         string methodSpec,

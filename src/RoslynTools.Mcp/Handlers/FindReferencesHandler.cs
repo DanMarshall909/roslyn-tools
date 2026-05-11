@@ -4,6 +4,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Mcp.Handlers;
 
+/// <summary>
+/// Handler for finding references in the Roslyn project.
+/// </summary>
 internal sealed class FindReferencesHandler
 {
     private readonly FindRefsService _findRefs;
@@ -27,4 +30,7 @@ internal sealed class FindReferencesHandler
     }
 }
 
+/// <summary>
+/// Result class for the FindReferencesHandler method.
+/// </summary>
 internal sealed record FindReferencesResult(string Symbol, int ReferencesCount);

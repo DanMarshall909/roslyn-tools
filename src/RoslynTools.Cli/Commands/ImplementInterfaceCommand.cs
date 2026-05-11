@@ -4,6 +4,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Implements an interface for a given symbol
+/// </summary>
 internal sealed class ImplementInterfaceCommand : IRtCommand
 {
     private ImplementInterfaceCommand()
@@ -48,6 +51,9 @@ internal sealed class ImplementInterfaceCommand : IRtCommand
         return cmd;
     }
 
+    /// <summary>
+    /// Executes the ImplementInterfaceCommand with async parameters
+    /// </summary>
     internal static async Task ExecuteAsync(string typeName, string? interfaceName, string? solutionPath, bool dryRun)
     {
         var (workspace, sln) = await WorkspaceLoader.LoadAsync(solutionPath);

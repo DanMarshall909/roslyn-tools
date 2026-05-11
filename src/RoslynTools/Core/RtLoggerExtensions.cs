@@ -2,6 +2,9 @@ using Microsoft.Extensions.Logging;
 
 namespace RoslynTools.Core;
 
+/// <summary>
+/// Provides extension methods for the logger.
+/// </summary>
 internal static class RtLoggerExtensions
 {
     private static readonly EventId DiagnosticEvent = new(0, "RtDiagnostic");

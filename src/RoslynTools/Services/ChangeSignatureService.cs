@@ -4,6 +4,9 @@ using Microsoft.CodeAnalysis.Rename;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Provides methods to rename, reorder, and add parameters in method signatures.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class ChangeSignatureService : IRtService
@@ -31,6 +34,9 @@ internal class ChangeSignatureService : IRtService
         _removeParam = removeParam;
     }
 
+    /// <summary>
+    /// Renames a parameter in a method signature.
+    /// </summary>
     internal async Task<Solution> RenameParamAsync(
         Solution solution,
         string methodSpec,
@@ -64,6 +70,9 @@ internal class ChangeSignatureService : IRtService
         return _reorderParams.ReorderParamsAsync(solution, methodSpec, newOrder);
     }
 
+    /// <summary>
+    /// Adds a new parameter to a method signature.
+    /// </summary>
     internal Task<Solution> AddParamAsync(
         Solution solution,
         string methodSpec,
@@ -73,6 +82,9 @@ internal class ChangeSignatureService : IRtService
         return _addParam.AddParamAsync(solution, methodSpec, paramSpec, afterParam);
     }
 
+    /// <summary>
+    /// Removes a parameter from a method signature.
+    /// </summary>
     internal Task<Solution> RemoveParamAsync(
         Solution solution,
         string methodSpec,

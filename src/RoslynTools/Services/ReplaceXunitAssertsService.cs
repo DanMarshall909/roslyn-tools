@@ -5,6 +5,9 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// A class used to replace XUnit asserts in a solution.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class ReplaceXunitAssertsService : IRtService
@@ -21,6 +24,9 @@ internal class ReplaceXunitAssertsService : IRtService
         _solutionChangeWriter = solutionChangeWriter;
     }
 
+    /// <summary>
+    /// Analyzes a solution to identify XUnit assert replacements.
+    /// </summary>
     internal async Task<ReplaceXunitAssertsReview> AnalyzeAsync(Solution solution)
     {
         var review = new ReplaceXunitAssertsReview();
@@ -40,6 +46,9 @@ internal class ReplaceXunitAssertsService : IRtService
         return review;
     }
 
+    /// <summary>
+    /// Runs an asynchronous method to replace XUnit asserts in a solution with a boolean parameter.
+    /// </summary>
     internal async Task RunAsync(Solution solution, bool dryRun)
     {
         var originalSolution = solution;
@@ -47,6 +56,9 @@ internal class ReplaceXunitAssertsService : IRtService
         await _solutionChangeWriter.ApplyChangesAsync(originalSolution, newSolution, dryRun);
     }
 
+    /// <summary>
+    /// Applies XUnit assert replacements to a solution asynchronously.
+    /// </summary>
     internal async Task<Solution> ApplyAsync(Solution solution)
     {
         foreach (var project in solution.Projects)
@@ -273,18 +285,30 @@ internal class ReplaceXunitAssertsService : IRtService
     }
 }
 
+/// <summary>
+/// A class used to represent entries for XUnit assert replacements.
+/// </summary>
 internal sealed record ReplaceXunitAssertsEntry(
     string FilePath,
     int Line,
     string Original,
     string Replacement);
 
+/// <summary>
+/// A class used to manage and review XUnit assert replacements in a solution.
+/// </summary>
 internal sealed class ReplaceXunitAssertsReview
 {
     private readonly List<ReplaceXunitAssertsEntry> _entries = [];
 
+    /// <summary>
+    /// A property used to access the list of entries for XUnit assert replacements.
+    /// </summary>
     internal IReadOnlyList<ReplaceXunitAssertsEntry> Entries => _entries;
 
+    /// <summary>
+    /// Adds multiple XUnit assert entries to the review collection.
+    /// </summary>
     internal void AddRange(IEnumerable<ReplaceXunitAssertsEntry> entries)
     {
         _entries.AddRange(entries);

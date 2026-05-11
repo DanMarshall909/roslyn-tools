@@ -8,6 +8,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Replaces method calls with alternative implementations.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class ReplaceCallService : IRtService
@@ -30,6 +33,9 @@ internal class ReplaceCallService : IRtService
         _solutionChangeWriter = solutionChangeWriter;
     }
 
+    /// <summary>
+    /// Runs an asynchronous method to replace call services in a solution with specified parameters.
+    /// </summary>
     internal async Task RunAsync(Solution solution, string from, string to, bool dryRun, int? ifArgIndex = null,
         string? ifArgLiteral = null)
     {

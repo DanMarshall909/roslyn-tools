@@ -21,9 +21,9 @@ function Test-RebuildNeeded {
 }
 
 if (Test-RebuildNeeded) {
-    Write-Host 'rt: rebuilding...' -ForegroundColor Cyan
-    dotnet build $proj -c Release --nologo -v quiet
-    if ($LASTEXITCODE -ne 0) { Write-Error 'rt: build failed'; exit 1 }
+    [Console]::Error.WriteLine('rt: rebuilding...')
+    & cmd /c "dotnet build `"$proj`" -c Release --nologo -v quiet 1>&2"
+    if ($LASTEXITCODE -ne 0) { [Console]::Error.WriteLine('rt: build failed'); exit 1 }
 }
 
 & $exe @Args

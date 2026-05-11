@@ -3,6 +3,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands.Results;
 
+/// <summary>
+/// Represents the result of analyzing an import directive entry.
+/// </summary>
 internal sealed record ImportDirectiveEntryResult : IRtOutput
 {
     [OutputField(OutputLevel.Llm, "kind")] public required string Kind { get; init; }
@@ -25,6 +28,9 @@ internal sealed record ImportDirectiveEntryResult : IRtOutput
     }
 }
 
+/// <summary>
+/// Describes the outcome of an import directive analysis, including any issues found.
+/// </summary>
 internal sealed record ImportDirectiveResult : IRtOutput
 {
     [OutputField(OutputLevel.Llm, "imports")]

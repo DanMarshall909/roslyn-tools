@@ -4,6 +4,9 @@ using RoslynTools.Mcp.Tools;
 
 namespace RoslynTools.Mcp;
 
+/// <summary>
+/// Class for the server component of the Roslyn MCP system.
+/// </summary>
 internal sealed class Server
 {
     private static readonly JsonSerializerOptions SerializerOptions = new()

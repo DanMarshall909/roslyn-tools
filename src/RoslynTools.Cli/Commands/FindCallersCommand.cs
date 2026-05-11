@@ -6,6 +6,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Finds all callers of a given symbol in the current file
+/// </summary>
 internal sealed class FindCallersCommand : IRtCommand
 {
     private FindCallersCommand()

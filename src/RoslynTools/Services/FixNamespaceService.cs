@@ -7,6 +7,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Helps fix namespace-related issues in the codebase.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class FixNamespaceService : IRtService
@@ -25,6 +28,9 @@ internal class FixNamespaceService : IRtService
         _solutionChangeWriter = solutionChangeWriter;
     }
 
+    /// <summary>
+    /// Executes a fix for a namespace issue with optional parameters.
+    /// </summary>
     internal async Task ExecuteAsync(string filePath, string? solutionPath, bool dryRun)
     {
         filePath = Path.GetFullPath(filePath);
@@ -36,6 +42,9 @@ internal class FixNamespaceService : IRtService
         }
     }
 
+    /// <summary>
+    /// Runs a fix for a namespace issue on a solution.
+    /// </summary>
     internal async Task RunAsync(Solution solution, string filePath, bool dryRun)
     {
         var originalSolution = solution;
@@ -100,6 +109,9 @@ internal class FixNamespaceService : IRtService
         await _solutionChangeWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
     }
 
+    /// <summary>
+    /// Computes the expected namespace based on input parameters.
+    /// </summary>
     internal string ComputeExpectedNamespace(string filePath, string projectDir, string assemblyName)
     {
         var fileDir = Path.GetDirectoryName(filePath)!;
@@ -116,6 +128,9 @@ internal class FixNamespaceService : IRtService
         return assemblyName + "." + subNamespace;
     }
 
+    /// <summary>
+    /// Gets the declared namespace from a syntax node.
+    /// </summary>
     internal string? GetDeclaredNamespace(SyntaxNode root)
     {
         var fileScoped = root.DescendantNodes()
@@ -130,6 +145,9 @@ internal class FixNamespaceService : IRtService
         return blockScoped?.Name.ToString().Trim();
     }
 
+    /// <summary>
+    /// Renames namespace declarations during fix operations.
+    /// </summary>
     internal sealed class NamespaceDeclarationRenamer : CSharpSyntaxRewriter
     {
         private readonly string _newNs;
@@ -156,6 +174,9 @@ internal class FixNamespaceService : IRtService
         }
     }
 
+    /// <summary>
+    /// Renames using directives during fix operations.
+    /// </summary>
     internal sealed class UsingDirectiveRenamer : CSharpSyntaxRewriter
     {
         private readonly string _newNs;

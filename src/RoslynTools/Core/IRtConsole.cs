@@ -1,5 +1,8 @@
 namespace RoslynTools.Core;
 
+/// <summary>
+/// An interface for a console output system.
+/// </summary>
 internal interface IRtConsole
 {
     bool IsOutputRedirected { get; }

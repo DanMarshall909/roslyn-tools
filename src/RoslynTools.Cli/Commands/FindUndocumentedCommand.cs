@@ -6,6 +6,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Identifies undocumented symbols in the current file
+/// </summary>
 internal sealed class FindUndocumentedCommand : IRtCommand
 {
     private FindUndocumentedCommand()

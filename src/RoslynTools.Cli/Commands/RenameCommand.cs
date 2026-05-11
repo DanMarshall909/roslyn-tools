@@ -5,6 +5,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Renames symbols within the solution.
+/// </summary>
 internal sealed class RenameCommand : IRtCommand
 {
     private RenameCommand()
@@ -75,18 +78,27 @@ internal sealed class RenameCommand : IRtCommand
     }
 
     // Forwarding stubs kept for backwards compatibility
+    /// <summary>
+    /// Asynchronously renames symbols in the solution with additional parameters.
+    /// </summary>
     internal static Task<Solution> RenameAsync(
         Solution sln, string symbol, string newName, string? kind)
     {
         return RtServiceProvider.Get<RenameService>().RenameAsync(sln, symbol, newName, kind);
     }
 
+    /// <summary>
+    /// Asynchronously renames a single symbol in the solution.
+    /// </summary>
     internal static Task ExecuteSingleAsync(
         Solution sln, string symbol, string newName, string? kind, bool dryRun)
     {
         return RtServiceProvider.Get<RenameService>().ExecuteSingleAsync(sln, symbol, newName, kind, dryRun);
     }
 
+    /// <summary>
+    /// Asynchronously renames multiple symbols in the solution.
+    /// </summary>
     internal static Task ExecuteBatchAsync(
         Solution sln, string csvPath, bool dryRun)
     {

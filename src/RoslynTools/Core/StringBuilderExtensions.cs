@@ -3,6 +3,9 @@ using System.Text;
 
 namespace RoslynTools.Core;
 
+/// <summary>
+/// Provides extension methods for the StringBuilder class.
+/// </summary>
 internal static class StringBuilderExtensions
 {
     /// <summary>Appends an invariant-culture interpolated line — avoids CA1305 boilerplate.</summary>

@@ -6,12 +6,21 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Detects unused symbols in the codebase.
+/// </summary>
 internal record UnusedSymbol(string Name, string Kind, string? FilePath, int Line);
 
+/// <summary>
+/// Searches for unused services in a solution.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class FindUnusedService : IRtService
 {
+    /// <summary>
+    /// Analyzes a solution to find unused symbols.
+    /// </summary>
     internal async Task<List<UnusedSymbol>> AnalyzeAsync(Solution solution, string scope = "all")
     {
         var results = new List<UnusedSymbol>();

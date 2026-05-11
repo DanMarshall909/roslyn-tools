@@ -3,6 +3,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands.Results;
 
+/// <summary>
+/// Reports on undocumented symbols in the project, including their usage and location.
+/// </summary>
 internal sealed record UndocumentedSymbolResult : IRtOutput
 {
     [OutputField(OutputLevel.Llm, "fqn")] public required string Fqn { get; init; }
@@ -24,6 +27,9 @@ internal sealed record UndocumentedSymbolResult : IRtOutput
     }
 }
 
+/// <summary>
+/// Searches for undocumented symbols in the project and provides their details.
+/// </summary>
 internal sealed record FindUndocumentedResult : IRtOutput
 {
     [OutputField(OutputLevel.Llm, "symbols")]

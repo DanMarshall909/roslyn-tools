@@ -4,6 +4,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Command for adding global imports to the project.
+/// </summary>
 internal sealed class AddGlobalImportCommand : IRtCommand
 {
     private AddGlobalImportCommand()

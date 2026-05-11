@@ -2,8 +2,14 @@ using RoslynTools.Core.Output.Renderers;
 
 namespace RoslynTools.Core.Output;
 
+/// <summary>
+/// Serializer class for writing structured output to a text writer.
+/// </summary>
 internal static class RtSerializer
 {
+    /// <summary>
+    /// Method to write structured output to a text writer.
+    /// </summary>
     internal static void Write(IRtOutput result, TextWriter? writer = null)
     {
         var target = writer ?? RtConsole.Out;

@@ -5,6 +5,9 @@ using RoslynTools;
 using RoslynTools.Core;
 using RoslynTools.Daemon;
 
+/// <summary>
+/// Main entry point for the Roslyn Daemon application.
+/// </summary>
 internal static class Program
 {
     private static bool NoDaemon =>

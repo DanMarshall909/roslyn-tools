@@ -8,10 +8,16 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Daemon;
 
+/// <summary>
+/// The server for daemon communication.
+/// </summary>
 internal static class DaemonServer
 {
     internal const string PipeName = "rt-daemon";
 
+    /// <summary>
+    /// A method to start the daemon server.
+    /// </summary>
     internal static async Task<int> RunAsync()
     {
         Directory.CreateDirectory(DaemonState.StateDir);

@@ -9,6 +9,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Helps implement interfaces in the codebase.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class ImplementInterfaceService : IRtService
@@ -32,6 +35,9 @@ internal class ImplementInterfaceService : IRtService
         _solutionChangeWriter = solutionChangeWriter;
     }
 
+    /// <summary>
+    /// Runs an operation to implement an interface on a solution.
+    /// </summary>
     internal async Task RunAsync(Solution sln, string typeName, string? interfaceName, bool dryRun)
     {
         var originalSolution = sln;

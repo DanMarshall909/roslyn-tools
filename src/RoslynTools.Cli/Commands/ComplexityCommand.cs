@@ -5,6 +5,9 @@ using RoslynTools.Core.Output;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Computes code complexity metrics for a solution.
+/// </summary>
 internal sealed class ComplexityCommand : IRtCommand
 {
     internal static readonly string[] ValidSortValues = ["cyclomatic", "cognitive", "loc", "params"];
@@ -56,6 +59,9 @@ internal sealed class ComplexityCommand : IRtCommand
         return cmd;
     }
 
+    /// <summary>
+    /// Executes complexity analysis with optional parameters.
+    /// </summary>
     internal static async Task<int> ExecuteAsync(string? solution, int threshold, string sort, int top)
     {
         if (threshold < 0)

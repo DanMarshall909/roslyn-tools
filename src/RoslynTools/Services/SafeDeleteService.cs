@@ -8,6 +8,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// A class used to safely delete code elements in a solution.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class SafeDeleteService : IRtService
@@ -30,6 +33,9 @@ internal class SafeDeleteService : IRtService
         _solutionChangeWriter = solutionChangeWriter;
     }
 
+    /// <summary>
+    /// Runs an asynchronous method to safely delete code elements in a solution with specified parameters.
+    /// </summary>
     internal async Task RunAsync(Solution sln, string symbol, string? kind, bool dryRun)
     {
         var sym = await ResolveSymbolAsync(sln, symbol, kind);
@@ -126,6 +132,9 @@ internal class SafeDeleteService : IRtService
         return await _symbols.FindSymbolAsync(sln, symbol, kind);
     }
 
+    /// <summary>
+    /// Finds the declaration node for a syntax element in a solution.
+    /// </summary>
     internal SyntaxNode? FindDeclarationNode(SyntaxNode node)
     {
         return node switch
@@ -144,6 +153,9 @@ internal class SafeDeleteService : IRtService
         };
     }
 
+    /// <summary>
+    /// Checks if a syntax element is inside the name of another symbol in a solution.
+    /// </summary>
     internal bool IsInsideNameOf(SyntaxNode node)
     {
         var current = node.Parent;

@@ -4,6 +4,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Command for adding test commands to the project.
+/// </summary>
 internal sealed class AddTestCommand : IRtCommand
 {
     private AddTestCommand()
@@ -80,6 +83,9 @@ internal sealed class AddTestCommand : IRtCommand
         return cmd;
     }
 
+    /// <summary>
+    /// Executes the add test command asynchronously.
+    /// </summary>
     internal static async Task ExecuteAsync(
         string? className,
         string? name,
@@ -168,6 +174,9 @@ internal sealed class AddTestCommand : IRtCommand
     //  AC → C# identifier conversion (delegates to Core; kept here for tests)
     // ──────────────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Converts a command to a method name.
+    /// </summary>
     internal static string AcToMethodName(string ac)
     {
         return RtServiceProvider.Get<AddTestService>().AcToMethodName(ac);

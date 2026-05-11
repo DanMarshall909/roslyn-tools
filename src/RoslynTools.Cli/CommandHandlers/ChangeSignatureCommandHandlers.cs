@@ -3,8 +3,14 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands.CommandHandlers;
 
+/// <summary>
+/// Handles command signature changes for commands.
+/// </summary>
 internal static class ChangeSignatureCommandHandlers
 {
+    /// <summary>
+    /// Renames a parameter in a command signature.
+    /// </summary>
     internal static async Task<int> RenameParamAsync(
         string methodSpec,
         string oldName,
@@ -34,6 +40,9 @@ internal static class ChangeSignatureCommandHandlers
         }
     }
 
+    /// <summary>
+    /// Reorders parameters in a command signature.
+    /// </summary>
     internal static async Task<int> ReorderAsync(
         string methodSpec,
         string[] newOrder,
@@ -61,6 +70,9 @@ internal static class ChangeSignatureCommandHandlers
         }
     }
 
+    /// <summary>
+    /// Adds a parameter to a command signature.
+    /// </summary>
     internal static async Task<int> AddParamAsync(
         string methodSpec,
         string paramSpec,
@@ -90,6 +102,9 @@ internal static class ChangeSignatureCommandHandlers
         }
     }
 
+    /// <summary>
+    /// Removes a parameter from a command signature.
+    /// </summary>
     internal static async Task<int> RemoveParamAsync(
         string methodSpec,
         string paramName,

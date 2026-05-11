@@ -4,6 +4,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Moves a method from one location to another in the solution.
+/// </summary>
 internal sealed class MoveMethodCommand : IRtCommand
 {
     private MoveMethodCommand()
@@ -46,6 +49,9 @@ internal sealed class MoveMethodCommand : IRtCommand
         return cmd;
     }
 
+    /// <summary>
+    /// Asynchronously executes a method move with additional parameters.
+    /// </summary>
     internal static async Task ExecuteAsync(
         string methodFqn,
         string toType,

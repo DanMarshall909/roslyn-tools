@@ -2,6 +2,9 @@ using System.CommandLine;
 
 namespace RoslynTools.Mcp.Tools;
 
+/// <summary>
+/// ToolSchemaBuilder
+/// </summary>
 internal sealed class ToolSchemaBuilder
 {
     public IReadOnlyList<ToolDefinition> Build()

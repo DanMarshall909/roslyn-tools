@@ -4,6 +4,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Migrates code to use IOptions interface for configuration.
+/// </summary>
 internal sealed class MigrateToIOptionsCommand : IRtCommand
 {
     private MigrateToIOptionsCommand()
@@ -49,6 +52,9 @@ internal sealed class MigrateToIOptionsCommand : IRtCommand
         return cmd;
     }
 
+    /// <summary>
+    /// Asynchronously executes a migration to IOptions interface.
+    /// </summary>
     internal static async Task<int> ExecuteAsync(string? section, string? name, string? solutionPath, bool dryRun)
     {
         if (string.IsNullOrWhiteSpace(section))

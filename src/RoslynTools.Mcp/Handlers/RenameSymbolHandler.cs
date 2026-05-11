@@ -4,6 +4,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Mcp.Handlers;
 
+/// <summary>
+/// Handler for renaming symbols in the Roslyn project.
+/// </summary>
 internal sealed class RenameSymbolHandler
 {
     private readonly RenameService _rename;
@@ -44,4 +47,7 @@ internal sealed class RenameSymbolHandler
     }
 }
 
+/// <summary>
+/// Result class for the RenameSymbolHandler method.
+/// </summary>
 internal sealed record RenameSymbolResult(int ChangedFiles, bool Applied);

@@ -3,8 +3,14 @@ using RoslynTools.Core;
 
 namespace RoslynTools;
 
+/// <summary>
+/// Class for bootstrapping MSBuild processes.
+/// </summary>
 internal static class MsBuildBootstrap
 {
+    /// <summary>
+    /// Method to register MSBuild bootstrapping steps.
+    /// </summary>
     internal static void Register()
     {
         VisualStudioInstance? sdkInstance = null;
@@ -44,6 +50,9 @@ internal static class MsBuildBootstrap
 
     // Prefer a .NET SDK instance over VS's .NET Framework MSBuild — the Framework host
     // causes TypeInitializationException when loading .NET 8+ projects.
+    /// <summary>
+    /// Method to find the preferred MSBuild instance.
+    /// </summary>
     internal static VisualStudioInstance? FindPreferredInstance()
     {
         return MSBuildLocator.QueryVisualStudioInstances()

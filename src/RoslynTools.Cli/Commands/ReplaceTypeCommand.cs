@@ -4,6 +4,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Replaces a type reference with another type.
+/// </summary>
 internal sealed class ReplaceTypeCommand : IRtCommand
 {
     private ReplaceTypeCommand()

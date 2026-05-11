@@ -5,6 +5,9 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Services for narrowing consumer types in the context of Roslyn analysis.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 /// <summary>
@@ -158,6 +161,9 @@ internal class ConsumerNarrowerService : IRtService
         return solution.WithDocumentSyntaxRoot(consumerDocument.Id, newRoot);
     }
 
+    /// <summary>
+    /// The result of narrowing consumer types.
+    /// </summary>
     internal sealed record NarrowResult(
         Solution Solution,
         List<string> NarrowedConsumers,

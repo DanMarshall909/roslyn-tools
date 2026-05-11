@@ -4,6 +4,9 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace RoslynTools.Core;
 
+/// <summary>
+/// A class used to rewrite namespace moves in the code.
+/// </summary>
 internal sealed class NamespaceMoveRewriter : CSharpSyntaxRewriter
 {
     private readonly string _newNs;

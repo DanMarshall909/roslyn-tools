@@ -4,8 +4,14 @@ using System.Text.Json;
 
 namespace RoslynTools.Core.Output.Renderers;
 
+/// <summary>
+/// Renderer for generating JSON output from Roslyn.
+/// </summary>
 internal static class JsonRenderer
 {
+    /// <summary>
+    /// Method to write JSON output to a text writer.
+    /// </summary>
     internal static void Write(IRtOutput result, TextWriter writer)
     {
         if (result is IRtJsonOutput custom)

@@ -5,6 +5,9 @@ using RoslynTools.Models;
 
 namespace RoslynTools.Commands.Results;
 
+/// <summary>
+/// Analyzes interface member output for code quality and structure.
+/// </summary>
 internal sealed record AnalyzeInterfaceMemberOutput : IRtOutput
 {
     [OutputField(OutputLevel.Llm, "name")] public required string Name { get; init; }
@@ -21,6 +24,9 @@ internal sealed record AnalyzeInterfaceMemberOutput : IRtOutput
     }
 }
 
+/// <summary>
+/// Analyzes interface suggestion output for code suggestions and improvements.
+/// </summary>
 internal sealed record AnalyzeInterfaceSuggestionOutput : IRtOutput
 {
     [OutputField(OutputLevel.Default, "hasNarrowingBenefit")]
@@ -38,6 +44,9 @@ internal sealed record AnalyzeInterfaceSuggestionOutput : IRtOutput
     }
 }
 
+/// <summary>
+/// Analyzes interface consumer output for compatibility and usage patterns.
+/// </summary>
 internal sealed record AnalyzeInterfaceConsumerOutput : IRtOutput
 {
     [OutputField(OutputLevel.Llm, "consumer")]
@@ -66,6 +75,9 @@ internal sealed record AnalyzeInterfaceConsumerOutput : IRtOutput
     }
 }
 
+/// <summary>
+/// Represents the result of analyzing an interface for issues such as unused members or complexity.
+/// </summary>
 internal sealed record AnalyzeInterfaceResult : IRtOutput, IRtJsonOutput, IRtMarkdownOutput
 {
     [OutputField(OutputLevel.Llm, "interface")]

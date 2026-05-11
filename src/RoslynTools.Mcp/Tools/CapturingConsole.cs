@@ -3,6 +3,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Mcp.Tools;
 
+/// <summary>
+/// Class for capturing console output in the Roslyn MCP system.
+/// </summary>
 internal sealed class CapturingConsole : IRtConsole, IDisposable
 {
     private readonly StringWriter _out;

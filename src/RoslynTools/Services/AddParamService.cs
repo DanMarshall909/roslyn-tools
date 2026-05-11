@@ -5,6 +5,9 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// A class for managing parameters in the solution.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class AddParamService : IRtService
@@ -25,6 +28,9 @@ internal class AddParamService : IRtService
         _parameterChangeHelper = parameterChangeHelper;
     }
 
+    /// <summary>
+    /// An asynchronous method to add parameters.
+    /// </summary>
     internal async Task<Solution> AddParamAsync(
         Solution solution,
         string methodSpec,

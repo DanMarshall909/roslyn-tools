@@ -4,6 +4,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Narrow dependencies in the solution to reduce complexity.
+/// </summary>
 internal sealed class NarrowDependencyCommand : IRtCommand
 {
     private NarrowDependencyCommand()
@@ -54,6 +57,9 @@ internal sealed class NarrowDependencyCommand : IRtCommand
         return cmd;
     }
 
+    /// <summary>
+    /// Asynchronously narrows dependencies using provided parameters.
+    /// </summary>
     internal static async Task ExecuteAsync(
         string sourceInterface,
         string[] members,

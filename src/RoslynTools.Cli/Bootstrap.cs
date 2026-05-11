@@ -5,6 +5,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools;
 
+/// <summary>
+/// The bootstrap class for initializing and running the Roslyn tool.
+/// </summary>
 internal static class Bootstrap
 {
     public static void RegisterServices(IServiceCollection services)

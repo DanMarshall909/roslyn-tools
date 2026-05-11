@@ -4,6 +4,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Creates a static command for executing code changes.
+/// </summary>
 internal sealed class MakeStaticCommand : IRtCommand
 {
     private MakeStaticCommand()
@@ -44,6 +47,9 @@ internal sealed class MakeStaticCommand : IRtCommand
         return cmd;
     }
 
+    /// <summary>
+    /// Asynchronously executes a static command with provided parameters.
+    /// </summary>
     internal static async Task ExecuteAsync(string methodSpec, string? solutionPath, bool dryRun)
     {
         var (workspace, sln) = await WorkspaceLoader.LoadAsync(solutionPath);

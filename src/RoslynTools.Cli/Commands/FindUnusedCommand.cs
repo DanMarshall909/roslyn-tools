@@ -6,6 +6,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Identifies unused commands in the current file
+/// </summary>
 internal sealed class FindUnusedCommand : IRtCommand
 {
     private FindUnusedCommand()

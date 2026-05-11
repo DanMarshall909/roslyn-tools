@@ -6,6 +6,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Identifies undocumented symbols in the codebase.
+/// </summary>
 internal sealed record UndocumentedSymbol(
     string Fqn,
     string Signature,
@@ -13,10 +16,16 @@ internal sealed record UndocumentedSymbol(
     string FilePath,
     int Line);
 
+/// <summary>
+/// Searches for undocumented services in a solution.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal sealed class FindUndocumentedService : IRtService
 {
+    /// <summary>
+    /// Analyzes a solution to find undocumented symbols.
+    /// </summary>
     internal async Task<List<UndocumentedSymbol>> AnalyzeAsync(
         Solution solution, bool includeMembers, string? scope, IReadOnlySet<SyntaxKind>? accessibilityKinds)
     {
@@ -100,6 +109,9 @@ internal sealed class FindUndocumentedService : IRtService
         return modifiers.Any(m => kinds.Contains(m.Kind()));
     }
 
+    /// <summary>
+    /// Parses accessibility levels from a collection of strings.
+    /// </summary>
     internal static IReadOnlySet<SyntaxKind>? ParseAccessibilityLevels(IEnumerable<string> levels)
     {
         var kinds = new HashSet<SyntaxKind>();

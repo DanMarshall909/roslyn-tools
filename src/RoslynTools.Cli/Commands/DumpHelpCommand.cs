@@ -13,6 +13,9 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal static class DumpHelpCommand
 {
+    /// <summary>
+    /// Builds the help output for a command.
+    /// </summary>
     internal static Command Build()
     {
         var cmd = new Command("dump-help",
@@ -35,6 +38,9 @@ internal static class DumpHelpCommand
         return cmd;
     }
 
+    /// <summary>
+    /// Renders the help output as markdown.
+    /// </summary>
     internal static string RenderMarkdown(IReadOnlyList<(Command Cmd, RtCommandInfo Info)> registry)
     {
         var sb = new StringBuilder();
@@ -51,6 +57,9 @@ internal static class DumpHelpCommand
         return sb.ToString();
     }
 
+    /// <summary>
+    /// Builds the header for the help output.
+    /// </summary>
     internal static void BuildHeader(StringBuilder sb, IReadOnlyList<(Command Cmd, RtCommandInfo Info)> registry)
     {
         sb.AppendLine("# rt Commands");
@@ -70,6 +79,9 @@ internal static class DumpHelpCommand
         sb.AppendLine();
     }
 
+    /// <summary>
+    /// Builds the content of the help output.
+    /// </summary>
     internal static void BuildContents(StringBuilder sb,
         IEnumerable<IGrouping<string, (Command Cmd, RtCommandInfo Info)>> byCategory)
     {
@@ -86,6 +98,9 @@ internal static class DumpHelpCommand
         sb.AppendLine();
     }
 
+    /// <summary>
+    /// Builds a group section in the help output.
+    /// </summary>
     internal static void BuildGroupSection(StringBuilder sb, IGrouping<string, (Command Cmd, RtCommandInfo Info)> group)
     {
         var desc = App.GroupDescriptions.TryGetValue(group.Key, out var d) ? d : "";
@@ -95,6 +110,9 @@ internal static class DumpHelpCommand
         foreach (var (c, info) in group.OrderBy(e => e.Info.Name)) BuildCommandSection(sb, c, info);
     }
 
+    /// <summary>
+    /// Builds a command section in the help output.
+    /// </summary>
     internal static void BuildCommandSection(StringBuilder sb, Command c, RtCommandInfo info)
     {
         var shortDescription = c.Description ?? "(no description)";
@@ -144,6 +162,9 @@ internal static class DumpHelpCommand
         sb.AppendLine();
     }
 
+    /// <summary>
+    /// Renders the help output with colored text.
+    /// </summary>
     internal static void RenderColoured(IReadOnlyList<(Command Cmd, RtCommandInfo Info)> registry)
     {
         var byCategory = registry
@@ -180,6 +201,9 @@ internal static class DumpHelpCommand
         }
     }
 
+    /// <summary>
+    /// Renders a group of commands with colored text.
+    /// </summary>
     internal static void RenderColouredGroup(
         string category,
         IReadOnlyList<(Command Cmd, RtCommandInfo Info)> snapshot)
@@ -205,6 +229,9 @@ internal static class DumpHelpCommand
         RtConsole.WriteLine(RtOutputContext.Ui);
     }
 
+    /// <summary>
+    /// Renders the command header with colored text.
+    /// </summary>
     internal static void RenderColouredCommandHeader(HelpContext ctx, RtCommandInfo info)
     {
         RtConsole.WriteLine(RtOutputContext.Ui);

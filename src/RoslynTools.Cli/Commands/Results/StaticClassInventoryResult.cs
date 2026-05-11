@@ -5,6 +5,9 @@ using RoslynTools.Models;
 
 namespace RoslynTools.Commands.Results;
 
+/// <summary>
+/// A class representing the result of a static class inventory command.
+/// </summary>
 internal sealed record StaticClassInventoryResult : IRtOutput, IRtJsonOutput
 {
     public required int TotalStaticClasses { get; init; }
@@ -83,6 +86,9 @@ internal sealed record StaticClassInventoryResult : IRtOutput, IRtJsonOutput
     }
 }
 
+/// <summary>
+/// A class representing the output of a static class entry command.
+/// </summary>
 internal sealed record StaticClassEntryOutput : IRtOutput
 {
     public required string Fqn { get; init; }

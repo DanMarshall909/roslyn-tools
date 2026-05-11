@@ -8,6 +8,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Provides asynchronous services for building and transforming documents
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class MakeAsyncService : IRtService
@@ -31,6 +34,9 @@ internal class MakeAsyncService : IRtService
         _solutionChangeWriter = solutionChangeWriter;
     }
 
+    /// <summary>
+    /// Runs asynchronous document transformation operations
+    /// </summary>
     internal async Task RunAsync(Solution sln, string typeName, string methodName, bool noRename, bool dryRun)
     {
         var originalSolution = sln;
@@ -90,6 +96,9 @@ internal class MakeAsyncService : IRtService
         await _solutionChangeWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
     }
 
+    /// <summary>
+    /// Transforms a document with specified parameters and spans
+    /// </summary>
     internal SyntaxNode TransformDocument(
         SyntaxNode root,
         bool isTargetDoc,

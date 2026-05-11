@@ -3,8 +3,14 @@ using System.Reflection;
 
 namespace RoslynTools.Core.Output.Renderers;
 
+/// <summary>
+/// Renderer for generating LLM-based output from Roslyn.
+/// </summary>
 internal static class LlmRenderer
 {
+    /// <summary>
+    /// Method to write LLM-based output to a text writer.
+    /// </summary>
     internal static void Write(IRtOutput result, TextWriter writer)
     {
         WriteRecord(result, writer);

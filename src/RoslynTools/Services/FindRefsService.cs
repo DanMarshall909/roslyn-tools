@@ -7,6 +7,9 @@ using RoslynTools.Services.Results;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Provides methods for finding references to a given type symbol.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class FindRefsService : IRtService
@@ -27,6 +30,9 @@ internal class FindRefsService : IRtService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Async method to find references based on a string and an optional flag.
+    /// </summary>
     internal async Task<FindRefsResult> FindAsync(
         Solution sln,
         string symbol,

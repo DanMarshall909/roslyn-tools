@@ -2,6 +2,9 @@ using RoslynTools.Core.Output;
 
 namespace RoslynTools.Commands.Results;
 
+/// <summary>
+/// Captures the complexity of a method, including cyclomatic complexity and other metrics.
+/// </summary>
 internal sealed record MethodComplexityItem : IRtOutput
 {
     [OutputField(OutputLevel.Default, "method")]
@@ -43,6 +46,9 @@ internal sealed record MethodComplexityItem : IRtOutput
     }
 }
 
+/// <summary>
+/// Shows the type hierarchy of a symbol, including all its base and derived types.
+/// </summary>
 internal sealed record TypeRollupItem : IRtOutput
 {
     [OutputField(OutputLevel.Default, "type")]
@@ -78,6 +84,9 @@ internal sealed record TypeRollupItem : IRtOutput
     }
 }
 
+/// <summary>
+/// Displays the namespace hierarchy of a symbol, including all its base and derived namespaces.
+/// </summary>
 internal sealed record NamespaceRollupItem : IRtOutput
 {
     [OutputField(OutputLevel.Default, "namespace")]
@@ -109,6 +118,9 @@ internal sealed record NamespaceRollupItem : IRtOutput
     }
 }
 
+/// <summary>
+/// Provides an overall complexity summary of a symbol or type in the project.
+/// </summary>
 internal sealed record ComplexityResult : IRtOutput
 {
     [OutputField(OutputLevel.Default, "methods")]

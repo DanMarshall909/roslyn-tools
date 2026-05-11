@@ -2,6 +2,9 @@ using System.CommandLine;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Factory for creating command options.
+/// </summary>
 internal static class CommandOptionFactory
 {
     public static Option<string> CreateFileOption()

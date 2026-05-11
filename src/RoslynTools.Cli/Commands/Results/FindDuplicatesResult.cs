@@ -5,6 +5,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands.Results;
 
+/// <summary>
+/// Tracks the occurrence of a symbol in the project, including file and line information.
+/// </summary>
 internal sealed record OccurrenceResult : IRtOutput
 {
     // Not annotated — used only by RenderText for byte-for-byte compat with old PrintGroups
@@ -34,6 +37,9 @@ internal sealed record OccurrenceResult : IRtOutput
     }
 }
 
+/// <summary>
+/// Represents the outcome of a code check, including any issues found or warnings.
+/// </summary>
 internal sealed record CheckResult : IRtOutput
 {
     [OutputField(OutputLevel.Default, "name")]
@@ -52,6 +58,9 @@ internal sealed record CheckResult : IRtOutput
     }
 }
 
+/// <summary>
+/// Identifies duplicate groups in the project, helping to detect code duplication.
+/// </summary>
 internal sealed record DuplicateGroupResult : IRtOutput
 {
     [OutputField(OutputLevel.Llm, "groupId")]
@@ -88,6 +97,9 @@ internal sealed record DuplicateGroupResult : IRtOutput
     }
 }
 
+/// <summary>
+/// Detects duplicate symbols in the project and provides information about their occurrences.
+/// </summary>
 internal sealed record FindDuplicatesResult : IRtOutput, IRtMarkdownOutput, IRtJsonOutput
 {
     [OutputField(OutputLevel.Default, "mode")]

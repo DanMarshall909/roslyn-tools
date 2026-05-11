@@ -4,6 +4,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Extracts string literals from the current file
+/// </summary>
 internal sealed class ExtractStringConstantCommand : IRtCommand
 {
     private ExtractStringConstantCommand()

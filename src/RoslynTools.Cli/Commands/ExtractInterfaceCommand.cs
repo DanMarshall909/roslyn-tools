@@ -4,6 +4,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Extracts an interface from the solution.
+/// </summary>
 internal sealed class ExtractInterfaceCommand : IRtCommand
 {
     private ExtractInterfaceCommand()
@@ -47,6 +50,9 @@ internal sealed class ExtractInterfaceCommand : IRtCommand
         return cmd;
     }
 
+    /// <summary>
+    /// Executes the extraction of an interface with optional parameters.
+    /// </summary>
     internal static async Task ExecuteAsync(
         string typeName,
         string? solutionPath,

@@ -3,6 +3,9 @@ using Microsoft.CodeAnalysis.MSBuild;
 
 namespace RoslynTools.Core;
 
+/// <summary>
+/// Loads and manages workspaces for solution processing.
+/// </summary>
 internal sealed class WorkspaceLoader : IDisposable
 {
     private MSBuildWorkspace? _workspace;
@@ -10,9 +13,15 @@ internal sealed class WorkspaceLoader : IDisposable
     // ── Test hooks ──────────────────────────────────────────────────────────
 
     // AsyncLocal so parallel xunit test methods don't clobber each other.
+    /// <summary>
+    /// Overrides the default behavior of the workspace loader.
+    /// </summary>
     internal static AsyncLocal<(Workspace Workspace, Solution Solution)?> Override { get; } = new();
 
     // AsyncLocal so parallel xunit tests don't clobber each other.
+    /// <summary>
+    /// Overrides the diagnostic sink for the workspace loader.
+    /// </summary>
     internal static AsyncLocal<TextWriter?> DiagnosticSinkOverride { get; } = new();
 
     public void Dispose()
@@ -22,6 +31,9 @@ internal sealed class WorkspaceLoader : IDisposable
     }
 
     // Test-only scope: installs an override for the duration of the returned IDisposable.
+    /// <summary>
+    /// Applies override settings to a workspace and solution.
+    /// </summary>
     internal static IDisposable UseOverride(Workspace workspace, Solution solution)
     {
         Override.Value = (workspace, solution);

@@ -7,8 +7,14 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Daemon;
 
+/// <summary>
+/// A command for daemon operations.
+/// </summary>
 internal static class DaemonCommand
 {
+    /// <summary>
+    /// A method to build a daemon command.
+    /// </summary>
     internal static Command Build()
     {
         var cmd = new Command("daemon", "Manage the rt background workspace daemon");

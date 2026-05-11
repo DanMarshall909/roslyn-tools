@@ -5,6 +5,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Daemon;
 
+/// <summary>
+/// An encoding type used by the daemon.
+/// </summary>
 internal static class DaemonEncoding
 {
     // UTF-8 without BOM — both client and server use this. Encoding.UTF8 emits a 3-byte BOM
@@ -15,6 +18,9 @@ internal static class DaemonEncoding
     // Display string for the pipe — purely cosmetic, used by `rt daemon status` and the
     // daemon's startup log line. .NET's NamedPipeServerStream on Linux/macOS is implemented
     // over a Unix domain socket at /tmp/CoreFxPipe_<name>; on Windows it's \\.\pipe\<name>.
+    /// <summary>
+    /// A method to display the pipe path for the daemon encoding.
+    /// </summary>
     internal static string DisplayPipePath(string pipeName)
     {
         return OperatingSystem.IsWindows()
@@ -23,8 +29,14 @@ internal static class DaemonEncoding
     }
 }
 
+/// <summary>
+/// A client for interacting with the daemon.
+/// </summary>
 internal sealed class DaemonClient(GitService git)
 {
+    /// <summary>
+    /// A method to send asynchronous data to the daemon.
+    /// </summary>
     internal async Task<int?> TrySendAsync(string[] args, CancellationToken ct = default)
     {
         var state = DaemonState.TryRead();
@@ -48,11 +60,17 @@ internal sealed class DaemonClient(GitService git)
 
     // Connects to the well-known pipe without consulting the state file. Used by lifecycle
     // commands to talk to (or stop) an orphan daemon whose state file was lost.
+    /// <summary>
+    /// A method to send direct asynchronous data to the daemon.
+    /// </summary>
     internal Task<int?> TrySendDirectAsync(string[] args, CancellationToken ct = default)
     {
         return SendOverPipeAsync(DaemonServer.PipeName, args, ct);
     }
 
+    /// <summary>
+    /// A method to check if the pipe is reachable.
+    /// </summary>
     internal static async Task<bool> IsPipeReachableAsync(CancellationToken ct = default)
     {
         await using var pipe =

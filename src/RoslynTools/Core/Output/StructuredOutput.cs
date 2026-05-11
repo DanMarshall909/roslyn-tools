@@ -18,6 +18,9 @@ internal static class StructuredOutput
     private static readonly Regex ControlCharRegex =
         new(@"[\x00-\x08\x0B\x0C\x0E-\x1F]", RegexOptions.Compiled);
 
+    /// <summary>
+    /// Method to write structured output to a text writer with serialization options.
+    /// </summary>
     internal static void Write(object data, JsonSerializerOptions jsonOptions)
     {
         if (RtContext.Format == OutputFormat.Yaml)

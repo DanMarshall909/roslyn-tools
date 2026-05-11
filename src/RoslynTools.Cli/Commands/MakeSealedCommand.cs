@@ -4,6 +4,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Converts a class to be sealed
+/// </summary>
 internal sealed class MakeSealedCommand : IRtCommand
 {
     private MakeSealedCommand()
@@ -46,6 +49,9 @@ internal sealed class MakeSealedCommand : IRtCommand
     }
     // Stryker restore all
 
+    /// <summary>
+    /// Executes the MakeSealedCommand with async parameters
+    /// </summary>
     internal static async Task ExecuteAsync(string typeName, string? solutionPath, bool dryRun)
     {
         var (workspace, sln) = await WorkspaceLoader.LoadAsync(solutionPath);

@@ -2,6 +2,9 @@ using RoslynTools.Core.Output;
 
 namespace RoslynTools.Services.Results;
 
+/// <summary>
+/// A class representing the result of finding references for a symbol in a solution.
+/// </summary>
 internal sealed record ReferenceResult : IRtOutput
 {
     [OutputField(OutputLevel.Llm, "filePath")]
@@ -19,6 +22,9 @@ internal sealed record ReferenceResult : IRtOutput
     }
 }
 
+/// <summary>
+/// A method that finds references for a symbol in a solution.
+/// </summary>
 internal sealed record FindRefsResult : IRtOutput
 {
     [OutputField(OutputLevel.Llm, "symbolName")]

@@ -9,6 +9,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Extracts classes from a method's source code.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class ExtractClassService : IRtService
@@ -32,6 +35,9 @@ internal class ExtractClassService : IRtService
         _solutionChangeWriter = solutionChangeWriter;
     }
 
+    /// <summary>
+    /// Runs the extraction process for a class from a method.
+    /// </summary>
     internal async Task RunAsync(
         string typeName,
         string members,
@@ -48,6 +54,9 @@ internal class ExtractClassService : IRtService
         }
     }
 
+    /// <summary>
+    /// Executes the extraction process for a class from a method.
+    /// </summary>
     internal async Task ExecuteAsync(
         Solution solution,
         string typeName,
@@ -138,6 +147,9 @@ internal class ExtractClassService : IRtService
         await _solutionChangeWriter.ApplyChangesAsync(originalSolution, finalSolution, dryRun);
     }
 
+    /// <summary>
+    /// Resolves the source type for a method.
+    /// </summary>
     internal async Task<ResolvedSourceType?> ResolveSourceTypeAsync(Solution solution, string typeName)
     {
         var normalizedTypeName = NormalizeTypeName(typeName);
@@ -184,6 +196,9 @@ internal class ExtractClassService : IRtService
         return matches[0];
     }
 
+    /// <summary>
+    /// Collects selected members based on resolved source type.
+    /// </summary>
     internal SelectedMembers? CollectSelectedMembers(ResolvedSourceType target, HashSet<string> memberNames)
     {
         var declarations = new List<MemberDeclarationSyntax>();
@@ -250,6 +265,9 @@ internal class ExtractClassService : IRtService
         return new SelectedMembers(declarations, symbols, foundNames);
     }
 
+    /// <summary>
+    /// Validates the selected members against the resolved source type.
+    /// </summary>
     internal string? ValidateSelectedMembers(ResolvedSourceType target, SelectedMembers selection)
     {
         foreach (var member in selection.Declarations)
@@ -368,6 +386,9 @@ internal class ExtractClassService : IRtService
         };
     }
 
+    /// <summary>
+    /// Builds new class text based on selected members and other parameters.
+    /// </summary>
     internal string BuildNewClassText(
         string namespaceName,
         string newTypeName,
@@ -403,6 +424,9 @@ internal class ExtractClassService : IRtService
         return sb.ToString();
     }
 
+    /// <summary>
+    /// Determines if a given type symbol matches a specified string type.
+    /// </summary>
     internal bool IsTypeMatch(INamedTypeSymbol symbol, string normalizedTypeName, bool isQualifiedName)
     {
         if (isQualifiedName)
@@ -411,6 +435,9 @@ internal class ExtractClassService : IRtService
         return symbol.Name == normalizedTypeName;
     }
 
+    /// <summary>
+    /// Normalizes a given type name according to specified rules.
+    /// </summary>
     internal string NormalizeTypeName(string typeName)
     {
         return typeName.Replace("global::", string.Empty, StringComparison.Ordinal).Trim();
@@ -422,6 +449,9 @@ internal class ExtractClassService : IRtService
             symbols.Add(symbol.OriginalDefinition);
     }
 
+    /// <summary>
+    /// Extracts the name of a member from a member declaration syntax.
+    /// </summary>
     internal string GetMemberName(MemberDeclarationSyntax member)
     {
         return member switch
@@ -434,12 +464,18 @@ internal class ExtractClassService : IRtService
         };
     }
 
+    /// <summary>
+    /// Reports an error based on the provided string input.
+    /// </summary>
     internal void ReportValidationError(string message)
     {
         _logger.RtError("{Message}", message);
         Environment.ExitCode = 1;
     }
 
+    /// <summary>
+    /// Derives a field name from a given string.
+    /// </summary>
     internal string DeriveFieldName(string typeName)
     {
         if (string.IsNullOrEmpty(typeName))
@@ -449,6 +485,9 @@ internal class ExtractClassService : IRtService
         return "_" + name;
     }
 
+    /// <summary>
+    /// Returns the resolved source type of a given type symbol.
+    /// </summary>
     internal sealed record ResolvedSourceType(
         Document Document,
         SyntaxNode Root,
@@ -456,6 +495,9 @@ internal class ExtractClassService : IRtService
         ClassDeclarationSyntax Declaration,
         INamedTypeSymbol Symbol);
 
+    /// <summary>
+    /// Returns the selected members for a given type symbol.
+    /// </summary>
     internal sealed record SelectedMembers(
         List<MemberDeclarationSyntax> Declarations,
         HashSet<ISymbol> Symbols,

@@ -5,6 +5,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Converts console logging to a more structured format.
+/// </summary>
 internal sealed class ConvertConsoleLoggingCommand : IRtCommand
 {
     private ConvertConsoleLoggingCommand()
@@ -90,6 +93,9 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
         return cmd;
     }
 
+    /// <summary>
+    /// Executes console logging conversion with detailed parameters.
+    /// </summary>
     internal static async Task ExecuteAsync(
         string? solutionPath,
         bool dryRun,
@@ -114,6 +120,9 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
         }
     }
 
+    /// <summary>
+    /// Executes console logging conversion core functionality with optional parameters.
+    /// </summary>
     internal static Task ExecuteCoreAsync(
         Solution solution,
         bool dryRun,

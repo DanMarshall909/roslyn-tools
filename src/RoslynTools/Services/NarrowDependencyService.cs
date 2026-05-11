@@ -8,6 +8,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Manages dependencies within a solution by narrowing their scope.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class NarrowDependencyService : IRtService
@@ -42,6 +45,9 @@ internal class NarrowDependencyService : IRtService
         _consumerNarrower = consumerNarrower;
     }
 
+    /// <summary>
+    /// Asynchronously executes dependency resolution operations on a solution.
+    /// </summary>
     internal async Task ExecuteAsync(
         Solution solution,
         string sourceInterfaceSpec,

@@ -3,6 +3,9 @@ using YamlDotNet.Serialization.NamingConventions;
 
 namespace RoslynTools.Core.Decisions;
 
+/// <summary>
+/// DecisionStore
+/// </summary>
 internal sealed class DecisionStore
 {
     private readonly List<DecisionEntry> entries;

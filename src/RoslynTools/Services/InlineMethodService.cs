@@ -10,6 +10,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Helps inline methods in the codebase.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class InlineMethodService : IRtService
@@ -35,6 +38,9 @@ internal class InlineMethodService : IRtService
         _solutionChangeWriter = solutionChangeWriter;
     }
 
+    /// <summary>
+    /// Runs an operation to inline a method on a solution.
+    /// </summary>
     internal async Task RunAsync(Solution sln, string typeName, string methodName, bool dryRun)
     {
         var originalSolution = sln;
@@ -92,6 +98,9 @@ internal class InlineMethodService : IRtService
         await _solutionChangeWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
     }
 
+    /// <summary>
+    /// Transforms a document to inline a method.
+    /// </summary>
     internal SyntaxNode TransformDocument(
         SyntaxNode root,
         bool isTargetDoc,

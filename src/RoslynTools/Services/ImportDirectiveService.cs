@@ -7,6 +7,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Stores information about imported directives.
+/// </summary>
 internal sealed record ImportDirectiveInfo(
     string Kind,
     string Name,
@@ -16,6 +19,9 @@ internal sealed record ImportDirectiveInfo(
     bool IsStatic,
     string? Alias);
 
+/// <summary>
+/// Manages imported directives in the codebase.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class ImportDirectiveService : IRtService
@@ -34,6 +40,9 @@ internal class ImportDirectiveService : IRtService
         _solutionChangeWriter = solutionChangeWriter;
     }
 
+    /// <summary>
+    /// Analyzes imported directives in a solution.
+    /// </summary>
     internal async Task<IReadOnlyList<ImportDirectiveInfo>> AnalyzeAsync(
         Solution solution,
         string kind)
@@ -78,6 +87,9 @@ internal class ImportDirectiveService : IRtService
             .ToList();
     }
 
+    /// <summary>
+    /// Adds a static using directive to a solution.
+    /// </summary>
     internal async Task AddStaticUsingAsync(
         Solution solution,
         string filePath,
@@ -102,6 +114,9 @@ internal class ImportDirectiveService : IRtService
         await _solutionChangeWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
     }
 
+    /// <summary>
+    /// Adds a global using directive to a solution.
+    /// </summary>
     internal async Task AddGlobalUsingAsync(
         Solution solution,
         string filePath,

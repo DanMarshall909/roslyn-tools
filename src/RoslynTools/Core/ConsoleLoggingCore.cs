@@ -7,6 +7,9 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace RoslynTools.Core;
 
+/// <summary>
+/// ConsoleLoggingOptions
+/// </summary>
 internal sealed record ConsoleLoggingOptions(
     string LoggerExpression,
     string InformationMethod,
@@ -16,6 +19,9 @@ internal sealed record ConsoleLoggingOptions(
     IReadOnlyList<string> ExcludePaths,
     bool InferLevel);
 
+/// <summary>
+/// ConsoleLoggingStream
+/// </summary>
 internal enum ConsoleLoggingStream
 {
     All,
@@ -23,6 +29,9 @@ internal enum ConsoleLoggingStream
     Stderr
 }
 
+/// <summary>
+/// ConsoleLoggingCore
+/// </summary>
 internal static class ConsoleLoggingCore
 {
     private static readonly SymbolDisplayFormat TypeDisplayFormat = new(
@@ -30,6 +39,9 @@ internal static class ConsoleLoggingCore
         SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
         SymbolDisplayGenericsOptions.IncludeTypeParameters);
 
+    /// <summary>
+    /// ConsoleLoggingCore.AnalyzeAsync
+    /// </summary>
     internal static async Task<ConsoleLoggingReview> AnalyzeAsync(Solution solution, ConsoleLoggingOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -52,6 +64,9 @@ internal static class ConsoleLoggingCore
         return review;
     }
 
+    /// <summary>
+    /// ConsoleLoggingCore.RunAsync
+    /// </summary>
     internal static async Task RunAsync(Solution solution, ConsoleLoggingOptions options, bool dryRun)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -61,6 +76,9 @@ internal static class ConsoleLoggingCore
         await SolutionWriter.ApplyChangesAsync(originalSolution, newSolution, dryRun);
     }
 
+    /// <summary>
+    /// ConsoleLoggingCore.ApplyAsync
+    /// </summary>
     internal static async Task<Solution> ApplyAsync(Solution solution, ConsoleLoggingOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -582,6 +600,9 @@ internal static class ConsoleLoggingCore
     }
 }
 
+/// <summary>
+/// ConsoleLoggingLevel
+/// </summary>
 internal enum ConsoleLoggingLevel
 {
     Information,
@@ -589,6 +610,9 @@ internal enum ConsoleLoggingLevel
     Error
 }
 
+/// <summary>
+/// ConsoleLoggingReviewEntry
+/// </summary>
 internal sealed record ConsoleLoggingReviewEntry(
     string FilePath,
     int Line,
@@ -599,12 +623,21 @@ internal sealed record ConsoleLoggingReviewEntry(
     string? TypeName,
     string? TypeFullName);
 
+/// <summary>
+/// ConsoleLoggingReview
+/// </summary>
 internal sealed class ConsoleLoggingReview
 {
     private readonly List<ConsoleLoggingReviewEntry> _entries = [];
 
+    /// <summary>
+    /// ConsoleLoggingReview.Entries
+    /// </summary>
     internal IReadOnlyList<ConsoleLoggingReviewEntry> Entries => _entries;
 
+    /// <summary>
+    /// ConsoleLoggingReview.AddRange
+    /// </summary>
     internal void AddRange(IEnumerable<ConsoleLoggingReviewEntry> entries)
     {
         _entries.AddRange(entries);

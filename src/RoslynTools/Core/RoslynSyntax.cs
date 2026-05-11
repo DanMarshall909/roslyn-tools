@@ -4,8 +4,14 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace RoslynTools.Core;
 
+/// <summary>
+/// Syntax class for analyzing and manipulating C# source code.
+/// </summary>
 internal static class RoslynSyntax
 {
+    /// <summary>
+    /// Method to ensure the use of a specific syntax for a compilation unit.
+    /// </summary>
     internal static CompilationUnitSyntax EnsureUsing(CompilationUnitSyntax root, string ns)
     {
         var existing = root.Usings
@@ -22,8 +28,14 @@ internal static class RoslynSyntax
     }
 }
 
+/// <summary>
+/// Class for locating symbol documents in a solution.
+/// </summary>
 internal static class SymbolDocumentLocator
 {
+    /// <summary>
+    /// Method to find the document ID for a symbol in a solution.
+    /// </summary>
     internal static DocumentId? FindDocumentId(Solution solution, ISymbol symbol)
     {
         var location = symbol.Locations.FirstOrDefault(l => l.IsInSource);

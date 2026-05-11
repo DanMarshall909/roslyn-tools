@@ -1,5 +1,8 @@
 namespace RoslynTools.Core;
 
+/// <summary>
+/// Provides extension methods for the String class.
+/// </summary>
 internal static class StringExtensions
 {
     /// <summary>Ordinal StartsWith — avoids CA1310 boilerplate.</summary>

@@ -7,6 +7,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Services for static class analysis and processing.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance service used by the static-to-instance migration dogfood path.")]
 internal sealed class DestaticClassService : IRtService
@@ -45,6 +48,9 @@ internal sealed class DestaticClassService : IRtService
         _writer = writer;
     }
 
+    /// <summary>
+    /// Runs the static class analysis process.
+    /// </summary>
     internal async Task RunAsync(Solution solution, string typeName, bool dryRun)
     {
         var originalSolution = solution;

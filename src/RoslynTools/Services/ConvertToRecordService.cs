@@ -7,6 +7,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// Converts a method into a record type.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class ConvertToRecordService : IRtService
@@ -25,6 +28,9 @@ internal class ConvertToRecordService : IRtService
         _solutionChangeWriter = solutionChangeWriter;
     }
 
+    /// <summary>
+    /// Runs the conversion process for a method into a record.
+    /// </summary>
     internal async Task RunAsync(Solution sln, string typeName, bool dryRun)
     {
         var originalSolution = sln;

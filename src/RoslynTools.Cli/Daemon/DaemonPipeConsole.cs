@@ -3,6 +3,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Daemon;
 
+/// <summary>
+/// A console for daemon pipe communication.
+/// </summary>
 internal sealed class DaemonPipeConsole(StreamWriter writer, string requestId) : IRtConsole
 {
     public bool IsOutputRedirected => true;

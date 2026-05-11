@@ -4,6 +4,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Converts a type to a record format.
+/// </summary>
 internal sealed class ConvertToRecordCommand : IRtCommand
 {
     private ConvertToRecordCommand()
@@ -42,6 +45,9 @@ internal sealed class ConvertToRecordCommand : IRtCommand
         return cmd;
     }
 
+    /// <summary>
+    /// Executes the conversion of a type to a record.
+    /// </summary>
     internal static async Task ExecuteAsync(string typeName, string? solutionPath, bool dryRun)
     {
         var (workspace, sln) = await WorkspaceLoader.LoadAsync(solutionPath);

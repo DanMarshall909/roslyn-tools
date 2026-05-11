@@ -7,6 +7,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Command for detecting and handling circular dependencies.
+/// </summary>
 internal sealed class CircularDepsCommand : IRtCommand
 {
     private CircularDepsCommand()
@@ -55,11 +58,17 @@ internal sealed class CircularDepsCommand : IRtCommand
     }
 
     // Kept for test backwards-compatibility — delegates to the service.
+    /// <summary>
+    /// Analyzes cycles in a solution using Roslyn.
+    /// </summary>
     internal static Task<IReadOnlyList<IReadOnlyList<string>>> AnalyzeCyclesAsync(Solution sln, string? scope)
     {
         return RtServiceProvider.Get<CircularDepsService>().AnalyzeCyclesAsync(sln, scope);
     }
 
+    /// <summary>
+    /// Analyzes cycles in a solution asynchronously.
+    /// </summary>
     internal static Task<string> AnalyzeAsync(Solution sln, string? scope)
     {
         return RtServiceProvider.Get<CircularDepsService>().AnalyzeAsync(sln, scope);

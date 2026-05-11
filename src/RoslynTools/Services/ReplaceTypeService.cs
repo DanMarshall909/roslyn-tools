@@ -7,6 +7,9 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
+/// <summary>
+/// A class used to replace type services in a solution.
+/// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class ReplaceTypeService : IRtService
@@ -25,6 +28,9 @@ internal class ReplaceTypeService : IRtService
         _solutionChangeWriter = solutionChangeWriter;
     }
 
+    /// <summary>
+    /// Runs an asynchronous method to replace type services in a solution with a boolean parameter.
+    /// </summary>
     internal async Task RunAsync(Solution solution, bool dryRun)
     {
         var originalSolution = solution;
@@ -73,6 +79,9 @@ internal class ReplaceTypeService : IRtService
         _logger.RtWarning("Static classes and top-level statements need manual wiring.");
     }
 
+    /// <summary>
+    /// A named type used to rewrite datetime expressions in a solution.
+    /// </summary>
     internal sealed class DateTimeRewriter : CSharpSyntaxRewriter
     {
         private string? _currentClass;
@@ -124,6 +133,9 @@ internal class ReplaceTypeService : IRtService
         }
     }
 
+    /// <summary>
+    /// A named type used to provide constructor injection in a solution.
+    /// </summary>
     internal sealed class ConstructorInjector(ILogger<ReplaceTypeService> logger) : CSharpSyntaxRewriter
     {
         public override SyntaxNode? VisitClassDeclaration(ClassDeclarationSyntax node)

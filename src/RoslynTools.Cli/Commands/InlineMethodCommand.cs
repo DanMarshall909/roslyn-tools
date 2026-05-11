@@ -4,6 +4,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Inlines a method into its calling context
+/// </summary>
 internal sealed class InlineMethodCommand : IRtCommand
 {
     private InlineMethodCommand()
@@ -46,6 +49,9 @@ internal sealed class InlineMethodCommand : IRtCommand
         return cmd;
     }
 
+    /// <summary>
+    /// Executes the InlineMethodCommand with async parameters
+    /// </summary>
     internal static async Task ExecuteAsync(string typeName, string methodName, string? solutionPath, bool dryRun)
     {
         var (workspace, sln) = await WorkspaceLoader.LoadAsync(solutionPath);

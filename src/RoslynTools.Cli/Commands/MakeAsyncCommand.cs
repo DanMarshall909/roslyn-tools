@@ -4,6 +4,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
+/// <summary>
+/// Converts a method to be asynchronous
+/// </summary>
 internal sealed class MakeAsyncCommand : IRtCommand
 {
     private MakeAsyncCommand()
@@ -47,6 +50,9 @@ internal sealed class MakeAsyncCommand : IRtCommand
         return cmd;
     }
 
+    /// <summary>
+    /// Executes the MakeAsyncCommand with async parameters
+    /// </summary>
     internal static async Task ExecuteAsync(string typeName, string methodName, bool noRename, string? solutionPath,
         bool dryRun)
     {

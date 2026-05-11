@@ -3,8 +3,14 @@ using System.Reflection;
 
 namespace RoslynTools.Core.Output.Renderers;
 
+/// <summary>
+/// Renderer for generating markdown output from Roslyn.
+/// </summary>
 internal static class MarkdownRenderer
 {
+    /// <summary>
+    /// Method to write markdown output to a text writer.
+    /// </summary>
     internal static void Write(IRtOutput result, TextWriter writer)
     {
         if (result is IRtMarkdownOutput md)
