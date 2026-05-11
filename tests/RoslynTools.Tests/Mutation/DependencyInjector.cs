@@ -220,6 +220,65 @@ public sealed class DependencyInjector
             "expression-bodied constructors must not gain an injected parameter without a corresponding assignment rewrite");
     }
 
+    // ─── parameter list formatting ────────────────────────────────────────────
+
+    [Fact]
+    public void new_param_on_own_line_when_existing_params_are_one_per_line()
+    {
+        // When existing params each occupy their own line, the new param must also
+        // appear on a fresh line with matching indentation — not glued to the last param.
+        var source = """
+                     class MyService
+                     {
+                         private readonly IFoo _foo;
+                         public MyService(
+                             IFoo foo)
+                         {
+                             _foo = foo;
+                         }
+                     }
+                     """;
+        var result = Rewrite(source, "MyService", "IBar", "_bar", "bar");
+        // locate the ctor param list
+        var ctorStart = result.IndexOf("public MyService(", StringComparison.Ordinal);
+        var parenOpen  = result.IndexOf('(', ctorStart);
+        var parenClose = result.IndexOf(')', parenOpen);
+        var paramText  = result[parenOpen..parenClose];
+        Assert.Contains("IFoo foo", paramText);
+        Assert.Contains("IBar bar", paramText);
+        // the two params must be on separate lines
+        var fooIdx = paramText.IndexOf("IFoo foo", StringComparison.Ordinal);
+        var barIdx = paramText.IndexOf("IBar bar", StringComparison.Ordinal);
+        var between = paramText[fooIdx..barIdx];
+        Assert.Contains('\n', between);
+    }
+
+    [Fact]
+    public void new_param_has_leading_space_when_existing_params_are_single_line()
+    {
+        // When all existing params fit on one line, the new param must be separated
+        // by ", " — not ",IBar bar" (missing space) and not ",\n    IBar bar" (unexpected newline).
+        var source = """
+                     class MyService
+                     {
+                         private readonly IFoo _foo;
+                         public MyService(IFoo foo) { _foo = foo; }
+                     }
+                     """;
+        var result = Rewrite(source, "MyService", "IBar", "_bar", "bar");
+        Assert.Contains("IFoo foo, IBar bar", result);
+    }
+
+    [Fact]
+    public void new_param_has_no_stray_leading_chars_when_ctor_had_no_params()
+    {
+        // When synthesising a fresh constructor for a class with no ctors, the
+        // parameter list must be "(IBar bar)" — not "( IBar bar)" or "(,IBar bar)".
+        var source = "class MyService { }";
+        var result = Rewrite(source, "MyService", "IBar", "_bar", "bar");
+        Assert.Contains("(IBar bar)", result);
+    }
+
     // ─── delegating constructor (this(...)) scenarios ─────────────────────────
 
     [Fact]
