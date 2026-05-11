@@ -33,6 +33,34 @@ public class Move
 
     [Fact]
     [Trait("Concern", "Validation")]
+    public async Task moving_to_same_project_is_a_no_op_with_nothing_to_move_message()
+    {
+        const string src = """
+                           namespace Foo;
+                           public class Widget { }
+                           """;
+
+        using var builder = new AdhocProjectBuilder("SameProject")
+            .AddSource("Widget.cs", src);
+
+        var (workspace, solution) = builder.Build();
+
+        // Both source and target are "SameProject" — should be a no-op
+        await new MoveService().ExecuteCrossProjectMoveAsync(
+            workspace, solution,
+            "Foo.Widget",
+            "SameProject",
+            null,
+            false);
+
+        // File must still exist unchanged
+        Assert.True(builder.SourceExists("Widget.cs"));
+        var content = await builder.ReadSourceAsync("Widget.cs");
+        Assert.Contains("namespace Foo;", content);
+    }
+
+    [Fact]
+    [Trait("Concern", "Validation")]
     public async Task unknown_target_project_reports_project_name_and_throws()
     {
         const string src = """
