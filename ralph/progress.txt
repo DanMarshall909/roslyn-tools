@@ -1,7 +1,36 @@
 roslyn-tools
-Branch: feat/analyze-complexity
+Branch: backlog
 
-Current Status: 1/1 stories complete (100%)
+Current Status: 0/22 stories complete (0%)
 
-Stories
-[x] US-001 Add rt analyze complexity command
+EP-001 — rt correctness bugs (0/4)
+[ ] US-003 rt inspect outline: file not in solution silently returns [] instead of exit-1
+[ ] US-004 rt refactor add-dependency: mangles fallback constructors and parameter list formatting
+[ ] US-005 rt refactor extract-class: does not rewrite external call sites for extracted members
+[ ] US-006 Error handling: routine not-found failures throw unhandled exceptions instead of clean exit-1
+
+EP-002 — extract-method / extract-class improvements (0/7)
+[ ] US-007 rt refactor extract-method: source-file call site not updated after parameterization
+[ ] US-008 rt refactor extract-method: poor parameter names for generated parameterization
+[ ] US-009 rt refactor extract-method: return variable renaming across duplicate matches unsupported
+[ ] US-010 rt refactor extract-class: loses source class access modifier
+[ ] US-011 rt refactor extract-class: strips indentation from generated member bodies
+[ ] US-012 rt refactor extract-method: does not use Roslyn built-in extract-method services
+[ ] US-013 rt refactor extract-method: duplicate replacement drifts when multiple matches in same file
+
+EP-003 — infrastructure (0/2)
+[ ] US-014 Add RtResult<T> for clean error propagation from service methods (unblocks US-003)
+[ ] US-015 rt dump-help --normalize: add normalized output mode for snapshot tests
+
+EP-004 — new commands (0/7)
+[ ] US-016 rt refactor remove-unused-usings: no command exists
+[ ] US-017 rt introduce-record: no command exists
+[ ] US-018 rt extract-adapter: no command for static-type adapter extraction
+[ ] US-019 rt analyze responsibility-map: no command
+[ ] US-020 rt refactor extract-orchestrator: no command to thin large command handler bodies
+[ ] US-021 rt analyze architecture-verify: no command to validate boundary rules
+[ ] US-022 rt add-test --cli: cannot scaffold CLI-invocation tests
+
+Loose stories
+[ ] US-023 Restructure Commands/: CommandBuilder + category subfolders
+[ ] US-024 Reorganise Core/ into Analysis, Refactoring, Workspace, Logging, Utilities sub-namespaces
