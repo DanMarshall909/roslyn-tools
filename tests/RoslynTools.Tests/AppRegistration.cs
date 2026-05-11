@@ -72,14 +72,16 @@ public sealed class AppRegistration
     }
 
     [Fact]
-    public void registers_global_options_registers_all_six_options_at_once()
+    public void registers_global_options_registers_exactly_json_llm_markdown_yaml_strict_json_decisions()
     {
         var root = new RootCommand("test");
-        var before = root.Options.Count;
 
         App.RegisterGlobalOptions(root);
 
-        Assert.Equal(before + 6, root.Options.Count);
+        var names = root.Options.Select(o => o.Name).ToHashSet();
+        Assert.Equal(
+            new HashSet<string> { "json", "llm", "markdown", "yaml", "strict-json", "decisions" },
+            names);
     }
 
     [Fact]
