@@ -13,6 +13,7 @@
 
 import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
+import path from "node:path";
 import { parseArgs } from "node:util";
 
 if (process.argv.includes("--help") || process.argv.includes("-h")) {
@@ -86,8 +87,12 @@ try {
   console.error(raw.slice(0, 500));
   process.exit(1);
 }
-const { symbols } = parsed;
-console.error(`      Found ${symbols.length} undocumented symbols.`);
+const allSymbols = parsed.symbols;
+const symbols = allSymbols.filter(s =>
+  !s.filePath.toLowerCase().includes(`${path.sep}tests${path.sep}`)
+);
+const skippedTests = allSymbols.length - symbols.length;
+console.error(`      Found ${allSymbols.length} undocumented symbols (${skippedTests} in test projects skipped).`);
 
 if (symbols.length === 0) {
   console.error("      Nothing to document. Exiting.");
