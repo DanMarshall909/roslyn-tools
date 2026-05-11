@@ -55,12 +55,12 @@ internal sealed class DestaticClassCommand : IRtCommand
         cmd.SetHandler(async (type, interfaceName, noInterface, noDiRegistration, lifetime, solution, dryRun) =>
         {
             if (!noInterface)
-                Console.Error.WriteLine(
-                    "warning: interface generation is not yet implemented — skipping. Track: US-032.");
+                RtConsole.Log(RtLogLevel.Warning,
+                    "interface generation is not yet implemented — skipping (track: US-037).");
 
             if (!noDiRegistration)
-                Console.Error.WriteLine(
-                    "warning: DI registration is not yet implemented — skipping. Track: US-033.");
+                RtConsole.Log(RtLogLevel.Warning,
+                    "DI registration is not yet implemented — skipping (track: US-038).");
 
             if (!string.Equals(lifetime, "singleton", StringComparison.Ordinal)
                 && !string.Equals(lifetime, "scoped", StringComparison.Ordinal)
