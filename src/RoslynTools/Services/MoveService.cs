@@ -104,7 +104,45 @@ internal class MoveService : IRtService
             }
         }
 
-        throw new NotImplementedException("Cross-project move body not yet implemented.");
+        var targetProjectDir = Path.GetDirectoryName(targetProject.FilePath);
+        if (targetProjectDir == null)
+            throw new InvalidOperationException(
+                $"Cannot determine directory for target project '{targetProjectName}'.");
+
+        if (targetNamespace != null)
+        {
+            // Rewrite namespace + consumer usings using existing pipeline
+            var rewritten = await RewriteAllDeclarationsAsync(solution, sym, targetNamespace);
+            var movedTypes = await CollectCoLocatedTypesAsync(rewritten, (INamedTypeSymbol)sym);
+            var references = (await Task.WhenAll(movedTypes.Select(t => SymbolFinder.FindReferencesAsync(t, solution))))
+                .SelectMany(r => r).ToList();
+            rewritten = await ApplyReferenceUsingsAsync(rewritten, references,
+                sym.ContainingNamespace.ToDisplayString(), targetNamespace);
+            await _solutionChangeWriter.ApplyChangesAsync(workspace.CurrentSolution, rewritten, dryRun);
+        }
+
+        // Physically move each declaration file to the mirrored path under target project dir
+        foreach (var filePath in declarationFiles)
+        {
+            if (sourceProjectDir == null) continue;
+
+            var relPath = Path.GetRelativePath(sourceProjectDir, filePath);
+            var destPath = Path.Combine(targetProjectDir, relPath);
+
+            if (dryRun)
+            {
+                RtConsole.WriteLine(RtOutputContext.Result, $"source: {filePath}");
+                RtConsole.WriteLine(RtOutputContext.Result, $"destination: {destPath}");
+                continue;
+            }
+
+            var destDir = Path.GetDirectoryName(destPath)!;
+            if (!Directory.Exists(destDir))
+                Directory.CreateDirectory(destDir);
+
+            File.Move(filePath, destPath, overwrite: false);
+            _logger.RtInfo("Moved '{Source}' -> '{Destination}'", filePath, destPath);
+        }
     }
 
     internal async Task ExecuteSingleTypeMoveAsync(
