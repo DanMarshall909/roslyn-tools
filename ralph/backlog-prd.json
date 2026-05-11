@@ -224,6 +224,25 @@
             "description": "Mutation pilot needed tests that run rt externally and assert stdout/stderr/exit code. Add rt add-test --cli <CommandClass>.",
             "acceptanceCriteria": [],
             "notes": "Mutation pilot needed tests that run rt externally and assert stdout/stderr/exit code. Add rt add-test --cli <CommandClass>."
+        },
+        {
+            "id": "US-023",
+            "title": "Restructure Commands/: CommandBuilder + category subfolders",
+            "description": "As a developer adding or navigating commands, I want Build() boilerplate consolidated and commands grouped by category so that I can find commands quickly and adding a new one requires no repeated wiring code.",
+            "acceptanceCriteria": [
+                "A new CommandBuilder fluent API exists that wraps CommandOptionFactory and provides at minimum: .Argument<T>(), .Solution(), .DryRun(), .Handler()",
+                "Migrating MakeSealedCommand.Build() to CommandBuilder reduces its line count and eliminates its contribution to the top find-duplicates groups",
+                "After full rollout, rt analyze find-duplicates shows no Commands/Build() group with score > 4 or occurrences > 4",
+                "rt analyze list-smells LongMethod count for Commands/ is measurably lower than pre-migration baseline",
+                "The 49 Commands/ files are reorganised into Commands/Inspect/, Commands/Analyze/, Commands/Refactor/ subfolders using rt refactor move",
+                "Namespace remains RoslynTools.Commands throughout — no namespace split between folders",
+                "App.Discover() reflection-based registry continues to find all commands after the folder move",
+                "rt dump-help output is identical before and after (same commands, same groups, same help text)",
+                "All existing tests pass; no tests added purely to justify the refactor"
+            ],
+            "priority": 4,
+            "passes": false,
+            "notes": "P2. Signal from rt analyze find-duplicates (groups scoring 4.4-7.2, 8-17 occurrences each, all in Commands/*.Build()). Two parts: (1) introduce CommandBuilder fluent wrapper over CommandOptionFactory, migrate MakeSealedCommand first, then dogfood with find-duplicates to confirm scores drop, then roll out; (2) move 49 flat files into Inspect/Analyze/Refactor subfolders using rt refactor move. Namespace stays RoslynTools.Commands. Plan at ~/.claude/plans/how-could-we-restructure-curried-harp.md."
         }
     ]
 }
