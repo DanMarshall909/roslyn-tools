@@ -153,8 +153,8 @@ internal class RenameService : IRtService
             return await RenameOneAsync(sln, row.OldFqn!, row.NewName!, null, dryRun);
         }
         catch (InvalidOperationException ex) when (ex.Message.StartsWith(
-                                                   $"No symbol with FQN '{row.OldFqn}' found in solution.",
-                                                   StringComparison.Ordinal))
+                                                       $"No symbol with FQN '{row.OldFqn}' found in solution.",
+                                                       StringComparison.Ordinal))
         {
             if (await AnyAlreadyAppliedTargetExistsAsync(sln, row))
             {
@@ -172,18 +172,16 @@ internal class RenameService : IRtService
     private async Task<bool> AnyAlreadyAppliedTargetExistsAsync(Solution sln, RenameCsvRow row)
     {
         foreach (var targetFqn in GetAlreadyAppliedTargetFqns(row))
-        {
             try
             {
                 await _symbols.FindSymbolByFqnAsync(sln, targetFqn, null);
                 return true;
             }
             catch (InvalidOperationException ex) when (ex.Message.StartsWith(
-                                                       $"No symbol with FQN '{targetFqn}' found in solution.",
-                                                       StringComparison.Ordinal))
+                                                           $"No symbol with FQN '{targetFqn}' found in solution.",
+                                                           StringComparison.Ordinal))
             {
             }
-        }
 
         return false;
     }
@@ -215,9 +213,7 @@ internal class RenameService : IRtService
 
         if (TryGetColumn(map, SourceSymbolColumns, out var oldFqnIndex)
             && TryGetColumn(map, TargetNameColumns, out var newNameIndex))
-        {
             return ReadStandardBatchRows(parser, map, oldFqnIndex, newNameIndex);
-        }
 
         var mappings = FindRenameColumnMappings(map);
         if (mappings.Count > 0)
@@ -278,9 +274,7 @@ internal class RenameService : IRtService
                     || string.IsNullOrWhiteSpace(newName)
                     || string.Equals(oldName, newName, StringComparison.Ordinal)
                     || !seen.Add(oldFqn))
-                {
                     continue;
-                }
 
                 rows.Add(new RenameCsvRow(
                     oldFqn,
@@ -366,10 +360,8 @@ internal class RenameService : IRtService
     {
         foreach (var (oldFqn, newFqn) in targetFqnByOldFqn
                      .OrderByDescending(pair => pair.Key.Length))
-        {
             if (fqn.StartsWith(oldFqn + ".", StringComparison.Ordinal))
                 return newFqn + fqn[oldFqn.Length..];
-        }
 
         return fqn;
     }

@@ -26,7 +26,7 @@ public sealed class MagicString
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var groups = await new MagicStringService().AnalyzeAsync(solution, minLength: 5, minOccurrences: 2);
+            var groups = await new MagicStringService().AnalyzeAsync(solution, 5, 2);
 
             var group = Assert.Single(groups);
             Assert.Equal("checkout-flow", group.Value);
@@ -66,7 +66,7 @@ public sealed class MagicString
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var groups = await new MagicStringService().AnalyzeAsync(solution, minLength: 4, minOccurrences: 1);
+            var groups = await new MagicStringService().AnalyzeAsync(solution, 4, 1);
 
             var group = Assert.Single(groups);
             Assert.Equal("runtime-value", group.Value);
@@ -104,7 +104,7 @@ public sealed class MagicString
             var filePath = Path.Combine(project.ProjectDir, "Messages.cs");
             var line = GetLineNumber(source, "public string First() => \"repeat-me\";");
 
-            await service.ExtractConstantAsync(solution, filePath, line, "RepeatMe", dryRun: false);
+            await service.ExtractConstantAsync(solution, filePath, line, "RepeatMe", false);
 
             var updatedText = await TestSolutionDocuments.GetTextAsync(writer.NewSolution!, "Messages.cs");
             var root = CSharpSyntaxTree.ParseText(updatedText).GetCompilationUnitRoot();
@@ -154,7 +154,7 @@ public sealed class MagicString
             var line = GetLineNumber(source, "public string First() => \"repeat-me\";");
 
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                service.ExtractConstantAsync(solution, filePath, line, "RepeatMe", dryRun: false));
+                service.ExtractConstantAsync(solution, filePath, line, "RepeatMe", false));
 
             Assert.Contains("already contains a member named 'RepeatMe'", ex.Message);
         }
@@ -179,5 +179,4 @@ public sealed class MagicString
             .Expression
             .ToString();
     }
-
 }

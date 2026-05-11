@@ -139,30 +139,30 @@ public class SymbolFormatter : IDisposable
     public async Task attributes_includes_formatted_attribute_list()
     {
         _project.AddSource("Tests.cs", """
-            namespace TestApp;
+                                       namespace TestApp;
 
-            [System.AttributeUsage(System.AttributeTargets.Method)]
-            public class FactAttribute : System.Attribute
-            {
-                public string Skip { get; set; } = "";
-            }
+                                       [System.AttributeUsage(System.AttributeTargets.Method)]
+                                       public class FactAttribute : System.Attribute
+                                       {
+                                           public string Skip { get; set; } = "";
+                                       }
 
-            [System.AttributeUsage(System.AttributeTargets.Method)]
-            public class TraitAttribute : System.Attribute
-            {
-                public TraitAttribute(string name, string value) { }
-            }
+                                       [System.AttributeUsage(System.AttributeTargets.Method)]
+                                       public class TraitAttribute : System.Attribute
+                                       {
+                                           public TraitAttribute(string name, string value) { }
+                                       }
 
-            public class MyTests
-            {
-                [Fact]
-                public void plain_fact() { }
+                                       public class MyTests
+                                       {
+                                           [Fact]
+                                           public void plain_fact() { }
 
-                [Fact(Skip = "pending")]
-                [Trait("Concern", "EdgeCase")]
-                public void skipped_fact() { }
-            }
-            """);
+                                           [Fact(Skip = "pending")]
+                                           [Trait("Concern", "EdgeCase")]
+                                           public void skipped_fact() { }
+                                       }
+                                       """);
         var (workspace, sln) = _project.Build();
         var sym = await Core.SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.MyTests", "type");
         var type = Assert.IsAssignableFrom<INamedTypeSymbol>(sym);

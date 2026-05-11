@@ -178,5 +178,4 @@ public sealed class GeneratedTestStubs
         Assert.Contains("public async Task with_source_file_owns_the_call_site_updates_the_reference()", renameText);
         Assert.Contains("throw new NotImplementedException();", renameText);
     }
-
 }

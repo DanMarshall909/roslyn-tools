@@ -1,4 +1,4 @@
-using Microsoft.CodeAnalysis.CSharp.Syntax;
+﻿using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace RoslynTools.Core;
 
@@ -199,19 +199,19 @@ internal static class ControlFlowUnwinder
     private static bool AllReturnsAreVoidGuards(IReadOnlyList<StatementSyntax> statements)
     {
         foreach (var stmt in statements)
-            foreach (var ret in stmt.DescendantNodesAndSelf().OfType<ReturnStatementSyntax>())
-            {
-                // Each return must have no expression (void)
-                if (ret.Expression != null)
-                    return false;
+        foreach (var ret in stmt.DescendantNodesAndSelf().OfType<ReturnStatementSyntax>())
+        {
+            // Each return must have no expression (void)
+            if (ret.Expression != null)
+                return false;
 
-                // Each void return must be directly inside an if with no else
-                if (ret.Parent is not IfStatementSyntax parentIf || parentIf.Else != null)
-                    if (ret.Parent is not BlockSyntax parentBlock ||
-                        parentBlock.Parent is not IfStatementSyntax grandIf ||
-                        grandIf.Else != null)
-                        return false;
-            }
+            // Each void return must be directly inside an if with no else
+            if (ret.Parent is not IfStatementSyntax parentIf || parentIf.Else != null)
+                if (ret.Parent is not BlockSyntax parentBlock ||
+                    parentBlock.Parent is not IfStatementSyntax grandIf ||
+                    grandIf.Else != null)
+                    return false;
+        }
 
         return true;
     }

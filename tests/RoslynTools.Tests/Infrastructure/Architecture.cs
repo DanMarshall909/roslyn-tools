@@ -20,7 +20,7 @@ public class Architecture
         var (workspace, solution) = await WorkspaceLoader.LoadAsync(FindSolutionPath());
         using (workspace)
         {
-            var cycles = await CircularDepsCommand.AnalyzeCyclesAsync(solution, scope: null);
+            var cycles = await CircularDepsCommand.AnalyzeCyclesAsync(solution, null);
 
             Assert.True(
                 cycles.Count == 0,

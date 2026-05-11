@@ -167,21 +167,22 @@ public class SafeDelete
     public void support_all_top_level_member_declarations_that_safe_delete_can_remove()
     {
         var root = CSharpSyntaxTree.ParseText("""
-                                             public class C { }
-                                             public interface I { }
-                                             public struct S { }
-                                             public record R;
-                                             public enum E { A }
-                                             public delegate void D();
-                                             public class Members
-                                             {
-                                                 public int Field;
-                                                 public event EventHandler? Changed;
-                                                 public int Property { get; set; }
-                                                 public void Method() { }
-                                             }
-                                             """).GetCompilationUnitRoot();
-        var service = new SafeDeleteService(NullLogger<SafeDeleteService>.Instance, new CapturingSolutionChangeWriter());
+                                              public class C { }
+                                              public interface I { }
+                                              public struct S { }
+                                              public record R;
+                                              public enum E { A }
+                                              public delegate void D();
+                                              public class Members
+                                              {
+                                                  public int Field;
+                                                  public event EventHandler? Changed;
+                                                  public int Property { get; set; }
+                                                  public void Method() { }
+                                              }
+                                              """).GetCompilationUnitRoot();
+        var service =
+            new SafeDeleteService(NullLogger<SafeDeleteService>.Instance, new CapturingSolutionChangeWriter());
 
         Assert.All(root.DescendantNodes().OfType<ClassDeclarationSyntax>(), node =>
             Assert.Same(node, service.FindDeclarationNode(node)));

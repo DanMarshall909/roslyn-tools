@@ -34,10 +34,12 @@ internal sealed class OutlineCommand : IRtCommand
 
     public static Command Build()
     {
-        var targetArg = new Argument<string?>("target", () => null, "File path, directory, glob pattern, or namespace to outline");
+        var targetArg = new Argument<string?>("target", () => null,
+            "File path, directory, glob pattern, or namespace to outline");
         var solutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file");
         var regexOpt = new Option<string?>("--regex", "Regex pattern matched against solution file paths");
-        var summaryOpt = new Option<bool>("--summary", "Compact mode: one entry per top-level type (fqn, kind, lines, description if present); no member detail");
+        var summaryOpt = new Option<bool>("--summary",
+            "Compact mode: one entry per top-level type (fqn, kind, lines, description if present); no member detail");
 
         var cmd = new Command("outline",
             "List all types and member signatures in a file, glob, namespace, or regex (JSON)")
@@ -58,7 +60,7 @@ internal sealed class OutlineCommand : IRtCommand
                         result = await svc.OutlineRegexAsync(sln, regex, summary);
                     }
                     else if (target?.EndsWith(".*", StringComparison.Ordinal) == true
-                                                && !target.Contains('/') && !target.Contains('\\'))
+                             && !target.Contains('/') && !target.Contains('\\'))
                     {
                         result = await svc.OutlineNamespaceAsync(sln, target, summary);
                     }

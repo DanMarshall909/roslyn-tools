@@ -32,28 +32,28 @@ internal class ReplaceTypeService : IRtService
         var classesNeedingInjection = new List<string>();
 
         foreach (var project in solution.Projects)
-            foreach (var doc in project.Documents)
-            {
-                if (doc.FilePath == null) continue;
+        foreach (var doc in project.Documents)
+        {
+            if (doc.FilePath == null) continue;
 
-                var root = await doc.GetSyntaxRootAsync();
-                if (root == null) continue;
+            var root = await doc.GetSyntaxRootAsync();
+            if (root == null) continue;
 
-                var rewriter = new DateTimeRewriter();
-                var newRoot = rewriter.Visit(root);
+            var rewriter = new DateTimeRewriter();
+            var newRoot = rewriter.Visit(root);
 
-                if (!rewriter.Changed) continue;
+            if (!rewriter.Changed) continue;
 
-                var injector = new ConstructorInjector(_logger);
-                newRoot = injector.Visit(newRoot);
+            var injector = new ConstructorInjector(_logger);
+            newRoot = injector.Visit(newRoot);
 
-                if (newRoot is CompilationUnitSyntax compilationUnit)
-                    newRoot = RoslynSyntax.EnsureUsing(compilationUnit, "System");
+            if (newRoot is CompilationUnitSyntax compilationUnit)
+                newRoot = RoslynSyntax.EnsureUsing(compilationUnit, "System");
 
-                solution = solution.WithDocumentSyntaxRoot(doc.Id, newRoot);
-                changedFiles++;
-                classesNeedingInjection.AddRange(rewriter.ClassesWithReplacements);
-            }
+            solution = solution.WithDocumentSyntaxRoot(doc.Id, newRoot);
+            changedFiles++;
+            classesNeedingInjection.AddRange(rewriter.ClassesWithReplacements);
+        }
 
         if (changedFiles == 0)
         {

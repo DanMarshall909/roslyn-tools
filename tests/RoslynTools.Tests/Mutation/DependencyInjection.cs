@@ -171,5 +171,4 @@ public sealed class DependencyInjection
             NullLogger<AddDependencyService>.Instance,
             new CapturingSolutionChangeWriter()).DeriveFieldName(dependencyType));
     }
-
 }

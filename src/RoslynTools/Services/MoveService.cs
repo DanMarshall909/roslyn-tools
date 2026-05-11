@@ -94,15 +94,11 @@ internal class MoveService : IRtService
         }
 
         if (sourceProjectDir != null)
-        {
             foreach (var filePath in declarationFiles)
-            {
                 if (!filePath.StartsWith(sourceProjectDir, StringComparison.OrdinalIgnoreCase))
                     throw new InvalidOperationException(
                         $"Source file for '{sym.Name}' is at '{filePath}', which is outside the source " +
                         $"project directory '{sourceProjectDir}'. Cannot determine destination path.");
-            }
-        }
 
         var targetProjectDir = Path.GetDirectoryName(targetProject.FilePath);
         if (targetProjectDir == null)
@@ -137,7 +133,7 @@ internal class MoveService : IRtService
             {
                 RtConsole.WriteLine(RtOutputContext.Result, $"source: {filePath}");
                 RtConsole.WriteLine(RtOutputContext.Result, $"destination: {destPath}");
-                RemoveCompileIncludeFromCsproj(sourceProjectFilePath, relPath, dryRun: true);
+                RemoveCompileIncludeFromCsproj(sourceProjectFilePath, relPath, true);
                 continue;
             }
 
@@ -145,9 +141,9 @@ internal class MoveService : IRtService
             if (!Directory.Exists(destDir))
                 Directory.CreateDirectory(destDir);
 
-            File.Move(filePath, destPath, overwrite: false);
+            File.Move(filePath, destPath, false);
             _logger.RtInfo("Moved '{Source}' -> '{Destination}'", filePath, destPath);
-            RemoveCompileIncludeFromCsproj(sourceProjectFilePath, relPath, dryRun: false);
+            RemoveCompileIncludeFromCsproj(sourceProjectFilePath, relPath, false);
         }
     }
 
@@ -204,23 +200,23 @@ internal class MoveService : IRtService
         var changedFiles = 0;
 
         foreach (var project in solution.Projects)
-            foreach (var doc in project.Documents)
+        foreach (var doc in project.Documents)
+        {
+            if (doc.FilePath == null) continue;
+
+            var result = await RewriteDocumentNamespaceAsync(solution, doc, sourceNamespace, targetNamespace);
+            if (!result.Changed) continue;
+
+            solution = result.Solution;
+            changedFiles++;
+
+            if (result.IsDeclarationFile)
             {
-                if (doc.FilePath == null) continue;
-
-                var result = await RewriteDocumentNamespaceAsync(solution, doc, sourceNamespace, targetNamespace);
-                if (!result.Changed) continue;
-
-                solution = result.Solution;
-                changedFiles++;
-
-                if (result.IsDeclarationFile)
-                {
-                    declarationFiles.Add(doc.FilePath);
-                    if (projectDir == null)
-                        (projectDir, rootNamespace) = result.ProjectMeta ?? (null, null);
-                }
+                declarationFiles.Add(doc.FilePath);
+                if (projectDir == null)
+                    (projectDir, rootNamespace) = result.ProjectMeta ?? (null, null);
             }
+        }
 
         return (solution, declarationFiles, projectDir, rootNamespace, changedFiles);
     }

@@ -5,19 +5,22 @@ namespace RoslynTools.Tests.Navigation;
 
 public class InspectSource
 {
-    static InspectSource() => MsBuildFixture.Ensure();
+    static InspectSource()
+    {
+        MsBuildFixture.Ensure();
+    }
 
     [Fact]
     public async Task returns_source_text_file_and_line_range_for_method()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Calc.cs", """
-            namespace TestApp;
-            public class Calc
-            {
-                public int Add(int a, int b) => a + b;
-            }
-            """);
+                                     namespace TestApp;
+                                     public class Calc
+                                     {
+                                         public int Add(int a, int b) => a + b;
+                                     }
+                                     """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -39,13 +42,13 @@ public class InspectSource
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Greeter.cs", """
-            namespace TestApp;
-            public class Greeter
-            {
-                /// <summary>Returns a greeting.</summary>
-                public string Hello() => "hi";
-            }
-            """);
+                                        namespace TestApp;
+                                        public class Greeter
+                                        {
+                                            /// <summary>Returns a greeting.</summary>
+                                            public string Hello() => "hi";
+                                        }
+                                        """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
@@ -63,16 +66,16 @@ public class InspectSource
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Multi.cs", """
-            namespace TestApp;
-            public class Multi
-            {
-                public int Compute(int x)
-                {
-                    var y = x * 2;
-                    return y + 1;
-                }
-            }
-            """);
+                                      namespace TestApp;
+                                      public class Multi
+                                      {
+                                          public int Compute(int x)
+                                          {
+                                              var y = x * 2;
+                                              return y + 1;
+                                          }
+                                      }
+                                      """);
 
         var (workspace, sln) = project.Build();
         using (workspace)

@@ -43,30 +43,30 @@ internal class MagicStringService : IRtService
         var rtIgnore = RtIgnore.ForSolution(solution);
 
         foreach (var project in solution.Projects)
-            foreach (var document in project.Documents)
+        foreach (var document in project.Documents)
+        {
+            if (rtIgnore.IsIgnored(document.FilePath, "find-magic-strings")
+                || IsGeneratedOrIntermediate(document.FilePath))
+                continue;
+
+            var root = await document.GetSyntaxRootAsync();
+            if (root is null)
+                continue;
+
+            foreach (var literal in root.DescendantNodes().OfType<LiteralExpressionSyntax>())
             {
-                if (rtIgnore.IsIgnored(document.FilePath, "find-magic-strings")
-                    || IsGeneratedOrIntermediate(document.FilePath))
+                if (!IsCandidateLiteral(literal, minLength))
                     continue;
 
-                var root = await document.GetSyntaxRootAsync();
-                if (root is null)
-                    continue;
-
-                foreach (var literal in root.DescendantNodes().OfType<LiteralExpressionSyntax>())
-                {
-                    if (!IsCandidateLiteral(literal, minLength))
-                        continue;
-
-                    var line = literal.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
-                    occurrences.Add(new MagicStringOccurrence(
-                        literal.Token.ValueText,
-                        document.FilePath ?? document.Name,
-                        line,
-                        literal.Ancestors().OfType<TypeDeclarationSyntax>().FirstOrDefault()?.Identifier.Text,
-                        GetMemberName(literal)));
-                }
+                var line = literal.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+                occurrences.Add(new MagicStringOccurrence(
+                    literal.Token.ValueText,
+                    document.FilePath ?? document.Name,
+                    line,
+                    literal.Ancestors().OfType<TypeDeclarationSyntax>().FirstOrDefault()?.Identifier.Text,
+                    GetMemberName(literal)));
             }
+        }
 
         return occurrences
             .GroupBy(o => o.Value, StringComparer.Ordinal)

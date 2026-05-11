@@ -30,7 +30,7 @@ internal sealed class TransformParametersCommand : IRtCommand
     {
         var methodOpt =
             new Option<string>("--method", "Dot-separated TypeName.MethodName, e.g. OrderService.PlaceOrder")
-            { IsRequired = true };
+                { IsRequired = true };
         var newTypeOpt = new Option<string?>("--new-type", "Name of the record to generate, e.g. PlaceOrderArgs");
         var existingTypeOpt = new Option<string?>("--existing-type",
             "Fully-qualified name of an existing type to reuse, e.g. MyApp.PlaceOrderArgs");

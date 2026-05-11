@@ -107,20 +107,20 @@ internal sealed class DestaticClassService : IRtService
     private static async Task<Solution> RewriteCallSitesAsync(Solution solution, INamedTypeSymbol typeSymbol)
     {
         foreach (var project in solution.Projects.ToArray())
-            foreach (var document in project.Documents.ToArray())
-            {
-                var root = await document.GetSyntaxRootAsync();
-                var semanticModel = await document.GetSemanticModelAsync();
-                if (root is null || semanticModel is null)
-                    continue;
+        foreach (var document in project.Documents.ToArray())
+        {
+            var root = await document.GetSyntaxRootAsync();
+            var semanticModel = await document.GetSemanticModelAsync();
+            if (root is null || semanticModel is null)
+                continue;
 
-                var rewriter = new StaticTypeCallRewriter(semanticModel, typeSymbol);
-                var newRoot = rewriter.Visit(root);
-                if (!rewriter.Changed || newRoot is null)
-                    continue;
+            var rewriter = new StaticTypeCallRewriter(semanticModel, typeSymbol);
+            var newRoot = rewriter.Visit(root);
+            if (!rewriter.Changed || newRoot is null)
+                continue;
 
-                solution = solution.WithDocumentSyntaxRoot(document.Id, newRoot);
-            }
+            solution = solution.WithDocumentSyntaxRoot(document.Id, newRoot);
+        }
 
         return solution;
     }

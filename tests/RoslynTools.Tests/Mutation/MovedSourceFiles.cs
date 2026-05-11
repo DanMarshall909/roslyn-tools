@@ -4,7 +4,8 @@ namespace RoslynTools.Tests.Mutation;
 
 public sealed class MovedSourceFiles : IDisposable
 {
-    private readonly string _projectDir = Path.Combine(Path.GetTempPath(), "rt-move-tests", Guid.NewGuid().ToString("N"));
+    private readonly string _projectDir =
+        Path.Combine(Path.GetTempPath(), "rt-move-tests", Guid.NewGuid().ToString("N"));
 
     public void Dispose()
     {

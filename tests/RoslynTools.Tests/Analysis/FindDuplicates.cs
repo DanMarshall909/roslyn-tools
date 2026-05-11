@@ -1459,7 +1459,8 @@ public class FindDuplicates
     }
 
     [Fact]
-    public async Task handles_group_with_differing_captured_fields_is_likely_extractable_with_consistent_captured_state_warn()
+    public async Task
+        handles_group_with_differing_captured_fields_is_likely_extractable_with_consistent_captured_state_warn()
     {
         // Two classes each have a field named `_count`, but they are distinct field symbols
         // (A._count vs B._count). Both methods access `_count` with the same syntax, so they

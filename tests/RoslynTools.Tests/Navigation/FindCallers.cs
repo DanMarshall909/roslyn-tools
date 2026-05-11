@@ -109,33 +109,33 @@ public class FindCallers
         var results = new List<CallerInfo>();
 
         foreach (var referencedSymbol in referencedSymbols)
-            foreach (var loc in referencedSymbol.Locations)
-            {
-                var doc = loc.Document;
-                var root = await doc.GetSyntaxRootAsync();
-                if (root is null)
-                    continue;
+        foreach (var loc in referencedSymbol.Locations)
+        {
+            var doc = loc.Document;
+            var root = await doc.GetSyntaxRootAsync();
+            if (root is null)
+                continue;
 
-                var node = root.FindNode(loc.Location.SourceSpan);
+            var node = root.FindNode(loc.Location.SourceSpan);
 
-                // Only include actual invocations (not nameof, typeof, etc.)
-                var invocation = node.AncestorsAndSelf()
-                    .OfType<InvocationExpressionSyntax>()
-                    .FirstOrDefault();
+            // Only include actual invocations (not nameof, typeof, etc.)
+            var invocation = node.AncestorsAndSelf()
+                .OfType<InvocationExpressionSyntax>()
+                .FirstOrDefault();
 
-                if (invocation is null || FindCallersCommand.IsNameofExpression(invocation))
-                    continue;
+            if (invocation is null || FindCallersCommand.IsNameofExpression(invocation))
+                continue;
 
-                var lineSpan = loc.Location.GetLineSpan();
-                var line = lineSpan.StartLinePosition.Line + 1;
+            var lineSpan = loc.Location.GetLineSpan();
+            var line = lineSpan.StartLinePosition.Line + 1;
 
-                var containingMethod = invocation.Ancestors()
-                    .OfType<MethodDeclarationSyntax>()
-                    .FirstOrDefault()
-                    ?.Identifier.Text;
+            var containingMethod = invocation.Ancestors()
+                .OfType<MethodDeclarationSyntax>()
+                .FirstOrDefault()
+                ?.Identifier.Text;
 
-                results.Add(new CallerInfo(doc.FilePath, line, containingMethod));
-            }
+            results.Add(new CallerInfo(doc.FilePath, line, containingMethod));
+        }
 
         return results;
     }

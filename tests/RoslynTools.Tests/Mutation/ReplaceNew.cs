@@ -35,7 +35,7 @@ public sealed class ConstructorReplacement
             var writer = new CapturingSolutionChangeWriter();
             var service = new ReplaceNewService(NullLogger<ReplaceNewService>.Instance, writer);
 
-            await service.RunAsync(solution, "Widget", "WidgetFactory.Create", dryRun: false);
+            await service.RunAsync(solution, "Widget", "WidgetFactory.Create", false);
 
             var updatedText = await TestSolutionDocuments.GetTextAsync(writer.NewSolution!, "Consumer.cs");
             Assert.Contains("public Widget Build() => WidgetFactory.Create(\"primary\");", updatedText);
@@ -79,9 +79,9 @@ public sealed class ConstructorReplacement
                 solution,
                 "Widget",
                 "WidgetFactory.Create",
-                dryRun: false,
-                ifArgIndex: 0,
-                ifArgLiteral: "primary");
+                false,
+                0,
+                "primary");
 
             var updatedText = await TestSolutionDocuments.GetTextAsync(writer.NewSolution!, "Consumer.cs");
             Assert.Contains("public Widget Primary() => WidgetFactory.Create(\"primary\");", updatedText);
@@ -109,7 +109,7 @@ public sealed class ConstructorReplacement
             var writer = new CapturingSolutionChangeWriter();
             var service = new ReplaceNewService(NullLogger<ReplaceNewService>.Instance, writer);
 
-            await service.RunAsync(solution, "Widget", "WidgetFactory.Create", dryRun: false);
+            await service.RunAsync(solution, "Widget", "WidgetFactory.Create", false);
 
             Assert.Null(writer.NewSolution);
         }
@@ -146,12 +146,11 @@ public sealed class ConstructorReplacement
                 solution,
                 "Widget",
                 "WidgetFactory.Create",
-                dryRun: false,
-                ifArgIndex: argumentIndex,
-                ifArgLiteral: "primary");
+                false,
+                argumentIndex,
+                "primary");
 
             Assert.Null(writer.NewSolution);
         }
     }
-
 }

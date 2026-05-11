@@ -10,12 +10,12 @@ public sealed class NamespaceMoves
     {
         using var project = new AdhocProjectBuilder("Sample");
         project.AddSource("Domain/Widget.cs", """
-                                             namespace Sample.Legacy;
+                                              namespace Sample.Legacy;
 
-                                             public class Widget
-                                             {
-                                             }
-                                             """);
+                                              public class Widget
+                                              {
+                                              }
+                                              """);
         project.AddSource("Consumer.cs", """
                                          using Sample.Legacy;
 
@@ -38,8 +38,8 @@ public sealed class NamespaceMoves
                 solution,
                 "Sample.Legacy",
                 "Sample.Domain",
-                moveFile: false,
-                dryRun: false);
+                false,
+                false);
 
             var widgetText = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "Widget.cs");
             var consumerText = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "Consumer.cs");
@@ -56,12 +56,12 @@ public sealed class NamespaceMoves
     {
         using var project = new AdhocProjectBuilder("Sample");
         project.AddSource("Widget.cs", """
-                                      namespace Sample.Current;
+                                       namespace Sample.Current;
 
-                                      public class Widget
-                                      {
-                                      }
-                                      """);
+                                       public class Widget
+                                       {
+                                       }
+                                       """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
@@ -74,8 +74,8 @@ public sealed class NamespaceMoves
                 solution,
                 "Sample.Missing",
                 "Sample.Domain",
-                moveFile: false,
-                dryRun: false);
+                false,
+                false);
 
             Assert.Null(writer.Solution);
         }

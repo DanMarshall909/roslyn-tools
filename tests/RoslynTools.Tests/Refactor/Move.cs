@@ -49,22 +49,22 @@ public class Move
 
         var sourceCsproj = solution.Projects.First(p => p.Name == "SourceProject").FilePath!;
         await File.WriteAllTextAsync(sourceCsproj, """
-            <Project Sdk="Microsoft.NET.Sdk">
-              <ItemGroup>
-                <Compile Include="Draft.cs" />
-              </ItemGroup>
-            </Project>
-            """);
+                                                   <Project Sdk="Microsoft.NET.Sdk">
+                                                     <ItemGroup>
+                                                       <Compile Include="Draft.cs" />
+                                                     </ItemGroup>
+                                                   </Project>
+                                                   """);
 
         var stdout = new List<string>();
-        using (Core.RtConsole.UseConsole(new CollectingResultConsole(stdout)))
+        using (RtConsole.UseConsole(new CollectingResultConsole(stdout)))
         {
             await new MoveService().ExecuteCrossProjectMoveAsync(
                 workspace, solution,
                 "Pkg.Draft",
                 "TargetProject",
                 null,
-                dryRun: true);
+                true);
         }
 
         Assert.Contains(stdout, l => l.StartsWith("source:", StringComparison.Ordinal));
@@ -124,12 +124,12 @@ public class Move
         // Write a minimal .csproj with an explicit <Compile Include>
         var sourceCsproj = solution.Projects.First(p => p.Name == "SourceProject").FilePath!;
         await File.WriteAllTextAsync(sourceCsproj, """
-            <Project Sdk="Microsoft.NET.Sdk">
-              <ItemGroup>
-                <Compile Include="Widget.cs" />
-              </ItemGroup>
-            </Project>
-            """);
+                                                   <Project Sdk="Microsoft.NET.Sdk">
+                                                     <ItemGroup>
+                                                       <Compile Include="Widget.cs" />
+                                                     </ItemGroup>
+                                                   </Project>
+                                                   """);
 
         await new MoveService().ExecuteCrossProjectMoveAsync(
             workspace, solution,
@@ -170,7 +170,7 @@ public class Move
             workspace, solution,
             "Source.Models.Invoice",
             "TargetProject",
-            "Target.Domain",  // --to-namespace provided
+            "Target.Domain", // --to-namespace provided
             false);
 
         var targetDir = Path.GetDirectoryName(
@@ -216,7 +216,7 @@ public class Move
             workspace, solution,
             "Source.Models.Order",
             "TargetProject",
-            null,   // no --to-namespace
+            null, // no --to-namespace
             false);
 
         var targetDir = Path.GetDirectoryName(
@@ -279,7 +279,7 @@ public class Move
 
         // "beta" (lowercase) should still resolve to the "Beta" project
         await new MoveService().ExecuteCrossProjectMoveAsync(
-            workspace, solution, "X.C", "beta", null, dryRun: true);
+            workspace, solution, "X.C", "beta", null, true);
 
         // If project resolution failed it would throw — reaching here means it resolved.
     }
@@ -309,13 +309,13 @@ public class Move
         try
         {
             await File.WriteAllTextAsync(tempFile, """
-                <Project Sdk="Microsoft.NET.Sdk">
-                  <ItemGroup>
-                    <Compile Include="Keep.cs" />
-                    <Compile Include="Remove.cs" />
-                  </ItemGroup>
-                </Project>
-                """);
+                                                   <Project Sdk="Microsoft.NET.Sdk">
+                                                     <ItemGroup>
+                                                       <Compile Include="Keep.cs" />
+                                                       <Compile Include="Remove.cs" />
+                                                     </ItemGroup>
+                                                   </Project>
+                                                   """);
 
             using var builder = new AdhocProjectBuilder("P").AddSource("Remove.cs", "namespace N;");
             builder.AddProject("Q");
@@ -342,6 +342,7 @@ public class Move
                 if (parent?.IsEmpty == true && parent.Name.LocalName == "ItemGroup")
                     parent.Remove();
             }
+
             doc.Save(tempFile);
 
             var after = System.Xml.Linq.XDocument.Load(tempFile);
@@ -381,9 +382,19 @@ public class Move
     private sealed class CollectingResultConsole(List<string> lines) : IRtConsole
     {
         public bool IsOutputRedirected => true;
-        public void Log(RtLogLevel level, string template, object?[] args) { }
-        public void Write(RtOutputContext context, string message, ConsoleColor? color = null) { }
-        public string? ReadLine() => null;
+
+        public void Log(RtLogLevel level, string template, object?[] args)
+        {
+        }
+
+        public void Write(RtOutputContext context, string message, ConsoleColor? color = null)
+        {
+        }
+
+        public string? ReadLine()
+        {
+            return null;
+        }
 
         public void WriteLine(RtOutputContext context, string message = "", ConsoleColor? color = null)
         {
@@ -479,14 +490,14 @@ public class Move
             var sourceInfo = ProjectInfo.Create(
                 sourceId, VersionStamp.Create(), "SourceProject", "SourceProject",
                 LanguageNames.CSharp,
-                filePath: Path.Combine(sourceDir, "SourceProject.csproj"),
+                Path.Combine(sourceDir, "SourceProject.csproj"),
                 documents: [doc],
                 metadataReferences: [bclRef]);
 
             var targetInfo = ProjectInfo.Create(
                 targetId, VersionStamp.Create(), "TargetProject", "TargetProject",
                 LanguageNames.CSharp,
-                filePath: Path.Combine(targetDir, "TargetProject.csproj"),
+                Path.Combine(targetDir, "TargetProject.csproj"),
                 metadataReferences: [bclRef]);
 
             var workspace = new AdhocWorkspace();
@@ -506,7 +517,7 @@ public class Move
         }
         finally
         {
-            Directory.Delete(tempDir, recursive: true);
+            Directory.Delete(tempDir, true);
         }
     }
 }

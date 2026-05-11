@@ -26,7 +26,8 @@ public class IdentifierVariationDetector
             new() { ["optA"] = "optA", ["optB"] = "optC" }
         };
 
-        var varyingPositions = Core.IdentifierVariationDetector.FindVaryingPositions(patternIdentifiers, matchSubstitutions);
+        var varyingPositions =
+            Core.IdentifierVariationDetector.FindVaryingPositions(patternIdentifiers, matchSubstitutions);
 
         Assert.Single(varyingPositions);
         Assert.Contains(1, varyingPositions);
@@ -43,7 +44,8 @@ public class IdentifierVariationDetector
             new() { ["x"] = "x", ["y"] = "y" }
         };
 
-        var varyingPositions = Core.IdentifierVariationDetector.FindVaryingPositions(patternIdentifiers, matchSubstitutions);
+        var varyingPositions =
+            Core.IdentifierVariationDetector.FindVaryingPositions(patternIdentifiers, matchSubstitutions);
 
         Assert.Empty(varyingPositions);
     }
@@ -59,7 +61,8 @@ public class IdentifierVariationDetector
             new() { ["serviceA"] = "serviceB", ["repoA"] = "repoB", ["loggerA"] = "loggerA" }
         };
 
-        var varyingPositions = Core.IdentifierVariationDetector.FindVaryingPositions(patternIdentifiers, matchSubstitutions);
+        var varyingPositions =
+            Core.IdentifierVariationDetector.FindVaryingPositions(patternIdentifiers, matchSubstitutions);
 
         Assert.Equal(2, varyingPositions.Count);
         Assert.Contains(0, varyingPositions); // serviceA vs serviceB
@@ -76,7 +79,8 @@ public class IdentifierVariationDetector
             new() { ["x"] = "y" }
         };
 
-        var varyingPositions = Core.IdentifierVariationDetector.FindVaryingPositions(patternIdentifiers, matchSubstitutions);
+        var varyingPositions =
+            Core.IdentifierVariationDetector.FindVaryingPositions(patternIdentifiers, matchSubstitutions);
 
         Assert.Empty(varyingPositions);
     }
@@ -87,7 +91,8 @@ public class IdentifierVariationDetector
         var patternIdentifiers = new List<string> { "x", "y" };
         var matchSubstitutions = new List<Dictionary<string, string>>();
 
-        var varyingPositions = Core.IdentifierVariationDetector.FindVaryingPositions(patternIdentifiers, matchSubstitutions);
+        var varyingPositions =
+            Core.IdentifierVariationDetector.FindVaryingPositions(patternIdentifiers, matchSubstitutions);
 
         Assert.Empty(varyingPositions);
     }
@@ -103,7 +108,8 @@ public class IdentifierVariationDetector
             new() { ["fieldA"] = "fieldC", ["fieldB"] = "fieldB" } // position 0 differs
         };
 
-        var varyingPositions = Core.IdentifierVariationDetector.FindVaryingPositions(patternIdentifiers, matchSubstitutions);
+        var varyingPositions =
+            Core.IdentifierVariationDetector.FindVaryingPositions(patternIdentifiers, matchSubstitutions);
 
         Assert.Single(varyingPositions);
         Assert.Contains(0, varyingPositions);

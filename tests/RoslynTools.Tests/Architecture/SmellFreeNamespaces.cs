@@ -18,7 +18,7 @@ public sealed class SmellsFixture : IAsyncLifetime
         MsBuildFixture.Ensure();
         (_workspace, var solution) = await WorkspaceLoader.LoadAsync(FindSolutionPath());
         Smells = await SmellAnalyzer.AnalyzeAsync(solution,
-            maxClassLines: 300, maxMethodLines: 40, maxParams: 7, scope: null);
+            300, 40, 7, null);
     }
 
     public Task DisposeAsync()
@@ -41,7 +41,10 @@ public sealed class SmellFreeNamespaces : IClassFixture<SmellsFixture>
 {
     private readonly SmellsFixture _fixture;
 
-    public SmellFreeNamespaces(SmellsFixture fixture) => _fixture = fixture;
+    public SmellFreeNamespaces(SmellsFixture fixture)
+    {
+        _fixture = fixture;
+    }
 
     [Fact(DisplayName = "Core/Decisions namespace must have zero code smells")]
     public void decisions_namespace_has_zero_code_smells()

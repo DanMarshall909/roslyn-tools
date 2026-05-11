@@ -56,28 +56,28 @@ internal class AddTestService : IRtService
         string? filePath)
     {
         foreach (var project in sln.Projects)
-            foreach (var doc in project.Documents)
-            {
-                if (doc.FilePath == null) continue;
+        foreach (var doc in project.Documents)
+        {
+            if (doc.FilePath == null) continue;
 
-                if (filePath != null &&
-                    !string.Equals(doc.FilePath, Path.GetFullPath(filePath), StringComparison.OrdinalIgnoreCase))
-                    continue;
+            if (filePath != null &&
+                !string.Equals(doc.FilePath, Path.GetFullPath(filePath), StringComparison.OrdinalIgnoreCase))
+                continue;
 
-                var root = await doc.GetSyntaxRootAsync();
-                if (root == null) continue;
+            var root = await doc.GetSyntaxRootAsync();
+            if (root == null) continue;
 
-                var classDecl = root.DescendantNodes()
-                    .OfType<ClassDeclarationSyntax>()
-                    .FirstOrDefault(c => c.Identifier.Text == className);
+            var classDecl = root.DescendantNodes()
+                .OfType<ClassDeclarationSyntax>()
+                .FirstOrDefault(c => c.Identifier.Text == className);
 
-                if (classDecl == null) continue;
+            if (classDecl == null) continue;
 
-                _logger.RtInfo("Found '{ClassName}' in {FilePath}", className, doc.FilePath);
+            _logger.RtInfo("Found '{ClassName}' in {FilePath}", className, doc.FilePath);
 
-                var updatedSln = ApplyChangesToDocument(sln, doc, classDecl, className, name, acs, nestedClass);
-                return (true, updatedSln);
-            }
+            var updatedSln = ApplyChangesToDocument(sln, doc, classDecl, className, name, acs, nestedClass);
+            return (true, updatedSln);
+        }
 
         return (false, sln);
     }
@@ -273,37 +273,37 @@ internal class AddTestService : IRtService
     {
         // Try to find existing file and class
         foreach (var project in sln.Projects)
-            foreach (var doc in project.Documents)
-            {
-                if (doc.FilePath == null) continue;
+        foreach (var doc in project.Documents)
+        {
+            if (doc.FilePath == null) continue;
 
-                if (!string.Equals(doc.FilePath, Path.GetFullPath(testFilePath), StringComparison.OrdinalIgnoreCase))
-                    continue;
+            if (!string.Equals(doc.FilePath, Path.GetFullPath(testFilePath), StringComparison.OrdinalIgnoreCase))
+                continue;
 
-                var root = await doc.GetSyntaxRootAsync();
-                if (root == null) continue;
+            var root = await doc.GetSyntaxRootAsync();
+            if (root == null) continue;
 
-                var classDecl = root.DescendantNodes()
-                    .OfType<ClassDeclarationSyntax>()
-                    .FirstOrDefault(c => c.Identifier.Text == className);
+            var classDecl = root.DescendantNodes()
+                .OfType<ClassDeclarationSyntax>()
+                .FirstOrDefault(c => c.Identifier.Text == className);
 
-                if (classDecl == null) continue;
+            if (classDecl == null) continue;
 
-                _logger.RtInfo("Found '{ClassName}' in {FilePath}", className, doc.FilePath);
+            _logger.RtInfo("Found '{ClassName}' in {FilePath}", className, doc.FilePath);
 
-                var cu = (CompilationUnitSyntax)root;
-                cu = RoslynSyntax.EnsureUsing(cu, "Xunit");
-                cu = RoslynSyntax.EnsureUsing(cu, "System");
+            var cu = (CompilationUnitSyntax)root;
+            cu = RoslynSyntax.EnsureUsing(cu, "Xunit");
+            cu = RoslynSyntax.EnsureUsing(cu, "System");
 
-                classDecl = cu.DescendantNodes()
-                    .OfType<ClassDeclarationSyntax>()
-                    .First(c => c.Identifier.Text == className);
+            classDecl = cu.DescendantNodes()
+                .OfType<ClassDeclarationSyntax>()
+                .First(c => c.Identifier.Text == className);
 
-                var updatedClass = classDecl.AddMembers(method);
-                cu = cu.ReplaceNode(classDecl, updatedClass);
+            var updatedClass = classDecl.AddMembers(method);
+            cu = cu.ReplaceNode(classDecl, updatedClass);
 
-                return (true, sln.WithDocumentSyntaxRoot(doc.Id, cu));
-            }
+            return (true, sln.WithDocumentSyntaxRoot(doc.Id, cu));
+        }
 
         // File/class not found - log but don't fail (user can manually create if needed)
         _logger.RtInfo("Test class '{ClassName}' not found at {FilePath}. Create the file manually or use legacy mode.",

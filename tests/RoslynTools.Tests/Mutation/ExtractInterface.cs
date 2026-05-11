@@ -141,8 +141,8 @@ public class ExtractInterface
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             new ExtractInterfaceService(
-                NullLogger<ExtractInterfaceService>.Instance,
-                new CapturingSolutionChangeWriter())
+                    NullLogger<ExtractInterfaceService>.Instance,
+                    new CapturingSolutionChangeWriter())
                 .RunAsync(sln, "Point", null, null, false));
 
         Assert.Contains("must be a class", ex.Message);

@@ -35,7 +35,8 @@ public sealed class InspectedSymbols
             var parameters = Assert.IsAssignableFrom<List<Dictionary<string, object?>>>(constructor["parameters"]);
 
             Assert.Equal(["TItem"], typeParameters);
-            Assert.Contains("Repository<TItem>.Repository(string name, TItem seed)", constructor["signature"]?.ToString());
+            Assert.Contains("Repository<TItem>.Repository(string name, TItem seed)",
+                constructor["signature"]?.ToString());
             Assert.Equal(["name", "seed"], parameters.Select(parameter => parameter["name"]).ToArray());
         }
     }

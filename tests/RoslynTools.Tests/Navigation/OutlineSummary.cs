@@ -9,19 +9,19 @@ public class OutlineSummary
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Widget.cs", """
-            namespace TestApp;
-            public class Widget
-            {
-                public string Name { get; set; } = "";
-                public void DoWork() { }
-            }
-            """);
+                                       namespace TestApp;
+                                       public class Widget
+                                       {
+                                           public string Name { get; set; } = "";
+                                           public void DoWork() { }
+                                       }
+                                       """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
             var result = await new OutlineService().OutlineFileAsync(sln,
-                Path.Combine(project.ProjectDir, "Widget.cs"), summary: true);
+                Path.Combine(project.ProjectDir, "Widget.cs"), true);
 
             var entry = Assert.Single(result);
             Assert.Equal("TestApp.Widget", entry["fqn"]);
@@ -38,16 +38,16 @@ public class OutlineSummary
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
-            namespace TestApp;
-            /// <summary>Loads things from the database.</summary>
-            public class LoaderService { }
-            """);
+                                        namespace TestApp;
+                                        /// <summary>Loads things from the database.</summary>
+                                        public class LoaderService { }
+                                        """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
             var result = await new OutlineService().OutlineFileAsync(sln,
-                Path.Combine(project.ProjectDir, "Service.cs"), summary: true);
+                Path.Combine(project.ProjectDir, "Service.cs"), true);
 
             var entry = Assert.Single(result);
             Assert.True(entry.ContainsKey("description"), "should include description when XML doc exists");
@@ -65,7 +65,7 @@ public class OutlineSummary
         using (workspace)
         {
             var result = await new OutlineService().OutlineFileAsync(sln,
-                Path.Combine(project.ProjectDir, "Plain.cs"), summary: true);
+                Path.Combine(project.ProjectDir, "Plain.cs"), true);
 
             var entry = Assert.Single(result);
             Assert.False(entry.ContainsKey("description"), "should omit description when no XML doc");
@@ -77,18 +77,18 @@ public class OutlineSummary
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Outer.cs", """
-            namespace TestApp;
-            public class Outer
-            {
-                public class Inner { }
-            }
-            """);
+                                      namespace TestApp;
+                                      public class Outer
+                                      {
+                                          public class Inner { }
+                                      }
+                                      """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
             var result = await new OutlineService().OutlineFileAsync(sln,
-                Path.Combine(project.ProjectDir, "Outer.cs"), summary: true);
+                Path.Combine(project.ProjectDir, "Outer.cs"), true);
 
             Assert.Single(result);
             Assert.Equal("TestApp.Outer", result[0]["fqn"]);
@@ -118,15 +118,15 @@ public class OutlineSummary
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Things.cs", """
-            namespace TestApp;
-            public class Parent { public class Child { } }
-            public class Sibling { public int Value { get; set; } }
-            """);
+                                       namespace TestApp;
+                                       public class Parent { public class Child { } }
+                                       public class Sibling { public int Value { get; set; } }
+                                       """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await new OutlineService().OutlineDirectoryAsync(sln, project.ProjectDir, summary: true);
+            var result = await new OutlineService().OutlineDirectoryAsync(sln, project.ProjectDir, true);
             var fqns = result.Select(r => (string)r["fqn"]!).ToHashSet();
 
             Assert.Contains("TestApp.Parent", fqns);
@@ -141,14 +141,14 @@ public class OutlineSummary
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Svc.cs", """
-            namespace TestApp;
-            public class MyService { public void Run() { } }
-            """);
+                                    namespace TestApp;
+                                    public class MyService { public void Run() { } }
+                                    """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await new OutlineService().OutlineNamespaceAsync(sln, "TestApp", summary: true);
+            var result = await new OutlineService().OutlineNamespaceAsync(sln, "TestApp", true);
 
             var entry = Assert.Single(result);
             Assert.Equal("TestApp.MyService", entry["fqn"]);

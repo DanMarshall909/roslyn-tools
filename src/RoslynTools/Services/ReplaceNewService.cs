@@ -74,33 +74,33 @@ internal class ReplaceNewService : IRtService
         var locationsByDocument = new Dictionary<DocumentId, List<Location>>();
 
         foreach (var project in solution.Projects)
-            foreach (var document in project.Documents)
+        foreach (var document in project.Documents)
+        {
+            var root = await document.GetSyntaxRootAsync();
+            if (root is null)
+                continue;
+
+            var creations = root.DescendantNodes()
+                .OfType<ObjectCreationExpressionSyntax>()
+                .Where(oc => MatchesType(oc, typeName))
+                .ToList();
+
+            foreach (var creation in creations)
             {
-                var root = await document.GetSyntaxRootAsync();
-                if (root is null)
-                    continue;
+                if (ifArgIndex.HasValue && ifArgLiteral is not null)
+                    if (!ArgumentMatchesFilter(creation, ifArgIndex.Value, ifArgLiteral))
+                        continue;
 
-                var creations = root.DescendantNodes()
-                    .OfType<ObjectCreationExpressionSyntax>()
-                    .Where(oc => MatchesType(oc, typeName))
-                    .ToList();
-
-                foreach (var creation in creations)
+                var location = creation.GetLocation();
+                if (!locationsByDocument.TryGetValue(document.Id, out var locs))
                 {
-                    if (ifArgIndex.HasValue && ifArgLiteral is not null)
-                        if (!ArgumentMatchesFilter(creation, ifArgIndex.Value, ifArgLiteral))
-                            continue;
-
-                    var location = creation.GetLocation();
-                    if (!locationsByDocument.TryGetValue(document.Id, out var locs))
-                    {
-                        locs = new List<Location>();
-                        locationsByDocument[document.Id] = locs;
-                    }
-
-                    locs.Add(location);
+                    locs = new List<Location>();
+                    locationsByDocument[document.Id] = locs;
                 }
+
+                locs.Add(location);
             }
+        }
 
         return locationsByDocument;
     }

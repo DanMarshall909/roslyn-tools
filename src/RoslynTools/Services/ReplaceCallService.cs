@@ -105,34 +105,34 @@ internal class ReplaceCallService : IRtService
         var locationsByDocument = new Dictionary<DocumentId, List<Location>>();
 
         foreach (var referencedSymbol in referencedSymbols)
-            foreach (var loc in referencedSymbol.Locations)
+        foreach (var loc in referencedSymbol.Locations)
+        {
+            var doc = loc.Document;
+            var root = await doc.GetSyntaxRootAsync();
+            if (root is null)
+                continue;
+
+            var node = root.FindNode(loc.Location.SourceSpan);
+            var invocation = node.AncestorsAndSelf()
+                .OfType<InvocationExpressionSyntax>()
+                .FirstOrDefault();
+
+            if (invocation is null)
+                continue;
+
+            // Apply argument filter if specified
+            if (ifArgIndex.HasValue && ifArgLiteral is not null)
+                if (!ArgumentMatchesFilter(invocation, ifArgIndex.Value, ifArgLiteral))
+                    continue;
+
+            if (!locationsByDocument.TryGetValue(doc.Id, out var locs))
             {
-                var doc = loc.Document;
-                var root = await doc.GetSyntaxRootAsync();
-                if (root is null)
-                    continue;
-
-                var node = root.FindNode(loc.Location.SourceSpan);
-                var invocation = node.AncestorsAndSelf()
-                    .OfType<InvocationExpressionSyntax>()
-                    .FirstOrDefault();
-
-                if (invocation is null)
-                    continue;
-
-                // Apply argument filter if specified
-                if (ifArgIndex.HasValue && ifArgLiteral is not null)
-                    if (!ArgumentMatchesFilter(invocation, ifArgIndex.Value, ifArgLiteral))
-                        continue;
-
-                if (!locationsByDocument.TryGetValue(doc.Id, out var locs))
-                {
-                    locs = new List<Location>();
-                    locationsByDocument[doc.Id] = locs;
-                }
-
-                locs.Add(loc.Location);
+                locs = new List<Location>();
+                locationsByDocument[doc.Id] = locs;
             }
+
+            locs.Add(loc.Location);
+        }
 
         return locationsByDocument;
     }

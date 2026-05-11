@@ -48,7 +48,8 @@ public sealed class InterfaceAnalyzerService
         Assert.NotNull(interfaceSymbol);
         Assert.NotNull(consumerSymbol);
 
-        var used = await new Services.InterfaceAnalyzerService().GetUsedMembersAsync(sln, consumerSymbol, interfaceSymbol);
+        var used = await new Services.InterfaceAnalyzerService().GetUsedMembersAsync(sln, consumerSymbol,
+            interfaceSymbol);
 
         Assert.Contains("Send", used);
         Assert.DoesNotContain("Receive", used);
@@ -96,42 +97,42 @@ public sealed class InterfaceAnalyzerService
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("IWidgetEvents.cs", """
-                                             using System;
-
-                                             namespace MyApp;
-
-                                             public interface IWidgetEvents
-                                             {
-                                                 int Count { get; set; }
-                                                 event EventHandler Changed;
-                                                 void Reset();
-                                             }
-                                             """);
-        project.AddSource("WidgetConsumer.cs", """
                                               using System;
 
                                               namespace MyApp;
 
-                                              public sealed class WidgetConsumer
+                                              public interface IWidgetEvents
                                               {
-                                                  private readonly IWidgetEvents _events;
-
-                                                  public WidgetConsumer(IWidgetEvents events)
-                                                  {
-                                                      _events = events;
-                                                  }
-
-                                                  public void Use()
-                                                  {
-                                                      _events.Count = _events.Count + 1;
-                                                      _events.Changed += OnChanged;
-                                                  }
-
-                                                  private void OnChanged(object? sender, EventArgs args)
-                                                  {
-                                                  }
+                                                  int Count { get; set; }
+                                                  event EventHandler Changed;
+                                                  void Reset();
                                               }
                                               """);
+        project.AddSource("WidgetConsumer.cs", """
+                                               using System;
+
+                                               namespace MyApp;
+
+                                               public sealed class WidgetConsumer
+                                               {
+                                                   private readonly IWidgetEvents _events;
+
+                                                   public WidgetConsumer(IWidgetEvents events)
+                                                   {
+                                                       _events = events;
+                                                   }
+
+                                                   public void Use()
+                                                   {
+                                                       _events.Count = _events.Count + 1;
+                                                       _events.Changed += OnChanged;
+                                                   }
+
+                                                   private void OnChanged(object? sender, EventArgs args)
+                                                   {
+                                                   }
+                                               }
+                                               """);
         var (workspace, sln) = project.Build();
         using (workspace)
         {
@@ -152,17 +153,17 @@ public sealed class InterfaceAnalyzerService
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("IWidgetEvents.cs", """
-                                             using System;
+                                              using System;
 
-                                             namespace MyApp;
+                                              namespace MyApp;
 
-                                             public interface IWidgetEvents
-                                             {
-                                                 string Format(int id, string name);
-                                                 int Count { get; set; }
-                                                 event EventHandler Changed;
-                                             }
-                                             """);
+                                              public interface IWidgetEvents
+                                              {
+                                                  string Format(int id, string name);
+                                                  int Count { get; set; }
+                                                  event EventHandler Changed;
+                                              }
+                                              """);
         var (workspace, sln) = project.Build();
         using (workspace)
         {

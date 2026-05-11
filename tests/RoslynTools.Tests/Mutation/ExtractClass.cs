@@ -467,7 +467,8 @@ public class ExtractClass
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await ExtractClassCommand.ExecuteAsync("BigService", "Version", "VersionInfo", true, "ignored", null, false);
+            await ExtractClassCommand.ExecuteAsync("BigService", "Version", "VersionInfo", true, "ignored", null,
+                false);
         }
 
         var extracted = await project.ReadSourceAsync("VersionInfo.cs");
