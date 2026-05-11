@@ -29,7 +29,7 @@ internal static class CommandOptionFactory
 
     public static Option<string?> CreateSolutionOption(string helpText)
     {
-        throw new NotImplementedException();
+        return new Option<string?>("--solution", helpText);
     }
 
     public static Option<bool> CreateDryRunOption()
