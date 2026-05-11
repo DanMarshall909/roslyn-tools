@@ -31,7 +31,7 @@ internal sealed class ReplaceTypeCommand : IRtCommand
 
     public static Command Build()
     {
-        var solutionOpt = new Option<string?>("--solution", "Path to the .sln file");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln file");
         var dryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk");
 
         var cmd = new Command("replace-datetime",

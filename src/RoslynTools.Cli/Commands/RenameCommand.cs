@@ -41,8 +41,7 @@ internal sealed class RenameCommand : IRtCommand
         {
             Arity = ArgumentArity.ZeroOrOne
         };
-        var solutionOpt = new Option<string?>("--solution",
-            "Path to the .sln/.slnx file. Defaults to the single solution in current directory.");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln/.slnx file. Defaults to the single solution in current directory.");
         var kindOpt = new Option<string?>("--kind", "Symbol kind: type, method, property, field, namespace");
         var csvOpt = new Option<string?>("--csv",
             "Path to a CSV file with source_symbol/target_name, or prefixed *_fqn plus *_name_new columns.");

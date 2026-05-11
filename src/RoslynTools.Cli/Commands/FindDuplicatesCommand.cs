@@ -38,7 +38,7 @@ internal sealed class FindDuplicatesCommand : IRtCommand
 
     public static Command Build()
     {
-        var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
         var minStatementsOpt = new Option<int>("--min-statements", () => 3,
             "Minimum number of statements in a duplicate window");
         var minOccurrencesOpt =

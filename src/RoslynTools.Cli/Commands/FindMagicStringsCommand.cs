@@ -34,7 +34,7 @@ internal sealed class FindMagicStringsCommand : IRtCommand
 
     public static Command Build()
     {
-        var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
         var minLengthOpt = new Option<int>("--min-length", () => 3, "Minimum string length to report");
         var minOccurrencesOpt = new Option<int>("--min-occurrences", () => 2, "Minimum occurrences of the same value");
 

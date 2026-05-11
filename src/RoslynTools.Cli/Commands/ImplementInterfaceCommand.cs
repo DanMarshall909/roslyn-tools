@@ -34,7 +34,7 @@ internal sealed class ImplementInterfaceCommand : IRtCommand
         var typeOpt = new Option<string>("--type", "Class to add interface stubs to") { IsRequired = true };
         var interfaceOpt =
             new Option<string?>("--interface", "Interface to implement (optional; auto-detected if omitted)");
-        var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
         var dryRunOpt = new Option<bool>("--dry-run", "Preview without writing");
 
         var cmd = new Command("implement-interface",

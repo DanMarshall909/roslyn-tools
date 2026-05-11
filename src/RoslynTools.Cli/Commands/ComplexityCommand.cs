@@ -35,7 +35,7 @@ internal sealed class ComplexityCommand : IRtCommand
 
     public static Command Build()
     {
-        var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
         var thresholdOpt = new Option<int>("--threshold", () => 0,
             "Minimum metric value to include a method (0 = include all)");
         var sortOpt =

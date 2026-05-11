@@ -33,7 +33,7 @@ internal sealed class ListSmellsCommand : IRtCommand
 
     public static Command Build()
     {
-        var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
         var maxClassOpt = new Option<int>("--max-class-lines", () => 300, "Max lines per class");
         var maxMethodOpt = new Option<int>("--max-method-lines", () => 40, "Max lines per method");
         var maxParamsOpt = new Option<int>("--max-params", () => 7, "Max constructor params");

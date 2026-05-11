@@ -34,7 +34,7 @@ internal sealed class FindRefsCommand : IRtCommand
 
     public static Command Build()
     {
-        var solutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln/.slnx file");
         var symbolOpt = new Option<string>("--symbol", "Simple name of the symbol") { IsRequired = true };
         var kindOpt = new Option<string?>("--kind", "Symbol kind: type, method, property, field, namespace");
 

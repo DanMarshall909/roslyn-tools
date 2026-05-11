@@ -40,7 +40,7 @@ internal sealed class DependencyGraphCommand : IRtCommand
         var depthOpt = new Option<int?>("--depth", "Maximum traversal depth (optional)");
         var formatOpt = new Option<string?>("--format", "Output format: json (default) or dot");
         var scopeOpt = new Option<string?>("--scope", "Optional namespace prefix to limit analysis");
-        var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
 
         var cmd = new Command("dependency-graph", "Build a type-level dependency graph for the solution");
         cmd.AddAlias("depgraph");

@@ -33,7 +33,7 @@ internal sealed class ReplaceNewCommand : IRtCommand
         var typeOpt = new Option<string>("--type", "Type name to replace, e.g. Option<string> or Option<string?>")
         { IsRequired = true };
         var withOpt = new Option<string>("--with", "Replacement: method name or factory call") { IsRequired = true };
-        var solutionOpt = new Option<string?>("--solution", "Path to the .sln file");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln file");
         var dryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk");
         var ifArgIndexOpt = new Option<int?>("--if-arg",
             "Filter: only replace calls where argument at this index matches --if-arg-literal");

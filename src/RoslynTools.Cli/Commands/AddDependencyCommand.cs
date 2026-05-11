@@ -37,7 +37,7 @@ internal sealed class AddDependencyCommand : IRtCommand
         { IsRequired = true };
         var fieldOpt =
             CommandOptionFactory.CreateFieldOption("--field", "Field name override (default: derived from type)");
-        var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
         var dryRunOpt = new Option<bool>("--dry-run", "Preview without writing");
 
         var cmd = new Command("add-dependency", "Inject a constructor dependency into a class");

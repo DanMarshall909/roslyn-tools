@@ -36,7 +36,7 @@ internal sealed class CircularDepsCommand : IRtCommand
     public static Command Build()
     {
         var scopeOpt = new Option<string?>("--scope", "Optional namespace prefix to limit analysis");
-        var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
 
         var cmd = new Command("circular-deps", "Detect circular namespace/type dependencies in the solution");
         cmd.AddAlias("cdeps");

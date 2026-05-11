@@ -34,7 +34,7 @@ internal sealed class ReplaceCallCommand : IRtCommand
         var fromOpt = new Option<string>("--from", "Full method reference to replace, e.g. Logger.Log")
         { IsRequired = true };
         var toOpt = new Option<string>("--to", "New method name, e.g. LogInfo") { IsRequired = true };
-        var solutionOpt = new Option<string?>("--solution", "Path to the .sln file");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln file");
         var dryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk");
         var ifArgIndexOpt = new Option<int?>("--if-arg",
             "Filter: only replace calls where argument at this index matches --if-arg-literal");

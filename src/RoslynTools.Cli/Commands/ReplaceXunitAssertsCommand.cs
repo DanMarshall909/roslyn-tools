@@ -38,7 +38,7 @@ internal sealed class ReplaceXunitAssertsCommand : IRtCommand
 
     public static Command Build()
     {
-        var solutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln/.slnx file");
         var dryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk");
         var applyOpt = new Option<bool>("--apply",
             "Write changes to disk. Without this, the command prints a review summary.");

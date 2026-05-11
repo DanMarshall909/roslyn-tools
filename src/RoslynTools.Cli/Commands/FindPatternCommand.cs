@@ -40,7 +40,7 @@ internal sealed class FindPatternCommand : IRtCommand
         { IsRequired = true };
         var endLineOpt = new Option<int>("--end-line", "Last line of the pattern range (1-based, inclusive).")
         { IsRequired = true };
-        var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx. Auto-detected if omitted.");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx. Auto-detected if omitted.");
         var scopeOpt = new Option<string?>("--scope",
             "Filter matches to documents in this namespace prefix or project name.");
 

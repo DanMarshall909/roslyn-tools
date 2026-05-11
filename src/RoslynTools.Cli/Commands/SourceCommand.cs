@@ -33,7 +33,7 @@ internal sealed class SourceCommand : IRtCommand
     public static Command Build()
     {
         var symbolArg = new Argument<string>("symbol", "Fully-qualified member or type name");
-        var solutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln/.slnx file");
         var kindOpt = new Option<string?>("--kind", "Symbol kind hint: type, method, property, field");
 
         var cmd = new Command("source", "Print the source code of a member or type by FQN (JSON)")

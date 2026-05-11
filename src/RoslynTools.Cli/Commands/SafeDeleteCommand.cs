@@ -34,7 +34,7 @@ internal sealed class SafeDeleteCommand : IRtCommand
         var symbolOpt = new Option<string>("--symbol", "Type or member FQN or simple name to delete")
         { IsRequired = true };
         var kindOpt = new Option<string?>("--kind", "Kind of symbol: type, method, or property");
-        var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
         var dryRunOpt = new Option<bool>("--dry-run", "Preview without writing");
 
         var cmd = new Command("safe-delete", "Delete a type or member only if it has no references");

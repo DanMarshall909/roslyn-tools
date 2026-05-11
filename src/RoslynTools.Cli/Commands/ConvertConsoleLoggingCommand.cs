@@ -38,7 +38,7 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
 
     public static Command Build()
     {
-        var solutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln/.slnx file");
         var dryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk");
         var loggerOpt = new Option<string>("--logger", () => "_logger", "Logger expression to call");
         var informationMethodOpt = new Option<string>("--information-method", () => "LogInformation",

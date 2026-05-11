@@ -32,7 +32,7 @@ internal sealed class AnalyzeInterfaceCommand : IRtCommand
     public static Command Build()
     {
         var interfaceArg = new Argument<string>("interface", "Interface symbol to analyze");
-        var solutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln/.slnx file");
         var scopeOpt = new Option<string?>("--scope", "Project name or namespace prefix to restrict analysis");
         var includeTestsOpt = new Option<bool>("--include-tests", () => false, "Include test projects in results");
         var suggestOpt = new Option<bool>("--suggest", () => false,

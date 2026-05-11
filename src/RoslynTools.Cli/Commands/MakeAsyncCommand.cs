@@ -34,7 +34,7 @@ internal sealed class MakeAsyncCommand : IRtCommand
         var typeOpt = new Option<string>("--type", "Class containing the method") { IsRequired = true };
         var methodOpt = new Option<string>("--method", "Method name to make async") { IsRequired = true };
         var noRenameOpt = new Option<bool>("--no-rename", "Skip renaming to Async suffix");
-        var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
         var dryRunOpt = new Option<bool>("--dry-run", "Preview without writing");
 
         var cmd = new Command("make-async", "Convert a synchronous method to async Task<T> and update direct callers");

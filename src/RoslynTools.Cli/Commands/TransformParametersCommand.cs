@@ -37,7 +37,7 @@ internal sealed class TransformParametersCommand : IRtCommand
         var newTypeOpt = new Option<string?>("--new-type", "Name of the record to generate, e.g. PlaceOrderArgs");
         var existingTypeOpt = new Option<string?>("--existing-type",
             "Fully-qualified name of an existing type to reuse, e.g. MyApp.PlaceOrderArgs");
-        var solutionOpt = new Option<string?>("--solution", "Path to the .sln file. Auto-detected if omitted.");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln file. Auto-detected if omitted.");
         var dryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk.");
 
         var cmd = new Command("transform-parameters",

@@ -33,7 +33,7 @@ internal sealed class MoveCommand : IRtCommand
 
     public static Command Build()
     {
-        var solutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln/.slnx file");
         var typeOpt = new Option<string?>("--type",
             "Fully-qualified type name (e.g. ProjectX.Core.Services.BookingService)");
         var nsFromOpt = new Option<string?>("--namespace",

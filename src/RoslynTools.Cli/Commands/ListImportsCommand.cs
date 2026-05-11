@@ -34,7 +34,7 @@ internal sealed class ListImportsCommand : IRtCommand
 
     public static Command Build()
     {
-        var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
         var kindOpt = new Option<string>("--kind", () => "all", "Filter: all, global, static, or alias");
 
         var cmd = new Command("list-imports", "List using directives, including global and static imports");

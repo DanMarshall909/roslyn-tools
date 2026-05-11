@@ -39,7 +39,7 @@ internal sealed class OutlineCommand : IRtCommand
     {
         var targetArg = new Argument<string?>("target", () => null,
             "File path, directory, glob pattern, or namespace to outline");
-        var solutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln/.slnx file");
         var regexOpt = new Option<string?>("--regex", "Regex pattern matched against solution file paths");
         var summaryOpt = new Option<bool>("--summary",
             "Compact mode: one entry per top-level type (fqn, kind, lines, description if present); no member detail");

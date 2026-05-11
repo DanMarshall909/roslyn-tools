@@ -36,7 +36,7 @@ internal sealed class ExtractClassCommand : IRtCommand
         { IsRequired = true };
         var newTypeOpt = new Option<string>("--new-type", "Name for the new class") { IsRequired = true };
         var staticOpt = new Option<bool>("--static", "Make the new class static (no injection)");
-        var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
         var outputDirOpt = new Option<string?>("--output-dir", "Directory for new file");
         var dryRunOpt = new Option<bool>("--dry-run", "Preview without writing");
 

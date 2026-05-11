@@ -32,7 +32,7 @@ internal sealed class ExtractInterfaceCommand : IRtCommand
     public static Command Build()
     {
         var typeOpt = new Option<string>("--type", "Class to extract interface from") { IsRequired = true };
-        var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
         var outputDirOpt = new Option<string?>("--output-dir", "Directory for the new interface file");
         var namespaceOpt = new Option<string?>("--namespace", "Namespace override for the interface");
         var dryRunOpt = new Option<bool>("--dry-run", "Preview without writing");

@@ -29,7 +29,7 @@ internal sealed class StaticClassInventoryCommand : IRtCommand
 
     public static Command Build()
     {
-        var solutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln/.slnx file");
 
         var cmd = new Command("static-class-inventory",
             "List every static class with call-site count, member count, and inbound coupling for migration planning");

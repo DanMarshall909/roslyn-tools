@@ -33,7 +33,7 @@ internal sealed class DescribeCommand : IRtCommand
     public static Command Build()
     {
         var symbolArg = new Argument<string>("symbol", "Fully-qualified symbol name to inspect");
-        var solutionOpt = new Option<string?>("--solution", "Path to the .sln/.slnx file");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln/.slnx file");
         var kindOpt = new Option<string?>("--kind", "Symbol kind: type, method, property, field, namespace");
 
         var cmd = new Command("describe", "Show type shape: members, base types, interfaces, locations (JSON)")

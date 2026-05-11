@@ -34,7 +34,7 @@ internal sealed class FindUnusedCommand : IRtCommand
 
     public static Command Build()
     {
-        var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
         var scopeOpt = new Option<string?>("--scope", "Filter: types, methods, or all (default: all)");
 
         var cmd = new Command("find-unused", "Report types and methods with no references (dead code)");

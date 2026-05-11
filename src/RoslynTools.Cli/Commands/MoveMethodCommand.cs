@@ -32,7 +32,7 @@ internal sealed class MoveMethodCommand : IRtCommand
         var toTypeOpt = new Option<string>("--to-type", "Fully-qualified target class name (e.g. App.Target)")
         { IsRequired = true };
         var createFileOpt = new Option<bool>("--create-file", "Create the target class file if it does not exist");
-        var solutionOpt = new Option<string?>("--solution", "Path to .sln/.slnx. Auto-detected if omitted.");
+        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx. Auto-detected if omitted.");
         var dryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk");
 
         var cmd = new Command("move-method", "Move a static method to another class, rewriting all call sites")
