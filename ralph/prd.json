@@ -216,6 +216,20 @@
             "notes": "P2. Duplication: src/RoslynTools/Services/ImportDirectiveService.cs:212 and src/RoslynTools/Services/MagicStringService.cs:228. find-duplicates GRP-3-1cd9f103.",
             "resolution": "Created FilePathFilters.IsGeneratedOrIntermediate in src/RoslynTools/Core/FilePathFilters.cs (10 unit tests). Redirected both ImportDirectiveService and MagicStringService to use the shared helper via FilePathFilters.; private copies deleted with rt refactor safe-delete. 910 tests green.",
             "resolvedAt": "2026-05-12"
+        },
+        {
+            "id": "US-029",
+            "epicId": "EP-005",
+            "title": "extract shared BuildInterfaceText from ExtractInterfaceService and InterfaceAnalyzerService",
+            "description": "As a developer, I want one BuildInterfaceText implementation so both services generate interface text consistently.",
+            "acceptanceCriteria": [
+                "BuildInterfaceText exists in a single shared location",
+                "Both private copies in ExtractInterfaceService and InterfaceAnalyzerService are removed",
+                "All existing tests pass"
+            ],
+            "priority": 29,
+            "passes": false,
+            "notes": "P2. Duplication: src/RoslynTools/Services/ExtractInterfaceService.cs:121 and src/RoslynTools/Services/InterfaceAnalyzerService.cs:113. find-duplicates GRP-4-8f62cae6."
         }
     ]
 }
