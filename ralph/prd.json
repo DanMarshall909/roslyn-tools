@@ -199,6 +199,21 @@
             "notes": "P2. Duplication: src/RoslynTools/Core/RoslynSyntax.cs:41 vs src/RoslynTools/Services/ConvertToRecordService.cs:84. find-duplicates GRP-4-18336c84.",
             "resolution": "Removed private FindDocumentId duplicate from ConvertToRecordService; injected IDocumentLocatorService and routed the single call site through _documents.FindDocumentId. Private method deleted via rt refactor safe-delete. All 908 tests green, architectural DI constraint test passes.",
             "resolvedAt": "2026-05-12"
+        },
+        {
+            "id": "US-028",
+            "epicId": "EP-005",
+            "title": "extract shared IsGeneratedOrIntermediate helper from ImportDirectiveService and MagicStringService",
+            "description": "As a developer, I want one IsGeneratedOrIntermediate check so both services apply the same filter.",
+            "acceptanceCriteria": [
+                "A single IsGeneratedOrIntermediate method exists in a shared location (e.g. RoslynSyntax or FilePathFilters)",
+                "ImportDirectiveService and MagicStringService both delegate to it",
+                "Both private copies are removed",
+                "All existing tests pass"
+            ],
+            "priority": 28,
+            "passes": false,
+            "notes": "P2. Duplication: src/RoslynTools/Services/ImportDirectiveService.cs:212 and src/RoslynTools/Services/MagicStringService.cs:228. find-duplicates GRP-3-1cd9f103."
         }
     ]
 }
