@@ -195,8 +195,10 @@
                 "All existing tests pass"
             ],
             "priority": 27,
-            "passes": false,
-            "notes": "P2. Duplication: src/RoslynTools/Core/RoslynSyntax.cs:41 vs src/RoslynTools/Services/ConvertToRecordService.cs:84. find-duplicates GRP-4-18336c84."
+            "passes": true,
+            "notes": "P2. Duplication: src/RoslynTools/Core/RoslynSyntax.cs:41 vs src/RoslynTools/Services/ConvertToRecordService.cs:84. find-duplicates GRP-4-18336c84.",
+            "resolution": "Removed private FindDocumentId duplicate from ConvertToRecordService; injected IDocumentLocatorService and routed the single call site through _documents.FindDocumentId. Private method deleted via rt refactor safe-delete. All 908 tests green, architectural DI constraint test passes.",
+            "resolvedAt": "2026-05-12"
         }
     ]
 }
