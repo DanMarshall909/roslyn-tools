@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis.CSharp;
+using RoslynTools.Core;
 using RoslynTools.Services;
 
 namespace RoslynTools.Tests.Mutation;
@@ -118,11 +119,7 @@ public class ServiceHelpers
     [Fact]
     public void builds_interface_text_generates_interface_declaration()
     {
-        var text = new ExtractInterfaceService().BuildInterfaceText(
-            "MyApp",
-            "IFoo",
-            [],
-            []);
+        var text = InterfaceTextBuilder.BuildInterfaceText("MyApp", "IFoo", []);
 
         Assert.Contains("namespace MyApp;", text);
         Assert.Contains("public interface IFoo", text);
@@ -131,11 +128,7 @@ public class ServiceHelpers
     [Fact]
     public void builds_interface_text_skips_namespace_when_empty()
     {
-        var text = new ExtractInterfaceService().BuildInterfaceText(
-            "",
-            "IFoo",
-            [],
-            []);
+        var text = InterfaceTextBuilder.BuildInterfaceText("", "IFoo", []);
 
         Assert.DoesNotContain("namespace", text);
         Assert.Contains("public interface IFoo", text);

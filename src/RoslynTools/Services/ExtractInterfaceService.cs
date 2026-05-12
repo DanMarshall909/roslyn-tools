@@ -82,7 +82,8 @@ internal class ExtractInterfaceService : IRtService
                 !p.IsStatic)
             .ToList();
 
-        var interfaceText = BuildInterfaceText(targetNamespace, interfaceName, publicMethods, publicProperties);
+        var interfaceText = InterfaceTextBuilder.BuildInterfaceText(
+            targetNamespace, interfaceName, ((IEnumerable<ISymbol>)publicMethods).Concat(publicProperties));
 
         var classDocument = sln.Projects
                                 .SelectMany(p => p.Documents)
@@ -107,70 +108,6 @@ internal class ExtractInterfaceService : IRtService
 
         _logger.RtInfo("Extracting interface '{InterfaceName}' from '{Name}'...", interfaceName, classSymbol.Name);
         await _solutionChangeWriter.ApplyChangesAsync(originalSln, finalSolution, dryRun);
-    }
-
-    /// <summary>
-    /// Builds interface text based on method and property symbols.
-    /// </summary>
-    internal string BuildInterfaceText(
-        string namespaceName,
-        string interfaceName,
-        List<IMethodSymbol> methods,
-        List<IPropertySymbol> properties)
-    {
-        var sb = new StringBuilder();
-
-        if (!string.IsNullOrEmpty(namespaceName))
-        {
-            sb.AppendLineF($"namespace {namespaceName};");
-            sb.AppendLine();
-        }
-
-        sb.AppendLineF($"public interface {interfaceName}");
-        sb.AppendLine("{");
-
-        foreach (var method in methods)
-        {
-            var returnType = method.ReturnType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
-            var paramList = BuildParamList(method);
-            sb.AppendLineF($"    {returnType} {method.Name}({paramList});");
-        }
-
-        foreach (var property in properties)
-        {
-            var typeName = property.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
-            var accessors = BuildAccessors(property);
-            sb.AppendLineF($"    {typeName} {property.Name} {{ {accessors} }}");
-        }
-
-        sb.AppendLine("}");
-
-        return sb.ToString();
-    }
-
-    /// <summary>
-    /// Constructs a parameter list from a method declaration.
-    /// </summary>
-    internal string BuildParamList(IMethodSymbol method)
-    {
-        return string.Join(", ", method.Parameters.Select(p =>
-        {
-            var typeName = p.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
-            return $"{typeName} {p.Name}";
-        }));
-    }
-
-    /// <summary>
-    /// Generates accessors for a given property.
-    /// </summary>
-    internal string BuildAccessors(IPropertySymbol property)
-    {
-        var parts = new List<string>();
-        if (property.GetMethod is { DeclaredAccessibility: Accessibility.Public })
-            parts.Add("get;");
-        if (property.SetMethod is { DeclaredAccessibility: Accessibility.Public })
-            parts.Add("set;");
-        return string.Join(" ", parts);
     }
 
     /// <summary>

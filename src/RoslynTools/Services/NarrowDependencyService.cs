@@ -78,7 +78,7 @@ internal class NarrowDependencyService : IRtService
             // Build new interface text via InterfaceAnalyzerService
             var targetNamespace = interfaceSymbol.ContainingNamespace?.ToDisplayString() ?? string.Empty;
             var interfaceText =
-                _interfaceAnalyzer.BuildInterfaceText(targetNamespace, newInterfaceName, selectedMembers);
+                InterfaceTextBuilder.BuildInterfaceText(targetNamespace, newInterfaceName, selectedMembers);
 
             // Find owning project
             var owningProject = FindOwningProject(solution, interfaceSymbol)

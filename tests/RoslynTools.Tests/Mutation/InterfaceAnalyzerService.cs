@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using RoslynTools.Core;
 using RoslynTools.Services;
 
 namespace RoslynTools.Tests.Mutation;
@@ -85,7 +86,7 @@ public sealed class InterfaceAnalyzerService
         Assert.NotNull(interfaceSymbol);
 
         var sendMember = interfaceSymbol.GetMembers("Send").First();
-        var text = new Services.InterfaceAnalyzerService().BuildInterfaceText("MyApp", "ISender", [sendMember]);
+        var text = InterfaceTextBuilder.BuildInterfaceText("MyApp", "ISender", [sendMember]);
 
         Assert.Contains("ISender", text);
         Assert.Contains("Send", text);
@@ -168,8 +169,7 @@ public sealed class InterfaceAnalyzerService
         using (workspace)
         {
             var interfaceSymbol = await GetTypeAsync(sln, "MyApp.IWidgetEvents");
-            var text = new Services.InterfaceAnalyzerService()
-                .BuildInterfaceText("", "INarrowWidgetEvents", interfaceSymbol.GetMembers().ToList());
+            var text = InterfaceTextBuilder.BuildInterfaceText("", "INarrowWidgetEvents", interfaceSymbol.GetMembers().ToList());
 
             Assert.DoesNotContain("namespace", text);
             Assert.Contains("public interface INarrowWidgetEvents", text);
