@@ -55,7 +55,7 @@ internal class MagicStringService : IRtService
             foreach (var document in project.Documents)
             {
                 if (rtIgnore.IsIgnored(document.FilePath, "find-magic-strings")
-                    || IsGeneratedOrIntermediate(document.FilePath))
+                    || FilePathFilters.IsGeneratedOrIntermediate(document.FilePath))
                     continue;
 
                 var root = await document.GetSyntaxRootAsync();
@@ -221,16 +221,5 @@ internal class MagicStringService : IRtService
         }
 
         return null;
-    }
-
-    private bool IsGeneratedOrIntermediate(string? filePath)
-    {
-        if (string.IsNullOrWhiteSpace(filePath))
-            return false;
-
-        var normalized = filePath.Replace('\\', '/');
-        return normalized.Contains("/obj/", StringComparison.OrdinalIgnoreCase)
-               || normalized.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase)
-               || normalized.EndsWith(".generated.cs", StringComparison.OrdinalIgnoreCase);
     }
 }

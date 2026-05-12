@@ -53,7 +53,7 @@ internal class ImportDirectiveService : IRtService
         foreach (var project in solution.Projects)
             foreach (var document in project.Documents)
             {
-                if (rtIgnore.IsIgnored(document.FilePath, "list-imports") || IsGeneratedOrIntermediate(document.FilePath))
+                if (rtIgnore.IsIgnored(document.FilePath, "list-imports") || FilePathFilters.IsGeneratedOrIntermediate(document.FilePath))
                     continue;
 
                 var root = await document.GetSyntaxRootAsync();
@@ -205,16 +205,5 @@ internal class ImportDirectiveService : IRtService
             return "alias";
 
         return "using";
-    }
-
-    private bool IsGeneratedOrIntermediate(string? filePath)
-    {
-        if (string.IsNullOrWhiteSpace(filePath))
-            return false;
-
-        var normalized = filePath.Replace('\\', '/');
-        return normalized.Contains("/obj/", StringComparison.OrdinalIgnoreCase)
-               || normalized.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase)
-               || normalized.EndsWith(".generated.cs", StringComparison.OrdinalIgnoreCase);
     }
 }
