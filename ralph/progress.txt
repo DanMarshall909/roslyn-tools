@@ -1,7 +1,7 @@
 roslyn-tools
 Branch: feat/analyze-complexity
 
-Current Status: 7/7 stories complete (100%)
+Current Status: 7/8 stories complete (88%)
 
 Stories
 [x] US-001 Add rt analyze complexity command
@@ -11,3 +11,4 @@ Stories
 [x] US-027 remove duplicate FindDocumentId — use SymbolDocumentLocator.FindDocumentId from both callers
 [x] US-028 extract shared IsGeneratedOrIntermediate helper from ImportDirectiveService and MagicStringService
 [x] US-029 extract shared BuildInterfaceText from ExtractInterfaceService and InterfaceAnalyzerService
+[ ] US-030 extract shared BuildPreview helper from PatternMatcher and FindDuplicatesService

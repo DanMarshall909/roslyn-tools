@@ -34,21 +34,6 @@
             "resolvedAt": "2026-05-11"
         },
         {
-            "id": "US-030",
-            "epicId": "EP-005",
-            "title": "extract shared BuildPreview helper from PatternMatcher and FindDuplicatesService",
-            "description": "As a developer, I want one BuildPreview implementation so preview text is generated consistently.",
-            "acceptanceCriteria": [
-                "BuildPreview exists in a single shared location",
-                "PatternMatcher and FindDuplicatesService both delegate to it",
-                "Both private copies are removed",
-                "All existing tests pass"
-            ],
-            "priority": 30,
-            "passes": false,
-            "notes": "P3. Duplication: src/RoslynTools/Core/PatternMatcher.cs:293 and src/RoslynTools/Services/FindDuplicatesService.cs:416. find-duplicates GRP-3-74806dae."
-        },
-        {
             "id": "US-031",
             "title": "rt: replace-new argument-reshaping — drop matched arg, keep remaining args",
             "description": "As a developer dogfooding rt, I want replace-new to support argument reshaping so that I can replace new Option<string?>(\"--solution\", helpText) with Factory.CreateSolutionOption(helpText) in one command.",

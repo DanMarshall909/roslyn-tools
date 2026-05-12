@@ -232,6 +232,21 @@
             "notes": "P2. Duplication: src/RoslynTools/Services/ExtractInterfaceService.cs:121 and src/RoslynTools/Services/InterfaceAnalyzerService.cs:113. find-duplicates GRP-4-8f62cae6.",
             "resolution": "Created InterfaceTextBuilder static class in Core with BuildInterfaceText(IEnumerable<ISymbol>), BuildParamList, BuildAccessors. Removed all 6 duplicate methods from ExtractInterfaceService and InterfaceAnalyzerService via rt refactor safe-delete. Updated 6 call sites (2 production, 4 tests). 910 tests green.",
             "resolvedAt": "2026-05-12"
+        },
+        {
+            "id": "US-030",
+            "epicId": "EP-005",
+            "title": "extract shared BuildPreview helper from PatternMatcher and FindDuplicatesService",
+            "description": "As a developer, I want one BuildPreview implementation so preview text is generated consistently.",
+            "acceptanceCriteria": [
+                "BuildPreview exists in a single shared location",
+                "PatternMatcher and FindDuplicatesService both delegate to it",
+                "Both private copies are removed",
+                "All existing tests pass"
+            ],
+            "priority": 30,
+            "passes": false,
+            "notes": "P3. Duplication: src/RoslynTools/Core/PatternMatcher.cs:293 and src/RoslynTools/Services/FindDuplicatesService.cs:416. find-duplicates GRP-3-74806dae."
         }
     ]
 }
