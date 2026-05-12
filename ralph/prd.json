@@ -182,6 +182,21 @@
             "notes": "P2. Actual scope: 33 commands bypass the factory (story notes listed 10 — outdated). 6 help-text variants exist; all must be preserved verbatim (Option A chosen). Bypassing commands include: AddDependencyCommand, AddTestCommand, AnalyzeInterfaceCommand, CircularDepsCommand, ComplexityCommand, ConvertConsoleLoggingCommand, DependencyGraphCommand, DescribeCommand, ExtractClassCommand, ExtractInterfaceCommand, ExtractMethodCommand, FindDuplicatesCommand, FindImplementationsCommand, FindMagicStringsCommand, FindPatternCommand, FindRefsCommand, FindUnusedCommand, ImplementInterfaceCommand, ListImportsCommand, ListSmellsCommand, MakeAsyncCommand, MoveCommand, MoveMethodCommand, OutlineCommand, RenameCommand, ReplaceCallCommand, ReplaceNewCommand, ReplaceTypeCommand, ReplaceXunitAssertsCommand, SafeDeleteCommand, SourceCommand, StaticClassInventoryCommand, TransformParametersCommand.",
             "resolution": "Added CreateSolutionOption(string helpText) overload to CommandOptionFactory; swept all 33 commands that bypassed the factory to use it, preserving each command's original help text verbatim. 3 new tests. Build, format, and test gates all green.",
             "resolvedAt": "2026-05-11"
+        },
+        {
+            "id": "US-027",
+            "epicId": "EP-005",
+            "title": "remove duplicate FindDocumentId — use SymbolDocumentLocator.FindDocumentId from both callers",
+            "description": "As a developer, I want a single FindDocumentId implementation so both callers use the same logic.",
+            "acceptanceCriteria": [
+                "ConvertToRecordService.FindDocumentId private method is removed",
+                "ConvertToRecordService calls SymbolDocumentLocator.FindDocumentId from RoslynSyntax.cs",
+                "Behaviour is identical: returns null when symbol has no in-source location",
+                "All existing tests pass"
+            ],
+            "priority": 27,
+            "passes": false,
+            "notes": "P2. Duplication: src/RoslynTools/Core/RoslynSyntax.cs:41 vs src/RoslynTools/Services/ConvertToRecordService.cs:84. find-duplicates GRP-4-18336c84."
         }
     ]
 }
