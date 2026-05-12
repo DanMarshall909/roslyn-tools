@@ -16,16 +16,19 @@ internal class ConvertToRecordService : IRtService
 {
     private readonly ILogger<ConvertToRecordService> _logger;
     private readonly ISolutionChangeWriter _solutionChangeWriter;
+    private readonly IDocumentLocatorService _documents;
 
     public ConvertToRecordService()
         : this(new RtConsoleLogger<ConvertToRecordService>(), new SolutionChangeWriter())
     {
     }
 
-    public ConvertToRecordService(ILogger<ConvertToRecordService> logger, ISolutionChangeWriter solutionChangeWriter)
+    public ConvertToRecordService(ILogger<ConvertToRecordService> logger, ISolutionChangeWriter solutionChangeWriter,
+        IDocumentLocatorService? documents = null)
     {
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
+        _documents = documents ?? new DocumentLocatorService();
     }
 
     /// <summary>
@@ -48,7 +51,7 @@ internal class ConvertToRecordService : IRtService
 
         var classSyntax = (ClassDeclarationSyntax)await syntaxRef.GetSyntaxAsync();
 
-        var docId = FindDocumentId(sln, classSymbol)
+        var docId = _documents.FindDocumentId(sln, classSymbol)
                     ?? throw new InvalidOperationException("Cannot locate source document for the target class.");
 
         var (initProps, remainingMembers) = CollectMembers(typeName, classSyntax);
@@ -77,20 +80,6 @@ internal class ConvertToRecordService : IRtService
         }
 
         throw new InvalidOperationException($"Class '{typeName}' not found in solution.");
-    }
-
-    private DocumentId? FindDocumentId(Solution sln, INamedTypeSymbol classSymbol)
-    {
-        var location = classSymbol.Locations.FirstOrDefault(l => l.IsInSource);
-        if (location == null) return null;
-
-        foreach (var project in sln.Projects)
-            foreach (var doc in project.Documents)
-                if (doc.FilePath != null &&
-                    string.Equals(doc.FilePath, location.SourceTree?.FilePath, StringComparison.OrdinalIgnoreCase))
-                    return doc.Id;
-
-        return null;
     }
 
     private (List<PropertyDeclarationSyntax> InitProps, List<MemberDeclarationSyntax> RemainingMembers)
