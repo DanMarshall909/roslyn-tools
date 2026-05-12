@@ -245,8 +245,10 @@
                 "All existing tests pass"
             ],
             "priority": 30,
-            "passes": false,
-            "notes": "P3. Duplication: src/RoslynTools/Core/PatternMatcher.cs:293 and src/RoslynTools/Services/FindDuplicatesService.cs:416. find-duplicates GRP-3-74806dae."
+            "passes": true,
+            "notes": "P3. Duplication: src/RoslynTools/Core/PatternMatcher.cs:293 and src/RoslynTools/Services/FindDuplicatesService.cs:416. find-duplicates GRP-3-74806dae.",
+            "resolution": "Created PreviewFormatter.TruncatePreviewLine in Core (9 TDD tests). Wired both BuildPreview wrappers to use the shared truncation helper while preserving each method's distinct text-extraction semantics (raw ToFullString in PatternMatcher, NormalizeWhitespace in FindDuplicatesService). 919 tests green.",
+            "resolvedAt": "2026-05-12"
         }
     ]
 }
