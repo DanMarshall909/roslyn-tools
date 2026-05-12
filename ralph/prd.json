@@ -212,8 +212,10 @@
                 "All existing tests pass"
             ],
             "priority": 28,
-            "passes": false,
-            "notes": "P2. Duplication: src/RoslynTools/Services/ImportDirectiveService.cs:212 and src/RoslynTools/Services/MagicStringService.cs:228. find-duplicates GRP-3-1cd9f103."
+            "passes": true,
+            "notes": "P2. Duplication: src/RoslynTools/Services/ImportDirectiveService.cs:212 and src/RoslynTools/Services/MagicStringService.cs:228. find-duplicates GRP-3-1cd9f103.",
+            "resolution": "Created FilePathFilters.IsGeneratedOrIntermediate in src/RoslynTools/Core/FilePathFilters.cs (10 unit tests). Redirected both ImportDirectiveService and MagicStringService to use the shared helper via FilePathFilters.; private copies deleted with rt refactor safe-delete. 910 tests green.",
+            "resolvedAt": "2026-05-12"
         }
     ]
 }
