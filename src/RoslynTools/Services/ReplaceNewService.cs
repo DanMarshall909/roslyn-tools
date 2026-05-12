@@ -32,7 +32,7 @@ internal class ReplaceNewService : IRtService
     /// Runs an asynchronous method to replace new services in a solution with specified parameters.
     /// </summary>
     internal async Task RunAsync(Solution solution, string typeName, string with_method, bool dryRun,
-        int? ifArgIndex = null, string? ifArgLiteral = null)
+        int? ifArgIndex = null, string? ifArgLiteral = null, bool dropMatchedArg = false)
     {
         var originalSolution = solution;
 
@@ -57,7 +57,7 @@ internal class ReplaceNewService : IRtService
             if (root is null)
                 continue;
 
-            var replacements = RewriteObjectCreation(root, locations, with_method);
+            var replacements = RewriteObjectCreation(root, locations, with_method, ifArgIndex, dropMatchedArg);
             if (replacements.Count == 0)
                 continue;
 
@@ -139,7 +139,9 @@ internal class ReplaceNewService : IRtService
     private Dictionary<SyntaxNode, SyntaxNode> RewriteObjectCreation(
         SyntaxNode root,
         IEnumerable<Location> locations,
-        string with_method)
+        string with_method,
+        int? dropArgIndex = null,
+        bool dropMatchedArg = false)
     {
         var replacements = new Dictionary<SyntaxNode, SyntaxNode>();
 
@@ -152,7 +154,7 @@ internal class ReplaceNewService : IRtService
             if (creation is null)
                 continue;
 
-            var argList = creation.ArgumentList ?? SyntaxFactory.ArgumentList();
+            var argList = BuildArgList(creation, dropArgIndex, dropMatchedArg);
             var methodExpr = SyntaxFactory.ParseExpression(with_method);
             var newCall = SyntaxFactory.InvocationExpression(methodExpr, argList)
                 .WithTriviaFrom(creation);
@@ -161,5 +163,30 @@ internal class ReplaceNewService : IRtService
         }
 
         return replacements;
+    }
+
+    private static ArgumentListSyntax BuildArgList(
+        ObjectCreationExpressionSyntax creation,
+        int? dropArgIndex,
+        bool dropMatchedArg)
+    {
+        var original = creation.ArgumentList ?? SyntaxFactory.ArgumentList();
+
+        if (!dropMatchedArg || dropArgIndex is null)
+            return original;
+
+        var idx = dropArgIndex.Value;
+        if (idx < 0 || idx >= original.Arguments.Count)
+            return original;
+
+        var newArgs = original.Arguments.RemoveAt(idx);
+
+        if (newArgs.Count > 0)
+        {
+            var first = newArgs[0].WithLeadingTrivia(SyntaxTriviaList.Empty);
+            newArgs = newArgs.Replace(newArgs[0], first);
+        }
+
+        return original.WithArguments(newArgs);
     }
 }

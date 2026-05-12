@@ -24,7 +24,8 @@ internal sealed class ReplaceNewCommand : IRtCommand
         Examples:
         [
             "rt refactor replace-new --type \"Option<string>\" --with \"Factory.CreateStringOption\" --solution RoslynTools.slnx --dry-run",
-            "rt refactor rn --type \"Option<string?>\" --with \"CreateFieldOption\" --if-arg 0 --if-arg-literal \"--field\" --solution RoslynTools.slnx"
+            "rt refactor rn --type \"Option<string?>\" --with \"CreateFieldOption\" --if-arg 0 --if-arg-literal \"--field\" --solution RoslynTools.slnx",
+            "rt refactor replace-new --type \"Option<string?>\" --with \"Factory.CreateSolutionOption\" --if-arg 0 --if-arg-literal \"--solution\" --drop-matched-arg --solution RoslynTools.slnx --dry-run"
         ]
     );
 
@@ -38,19 +39,21 @@ internal sealed class ReplaceNewCommand : IRtCommand
         var ifArgIndexOpt = new Option<int?>("--if-arg",
             "Filter: only replace calls where argument at this index matches --if-arg-literal");
         var ifArgLiteralOpt = new Option<string?>("--if-arg-literal", "Filter: match this string literal value");
+        var dropMatchedArgOpt = new Option<bool>("--drop-matched-arg",
+            "Drop the matched --if-arg argument from the replacement call (remaining args are forwarded)");
 
         var cmd = new Command("replace-new", "Replace all constructor invocations of a type with a method call")
         {
-            typeOpt, withOpt, solutionOpt, dryRunOpt, ifArgIndexOpt, ifArgLiteralOpt
+            typeOpt, withOpt, solutionOpt, dryRunOpt, ifArgIndexOpt, ifArgLiteralOpt, dropMatchedArgOpt
         };
         cmd.AddAlias("rn");
 
         cmd.SetHandler(
-            async (type, with_method, solution, dryRun, ifArgIndex, ifArgLiteral) =>
+            async (type, with_method, solution, dryRun, ifArgIndex, ifArgLiteral, dropMatchedArg) =>
             {
-                await ExecuteAsync(type, with_method, solution, dryRun, ifArgIndex, ifArgLiteral);
+                await ExecuteAsync(type, with_method, solution, dryRun, ifArgIndex, ifArgLiteral, dropMatchedArg);
             },
-            typeOpt, withOpt, solutionOpt, dryRunOpt, ifArgIndexOpt, ifArgLiteralOpt);
+            typeOpt, withOpt, solutionOpt, dryRunOpt, ifArgIndexOpt, ifArgLiteralOpt, dropMatchedArgOpt);
 
         return cmd;
     }
@@ -59,13 +62,13 @@ internal sealed class ReplaceNewCommand : IRtCommand
     /// Asynchronously replaces an old call with new parameters.
     /// </summary>
     internal static async Task ExecuteAsync(string type, string with_method, string? solutionPath, bool dryRun,
-        int? ifArgIndex = null, string? ifArgLiteral = null)
+        int? ifArgIndex = null, string? ifArgLiteral = null, bool dropMatchedArg = false)
     {
         var (workspace, solution) = await WorkspaceLoader.LoadAsync(solutionPath);
         using (workspace)
         {
             await RtServiceProvider.Get<ReplaceNewService>()
-                .RunAsync(solution, type, with_method, dryRun, ifArgIndex, ifArgLiteral);
+                .RunAsync(solution, type, with_method, dryRun, ifArgIndex, ifArgLiteral, dropMatchedArg);
         }
     }
 }

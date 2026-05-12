@@ -115,6 +115,95 @@ public sealed class ConstructorReplacement
         }
     }
 
+    [Fact]
+    public async Task drops_matched_arg_and_passes_remaining_arg_to_replacement()
+    {
+        const string source = """
+                              namespace Sample;
+
+                              public class Option
+                              {
+                                  public Option(string name, string help) { }
+                              }
+
+                              public static class Factory
+                              {
+                                  public static Option Create(string help) => null!;
+                              }
+
+                              public class Consumer
+                              {
+                                  public Option Build() => new Option("--field", "help text");
+                              }
+                              """;
+
+        using var project = new AdhocProjectBuilder()
+            .AddSource("Consumer.cs", source);
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var writer = new CapturingSolutionChangeWriter();
+            var service = new ReplaceNewService(NullLogger<ReplaceNewService>.Instance, writer);
+
+            await service.RunAsync(
+                solution,
+                "Option",
+                "Factory.Create",
+                false,
+                ifArgIndex: 0,
+                ifArgLiteral: "--field",
+                dropMatchedArg: true);
+
+            var updatedText = await TestSolutionDocuments.GetTextAsync(writer.NewSolution!, "Consumer.cs");
+            Assert.Contains("Factory.Create(\"help text\")", updatedText);
+            Assert.DoesNotContain("new Option(", updatedText);
+        }
+    }
+
+    [Fact]
+    public async Task does_not_drop_arg_when_flag_is_false()
+    {
+        const string source = """
+                              namespace Sample;
+
+                              public class Option
+                              {
+                                  public Option(string name, string help) { }
+                              }
+
+                              public static class Factory
+                              {
+                                  public static Option Create(string name, string help) => null!;
+                              }
+
+                              public class Consumer
+                              {
+                                  public Option Build() => new Option("--field", "help text");
+                              }
+                              """;
+
+        using var project = new AdhocProjectBuilder()
+            .AddSource("Consumer.cs", source);
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var writer = new CapturingSolutionChangeWriter();
+            var service = new ReplaceNewService(NullLogger<ReplaceNewService>.Instance, writer);
+
+            await service.RunAsync(
+                solution,
+                "Option",
+                "Factory.Create",
+                false,
+                ifArgIndex: 0,
+                ifArgLiteral: "--field",
+                dropMatchedArg: false);
+
+            var updatedText = await TestSolutionDocuments.GetTextAsync(writer.NewSolution!, "Consumer.cs");
+            Assert.Contains("Factory.Create(\"--field\", \"help text\")", updatedText);
+        }
+    }
+
     [Theory]
     [InlineData(-1)]
     [InlineData(1)]
