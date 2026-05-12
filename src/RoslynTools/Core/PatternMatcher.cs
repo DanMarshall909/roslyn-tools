@@ -289,10 +289,6 @@ public static class PatternMatcher
     private static string BuildPreview(List<StatementSyntax> statements)
     {
         var first = statements[0].ToFullString().Trim();
-        // Trim to one line for a concise preview
-        var newlineIdx = first.IndexOfAny(['\r', '\n']);
-        if (newlineIdx >= 0)
-            first = first[..newlineIdx].TrimEnd() + " …";
-        return first.Length > 120 ? first[..120] + " …" : first;
+        return PreviewFormatter.TruncatePreviewLine(first);
     }
 }

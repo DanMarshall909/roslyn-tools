@@ -413,10 +413,7 @@ internal class FindDuplicatesService : IRtService
     private string BuildPreview(IReadOnlyList<StatementSyntax> statements)
     {
         var first = statements[0].NormalizeWhitespace().ToFullString().Trim();
-        var newlineIdx = first.IndexOfAny(['\r', '\n']);
-        if (newlineIdx >= 0)
-            first = first[..newlineIdx].TrimEnd() + " …";
-        return first.Length > 120 ? first[..120] + " …" : first;
+        return PreviewFormatter.TruncatePreviewLine(first);
     }
 
     private string BuildFullBlock(IReadOnlyList<StatementSyntax> statements)
