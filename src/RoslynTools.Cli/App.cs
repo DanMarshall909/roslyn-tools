@@ -8,6 +8,7 @@ using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Core.Decisions;
 using RoslynTools.Core.Output;
+using RoslynTools.Feedback;
 
 namespace RoslynTools;
 
@@ -154,6 +155,13 @@ internal static class App
                             decisionsFile.FullName);
                         context.ExitCode = 2;
                     }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        var cmdLine = string.Join(" ", context.ParseResult.Tokens.Select(t => t.Value));
+                        await FeedbackStore.AppendExceptionAsync(cmdLine, ex);
+                        RtLog.Warning("Exception captured — run `rt feedback list` to view.");
+                        throw;
+                    }
                     finally
                     {
                         DecisionContext.Store = null;
@@ -163,7 +171,17 @@ internal static class App
                 {
                     using (RtServiceProvider.Use(services))
                     {
-                        await next(context);
+                        try
+                        {
+                            await next(context);
+                        }
+                        catch (Exception ex) when (ex is not OperationCanceledException)
+                        {
+                            var cmdLine = string.Join(" ", context.ParseResult.Tokens.Select(t => t.Value));
+                            await FeedbackStore.AppendExceptionAsync(cmdLine, ex);
+                            RtLog.Warning("Exception captured — run `rt feedback list` to view.");
+                            throw;
+                        }
                     }
                 }
             }, MiddlewareOrder.Configuration)
