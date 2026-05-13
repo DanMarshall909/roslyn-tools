@@ -14,6 +14,12 @@
             "title": "SOLID Adherence Analysis",
             "description": "Family of rt analyze solid subcommands that detect likely SOLID-principle violations using Roslyn semantic model. One detector per principle; output is JSON grouped by detector name.",
             "notes": "P2. Five child stories: SRP, ISP, DIP, OCP, LSP. Each independently shippable."
+        },
+        {
+            "id": "EP-007",
+            "title": "Add structured JSON output to all inspect/analyze commands",
+            "description": "All rt inspect and rt analyze commands should support --json output so automation consumers (agents, scripts, CI tools) can pipe results without text parsing. Eight commands currently output plain text only.",
+            "notes": "P2. Affects: find-refs, find-callers, find-undocumented, find-unused, circular-deps, find-magic-strings, list-imports, list-smells. Template: see describe/outline/find-impl which already have JSON output."
         }
     ],
     "userStories": [
@@ -238,6 +244,138 @@
             "priority": 44,
             "passes": false,
             "notes": "P2. SymbolLocator.cs lines ~49, 96, 135, 188 and MethodExtractor.cs lines ~57, 164, 168, 378, 501, 529-532 call .First()/.Last() on sequences that could be empty under certain inputs. Replace with FirstOrDefault + null check or add pre-call validation."
+        },
+        {
+            "id": "US-045",
+            "title": "rt inspect find-refs: structured JSON output",
+            "description": "As an automation consumer, I want rt inspect find-refs to emit a JSON array when --json is passed so I can process symbol references without parsing plain text.",
+            "acceptanceCriteria": [
+                "--json outputs a JSON array to stdout; each element has {file, line, column, kind, snippet}",
+                "Without --json, plain-text output is unchanged (backward compatible)",
+                "No references found produces [] not a blank line or error",
+                "RtCommandInfo.JsonOutput is set to true",
+                "rt dump-help shows JSON output for find-refs",
+                "kind field distinguishes between read/write/nameof/other reference types"
+            ],
+            "priority": 45,
+            "passes": false,
+            "epicId": "EP-007",
+            "notes": "P2. Command: src/RoslynTools.Cli/Commands/FindRefsCommand.cs. Set RtCommandInfo.JsonOutput=true and branch on RtContext.Format==OutputFormat.Json."
+        },
+        {
+            "id": "US-046",
+            "title": "rt inspect find-callers: structured JSON output",
+            "description": "As an automation consumer, I want rt inspect find-callers to emit a JSON array when --json is passed so call-site data can be used programmatically.",
+            "acceptanceCriteria": [
+                "--json outputs a JSON array; each element has {file, line, column, snippet}",
+                "Without --json, plain-text output is unchanged",
+                "No callers found produces [] not a blank line",
+                "RtCommandInfo.JsonOutput is set to true",
+                "rt dump-help shows JSON output for find-callers"
+            ],
+            "priority": 46,
+            "passes": false,
+            "epicId": "EP-007",
+            "notes": "P2. Command: src/RoslynTools.Cli/Commands/FindCallersCommand.cs. Set RtCommandInfo.JsonOutput=true."
+        },
+        {
+            "id": "US-047",
+            "title": "rt inspect find-undocumented: structured JSON output",
+            "description": "As an automation consumer, I want rt inspect find-undocumented to emit a JSON array when --json is passed so missing-doc reports can feed CI or doc generation tooling.",
+            "acceptanceCriteria": [
+                "--json outputs a JSON array; each element has {fqn, kind, file, line}",
+                "kind distinguishes between type, method, property, etc.",
+                "Without --json, plain-text output is unchanged",
+                "No undocumented members produces [] not blank",
+                "RtCommandInfo.JsonOutput is set to true",
+                "rt dump-help shows JSON output for find-undocumented"
+            ],
+            "priority": 47,
+            "passes": false,
+            "epicId": "EP-007",
+            "notes": "P2. Command: src/RoslynTools.Cli/Commands/FindUndocumentedCommand.cs. Set RtCommandInfo.JsonOutput=true."
+        },
+        {
+            "id": "US-048",
+            "title": "rt inspect find-unused: structured JSON output",
+            "description": "As an automation consumer, I want rt inspect find-unused to emit a JSON array when --json is passed so dead-code reports can drive automated safe-delete workflows.",
+            "acceptanceCriteria": [
+                "--json outputs a JSON array; each element has {fqn, kind, file, line}",
+                "Without --json, plain-text output is unchanged",
+                "No unused symbols produces [] not blank",
+                "RtCommandInfo.JsonOutput is set to true",
+                "rt dump-help shows JSON output for find-unused"
+            ],
+            "priority": 48,
+            "passes": false,
+            "epicId": "EP-007",
+            "notes": "P2. Command: src/RoslynTools.Cli/Commands/FindUnusedCommand.cs. Set RtCommandInfo.JsonOutput=true."
+        },
+        {
+            "id": "US-049",
+            "title": "rt analyze circular-deps: structured JSON output",
+            "description": "As an automation consumer, I want rt analyze circular-deps to emit a JSON array of cycle objects when --json is passed so dependency violations can be processed programmatically.",
+            "acceptanceCriteria": [
+                "--json outputs a JSON array of cycle objects; each has {cycle: [namespace, namespace, ...]}",
+                "Without --json, plain-text output is unchanged",
+                "No cycles produces [] not blank or zero-line",
+                "RtCommandInfo.JsonOutput is set to true",
+                "rt dump-help shows JSON output for circular-deps"
+            ],
+            "priority": 49,
+            "passes": false,
+            "epicId": "EP-007",
+            "notes": "P2. Command: src/RoslynTools.Cli/Commands/CircularDepsCommand.cs. Set RtCommandInfo.JsonOutput=true."
+        },
+        {
+            "id": "US-050",
+            "title": "rt analyze find-magic-strings: structured JSON output",
+            "description": "As an automation consumer, I want rt analyze find-magic-strings to emit a JSON array when --json is passed so repeated literals can be fed into automated extract-string-constant workflows.",
+            "acceptanceCriteria": [
+                "--json outputs a JSON array; each element has {value, count, occurrences: [{file, line}]}",
+                "occurrences is sorted by file then line",
+                "Without --json, plain-text output is unchanged",
+                "No magic strings produces [] not blank",
+                "RtCommandInfo.JsonOutput is set to true",
+                "rt dump-help shows JSON output for find-magic-strings"
+            ],
+            "priority": 50,
+            "passes": false,
+            "epicId": "EP-007",
+            "notes": "P2. Command: src/RoslynTools.Cli/Commands/FindMagicStringsCommand.cs. Set RtCommandInfo.JsonOutput=true."
+        },
+        {
+            "id": "US-051",
+            "title": "rt analyze list-imports: structured JSON output",
+            "description": "As an automation consumer, I want rt analyze list-imports to emit a JSON array per-file when --json is passed so import audits can be processed programmatically.",
+            "acceptanceCriteria": [
+                "--json outputs a JSON array; each element has {file, usings: [{namespace, isGlobal, isStatic}]}",
+                "Without --json, plain-text output is unchanged",
+                "File with no usings is omitted or represented as {file, usings: []}",
+                "RtCommandInfo.JsonOutput is set to true",
+                "rt dump-help shows JSON output for list-imports"
+            ],
+            "priority": 51,
+            "passes": false,
+            "epicId": "EP-007",
+            "notes": "P2. Command: src/RoslynTools.Cli/Commands/ListImportsCommand.cs. Set RtCommandInfo.JsonOutput=true."
+        },
+        {
+            "id": "US-052",
+            "title": "rt analyze list-smells: structured JSON output",
+            "description": "As an automation consumer, I want rt analyze list-smells to emit a JSON array when --json is passed so code smell reports can feed automated refactor planning.",
+            "acceptanceCriteria": [
+                "--json outputs a JSON array; each element has {kind, description, fqn, file, line, severity}",
+                "severity is one of: warning, info",
+                "Without --json, plain-text output is unchanged",
+                "No smells produces [] not blank",
+                "RtCommandInfo.JsonOutput is set to true",
+                "rt dump-help shows JSON output for list-smells"
+            ],
+            "priority": 52,
+            "passes": false,
+            "epicId": "EP-007",
+            "notes": "P2. Command: src/RoslynTools.Cli/Commands/ListSmellsCommand.cs. Set RtCommandInfo.JsonOutput=true."
         }
     ]
 }
