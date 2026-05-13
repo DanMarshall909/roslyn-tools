@@ -21,6 +21,37 @@ This repo ships a Claude Code plugin so the assistant knows when and how to invo
 
 The plugin contains a single `use-rt` skill that loads on `/use-rt` or any prompt mentioning rt / Roslyn refactoring. The CLI itself (the `rt` binary above) must be installed separately — the skill describes what to invoke, `rt` does the work.
 
+## Feedback & automatic triage
+
+`rt` captures exceptions automatically and lets you log feature requests manually:
+
+```sh
+# Captured automatically on any unhandled exception — nothing to do
+rt feedback list                      # view pending items
+rt feedback list --status all         # view all (including processed)
+
+# Log a feature request or repro case manually
+rt feedback add --description "replace-new should support multi-arg drop" \
+                --command-line "rt refactor replace-new --type Option<string> ..."
+```
+
+Feedback is stored in `ralph/feedback.json`. Items stay pending until triaged.
+
+### Automatic triage via Claude Code cron
+
+Triage runs as a daily Claude Code cron job — no API key, no npm, no manual trigger. Set it up once per machine by pasting this into a Claude Code session for this repo:
+
+```
+Schedule a durable daily cron at 8:17am to triage rt feedback: read ralph/feedback.json,
+assess each pending item, add genuine bugs and concrete feature requests to
+ralph/backlog-prd.json as user stories (using node C:\code\ai-rules\scripts\prd.cjs add),
+and mark each item processed with a resolution note.
+```
+
+The cron fires once per day while Claude Code is running. It auto-expires after 7 days — re-run the prompt above to renew it.
+
+> **Note:** Cron jobs are session-scoped. They persist across restarts (durable mode) but are tied to the machine where they were created.
+
 ## Build from source
 
 ```sh

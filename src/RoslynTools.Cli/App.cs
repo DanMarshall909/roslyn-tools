@@ -157,9 +157,7 @@ internal static class App
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
-                        var cmdLine = string.Join(" ", context.ParseResult.Tokens.Select(t => t.Value));
-                        await FeedbackStore.AppendExceptionAsync(cmdLine, ex);
-                        RtLog.Warning("Exception captured — run `rt feedback list` to view.");
+                        await CaptureExceptionAsync(context, ex);
                         throw;
                     }
                     finally
@@ -177,9 +175,7 @@ internal static class App
                         }
                         catch (Exception ex) when (ex is not OperationCanceledException)
                         {
-                            var cmdLine = string.Join(" ", context.ParseResult.Tokens.Select(t => t.Value));
-                            await FeedbackStore.AppendExceptionAsync(cmdLine, ex);
-                            RtLog.Warning("Exception captured — run `rt feedback list` to view.");
+                            await CaptureExceptionAsync(context, ex);
                             throw;
                         }
                     }
@@ -245,6 +241,13 @@ internal static class App
             ];
 
         return HelpBuilder.Default.GetLayout();
+    }
+
+    private static async Task CaptureExceptionAsync(InvocationContext context, Exception ex)
+    {
+        var cmdLine = string.Join(" ", context.ParseResult.Tokens.Select(t => t.Value));
+        await FeedbackStore.AppendExceptionAsync(cmdLine, ex);
+        RtLog.Warning("Exception captured — run `rt feedback list` to view.");
     }
 
     private static List<(Func<Command>, RtCommandInfo)> Discover()

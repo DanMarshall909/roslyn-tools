@@ -111,29 +111,6 @@ internal static class FeedbackStore
         }
     }
 
-    internal static void MarkProcessed(string id, string? resolution)
-    {
-        Lock.Wait();
-        try
-        {
-            var all = ReadExisting();
-            var entry = all.FirstOrDefault(e =>
-                string.Equals(e.Id, id, StringComparison.OrdinalIgnoreCase));
-            if (entry is not null)
-            {
-                entry.Status = "processed";
-                entry.ProcessedAt = DateTimeOffset.UtcNow.ToString("O");
-                entry.Resolution = resolution;
-            }
-
-            WriteAll(all);
-        }
-        finally
-        {
-            Lock.Release();
-        }
-    }
-
     private static void AppendCore(FeedbackEntry entry)
     {
         var all = ReadExisting();
