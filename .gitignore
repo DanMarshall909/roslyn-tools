@@ -31,3 +31,7 @@ docs/COMMANDS.md
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+## Scratch/tmp files (never commit these)
+/tmp-*.json
+/acs-*.json
