@@ -51,6 +51,7 @@ internal static class DumpHelpCommand
 
         BuildHeader(sb, registry);
         BuildContents(sb, byCategory);
+        BuildIndex(sb, registry);
 
         foreach (var group in byCategory) BuildGroupSection(sb, group);
 
@@ -93,6 +94,25 @@ internal static class DumpHelpCommand
             sb.AppendLineF($"- **`rt {group.Key}`** — {desc}");
             sb.AppendLineF(
                 $"  - {string.Join(", ", group.OrderBy(e => e.Info.Name).Select(e => $"[`{e.Info.Name}`](#{Anchor(e.Info.Name)}){(e.Info.Aliases is { Length: > 0 } a ? $" ({string.Join("/", a)})" : "")}"))}");
+        }
+
+        sb.AppendLine();
+    }
+
+    internal static void BuildIndex(StringBuilder sb, IReadOnlyList<(Command Cmd, RtCommandInfo Info)> registry)
+    {
+        sb.AppendLine("## Index");
+        sb.AppendLine();
+        sb.AppendLine("| Command | Group | Aliases | Description |");
+        sb.AppendLine("|---------|-------|---------|-------------|");
+
+        foreach (var (c, info) in registry.OrderBy(e => e.Info.Name))
+        {
+            var aliases = info.Aliases is { Length: > 0 }
+                ? string.Join(", ", info.Aliases.Select(a => $"`{a}`"))
+                : "—";
+            sb.AppendLineF(
+                $"| [`{info.Name}`](#{Anchor(info.Name)}) | `{info.Category}` | {aliases} | {c.Description} |");
         }
 
         sb.AppendLine();
