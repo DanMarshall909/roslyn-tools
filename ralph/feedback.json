@@ -1,0 +1,24 @@
+{
+  "feedbackItems": [
+    {
+      "id": "FB-001",
+      "type": "exception",
+      "timestamp": "2026-05-13T04:25:38.8605878\u002B00:00",
+      "commandLine": "inspect find-refs --symbol RoslynTools.Feedback.FeedbackStore.MarkProcessed --solution RoslynTools.slnx",
+      "description": "No symbol named \u0027RoslynTools.Feedback.FeedbackStore.MarkProcessed\u0027 found in solution.",
+      "actualResult": "InvalidOperationException: No symbol named \u0027RoslynTools.Feedback.FeedbackStore.MarkProcessed\u0027 found in solution.",
+      "stackTrace": "System.InvalidOperationException: No symbol named \u0027RoslynTools.Feedback.FeedbackStore.MarkProcessed\u0027 found in solution.\r\n   at RoslynTools.Core.SymbolLocator.FindSymbolAsync(Solution solution, String symbolName, String kind) in C:\\code\\roslyn-tools\\src\\RoslynTools\\Core\\SymbolLocator.cs:line 53\r\n   at RoslynTools.Services.FindRefsService.FindAsync(Solution sln, String symbol, String kind) in C:\\code\\roslyn-tools\\src\\RoslynTools\\Services\\FindRefsService.cs:line 41\r\n   at RoslynTools.Commands.FindRefsCommand.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuild\u003Eb__0\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\FindRefsCommand.cs:line 54\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass5_0.\u003C\u003CRunAsync\u003Eb__4\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 176",
+      "status": "pending"
+    },
+    {
+      "id": "FB-002",
+      "type": "exception",
+      "timestamp": "2026-05-13T06:25:10.1267301\u002B00:00",
+      "commandLine": "inspect describe Nonexistent.Type.That.Does.Not.Exist --solution RoslynTools.slnx",
+      "description": "No symbol with FQN \u0027Nonexistent.Type.That.Does.Not.Exist\u0027 found in solution.",
+      "actualResult": "InvalidOperationException: No symbol with FQN \u0027Nonexistent.Type.That.Does.Not.Exist\u0027 found in solution.",
+      "stackTrace": "System.InvalidOperationException: No symbol with FQN \u0027Nonexistent.Type.That.Does.Not.Exist\u0027 found in solution.\r\n   at RoslynTools.Core.SymbolLocator.FindSymbolByFqnAsync(Solution solution, String fullyQualifiedName, String kind) in C:\\code\\roslyn-tools\\src\\RoslynTools\\Core\\SymbolLocator.cs:line 100\r\n   at RoslynTools.Commands.DescribeCommand.\u003C\u003Ec.\u003C\u003CBuild\u003Eb__4_0\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\DescribeCommand.cs:line 49\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass5_0.\u003C\u003CRunAsync\u003Eb__4\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 174",
+      "status": "pending"
+    }
+  ]
+}

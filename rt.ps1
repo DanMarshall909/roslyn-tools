@@ -11,7 +11,8 @@ function Test-RebuildNeeded {
     if (-not (Test-Path $exe)) { return $true }
     $t = (Get-Item $exe).LastWriteTime
     if (Get-ChildItem "$PSScriptRoot\src" -Recurse -Include '*.cs','*.csproj' -ErrorAction SilentlyContinue |
-        Where-Object { $_.LastWriteTime -gt $t } | Select-Object -First 1) { return $true }
+        Where-Object { $_.FullName -notmatch '[\\/](obj|bin)[\\/]' -and $_.LastWriteTime -gt $t } |
+        Select-Object -First 1) { return $true }
     if (Get-ChildItem $PSScriptRoot -Filter '*.slnx' -ErrorAction SilentlyContinue |
         Where-Object { $_.LastWriteTime -gt $t } | Select-Object -First 1) { return $true }
     foreach ($f in 'Directory.Build.props','Directory.Packages.props') {
@@ -25,6 +26,9 @@ if (Test-RebuildNeeded) {
     [Console]::Error.WriteLine('rt: rebuilding...')
     & cmd /c "dotnet build `"$proj`" -c Release --nologo -v quiet 1>&2"
     if ($LASTEXITCODE -ne 0) { [Console]::Error.WriteLine('rt: build failed'); exit 1 }
+    if (Get-Command dotnet-suggest -ErrorAction SilentlyContinue) {
+        dotnet-suggest register --command-path $exe 2>$null
+    }
 }
 
 if ($Raw) {
