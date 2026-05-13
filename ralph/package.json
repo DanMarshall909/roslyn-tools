@@ -1,0 +1,9 @@
+{
+  "name": "ralph-scripts",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI agent scripts for roslyn-tools backlog management",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.40.0"
+  }
+}

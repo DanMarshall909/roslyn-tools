@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using RoslynTools;
 using RoslynTools.Core;
 using RoslynTools.Daemon;
+using RoslynTools.Feedback;
 
 /// <summary>
 /// Main entry point for the Roslyn Daemon application.
@@ -45,7 +46,7 @@ internal static class Program
                 return exitCode.Value;
         }
 
-        return await App.RunAsync(args, host.Services, [DaemonCommand.Build()]);
+        return await App.RunAsync(args, host.Services, [DaemonCommand.Build(), FeedbackCommand.Build()]);
     }
 
     private static bool IsDaemonCommand(string[] args)
