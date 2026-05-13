@@ -249,6 +249,22 @@
             "notes": "P3. Duplication: src/RoslynTools/Core/PatternMatcher.cs:293 and src/RoslynTools/Services/FindDuplicatesService.cs:416. find-duplicates GRP-3-74806dae.",
             "resolution": "Created PreviewFormatter.TruncatePreviewLine in Core (9 TDD tests). Wired both BuildPreview wrappers to use the shared truncation helper while preserving each method's distinct text-extraction semantics (raw ToFullString in PatternMatcher, NormalizeWhitespace in FindDuplicatesService). 919 tests green.",
             "resolvedAt": "2026-05-12"
+        },
+        {
+            "id": "US-031",
+            "title": "rt: replace-new argument-reshaping — drop matched arg, keep remaining args",
+            "description": "As a developer dogfooding rt, I want replace-new to support argument reshaping so that I can replace new Option<string?>(\"--solution\", helpText) with Factory.CreateSolutionOption(helpText) in one command.",
+            "acceptanceCriteria": [
+                "rt refactor replace-new --with accepts a template syntax (e.g. --with \"Factory.X({arg1})\") that maps constructor argument positions to factory call arguments",
+                "When --if-arg 0 --if-arg-literal \"--solution\" is used, the matched first arg is dropped and remaining args are passed to the replacement method",
+                "Dry-run output shows the reshaped call correctly",
+                "The feature handles the common single-remaining-arg case: new Foo(\"lit\", help) -> Factory.Method(help)"
+            ],
+            "priority": 31,
+            "passes": true,
+            "notes": "P2. Discovered during US-026 EP-005 planning. rt gap prevents dogfooding replace-new for option factory standardisation pattern. Manual edit fallback was used for US-026.",
+            "resolution": "Added --drop-matched-arg flag to replace-new. When used with --if-arg/--if-arg-literal, drops the matched arg from the replacement call. Arg removal uses SeparatedSyntaxList.RemoveAt with leading trivia normalisation on the new first arg. 2 new tests, full suite 921 passed.",
+            "resolvedAt": "2026-05-12"
         }
     ]
 }

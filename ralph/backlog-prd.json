@@ -34,20 +34,6 @@
             "resolvedAt": "2026-05-11"
         },
         {
-            "id": "US-031",
-            "title": "rt: replace-new argument-reshaping — drop matched arg, keep remaining args",
-            "description": "As a developer dogfooding rt, I want replace-new to support argument reshaping so that I can replace new Option<string?>(\"--solution\", helpText) with Factory.CreateSolutionOption(helpText) in one command.",
-            "acceptanceCriteria": [
-                "rt refactor replace-new --with accepts a template syntax (e.g. --with \"Factory.X({arg1})\") that maps constructor argument positions to factory call arguments",
-                "When --if-arg 0 --if-arg-literal \"--solution\" is used, the matched first arg is dropped and remaining args are passed to the replacement method",
-                "Dry-run output shows the reshaped call correctly",
-                "The feature handles the common single-remaining-arg case: new Foo(\"lit\", help) -> Factory.Method(help)"
-            ],
-            "priority": 31,
-            "passes": false,
-            "notes": "P2. Discovered during US-026 EP-005 planning. rt gap prevents dogfooding replace-new for option factory standardisation pattern. Manual edit fallback was used for US-026."
-        },
-        {
             "id": "US-032",
             "title": "rt analyze solid: SRP detector — flag classes with high method/dependency count",
             "description": "As a developer, I want rt analyze solid --principle SRP to flag classes likely violating SRP so that I can identify candidates for decomposition.",

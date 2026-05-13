@@ -1,7 +1,7 @@
 roslyn-tools
 Branch: feat/analyze-complexity
 
-Current Status: 8/8 stories complete (100%)
+Current Status: 9/9 stories complete (100%)
 
 Stories
 [x] US-001 Add rt analyze complexity command
@@ -12,3 +12,4 @@ Stories
 [x] US-028 extract shared IsGeneratedOrIntermediate helper from ImportDirectiveService and MagicStringService
 [x] US-029 extract shared BuildInterfaceText from ExtractInterfaceService and InterfaceAnalyzerService
 [x] US-030 extract shared BuildPreview helper from PatternMatcher and FindDuplicatesService
+[x] US-031 rt: replace-new argument-reshaping — drop matched arg, keep remaining args
