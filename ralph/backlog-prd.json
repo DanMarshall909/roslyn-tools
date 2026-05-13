@@ -197,6 +197,47 @@
             "priority": 41,
             "passes": false,
             "notes": "P1. WorkspaceLoader.cs:84 throws FileNotFoundException; it propagates unhandled through the System.CommandLine pipeline. Catch at the top-level UseExceptionHandler in App.cs (or at the throw site) and emit a single stderr line. No stack trace in normal output."
+        },
+        {
+            "id": "US-042",
+            "title": "Catch common exception types in UseExceptionHandler and emit clean exit-1 messages",
+            "description": "As a developer using rt, I want routine exceptions (bad file, bad JSON, not-found) to produce a single clean error line to stderr, not an unhandled exception stack trace.",
+            "acceptanceCriteria": [
+                "UseExceptionHandler in App.cs catches FileNotFoundException, IOException, InvalidOperationException, JsonException, and YamlException and emits a single 'Error: <message>' line to stderr with exit code 1",
+                "No stack trace or 'Unhandled exception:' prefix appears for these exception types",
+                "Exceptions from DecisionStore.Load/Save (FileNotFoundException, YamlException, IOException) are handled the same way",
+                "Exceptions from AddXmlDocCommand JSON file loading are handled the same way",
+                "Unexpected exceptions (not in the list above) still surface as unhandled so they are visible during development"
+            ],
+            "priority": 42,
+            "passes": false,
+            "notes": "P1. App.cs UseExceptionHandler currently does not catch typed exceptions. Catch: FileNotFoundException, IOException, InvalidOperationException, JsonException, YamlException. Format as 'Error: <ex.Message>' to stderr, exit 1. Covers: WorkspaceLoader throws beyond the missing-solution case (US-041), DecisionStore.Load/Save, AddXmlDocCommand JSON load, MigrateToIOptionsService."
+        },
+        {
+            "id": "US-043",
+            "title": "Replace Environment.Exit(1) in OutlineCommand with context.ExitCode = 1",
+            "description": "As a developer, I want OutlineCommand to exit consistently with all other commands so that graceful cleanup runs on error.",
+            "acceptanceCriteria": [
+                "OutlineCommand no longer calls Environment.Exit(1) for any error condition",
+                "Error cases in OutlineCommand set context.ExitCode = 1 and return, consistent with all other commands",
+                "Process exit allows graceful cleanup (log flushing, disposables) to run"
+            ],
+            "priority": 43,
+            "passes": false,
+            "notes": "P2. OutlineCommand.cs line ~90 calls Environment.Exit(1). Replace with context.ExitCode = 1; return; — same pattern as every other command in the codebase."
+        },
+        {
+            "id": "US-044",
+            "title": "Guard .First()/.Last() calls in SymbolLocator and MethodExtractor against empty sequences",
+            "description": "As a developer using rt, I want empty-sequence edge cases to produce a clear error rather than an InvalidOperationException crash.",
+            "acceptanceCriteria": [
+                "No .First() or .Last() call in SymbolLocator or MethodExtractor throws InvalidOperationException when the sequence is empty",
+                "Each call site uses FirstOrDefault with a null check, or validates the collection is non-empty before calling First/Last",
+                "When an expected symbol or statement is not found, the command emits a descriptive error to stderr and exits 1 rather than crashing"
+            ],
+            "priority": 44,
+            "passes": false,
+            "notes": "P2. SymbolLocator.cs lines ~49, 96, 135, 188 and MethodExtractor.cs lines ~57, 164, 168, 378, 501, 529-532 call .First()/.Last() on sequences that could be empty under certain inputs. Replace with FirstOrDefault + null check or add pre-call validation."
         }
     ]
 }
