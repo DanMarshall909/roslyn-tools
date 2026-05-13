@@ -1,4 +1,5 @@
 param(
+    [switch] $Raw,
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]] $Args
 )
@@ -26,5 +27,22 @@ if (Test-RebuildNeeded) {
     if ($LASTEXITCODE -ne 0) { [Console]::Error.WriteLine('rt: build failed'); exit 1 }
 }
 
-& $exe @Args
-exit $LASTEXITCODE
+if ($Raw) {
+    & $exe @Args
+    # LASTEXITCODE from native exe call propagates to caller naturally
+    return
+}
+
+$lines = & $exe @Args
+$exitCode = $LASTEXITCODE
+
+$text = if ($lines) { ($lines -join "`n").TrimStart() } else { '' }
+if ($text.StartsWith('[') -or $text.StartsWith('{')) {
+    try { $text | ConvertFrom-Json }
+    catch { $lines }
+} else {
+    $lines
+}
+
+# No exit — PowerShell cmdlets don't reset $LASTEXITCODE, so the caller
+# sees the exe's exit code without the pipeline being torn down early.
