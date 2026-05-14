@@ -1,7 +1,7 @@
 roslyn-tools
 Branch: backlog
 
-Current Status: 1/14 stories complete (7%)
+Current Status: 1/22 stories complete (5%)
 
 EP-005 — codebase consistency sweep (1/1)
 [x] US-025 fix formatting violations: CRLF and encoding errors in 4 files
@@ -12,6 +12,16 @@ EP-006 — SOLID Adherence Analysis (0/5)
 [ ] US-034 rt analyze solid: DIP detector — flag concrete constructor params and inline new calls
 [ ] US-035 rt analyze solid: OCP detector — flag switch/if chains branching on concrete types
 [ ] US-036 rt analyze solid: LSP detector — flag overrides throwing or narrowing contracts
+
+EP-007 — Add structured JSON output to all inspect/analyze commands (0/8)
+[ ] US-045 rt inspect find-refs: structured JSON output
+[ ] US-046 rt inspect find-callers: structured JSON output
+[ ] US-047 rt inspect find-undocumented: structured JSON output
+[ ] US-048 rt inspect find-unused: structured JSON output
+[ ] US-049 rt analyze circular-deps: structured JSON output
+[ ] US-050 rt analyze find-magic-strings: structured JSON output
+[ ] US-051 rt analyze list-imports: structured JSON output
+[ ] US-052 rt analyze list-smells: structured JSON output
 
 Loose stories
 [ ] US-037 rt: convert-static-class — interface generation
