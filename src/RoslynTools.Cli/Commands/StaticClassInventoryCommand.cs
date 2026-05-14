@@ -9,7 +9,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// A command for retrieving static class inventory information.
 /// </summary>
-internal sealed class StaticClassInventoryCommand : IRtCommand
+internal sealed class StaticClassInventoryCommand : IRtCommand, IStructuredOutputCommand
 {
     private StaticClassInventoryCommand()
     {

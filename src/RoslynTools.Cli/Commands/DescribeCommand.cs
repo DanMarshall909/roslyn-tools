@@ -8,7 +8,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Provides a description of a command or its usage.
 /// </summary>
-internal sealed class DescribeCommand : IRtCommand
+internal sealed class DescribeCommand : IRtCommand, IStructuredOutputCommand
 {
     private DescribeCommand()
     {

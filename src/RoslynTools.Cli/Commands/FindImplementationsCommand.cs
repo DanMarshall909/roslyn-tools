@@ -9,7 +9,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Finds all implementations of a given symbol in the current file
 /// </summary>
-internal sealed class FindImplementationsCommand : IRtCommand
+internal sealed class FindImplementationsCommand : IRtCommand, IStructuredOutputCommand
 {
     private FindImplementationsCommand()
     {

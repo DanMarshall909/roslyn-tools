@@ -8,7 +8,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Provides an outline of the solution's structure and elements.
 /// </summary>
-internal sealed class OutlineCommand : IRtCommand
+internal sealed class OutlineCommand : IRtCommand, IStructuredOutputCommand
 {
     private OutlineCommand()
     {

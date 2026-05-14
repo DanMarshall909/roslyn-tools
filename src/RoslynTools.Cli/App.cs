@@ -55,6 +55,33 @@ internal static class App
                 "These classes in RoslynTools.Commands end with 'Command' but do not implement IRtCommand: "
                 + string.Join(", ", missing)
                 + ". Add `: IRtCommand` and supply static `Info` + `Build()`.");
+
+        // Bidirectional consistency: JsonOutput in RtCommandInfo ↔ IStructuredOutputCommand.
+        // For inspect/analyze commands, both must be set together. This prevents shipping a
+        // command that claims JSON output but forgets the interface, or vice versa.
+        const BindingFlags staticPublic = BindingFlags.Static | BindingFlags.Public;
+        var inconsistentOutput = typeof(App).Assembly.GetTypes()
+            .Where(t => t.Namespace == "RoslynTools.Commands"
+                        && !t.IsInterface
+                        && t.Name.EndsWith("Command", StringComparison.Ordinal)
+                        && t.Name != nameof(DumpHelpCommand)
+                        && typeof(IRtCommand).IsAssignableFrom(t))
+            .Select(t =>
+            {
+                var info = t.GetProperty("Info", staticPublic)?.GetValue(null) as RtCommandInfo;
+                return (t.Name, info?.Category,
+                    IsStructured: typeof(IStructuredOutputCommand).IsAssignableFrom(t),
+                    ClaimsJson: info?.JsonOutput == true);
+            })
+            .Where(x => x.Category is "inspect" or "analyze" && x.IsStructured != x.ClaimsJson)
+            .Select(x => $"{x.Name} (JsonOutput={x.ClaimsJson}, IStructuredOutputCommand={x.IsStructured})")
+            .ToList();
+
+        if (inconsistentOutput.Count > 0)
+            throw new InvalidOperationException(
+                "These inspect/analyze commands have inconsistent structured-output state "
+                + "(RtCommandInfo.JsonOutput and IStructuredOutputCommand must be set together): "
+                + string.Join(", ", inconsistentOutput));
     }
 
     /// <summary>

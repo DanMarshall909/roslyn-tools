@@ -8,7 +8,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// A command for source-related operations.
 /// </summary>
-internal sealed class SourceCommand : IRtCommand
+internal sealed class SourceCommand : IRtCommand, IStructuredOutputCommand
 {
     private SourceCommand()
     {

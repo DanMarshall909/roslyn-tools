@@ -9,7 +9,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Identifies duplicate symbols in the current file
 /// </summary>
-internal sealed class FindDuplicatesCommand : IRtCommand
+internal sealed class FindDuplicatesCommand : IRtCommand, IStructuredOutputCommand
 {
     private FindDuplicatesCommand()
     {
