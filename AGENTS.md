@@ -1,6 +1,12 @@
 # AGENTS.md
 Guidance for agentic coding tools working in `C:\code\roslyn-tools`.
 
+## Project skills
+
+@C:\code\roslyn-tools\.agents\skills\session-log\SKILL.md
+
+---
+
 ## Project Overview
 - Stack: C# on .NET 8 (`net8.0`).
 - Solution: `RoslynTools.slnx`.
