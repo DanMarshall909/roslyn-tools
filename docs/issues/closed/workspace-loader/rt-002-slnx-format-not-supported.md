@@ -3,11 +3,13 @@ tags:
   - bug
 ticket: rt-002
 severity: High
-status: Open
+status: Closed
 area: workspace-loader
 owner: ""
 reported: 2026-04-21
+closed: 2026-05-15
 summary: "WorkspaceLoader rejects .slnx files, blocking rt from analysing its own solution"
+resolution: "ValidateSolutionFormat throw removed; .slnx discovery and loading fully supported. rt inspect outline --solution RoslynTools.slnx exits 0."
 ---
 
 # WorkspaceLoader rejects .slnx format

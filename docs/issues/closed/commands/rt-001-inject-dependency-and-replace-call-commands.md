@@ -3,11 +3,13 @@ tags:
   - task
 ticket: rt-001
 severity: Medium
-status: Open
+status: Closed
 area: commands
 owner: ""
 reported: 2026-04-17
+closed: 2026-05-15
 summary: "Add inject-dependency and replace-call commands to handle bulk refactors that rt currently can't do"
+resolution: "Shipped as rt refactor add-dependency (inject-dependency), rt refactor replace-call (replace-call), and rt refactor convert-console-logging (original Console→logger motivation)."
 ---
 
 # Add `inject-dependency` and `replace-call` Roslyn commands

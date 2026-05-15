@@ -3,11 +3,13 @@ tags:
   - task
 ticket: rt-004
 severity: Medium
-status: Open
+status: Closed
 area: commands
 owner: ""
 reported: 2026-04-21
+closed: 2026-05-15
 summary: "Add rt introduce-record command to extract a record type from method parameter lists"
+resolution: "Shipped as rt refactor transform-parameters (tp) — extracts method parameters into a new record and updates all call sites."
 ---
 
 # Add `rt introduce-record` command

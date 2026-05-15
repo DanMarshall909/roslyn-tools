@@ -3,11 +3,13 @@ tags:
   - bug
 ticket: rt-005
 severity: Medium
-status: Open
+status: Closed
 area: architecture
 owner: ""
 reported: 2026-04-21
+closed: 2026-05-15
 summary: "rt extract-adapter must detect static types and refuse or offer a wrapper — static classes cannot implement interfaces"
+resolution: "Moot — rt extract-adapter was never built. If rt-003 (extract-orchestrator) ships, fold the static-type precondition into its ACs at that time."
 ---
 
 # `rt extract-adapter` fails silently on static types
