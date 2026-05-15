@@ -20,6 +20,12 @@
             "title": "Add structured JSON output to all inspect/analyze commands",
             "description": "All rt inspect and rt analyze commands should support --json output so automation consumers (agents, scripts, CI tools) can pipe results without text parsing. Eight commands currently output plain text only.",
             "notes": "P2. Affects: find-refs, find-callers, find-undocumented, find-unused, circular-deps, find-magic-strings, list-imports, list-smells. Template: see describe/outline/find-impl which already have JSON output."
+        },
+        {
+            "id": "EP-008",
+            "title": "Platform abstractions: IWorkspaceSessionFactory + ISolutionApplier",
+            "description": "Introduce injectable abstractions for WorkspaceLoader and SolutionWriter so commands depend on interfaces, not static helpers. Enables testability without AsyncLocal overrides and unblocks daemon workspace caching. Must be a single coordinated change across all ~30 commands.",
+            "notes": "P2. Architecture gate NoStaticWorkspaceLoaderUse already exists in tests/. rt-006 + rt-007 from issues backlog. Must ship together — splitting doubles the 30-command churn."
         }
     ],
     "userStories": [
@@ -376,6 +382,77 @@
             "passes": false,
             "epicId": "EP-007",
             "notes": "P2. Command: src/RoslynTools.Cli/Commands/ListSmellsCommand.cs. Set RtCommandInfo.JsonOutput=true."
+        },
+        {
+            "id": "US-053",
+            "epicId": "EP-008",
+            "title": "Introduce IWorkspaceSessionFactory + WorkspaceSession (rt-006)",
+            "description": "As a developer, I want all commands to depend on IWorkspaceSessionFactory instead of calling WorkspaceLoader.LoadAsync directly so that the static coupling is broken and daemon workspace caching becomes possible.",
+            "acceptanceCriteria": [
+                "IWorkspaceSessionFactory interface defined in Core/ with LoadAsync(string? solutionPath) signature",
+                "WorkspaceSession : IWorkspaceSessionFactory introduced — instance wrapper delegating to static WorkspaceLoader internals",
+                "All ~30 production command handlers accept IWorkspaceSessionFactory, not WorkspaceLoader directly",
+                "No command file imports WorkspaceLoader after the change",
+                "rt inspect find-refs --symbol WorkspaceLoader --solution RoslynTools.slnx shows 0 production call sites",
+                "Architecture gate NoStaticWorkspaceLoaderUse (tests/RoslynTools.Tests/Architecture/) passes",
+                "All existing tests pass — WorkspaceLoader.UseOverride pattern updated to stub IWorkspaceSessionFactory",
+                "Must ship in same PR as US-054 (ISolutionApplier) — partial rollout is not safe"
+            ],
+            "priority": 53,
+            "passes": false,
+            "notes": "P2. Blast radius: 30 production call sites + 100+ test references (WorkspaceLoader.UseOverride). Architecture gate already exists. WorkspaceLoader is static so cannot implement the interface — WorkspaceSession wrapper is the bridge. From issue rt-006."
+        },
+        {
+            "id": "US-054",
+            "epicId": "EP-008",
+            "title": "Introduce ISolutionApplier and update mutation commands (rt-007)",
+            "description": "As a developer, I want all mutation commands to depend on ISolutionApplier instead of calling SolutionWriter.ApplyChangesAsync directly, bundled with US-053 so the 30-command update happens once.",
+            "acceptanceCriteria": [
+                "ISolutionApplier interface defined: Task ApplyAsync(Solution original, Solution updated, bool dryRun)",
+                "SolutionWriter implements ISolutionApplier",
+                "All mutation commands accept ISolutionApplier, not SolutionWriter directly",
+                "rt inspect find-refs --symbol SolutionWriter --solution RoslynTools.slnx shows 0 production call sites after change",
+                "All existing tests pass",
+                "Implemented in the same PR as US-053"
+            ],
+            "priority": 54,
+            "passes": false,
+            "notes": "P2. 22 fan-in from Commands scope. Must ship with US-053 — splitting doubles the churn across all 30 commands. From issue rt-007."
+        },
+        {
+            "id": "US-055",
+            "title": "Add rt refactor extract-orchestrator command (rt-003)",
+            "description": "As a developer, I want rt refactor extract-orchestrator to pull a command's SetHandler lambda body into a dedicated <Feature>Handler class so commands become thin CLI adapters with no workspace or business logic.",
+            "acceptanceCriteria": [
+                "rt refactor extract-orchestrator --type RoslynTools.Commands.ChangeSignatureCommand --name RenameParameterHandler --request RenameParameterRequest --namespace RoslynTools.Features.ChangeSignature --solution RoslynTools.slnx --dry-run produces the diff from ralph/sessions/2026-04-21-change-signature-2.md step 5",
+                "ChangeSignatureCommand.Build() drops from 76 to ~42 lines after apply",
+                "Command file no longer imports WorkspaceLoader or SolutionWriter after apply",
+                "Created handler class has signature: static async Task<int> HandleAsync(<RequestType> request)",
+                "Lambda body replaced with: context.ExitCode = await <HandlerName>.HandleAsync(new <RequestType>(...))",
+                "Using directives in the command file updated to reference the new handler namespace",
+                "--dry-run shows diff without writing; without flag, writes files",
+                "IRtCommand contract satisfied; command registered under rt refactor group",
+                "Test suite passes after apply (no broken imports)"
+            ],
+            "priority": 55,
+            "passes": false,
+            "notes": "P2. Reference diff: ralph/sessions/2026-04-21-change-signature-2.md step 5. Linked to rt-004 (introduce-record) now shipped as transform-parameters. From issue rt-003."
+        },
+        {
+            "id": "US-056",
+            "title": "rt refactor rename: accept symbol FQN from stdin JSON for pipe chains (rt-008)",
+            "description": "As a developer, I want rt refactor rename to read a fullyQualifiedName from piped stdin JSON so that rt inspect find-refs | rt rename pipe chains work end-to-end.",
+            "acceptanceCriteria": [
+                "When stdin is redirected (Console.IsInputRedirected is true), rename reads the first JSON line and extracts fullyQualifiedName",
+                "Positional <symbol> argument takes precedence over stdin FQN if both are provided",
+                "Falls back gracefully to positional arg if stdin produces no FQN",
+                "rt inspect find-refs --symbol WorkspaceLoader --json | rt refactor rename --new-name SolutionLoader --dry-run produces the correct diff",
+                "No behaviour change when stdin is a TTY (non-pipe invocation)",
+                "Works with --dry-run and --solution flags as normal"
+            ],
+            "priority": 56,
+            "passes": false,
+            "notes": "P2. First of the pipe-protocol tasks. Discovered in ralph/sessions/2026-05-04-daemon-protocol.md Step 4. Command: src/RoslynTools.Cli/Commands/RenameCommand.cs. From issue rt-008."
         }
     ]
 }
