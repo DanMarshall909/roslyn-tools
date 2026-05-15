@@ -64,6 +64,20 @@ dotnet run --project src/RoslynTools.Cli/RoslynTools.Cli.csproj -- <command> [op
 dotnet publish src/RoslynTools.Cli/RoslynTools.Cli.csproj -c Release -r win-x64 --self-contained false
 ```
 
+## Local workflow
+
+Use the local gate before handing off changes:
+
+```sh
+# Windows / PowerShell Core
+pwsh -NoProfile -File scripts/check-local.ps1
+
+# macOS / Linux
+./scripts/check-local.sh
+```
+
+For a quick clone sanity check, run `scripts/doctor.ps1` with PowerShell Core or `./scripts/doctor.sh` from bash.
+
 ## Commands
 
 Commands fall into three groups:
