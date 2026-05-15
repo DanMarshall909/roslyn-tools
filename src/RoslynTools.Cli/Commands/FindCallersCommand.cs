@@ -1,8 +1,10 @@
 using System.CommandLine;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
+using RoslynTools.Services.Results;
 
 namespace RoslynTools.Commands;
 
@@ -44,15 +46,18 @@ internal sealed class FindCallersCommand : IRtCommand
         cmd.Add(solutionOpt);
         cmd.Add(includeTestsOpt);
 
-        cmd.SetHandler(async (symbol, solution, includeTests) =>
+        cmd.SetHandler(async ctx =>
         {
-            var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
-            using (workspace)
-            {
-                var result = await RtServiceProvider.Get<FindCallersService>().FindAsync(sln, symbol, includeTests);
-                RtSerializer.Write(result);
-            }
-        }, symbolOpt, solutionOpt, includeTestsOpt);
+            var symbol = ctx.ParseResult.GetValueForOption(symbolOpt)!;
+            var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
+            var includeTests = ctx.ParseResult.GetValueForOption(includeTestsOpt);
+            var sp = ctx.BindingContext.GetService<IServiceProvider>();
+            var loader = sp?.GetService<WorkspaceLoader>() ?? new WorkspaceLoader();
+
+            var sln = await loader.GetSolutionAsync(solution);
+            var result = await RtServiceProvider.Get<FindCallersService>().FindAsync(sln, symbol, includeTests);
+            RtResultRenderer.WriteOutput(RtResult<FindCallersResult>.Ok(result));
+        });
 
         return cmd;
     }

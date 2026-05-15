@@ -83,6 +83,14 @@ internal class FindRefsService : IRtService
             }
         }
 
-        return await _symbols.FindSymbolAsync(sln, symbol, kind);
+        var simpleName = GetSimpleName(symbol);
+        return await _symbols.FindSymbolAsync(sln, simpleName, kind);
+    }
+
+    private static string GetSimpleName(string symbol)
+    {
+        var noSignature = symbol.Split('(')[0];
+        var lastDot = noSignature.LastIndexOf('.');
+        return lastDot >= 0 ? noSignature[(lastDot + 1)..] : noSignature;
     }
 }

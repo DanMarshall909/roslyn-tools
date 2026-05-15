@@ -1,4 +1,5 @@
 using System.CommandLine;
+using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
@@ -46,8 +47,15 @@ internal sealed class ListSmellsCommand : IRtCommand
         cmd.AddAlias("smells");
         cmd.AddAll(solutionOpt, maxClassOpt, maxMethodOpt, maxParamsOpt, scopeOpt, topOpt);
 
-        cmd.SetHandler(async (solution, maxClass, maxMethod, maxParams, scope, top) =>
+        cmd.SetHandler(async ctx =>
         {
+            var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
+            var maxClass = ctx.ParseResult.GetValueForOption(maxClassOpt);
+            var maxMethod = ctx.ParseResult.GetValueForOption(maxMethodOpt);
+            var maxParams = ctx.ParseResult.GetValueForOption(maxParamsOpt);
+            var scope = ctx.ParseResult.GetValueForOption(scopeOpt);
+            var top = ctx.ParseResult.GetValueForOption(topOpt);
+
             if (top < 0)
             {
                 RtLog.Error("--top must be >= 0.");
@@ -55,35 +63,35 @@ internal sealed class ListSmellsCommand : IRtCommand
                 return;
             }
 
-            var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
-            using (workspace)
+            var sp = ctx.BindingContext.GetService<IServiceProvider>();
+            var loader = sp?.GetService<WorkspaceLoader>() ?? new WorkspaceLoader();
+            var sln = await loader.GetSolutionAsync(solution);
+
+            RtLog.Info("Analyzing solution for code smells...");
+
+            var smells = await SmellAnalyzer.AnalyzeAsync(sln, maxClass, maxMethod, maxParams, scope);
+
+            var resultSmells = top > 0
+                ? smells.Take(top).ToList()
+                : smells;
+
+            var result = new ListSmellsResult
             {
-                RtLog.Info("Analyzing solution for code smells...");
-
-                var smells = await SmellAnalyzer.AnalyzeAsync(sln, maxClass, maxMethod, maxParams, scope);
-
-                var resultSmells = top > 0
-                    ? smells.Take(top).ToList()
-                    : smells;
-
-                var result = new ListSmellsResult
+                Smells = resultSmells.Select(s => new SmellItemResult
                 {
-                    Smells = resultSmells.Select(s => new SmellItemResult
-                    {
-                        SmellType = s.SmellType,
-                        TypeName = s.TypeName,
-                        MemberName = s.MemberName,
-                        FilePath = s.FilePath ?? string.Empty,
-                        Line = s.Line,
-                        Detail = s.Detail
-                    }).ToList()
-                };
+                    SmellType = s.SmellType,
+                    TypeName = s.TypeName,
+                    MemberName = s.MemberName,
+                    FilePath = s.FilePath ?? string.Empty,
+                    Line = s.Line,
+                    Detail = s.Detail
+                }).ToList()
+            };
 
-                RtSerializer.Write(result);
+            RtResultRenderer.WriteOutput(RtResult<ListSmellsResult>.Ok(result));
 
-                RtLog.Info("Found {Count} smell(s).", smells.Count);
-            }
-        }, solutionOpt, maxClassOpt, maxMethodOpt, maxParamsOpt, scopeOpt, topOpt);
+            RtLog.Info("Found {Count} smell(s).", smells.Count);
+        });
 
         return cmd;
     }

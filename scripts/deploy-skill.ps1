@@ -26,5 +26,17 @@ if (-not (Test-Path $source)) {
 }
 
 New-Item -ItemType Directory -Path $DestDir -Force | Out-Null
-Copy-Item -Path $source -Destination $dest -Force
+for ($attempt = 1; $attempt -le 10; $attempt++) {
+    try {
+        Copy-Item -Path $source -Destination $dest -Force -ErrorAction Stop
+        break
+    }
+    catch {
+        if ($attempt -eq 10) {
+            throw
+        }
+
+        Start-Sleep -Milliseconds (100 * $attempt)
+    }
+}
 Write-Host "Deployed: $dest"

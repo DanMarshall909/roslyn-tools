@@ -1,4 +1,5 @@
 using System.CommandLine;
+using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
@@ -42,16 +43,18 @@ internal sealed class FindUnusedCommand : IRtCommand
         cmd.Add(solutionOpt);
         cmd.Add(scopeOpt);
 
-        cmd.SetHandler(async (solution, scope) =>
+        cmd.SetHandler(async ctx =>
         {
-            var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
-            using (workspace)
-            {
-                var symbols = await RtServiceProvider.Get<FindUnusedService>().AnalyzeAsync(sln, scope ?? "all");
-                var result = FindUnusedResult.FromSymbols(symbols);
-                RtSerializer.Write(result);
-            }
-        }, solutionOpt, scopeOpt);
+            var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
+            var scope = ctx.ParseResult.GetValueForOption(scopeOpt);
+            var sp = ctx.BindingContext.GetService<IServiceProvider>();
+            var loader = sp?.GetService<WorkspaceLoader>() ?? new WorkspaceLoader();
+
+            var sln = await loader.GetSolutionAsync(solution);
+            var symbols = await RtServiceProvider.Get<FindUnusedService>().AnalyzeAsync(sln, scope ?? "all");
+            var result = FindUnusedResult.FromSymbols(symbols);
+            RtResultRenderer.WriteOutput(RtResult<FindUnusedResult>.Ok(result));
+        });
 
         return cmd;
     }

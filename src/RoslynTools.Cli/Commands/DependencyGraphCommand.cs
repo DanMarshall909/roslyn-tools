@@ -1,5 +1,6 @@
 using System.CommandLine;
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
@@ -48,16 +49,22 @@ internal sealed class DependencyGraphCommand : IRtCommand, IStructuredOutputComm
         cmd.AddAlias("depgraph");
         cmd.AddAll(typeOpt, depthOpt, formatOpt, scopeOpt, solutionOpt);
 
-        cmd.SetHandler(async (typeName, depth, format, scope, solution) =>
+        cmd.SetHandler(async ctx =>
         {
-            var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
-            using (workspace)
-            {
-                var result = await RtServiceProvider.Get<DependencyGraphService>()
-                    .BuildGraphAsync(sln, typeName, depth, format ?? "json", scope);
-                RtConsole.WriteLine(RtOutputContext.Result, result);
-            }
-        }, typeOpt, depthOpt, formatOpt, scopeOpt, solutionOpt);
+            var typeName = ctx.ParseResult.GetValueForOption(typeOpt);
+            var depth = ctx.ParseResult.GetValueForOption(depthOpt);
+            var format = ctx.ParseResult.GetValueForOption(formatOpt);
+            var scope = ctx.ParseResult.GetValueForOption(scopeOpt);
+            var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
+            var sp = ctx.BindingContext.GetService<IServiceProvider>();
+            var loader = sp?.GetService<WorkspaceLoader>() ?? new WorkspaceLoader();
+
+            var sln = await loader.GetSolutionAsync(solution);
+            var result = await RtServiceProvider.Get<DependencyGraphService>()
+                .BuildGraphAsync(sln, typeName, depth, format ?? "json", scope);
+
+            RtResultRenderer.WriteText(RtResult<string>.Ok(result));
+        });
 
         return cmd;
     }

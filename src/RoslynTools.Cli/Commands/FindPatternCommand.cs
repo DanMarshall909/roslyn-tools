@@ -1,5 +1,6 @@
 using System.CommandLine;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 
@@ -50,28 +51,35 @@ internal sealed class FindPatternCommand : IRtCommand, IStructuredOutputCommand
         cmd.AddAlias("fp");
         cmd.AddAll(fileOpt, startLineOpt, endLineOpt, solutionOpt, scopeOpt);
 
-        cmd.SetHandler(async (file, startLine, endLine, solution, scope) =>
+        cmd.SetHandler(async ctx =>
         {
-            var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
-            using (workspace)
-            {
-                RtLog.Info("Searching for pattern at {File}:{StartLine}–{EndLine}…", file, startLine, endLine);
-                List<PatternMatch> matches;
-                try
-                {
-                    matches = await PatternMatcher.FindMatchesAsync(sln, file, startLine, endLine, scope);
-                }
-                catch (InvalidOperationException ex)
-                {
-                    RtLog.Error("Error: {Message}", ex.Message);
-                    Environment.ExitCode = 1;
-                    return;
-                }
+            var file = ctx.ParseResult.GetValueForOption(fileOpt)!;
+            var startLine = ctx.ParseResult.GetValueForOption(startLineOpt);
+            var endLine = ctx.ParseResult.GetValueForOption(endLineOpt);
+            var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
+            var scope = ctx.ParseResult.GetValueForOption(scopeOpt);
+            var sp = ctx.BindingContext.GetService<IServiceProvider>();
+            var loader = sp?.GetService<WorkspaceLoader>() ?? new WorkspaceLoader();
 
-                var output = new { matches };
-                StructuredOutput.Write(output, JsonOptions);
+            var sln = await loader.GetSolutionAsync(solution);
+            RtLog.Info("Searching for pattern at {File}:{StartLine}-{EndLine}...", file, startLine, endLine);
+            List<PatternMatch> matches;
+            try
+            {
+                matches = await PatternMatcher.FindMatchesAsync(sln, file, startLine, endLine, scope);
             }
-        }, fileOpt, startLineOpt, endLineOpt, solutionOpt, scopeOpt);
+            catch (InvalidOperationException ex)
+            {
+                RtLog.Error("Error: {Message}", ex.Message);
+                Environment.ExitCode = 1;
+                return;
+            }
+
+            var output = new { matches };
+            RtResultRenderer.Write(
+                RtResult<object>.Ok(output),
+                JsonOptions);
+        });
 
         return cmd;
     }

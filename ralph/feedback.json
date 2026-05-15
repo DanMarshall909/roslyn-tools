@@ -3,7 +3,7 @@
     {
       "id": "FB-001",
       "type": "exception",
-      "timestamp": "2026-05-13T04:25:38.8605878\u002B00:00",
+      "timestamp": "2026-05-13T14:25:38.8605878\u002B10:00",
       "commandLine": "inspect find-refs --symbol RoslynTools.Feedback.FeedbackStore.MarkProcessed --solution RoslynTools.slnx",
       "description": "No symbol named \u0027RoslynTools.Feedback.FeedbackStore.MarkProcessed\u0027 found in solution.",
       "actualResult": "InvalidOperationException: No symbol named \u0027RoslynTools.Feedback.FeedbackStore.MarkProcessed\u0027 found in solution.",
@@ -13,7 +13,7 @@
     {
       "id": "FB-002",
       "type": "exception",
-      "timestamp": "2026-05-13T06:25:10.1267301\u002B00:00",
+      "timestamp": "2026-05-13T16:25:10.1267301\u002B10:00",
       "commandLine": "inspect describe Nonexistent.Type.That.Does.Not.Exist --solution RoslynTools.slnx",
       "description": "No symbol with FQN \u0027Nonexistent.Type.That.Does.Not.Exist\u0027 found in solution.",
       "actualResult": "InvalidOperationException: No symbol with FQN \u0027Nonexistent.Type.That.Does.Not.Exist\u0027 found in solution.",
@@ -23,7 +23,7 @@
     {
       "id": "FB-003",
       "type": "exception",
-      "timestamp": "2026-05-15T05:44:12.0360786\u002B00:00",
+      "timestamp": "2026-05-15T15:44:12.0360786\u002B10:00",
       "commandLine": "inspect outline c:coderoslyn-toolssrcRoslynToolsCoreWorkspaceLoader.cs --solution c:coderoslyn-toolsRoslynTools.slnx",
       "description": "Solution not found: c:\\code\\roslyn-tools\\coderoslyn-toolsRoslynTools.slnx",
       "actualResult": "FileNotFoundException: Solution not found: c:\\code\\roslyn-tools\\coderoslyn-toolsRoslynTools.slnx",
@@ -33,7 +33,7 @@
     {
       "id": "FB-004",
       "type": "exception",
-      "timestamp": "2026-05-15T05:56:35.1189080\u002B00:00",
+      "timestamp": "2026-05-15T15:56:35.118908\u002B10:00",
       "commandLine": "analyze-interface Demo.Contracts.ConcreteWorker --solution ignored",
       "description": "\u0027Demo.Contracts.ConcreteWorker\u0027 is not an interface; resolved type kind was Class.",
       "actualResult": "InvalidOperationException: \u0027Demo.Contracts.ConcreteWorker\u0027 is not an interface; resolved type kind was Class.",
@@ -43,7 +43,7 @@
     {
       "id": "FB-005",
       "type": "exception",
-      "timestamp": "2026-05-15T06:09:44.6634309\u002B00:00",
+      "timestamp": "2026-05-15T16:09:44.6634309\u002B10:00",
       "commandLine": "inspect find-refs --symbol SupportedFormats --solution RoslynTools.slnx",
       "description": "No symbol named \u0027SupportedFormats\u0027 found in solution.",
       "actualResult": "InvalidOperationException: No symbol named \u0027SupportedFormats\u0027 found in solution.",
@@ -53,7 +53,7 @@
     {
       "id": "FB-006",
       "type": "user-feedback",
-      "timestamp": "2026-05-15T06:12:34.6135434\u002B00:00",
+      "timestamp": "2026-05-15T16:12:34.6135434\u002B10:00",
       "commandLine": "rt analyze list-smells --solution RoslynTools.slnx --scope RoslynTools --top 30",
       "description": "rt: list-smells should support a --top limiter for concise agent-friendly smell scans",
       "status": "pending"
@@ -61,7 +61,7 @@
     {
       "id": "FB-007",
       "type": "user-feedback",
-      "timestamp": "2026-05-15T06:12:49.9301849\u002B00:00",
+      "timestamp": "2026-05-15T16:12:49.9301849\u002B10:00",
       "commandLine": "two parallel rt feedback add commands both returned Feedback recorded: FB-006, and only one user-feedback item remained",
       "description": "rt: feedback add should serialize writes or allocate unique IDs safely when concurrent agent calls add feedback",
       "status": "pending"
@@ -69,7 +69,7 @@
     {
       "id": "FB-008",
       "type": "user-feedback",
-      "timestamp": "2026-05-15T06:18:13.5599521\u002B00:00",
+      "timestamp": "2026-05-15T16:18:13.5599521\u002B10:00",
       "commandLine": "three parallel ./rt.cmd invocations after source edits caused CS2012 and rt.exe copy lock warnings",
       "description": "rt: wrapper rebuild should serialize concurrent invocations so parallel agent dogfooding cannot race on bin/obj outputs",
       "status": "pending"
@@ -77,7 +77,7 @@
     {
       "id": "FB-009",
       "type": "exception",
-      "timestamp": "2026-05-15T06:19:54.1018417\u002B00:00",
+      "timestamp": "2026-05-15T16:19:54.1018417\u002B10:00",
       "commandLine": "inspect find-impl IRtCommand --solution RoslynTools.slnx",
       "description": "No symbol with FQN \u0027IRtCommand\u0027 found in solution.",
       "actualResult": "InvalidOperationException: No symbol with FQN \u0027IRtCommand\u0027 found in solution.",
@@ -87,11 +87,29 @@
     {
       "id": "FB-010",
       "type": "exception",
-      "timestamp": "2026-05-15T06:59:27.5312110\u002B00:00",
+      "timestamp": "2026-05-15T16:59:27.531211\u002B10:00",
       "commandLine": "analyze-interface Demo.Contracts.ConcreteWorker --solution ignored",
       "description": "\u0027Demo.Contracts.ConcreteWorker\u0027 is not an interface; resolved type kind was Class.",
       "actualResult": "InvalidOperationException: \u0027Demo.Contracts.ConcreteWorker\u0027 is not an interface; resolved type kind was Class.",
       "stackTrace": "System.InvalidOperationException: \u0027Demo.Contracts.ConcreteWorker\u0027 is not an interface; resolved type kind was Class.\r\n   at RoslynTools.Services.AnalyzeInterfaceService.ResolveInterfaceAsync(Solution solution, String interfaceSymbolSpec) in C:\\code\\roslyn-tools\\src\\RoslynTools\\Services\\AnalyzeInterfaceService.cs:line 203\r\n   at RoslynTools.Services.AnalyzeInterfaceService.AnalyzeAsync(Solution solution, String interfaceSymbolSpec, AnalyzeInterfaceOptions options) in C:\\code\\roslyn-tools\\src\\RoslynTools\\Services\\AnalyzeInterfaceService.cs:line 41\r\n   at RoslynTools.Commands.AnalyzeInterfaceCommand.\u003C\u003Ec.\u003C\u003CBuild\u003Eb__4_2\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\AnalyzeInterfaceCommand.cs:line 53\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass5_0.\u003C\u003CRunAsync\u003Eb__4\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 201",
+      "status": "pending"
+    },
+    {
+      "id": "FB-011",
+      "type": "exception",
+      "timestamp": "2026-05-15T17:09:25.4128131\u002B10:00",
+      "commandLine": "inspect find-refs --symbol PatternMatcher.FindMatchesAsync --solution RoslynTools.slnx",
+      "description": "No symbol named \u0027PatternMatcher.FindMatchesAsync\u0027 found in solution.",
+      "actualResult": "InvalidOperationException: No symbol named \u0027PatternMatcher.FindMatchesAsync\u0027 found in solution.",
+      "stackTrace": "System.InvalidOperationException: No symbol named \u0027PatternMatcher.FindMatchesAsync\u0027 found in solution.\r\n   at RoslynTools.Core.SymbolLocator.FindSymbolAsync(Solution solution, String symbolName, String kind) in C:\\code\\roslyn-tools\\src\\RoslynTools\\Core\\SymbolLocator.cs:line 54\r\n   at RoslynTools.Services.FindRefsService.ResolveSymbolAsync(Solution sln, String symbol, String kind) in C:\\code\\roslyn-tools\\src\\RoslynTools\\Services\\FindRefsService.cs:line 86\r\n   at RoslynTools.Services.FindRefsService.FindAsync(Solution sln, String symbol, String kind) in C:\\code\\roslyn-tools\\src\\RoslynTools\\Services\\FindRefsService.cs:line 41\r\n   at RoslynTools.Commands.FindRefsCommand.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuild\u003Eb__0\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\FindRefsCommand.cs:line 54\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass5_0.\u003C\u003CRunAsync\u003Eb__4\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 201",
+      "status": "pending"
+    },
+    {
+      "id": "FB-012",
+      "type": "user-feedback",
+      "timestamp": "2026-05-15T07:14:30.8491209\u002B00:00",
+      "commandLine": "parallel dotnet test architecture subset and dotnet build RoslynTools.slnx",
+      "description": "build: deploy-skill should retry or serialize Copy-Item because parallel dotnet test/build can lock the deployed use-rt SKILL.md",
       "status": "pending"
     }
   ]

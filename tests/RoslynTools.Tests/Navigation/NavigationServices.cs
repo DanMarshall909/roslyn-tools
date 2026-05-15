@@ -133,6 +133,34 @@ public class NavigationServices
         }
     }
 
+    [Fact]
+    public async Task finds_refs_resolves_partial_dotted_symbol_specs_by_simple_name()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Matcher.cs", """
+                                        namespace App.Core;
+
+                                        public static class PatternMatcher
+                                        {
+                                            public static void FindMatchesAsync() { }
+                                        }
+
+                                        public static class Consumer
+                                        {
+                                            public static void Run() => PatternMatcher.FindMatchesAsync();
+                                        }
+                                        """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var result = await new FindRefsService().FindAsync(sln, "PatternMatcher.FindMatchesAsync", null);
+
+            Assert.Equal("FindMatchesAsync", result.SymbolName);
+            Assert.Single(result.References);
+        }
+    }
+
     // ── FindImplementationsService ────────────────────────────────────────
 
     [Fact]

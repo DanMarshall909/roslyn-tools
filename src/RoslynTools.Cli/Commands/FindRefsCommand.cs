@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
+using RoslynTools.Services.Results;
 
 namespace RoslynTools.Commands;
 
@@ -52,7 +53,7 @@ internal sealed class FindRefsCommand : IRtCommand
             var loader = sp?.GetService<WorkspaceLoader>() ?? new WorkspaceLoader();
             var sln = await loader.GetSolutionAsync(solution);
             var result = await RtServiceProvider.Get<FindRefsService>().FindAsync(sln, symbol, kind);
-            RtSerializer.Write(result);
+            RtResultRenderer.WriteOutput(RtResult<FindRefsResult>.Ok(result));
         });
 
         return cmd;
