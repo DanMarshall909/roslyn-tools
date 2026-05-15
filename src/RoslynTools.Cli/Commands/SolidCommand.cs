@@ -19,9 +19,7 @@ internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand
         "Detect classes that may violate SOLID principles using heuristic analysis. Use --principle SRP to flag classes with too many public methods and injected dependencies. Use --principle all to run all active detectors.",
         Examples:
         [
-            "rt analyze solid --principle SRP --solution RoslynTools.slnx",
-            "rt analyze solid --principle all --solution RoslynTools.slnx",
-            "rt analyze solid --principle SRP --min-methods 5 --min-deps 3 --solution RoslynTools.slnx"
+            "rt analyze solid"
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json]
     );
