@@ -14,4 +14,13 @@ internal sealed class FeedbackEntry
     public string Status { get; set; } = "pending";
     public string? ProcessedAt { get; set; }
     public string? Resolution { get; set; }
+
+    // Diagnostic context — populated for exception entries to support fix-it triage.
+    public string? Cwd { get; set; }
+    public string? RtVersion { get; set; }
+    public string? DotnetVersion { get; set; }
+    public string? OsPlatform { get; set; }
+    public string? SolutionPath { get; set; }
+    public List<string>? InnerExceptions { get; set; }
+    public Dictionary<string, string?>? ParsedOptions { get; set; }
 }

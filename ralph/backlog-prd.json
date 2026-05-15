@@ -616,6 +616,27 @@
             "priority": 67,
             "passes": false,
             "notes": "P3. Deferred from 2026-05-15 retro (Proposal 4). Aggressive version in ai-rules commit 8c1a08a; conservative rollback in dae9046. Three places still inconsistent: RT gap section, Opus review section, regression handler. Must be decided and applied consistently."
+        },
+        {
+            "id": "US-068",
+            "title": "Introduce Result<T,RtError> for routine user-error flows in core services",
+            "description": "As a developer, I want routine \"not found\" / \"bad input\" cases in SymbolLocator, MethodExtractor, WorkspaceLoader to return a Result type (success or RtError) instead of throwing InvalidOperationException, so the global exception handler can produce clean exit-1 stderr lines for known user errors while still surfacing real bugs with full stack traces — without resorting to substring-matching exception messages.",
+            "acceptanceCriteria": [
+                "Add Result<T, RtError> (or equivalent ADT) in src/RoslynTools/Core/. RtError is a record with a Kind enum (NotFound, InvalidInput, AmbiguousMatch, WorkspaceLoadFailure) plus message and optional context dictionary.",
+                "Convert SymbolLocator.FindSymbolAsync / FindSymbolByFqnAsync / FindTypeByFqnAsync / FindMethodBySpecAsync to return Result<ISymbol, RtError>; routine \"not found\" / ambiguous cases produce RtError, never throw.",
+                "Convert WorkspaceLoader.LoadAsync to return Result<(MSBuildWorkspace, Solution), RtError> for the no-projects-and-failure-diagnostic case; throw only for genuinely unexpected exceptions.",
+                "MethodExtractor: routine user-input rejections (no statements in range, multiple parent blocks, return statements in selection, --after + --before conflict) become RtError; AST-rewrite-produced-no-changes and similar internal-invariant violations remain exceptions.",
+                "Update every caller of the converted APIs to propagate or handle the Result; commands surface RtError via a single RtLog.Error + context.ExitCode = 1 helper.",
+                "Add a typed-only catch ladder in App.CaptureExceptionAsync for FileNotFoundException, DirectoryNotFoundException, ArgumentException, JsonException — these are routine OS/parse errors. No substring-matching of exception messages anywhere.",
+                "feedback.json still captures every exception with the full diagnostic payload from US-042; only the user-facing stderr shape changes.",
+                "Tests: SymbolLocator returns RtError.NotFound for unknown symbol; OutlineCommand returns exit 1 + single stderr line for missing file; build remains clean.",
+                "Documentation: add a short Result-types section to CLAUDE.md / AGENTS.md so new commands follow the pattern."
+            ],
+            "priority": 68,
+            "passes": 0,
+            "notes": "Driven by quality-first rule (2026-05-15): refuses the substring-matching shortcut and instead models routine vs bug differences in the type system. Replaces the deferred classification half of US-042. Large change — touches ~10-15 throw sites and every caller — sequence carefully via /execute with TDD.",
+            "resolution": "",
+            "resolvedAt": ""
         }
     ]
 }

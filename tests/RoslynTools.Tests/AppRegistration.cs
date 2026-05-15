@@ -6,7 +6,7 @@ namespace RoslynTools.Tests;
 
 /// <summary>
 ///     Unit tests for App.RegisterGlobalOptions — extracted helper (US-033).
-///     Verifies that the five global options are registered on a RootCommand by name,
+///     Verifies that the global options are registered on a RootCommand by name,
 ///     without needing to run the full middleware pipeline.
 /// </summary>
 public sealed class AppRegistration
@@ -72,7 +72,17 @@ public sealed class AppRegistration
     }
 
     [Fact]
-    public void registers_global_options_registers_exactly_json_llm_markdown_yaml_strict_json_decisions()
+    public void registers_global_options_adds_show_workspace_warnings_option()
+    {
+        var root = new RootCommand("test");
+
+        App.RegisterGlobalOptions(root);
+
+        Assert.Contains(root.Options, o => o.Name == "show-workspace-warnings");
+    }
+
+    [Fact]
+    public void registers_global_options_registers_exactly_expected_options()
     {
         var root = new RootCommand("test");
 
@@ -80,7 +90,16 @@ public sealed class AppRegistration
 
         var names = root.Options.Select(o => o.Name).ToHashSet();
         Assert.Equal(
-            new HashSet<string> { "json", "llm", "markdown", "yaml", "strict-json", "decisions" },
+            new HashSet<string>
+            {
+                "json",
+                "llm",
+                "markdown",
+                "yaml",
+                "strict-json",
+                "decisions",
+                "show-workspace-warnings"
+            },
             names);
     }
 

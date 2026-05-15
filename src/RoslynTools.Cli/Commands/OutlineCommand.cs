@@ -51,51 +51,55 @@ internal sealed class OutlineCommand : IRtCommand, IStructuredOutputCommand
             targetArg, solutionOpt, regexOpt, summaryOpt
         };
 
-        cmd.SetHandler(async (target, solution, regex, summary) =>
+        cmd.SetHandler(async context =>
+        {
+            var target = context.ParseResult.GetValueForArgument(targetArg);
+            var solution = context.ParseResult.GetValueForOption(solutionOpt);
+            var regex = context.ParseResult.GetValueForOption(regexOpt);
+            var summary = context.ParseResult.GetValueForOption(summaryOpt);
+
+            var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
+            using (workspace)
             {
-                var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
-                using (workspace)
+                List<Dictionary<string, object?>> result;
+                var svc = RtServiceProvider.Get<OutlineService>();
+
+                if (regex is not null)
                 {
-                    List<Dictionary<string, object?>> result;
-                    var svc = RtServiceProvider.Get<OutlineService>();
-
-                    if (regex is not null)
-                    {
-                        result = await svc.OutlineRegexAsync(sln, regex, summary);
-                    }
-                    else if (target?.EndsWith(".*", StringComparison.Ordinal) == true
-                             && !target.Contains('/') && !target.Contains('\\'))
-                    {
-                        result = await svc.OutlineNamespaceAsync(sln, target, summary);
-                    }
-                    else if (target is not null && (target.Contains('*') || target.Contains('?')))
-                    {
-                        result = await svc.OutlineGlobAsync(sln, target, summary);
-                    }
-                    else if (target is not null && Directory.Exists(target))
-                    {
-                        result = await svc.OutlineDirectoryAsync(sln, target, summary);
-                    }
-                    else if (target is not null && (target.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) ||
-                                                    Path.Exists(target)))
-                    {
-                        result = await svc.OutlineFileAsync(sln, target, summary);
-                    }
-                    else if (target is not null)
-                    {
-                        result = await svc.OutlineNamespaceAsync(sln, target, summary);
-                    }
-                    else
-                    {
-                        RtLog.Error("specify a target (file, directory, glob, or namespace) or --regex <pattern>");
-                        Environment.Exit(1);
-                        return;
-                    }
-
-                    StructuredOutput.Write(result, SymbolFormatter.DefaultJsonOptions);
+                    result = await svc.OutlineRegexAsync(sln, regex, summary);
                 }
-            },
-            targetArg, solutionOpt, regexOpt, summaryOpt);
+                else if (target?.EndsWith(".*", StringComparison.Ordinal) == true
+                         && !target.Contains('/') && !target.Contains('\\'))
+                {
+                    result = await svc.OutlineNamespaceAsync(sln, target, summary);
+                }
+                else if (target is not null && (target.Contains('*') || target.Contains('?')))
+                {
+                    result = await svc.OutlineGlobAsync(sln, target, summary);
+                }
+                else if (target is not null && Directory.Exists(target))
+                {
+                    result = await svc.OutlineDirectoryAsync(sln, target, summary);
+                }
+                else if (target is not null && (target.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) ||
+                                                Path.Exists(target)))
+                {
+                    result = await svc.OutlineFileAsync(sln, target, summary);
+                }
+                else if (target is not null)
+                {
+                    result = await svc.OutlineNamespaceAsync(sln, target, summary);
+                }
+                else
+                {
+                    RtLog.Error("specify a target (file, directory, glob, or namespace) or --regex <pattern>");
+                    context.ExitCode = 1;
+                    return;
+                }
+
+                StructuredOutput.Write(result, SymbolFormatter.DefaultJsonOptions);
+            }
+        });
 
         return cmd;
     }

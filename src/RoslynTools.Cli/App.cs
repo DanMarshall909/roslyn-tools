@@ -129,7 +129,7 @@ internal static class App
             foreach (var cmd in additionalCommands)
                 root.AddCommand(cmd);
 
-        var (jsonOpt, llmOpt, markdownOpt, yamlOpt, decisionsOpt, strictJsonOpt) = RegisterGlobalOptions(root);
+        var (jsonOpt, llmOpt, markdownOpt, yamlOpt, decisionsOpt, strictJsonOpt, showWorkspaceWarningsOpt) = RegisterGlobalOptions(root);
 
         return await new CommandLineBuilder(root)
             .UseVersionOption()
@@ -160,6 +160,7 @@ internal static class App
                     : llm ? OutputFormat.Llm
                     : OutputFormat.Text;
                 RtContext.StrictJson = context.ParseResult.GetValueForOption(strictJsonOpt);
+                RtContext.ShowWorkspaceWarnings = context.ParseResult.GetValueForOption(showWorkspaceWarningsOpt);
 
                 var decisionsFile = context.ParseResult.GetValueForOption(decisionsOpt);
                 if (decisionsFile is not null)
@@ -216,7 +217,8 @@ internal static class App
     /// Registers global command options with the root command.
     /// </summary>
     internal static (Option<bool> jsonOpt, Option<bool> llmOpt, Option<bool> markdownOpt, Option<bool> yamlOpt,
-        Option<FileInfo?> decisionsOpt, Option<bool> strictJsonOpt) RegisterGlobalOptions(RootCommand root)
+        Option<FileInfo?> decisionsOpt, Option<bool> strictJsonOpt, Option<bool> showWorkspaceWarningsOpt)
+        RegisterGlobalOptions(RootCommand root)
     {
         var jsonOpt = new Option<bool>("--json", "Emit results as JSON");
         var llmOpt = new Option<bool>("--llm", "Emit compact output for LLM consumption");
@@ -228,10 +230,13 @@ internal static class App
             "--decisions",
             "Path to a YAML file recording disambiguation choices. "
             + "If unanswered entries exist (or new ones surface), rt writes them and exits 2.");
-        foreach (var option in new Option[] { jsonOpt, llmOpt, markdownOpt, yamlOpt, strictJsonOpt, decisionsOpt })
+        var showWorkspaceWarningsOpt = new Option<bool>("--show-workspace-warnings",
+            "Show MSBuild workspace warnings (NuGet audit, unresolved imports, etc.). Off by default.");
+        foreach (var option in new Option[]
+                     { jsonOpt, llmOpt, markdownOpt, yamlOpt, strictJsonOpt, decisionsOpt, showWorkspaceWarningsOpt })
             root.AddGlobalOption(option);
 
-        return (jsonOpt, llmOpt, markdownOpt, yamlOpt, decisionsOpt, strictJsonOpt);
+        return (jsonOpt, llmOpt, markdownOpt, yamlOpt, decisionsOpt, strictJsonOpt, showWorkspaceWarningsOpt);
     }
 
     private static IEnumerable<HelpSectionDelegate> BuildHelpLayout(HelpContext ctx)
@@ -269,8 +274,48 @@ internal static class App
     private static async Task CaptureExceptionAsync(InvocationContext context, Exception ex)
     {
         var cmdLine = string.Join(" ", context.ParseResult.Tokens.Select(t => t.Value));
-        await FeedbackStore.AppendExceptionAsync(cmdLine, ex);
+        var solutionPath = TryExtractSolutionPath(context);
+        var parsedOptions = TryCaptureParsedOptions(context);
+        await FeedbackStore.AppendExceptionAsync(cmdLine, ex, solutionPath, parsedOptions);
         RtLog.Warning("Exception captured — run `rt feedback list` to view.");
+    }
+
+    private static string? TryExtractSolutionPath(InvocationContext context)
+    {
+        try
+        {
+            var tokens = context.ParseResult.Tokens.Select(t => t.Value).ToList();
+            for (var i = 0; i < tokens.Count - 1; i++)
+            {
+                if (tokens[i] is "--solution" or "-s")
+                    return tokens[i + 1];
+            }
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static Dictionary<string, string?>? TryCaptureParsedOptions(InvocationContext context)
+    {
+        try
+        {
+            var dict = new Dictionary<string, string?>(StringComparer.Ordinal);
+            foreach (var opt in context.ParseResult.CommandResult.Command.Options)
+            {
+                var raw = context.ParseResult.FindResultFor(opt);
+                if (raw is null) continue;
+                var value = context.ParseResult.GetValueForOption(opt);
+                dict[opt.Name] = value?.ToString();
+            }
+            return dict.Count == 0 ? null : dict;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static List<(Func<Command>, RtCommandInfo)> Discover()

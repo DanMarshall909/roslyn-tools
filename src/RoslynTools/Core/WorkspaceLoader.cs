@@ -1,6 +1,8 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.MSBuild;
 
+using RoslynTools.Core.Output;
+
 namespace RoslynTools.Core;
 
 /// <summary>
@@ -129,6 +131,10 @@ internal sealed class WorkspaceLoader : IDisposable
     private static void EmitDiagnostics(List<WorkspaceDiagnostic> diagnostics, bool fatal)
     {
         if (diagnostics.Count == 0)
+            return;
+
+        // Suppress warnings by default; failures are always shown. --show-workspace-warnings opts back in.
+        if (!fatal && !RtContext.ShowWorkspaceWarnings)
             return;
 
         var legacySink = DiagnosticSinkOverride.Value;

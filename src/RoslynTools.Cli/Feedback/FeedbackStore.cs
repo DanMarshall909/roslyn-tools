@@ -1,3 +1,5 @@
+using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -80,7 +82,11 @@ internal static class FeedbackStore
         }
     }
 
-    internal static async Task AppendExceptionAsync(string cmdLine, Exception ex)
+    internal static async Task AppendExceptionAsync(
+        string cmdLine,
+        Exception ex,
+        string? solutionPath = null,
+        Dictionary<string, string?>? parsedOptions = null)
     {
         try
         {
@@ -97,7 +103,14 @@ internal static class FeedbackStore
                     CommandLine = cmdLine,
                     Description = ex.Message,
                     ActualResult = ex.GetType().Name + ": " + ex.Message,
-                    StackTrace = ex.ToString()
+                    StackTrace = ex.ToString(),
+                    Cwd = SafeGet(Directory.GetCurrentDirectory),
+                    RtVersion = SafeGet(GetRtVersion),
+                    DotnetVersion = SafeGet(() => Environment.Version.ToString()),
+                    OsPlatform = SafeGet(() => RuntimeInformation.OSDescription),
+                    SolutionPath = solutionPath,
+                    InnerExceptions = FlattenInner(ex),
+                    ParsedOptions = parsedOptions
                 };
                 existing.Add(entry);
                 WriteAll(existing);
@@ -111,6 +124,32 @@ internal static class FeedbackStore
         {
             // Exception capture must never mask the original exception
         }
+    }
+
+    private static string? SafeGet(Func<string?> get)
+    {
+        try { return get(); }
+        catch { return null; }
+    }
+
+    private static string? GetRtVersion()
+    {
+        var asm = Assembly.GetExecutingAssembly();
+        return asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+               ?? asm.GetName().Version?.ToString();
+    }
+
+    private static List<string>? FlattenInner(Exception ex)
+    {
+        if (ex.InnerException is null) return null;
+        var chain = new List<string>();
+        var inner = ex.InnerException;
+        while (inner is not null)
+        {
+            chain.Add(inner.GetType().Name + ": " + inner.Message);
+            inner = inner.InnerException;
+        }
+        return chain;
     }
 
     private static string AppendCore(FeedbackEntry entry)
