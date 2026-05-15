@@ -54,6 +54,14 @@ dotnet tool restore      # one-time, installs dotnet-stryker 4.14.1
 dotnet stryker           # runs against the config'd file(s), reports to StrykerOutput/
 ```
 
+Commit-time mutation gates are versioned under `scripts/git-hooks/`. Install them once per clone:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-git-hooks.ps1
+```
+
+The pre-commit gate fails staged production C# files that are not covered by `stryker-config.json` `mutate` globs. For files already in mutation scope, it runs Stryker with `--break-at 95`. Use `RT_MUTATION_ALLOW_UNSCOPED=1` only for an intentional temporary bypass that should be explained in the commit or PR.
+
 **Target: 100% mutation score on `src/RoslynTools/Commands/`.** Every surviving mutant is a signal — classify it:
 
 - **Missing test case** — real gap. The mutated code has observable behaviour but no test asserts on it. Add the assertion that would have killed the mutant.
