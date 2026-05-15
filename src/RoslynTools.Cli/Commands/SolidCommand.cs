@@ -79,7 +79,7 @@ internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand
             return 1;
         }
 
-        using var effectiveLoader = loader ?? new WorkspaceLoader();
+        var effectiveLoader = loader ?? new WorkspaceLoader();
         var sln = await effectiveLoader.GetSolutionAsync(solution);
         RtLog.Info("Analyzing SOLID principles...");
         var srpReport = await SolidAnalyzer.AnalyzeSrpAsync(sln, minMethods, minDeps);
