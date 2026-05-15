@@ -27,7 +27,8 @@ internal sealed class DescribeCommand : IRtCommand, IStructuredOutputCommand
             "rt inspect describe BookingService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt inspect describe ProjectX.Core.Services.IEmailService --kind type --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt inspect describe IRtCommand --solution RoslynTools.slnx"
-        ]
+        ],
+        SupportedFormats: [OutputFormat.Text, OutputFormat.Json]
     );
 
     public static Command Build()

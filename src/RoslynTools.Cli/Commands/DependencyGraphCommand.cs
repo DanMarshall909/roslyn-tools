@@ -1,6 +1,7 @@
 using System.CommandLine;
 using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -31,7 +32,8 @@ internal sealed class DependencyGraphCommand : IRtCommand, IStructuredOutputComm
         KnownIssues:
         [
             "Graph edges are built from fields, method parameters/returns, base types, and interfaces only — local variable type usages inside method bodies are missed. Static command classes with no fields appear as isolated nodes even when they reference WorkspaceLoader/SolutionWriter internally. See ai-improvements row #12."
-        ]
+        ],
+        SupportedFormats: [OutputFormat.Text, OutputFormat.Json]
     );
 
     public static Command Build()

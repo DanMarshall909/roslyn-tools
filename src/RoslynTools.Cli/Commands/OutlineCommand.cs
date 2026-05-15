@@ -32,7 +32,8 @@ internal sealed class OutlineCommand : IRtCommand, IStructuredOutputCommand
             "rt inspect outline --regex \"Service\\.cs$\" --solution RoslynTools.slnx",
             "rt inspect outline src/RoslynTools/Core --solution RoslynTools.slnx --summary",
             "rt inspect outline RoslynTools.Core --solution RoslynTools.slnx --summary"
-        ]
+        ],
+        SupportedFormats: [OutputFormat.Text, OutputFormat.Json]
     );
 
     public static Command Build()

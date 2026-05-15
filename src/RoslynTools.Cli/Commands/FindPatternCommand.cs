@@ -29,7 +29,8 @@ internal sealed class FindPatternCommand : IRtCommand, IStructuredOutputCommand
         [
             "rt inspect find-pattern --file src/Services/BookingService.cs --start-line 42 --end-line 50 --solution RoslynTools.slnx",
             "rt inspect fp --file src/Controllers/AdminController.cs --start-line 110 --end-line 125 --scope RoslynTools.Core --solution RoslynTools.slnx"
-        ]
+        ],
+        SupportedFormats: [OutputFormat.Text, OutputFormat.Json]
     );
 
     public static Command Build()

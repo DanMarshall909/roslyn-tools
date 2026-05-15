@@ -28,7 +28,8 @@ internal sealed class FindImplementationsCommand : IRtCommand, IStructuredOutput
             "rt inspect find-impl IEmailService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt inspect impls ProjectX.Core.Services.IBookingRepository --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt inspect find-impl IRtCommand --solution RoslynTools.slnx"
-        ]
+        ],
+        SupportedFormats: [OutputFormat.Text, OutputFormat.Json]
     );
 
     public static Command Build()

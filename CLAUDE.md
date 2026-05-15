@@ -1,3 +1,5 @@
+@AGENTS.md
+
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
@@ -240,3 +242,4 @@ YAML schema is one entry per pending decision: `{ id, q, options: { 0: "...", 1:
 | `Microsoft.CodeAnalysis.CSharp.Workspaces` (4.9.2) | C# syntax/semantic analysis |
 | `DiffPlex` (1.7.1) | Unified diff output for --dry-run |
 | `YamlDotNet` (16.2.1) | Read/write `--decisions` files |
+

@@ -25,7 +25,8 @@ internal sealed class StaticClassInventoryCommand : IRtCommand, IStructuredOutpu
             "rt analyze static-class-inventory --solution RoslynTools.slnx",
             "rt analyze static-class-inventory --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt static-class-inventory --solution RoslynTools.slnx --json"
-        ]);
+        ],
+        SupportedFormats: [OutputFormat.Text, OutputFormat.Json]);
 
     public static Command Build()
     {
