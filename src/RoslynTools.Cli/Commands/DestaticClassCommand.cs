@@ -45,12 +45,7 @@ internal sealed class DestaticClassCommand : IRtCommand
             "Migrate a static class to instance with DI registration and call-site rewrites");
         cmd.AddAlias("destatic-class");
         cmd.AddArgument(typeArg);
-        cmd.AddOption(interfaceNameOpt);
-        cmd.AddOption(noInterfaceOpt);
-        cmd.AddOption(noDiOpt);
-        cmd.AddOption(lifetimeOpt);
-        cmd.AddOption(solutionOpt);
-        cmd.AddOption(dryRunOpt);
+        cmd.AddAll(interfaceNameOpt, noInterfaceOpt, noDiOpt, lifetimeOpt, solutionOpt, dryRunOpt);
 
         cmd.SetHandler(async (type, interfaceName, noInterface, noDiRegistration, lifetime, solution, dryRun) =>
         {

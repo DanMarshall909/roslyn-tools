@@ -80,23 +80,6 @@ internal class ReplaceCallService : IRtService
         await _solutionChangeWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
     }
 
-    private bool ArgumentMatchesFilter(InvocationExpressionSyntax invocation, int argIndex, string literal)
-    {
-        if (argIndex < 0 || argIndex >= invocation.ArgumentList.Arguments.Count)
-            return false;
-
-        var arg = invocation.ArgumentList.Arguments[argIndex];
-        if (arg.Expression is not LiteralExpressionSyntax lit)
-            return false;
-
-        if (lit.Kind() != SyntaxKind.StringLiteralExpression)
-            return false;
-
-        // Compare the literal value (removing surrounding quotes)
-        var literalText = lit.Token.ValueText;
-        return literalText == literal;
-    }
-
     private string ParseMethodName(string from)
     {
         var lastDot = from.LastIndexOf('.');
@@ -128,7 +111,7 @@ internal class ReplaceCallService : IRtService
 
                 // Apply argument filter if specified
                 if (ifArgIndex.HasValue && ifArgLiteral is not null)
-                    if (!ArgumentMatchesFilter(invocation, ifArgIndex.Value, ifArgLiteral))
+                    if (!ArgumentFilter.MatchesStringLiteral(invocation.ArgumentList, ifArgIndex.Value, ifArgLiteral))
                         continue;
 
                 if (!locationsByDocument.TryGetValue(doc.Id, out var locs))

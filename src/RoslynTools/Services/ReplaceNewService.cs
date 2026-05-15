@@ -94,7 +94,7 @@ internal class ReplaceNewService : IRtService
                 foreach (var creation in creations)
                 {
                     if (ifArgIndex.HasValue && ifArgLiteral is not null)
-                        if (!ArgumentMatchesFilter(creation, ifArgIndex.Value, ifArgLiteral))
+                        if (!ArgumentFilter.MatchesStringLiteral(creation.ArgumentList, ifArgIndex.Value, ifArgLiteral))
                             continue;
 
                     var location = creation.GetLocation();
@@ -115,25 +115,6 @@ internal class ReplaceNewService : IRtService
     {
         var creationTypeText = creation.Type.ToString();
         return creationTypeText == typeName;
-    }
-
-    private bool ArgumentMatchesFilter(ObjectCreationExpressionSyntax creation, int argIndex, string literal)
-    {
-        if (creation.ArgumentList is null)
-            return false;
-
-        if (argIndex < 0 || argIndex >= creation.ArgumentList.Arguments.Count)
-            return false;
-
-        var arg = creation.ArgumentList.Arguments[argIndex];
-        if (arg.Expression is not LiteralExpressionSyntax lit)
-            return false;
-
-        if (lit.Kind() != SyntaxKind.StringLiteralExpression)
-            return false;
-
-        var literalText = lit.Token.ValueText;
-        return literalText == literal;
     }
 
     private Dictionary<SyntaxNode, SyntaxNode> RewriteObjectCreation(

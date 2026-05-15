@@ -1,8 +1,8 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
-using RoslynTools.Mcp;
 using RoslynTools.Mcp.Tools;
+using RoslynTools.Tests.Mcp;
 
 namespace RoslynTools.Tests.Mcp.Handlers;
 
@@ -12,29 +12,17 @@ public class FindRefsToolTests
     [Fact]
     public async Task find_refs_returns_output_for_referenced_type()
     {
-        using var project = new AdhocProjectBuilder();
-        project.AddSource("Model.cs", """
-                                      namespace TestApp;
-
-                                      public class Invoice
-                                      {
-                                          public int Id { get; set; }
-                                      }
-                                      """);
-        project.AddSource("Service.cs", """
-                                        namespace TestApp;
-
-                                        public class InvoiceService
-                                        {
-                                            public Invoice Create() => new Invoice();
-                                            public void Process(Invoice invoice) { }
-                                        }
-                                        """);
+        using var project = McpTestHost.CreateInvoiceProject(
+            "public int Id { get; set; }",
+            """
+            public Invoice Create() => new Invoice();
+            public void Process(Invoice invoice) { }
+            """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         using (WorkspaceLoader.UseOverride(workspace, sln))
-        using (var provider = CreateProvider())
+        using (var provider = McpTestHost.CreateProvider())
         {
             var registry = provider.GetRequiredService<ToolRegistry>();
             using var args = JsonDocument.Parse("""
@@ -61,7 +49,7 @@ public class FindRefsToolTests
         var (workspace, sln) = project.Build();
         using (workspace)
         using (WorkspaceLoader.UseOverride(workspace, sln))
-        using (var provider = CreateProvider())
+        using (var provider = McpTestHost.CreateProvider())
         {
             var registry = provider.GetRequiredService<ToolRegistry>();
             using var args = JsonDocument.Parse("""
@@ -74,11 +62,4 @@ public class FindRefsToolTests
         }
     }
 
-    private static ServiceProvider CreateProvider()
-    {
-        var services = new ServiceCollection();
-        RoslynTools.Bootstrap.RegisterServices(services);
-        services.AddMcpServices(new StringReader(string.Empty), new StringWriter());
-        return services.BuildServiceProvider();
-    }
 }

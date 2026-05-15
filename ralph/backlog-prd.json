@@ -26,6 +26,12 @@
             "title": "Platform abstractions: IWorkspaceSessionFactory + ISolutionApplier",
             "description": "Introduce injectable abstractions for WorkspaceLoader and SolutionWriter so commands depend on interfaces, not static helpers. Enables testability without AsyncLocal overrides and unblocks daemon workspace caching. Must be a single coordinated change across all ~30 commands.",
             "notes": "P2. Architecture gate NoStaticWorkspaceLoaderUse already exists in tests/. rt-006 + rt-007 from issues backlog. Must ship together — splitting doubles the 30-command churn."
+        },
+        {
+            "id": "EP-009",
+            "title": "Consistent command contracts and migration ratchets",
+            "description": "Make rt commands consistent across handler structure, option vocabulary, metadata, output envelopes, and symbol resolution so dogfooding workflows are predictable and architecture tests can ratchet progress.",
+            "notes": "From rt dogfooding consistency discussion on 2026-05-15."
         }
     ],
     "userStories": [
@@ -453,6 +459,166 @@
             "priority": 56,
             "passes": false,
             "notes": "P2. First of the pipe-protocol tasks. Discovered in ralph/sessions/2026-05-04-daemon-protocol.md Step 4. Command: src/RoslynTools.Cli/Commands/RenameCommand.cs. From issue rt-008."
+        },
+        {
+            "id": "US-057",
+            "epicId": "EP-009",
+            "title": "Introduce a shared read-only command handler wrapper",
+            "description": "As an rt maintainer, I want read-only commands to execute through a shared wrapper so solution loading, timing, cancellation, error mapping, and result rendering are consistent.",
+            "acceptanceCriteria": [
+                "A shared wrapper exists for read-only handlers with one entry point used by migrated commands",
+                "The wrapper owns solution loading, cancellation token flow, exception-to-exit-code mapping, and output rendering",
+                "At least one representative inspect command and one analyze command are migrated to the wrapper",
+                "Migrated command tests cover success, not found, and invalid input paths",
+                "An architecture test detects migrated commands that bypass the wrapper"
+            ],
+            "priority": 57,
+            "passes": false,
+            "notes": "P2. Start with a low-risk read-only command already using RtResult<T>."
+        },
+        {
+            "id": "US-058",
+            "epicId": "EP-009",
+            "title": "Standardize common CLI options through option factories",
+            "description": "As an rt maintainer, I want common options to be created by shared factories so aliases, descriptions, defaults, and required flags do not drift between commands.",
+            "acceptanceCriteria": [
+                "CommandOptionFactory exposes factories for solution, format/json, scope, top, symbol, type, dry-run, and verbose options",
+                "Existing migrated commands use the shared factories instead of manually declaring equivalent options",
+                "Factory-created options preserve current public CLI behavior unless explicitly documented",
+                "Tests assert consistent aliases and descriptions for at least solution, format/json, scope, and top",
+                "An architecture test flags manual declarations of common options in migrated command files"
+            ],
+            "priority": 58,
+            "passes": false,
+            "notes": "P2. This should precede broad command migration to reduce repeated churn."
+        },
+        {
+            "id": "US-059",
+            "epicId": "EP-009",
+            "title": "Add machine-readable command capabilities to RtCommandInfo",
+            "description": "As an automation consumer, I want every command to declare its capabilities so agents can choose commands and output formats without scraping prose help.",
+            "acceptanceCriteria": [
+                "RtCommandInfo includes supported formats, scope support, top support, solution requirement, prompt support, and mutation flags",
+                "All existing commands compile with explicit capability values",
+                "dump-help includes the new capability metadata in its machine-readable output",
+                "Architecture tests require explicit capability values for every IRtCommand",
+                "At least one test verifies capability metadata matches actual command options"
+            ],
+            "priority": 59,
+            "passes": false,
+            "notes": "P2. Capability names should stay stable for external automation."
+        },
+        {
+            "id": "US-060",
+            "epicId": "EP-009",
+            "title": "Normalize command outputs around shared result contracts",
+            "description": "As an automation consumer, I want rt commands to return shared result envelopes so success, empty, diagnostic, and change-plan outputs are predictable.",
+            "acceptanceCriteria": [
+                "Read-only commands use RtResult<TOutput> or an approved equivalent",
+                "Mutation commands use a shared change result contract such as RtChangeResult<TPlan>",
+                "Diagnostic commands use a shared diagnostic result contract such as RtDiagnosticResult",
+                "JSON output shape is documented and tested for success, empty, and error-like diagnostic cases",
+                "Architecture tests ratchet migrated commands away from ad hoc Console.WriteLine rendering"
+            ],
+            "priority": 60,
+            "passes": false,
+            "notes": "P2. Builds on the existing RtResult<T> migration."
+        },
+        {
+            "id": "US-061",
+            "epicId": "EP-009",
+            "title": "Introduce SymbolQuery for consistent symbol resolution",
+            "description": "As an rt user, I want commands that accept symbols to resolve names, fully qualified names, and ambiguity in the same way across inspect and refactor workflows.",
+            "acceptanceCriteria": [
+                "SymbolQuery represents raw input, expected symbol kind, optional scope, and ambiguity policy",
+                "A shared resolver handles exact, fully qualified, and partial symbol matches",
+                "Ambiguous matches produce a consistent diagnostic payload with candidate symbols",
+                "At least two symbol-consuming commands are migrated to SymbolQuery",
+                "Tests cover exact match, no match, ambiguous match, and kind mismatch"
+            ],
+            "priority": 61,
+            "passes": false,
+            "notes": "P2. This is a prerequisite for reliable pipe chains between inspect and refactor commands."
+        },
+        {
+            "id": "US-062",
+            "epicId": "EP-009",
+            "title": "Standardize command vocabulary and aliases",
+            "description": "As an rt user, I want equivalent concepts to use the same option names across commands so I do not have to relearn each workflow.",
+            "acceptanceCriteria": [
+                "Canonical option names are documented for --symbol, --type, --scope, --top, --format, --json, --solution, and --dry-run",
+                "Commands with equivalent concepts use the canonical option names and aliases",
+                "Legacy aliases remain where needed for compatibility and are documented as aliases",
+                "dump-help output groups canonical options consistently",
+                "Tests catch accidental introduction of a non-canonical common option name"
+            ],
+            "priority": 62,
+            "passes": false,
+            "notes": "P2. Pair with option factory work when practical."
+        },
+        {
+            "id": "US-063",
+            "epicId": "EP-009",
+            "title": "Standardize command file structure",
+            "description": "As an rt contributor, I want command files to follow a common structure so reviews and automated refactors can reason about metadata, option construction, handler wiring, and logic boundaries.",
+            "acceptanceCriteria": [
+                "A command file structure convention is documented with metadata, option declarations, command construction, and handler binding order",
+                "At least three commands are migrated to the convention",
+                "Business logic is moved out of command construction for migrated commands when feasible",
+                "Tests or architecture rules catch obvious convention violations for migrated commands",
+                "The convention avoids broad rewrites for commands that still need larger handler extraction"
+            ],
+            "priority": 63,
+            "passes": false,
+            "notes": "P3. Keep this incremental so it supports, rather than blocks, feature work."
+        },
+        {
+            "id": "US-064",
+            "epicId": "EP-009",
+            "title": "Add migration ratchets for command consistency",
+            "description": "As an rt maintainer, I want architecture tests to enforce only migrated command slices so consistency improves without forcing unsafe all-at-once rewrites.",
+            "acceptanceCriteria": [
+                "A migrated-command allowlist or marker exists for each enforced convention",
+                "Architecture tests fail when a marked command regresses from the wrapper, option factory, result contract, or metadata conventions",
+                "Tests report actionable command names and violated rules",
+                "Adding a command to the migrated set requires no test code duplication",
+                "The ratchet strategy is documented in the migration playbook"
+            ],
+            "priority": 64,
+            "passes": false,
+            "notes": "P2. This formalizes the dogfooding approach used during the command output migration."
+        },
+        {
+            "id": "US-065",
+            "epicId": "EP-009",
+            "title": "Make dump-help metadata-driven and consistency-tested",
+            "description": "As an automation consumer, I want rt dump-help to reflect command metadata and options consistently so it can be trusted as the command contract.",
+            "acceptanceCriteria": [
+                "dump-help derives command categories, output formats, and capabilities from RtCommandInfo where available",
+                "dump-help includes consistent option metadata for common option factories",
+                "Tests verify every registered command appears in dump-help",
+                "Tests verify commands declaring JSON or structured formats expose matching options",
+                "Human-readable help remains concise and does not duplicate stale hand-written metadata"
+            ],
+            "priority": 65,
+            "passes": false,
+            "notes": "P2. This turns command metadata into a visible contract for agents."
+        },
+        {
+            "id": "US-066",
+            "epicId": "EP-009",
+            "title": "Create a command migration playbook",
+            "description": "As an rt contributor, I want a concise migration playbook so future command refactors follow the same sequence and know which architecture ratchets to update.",
+            "acceptanceCriteria": [
+                "A playbook documents the recommended order: result contract, option factories, handler wrapper, capabilities, symbol query, and ratchet update",
+                "The playbook includes a before/after checklist for one migrated command",
+                "The playbook explains when to use feedback for missing rt affordances",
+                "The playbook lists verification commands including architecture tests and targeted command tests",
+                "The playbook is linked from the relevant backlog epic or developer docs"
+            ],
+            "priority": 66,
+            "passes": false,
+            "notes": "P3. Keep this short and operational; it should support ongoing dogfooding rather than becoming a design document."
         }
     ]
 }

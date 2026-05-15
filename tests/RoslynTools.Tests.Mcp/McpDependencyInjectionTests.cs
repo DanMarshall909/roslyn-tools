@@ -68,27 +68,12 @@ public sealed class McpDependencyInjectionTests
     [Fact]
     public async Task Tool_registry_invokes_find_refs_via_bridge()
     {
-        using var project = new AdhocProjectBuilder();
-        project.AddSource("Model.cs", """
-                                      namespace TestApp;
-
-                                      public class Invoice
-                                      {
-                                      }
-                                      """);
-        project.AddSource("Service.cs", """
-                                        namespace TestApp;
-
-                                        public class InvoiceService
-                                        {
-                                            public Invoice Create() => new Invoice();
-                                        }
-                                        """);
+        using var project = McpTestHost.CreateInvoiceProject();
 
         var (workspace, sln) = project.Build();
         using (workspace)
         using (WorkspaceLoader.UseOverride(workspace, sln))
-        using (var provider = CreateProvider())
+        using (var provider = McpTestHost.CreateProvider())
         {
             var registry = provider.GetRequiredService<ToolRegistry>();
             using var args = JsonDocument.Parse("""
@@ -119,11 +104,4 @@ public sealed class McpDependencyInjectionTests
         throw new InvalidOperationException("Could not locate repository root.");
     }
 
-    private static ServiceProvider CreateProvider()
-    {
-        var services = new ServiceCollection();
-        RoslynTools.Bootstrap.RegisterServices(services);
-        services.AddMcpServices(new StringReader(string.Empty), new StringWriter());
-        return services.BuildServiceProvider();
-    }
 }

@@ -228,12 +228,8 @@ internal static class App
             "--decisions",
             "Path to a YAML file recording disambiguation choices. "
             + "If unanswered entries exist (or new ones surface), rt writes them and exits 2.");
-        root.AddGlobalOption(jsonOpt);
-        root.AddGlobalOption(llmOpt);
-        root.AddGlobalOption(markdownOpt);
-        root.AddGlobalOption(yamlOpt);
-        root.AddGlobalOption(strictJsonOpt);
-        root.AddGlobalOption(decisionsOpt);
+        foreach (var option in new Option[] { jsonOpt, llmOpt, markdownOpt, yamlOpt, strictJsonOpt, decisionsOpt })
+            root.AddGlobalOption(option);
 
         return (jsonOpt, llmOpt, markdownOpt, yamlOpt, decisionsOpt, strictJsonOpt);
     }

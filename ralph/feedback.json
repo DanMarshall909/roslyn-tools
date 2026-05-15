@@ -111,6 +111,25 @@
       "commandLine": "parallel dotnet test architecture subset and dotnet build RoslynTools.slnx",
       "description": "build: deploy-skill should retry or serialize Copy-Item because parallel dotnet test/build can lock the deployed use-rt SKILL.md",
       "status": "pending"
+    },
+    {
+      "id": "FB-013",
+      "type": "user-feedback",
+      "timestamp": "2026-05-15T07:32:14.2748003\u002B00:00",
+      "commandLine": "parallel: rt analyze find-duplicates; rt analyze complexity; rt analyze list-smells; rt analyze static-class-inventory --solution RoslynTools.slnx",
+      "description": "Parallel read-only rt analyses can emit MSBuild obj file lock warnings because workspace loading writes shared obj/Debug files; an agent-friendly mode should avoid or isolate generated state for concurrent analysis runs.",
+      "expectedResult": "Read-only commands such as analyze find-duplicates, complexity, list-smells, and static-class-inventory can run concurrently without MSBuild cache write conflicts, or rt documents/enforces serialization when workspace state cannot be isolated.",
+      "status": "pending"
+    },
+    {
+      "id": "FB-014",
+      "type": "exception",
+      "timestamp": "2026-05-15T07:38:51.1220009\u002B00:00",
+      "commandLine": "analyze-interface Demo.Contracts.ConcreteWorker --solution ignored",
+      "description": "\u0027Demo.Contracts.ConcreteWorker\u0027 is not an interface; resolved type kind was Class.",
+      "actualResult": "InvalidOperationException: \u0027Demo.Contracts.ConcreteWorker\u0027 is not an interface; resolved type kind was Class.",
+      "stackTrace": "System.InvalidOperationException: \u0027Demo.Contracts.ConcreteWorker\u0027 is not an interface; resolved type kind was Class.\r\n   at RoslynTools.Services.AnalyzeInterfaceService.ResolveInterfaceAsync(Solution solution, String interfaceSymbolSpec) in C:\\code\\roslyn-tools\\src\\RoslynTools\\Services\\AnalyzeInterfaceService.cs:line 203\r\n   at RoslynTools.Services.AnalyzeInterfaceService.AnalyzeAsync(Solution solution, String interfaceSymbolSpec, AnalyzeInterfaceOptions options) in C:\\code\\roslyn-tools\\src\\RoslynTools\\Services\\AnalyzeInterfaceService.cs:line 41\r\n   at RoslynTools.Commands.AnalyzeInterfaceCommand.\u003C\u003Ec.\u003C\u003CBuild\u003Eb__4_2\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\AnalyzeInterfaceCommand.cs:line 53\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass5_0.\u003C\u003CRunAsync\u003Eb__4\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 201",
+      "status": "pending"
     }
   ]
 }
