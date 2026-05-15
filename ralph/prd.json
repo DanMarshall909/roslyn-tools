@@ -265,6 +265,25 @@
             "notes": "P2. Discovered during US-026 EP-005 planning. rt gap prevents dogfooding replace-new for option factory standardisation pattern. Manual edit fallback was used for US-026.",
             "resolution": "Added --drop-matched-arg flag to replace-new. When used with --if-arg/--if-arg-literal, drops the matched arg from the replacement call. Arg removal uses SeparatedSyntaxList.RemoveAt with leading trivia normalisation on the new first arg. 2 new tests, full suite 921 passed.",
             "resolvedAt": "2026-05-12"
+        },
+        {
+            "id": "US-032",
+            "title": "rt analyze solid: SRP detector — flag classes with high method/dependency count",
+            "description": "As a developer, I want rt analyze solid --principle SRP to flag classes likely violating SRP so that I can identify candidates for decomposition.",
+            "acceptanceCriteria": [
+                "rt analyze solid --principle SRP --solution <sln> exits 0 and emits JSON to stdout",
+                "Output has a top-level 'SRP' key containing an array of violation items",
+                "Each item includes: TypeName, FilePath, Line, PublicMethodCount, DependencyCount, Detail",
+                "--min-methods <N> (default 10) and --min-deps <N> (default 5) are configurable thresholds",
+                "Classes below both thresholds are excluded from output",
+                "rt analyze solid --principle all includes SRP results alongside other active detectors"
+            ],
+            "priority": 32,
+            "passes": true,
+            "epicId": "EP-006",
+            "notes": "P2. Heuristic: classes where public method count AND distinct constructor-injected type count both exceed configurable thresholds. Output grouped under 'SRP' detector key.",
+            "resolution": "Added rt analyze solid --principle SRP command. SrpViolationItem + SolidResult models, SolidAnalyzer heuristic (public method count + constructor dep count, both thresholds), CLI wiring with --principle/--min-methods/--min-deps. 31 tests. Dogfooded against RoslynTools.slnx.",
+            "resolvedAt": "2026-05-15"
         }
     ]
 }

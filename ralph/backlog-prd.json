@@ -52,23 +52,6 @@
             "resolvedAt": "2026-05-11"
         },
         {
-            "id": "US-032",
-            "title": "rt analyze solid: SRP detector — flag classes with high method/dependency count",
-            "description": "As a developer, I want rt analyze solid --principle SRP to flag classes likely violating SRP so that I can identify candidates for decomposition.",
-            "acceptanceCriteria": [
-                "rt analyze solid --principle SRP --solution <sln> exits 0 and emits JSON to stdout",
-                "Output has a top-level 'SRP' key containing an array of violation items",
-                "Each item includes: TypeName, FilePath, Line, PublicMethodCount, DependencyCount, Detail",
-                "--min-methods <N> (default 10) and --min-deps <N> (default 5) are configurable thresholds",
-                "Classes below both thresholds are excluded from output",
-                "rt analyze solid --principle all includes SRP results alongside other active detectors"
-            ],
-            "priority": 32,
-            "passes": false,
-            "epicId": "EP-006",
-            "notes": "P2. Heuristic: classes where public method count AND distinct constructor-injected type count both exceed configurable thresholds. Output grouped under 'SRP' detector key."
-        },
-        {
             "id": "US-033",
             "title": "rt analyze solid: ISP detector — flag fat interfaces and NotImplementedException members",
             "description": "As a developer, I want rt analyze solid --principle ISP to flag over-broad interfaces and implementing classes that throw on members they cannot fulfill.",
