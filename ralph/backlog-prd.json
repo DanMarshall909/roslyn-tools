@@ -602,6 +602,20 @@
             "priority": 66,
             "passes": false,
             "notes": "P3. Keep this short and operational; it should support ongoing dogfooding rather than becoming a design document."
+        },
+        {
+            "id": "US-067",
+            "title": "Revisit nested-branch pattern in execute skill for trunk-based repos",
+            "description": "As a developer running /execute on a trunk repo, I want a clear consistent policy on RT gap handling, so the skill matches the actual workflow.",
+            "acceptanceCriteria": [
+                "The skill documents a clear policy: nested branches OR fix-on-main for trunk repos — not both",
+                "The Opus review section and regression handler are consistent with the chosen policy",
+                "The branch cleanup gate is present or removed to match",
+                "Risks of fix-on-main are documented (no revert path) if that approach is chosen"
+            ],
+            "priority": 67,
+            "passes": false,
+            "notes": "P3. Deferred from 2026-05-15 retro (Proposal 4). Aggressive version in ai-rules commit 8c1a08a; conservative rollback in dae9046. Three places still inconsistent: RT gap section, Opus review section, regression handler. Must be decided and applied consistently."
         }
     ]
 }
