@@ -1,3 +1,4 @@
+using System.CommandLine;
 using System.Text.Json;
 using RoslynTools.Commands;
 using RoslynTools.Commands.Results;
@@ -432,5 +433,62 @@ public class SolidSrpTests
 
         using var doc = JsonDocument.Parse(output.ToString());
         Assert.True(doc.RootElement.TryGetProperty("SRP", out _));
+    }
+
+    // -----------------------------------------------------------------------
+    // Batch 3: SolidCommand CLI wiring — options, validation, ExecuteAsync
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task execute_async_returns_1_for_negative_min_methods()
+    {
+        var exitCode = await SolidCommand.ExecuteAsync(null, "SRP", -1, 5);
+        Assert.Equal(1, exitCode);
+    }
+
+    [Fact]
+    public async Task execute_async_returns_1_for_negative_min_deps()
+    {
+        var exitCode = await SolidCommand.ExecuteAsync(null, "SRP", 10, -1);
+        Assert.Equal(1, exitCode);
+    }
+
+    [Fact]
+    public async Task execute_async_returns_1_for_invalid_principle()
+    {
+        var exitCode = await SolidCommand.ExecuteAsync(null, "OCP", 10, 5);
+        Assert.Equal(1, exitCode);
+    }
+
+    [Fact]
+    public async Task execute_async_returns_0_for_valid_srp_principle()
+    {
+        var exitCode = await SolidCommand.ExecuteAsync(null, "SRP", 10, 5);
+        Assert.Equal(0, exitCode);
+    }
+
+    [Fact]
+    public async Task execute_async_returns_0_for_all_principle()
+    {
+        var exitCode = await SolidCommand.ExecuteAsync(null, "all", 10, 5);
+        Assert.Equal(0, exitCode);
+    }
+
+    [Fact]
+    public void execute_async_defaults_min_methods_to_10()
+    {
+        var cmd = SolidCommand.Build();
+        var minMethodsOpt = cmd.Options.OfType<Option<int>>()
+            .First(o => o.Name == "min-methods");
+        Assert.Equal(10, minMethodsOpt.Parse("").GetValueForOption(minMethodsOpt));
+    }
+
+    [Fact]
+    public void execute_async_defaults_min_deps_to_5()
+    {
+        var cmd = SolidCommand.Build();
+        var minDepsOpt = cmd.Options.OfType<Option<int>>()
+            .First(o => o.Name == "min-deps");
+        Assert.Equal(5, minDepsOpt.Parse("").GetValueForOption(minDepsOpt));
     }
 }
