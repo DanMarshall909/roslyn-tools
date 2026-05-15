@@ -1,4 +1,5 @@
 using System.CommandLine;
+using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
@@ -36,15 +37,18 @@ internal sealed class StaticClassInventoryCommand : IRtCommand, IStructuredOutpu
             "List every static class with call-site count, member count, and inbound coupling for migration planning");
         cmd.Add(solutionOpt);
 
-        cmd.SetHandler(async solution =>
+        cmd.SetHandler(async ctx =>
         {
-            var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
-            using (workspace)
-            {
-                var report = await RtServiceProvider.Get<StaticClassInventoryService>().AnalyzeAsync(sln);
-                RtSerializer.Write(StaticClassInventoryResult.FromReport(report));
-            }
-        }, solutionOpt);
+            var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
+            var sp = ctx.BindingContext.GetService<IServiceProvider>();
+            var loader = sp?.GetService<WorkspaceLoader>() ?? new WorkspaceLoader();
+
+            var sln = await loader.GetSolutionAsync(solution);
+            var report = await RtServiceProvider.Get<StaticClassInventoryService>().AnalyzeAsync(sln);
+            var result = StaticClassInventoryResult.FromReport(report);
+
+            RtResultRenderer.WriteOutput(RtResult<StaticClassInventoryResult>.Ok(result));
+        });
 
         return cmd;
     }

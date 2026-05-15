@@ -22,13 +22,31 @@ function Test-RebuildNeeded {
     return $false
 }
 
-if (Test-RebuildNeeded) {
-    [Console]::Error.WriteLine('rt: rebuilding...')
-    & cmd /c "dotnet build `"$proj`" -c Release --nologo -v quiet 1>&2"
-    if ($LASTEXITCODE -ne 0) { [Console]::Error.WriteLine('rt: build failed'); exit 1 }
-    if (Get-Command dotnet-suggest -ErrorAction SilentlyContinue) {
-        dotnet-suggest register --command-path $exe 2>$null
+$mutexName = 'rt-rebuild-' + ([Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($PSScriptRoot)) -replace '[\\/=+]', '_')
+$createdNew = $false
+$mutex = [Threading.Mutex]::new($false, $mutexName, [ref]$createdNew)
+$hasMutex = $false
+try {
+    $hasMutex = $mutex.WaitOne([TimeSpan]::FromMinutes(5))
+    if (-not $hasMutex) {
+        [Console]::Error.WriteLine('rt: timed out waiting for rebuild lock')
+        exit 1
     }
+
+    if (Test-RebuildNeeded) {
+        [Console]::Error.WriteLine('rt: rebuilding...')
+        & cmd /c "dotnet build `"$proj`" -c Release --nologo -v quiet 1>&2"
+        if ($LASTEXITCODE -ne 0) { [Console]::Error.WriteLine('rt: build failed'); exit 1 }
+        if (Get-Command dotnet-suggest -ErrorAction SilentlyContinue) {
+            dotnet-suggest register --command-path $exe 2>$null
+        }
+    }
+}
+finally {
+    if ($hasMutex) {
+        $mutex.ReleaseMutex()
+    }
+    $mutex.Dispose()
 }
 
 if ($Raw) {

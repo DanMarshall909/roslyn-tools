@@ -55,8 +55,8 @@ internal static class FeedbackCommand
                 ExpectedResult = expectedResult
             };
 
-            FeedbackStore.Append(entry);
-            RtConsole.WriteLine(RtOutputContext.Result, $"Feedback recorded: {entry.Id}");
+            var id = FeedbackStore.Append(entry);
+            RtConsole.WriteLine(RtOutputContext.Result, $"Feedback recorded: {id}");
         }, descriptionOpt, sampleCodeOpt, expectedResultOpt, commandLineOpt);
 
         return cmd;

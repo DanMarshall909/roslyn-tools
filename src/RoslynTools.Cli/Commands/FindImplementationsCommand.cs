@@ -1,5 +1,6 @@
 using System.CommandLine;
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
@@ -43,35 +44,40 @@ internal sealed class FindImplementationsCommand : IRtCommand, IStructuredOutput
         };
         cmd.AddAlias("impls");
 
-        cmd.SetHandler(async (symbol, solution) =>
+        cmd.SetHandler(async ctx =>
             {
-                var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
-                using (workspace)
+                var symbol = ctx.ParseResult.GetValueForArgument(symbolArg);
+                var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
+                var sp = ctx.BindingContext.GetService<IServiceProvider>();
+                var loader = sp?.GetService<WorkspaceLoader>() ?? new WorkspaceLoader();
+
+                var sln = await loader.GetSolutionAsync(solution);
+                var sym = symbol.Contains('.', StringComparison.Ordinal)
+                    ? await SymbolLocator.FindSymbolByFqnAsync(sln, symbol, "type")
+                    : await SymbolLocator.FindSymbolAsync(sln, symbol, "type");
+
+                if (sym is not INamedTypeSymbol typeSymbol)
+                    throw new InvalidOperationException($"'{symbol}' is not a type (found {sym.Kind}).");
+
+                if (typeSymbol.TypeKind != TypeKind.Interface && !typeSymbol.IsAbstract)
+                    RtLog.Warning("'{Symbol}' is not an interface or abstract class. Searching for derived types.",
+                        symbol);
+
+                var implementations =
+                    await RtServiceProvider.Get<FindImplementationsService>().FindAsync(sln, typeSymbol);
+
+                var result = new Dictionary<string, object?>
                 {
-                    var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, symbol, "type");
+                    ["symbol"] = typeSymbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
+                    ["symbolKind"] = typeSymbol.TypeKind.ToString(),
+                    ["implementationCount"] = implementations.Count,
+                    ["implementations"] = implementations
+                };
 
-                    if (sym is not INamedTypeSymbol typeSymbol)
-                        throw new InvalidOperationException($"'{symbol}' is not a type (found {sym.Kind}).");
-
-                    if (typeSymbol.TypeKind != TypeKind.Interface && !typeSymbol.IsAbstract)
-                        RtLog.Warning("'{Symbol}' is not an interface or abstract class. Searching for derived types.",
-                            symbol);
-
-                    var implementations =
-                        await RtServiceProvider.Get<FindImplementationsService>().FindAsync(sln, typeSymbol);
-
-                    var result = new Dictionary<string, object?>
-                    {
-                        ["symbol"] = typeSymbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
-                        ["symbolKind"] = typeSymbol.TypeKind.ToString(),
-                        ["implementationCount"] = implementations.Count,
-                        ["implementations"] = implementations
-                    };
-
-                    StructuredOutput.Write(result, SymbolFormatter.DefaultJsonOptions);
-                }
-            },
-            symbolArg, solutionOpt);
+                RtResultRenderer.Write(
+                    RtResult<object>.Ok(result),
+                    SymbolFormatter.DefaultJsonOptions);
+            });
 
         return cmd;
     }

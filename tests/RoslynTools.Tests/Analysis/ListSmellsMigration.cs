@@ -1,3 +1,4 @@
+using System.CommandLine;
 using System.Text.Json;
 using RoslynTools.Commands;
 using RoslynTools.Commands.Results;
@@ -191,5 +192,15 @@ public class ListSmellsMigration : IDisposable
         Assert.Contains(OutputFormat.Json, formats);
         Assert.Contains(OutputFormat.Markdown, formats);
         Assert.Contains(OutputFormat.Llm, formats);
+    }
+
+    [Fact]
+    public void list_smells_command_accepts_top_option()
+    {
+        var command = ListSmellsCommand.Build();
+
+        var result = command.Parse("--solution RoslynTools.slnx --top 3");
+
+        Assert.Empty(result.Errors);
     }
 }

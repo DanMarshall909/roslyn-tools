@@ -14,4 +14,16 @@ internal static class RtResultRenderer
         if (result.Value is not null)
             StructuredOutput.Write(result.Value, jsonOptions);
     }
+
+    internal static void WriteOutput<T>(RtResult<T> result)
+        where T : IRtOutput
+    {
+        foreach (var diagnostic in result.Diagnostics)
+            RtLog.Warning("{Message}", diagnostic);
+
+        Environment.ExitCode = result.ExitCode;
+
+        if (result.Value is not null)
+            RtSerializer.Write(result.Value);
+    }
 }

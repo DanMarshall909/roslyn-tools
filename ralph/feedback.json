@@ -65,6 +65,34 @@
       "commandLine": "two parallel rt feedback add commands both returned Feedback recorded: FB-006, and only one user-feedback item remained",
       "description": "rt: feedback add should serialize writes or allocate unique IDs safely when concurrent agent calls add feedback",
       "status": "pending"
+    },
+    {
+      "id": "FB-008",
+      "type": "user-feedback",
+      "timestamp": "2026-05-15T06:18:13.5599521\u002B00:00",
+      "commandLine": "three parallel ./rt.cmd invocations after source edits caused CS2012 and rt.exe copy lock warnings",
+      "description": "rt: wrapper rebuild should serialize concurrent invocations so parallel agent dogfooding cannot race on bin/obj outputs",
+      "status": "pending"
+    },
+    {
+      "id": "FB-009",
+      "type": "exception",
+      "timestamp": "2026-05-15T06:19:54.1018417\u002B00:00",
+      "commandLine": "inspect find-impl IRtCommand --solution RoslynTools.slnx",
+      "description": "No symbol with FQN \u0027IRtCommand\u0027 found in solution.",
+      "actualResult": "InvalidOperationException: No symbol with FQN \u0027IRtCommand\u0027 found in solution.",
+      "stackTrace": "System.InvalidOperationException: No symbol with FQN \u0027IRtCommand\u0027 found in solution.\r\n   at RoslynTools.Core.SymbolLocator.FindSymbolByFqnAsync(Solution solution, String fullyQualifiedName, String kind) in C:\\code\\roslyn-tools\\src\\RoslynTools\\Core\\SymbolLocator.cs:line 101\r\n   at RoslynTools.Commands.FindImplementationsCommand.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuild\u003Eb__0\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\FindImplementationsCommand.cs:line 55\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass5_0.\u003C\u003CRunAsync\u003Eb__4\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 201",
+      "status": "pending"
+    },
+    {
+      "id": "FB-010",
+      "type": "exception",
+      "timestamp": "2026-05-15T06:59:27.5312110\u002B00:00",
+      "commandLine": "analyze-interface Demo.Contracts.ConcreteWorker --solution ignored",
+      "description": "\u0027Demo.Contracts.ConcreteWorker\u0027 is not an interface; resolved type kind was Class.",
+      "actualResult": "InvalidOperationException: \u0027Demo.Contracts.ConcreteWorker\u0027 is not an interface; resolved type kind was Class.",
+      "stackTrace": "System.InvalidOperationException: \u0027Demo.Contracts.ConcreteWorker\u0027 is not an interface; resolved type kind was Class.\r\n   at RoslynTools.Services.AnalyzeInterfaceService.ResolveInterfaceAsync(Solution solution, String interfaceSymbolSpec) in C:\\code\\roslyn-tools\\src\\RoslynTools\\Services\\AnalyzeInterfaceService.cs:line 203\r\n   at RoslynTools.Services.AnalyzeInterfaceService.AnalyzeAsync(Solution solution, String interfaceSymbolSpec, AnalyzeInterfaceOptions options) in C:\\code\\roslyn-tools\\src\\RoslynTools\\Services\\AnalyzeInterfaceService.cs:line 41\r\n   at RoslynTools.Commands.AnalyzeInterfaceCommand.\u003C\u003Ec.\u003C\u003CBuild\u003Eb__4_2\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\AnalyzeInterfaceCommand.cs:line 53\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass5_0.\u003C\u003CRunAsync\u003Eb__4\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 201",
+      "status": "pending"
     }
   ]
 }

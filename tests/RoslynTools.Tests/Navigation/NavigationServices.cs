@@ -80,6 +80,59 @@ public class NavigationServices
         }
     }
 
+    [Fact]
+    public async Task finds_refs_resolves_record_primary_constructor_properties()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("CommandInfo.cs", """
+                                            namespace App;
+
+                                            public sealed record CommandInfo(string Name, string[]? SupportedFormats = null);
+
+                                            public static class Registry
+                                            {
+                                                public static bool HasFormats(CommandInfo info) => info.SupportedFormats is not null;
+                                            }
+                                            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var result = await new FindRefsService().FindAsync(sln, "SupportedFormats", null);
+
+            Assert.Equal("SupportedFormats", result.SymbolName);
+            Assert.NotEmpty(result.References);
+        }
+    }
+
+    [Fact]
+    public async Task finds_refs_resolves_dotted_symbol_specs()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Store.cs", """
+                                      namespace App;
+
+                                      public static class FeedbackStore
+                                      {
+                                          public static void MarkProcessed() { }
+                                      }
+
+                                      public static class Consumer
+                                      {
+                                          public static void Run() => FeedbackStore.MarkProcessed();
+                                      }
+                                      """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var result = await new FindRefsService().FindAsync(sln, "App.FeedbackStore.MarkProcessed", null);
+
+            Assert.Equal("MarkProcessed", result.SymbolName);
+            Assert.Single(result.References);
+        }
+    }
+
     // ── FindImplementationsService ────────────────────────────────────────
 
     [Fact]

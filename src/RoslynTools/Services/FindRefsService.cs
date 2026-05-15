@@ -38,7 +38,7 @@ internal class FindRefsService : IRtService
         string symbol,
         string? kind)
     {
-        var sym = await _symbols.FindSymbolAsync(sln, symbol, kind);
+        var sym = await ResolveSymbolAsync(sln, symbol, kind);
 
         _logger.RtInfo("Finding references to '{Symbol}'...", sym.ToDisplayString());
 
@@ -67,5 +67,22 @@ internal class FindRefsService : IRtService
             SymbolName = sym.Name,
             References = references
         };
+    }
+
+    private async Task<ISymbol> ResolveSymbolAsync(Solution sln, string symbol, string? kind)
+    {
+        if (symbol.Contains('.', StringComparison.Ordinal))
+        {
+            try
+            {
+                return await _symbols.FindSymbolByFqnAsync(sln, symbol, kind);
+            }
+            catch (InvalidOperationException)
+            {
+                // Fall back to legacy simple-name resolution so existing partial specs still work.
+            }
+        }
+
+        return await _symbols.FindSymbolAsync(sln, symbol, kind);
     }
 }

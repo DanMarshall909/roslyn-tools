@@ -26,7 +26,8 @@ internal sealed class ListSmellsCommand : IRtCommand
         [
             "rt analyze list-smells --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt analyze smells --scope ProjectX.Core --max-class-lines 200 --max-method-lines 30 --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt analyze list-smells --solution RoslynTools.slnx --max-params 5"
+            "rt analyze list-smells --solution RoslynTools.slnx --max-params 5",
+            "rt analyze list-smells --solution RoslynTools.slnx --scope RoslynTools --top 30"
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );
@@ -38,14 +39,22 @@ internal sealed class ListSmellsCommand : IRtCommand
         var maxMethodOpt = new Option<int>("--max-method-lines", () => 40, "Max lines per method");
         var maxParamsOpt = new Option<int>("--max-params", () => 7, "Max constructor params");
         var scopeOpt = new Option<string?>("--scope", "Namespace/project prefix filter");
+        var topOpt = new Option<int>("--top", () => 0, "Return only top N smell results (0 = all)");
 
         var cmd = new Command("list-smells",
             "Report code smells: large classes, long methods, over-injected constructors");
         cmd.AddAlias("smells");
-        cmd.AddAll(solutionOpt, maxClassOpt, maxMethodOpt, maxParamsOpt, scopeOpt);
+        cmd.AddAll(solutionOpt, maxClassOpt, maxMethodOpt, maxParamsOpt, scopeOpt, topOpt);
 
-        cmd.SetHandler(async (solution, maxClass, maxMethod, maxParams, scope) =>
+        cmd.SetHandler(async (solution, maxClass, maxMethod, maxParams, scope, top) =>
         {
+            if (top < 0)
+            {
+                RtLog.Error("--top must be >= 0.");
+                Environment.ExitCode = 1;
+                return;
+            }
+
             var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
             using (workspace)
             {
@@ -53,9 +62,13 @@ internal sealed class ListSmellsCommand : IRtCommand
 
                 var smells = await SmellAnalyzer.AnalyzeAsync(sln, maxClass, maxMethod, maxParams, scope);
 
+                var resultSmells = top > 0
+                    ? smells.Take(top).ToList()
+                    : smells;
+
                 var result = new ListSmellsResult
                 {
-                    Smells = smells.Select(s => new SmellItemResult
+                    Smells = resultSmells.Select(s => new SmellItemResult
                     {
                         SmellType = s.SmellType,
                         TypeName = s.TypeName,
@@ -70,7 +83,7 @@ internal sealed class ListSmellsCommand : IRtCommand
 
                 RtLog.Info("Found {Count} smell(s).", smells.Count);
             }
-        }, solutionOpt, maxClassOpt, maxMethodOpt, maxParamsOpt, scopeOpt);
+        }, solutionOpt, maxClassOpt, maxMethodOpt, maxParamsOpt, scopeOpt, topOpt);
 
         return cmd;
     }

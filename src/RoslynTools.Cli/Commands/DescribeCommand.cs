@@ -1,4 +1,5 @@
 using System.CommandLine;
+using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
@@ -42,17 +43,22 @@ internal sealed class DescribeCommand : IRtCommand, IStructuredOutputCommand
             symbolArg, solutionOpt, kindOpt
         };
 
-        cmd.SetHandler(async (symbol, solution, kind) =>
+        cmd.SetHandler(async ctx =>
             {
-                var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
-                using (workspace)
-                {
-                    var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, symbol, kind);
-                    var result = RtServiceProvider.Get<InspectService>().BuildInspection(sym, sln);
-                    StructuredOutput.Write(result, SymbolFormatter.DefaultJsonOptions);
-                }
-            },
-            symbolArg, solutionOpt, kindOpt);
+                var symbol = ctx.ParseResult.GetValueForArgument(symbolArg);
+                var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
+                var kind = ctx.ParseResult.GetValueForOption(kindOpt);
+                var sp = ctx.BindingContext.GetService<IServiceProvider>();
+                var loader = sp?.GetService<WorkspaceLoader>() ?? new WorkspaceLoader();
+
+                var sln = await loader.GetSolutionAsync(solution);
+                var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, symbol, kind);
+                var result = RtServiceProvider.Get<InspectService>().BuildInspection(sym, sln);
+
+                RtResultRenderer.Write(
+                    RtResult<object>.Ok(result),
+                    SymbolFormatter.DefaultJsonOptions);
+            });
 
         return cmd;
     }

@@ -66,12 +66,13 @@ internal static class FeedbackStore
         return $"FB-{max + 1:D3}";
     }
 
-    internal static void Append(FeedbackEntry entry)
+    internal static string Append(FeedbackEntry entry)
     {
         Lock.Wait();
         try
         {
-            AppendCore(entry);
+            using var storeLock = AcquireStoreLock();
+            return AppendCore(entry);
         }
         finally
         {
@@ -86,6 +87,7 @@ internal static class FeedbackStore
             await Lock.WaitAsync();
             try
             {
+                using var storeLock = AcquireStoreLock();
                 var existing = ReadExisting();
                 var entry = new FeedbackEntry
                 {
@@ -111,11 +113,48 @@ internal static class FeedbackStore
         }
     }
 
-    private static void AppendCore(FeedbackEntry entry)
+    private static string AppendCore(FeedbackEntry entry)
     {
         var all = ReadExisting();
+        if (string.IsNullOrWhiteSpace(entry.Id)
+            || all.Any(existing => string.Equals(existing.Id, entry.Id, StringComparison.Ordinal)))
+            entry.Id = NextId(all);
+
         all.Add(entry);
         WriteAll(all);
+        return entry.Id;
+    }
+
+    private static FileStream AcquireStoreLock()
+    {
+        var path = ResolveStorePath();
+        var dir = Path.GetDirectoryName(path)!;
+        Directory.CreateDirectory(dir);
+
+        var lockPath = path + ".lock";
+        for (var attempt = 0; attempt < 100; attempt++)
+            try
+            {
+                return new FileStream(
+                    lockPath,
+                    FileMode.OpenOrCreate,
+                    FileAccess.ReadWrite,
+                    FileShare.None,
+                    1,
+                    FileOptions.DeleteOnClose);
+            }
+            catch (IOException) when (attempt < 99)
+            {
+                Thread.Sleep(20);
+            }
+
+        return new FileStream(
+            lockPath,
+            FileMode.OpenOrCreate,
+            FileAccess.ReadWrite,
+            FileShare.None,
+            1,
+            FileOptions.DeleteOnClose);
     }
 
     private static List<FeedbackEntry> ReadExisting()

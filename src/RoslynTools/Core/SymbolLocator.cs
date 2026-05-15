@@ -34,6 +34,7 @@ internal static class SymbolLocator
             var found = await SymbolFinder.FindDeclarationsAsync(
                 project, symbolName, false, filter);
             allDeclarations.AddRange(found.Where(IsSourceDeclaration));
+            allDeclarations.AddRange(await FindCompilationSymbolsByNameAsync(project, symbolName, filter));
         }
 
         // Further narrow by kind when filter covers multiple symbol types.
@@ -274,6 +275,21 @@ internal static class SymbolLocator
     private static bool IsSourceDeclaration(ISymbol symbol)
     {
         return symbol.DeclaringSyntaxReferences.Length > 0;
+    }
+
+    private static async Task<IEnumerable<ISymbol>> FindCompilationSymbolsByNameAsync(
+        Project project,
+        string symbolName,
+        SymbolFilter filter)
+    {
+        var compilation = await project.GetCompilationAsync();
+        if (compilation is null)
+            return [];
+
+        return compilation.GetSymbolsWithName(
+                name => string.Equals(name, symbolName, StringComparison.Ordinal),
+                filter)
+            .Where(IsSourceDeclaration);
     }
 
     private static IEnumerable<ISymbol> NarrowByKind(IEnumerable<ISymbol> symbols, string? kind)
