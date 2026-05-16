@@ -230,6 +230,44 @@
       "actualResult": "InvalidOperationException: \u0027Demo.Contracts.ConcreteWorker\u0027 is not an interface; resolved type kind was Class.",
       "stackTrace": "System.InvalidOperationException: \u0027Demo.Contracts.ConcreteWorker\u0027 is not an interface; resolved type kind was Class.\r\n   at RoslynTools.Services.AnalyzeInterfaceService.ResolveInterfaceAsync(Solution solution, String interfaceSymbolSpec) in C:\\code\\roslyn-tools\\src\\RoslynTools\\Services\\AnalyzeInterfaceService.cs:line 203\r\n   at RoslynTools.Services.AnalyzeInterfaceService.AnalyzeAsync(Solution solution, String interfaceSymbolSpec, AnalyzeInterfaceOptions options) in C:\\code\\roslyn-tools\\src\\RoslynTools\\Services\\AnalyzeInterfaceService.cs:line 41\r\n   at RoslynTools.Commands.AnalyzeInterfaceCommand.\u003C\u003Ec.\u003C\u003CBuild\u003Eb__4_2\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\AnalyzeInterfaceCommand.cs:line 53\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass5_0.\u003C\u003CRunAsync\u003Eb__4\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 201",
       "status": "pending"
+    },
+    {
+      "id": "FB-025",
+      "type": "exception",
+      "timestamp": "2026-05-15T11:20:09.8877661\u002B00:00",
+      "commandLine": "inspect describe RoslynTools.Bogus.Type --solution RoslynTools.slnx",
+      "description": "No symbol with FQN \u0027RoslynTools.Bogus.Type\u0027 found in solution.",
+      "actualResult": "InvalidOperationException: No symbol with FQN \u0027RoslynTools.Bogus.Type\u0027 found in solution.",
+      "stackTrace": "System.InvalidOperationException: No symbol with FQN \u0027RoslynTools.Bogus.Type\u0027 found in solution.\r\n   at RoslynTools.Core.SymbolLocator.FindSymbolByFqnAsync(Solution solution, String fullyQualifiedName, String kind) in C:\\code\\roslyn-tools\\src\\RoslynTools\\Core\\SymbolLocator.cs:line 101\r\n   at RoslynTools.Commands.DescribeCommand.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuild\u003Eb__0\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\DescribeCommand.cs:line 55\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass5_0.\u003C\u003CRunAsync\u003Eb__4\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 202",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools",
+      "rtVersion": "1.0.0\u002B582e0286701845f9167158de9329e3b7faa02bf9",
+      "dotnetVersion": "8.0.27",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "RoslynTools.slnx",
+      "parsedOptions": {
+        "solution": "RoslynTools.slnx"
+      }
+    },
+    {
+      "id": "FB-026",
+      "type": "exception",
+      "timestamp": "2026-05-15T12:20:28.8881078\u002B00:00",
+      "commandLine": "analyze-interface Demo.Contracts.ConcreteWorker --solution ignored",
+      "description": "\u0027Demo.Contracts.ConcreteWorker\u0027 is not an interface; resolved type kind was Class.",
+      "actualResult": "InvalidOperationException: \u0027Demo.Contracts.ConcreteWorker\u0027 is not an interface; resolved type kind was Class.",
+      "stackTrace": "System.InvalidOperationException: \u0027Demo.Contracts.ConcreteWorker\u0027 is not an interface; resolved type kind was Class.\r\n   at RoslynTools.Services.AnalyzeInterfaceService.ResolveInterfaceAsync(Solution solution, String interfaceSymbolSpec) in C:\\code\\roslyn-tools\\src\\RoslynTools\\Services\\AnalyzeInterfaceService.cs:line 203\r\n   at RoslynTools.Services.AnalyzeInterfaceService.AnalyzeAsync(Solution solution, String interfaceSymbolSpec, AnalyzeInterfaceOptions options) in C:\\code\\roslyn-tools\\src\\RoslynTools\\Services\\AnalyzeInterfaceService.cs:line 41\r\n   at RoslynTools.Commands.AnalyzeInterfaceCommand.\u003C\u003Ec.\u003C\u003CBuild\u003Eb__4_2\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\AnalyzeInterfaceCommand.cs:line 53\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass5_0.\u003C\u003CRunAsync\u003Eb__4\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 202",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net8.0\\win-x64",
+      "rtVersion": "1.0.0\u002B582e0286701845f9167158de9329e3b7faa02bf9",
+      "dotnetVersion": "8.0.27",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored",
+        "include-tests": "False",
+        "suggest": "False"
+      }
     }
   ]
 }
