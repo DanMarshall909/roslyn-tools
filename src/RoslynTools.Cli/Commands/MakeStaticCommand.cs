@@ -52,7 +52,7 @@ internal sealed class MakeStaticCommand : IRtCommand
     /// </summary>
     internal static async Task ExecuteAsync(string methodSpec, string? solutionPath, bool dryRun)
     {
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(solutionPath);
+        var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
             var exitCode = await RtServiceProvider.Get<MakeStaticService>().RunAsync(sln, methodSpec, dryRun);

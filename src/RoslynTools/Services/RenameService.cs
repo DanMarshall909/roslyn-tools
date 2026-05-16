@@ -113,7 +113,7 @@ internal class RenameService : IRtService
     {
         if (dryRun)
         {
-            RtConsole.WriteLine(RtOutputContext.Result,
+            RtConsole.WriteLine(RtOutputContext.Diagnostic,
                 $"[dry-run] Would rename: {rename.OldPath} -> {rename.NewPath}");
             return;
         }
@@ -125,7 +125,7 @@ internal class RenameService : IRtService
         }
 
         File.Move(rename.OldPath, rename.NewPath);
-        RtConsole.WriteLine(RtOutputContext.Result, $"Renamed file: {rename.OldPath} -> {rename.NewPath}");
+        RtConsole.WriteLine(RtOutputContext.Diagnostic, $"Renamed file: {rename.OldPath} -> {rename.NewPath}");
     }
 
     internal async Task ExecuteBatchAsync(

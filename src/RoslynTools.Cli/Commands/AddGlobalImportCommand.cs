@@ -42,7 +42,7 @@ internal sealed class AddGlobalImportCommand : IRtCommand
 
         cmd.SetHandler(async (file, ns, solution, dryRun) =>
         {
-            var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
+            var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
             using (workspace)
             {
                 await RtServiceProvider.Get<ImportDirectiveService>().AddGlobalUsingAsync(sln, file, ns, dryRun);

@@ -53,7 +53,7 @@ internal sealed class AddXmlDocCommand : IRtCommand
                 return;
             }
 
-            var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
+            var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
             using (workspace)
             {
                 await RtServiceProvider.Get<AddXmlDocService>().RunAsync(sln, docs, dryRun);

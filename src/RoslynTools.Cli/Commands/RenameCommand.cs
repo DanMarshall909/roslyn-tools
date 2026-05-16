@@ -54,7 +54,7 @@ internal sealed class RenameCommand : IRtCommand
 
         cmd.SetHandler(async (symbol, newName, solution, kind, csv, dryRun) =>
             {
-                var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
+                var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
                 using (workspace)
                 {
                     if (!string.IsNullOrWhiteSpace(csv))

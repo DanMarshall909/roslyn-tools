@@ -78,4 +78,14 @@ public sealed class MethodExtractorBuilder
         var result = Core.MethodExtractorBuilder.MemberIndentOf(stmt);
         Assert.Equal(bodyIndent, result);
     }
+
+    [Theory]
+    [InlineData("string?", "string")]
+    [InlineData("string", "string")]
+    public void removes_only_trailing_nullable_annotation(string typeName, string expected)
+    {
+        var result = Core.MethodExtractorBuilder.RemoveNullableAnnotation(typeName);
+
+        Assert.Equal(expected, result);
+    }
 }

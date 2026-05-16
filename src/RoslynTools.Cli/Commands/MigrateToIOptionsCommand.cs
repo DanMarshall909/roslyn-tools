@@ -83,7 +83,7 @@ internal sealed class MigrateToIOptionsCommand : IRtCommand
 
         try
         {
-            var (workspace, solution) = await WorkspaceLoader.LoadAsync(solutionPath);
+            var (workspace, solution) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solutionPath);
             using (workspace)
             {
                 return await RtServiceProvider.Get<MigrateToIOptionsService>()

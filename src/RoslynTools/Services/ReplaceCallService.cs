@@ -5,6 +5,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 
 namespace RoslynTools.Services;
 
@@ -51,7 +52,7 @@ internal class ReplaceCallService : IRtService
 
         if (locationsByDocument.Count == 0)
         {
-            RtConsole.WriteLine(RtOutputContext.Result, $"No calls to {from} found.");
+            RtResultRenderer.WriteText(RtResult<string>.Ok($"No calls to {from} found."));
             return;
         }
 

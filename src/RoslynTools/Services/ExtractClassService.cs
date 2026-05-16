@@ -47,7 +47,7 @@ internal class ExtractClassService : IRtService
         string? outputDir,
         bool dryRun)
     {
-        var (workspace, solution) = await WorkspaceLoader.LoadAsync(solutionPath);
+        var (workspace, solution) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
             await ExecuteAsync(solution, typeName, members, newTypeName, isStatic, outputDir, dryRun);

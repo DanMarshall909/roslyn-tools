@@ -240,10 +240,10 @@ internal class MakeInstanceService : IRtService
     private void PrintSummary(int total, List<(string file, int line, string reason)> skipped)
     {
         var rewritten = total - skipped.Count;
-        RtConsole.WriteLine(RtOutputContext.Result,
+        RtConsole.WriteLine(RtOutputContext.Diagnostic,
             $"\nSummary: {total} call site(s) found, {rewritten} rewritten, {skipped.Count} skipped.");
 
         foreach (var (file, line, reason) in skipped)
-            RtConsole.WriteLine(RtOutputContext.Result, $"  SKIPPED {file}:{line} — {reason}");
+            RtConsole.WriteLine(RtOutputContext.Diagnostic, $"  SKIPPED {file}:{line} — {reason}");
     }
 }

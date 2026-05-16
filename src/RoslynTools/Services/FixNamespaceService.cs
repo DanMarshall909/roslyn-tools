@@ -35,7 +35,7 @@ internal class FixNamespaceService : IRtService
     {
         filePath = Path.GetFullPath(filePath);
 
-        var (workspace, solution) = await WorkspaceLoader.LoadAsync(solutionPath);
+        var (workspace, solution) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
             await RunAsync(solution, filePath, dryRun);
@@ -76,7 +76,7 @@ internal class FixNamespaceService : IRtService
 
         if (currentNamespace == expectedNamespace)
         {
-            RtConsole.WriteLine(RtOutputContext.Result, $"Namespace already correct: {expectedNamespace}");
+            RtConsole.WriteLine(RtOutputContext.Diagnostic, $"Namespace already correct: {expectedNamespace}");
             return;
         }
 

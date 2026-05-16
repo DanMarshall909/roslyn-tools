@@ -62,7 +62,7 @@ internal sealed class ReplaceCallCommand : IRtCommand
     internal static async Task ExecuteAsync(string from, string to, string? solutionPath, bool dryRun,
         int? ifArgIndex = null, string? ifArgLiteral = null)
     {
-        var (workspace, solution) = await WorkspaceLoader.LoadAsync(solutionPath);
+        var (workspace, solution) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
             await RtServiceProvider.Get<ReplaceCallService>()

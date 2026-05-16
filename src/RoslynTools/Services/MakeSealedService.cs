@@ -70,7 +70,7 @@ internal class MakeSealedService : IRtService
     {
         if (classSymbol.IsSealed)
         {
-            RtConsole.WriteLine(RtOutputContext.Result, $"Class {typeName} is already sealed.");
+            RtConsole.WriteLine(RtOutputContext.Diagnostic, $"Class {typeName} is already sealed.");
             return false;
         }
 

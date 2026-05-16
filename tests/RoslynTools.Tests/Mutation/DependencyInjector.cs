@@ -137,6 +137,27 @@ public sealed class DependencyInjector
     }
 
     [Fact]
+    public void does_not_duplicate_field_when_it_is_declared_with_another_variable()
+    {
+        var source = """
+                     class MyService
+                     {
+                         private readonly ILogger _other, _logger;
+                         public MyService(ILogger logger) { _logger = logger; }
+                     }
+                     """;
+
+        var result = Rewrite(source, "MyService", "ILogger", "_logger", "logger");
+        var fields = CSharpSyntaxTree.ParseText(result).GetRoot().DescendantNodes()
+            .OfType<FieldDeclarationSyntax>();
+        var loggerDeclarators = fields.SelectMany(f => f.Declaration.Variables)
+            .Count(v => v.Identifier.Text == "_logger");
+
+        Assert.Equal(1, loggerDeclarators);
+        Assert.DoesNotContain("private readonly ILogger _logger;", result);
+    }
+
+    [Fact]
     public void inserts_new_field_after_existing_fields_not_before_methods()
     {
         var source = """
@@ -152,6 +173,69 @@ public sealed class DependencyInjector
         Assert.True(fooIdx >= 0, "original field _foo not found");
         Assert.True(barIdx >= 0, "injected field _bar not found");
         Assert.True(fooIdx < barIdx, "_bar should be inserted AFTER _foo, not before it");
+    }
+
+    [Fact]
+    public void inserts_new_field_before_non_contiguous_fields()
+    {
+        var source = """
+                     class MyService
+                     {
+                         private readonly IFoo _foo;
+                         public void FooMethod() { }
+                         private readonly IBar _bar;
+                     }
+                     """;
+
+        var result = Rewrite(source, "MyService", "ILogger", "_logger", "logger");
+        var fooIdx = result.IndexOf("IFoo _foo", StringComparison.Ordinal);
+        var loggerIdx = result.IndexOf("ILogger _logger", StringComparison.Ordinal);
+        var methodIdx = result.IndexOf("public void FooMethod", StringComparison.Ordinal);
+
+        Assert.True(fooIdx < loggerIdx, "new field should follow the initial field run");
+        Assert.True(loggerIdx < methodIdx, "new field should not move past methods to later field declarations");
+    }
+
+    [Fact]
+    public void inserts_synthesized_constructor_after_new_field_before_methods()
+    {
+        var source = """
+                     class MyService
+                     {
+                         public void FooMethod() { }
+                     }
+                     """;
+
+        var result = Rewrite(source, "MyService", "ILogger", "_logger", "logger");
+        var fieldIdx = result.IndexOf("ILogger _logger", StringComparison.Ordinal);
+        var ctorIdx = result.IndexOf("public MyService(ILogger logger)", StringComparison.Ordinal);
+        var methodIdx = result.IndexOf("public void FooMethod", StringComparison.Ordinal);
+
+        Assert.True(fieldIdx >= 0, "injected field not found");
+        Assert.True(ctorIdx >= 0, "synthesized constructor not found");
+        Assert.True(methodIdx >= 0, "original method not found");
+        Assert.True(fieldIdx < ctorIdx, "constructor should be inserted after the injected field");
+        Assert.True(ctorIdx < methodIdx, "constructor should be inserted before methods");
+    }
+
+    [Fact]
+    public void inserts_synthesized_constructor_after_existing_field_before_methods()
+    {
+        var source = """
+                     class MyService
+                     {
+                         private readonly ILogger _logger;
+                         public void FooMethod() { }
+                     }
+                     """;
+
+        var result = Rewrite(source, "MyService", "ILogger", "_logger", "logger");
+        var fieldIdx = result.IndexOf("ILogger _logger", StringComparison.Ordinal);
+        var ctorIdx = result.IndexOf("public MyService(ILogger logger)", StringComparison.Ordinal);
+        var methodIdx = result.IndexOf("public void FooMethod", StringComparison.Ordinal);
+
+        Assert.True(fieldIdx < ctorIdx, "constructor should be inserted after existing fields");
+        Assert.True(ctorIdx < methodIdx, "constructor should be inserted before methods");
     }
 
     [Fact]
@@ -197,6 +281,30 @@ public sealed class DependencyInjector
     }
 
     [Fact]
+    public void reuses_a_matching_global_qualified_parameter_without_duplicating_it()
+    {
+        var source = """
+                     namespace MyApp.Logging
+                     {
+                         public interface ILogger { }
+                     }
+
+                     class MyService
+                     {
+                         public MyService(global::MyApp.Logging.ILogger logger)
+                         {
+                         }
+                     }
+                     """;
+
+        var result = Rewrite(source, "MyService", "MyApp.Logging.ILogger", "_logger", "logger");
+        var constructor = GetFirstConstructor(result);
+
+        Assert.Single(constructor.ParameterList.Parameters);
+        Assert.Contains("_logger = logger;", result);
+    }
+
+    [Fact]
     public void does_not_leave_expression_bodied_constructors_with_an_unassigned_dependency_parameter()
     {
         var source = """
@@ -218,6 +326,158 @@ public sealed class DependencyInjector
         Assert.True(
             constructor.ExpressionBody is null || constructor.ParameterList.Parameters.Count == 0,
             "expression-bodied constructors must not gain an injected parameter without a corresponding assignment rewrite");
+    }
+
+    [Fact]
+    public void expression_bodied_constructor_reports_unsupported_with_actionable_error()
+    {
+        var source = """
+                     interface ILogger { }
+
+                     class MyService
+                     {
+                         public MyService() => Initialize();
+
+                         private void Initialize()
+                         {
+                         }
+                     }
+                     """;
+
+        var tree = CSharpSyntaxTree.ParseText(source);
+        var injector = new Core.DependencyInjector("MyService", "ILogger", "_logger", "logger");
+
+        injector.Visit(tree.GetRoot());
+
+        Assert.Equal(DependencyInjectionStatus.Unsupported, injector.Status);
+        Assert.False(injector.Applied);
+        Assert.Contains("MyService", injector.ValidationError);
+        Assert.Contains("_logger", injector.ValidationError);
+    }
+
+    [Fact]
+    public void expression_bodied_constructor_with_parameter_but_no_assignment_reports_unsupported()
+    {
+        var source = """
+                     interface ILogger { }
+
+                     class MyService
+                     {
+                         public MyService(ILogger logger) => Initialize(logger);
+
+                         private void Initialize(ILogger logger)
+                         {
+                         }
+                     }
+                     """;
+
+        var tree = CSharpSyntaxTree.ParseText(source);
+        var injector = new Core.DependencyInjector("MyService", "ILogger", "_logger", "logger");
+
+        injector.Visit(tree.GetRoot());
+
+        Assert.Equal(DependencyInjectionStatus.Unsupported, injector.Status);
+        Assert.Contains("_logger", injector.ValidationError);
+    }
+
+    [Fact]
+    public void expression_bodied_constructor_with_assignment_is_already_injected()
+    {
+        var source = """
+                     interface ILogger { }
+
+                     class MyService
+                     {
+                         private readonly ILogger _logger;
+                         public MyService(ILogger logger) => _logger = logger;
+                     }
+                     """;
+
+        var tree = CSharpSyntaxTree.ParseText(source);
+        var injector = new Core.DependencyInjector("MyService", "ILogger", "_logger", "logger");
+
+        injector.Visit(tree.GetRoot());
+
+        Assert.Equal(DependencyInjectionStatus.AlreadyInjected, injector.Status);
+        Assert.Null(injector.ValidationError);
+    }
+
+    [Fact]
+    public void adds_assignment_when_constructor_parameter_assigns_a_different_field()
+    {
+        var source = """
+                     class MyService
+                     {
+                         private readonly ILogger _logger;
+                         private readonly ILogger _other;
+                         public MyService(ILogger logger) { _other = logger; }
+                     }
+                     """;
+
+        var result = Rewrite(source, "MyService", "ILogger", "_logger", "logger");
+
+        Assert.Contains("_logger = logger;", result);
+        Assert.Contains("_other = logger;", result);
+    }
+
+    [Fact]
+    public void target_symbol_without_semantic_model_does_not_match_by_name()
+    {
+        var source = "class MyService { }";
+        var tree = CSharpSyntaxTree.ParseText(source);
+        var compilation = CSharpCompilation.Create(
+            "DependencyInjectorTargetTests",
+            [tree],
+            BuildMetadataReferences(),
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        var targetType = compilation.GetSpecialType(SpecialType.System_Object);
+        var injector = new Core.DependencyInjector(
+            "MyService",
+            "ILogger",
+            "_logger",
+            "logger",
+            targetTypeSymbol: targetType);
+
+        var result = injector.Visit(tree.GetRoot())!.ToFullString();
+
+        Assert.Equal(source, result);
+        Assert.Equal(DependencyInjectionStatus.ClassNotFound, injector.Status);
+    }
+
+    [Fact]
+    public void matches_untyped_parameter_by_normalized_text_when_semantics_are_unavailable()
+    {
+        var source = """
+                     class MyService
+                     {
+                         private readonly ILogger _logger;
+                         public MyService(global::ILogger logger) { _logger = logger; }
+                     }
+                     """;
+        var tree = CSharpSyntaxTree.ParseText(source);
+        var injector = new Core.DependencyInjector("MyService", "ILogger", "_logger", "logger");
+
+        var result = injector.Visit(tree.GetRoot())!.ToFullString();
+        var constructor = GetFirstConstructor(result);
+
+        Assert.Single(constructor.ParameterList.Parameters);
+        Assert.Equal(DependencyInjectionStatus.AlreadyInjected, injector.Status);
+    }
+
+    [Fact]
+    public void synthesized_constructor_has_valid_block_body()
+    {
+        var source = "class MyService { }";
+        var result = Rewrite(source, "MyService", "ILogger", "_logger", "logger");
+        var tree = CSharpSyntaxTree.ParseText(result);
+        var constructor = tree.GetRoot().DescendantNodes()
+            .OfType<ConstructorDeclarationSyntax>()
+            .Single();
+
+        Assert.Empty(tree.GetDiagnostics());
+        Assert.NotNull(constructor.Body);
+        Assert.Single(constructor.Body!.Statements);
+        Assert.Equal("_logger = logger;", constructor.Body.Statements[0].ToString());
     }
 
     // ─── parameter list formatting ────────────────────────────────────────────
@@ -277,6 +537,23 @@ public sealed class DependencyInjector
         var source = "class MyService { }";
         var result = Rewrite(source, "MyService", "IBar", "_bar", "bar");
         Assert.Contains("(IBar bar)", result);
+    }
+
+    [Fact]
+    public void new_param_has_no_stray_leading_chars_when_existing_ctor_had_no_params()
+    {
+        var source = """
+                     class MyService
+                     {
+                         public MyService() { }
+                     }
+                     """;
+
+        var result = Rewrite(source, "MyService", "ILogger", "_logger", "logger");
+        var constructor = GetFirstConstructor(result);
+
+        Assert.Equal("(ILogger logger)", constructor.ParameterList.ToString());
+        Assert.DoesNotContain("( ILogger logger)", constructor.ParameterList.ToFullString());
     }
 
     // ─── delegating constructor (this(...)) scenarios ─────────────────────────

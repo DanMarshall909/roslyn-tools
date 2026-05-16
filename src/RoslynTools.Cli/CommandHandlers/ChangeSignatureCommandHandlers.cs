@@ -18,7 +18,7 @@ internal static class ChangeSignatureCommandHandlers
         string? solution,
         bool dryRun)
     {
-        var (workspace, loadedSolution) = await WorkspaceLoader.LoadAsync(solution);
+        var (workspace, loadedSolution) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
         using (workspace)
         {
             try
@@ -49,7 +49,7 @@ internal static class ChangeSignatureCommandHandlers
         string? solution,
         bool dryRun)
     {
-        var (workspace, loadedSolution) = await WorkspaceLoader.LoadAsync(solution);
+        var (workspace, loadedSolution) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
         using (workspace)
         {
             try
@@ -80,7 +80,7 @@ internal static class ChangeSignatureCommandHandlers
         string? solution,
         bool dryRun)
     {
-        var (workspace, loadedSolution) = await WorkspaceLoader.LoadAsync(solution);
+        var (workspace, loadedSolution) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
         using (workspace)
         {
             try
@@ -112,7 +112,7 @@ internal static class ChangeSignatureCommandHandlers
         string? solution,
         bool dryRun)
     {
-        var (workspace, loadedSolution) = await WorkspaceLoader.LoadAsync(solution);
+        var (workspace, loadedSolution) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
         using (workspace)
         {
             try

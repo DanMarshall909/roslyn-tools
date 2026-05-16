@@ -47,7 +47,7 @@ internal sealed class AnalyzeInterfaceCommand : IRtCommand, IStructuredOutputCom
 
         cmd.SetHandler(async (interfaceSpec, solution, scope, includeTests, suggest) =>
         {
-            var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
+            var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
             using (workspace)
             {
                 var report = await RtServiceProvider.Get<AnalyzeInterfaceService>().AnalyzeAsync(
@@ -55,7 +55,8 @@ internal sealed class AnalyzeInterfaceCommand : IRtCommand, IStructuredOutputCom
                     interfaceSpec,
                     new AnalyzeInterfaceOptions(scope, includeTests, suggest));
 
-                RtSerializer.Write(AnalyzeInterfaceResult.FromReport(report, suggest));
+                RtResultRenderer.WriteOutput(RtResult<AnalyzeInterfaceResult>.Ok(
+                    AnalyzeInterfaceResult.FromReport(report, suggest)));
             }
         }, interfaceArg, solutionOpt, scopeOpt, includeTestsOpt, suggestOpt);
 

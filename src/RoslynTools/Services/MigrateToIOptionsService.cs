@@ -6,6 +6,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 
 namespace RoslynTools.Services;
 
@@ -108,7 +109,7 @@ internal sealed class MigrateToIOptionsService : IRtService
 
         if (alreadyApplied)
         {
-            RtConsole.WriteLine(RtOutputContext.Result, $"Migration already applied for {name}.");
+            RtResultRenderer.WriteText(RtResult<string>.Ok($"Migration already applied for {name}."));
             return 0;
         }
 
@@ -147,16 +148,21 @@ internal sealed class MigrateToIOptionsService : IRtService
 
         await _solutionChangeWriter.ApplyChangesAsync(solution, newSolution, dryRun);
 
-        RtConsole.WriteLine(RtOutputContext.Result, "Changed files:");
+        WriteResultLine("Changed files:");
         foreach (var file in changedFiles)
-            RtConsole.WriteLine(RtOutputContext.Result, file);
+            WriteResultLine(file);
 
         var worklist = await FindConsumersAsync(solution, section);
-        RtConsole.WriteLine(RtOutputContext.Result, "Read-site worklist:");
+        WriteResultLine("Read-site worklist:");
         foreach (var file in worklist)
-            RtConsole.WriteLine(RtOutputContext.Result, file);
+            WriteResultLine(file);
 
         return 0;
+    }
+
+    private static void WriteResultLine(string value)
+    {
+        RtResultRenderer.WriteText(RtResult<string>.Ok(value));
     }
 
     private static async Task<List<RegistrationSite>> FindRegistrationSitesAsync(Solution solution)

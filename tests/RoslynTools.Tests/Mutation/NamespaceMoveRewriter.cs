@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using RoslynTools.Core;
 
 namespace RoslynTools.Tests.Mutation;
@@ -105,5 +106,40 @@ public sealed class NamespaceMoveRewriter
         Assert.True(changed);
         Assert.Contains("New.Ns", result);
         Assert.DoesNotContain("Old.Ns.Thing", result);
+    }
+
+    [Fact]
+    public void handles_member_access_equal_to_old_ns_is_rewritten()
+    {
+        var source = "class C { object M() { return Old.Ns; } }";
+        var (result, changed, _) = Rewrite(source, "Old.Ns", "New.Ns");
+
+        Assert.True(changed);
+        Assert.Contains("return New.Ns;", result);
+        Assert.DoesNotContain("return Old.Ns;", result);
+    }
+
+    [Fact]
+    public void rewrites_qualified_name_node_starting_with_old_namespace()
+    {
+        var name = (QualifiedNameSyntax)SyntaxFactory.ParseName("Old.Ns.Sub");
+        var rewriter = new Core.NamespaceMoveRewriter("Old.Ns", "New.Ns");
+
+        var result = rewriter.Visit(name)!.ToFullString();
+
+        Assert.True(rewriter.Changed);
+        Assert.Equal("New.Ns.Sub", result);
+    }
+
+    [Fact]
+    public void rewrites_member_access_node_starting_with_old_namespace()
+    {
+        var expression = (MemberAccessExpressionSyntax)SyntaxFactory.ParseExpression("Old.Ns.Thing");
+        var rewriter = new Core.NamespaceMoveRewriter("Old.Ns", "New.Ns");
+
+        var result = rewriter.Visit(expression)!.ToFullString();
+
+        Assert.True(rewriter.Changed);
+        Assert.Equal("New.Ns.Thing", result);
     }
 }

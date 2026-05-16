@@ -5,6 +5,7 @@ using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 
 namespace RoslynTools.Services;
 
@@ -223,33 +224,38 @@ internal class NarrowDependencyService : IRtService
         bool dryRun)
     {
         var modeLabel = dryRun ? "[dry-run] " : string.Empty;
+        var output = new StringBuilder();
 
         if (reusedInterface is not null)
-            RtConsole.WriteLine(RtOutputContext.Result,
-                $"{modeLabel}Reusing existing interface '{newInterfaceName}' -- shape matches selected members.");
+            output.AppendLine(
+                FormattableString.Invariant(
+                    $"{modeLabel}Reusing existing interface '{newInterfaceName}' -- shape matches selected members."));
         else
-            RtConsole.WriteLine(RtOutputContext.Result,
-                $"{modeLabel}New interface '{newInterfaceName}' will be created.");
+            output.AppendLine(FormattableString.Invariant(
+                $"{modeLabel}New interface '{newInterfaceName}' will be created."));
 
         if (result.NarrowedConsumers.Count > 0)
         {
-            RtConsole.WriteLine(RtOutputContext.Result,
-                $"\n{modeLabel}Narrowed {result.NarrowedConsumers.Count} consumer(s):");
+            output.AppendLine(FormattableString.Invariant(
+                $"\n{modeLabel}Narrowed {result.NarrowedConsumers.Count} consumer(s):"));
             foreach (var consumer in result.NarrowedConsumers)
-                RtConsole.WriteLine(RtOutputContext.Result, $"  - {consumer}");
+                output.AppendLine(FormattableString.Invariant($"  - {consumer}"));
 
-            RtConsole.WriteLine(RtOutputContext.Result,
-                $"\nNOTE: DI registration(s) for '{newInterfaceName}' must be updated manually. " +
+            output.AppendLine(
+                FormattableString.Invariant(
+                    $"\nNOTE: DI registration(s) for '{newInterfaceName}' must be updated manually. ") +
                 "Register the concrete implementation against the new narrower interface in your composition root.");
         }
 
         if (result.SkippedConsumers.Count > 0)
         {
-            RtConsole.WriteLine(RtOutputContext.Result,
-                $"\n{modeLabel}Skipped {result.SkippedConsumers.Count} consumer(s):");
+            output.AppendLine(FormattableString.Invariant(
+                $"\n{modeLabel}Skipped {result.SkippedConsumers.Count} consumer(s):"));
             foreach (var (name, reason) in result.SkippedConsumers)
-                RtConsole.WriteLine(RtOutputContext.Result, $"  - {name}: skipped ({reason})");
+                output.AppendLine(FormattableString.Invariant($"  - {name}: skipped ({reason})"));
         }
+
+        RtResultRenderer.WriteText(RtResult<string>.Ok(output.ToString()));
     }
 
     // -------------------------------------------------------------------------

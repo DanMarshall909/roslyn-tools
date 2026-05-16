@@ -42,7 +42,7 @@ internal class ReplaceNewService : IRtService
 
         if (objectCreations.Count == 0)
         {
-            RtConsole.WriteLine(RtOutputContext.Result, $"No constructor calls to {typeName} found.");
+            RtConsole.WriteLine(RtOutputContext.Diagnostic, $"No constructor calls to {typeName} found.");
             return;
         }
 

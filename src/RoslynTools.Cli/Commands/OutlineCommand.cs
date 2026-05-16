@@ -58,7 +58,7 @@ internal sealed class OutlineCommand : IRtCommand, IStructuredOutputCommand
             var regex = context.ParseResult.GetValueForOption(regexOpt);
             var summary = context.ParseResult.GetValueForOption(summaryOpt);
 
-            var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
+            var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
             using (workspace)
             {
                 List<Dictionary<string, object?>> result;
@@ -97,7 +97,8 @@ internal sealed class OutlineCommand : IRtCommand, IStructuredOutputCommand
                     return;
                 }
 
-                StructuredOutput.Write(result, SymbolFormatter.DefaultJsonOptions);
+                RtResultRenderer.Write(RtResult<List<Dictionary<string, object?>>>.Ok(result),
+                    SymbolFormatter.DefaultJsonOptions);
             }
         });
 

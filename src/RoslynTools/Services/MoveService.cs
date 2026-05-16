@@ -5,6 +5,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 
 namespace RoslynTools.Services;
 
@@ -54,7 +55,7 @@ internal class MoveService : IRtService
 
         if (changedFiles == 0)
         {
-            RtConsole.WriteLine(RtOutputContext.Result, $"No types found in namespace '{sourceNamespace}'.");
+            RtConsole.WriteLine(RtOutputContext.Diagnostic, $"No types found in namespace '{sourceNamespace}'.");
             return;
         }
 
@@ -98,7 +99,7 @@ internal class MoveService : IRtService
         if (sourceProject != null &&
             string.Equals(sourceProject.Name, targetProjectName, StringComparison.OrdinalIgnoreCase))
         {
-            RtConsole.WriteLine(RtOutputContext.Result, "nothing to move");
+            RtConsole.WriteLine(RtOutputContext.Diagnostic, "nothing to move");
             return;
         }
 
@@ -140,8 +141,8 @@ internal class MoveService : IRtService
 
             if (dryRun)
             {
-                RtConsole.WriteLine(RtOutputContext.Result, $"source: {filePath}");
-                RtConsole.WriteLine(RtOutputContext.Result, $"destination: {destPath}");
+                RtResultRenderer.WriteText(RtResult<string>.Ok($"source: {filePath}"));
+                RtResultRenderer.WriteText(RtResult<string>.Ok($"destination: {destPath}"));
                 RemoveCompileIncludeFromCsproj(sourceProjectFilePath, relPath, true);
                 continue;
             }
@@ -194,7 +195,7 @@ internal class MoveService : IRtService
         if (moveFile && projectDir != null && rootNamespace != null)
             MoveSourceFiles(declarationFiles, projectDir, rootNamespace, oldNamespace, targetNamespace, dryRun);
         else if (!moveFile)
-            RtConsole.WriteLine(RtOutputContext.Result,
+            RtConsole.WriteLine(RtOutputContext.Diagnostic,
                 "\nNOTE: File path unchanged. Consider moving the source file to match the new namespace.");
     }
 
@@ -274,7 +275,7 @@ internal class MoveService : IRtService
         if (moveFile && projectDir != null && rootNamespace != null)
             MoveSourceFiles(declarationFiles, projectDir, rootNamespace, sourceNamespace, targetNamespace, dryRun);
         else if (!moveFile && declarationFiles.Count > 0)
-            RtConsole.WriteLine(RtOutputContext.Result,
+            RtConsole.WriteLine(RtOutputContext.Diagnostic,
                 "\nNOTE: File paths unchanged. Use --move-file to relocate declaration files.");
     }
 
@@ -508,7 +509,7 @@ internal class MoveService : IRtService
 
             if (!fileRelPath.StartsWith(oldRelDir, StringComparison.OrdinalIgnoreCase))
             {
-                RtConsole.WriteLine(RtOutputContext.Result,
+                RtConsole.WriteLine(RtOutputContext.Diagnostic,
                     $"WARNING: '{fileRelPath}' does not start with '{oldRelDir}' -- file not moved.");
                 continue;
             }
@@ -519,13 +520,13 @@ internal class MoveService : IRtService
 
             if (dryRun)
             {
-                RtConsole.WriteLine(RtOutputContext.Result, $"[dry-run] Would move: {filePath} -> {newFilePath}");
+                RtConsole.WriteLine(RtOutputContext.Diagnostic, $"[dry-run] Would move: {filePath} -> {newFilePath}");
                 continue;
             }
 
             if (File.Exists(newFilePath))
             {
-                RtConsole.WriteLine(RtOutputContext.Result,
+                RtConsole.WriteLine(RtOutputContext.Diagnostic,
                     $"WARNING: Target already exists: {newFilePath} -- file not moved.");
                 continue;
             }
@@ -535,7 +536,7 @@ internal class MoveService : IRtService
                 Directory.CreateDirectory(newDir);
 
             File.Move(filePath, newFilePath);
-            RtConsole.WriteLine(RtOutputContext.Result, $"Moved: {filePath} -> {newFilePath}");
+            RtConsole.WriteLine(RtOutputContext.Diagnostic, $"Moved: {filePath} -> {newFilePath}");
         }
     }
 
@@ -562,7 +563,7 @@ internal class MoveService : IRtService
         if (dryRun)
         {
             foreach (var el in toRemove)
-                RtConsole.WriteLine(RtOutputContext.Result, $"compile-remove: {el}");
+                RtResultRenderer.WriteText(RtResult<string>.Ok($"compile-remove: {el}"));
             return;
         }
 

@@ -95,7 +95,7 @@ internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand
                 Detail = v.Detail
             }).ToList()
         };
-        RtSerializer.Write(result);
+        RtResultRenderer.WriteOutput(RtResult<SolidResult>.Ok(result));
         RtLog.Info("Found {Count} SRP violation(s).", result.SRP.Count);
         return 0;
     }

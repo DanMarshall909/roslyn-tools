@@ -45,12 +45,12 @@ internal sealed class CircularDepsCommand : IRtCommand
 
         cmd.SetHandler(async (scope, solution) =>
         {
-            var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
+            var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
             using (workspace)
             {
                 var cycles = await RtServiceProvider.Get<CircularDepsService>().AnalyzeCyclesAsync(sln, scope);
                 var result = CircularDepsResult.FromCycles(cycles);
-                RtSerializer.Write(result);
+                RtResultRenderer.WriteOutput(RtResult<CircularDepsResult>.Ok(result));
             }
         }, scopeOpt, solutionOpt);
 

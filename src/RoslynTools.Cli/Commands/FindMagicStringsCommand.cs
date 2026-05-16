@@ -44,12 +44,12 @@ internal sealed class FindMagicStringsCommand : IRtCommand
 
         cmd.SetHandler(async (solution, minLength, minOccurrences) =>
         {
-            var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
+            var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
             using (workspace)
             {
                 var groups = await RtServiceProvider.Get<MagicStringService>()
                     .AnalyzeAsync(sln, minLength, minOccurrences);
-                RtSerializer.Write(MagicStringResult.FromGroups(groups));
+                RtResultRenderer.WriteOutput(RtResult<MagicStringResult>.Ok(MagicStringResult.FromGroups(groups)));
             }
         }, solutionOpt, minLengthOpt, minOccurrencesOpt);
 

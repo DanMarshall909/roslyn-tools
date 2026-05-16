@@ -60,6 +60,21 @@ internal sealed class WorkspaceLoader : IDisposable
         return solution;
     }
 
+    /// <summary>
+    ///     Compatibility instance API for commands that still need workspace ownership while
+    ///     they migrate to solution-only operations.
+    /// </summary>
+    internal async Task<(Workspace Workspace, Solution Solution)> LoadWorkspaceAsync(string? solutionPath)
+    {
+        if (Override.Value is { } o)
+            return (o.Workspace, o.Solution);
+
+        var (workspace, solution) = await LoadCoreAsync(solutionPath);
+        _workspace?.Dispose();
+        _workspace = workspace;
+        return (workspace, solution);
+    }
+
     // ── Static API (backward-compat for not-yet-migrated commands) ──────────
 
     /// <summary>

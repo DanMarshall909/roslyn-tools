@@ -2,6 +2,7 @@ using System.CommandLine;
 using System.CommandLine.Help;
 using System.Text;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 
 namespace RoslynTools.Commands;
 
@@ -30,7 +31,7 @@ internal static class DumpHelpCommand
                 .Select(e => (Cmd: e.Build(), e.Info))
                 .ToList();
             if (RtConsole.IsOutputRedirected)
-                RtConsole.Write(RtOutputContext.Result, RenderMarkdown(snapshot));
+                RtResultRenderer.WriteText(RtResult<string>.Ok(RenderMarkdown(snapshot)));
             else
                 RenderColoured(snapshot);
         });

@@ -1,6 +1,8 @@
 using System.CommandLine;
+using System.Text;
 using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -112,7 +114,7 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
         string loggerDependency,
         string loggerField)
     {
-        var (workspace, solution) = await WorkspaceLoader.LoadAsync(solutionPath);
+        var (workspace, solution) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
             await ExecuteCoreAsync(solution, dryRun, loggerExpression, informationMethod, warningMethod, errorMethod,
@@ -200,31 +202,33 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
     {
         var review = await ConsoleLoggingCore.AnalyzeAsync(solution, options);
         var entries = review.Entries;
+        var output = new StringBuilder();
 
-        RtConsole.WriteLine(RtOutputContext.Result, $"console logging review: {entries.Count} call site(s)");
+        output.AppendLine(FormattableString.Invariant($"console logging review: {entries.Count} call site(s)"));
         foreach (var group in entries.GroupBy(e => e.Stream).OrderBy(g => g.Key))
         {
-            RtConsole.WriteLine(RtOutputContext.Result, $"  {group.Key}: {group.Count()}");
+            output.AppendLine(FormattableString.Invariant($"  {group.Key}: {group.Count()}"));
             foreach (var levelGroup in group.GroupBy(e => e.Level).OrderBy(g => g.Key))
-                RtConsole.WriteLine(RtOutputContext.Result, $"    {levelGroup.Key}: {levelGroup.Count()}");
+                output.AppendLine(FormattableString.Invariant($"    {levelGroup.Key}: {levelGroup.Count()}"));
         }
 
         var reviewCount = entries.Count(e => e.NeedsReview);
         if (reviewCount > 0)
-            RtConsole.WriteLine(RtOutputContext.Result, $"  needs-review: {reviewCount}");
+            output.AppendLine(FormattableString.Invariant($"  needs-review: {reviewCount}"));
 
         if (injectLogger)
         {
             var targets = GetInjectionTargets(review, loggerDependency).ToList();
-            RtConsole.WriteLine(RtOutputContext.Result, $"  logger injections: {targets.Count}");
+            output.AppendLine(FormattableString.Invariant($"  logger injections: {targets.Count}"));
             foreach (var target in targets.Take(20))
-                RtConsole.WriteLine(RtOutputContext.Result, $"    {target.TypeFullName}: {target.DependencyType}");
+                output.AppendLine(FormattableString.Invariant($"    {target.TypeFullName}: {target.DependencyType}"));
         }
 
         foreach (var entry in entries.Where(e => e.NeedsReview).Take(20))
-            RtConsole.WriteLine(
-                RtOutputContext.Result,
-                $"  REVIEW {entry.FilePath}({entry.Line}): {entry.Template}");
+            output.AppendLine(
+                FormattableString.Invariant($"  REVIEW {entry.FilePath}({entry.Line}): {entry.Template}"));
+
+        RtResultRenderer.WriteText(RtResult<string>.Ok(output.ToString()));
     }
 
     private static IEnumerable<LoggerInjectionTarget> GetInjectionTargets(

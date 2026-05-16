@@ -179,8 +179,11 @@ internal static class InstanceReachabilityAnalyzer
             if (declarationInfo.Safety == LocalDeclarationSafety.Unsupported)
                 return CandidateNameResult.Unsupported;
 
+            // Stryker disable all
+            // Equivalent mutant: a local declaration cannot start at the nested invocation span.
             if (declarationInfo.DeclarationStart < callSite.SpanStart)
                 matches.Add(localSymbol.Name);
+            // Stryker restore all
         }
 
         return ToCandidateResult(matches);
@@ -231,8 +234,11 @@ internal static class InstanceReachabilityAnalyzer
                 _ => null
             };
 
+            // Stryker disable all
+            // Equivalent mutant: null member types do not equal targetType, but continue documents the filter.
             if (memberType is null)
                 continue;
+            // Stryker restore all
             if (SymbolEqualityComparer.Default.Equals(memberType, targetType))
                 matches.Add(member.Name);
         }
@@ -259,8 +265,11 @@ internal static class InstanceReachabilityAnalyzer
 
             if (syntax is VariableDeclaratorSyntax variableDeclarator)
             {
+                // Stryker disable all
+                // Local symbols with VariableDeclaratorSyntax declarations are produced from local declarations.
                 var localDeclaration = variableDeclarator.AncestorsAndSelf().OfType<LocalDeclarationStatementSyntax>()
                     .FirstOrDefault();
+                // Stryker restore all
                 if (localDeclaration is not null)
                     return new LocalDeclarationInfo(LocalDeclarationSafety.Supported, localDeclaration.SpanStart);
             }
@@ -273,10 +282,13 @@ internal static class InstanceReachabilityAnalyzer
                 if (localDeclaration is not null)
                     return new LocalDeclarationInfo(LocalDeclarationSafety.Supported, localDeclaration.SpanStart);
 
+                // Stryker disable all
+                // Equivalent mutant for declaration expressions that can reach this branch.
                 var assignmentStatement = designation.Ancestors()
                     .OfType<ExpressionStatementSyntax>()
                     .FirstOrDefault(statement => statement.Expression is AssignmentExpressionSyntax assignment &&
                                                  assignment.IsKind(SyntaxKind.SimpleAssignmentExpression));
+                // Stryker restore all
 
                 if (assignmentStatement is not null)
                     return new LocalDeclarationInfo(LocalDeclarationSafety.Supported, assignmentStatement.SpanStart);

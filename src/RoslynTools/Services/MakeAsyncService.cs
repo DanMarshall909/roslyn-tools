@@ -47,7 +47,7 @@ internal class MakeAsyncService : IRtService
 
         if (methodSymbol.IsAsync)
         {
-            RtConsole.WriteLine(RtOutputContext.Result, "Method is already async.");
+            RtConsole.WriteLine(RtOutputContext.Diagnostic, "Method is already async.");
             return;
         }
 

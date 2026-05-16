@@ -50,7 +50,7 @@ internal class AddNullChecksService : IRtService
         var methodSyntax = (MethodDeclarationSyntax)await syntaxRef.GetSyntaxAsync();
         if (methodSyntax.Body == null)
         {
-            RtConsole.WriteLine(RtOutputContext.Result, "Method has no block body — skipped.");
+            RtConsole.WriteLine(RtOutputContext.Diagnostic, "Method has no block body — skipped.");
             return;
         }
 
@@ -62,7 +62,7 @@ internal class AddNullChecksService : IRtService
 
         if (eligibleParams.Count == 0)
         {
-            RtConsole.WriteLine(RtOutputContext.Result, "No null checks needed.");
+            RtConsole.WriteLine(RtOutputContext.Diagnostic, "No null checks needed.");
             return;
         }
 

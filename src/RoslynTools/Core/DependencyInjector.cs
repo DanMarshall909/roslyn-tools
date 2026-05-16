@@ -228,9 +228,12 @@ internal sealed class DependencyInjector : CSharpSyntaxRewriter
 
     private ConstructorDeclarationSyntax AddAssignment(ConstructorDeclarationSyntax ctor, string paramName)
     {
+        // Stryker disable all
+        // Defensive guard: public rewrite flow rejects expression-bodied constructors before this helper is called.
         if (ctor.Body is null)
             throw new InvalidOperationException(
                 "Cannot add a dependency assignment to a constructor without a block body.");
+        // Stryker restore all
 
         var assignment = SyntaxFactory.ParseStatement($"        {_fieldName} = {paramName};{Environment.NewLine}");
         return ctor.WithBody(ctor.Body.WithStatements(ctor.Body.Statements.Insert(0, assignment)));

@@ -65,7 +65,7 @@ internal sealed class ExtractClassCommand : IRtCommand
         string? outputDir,
         bool dryRun)
     {
-        var (workspace, solution) = await WorkspaceLoader.LoadAsync(solutionPath);
+        var (workspace, solution) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
             await RtServiceProvider.Get<ExtractClassService>().ExecuteAsync(solution, typeName, members, newTypeName,

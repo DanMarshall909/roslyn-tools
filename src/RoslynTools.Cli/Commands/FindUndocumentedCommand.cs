@@ -54,12 +54,12 @@ internal sealed class FindUndocumentedCommand : IRtCommand
             var levels = level.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             var accessibilityKinds = FindUndocumentedService.ParseAccessibilityLevels(levels);
 
-            var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
+            var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
             using (workspace)
             {
                 var symbols = await RtServiceProvider.Get<FindUndocumentedService>()
                     .AnalyzeAsync(sln, members, scope, accessibilityKinds);
-                RtSerializer.Write(FindUndocumentedResult.From(symbols));
+                RtResultRenderer.WriteOutput(RtResult<FindUndocumentedResult>.Ok(FindUndocumentedResult.From(symbols)));
             }
         }, solutionOpt, membersOpt, scopeOpt, levelOpt);
 

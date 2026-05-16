@@ -82,7 +82,7 @@ internal sealed class ComplexityCommand : IRtCommand, IStructuredOutputCommand
             return 1;
         }
 
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
+        var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
         using (workspace)
         {
             RtLog.Info("Analyzing complexity...");
@@ -124,7 +124,7 @@ internal sealed class ComplexityCommand : IRtCommand, IStructuredOutputCommand
                 }).ToList()
             };
 
-            RtSerializer.Write(result);
+            RtResultRenderer.WriteOutput(RtResult<ComplexityResult>.Ok(result));
 
             RtLog.Info("Analyzed {Count} method(s).", report.Methods.Count);
             return 0;

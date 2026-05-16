@@ -63,7 +63,7 @@ internal class ReplaceTypeService : IRtService
 
         if (changedFiles == 0)
         {
-            RtConsole.WriteLine(RtOutputContext.Result, "No DateTime.UtcNow or DateTime.Now usage found.");
+            RtConsole.WriteLine(RtOutputContext.Diagnostic, "No DateTime.UtcNow or DateTime.Now usage found.");
             return;
         }
 

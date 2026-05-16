@@ -59,7 +59,7 @@ internal sealed class FindDuplicatesCommand : IRtCommand, IStructuredOutputComma
 
         cmd.SetHandler(async (solution, minStatements, minOccurrences, scope, includeTests, maxStatements) =>
         {
-            var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
+            var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
             using (workspace)
             {
                 var options =
@@ -71,7 +71,7 @@ internal sealed class FindDuplicatesCommand : IRtCommand, IStructuredOutputComma
                     : null;
 
                 var result = FindDuplicatesResult.FromGroups(groups, solutionDir);
-                RtSerializer.Write(result);
+                RtResultRenderer.WriteOutput(RtResult<FindDuplicatesResult>.Ok(result));
             }
         }, solutionOpt, minStatementsOpt, minOccurrencesOpt, scopeOpt, includeTestsOpt, maxStatementsOpt);
 

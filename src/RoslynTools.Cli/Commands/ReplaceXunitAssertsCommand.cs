@@ -1,6 +1,8 @@
 using System.CommandLine;
+using System.Text;
 using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -61,7 +63,7 @@ internal sealed class ReplaceXunitAssertsCommand : IRtCommand
     /// </summary>
     internal static async Task ExecuteAsync(string? solutionPath, bool dryRun, bool apply, bool review)
     {
-        var (workspace, solution) = await WorkspaceLoader.LoadAsync(solutionPath);
+        var (workspace, solution) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
             await ExecuteCoreAsync(solution, dryRun, apply, review);
@@ -90,15 +92,18 @@ internal sealed class ReplaceXunitAssertsCommand : IRtCommand
     {
         var review = await RtServiceProvider.Get<ReplaceXunitAssertsService>().AnalyzeAsync(solution);
         var entries = review.Entries;
+        var output = new StringBuilder();
 
-        RtConsole.WriteLine(RtOutputContext.Result, $"xunit assert review: {entries.Count} call site(s)");
+        output.AppendLine(FormattableString.Invariant($"xunit assert review: {entries.Count} call site(s)"));
 
         foreach (var group in entries.GroupBy(e => e.FilePath).OrderBy(g => g.Key, StringComparer.Ordinal).Take(20))
         {
-            RtConsole.WriteLine(RtOutputContext.Result, $"  {group.Key}: {group.Count()}");
+            output.AppendLine(FormattableString.Invariant($"  {group.Key}: {group.Count()}"));
             foreach (var entry in group.Take(5))
-                RtConsole.WriteLine(RtOutputContext.Result,
-                    $"    line {entry.Line}: {entry.Original} -> {entry.Replacement}");
+                output.AppendLine(
+                    FormattableString.Invariant($"    line {entry.Line}: {entry.Original} -> {entry.Replacement}"));
         }
+
+        RtResultRenderer.WriteText(RtResult<string>.Ok(output.ToString()));
     }
 }

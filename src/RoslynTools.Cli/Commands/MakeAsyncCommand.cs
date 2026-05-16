@@ -56,7 +56,7 @@ internal sealed class MakeAsyncCommand : IRtCommand
     internal static async Task ExecuteAsync(string typeName, string methodName, bool noRename, string? solutionPath,
         bool dryRun)
     {
-        var (workspace, sln) = await WorkspaceLoader.LoadAsync(solutionPath);
+        var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
             await RtServiceProvider.Get<MakeAsyncService>().RunAsync(sln, typeName, methodName, noRename, dryRun);

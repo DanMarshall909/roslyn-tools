@@ -43,7 +43,7 @@ internal sealed class ExtractStringConstantCommand : IRtCommand
 
         cmd.SetHandler(async (file, line, name, solution, dryRun) =>
         {
-            var (workspace, sln) = await WorkspaceLoader.LoadAsync(solution);
+            var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
             using (workspace)
             {
                 await RtServiceProvider.Get<MagicStringService>().ExtractConstantAsync(sln, file, line, name, dryRun);
