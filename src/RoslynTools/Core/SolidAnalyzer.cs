@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace RoslynTools.Core;
@@ -8,6 +9,17 @@ internal record SrpViolation(
     int PublicMethodCount, int DependencyCount, string Detail);
 
 internal record SolidSrpReport(IList<SrpViolation> Violations);
+
+internal record IspFatInterface(
+    string InterfaceName, string FilePath, int Line, int MemberCount);
+
+internal record IspUnimplementedMember(
+    string TypeName, string MemberName, string InterfaceName,
+    string FilePath, int Line);
+
+internal record SolidIspReport(
+    IList<IspFatInterface> FatInterfaces,
+    IList<IspUnimplementedMember> UnimplementedMembers);
 
 internal static class SolidAnalyzer
 {
@@ -71,6 +83,161 @@ internal static class SolidAnalyzer
 
         violations.Sort((a, b) => StringComparer.Ordinal.Compare(a.TypeName, b.TypeName));
         return new SolidSrpReport(violations);
+    }
+
+    public static async Task<SolidIspReport> AnalyzeIspAsync(
+        Solution sln, int minMembers)
+    {
+        var fatInterfaces = new List<IspFatInterface>();
+        var unimplementedMembers = new List<IspUnimplementedMember>();
+        var seenInterfaces = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
+        var seenClasses = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
+
+        foreach (var project in sln.Projects)
+        {
+            var compilation = await project.GetCompilationAsync().ConfigureAwait(false);
+            if (compilation is null) // coverage: unreachable via AdhocWorkspace; defensive guard
+                continue;
+
+            foreach (var document in project.Documents)
+            {
+                var filePath = document.FilePath ?? string.Empty;
+
+                if (FilePathFilters.IsGeneratedOrIntermediate(filePath))
+                    continue;
+
+                var root = await document.GetSyntaxRootAsync().ConfigureAwait(false);
+                if (root is null) // coverage: unreachable via AdhocWorkspace; defensive guard
+                    continue;
+
+                var model = compilation.GetSemanticModel(root.SyntaxTree);
+
+                foreach (var typeDecl in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
+                {
+                    if (model.GetDeclaredSymbol(typeDecl) is not INamedTypeSymbol symbol) // coverage: defensive guard
+                        continue;
+
+                    if (symbol.TypeKind == TypeKind.Interface)
+                    {
+                        if (!seenInterfaces.Add(symbol))
+                            continue;
+
+                        var declaredCount = CountDeclaredInterfaceMembers(symbol);
+                        if (declaredCount < minMembers)
+                            continue;
+
+                        var line = typeDecl.Identifier.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+                        var name = symbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+                        fatInterfaces.Add(new IspFatInterface(name, filePath, line, declaredCount));
+                    }
+                    else if (symbol.TypeKind == TypeKind.Class && !symbol.IsAbstract)
+                    {
+                        if (!seenClasses.Add(symbol))
+                            continue;
+
+                        CollectUnimplementedInterfaceMembers(
+                            symbol, typeDecl, filePath, unimplementedMembers);
+                    }
+                }
+            }
+        }
+
+        fatInterfaces.Sort((a, b) => StringComparer.Ordinal.Compare(a.InterfaceName, b.InterfaceName));
+        unimplementedMembers.Sort((a, b) =>
+        {
+            var byType = StringComparer.Ordinal.Compare(a.TypeName, b.TypeName);
+            if (byType != 0) return byType;
+            return StringComparer.Ordinal.Compare(a.MemberName, b.MemberName);
+        });
+
+        return new SolidIspReport(fatInterfaces, unimplementedMembers);
+    }
+
+    private static int CountDeclaredInterfaceMembers(INamedTypeSymbol interfaceSymbol)
+    {
+        // Count only members directly declared on this interface — exclude inherited.
+        // Members of TypeKind.Property/Event are top-level here; their accessor methods are not.
+        return interfaceSymbol.GetMembers()
+            .Count(m => m switch
+            {
+                IMethodSymbol method => method.MethodKind == MethodKind.Ordinary,
+                IPropertySymbol => true,
+                IEventSymbol => true,
+                _ => false
+            });
+    }
+
+    private static void CollectUnimplementedInterfaceMembers(
+        INamedTypeSymbol classSymbol, TypeDeclarationSyntax typeDecl, string filePath,
+        List<IspUnimplementedMember> results)
+    {
+        if (classSymbol.AllInterfaces.IsDefaultOrEmpty)
+            return;
+
+        var typeName = classSymbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+
+        foreach (var iface in classSymbol.AllInterfaces)
+        {
+            foreach (var ifaceMember in iface.GetMembers())
+            {
+                if (ifaceMember is not (IMethodSymbol { MethodKind: MethodKind.Ordinary } or IPropertySymbol or IEventSymbol))
+                    continue;
+
+                var impl = classSymbol.FindImplementationForInterfaceMember(ifaceMember);
+                if (impl is null)
+                    continue;
+
+                // Only flag implementations declared directly on this class
+                if (!SymbolEqualityComparer.Default.Equals(impl.ContainingType, classSymbol))
+                    continue;
+
+                if (!ImplementationThrowsNotImplemented(impl))
+                    continue;
+
+                var line = typeDecl.Identifier.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+                var memberName = impl.Name;
+                var ifaceName = iface.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+                results.Add(new IspUnimplementedMember(typeName, memberName, ifaceName, filePath, line));
+            }
+        }
+    }
+
+    private static bool ImplementationThrowsNotImplemented(ISymbol implMember)
+    {
+        foreach (var declRef in implMember.DeclaringSyntaxReferences)
+        {
+            var syntax = declRef.GetSyntax();
+            if (SyntaxThrowsNotImplemented(syntax))
+                return true;
+        }
+        return false;
+    }
+
+    private static bool SyntaxThrowsNotImplemented(SyntaxNode node)
+    {
+        // Match: => throw new System.NotImplementedException()/NotSupportedException()
+        // Match: { throw new ...(); }  (single statement body)
+        // Accessors come through as AccessorDeclarationSyntax whose body or expressionBody applies.
+        foreach (var throwExpr in node.DescendantNodes().OfType<ThrowExpressionSyntax>())
+        {
+            if (IsNotImplementedOrSupportedCreation(throwExpr.Expression))
+                return true;
+        }
+        foreach (var throwStmt in node.DescendantNodes().OfType<ThrowStatementSyntax>())
+        {
+            if (throwStmt.Expression is { } expr && IsNotImplementedOrSupportedCreation(expr))
+                return true;
+        }
+        return false;
+    }
+
+    private static bool IsNotImplementedOrSupportedCreation(ExpressionSyntax expr)
+    {
+        if (expr is not ObjectCreationExpressionSyntax oc)
+            return false;
+        var typeName = oc.Type.ToString();
+        return typeName.EndsWith("NotImplementedException", StringComparison.Ordinal)
+            || typeName.EndsWith("NotSupportedException", StringComparison.Ordinal);
     }
 
     private static int CountPublicOrdinaryMethods(INamedTypeSymbol symbol)
