@@ -4,11 +4,13 @@ using System.CommandLine.Help;
 using System.CommandLine.Invocation;
 using System.CommandLine.Parsing;
 using System.Reflection;
+using System.Text.Json;
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Core.Decisions;
 using RoslynTools.Core.Output;
 using RoslynTools.Feedback;
+using YamlDotNet.Core;
 
 namespace RoslynTools;
 
@@ -165,9 +167,11 @@ internal static class App
                 var decisionsFile = context.ParseResult.GetValueForOption(decisionsOpt);
                 if (decisionsFile is not null)
                 {
-                    DecisionContext.Store = DecisionStore.Load(decisionsFile.FullName);
                     try
                     {
+                        // Load is inside the try so malformed YAML / missing file errors flow
+                        // through TryHandleUserErrorAsync and get the clean exit-1 treatment.
+                        DecisionContext.Store = DecisionStore.Load(decisionsFile.FullName);
                         using (RtServiceProvider.Use(services))
                         {
                             await next(context);
@@ -284,9 +288,13 @@ internal static class App
 
     /// <summary>
     /// Translates known user-error exception types into a clean stderr line + exit 1 so the
-    /// CLI never surfaces a raw stack trace for predictable failures like a missing solution
-    /// path. Telemetry is still recorded via <see cref="CaptureExceptionAsync"/>. Returns
-    /// true when the exception was handled; the caller must NOT rethrow in that case.
+    /// CLI never surfaces a raw stack trace for predictable failures: missing solution paths
+    /// (FileNotFoundException), file I/O issues (IOException), invalid-input checks inside
+    /// services (InvalidOperationException — e.g. analyze-interface on a non-interface),
+    /// malformed JSON (JsonException — e.g. add-xml-doc --from-json), and malformed YAML
+    /// (YamlException — e.g. --decisions file). Telemetry is still recorded via
+    /// <see cref="CaptureExceptionAsync"/>. Unmapped exception types return false so the
+    /// caller rethrows and the developer sees the full stack — that path is intentional.
     /// </summary>
     private static async Task<bool> TryHandleUserErrorAsync(InvocationContext context, Exception ex)
     {
@@ -295,6 +303,13 @@ internal static class App
         if (ex is FileNotFoundException fnf)
         {
             RtLog.Error("solution not found: {Path}", fnf.FileName ?? "(unknown)");
+            context.ExitCode = 1;
+            return true;
+        }
+
+        if (ex is IOException or InvalidOperationException or JsonException or YamlException)
+        {
+            RtLog.Error("Error: {Message}", ex.Message);
             context.ExitCode = 1;
             return true;
         }

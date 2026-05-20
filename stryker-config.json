@@ -13,7 +13,8 @@
       "**/Core/InstanceReachabilityAnalyzer.cs",
       "**/Core/MethodExtractorBuilder.cs",
       "**/Services/DebugTraceAnalyzerService.cs",
-      "**/Models/DebugReport.cs"
+      "**/Models/DebugReport.cs",
+      "**/RoslynTools.Cli/App.cs"
     ],
     "reporters": [
       "html",
