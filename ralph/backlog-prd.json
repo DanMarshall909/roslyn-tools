@@ -664,6 +664,22 @@
             "effort": 2,
             "passes": false,
             "notes": "Discovered 2026-05-20: committed df9e43a (MCP array pass-through) used the bypass for this reason. Likely solved together with the Cli pilot story (US-069) by switching to a multi-project or per-project Stryker setup."
+        },
+        {
+            "id": "US-071",
+            "title": "rt refactor extract-interface produces malformed output for internal classes",
+            "description": "As a roslyn-tools developer, I want extract-interface to honor source class accessibility, include internal members when the source is internal, and emit syntactically valid C# so that I can dogfood it during DI migrations on internal types.",
+            "acceptanceCriteria": [
+                "rt refactor extract-interface --type WorkspaceLoader --solution RoslynTools.slnx --dry-run emits a syntactically valid diff: the new interface name is inserted into the existing base list with proper formatting (space after comma, brace placement matching the file's brace style), and the resulting file would compile",
+                "Extracting from an internal sealed class produces an internal interface (not public). Accessibility of the generated interface matches the source class accessibility",
+                "Extracting from an internal class includes the class's internal members in the generated interface (today only public members are picked up). Public-only behaviour remains the default for public source classes",
+                "Regression test added covering an internal class with internal members and an existing IDisposable base list, asserting both the file compiles and the interface accessibility/membership matches expectation",
+                "rt refactor extract-interface --type WorkspaceLoader --solution RoslynTools.slnx (no dry-run) succeeds without producing files that fail dotnet build"
+            ],
+            "priority": 75,
+            "passes": false,
+            "epicId": "EP-006",
+            "notes": "P2. Surfaced during EP-008/US-053 dogfood at branch ep-008-isessionfactory. Three bundled defects: (1) base-list insertion is malformed -- 'IDisposable\\n,IWorkspaceLoader{' (no space, brace adjacent); (2) generated interface is hardcoded public regardless of source class accessibility (internal sealed class WorkspaceLoader yielded public interface IWorkspaceLoader); (3) only public members are extracted, missing internal GetSolutionAsync/LoadWorkspaceAsync from WorkspaceLoader. Repro: rt refactor extract-interface --type WorkspaceLoader --solution RoslynTools.slnx --dry-run. Forced fallback to hand-authoring IWorkspaceSessionFactory."
         }
     ]
 }
