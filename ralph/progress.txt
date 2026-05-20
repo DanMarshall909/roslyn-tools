@@ -1,7 +1,7 @@
 roslyn-tools
 Branch: feat/analyze-complexity
 
-Current Status: 17/19 stories complete (89%)
+Current Status: 18/19 stories complete (95%)
 
 Stories
 [x] US-001 Add rt analyze complexity command
@@ -22,4 +22,4 @@ Stories
 [ ] US-068 Introduce Result<T,RtError> for routine user-error flows in core services
 [x] US-033 rt analyze solid: ISP detector — flag fat interfaces and NotImplementedException members
 [x] US-034 rt analyze solid: DIP detector — flag concrete constructor params and inline new calls
-[ ] US-035 rt analyze solid: OCP detector — flag switch/if chains branching on concrete types
+[x] US-035 rt analyze solid: OCP detector — flag switch/if chains branching on concrete types
