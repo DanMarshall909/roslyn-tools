@@ -321,6 +321,24 @@
       "notes": "P1. App.cs UseExceptionHandler currently does not catch typed exceptions. Catch: FileNotFoundException, IOException, InvalidOperationException, JsonException, YamlException. Format as 'Error: <ex.Message>' to stderr, exit 1. Covers: WorkspaceLoader throws beyond the missing-solution case (US-041), DecisionStore.Load/Save, AddXmlDocCommand JSON load, MigrateToIOptionsService.",
       "resolution": "Extended App.TryHandleUserErrorAsync to catch IOException, InvalidOperationException, JsonException, and YamlException (in addition to existing FileNotFoundException) and emit a single \"Error: <message>\" line to stderr with exit code 1. Moved DecisionStore.Load inside the try block so malformed --decisions YAML is also handled. Added 4 end-to-end tests in CliBootstrap.cs covering the non-interface InvalidOperationException (FB-027/028), malformed JSON in add-xml-doc, and malformed YAML in --decisions. FB-027 and FB-028 marked resolved.",
       "completedAt": "2026-05-20"
+    },
+    {
+      "id": "US-043",
+      "title": "Replace Environment.Exit(1) in OutlineCommand with context.ExitCode = 1",
+      "description": "As a developer, I want OutlineCommand to exit consistently with all other commands so that graceful cleanup runs on error.",
+      "acceptanceCriteria": [
+        "OutlineCommand no longer calls Environment.Exit(1) for any error condition",
+        "Error cases in OutlineCommand set context.ExitCode = 1 and return, consistent with all other commands",
+        "Process exit allows graceful cleanup (log flushing, disposables) to run"
+      ],
+      "priority": 43,
+      "urgency": 12,
+      "urgencyReason": "One-line consistency fix: Environment.Exit(1) → context.ExitCode = 1; return; in OutlineCommand so graceful cleanup runs on error. Quickest defensive fix → ahead of US-044 in the same band.",
+      "effort": 1,
+      "passes": true,
+      "notes": "P2. OutlineCommand.cs line ~90 calls Environment.Exit(1). Replace with context.ExitCode = 1; return; — same pattern as every other command in the codebase.",
+      "resolution": "No-op: OutlineCommand already uses context.ExitCode = 1; return; (line 96-97) — no Environment.Exit(1) call exists in the file. The bug was fixed in commit 93a96d1 (May 15, 2026: feat(feedback): capture workspace warning context) before this story was created. All three ACs satisfied by the current code: no Environment.Exit(1), error path sets context.ExitCode = 1 and returns, graceful cleanup runs. Verified via grep of full src/ tree — zero matches for Environment.Exit(. Closing without code change.",
+      "completedAt": "2026-05-20"
     }
   ]
 }
