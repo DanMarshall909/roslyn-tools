@@ -18,13 +18,14 @@ internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand
         JsonOutput: true,
         Category: "analyze",
         WhenToUse:
-        "Detect classes that may violate SOLID principles using heuristic analysis. --principle SRP flags classes with too many public methods and injected dependencies. --principle ISP flags fat interfaces and unimplemented members. --principle DIP flags concrete constructor params and inline new calls. --principle OCP flags switch/if chains that branch on concrete types. --principle all runs every active detector.",
+        "Detect classes that may violate SOLID principles using heuristic analysis. --principle SRP flags classes with too many public methods and injected dependencies. --principle ISP flags fat interfaces and unimplemented members. --principle DIP flags concrete constructor params and inline new calls. --principle OCP flags switch/if chains that branch on concrete types. --principle LSP flags overrides and explicit interface impls that throw NotImplementedException. --principle all runs every active detector.",
         Examples:
         [
             "rt analyze solid --principle SRP --solution RoslynTools.slnx",
             "rt analyze solid --principle ISP --solution RoslynTools.slnx",
             "rt analyze solid --principle DIP --solution RoslynTools.slnx",
             "rt analyze solid --principle OCP --solution RoslynTools.slnx",
+            "rt analyze solid --principle LSP --solution RoslynTools.slnx",
             "rt analyze solid --principle all --solution RoslynTools.slnx"
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json]
@@ -34,7 +35,7 @@ internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand
     {
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
         var principleOpt = new Option<string>("--principle", () => "SRP",
-            "SOLID principle to check: SRP, ISP, DIP, OCP, or all");
+            "SOLID principle to check: SRP, ISP, DIP, OCP, LSP, or all");
         var minMethodsOpt = new Option<int>("--min-methods", () => 10,
             "Minimum public method count to flag a class for SRP (default 10)");
         var minDepsOpt = new Option<int>("--min-deps", () => 5,
@@ -93,9 +94,9 @@ internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand
         }
 
         var normalised = principle.ToUpperInvariant();
-        if (normalised is not ("SRP" or "ISP" or "DIP" or "OCP" or "ALL"))
+        if (normalised is not ("SRP" or "ISP" or "DIP" or "OCP" or "LSP" or "ALL"))
         {
-            RtLog.Error("--principle must be SRP, ISP, DIP, OCP, or all.");
+            RtLog.Error("--principle must be SRP, ISP, DIP, OCP, LSP, or all.");
             return 1;
         }
 
@@ -108,6 +109,7 @@ internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand
         var runIsp = normalised is "ISP" or "ALL";
         var runDip = normalised is "DIP" or "ALL";
         var runOcp = normalised is "OCP" or "ALL";
+        var runLsp = normalised is "LSP" or "ALL";
 
         if (runSrp)
         {
@@ -196,6 +198,33 @@ internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand
             };
         }
 
+        if (runLsp)
+        {
+            var lspReport = await SolidAnalyzer.AnalyzeLspAsync(sln);
+            result = result with
+            {
+                LSP = new LspBlock
+                {
+                    ThrowingOverrides = lspReport.ThrowingOverrides.Select(t => new LspThrowingOverrideItem
+                    {
+                        TypeName = t.TypeName,
+                        MemberName = t.MemberName,
+                        ExceptionType = t.ExceptionType,
+                        FilePath = t.FilePath,
+                        Line = t.Line
+                    }).ToList(),
+                    ContractNarrowings = lspReport.ContractNarrowings.Select(c => new LspContractNarrowingItem
+                    {
+                        TypeName = c.TypeName,
+                        MemberName = c.MemberName,
+                        BaseType = c.BaseType,
+                        FilePath = c.FilePath,
+                        Line = c.Line
+                    }).ToList()
+                }
+            };
+        }
+
         RtResultRenderer.WriteOutput(RtResult<SolidResult>.Ok(result));
         if (runSrp)
             RtLog.Info("Found {Count} SRP violation(s).", result.SRP.Count);
@@ -207,6 +236,9 @@ internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand
                 result.DIP.ConcreteConstructorParams.Count, result.DIP.InlineNewCalls.Count);
         if (runOcp)
             RtLog.Info("Found {Count} OCP violation(s).", result.OCP.Count);
+        if (runLsp)
+            RtLog.Info("Found {Throw} throwing override(s) and {Narrow} contract narrowing(s).",
+                result.LSP.ThrowingOverrides.Count, result.LSP.ContractNarrowings.Count);
         return 0;
     }
 }

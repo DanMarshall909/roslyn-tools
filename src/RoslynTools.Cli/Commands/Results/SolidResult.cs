@@ -201,6 +201,80 @@ internal sealed record OcpViolationItem : IRtOutput
     }
 }
 
+internal sealed record LspThrowingOverrideItem : IRtOutput
+{
+    [OutputField(OutputLevel.Default, "typeName")]
+    public string TypeName { get; init; } = "";
+
+    [OutputField(OutputLevel.Default, "memberName")]
+    public string MemberName { get; init; } = "";
+
+    [OutputField(OutputLevel.Default, "exceptionType")]
+    public string ExceptionType { get; init; } = "";
+
+    [OutputField(OutputLevel.Default, "filePath")]
+    public string FilePath { get; init; } = "";
+
+    [OutputField(OutputLevel.Default, "line")]
+    public int Line { get; init; }
+
+    public void RenderText(TextWriter writer)
+    {
+        writer.Write($"{TypeName}.{MemberName} throws {ExceptionType}  {FilePath}:{Line}");
+    }
+}
+
+internal sealed record LspContractNarrowingItem : IRtOutput
+{
+    [OutputField(OutputLevel.Default, "typeName")]
+    public string TypeName { get; init; } = "";
+
+    [OutputField(OutputLevel.Default, "memberName")]
+    public string MemberName { get; init; } = "";
+
+    [OutputField(OutputLevel.Default, "baseType")]
+    public string BaseType { get; init; } = "";
+
+    [OutputField(OutputLevel.Default, "filePath")]
+    public string FilePath { get; init; } = "";
+
+    [OutputField(OutputLevel.Default, "line")]
+    public int Line { get; init; }
+
+    public void RenderText(TextWriter writer)
+    {
+        writer.Write($"{TypeName}.{MemberName} narrows {BaseType}  {FilePath}:{Line}");
+    }
+}
+
+internal sealed record LspBlock : IRtOutput
+{
+    [OutputField(OutputLevel.Default, "ThrowingOverrides")]
+    public IList<LspThrowingOverrideItem> ThrowingOverrides { get; init; } = [];
+
+    [OutputField(OutputLevel.Default, "ContractNarrowings")]
+    public IList<LspContractNarrowingItem> ContractNarrowings { get; init; } = [];
+
+    public void RenderText(TextWriter writer)
+    {
+        if (ThrowingOverrides.Count == 0 && ContractNarrowings.Count == 0)
+        {
+            writer.WriteLine("No LSP violations found.");
+            return;
+        }
+        foreach (var item in ThrowingOverrides)
+        {
+            item.RenderText(writer);
+            writer.WriteLine();
+        }
+        foreach (var item in ContractNarrowings)
+        {
+            item.RenderText(writer);
+            writer.WriteLine();
+        }
+    }
+}
+
 internal sealed record SolidResult : IRtOutput
 {
     [OutputField(OutputLevel.Default, "SRP")]
@@ -215,12 +289,16 @@ internal sealed record SolidResult : IRtOutput
     [OutputField(OutputLevel.Default, "OCP")]
     public IList<OcpViolationItem> OCP { get; init; } = [];
 
+    [OutputField(OutputLevel.Default, "LSP")]
+    public LspBlock LSP { get; init; } = new();
+
     public void RenderText(TextWriter writer)
     {
         if (SRP.Count == 0
             && ISP.FatInterfaces.Count == 0 && ISP.UnimplementedMembers.Count == 0
             && DIP.ConcreteConstructorParams.Count == 0 && DIP.InlineNewCalls.Count == 0
-            && OCP.Count == 0)
+            && OCP.Count == 0
+            && LSP.ThrowingOverrides.Count == 0 && LSP.ContractNarrowings.Count == 0)
         {
             writer.WriteLine("No SOLID violations found.");
             return;
@@ -238,5 +316,6 @@ internal sealed record SolidResult : IRtOutput
             item.RenderText(writer);
             writer.WriteLine();
         }
+        LSP.RenderText(writer);
     }
 }

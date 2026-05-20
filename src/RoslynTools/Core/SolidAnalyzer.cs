@@ -39,6 +39,18 @@ internal record OcpViolation(
 
 internal record SolidOcpReport(IList<OcpViolation> Violations);
 
+internal record LspThrowingOverride(
+    string TypeName, string MemberName, string ExceptionType,
+    string FilePath, int Line);
+
+internal record LspContractNarrowing(
+    string TypeName, string MemberName, string BaseType,
+    string FilePath, int Line);
+
+internal record SolidLspReport(
+    IList<LspThrowingOverride> ThrowingOverrides,
+    IList<LspContractNarrowing> ContractNarrowings);
+
 internal static class SolidAnalyzer
 {
     public static async Task<SolidSrpReport> AnalyzeSrpAsync(
@@ -649,6 +661,143 @@ internal static class SolidAnalyzer
         if (symbol.IsAbstract)
             return false;
         return true;
+    }
+
+    public static async Task<SolidLspReport> AnalyzeLspAsync(Solution sln)
+    {
+        var throwingOverrides = new List<LspThrowingOverride>();
+        var contractNarrowings = new List<LspContractNarrowing>();
+        var seenTypes = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
+
+        foreach (var project in sln.Projects)
+        {
+            var compilation = await project.GetCompilationAsync().ConfigureAwait(false);
+            if (compilation is null) // coverage: defensive
+                continue;
+
+            foreach (var document in project.Documents)
+            {
+                var filePath = document.FilePath ?? string.Empty;
+
+                if (FilePathFilters.IsGeneratedOrIntermediate(filePath))
+                    continue;
+
+                var root = await document.GetSyntaxRootAsync().ConfigureAwait(false);
+                if (root is null) // coverage: defensive
+                    continue;
+
+                var model = compilation.GetSemanticModel(root.SyntaxTree);
+
+                foreach (var typeDecl in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
+                {
+                    if (model.GetDeclaredSymbol(typeDecl) is not INamedTypeSymbol symbol) // coverage: defensive
+                        continue;
+
+                    if (symbol.TypeKind != TypeKind.Class)
+                        continue;
+
+                    if (!seenTypes.Add(symbol))
+                        continue;
+
+                    var typeName = symbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+
+                    foreach (var member in symbol.GetMembers())
+                    {
+                        if (member is not IMethodSymbol method)
+                            continue;
+                        // Accept ordinary methods and explicit interface implementations.
+                        // ExplicitInterfaceImplementation has its own MethodKind that we want to
+                        // include for the contract-narrowing check below.
+                        if (method.MethodKind is not (MethodKind.Ordinary or MethodKind.ExplicitInterfaceImplementation))
+                            continue;
+
+                        // Skip compiler-synthesized overrides (e.g. record-synthesized
+                        // Equals/GetHashCode/ToString) — their DeclaringSyntaxReferences point at
+                        // the type declaration, yielding spurious throw matches from sibling
+                        // members.
+                        if (method.IsImplicitlyDeclared)
+                            continue;
+
+                        // (1) override methods that throw
+                        if (method.IsOverride)
+                        {
+                            var exType = FindThrownNotImplementedKind(method);
+                            if (exType is not null)
+                            {
+                                var line = GetDeclarationLine(method);
+                                throwingOverrides.Add(new LspThrowingOverride(
+                                    typeName, method.Name, exType, filePath, line));
+                            }
+                        }
+
+                        // (2) explicit interface implementations that throw on every path
+                        if (!method.ExplicitInterfaceImplementations.IsDefaultOrEmpty)
+                        {
+                            var exType = FindThrownNotImplementedKind(method);
+                            if (exType is not null)
+                            {
+                                var ifaceMember = method.ExplicitInterfaceImplementations[0];
+                                var iface = ifaceMember.ContainingType;
+                                var line = GetDeclarationLine(method);
+                                contractNarrowings.Add(new LspContractNarrowing(
+                                    typeName, ifaceMember.Name,
+                                    iface.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+                                    filePath, line));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        throwingOverrides.Sort((a, b) =>
+        {
+            var byType = StringComparer.Ordinal.Compare(a.TypeName, b.TypeName);
+            if (byType != 0) return byType;
+            return StringComparer.Ordinal.Compare(a.MemberName, b.MemberName);
+        });
+        contractNarrowings.Sort((a, b) =>
+        {
+            var byType = StringComparer.Ordinal.Compare(a.TypeName, b.TypeName);
+            if (byType != 0) return byType;
+            return StringComparer.Ordinal.Compare(a.MemberName, b.MemberName);
+        });
+
+        return new SolidLspReport(throwingOverrides, contractNarrowings);
+    }
+
+    private static string? FindThrownNotImplementedKind(IMethodSymbol method)
+    {
+        foreach (var declRef in method.DeclaringSyntaxReferences)
+        {
+            var syntax = declRef.GetSyntax();
+            foreach (var throwExpr in syntax.DescendantNodes().OfType<ThrowExpressionSyntax>())
+            {
+                var kind = NotImplementedOrSupportedTypeName(throwExpr.Expression);
+                if (kind is not null) return kind;
+            }
+            foreach (var throwStmt in syntax.DescendantNodes().OfType<ThrowStatementSyntax>())
+            {
+                if (throwStmt.Expression is not null)
+                {
+                    var kind = NotImplementedOrSupportedTypeName(throwStmt.Expression);
+                    if (kind is not null) return kind;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static string? NotImplementedOrSupportedTypeName(ExpressionSyntax expr)
+    {
+        if (expr is not ObjectCreationExpressionSyntax oc)
+            return null;
+        var typeName = oc.Type.ToString();
+        if (typeName.EndsWith("NotImplementedException", StringComparison.Ordinal))
+            return "NotImplementedException";
+        if (typeName.EndsWith("NotSupportedException", StringComparison.Ordinal))
+            return "NotSupportedException";
+        return null;
     }
 
     private static int CountPublicOrdinaryMethods(INamedTypeSymbol symbol)

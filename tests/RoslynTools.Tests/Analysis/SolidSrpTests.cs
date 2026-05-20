@@ -456,7 +456,7 @@ public class SolidSrpTests
     [Fact]
     public async Task execute_async_returns_1_for_invalid_principle()
     {
-        var exitCode = await SolidCommand.ExecuteAsync(null, "LSP", 10, 5, 7, 2);
+        var exitCode = await SolidCommand.ExecuteAsync(null, "ZZZ", 10, 5, 7, 2);
         Assert.Equal(1, exitCode);
     }
 
