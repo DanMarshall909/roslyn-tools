@@ -52,27 +52,6 @@
             "resolvedAt": "2026-05-11"
         },
         {
-            "id": "US-034",
-            "title": "rt analyze solid: DIP detector — flag concrete constructor params and inline new calls",
-            "description": "As a developer, I want rt analyze solid --principle DIP to flag high-level classes that depend directly on concrete types rather than abstractions.",
-            "acceptanceCriteria": [
-                "rt analyze solid --principle DIP --solution <sln> exits 0 and emits JSON to stdout",
-                "Output has a top-level 'DIP' key with sub-arrays for 'ConcreteConstructorParams' and 'InlineNewCalls'",
-                "Each ConcreteConstructorParam item includes: TypeName, ParamName, ConcreteType, FilePath, Line",
-                "Each InlineNewCall item includes: TypeName, MemberName, ConcreteType, FilePath, Line",
-                "Value types, record types, and Exception-derived types are excluded from InlineNewCalls",
-                "Classes named *Factory, *Builder, or *Provider are excluded from InlineNewCalls (they are expected to new things)",
-                "rt analyze solid --principle all includes DIP results"
-            ],
-            "priority": 34,
-            "urgency": 96,
-            "urgencyReason": "EP-006 — DIP detector, same template as US-032/033.",
-            "effort": 5,
-            "passes": false,
-            "epicId": "EP-006",
-            "notes": "P2. Two sub-checks: (1) constructors accepting concrete class params (not interfaces/abstract); (2) non-factory class bodies calling new ConcreteType() where ConcreteType is not a value type, DTO, or exception. Output grouped under 'DIP' detector key."
-        },
-        {
             "id": "US-035",
             "title": "rt analyze solid: OCP detector — flag switch/if chains branching on concrete types",
             "description": "As a developer, I want rt analyze solid --principle OCP to flag code that must be modified every time a new concrete type is added.",
