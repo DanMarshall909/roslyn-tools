@@ -492,9 +492,11 @@
             "urgency": 104,
             "urgencyReason": "EP-006 — LSP detector, closes the epic.",
             "effort": 5,
-            "passes": false,
+            "passes": true,
             "epicId": "EP-006",
-            "notes": "P2. Two sub-checks: (1) override methods whose body throws NotImplementedException/NotSupportedException; (2) explicit interface implementations that throw on every code path. Output grouped under 'LSP' detector key."
+            "notes": "P2. Two sub-checks: (1) override methods whose body throws NotImplementedException/NotSupportedException; (2) explicit interface implementations that throw on every code path. Output grouped under 'LSP' detector key.",
+            "resolution": "Added rt analyze solid --principle LSP detector. SolidAnalyzer.AnalyzeLspAsync flags override methods that throw NotImplementedException/NotSupportedException (ThrowingOverrides) and explicit interface implementations that throw on every code path (ContractNarrowings). Skips compiler-synthesized overrides to avoid record-synthesized Equals/GetHashCode/ToString false positives. SolidResult.LSP block has ThrowingOverrides and ContractNarrowings arrays. Closes EP-006 — all five detectors (SRP, ISP, DIP, OCP, LSP) now ship under rt analyze solid. 16 new LSP tests + dogfood validation.",
+            "resolvedAt": "2026-05-20"
         }
     ]
 }
