@@ -65,6 +65,9 @@
                 "rt analyze solid --principle all includes ISP results"
             ],
             "priority": 33,
+            "urgency": 92,
+            "urgencyReason": "EP-006 epic in flight — ISP detector follows the US-032 SRP template (SolidAnalyzer, SolidResult, mirrored tests). Lowest-risk SOLID addition.",
+            "effort": 5,
             "passes": false,
             "epicId": "EP-006",
             "notes": "P2. Two sub-checks: (1) interfaces with member count above threshold; (2) classes implementing an interface but throwing NotImplementedException/NotSupportedException on one or more members. Output grouped under 'ISP' detector key."
@@ -83,6 +86,9 @@
                 "rt analyze solid --principle all includes DIP results"
             ],
             "priority": 34,
+            "urgency": 96,
+            "urgencyReason": "EP-006 — DIP detector, same template as US-032/033.",
+            "effort": 5,
             "passes": false,
             "epicId": "EP-006",
             "notes": "P2. Two sub-checks: (1) constructors accepting concrete class params (not interfaces/abstract); (2) non-factory class bodies calling new ConcreteType() where ConcreteType is not a value type, DTO, or exception. Output grouped under 'DIP' detector key."
@@ -101,6 +107,9 @@
                 "rt analyze solid --principle all includes OCP results"
             ],
             "priority": 35,
+            "urgency": 100,
+            "urgencyReason": "EP-006 — OCP detector, same template.",
+            "effort": 5,
             "passes": false,
             "epicId": "EP-006",
             "notes": "P2. Detects: (1) switch expressions/statements matching on 'is ConcreteType'; (2) if/else chains using 'is ConcreteType' or obj.GetType() == typeof(X) with 2+ branches. Output grouped under 'OCP' detector key."
@@ -119,6 +128,9 @@
                 "rt analyze solid --principle all includes LSP results"
             ],
             "priority": 36,
+            "urgency": 104,
+            "urgencyReason": "EP-006 — LSP detector, closes the epic.",
+            "effort": 5,
             "passes": false,
             "epicId": "EP-006",
             "notes": "P2. Two sub-checks: (1) override methods whose body throws NotImplementedException/NotSupportedException; (2) explicit interface implementations that throw on every code path. Output grouped under 'LSP' detector key."
@@ -137,6 +149,9 @@
                 "rt analyze solid --principle all includes LSP results"
             ],
             "priority": 37,
+            "urgency": 170,
+            "urgencyReason": "convert-static-class — interface generation. Largest of the trio. Links to project_static_class_migration.",
+            "effort": 8,
             "passes": false,
             "notes": "P2. Enables mock-friendly DI patterns in roslyn-tools tests. Relates to US-027 df."
         },
@@ -152,6 +167,9 @@
                 "If --no-interface was also passed (no interface generated), registers the concrete type: services.AddSingleton<TypeName>()"
             ],
             "priority": 38,
+            "urgency": 166,
+            "urgencyReason": "convert-static-class — DI registration in Bootstrap. Pair with US-037 for usable output.",
+            "effort": 5,
             "passes": false,
             "notes": "P2. Pairs with US-037 (interface gen). Relates to US-027 df."
         },
@@ -167,6 +185,9 @@
                 "Existing tests for add_dependencies_to_existing_instance_constructors remain green"
             ],
             "priority": 39,
+            "urgency": 162,
+            "urgencyReason": "convert-static-class — field/ctor formatting. Smallest of the trio so floats above US-037/038 inside the band.",
+            "effort": 2,
             "passes": false,
             "notes": "P2. df dogfood bug. Sibling of the no-constructor formatting bug fixed in the df/convert-static-class-interface-and-di branch commit 1fcf269."
         },
@@ -181,6 +202,9 @@
                 "The [workspace-warnings] block does not appear in normal output"
             ],
             "priority": 40,
+            "urgency": 62,
+            "urgencyReason": "Daily noise: MSBuild workspace warnings block pollutes every command's stderr. Suppress by default; --show-workspace-warnings opt-in.",
+            "effort": 2,
             "passes": false,
             "notes": "P2. Affects WorkspaceLoader / MSBuildWorkspace diagnostic handling. Suppress all MSBuildWorkspace diagnostics by default; add --show-workspace-warnings global flag to restore them. Genuine load errors (exit 1) must still surface."
         },
@@ -196,6 +220,9 @@
                 "Unexpected exceptions (not in the list above) still surface as unhandled so they are visible during development"
             ],
             "priority": 42,
+            "urgency": 1,
+            "urgencyReason": "Live telemetry: ralph/feedback.json FB-027/028 (2026-05-20) — users hit unhandled InvalidOperationException on analyze-interface non-interface input. Enforces \"no exceptions for results\" rule.",
+            "effort": 2,
             "passes": false,
             "notes": "P1. App.cs UseExceptionHandler currently does not catch typed exceptions. Catch: FileNotFoundException, IOException, InvalidOperationException, JsonException, YamlException. Format as 'Error: <ex.Message>' to stderr, exit 1. Covers: WorkspaceLoader throws beyond the missing-solution case (US-041), DecisionStore.Load/Save, AddXmlDocCommand JSON load, MigrateToIOptionsService."
         },
@@ -209,6 +236,9 @@
                 "Process exit allows graceful cleanup (log flushing, disposables) to run"
             ],
             "priority": 43,
+            "urgency": 12,
+            "urgencyReason": "One-line consistency fix: Environment.Exit(1) → context.ExitCode = 1; return; in OutlineCommand so graceful cleanup runs on error. Quickest defensive fix → ahead of US-044 in the same band.",
+            "effort": 1,
             "passes": false,
             "notes": "P2. OutlineCommand.cs line ~90 calls Environment.Exit(1). Replace with context.ExitCode = 1; return; — same pattern as every other command in the codebase."
         },
@@ -222,6 +252,9 @@
                 "When an expected symbol or statement is not found, the command emits a descriptive error to stderr and exits 1 rather than crashing"
             ],
             "priority": 44,
+            "urgency": 16,
+            "urgencyReason": "Same crash class as US-042 — .First()/.Last() on potentially empty sequences in SymbolLocator (~4 sites) and MethodExtractor (~8 sites). Mechanical, one TDD batch.",
+            "effort": 2,
             "passes": false,
             "notes": "P2. SymbolLocator.cs lines ~49, 96, 135, 188 and MethodExtractor.cs lines ~57, 164, 168, 378, 501, 529-532 call .First()/.Last() on sequences that could be empty under certain inputs. Replace with FirstOrDefault + null check or add pre-call validation."
         },
@@ -238,6 +271,9 @@
                 "kind field distinguishes between read/write/nameof/other reference types"
             ],
             "priority": 45,
+            "urgency": 244,
+            "urgencyReason": "EP-007: find-refs JSON output. Most-used inspect command — highest payoff among M-sized JSON outputs.",
+            "effort": 5,
             "passes": false,
             "epicId": "EP-007",
             "notes": "P2. Command: src/RoslynTools.Cli/Commands/FindRefsCommand.cs. Set RtCommandInfo.JsonOutput=true and branch on RtContext.Format==OutputFormat.Json."
@@ -254,6 +290,9 @@
                 "rt dump-help shows JSON output for find-callers"
             ],
             "priority": 46,
+            "urgency": 248,
+            "urgencyReason": "EP-007: find-callers JSON output. High-traffic.",
+            "effort": 5,
             "passes": false,
             "epicId": "EP-007",
             "notes": "P2. Command: src/RoslynTools.Cli/Commands/FindCallersCommand.cs. Set RtCommandInfo.JsonOutput=true."
@@ -271,6 +310,9 @@
                 "rt dump-help shows JSON output for find-undocumented"
             ],
             "priority": 47,
+            "urgency": 272,
+            "urgencyReason": "EP-007: find-undocumented JSON output. Lowest-traffic of the eight.",
+            "effort": 5,
             "passes": false,
             "epicId": "EP-007",
             "notes": "P2. Command: src/RoslynTools.Cli/Commands/FindUndocumentedCommand.cs. Set RtCommandInfo.JsonOutput=true."
@@ -287,6 +329,9 @@
                 "rt dump-help shows JSON output for find-unused"
             ],
             "priority": 48,
+            "urgency": 252,
+            "urgencyReason": "EP-007: find-unused JSON output. Common in cleanup workflows.",
+            "effort": 5,
             "passes": false,
             "epicId": "EP-007",
             "notes": "P2. Command: src/RoslynTools.Cli/Commands/FindUnusedCommand.cs. Set RtCommandInfo.JsonOutput=true."
@@ -303,6 +348,9 @@
                 "rt dump-help shows JSON output for circular-deps"
             ],
             "priority": 49,
+            "urgency": 256,
+            "urgencyReason": "EP-007: circular-deps JSON output. Common in architecture sweeps.",
+            "effort": 5,
             "passes": false,
             "epicId": "EP-007",
             "notes": "P2. Command: src/RoslynTools.Cli/Commands/CircularDepsCommand.cs. Set RtCommandInfo.JsonOutput=true."
@@ -320,6 +368,9 @@
                 "rt dump-help shows JSON output for find-magic-strings"
             ],
             "priority": 50,
+            "urgency": 268,
+            "urgencyReason": "EP-007: find-magic-strings JSON output.",
+            "effort": 5,
             "passes": false,
             "epicId": "EP-007",
             "notes": "P2. Command: src/RoslynTools.Cli/Commands/FindMagicStringsCommand.cs. Set RtCommandInfo.JsonOutput=true."
@@ -336,6 +387,9 @@
                 "rt dump-help shows JSON output for list-imports"
             ],
             "priority": 51,
+            "urgency": 264,
+            "urgencyReason": "EP-007: list-imports JSON output.",
+            "effort": 5,
             "passes": false,
             "epicId": "EP-007",
             "notes": "P2. Command: src/RoslynTools.Cli/Commands/ListImportsCommand.cs. Set RtCommandInfo.JsonOutput=true."
@@ -353,6 +407,9 @@
                 "rt dump-help shows JSON output for list-smells"
             ],
             "priority": 52,
+            "urgency": 260,
+            "urgencyReason": "EP-007: list-smells JSON output. Agent-driven refactor consumes this.",
+            "effort": 5,
             "passes": false,
             "epicId": "EP-007",
             "notes": "P2. Command: src/RoslynTools.Cli/Commands/ListSmellsCommand.cs. Set RtCommandInfo.JsonOutput=true."
@@ -373,6 +430,9 @@
                 "Must ship in same PR as US-054 (ISolutionApplier) — partial rollout is not safe"
             ],
             "priority": 53,
+            "urgency": 420,
+            "urgencyReason": "EP-008: IWorkspaceSessionFactory + WorkspaceSession. Must ship together with US-054 — splitting doubles the 30-command churn (per epic notes). Heaviest items → bottom of band.",
+            "effort": 13,
             "passes": false,
             "notes": "P2. Blast radius: 30 production call sites + 100+ test references (WorkspaceLoader.UseOverride). Architecture gate already exists. WorkspaceLoader is static so cannot implement the interface — WorkspaceSession wrapper is the bridge. From issue rt-006."
         },
@@ -390,6 +450,9 @@
                 "Implemented in the same PR as US-053"
             ],
             "priority": 54,
+            "urgency": 424,
+            "urgencyReason": "EP-008: ISolutionApplier. Pair with US-053.",
+            "effort": 13,
             "passes": false,
             "notes": "P2. 22 fan-in from Commands scope. Must ship with US-053 — splitting doubles the churn across all 30 commands. From issue rt-007."
         },
@@ -409,6 +472,9 @@
                 "Test suite passes after apply (no broken imports)"
             ],
             "priority": 55,
+            "urgency": 310,
+            "urgencyReason": "extract-orchestrator command. Significant new feature; deferred until refactor infra stable.",
+            "effort": 8,
             "passes": false,
             "notes": "P2. Reference diff: ralph/sessions/2026-04-21-change-signature-2.md step 5. Linked to rt-004 (introduce-record) now shipped as transform-parameters. From issue rt-003."
         },
@@ -425,6 +491,9 @@
                 "Works with --dry-run and --solution flags as normal"
             ],
             "priority": 56,
+            "urgency": 230,
+            "urgencyReason": "rename: accept FQN from stdin JSON. Automation feature, single command.",
+            "effort": 2,
             "passes": false,
             "notes": "P2. First of the pipe-protocol tasks. Discovered in ralph/sessions/2026-05-04-daemon-protocol.md Step 4. Command: src/RoslynTools.Cli/Commands/RenameCommand.cs. From issue rt-008."
         },
@@ -441,6 +510,9 @@
                 "An architecture test detects migrated commands that bypass the wrapper"
             ],
             "priority": 57,
+            "urgency": 360,
+            "urgencyReason": "EP-009 opener: shared read-only command handler wrapper.",
+            "effort": 8,
             "passes": false,
             "notes": "P2. Start with a low-risk read-only command already using RtResult<T>."
         },
@@ -457,6 +529,9 @@
                 "An architecture test flags manual declarations of common options in migrated command files"
             ],
             "priority": 58,
+            "urgency": 364,
+            "urgencyReason": "EP-009: standardize common CLI options via factory.",
+            "effort": 8,
             "passes": false,
             "notes": "P2. This should precede broad command migration to reduce repeated churn."
         },
@@ -473,6 +548,9 @@
                 "At least one test verifies capability metadata matches actual command options"
             ],
             "priority": 59,
+            "urgency": 368,
+            "urgencyReason": "EP-009: machine-readable command capabilities in RtCommandInfo.",
+            "effort": 8,
             "passes": false,
             "notes": "P2. Capability names should stay stable for external automation."
         },
@@ -489,6 +567,9 @@
                 "Architecture tests ratchet migrated commands away from ad hoc Console.WriteLine rendering"
             ],
             "priority": 60,
+            "urgency": 372,
+            "urgencyReason": "EP-009: normalize command outputs via shared result contract.",
+            "effort": 8,
             "passes": false,
             "notes": "P2. Builds on the existing RtResult<T> migration."
         },
@@ -505,6 +586,9 @@
                 "Tests cover exact match, no match, ambiguous match, and kind mismatch"
             ],
             "priority": 61,
+            "urgency": 376,
+            "urgencyReason": "EP-009: SymbolQuery for consistent symbol resolution.",
+            "effort": 8,
             "passes": false,
             "notes": "P2. This is a prerequisite for reliable pipe chains between inspect and refactor commands."
         },
@@ -521,6 +605,9 @@
                 "Tests catch accidental introduction of a non-canonical common option name"
             ],
             "priority": 62,
+            "urgency": 380,
+            "urgencyReason": "EP-009: standardize command vocabulary and aliases.",
+            "effort": 8,
             "passes": false,
             "notes": "P2. Pair with option factory work when practical."
         },
@@ -537,6 +624,9 @@
                 "The convention avoids broad rewrites for commands that still need larger handler extraction"
             ],
             "priority": 63,
+            "urgency": 384,
+            "urgencyReason": "EP-009: standardize command file structure.",
+            "effort": 8,
             "passes": false,
             "notes": "P3. Keep this incremental so it supports, rather than blocks, feature work."
         },
@@ -553,6 +643,9 @@
                 "The ratchet strategy is documented in the migration playbook"
             ],
             "priority": 64,
+            "urgency": 388,
+            "urgencyReason": "EP-009: migration ratchets for command consistency.",
+            "effort": 8,
             "passes": false,
             "notes": "P2. This formalizes the dogfooding approach used during the command output migration."
         },
@@ -569,6 +662,9 @@
                 "Human-readable help remains concise and does not duplicate stale hand-written metadata"
             ],
             "priority": 65,
+            "urgency": 392,
+            "urgencyReason": "EP-009: make dump-help metadata-driven and consistency-tested.",
+            "effort": 8,
             "passes": false,
             "notes": "P2. This turns command metadata into a visible contract for agents."
         },
@@ -585,6 +681,9 @@
                 "The playbook is linked from the relevant backlog epic or developer docs"
             ],
             "priority": 66,
+            "urgency": 396,
+            "urgencyReason": "EP-009: command migration playbook. Closes EP-009.",
+            "effort": 8,
             "passes": false,
             "notes": "P3. Keep this short and operational; it should support ongoing dogfooding rather than becoming a design document."
         },
@@ -599,6 +698,9 @@
                 "Risks of fix-on-main are documented (no revert path) if that approach is chosen"
             ],
             "priority": 67,
+            "urgency": 322,
+            "urgencyReason": "Revisit nested-branch pattern in execute skill. Process improvement, no production impact. Smallest H-band item → top of band.",
+            "effort": 5,
             "passes": false,
             "notes": "P3. Deferred from 2026-05-15 retro (Proposal 4). Aggressive version in ai-rules commit 8c1a08a; conservative rollback in dae9046. Three places still inconsistent: RT gap section, Opus review section, regression handler. Must be decided and applied consistently."
         },
@@ -618,6 +720,9 @@
                 "Documentation: add a short Result-types section to CLAUDE.md / AGENTS.md so new commands follow the pattern."
             ],
             "priority": 68,
+            "urgency": 32,
+            "urgencyReason": "Architectural fix that supersedes US-042+US-044: Result<T, RtError> for routine errors. Story explicitly cites 2026-05-15 quality-first rule. Sequenced after US-042/044 ship so the bug-class diagnosis is validated by quick fixes first.",
+            "effort": 13,
             "passes": 0,
             "notes": "Driven by quality-first rule (2026-05-15): refuses the substring-matching shortcut and instead models routine vs bug differences in the type system. Replaces the deferred classification half of US-042. Large change — touches ~10-15 throw sites and every caller — sequence carefully via /execute with TDD.",
             "resolution": "",
@@ -636,6 +741,9 @@
                 "If `--strict-json` is passed alongside, the output is RFC 8259 compliant (non-ASCII escaped as \\uXXXX)."
             ],
             "priority": 69,
+            "urgency": 240,
+            "urgencyReason": "rt dump-help --json — unlocks agent automation; touches one command. Opens the EP-007 wave.",
+            "effort": 5,
             "passes": false,
             "notes": "P2. Deferred from LLM-ergonomics quick-wins plan. The RtCommandInfo record and reflection-discovered registry in App.cs already expose every field — wiring it through JsonRenderer should be near-free. Affected files: src/RoslynTools.Cli/Commands/DumpHelpCommand.cs, src/RoslynTools/Core/RtCommandInfo.cs."
         },
@@ -652,6 +760,9 @@
                 "An LLM reading only `rt <cmd> --help` can predict the shape of stdout, stderr, and exit code for both success and the most common failure."
             ],
             "priority": 70,
+            "urgency": 222,
+            "urgencyReason": "Expand command help text with output shape + exit codes. Smallest of the discoverability wave — floats first.",
+            "effort": 2,
             "passes": false,
             "notes": "P2. Deferred from LLM-ergonomics quick-wins plan. Sampled commands (DescribeCommand, FindCallersCommand, ExtractMethodCommand) currently have one-line descriptions only — no failure mode docs, no output schema. Drive from RtCommandInfo so docs/COMMANDS.md stays in sync."
         },
@@ -668,6 +779,9 @@
                 "Existing --decisions behaviour (exit 2, write pending entries) is unchanged."
             ],
             "priority": 71,
+            "urgency": 226,
+            "urgencyReason": "Self-describing --decisions YAML schema.",
+            "effort": 2,
             "passes": false,
             "notes": "P3. Deferred from LLM-ergonomics quick-wins plan. The mechanism is mentioned in --help but the file structure (fields, indices, how to fill the choose field) requires source inspection today. Affected files: src/RoslynTools/Core/Decisions/DecisionStore.cs, src/RoslynTools/Core/Decisions/DecisionEntry.cs, src/RoslynTools.Cli/App.cs."
         },
@@ -684,6 +798,9 @@
                 "An LLM piping stdout to a JSON parser and stderr to logs gets clean separation across every command."
             ],
             "priority": 72,
+            "urgency": 180,
+            "urgencyReason": "Finish stderr discipline migration: stray Console.Write to stdout in error paths. Completes a longstanding push.",
+            "effort": 5,
             "passes": false,
             "notes": "P2. Deferred from LLM-ergonomics quick-wins plan. docs/logging-standards.md acknowledges the migration is in progress; several commands still call Console.Write directly. Maintenance work — does not change LLM behaviour at runtime today, but eliminates a future regression vector."
         },
@@ -698,6 +815,9 @@
                 "Pre-commit gate continues to block on staged Cli production files that aren't covered"
             ],
             "priority": 73,
+            "urgency": 152,
+            "urgencyReason": "Mutation pilot rollout: memory project_mutation_pilot_project_boundary explicitly flags Cli files are silently skipped today. Stryker config + gate currently does not defend src/RoslynTools.Cli/.",
+            "effort": 2,
             "passes": false,
             "notes": "Discovered 2026-05-20 while landing the Debug 100% mutation work. Existing Cli files in mutate globs were authored under the assumption that Stryker would cover them."
         },
@@ -712,6 +832,9 @@
                 "tests/RoslynTools.Tests.Mcp/ is used as the Stryker test-projects entry (already present)"
             ],
             "priority": 74,
+            "urgency": 156,
+            "urgencyReason": "Same scope as US-069 for src/RoslynTools.Mcp/. Finishes the Stryker rollout.",
+            "effort": 2,
             "passes": false,
             "notes": "Discovered 2026-05-20: committed df9e43a (MCP array pass-through) used the bypass for this reason. Likely solved together with the Cli pilot story (US-069) by switching to a multi-project or per-project Stryker setup."
         }
