@@ -6,10 +6,14 @@
     ],
     "mutate": [
       "**/Commands/MakeSealedCommand.cs",
+      "**/Commands/DebugCommand.cs",
+      "**/Commands/Results/DebugResult.cs",
       "**/Core/DependencyInjector.cs",
       "**/Core/NamespaceMoveRewriter.cs",
       "**/Core/InstanceReachabilityAnalyzer.cs",
-      "**/Core/MethodExtractorBuilder.cs"
+      "**/Core/MethodExtractorBuilder.cs",
+      "**/Services/DebugTraceAnalyzerService.cs",
+      "**/Models/DebugReport.cs"
     ],
     "reporters": [
       "html",

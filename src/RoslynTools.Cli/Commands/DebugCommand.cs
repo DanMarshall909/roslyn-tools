@@ -17,7 +17,7 @@ internal sealed class DebugCommand : IRtCommand, IStructuredOutputCommand
         false,
         true,
         "analyze",
-        "Inspecting an LLM or agent trace as a debugger timeline. Use breakpoints such as event:model_call, tool:apply_patch, text:assume, or file:src/ and assertions such as no-tool:web, requires-event:final_response, max-events:40, or no-text:TODO.",
+        "Inspecting a recorded LLM or agent trace as a debugger timeline. This does not attach to a live .NET process yet. Use breakpoints such as event:model_call, tool:apply_patch, text:assume, or file:src/ and assertions such as no-tool:web, requires-event:final_response, max-events:40, or no-text:TODO.",
         [
             "rt analyze debug trace.jsonl",
             "rt analyze debug trace.jsonl --break tool:apply_patch --break event:model_call",
@@ -40,7 +40,7 @@ internal sealed class DebugCommand : IRtCommand, IStructuredOutputCommand
             AllowMultipleArgumentsPerToken = false
         };
 
-        var cmd = new Command("debug", "Inspect an LLM trace timeline with breakpoints and assertions")
+        var cmd = new Command("debug", "Inspect a recorded LLM trace timeline with breakpoints and assertions")
         {
             traceArg,
             fromOpt,

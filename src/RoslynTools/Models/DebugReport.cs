@@ -10,7 +10,8 @@ internal sealed record DebugReport(
     string ReplayCommand);
 
 internal sealed record DebugEvent(
-    int Index,
+    int Step,
+    string? TraceId,
     string EventType,
     string? Tool,
     string Summary,
@@ -18,7 +19,7 @@ internal sealed record DebugEvent(
     bool BreakpointHit);
 
 internal sealed record DebugBreakpointHit(
-    int EventIndex,
+    int EventStep,
     string Expression,
     string Reason);
 

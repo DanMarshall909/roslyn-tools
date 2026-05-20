@@ -5,8 +5,11 @@ namespace RoslynTools.Commands.Results;
 
 internal sealed record DebugEventOutput : IRtOutput
 {
-    [OutputField(OutputLevel.Llm, "index")]
-    public required int Index { get; init; }
+    [OutputField(OutputLevel.Llm, "step")]
+    public required int Step { get; init; }
+
+    [OutputField(OutputLevel.Default, "traceId")]
+    public string? TraceId { get; init; }
 
     [OutputField(OutputLevel.Llm, "event")]
     public required string EventType { get; init; }
@@ -27,14 +30,14 @@ internal sealed record DebugEventOutput : IRtOutput
     {
         var marker = BreakpointHit ? " *" : string.Empty;
         var tool = Tool is null ? string.Empty : $" [{Tool}]";
-        writer.Write($"#{Index} {EventType}{tool}{marker} - {Summary}");
+        writer.Write($"#{Step} {EventType}{tool}{marker} - {Summary}");
     }
 }
 
 internal sealed record DebugBreakpointHitOutput : IRtOutput
 {
-    [OutputField(OutputLevel.Llm, "eventIndex")]
-    public required int EventIndex { get; init; }
+    [OutputField(OutputLevel.Llm, "eventStep")]
+    public required int EventStep { get; init; }
 
     [OutputField(OutputLevel.Llm, "expression")]
     public required string Expression { get; init; }
@@ -44,7 +47,7 @@ internal sealed record DebugBreakpointHitOutput : IRtOutput
 
     public void RenderText(TextWriter writer)
     {
-        writer.Write($"#{EventIndex} {Expression}: {Reason}");
+        writer.Write($"#{EventStep} {Expression}: {Reason}");
     }
 }
 
@@ -145,7 +148,7 @@ internal sealed record DebugResult : IRtOutput, IRtMarkdownOutput
         writer.WriteLine("## Timeline");
         writer.WriteLine();
         foreach (var evt in Events)
-            writer.WriteLine($"- `#{evt.Index}` **{evt.EventType}**{(evt.Tool is null ? "" : $" `{evt.Tool}`")}{(evt.BreakpointHit ? " **break**" : "")}: {evt.Summary}");
+            writer.WriteLine($"- `#{evt.Step}` **{evt.EventType}**{(evt.Tool is null ? "" : $" `{evt.Tool}`")}{(evt.BreakpointHit ? " **break**" : "")}: {evt.Summary}");
 
         if (BreakpointHits.Count > 0)
         {
@@ -153,7 +156,7 @@ internal sealed record DebugResult : IRtOutput, IRtMarkdownOutput
             writer.WriteLine("## Breakpoint Hits");
             writer.WriteLine();
             foreach (var hit in BreakpointHits)
-                writer.WriteLine($"- `#{hit.EventIndex}` `{hit.Expression}` - {hit.Reason}");
+                writer.WriteLine($"- `#{hit.EventStep}` `{hit.Expression}` - {hit.Reason}");
         }
 
         if (Assertions.Count > 0)
@@ -182,7 +185,8 @@ internal sealed record DebugResult : IRtOutput, IRtMarkdownOutput
             FromEvent = report.FromEvent,
             Events = report.Events.Select(evt => new DebugEventOutput
             {
-                Index = evt.Index,
+                Step = evt.Step,
+                TraceId = evt.TraceId,
                 EventType = evt.EventType,
                 Tool = evt.Tool,
                 Summary = evt.Summary,
@@ -191,7 +195,7 @@ internal sealed record DebugResult : IRtOutput, IRtMarkdownOutput
             }).ToList(),
             BreakpointHits = report.BreakpointHits.Select(hit => new DebugBreakpointHitOutput
             {
-                EventIndex = hit.EventIndex,
+                EventStep = hit.EventStep,
                 Expression = hit.Expression,
                 Reason = hit.Reason
             }).ToList(),

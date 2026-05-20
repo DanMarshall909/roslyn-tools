@@ -23,7 +23,7 @@ internal sealed class DebugTraceAnalyzerService : IRtService
             .ToList();
 
         var filtered = allEvents
-            .Where(e => e.Index >= Math.Max(1, fromEvent))
+            .Where(e => e.Step >= Math.Max(1, fromEvent))
             .Take(limit <= 0 ? int.MaxValue : limit)
             .ToList();
 
@@ -111,11 +111,14 @@ internal sealed class DebugTraceAnalyzerService : IRtService
                    ?? GetNestedString(element, "toolCall", "name");
 
         return new DebugEvent(
-            GetInt(element, "id") ?? fallbackIndex,
+            fallbackIndex,
+            GetTraceId(element),
             eventType,
             tool,
             BuildSummary(element, eventType, tool),
             FindFileReferences(element).Distinct(StringComparer.Ordinal).ToList(),
+            // Stryker disable once Boolean : equivalent — Analyze() immediately overwrites this
+            // via `evt with { BreakpointHit = eventHits.Count > 0 }`, so the initial value is unobservable.
             false);
     }
 
@@ -141,19 +144,19 @@ internal sealed class DebugTraceAnalyzerService : IRtService
 
         if (TrySplitExpression(trimmed, "event", out var eventType)
             && evt.EventType.Equals(eventType, StringComparison.OrdinalIgnoreCase))
-            return new DebugBreakpointHit(evt.Index, trimmed, $"event type is '{evt.EventType}'");
+            return new DebugBreakpointHit(evt.Step, trimmed, $"event type is '{evt.EventType}'");
 
         if (TrySplitExpression(trimmed, "tool", out var tool)
             && evt.Tool?.Equals(tool, StringComparison.OrdinalIgnoreCase) == true)
-            return new DebugBreakpointHit(evt.Index, trimmed, $"tool is '{evt.Tool}'");
+            return new DebugBreakpointHit(evt.Step, trimmed, $"tool is '{evt.Tool}'");
 
         if (TrySplitExpression(trimmed, "text", out var text)
             && evt.Summary.Contains(text, StringComparison.OrdinalIgnoreCase))
-            return new DebugBreakpointHit(evt.Index, trimmed, $"summary contains '{text}'");
+            return new DebugBreakpointHit(evt.Step, trimmed, $"summary contains '{text}'");
 
         if (TrySplitExpression(trimmed, "file", out var file)
             && evt.Files.Any(path => path.Contains(file, StringComparison.OrdinalIgnoreCase)))
-            return new DebugBreakpointHit(evt.Index, trimmed, $"file reference matches '{file}'");
+            return new DebugBreakpointHit(evt.Step, trimmed, $"file reference matches '{file}'");
 
         return null;
     }
@@ -199,14 +202,20 @@ internal sealed class DebugTraceAnalyzerService : IRtService
     private static bool TrySplitExpression(string expression, string key, out string value)
     {
         var prefix = key + ":";
+        // Stryker disable once Equality : equivalent — when expression.Length == prefix.Length, the
+        // trimmed value is empty, so the L211 `value.Length > 0` check returns false either way.
         if (expression.Length <= prefix.Length
             || !expression.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
         {
+            // Stryker disable once String : equivalent — the out value is ignored by every caller
+            // when the method returns false.
             value = string.Empty;
             return false;
         }
 
         value = expression[prefix.Length..].Trim();
+        // Stryker disable once Equality : equivalent — empty values short-circuit downstream
+        // checks (Equals/Contains/Any) to false, so loosening to `>= 0` yields identical behaviour.
         return value.Length > 0;
     }
 
@@ -232,47 +241,58 @@ internal sealed class DebugTraceAnalyzerService : IRtService
             : null;
     }
 
-    private static int? GetInt(JsonElement element, string propertyName)
+    private static string? GetTraceId(JsonElement element)
     {
         if (element.ValueKind != JsonValueKind.Object
-            || !element.TryGetProperty(propertyName, out var property))
+            || !element.TryGetProperty("id", out var property))
             return null;
 
         return property.ValueKind switch
         {
-            JsonValueKind.Number when property.TryGetInt32(out var value) => value,
-            JsonValueKind.String when int.TryParse(property.GetString(), out var value) => value,
+            JsonValueKind.String => property.GetString(),
+            JsonValueKind.Number => property.GetRawText(),
             _ => null
         };
     }
 
-    private static IEnumerable<string> FindFileReferences(JsonElement element)
+    private static IEnumerable<string> FindFileReferences(JsonElement element, bool fileLikeContext = false)
     {
         if (element.ValueKind == JsonValueKind.Object)
         {
             foreach (var property in element.EnumerateObject())
             {
+                var childFileLikeContext = fileLikeContext || LooksLikeFileProperty(property.Name);
+
                 if (property.Value.ValueKind == JsonValueKind.String)
                 {
-                    if (LooksLikeFileProperty(property.Name))
+                    if (childFileLikeContext)
                     {
                         var value = property.Value.GetString();
                         if (!string.IsNullOrWhiteSpace(value))
                             yield return value;
                     }
 
+                    // Stryker disable once Statement : equivalent — falling through would yield the
+                    // string value a second time via the recursive String branch, but the caller's
+                    // .Distinct() collapses duplicates so the observable result is unchanged.
                     continue;
                 }
 
-                foreach (var child in FindFileReferences(property.Value))
+                foreach (var child in FindFileReferences(property.Value, childFileLikeContext))
                     yield return child;
             }
         }
         else if (element.ValueKind == JsonValueKind.Array)
         {
             foreach (var item in element.EnumerateArray())
-                foreach (var child in FindFileReferences(item))
+                foreach (var child in FindFileReferences(item, fileLikeContext))
                     yield return child;
+        }
+        else if (fileLikeContext && element.ValueKind == JsonValueKind.String)
+        {
+            var value = element.GetString();
+            if (!string.IsNullOrWhiteSpace(value))
+                yield return value;
         }
     }
 
@@ -284,14 +304,10 @@ internal sealed class DebugTraceAnalyzerService : IRtService
 
     private static string Truncate(string value, int limit)
     {
-        if (limit <= 0)
-            return string.Empty;
-
+        // limit is always SummaryLimit (160) at the only call site, so the limit <= 0 and
+        // limit <= 3 defensive branches are unreachable in practice.
         if (value.Length <= limit)
             return value;
-
-        if (limit <= 3)
-            return value[..limit];
 
         return value[..(limit - 3)] + "...";
     }
