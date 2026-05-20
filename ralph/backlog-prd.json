@@ -637,6 +637,98 @@
             "notes": "Driven by quality-first rule (2026-05-15): refuses the substring-matching shortcut and instead models routine vs bug differences in the type system. Replaces the deferred classification half of US-042. Large change — touches ~10-15 throw sites and every caller — sequence carefully via /execute with TDD.",
             "resolution": "",
             "resolvedAt": ""
+        },
+        {
+            "id": "RT-001",
+            "title": "rt dump-help --json: emit machine-readable command catalog",
+            "description": "As an LLM agent, I want `rt dump-help --json` to emit the full RtCommandInfo catalog as structured JSON so I can ingest the command surface programmatically instead of parsing prose.",
+            "acceptanceCriteria": [
+                "`rt dump-help --json` exits 0 and writes valid JSON to stdout.",
+                "The JSON document includes every command discovered by the reflection-based registry — the command count equals what plain `rt dump-help` reports.",
+                "Each command entry includes Name, Category, Mutates, JsonOutput, Aliases, WhenToUse, Examples, KnownIssues, and SupportedFormats from RtCommandInfo. Missing or null fields are represented explicitly (no silent drops).",
+                "The plain `rt dump-help` (no flag) text output is byte-identical to today's — JSON is purely additive.",
+                "An LLM can parse the JSON output and reconstruct the command surface without reading any source file or markdown.",
+                "If `--strict-json` is passed alongside, the output is RFC 8259 compliant (non-ASCII escaped as \\uXXXX)."
+            ],
+            "priority": 69,
+            "passes": false,
+            "notes": "P2. Deferred from LLM-ergonomics quick-wins plan. The RtCommandInfo record and reflection-discovered registry in App.cs already expose every field — wiring it through JsonRenderer should be near-free. Affected files: src/RoslynTools.Cli/Commands/DumpHelpCommand.cs, src/RoslynTools/Core/RtCommandInfo.cs."
+        },
+        {
+            "id": "RT-002",
+            "title": "Expand command help text with output shape, exit codes, and error modes",
+            "description": "As an LLM agent, I want every rt command's --help to describe its output shape, exit codes, and common error modes so I can predict behaviour without source-diving or trial-and-error.",
+            "acceptanceCriteria": [
+                "Every command's `--help` output includes a section stating the output format (text vs JSON vs both, mutating vs read-only).",
+                "Every command's `--help` lists the exit codes it can return (0, 1, 2) and the trigger for each (success / error / decisions required).",
+                "Every command's `--help` lists at least one common error mode the user should expect (e.g. \"symbol not found\", \"ambiguous match without --decisions\", \"file outside solution\").",
+                "Information is sourced from RtCommandInfo (or a new metadata field on it) rather than hand-maintained in each Command.cs — no drift between help and reality.",
+                "`docs/COMMANDS.md` regenerates on build and includes the new fields for every command.",
+                "An LLM reading only `rt <cmd> --help` can predict the shape of stdout, stderr, and exit code for both success and the most common failure."
+            ],
+            "priority": 70,
+            "passes": false,
+            "notes": "P2. Deferred from LLM-ergonomics quick-wins plan. Sampled commands (DescribeCommand, FindCallersCommand, ExtractMethodCommand) currently have one-line descriptions only — no failure mode docs, no output schema. Drive from RtCommandInfo so docs/COMMANDS.md stays in sync."
+        },
+        {
+            "id": "RT-003",
+            "title": "Make --decisions YAML schema self-discoverable from the CLI",
+            "description": "As an LLM agent, I want the --decisions YAML schema to be discoverable from rt --help (or a meta sub-command) so I can author a decisions file without reading DecisionStore.cs source.",
+            "acceptanceCriteria": [
+                "`rt --help` (or a sub-command such as `rt decisions --schema`) prints the YAML schema for the --decisions file.",
+                "The printed schema documents every field used today (id, q, options, choose) with types and a one-line description per field.",
+                "A complete worked example is included: the YAML rt would write on first run, plus the same YAML with `choose:` filled in by the user.",
+                "An LLM that has not read source can author or edit a --decisions YAML correctly using only CLI help output.",
+                "When --decisions YAML fails to parse or is missing a required field, stderr reports which file and which entry (id) is malformed — not a stack trace.",
+                "Existing --decisions behaviour (exit 2, write pending entries) is unchanged."
+            ],
+            "priority": 71,
+            "passes": false,
+            "notes": "P3. Deferred from LLM-ergonomics quick-wins plan. The mechanism is mentioned in --help but the file structure (fields, indices, how to fill the choose field) requires source inspection today. Affected files: src/RoslynTools/Core/Decisions/DecisionStore.cs, src/RoslynTools/Core/Decisions/DecisionEntry.cs, src/RoslynTools.Cli/App.cs."
+        },
+        {
+            "id": "RT-004",
+            "title": "Finish stderr discipline migration: Console.Write to RtLog/RtConsole",
+            "description": "As an LLM agent piping stdout to a parser and stderr to logs, I want every rt command to honour the stdout=results, stderr=diagnostics contract so I can rely on stream separation without per-command quirks.",
+            "acceptanceCriteria": [
+                "No remaining `Console.Write*` calls exist in src/RoslynTools/Commands/ or src/RoslynTools.Cli/Commands/ (verified by grep, gated in CI or a unit test).",
+                "All progress and diagnostic messages from command handlers route through RtLog.* (stderr).",
+                "All primary command results route through RtConsole.Write (stdout).",
+                "Existing tests pass without modification (output contracts preserved).",
+                "docs/logging-standards.md is updated to remove the \"migration incomplete\" notice and document the now-enforced convention.",
+                "An LLM piping stdout to a JSON parser and stderr to logs gets clean separation across every command."
+            ],
+            "priority": 72,
+            "passes": false,
+            "notes": "P2. Deferred from LLM-ergonomics quick-wins plan. docs/logging-standards.md acknowledges the migration is in progress; several commands still call Console.Write directly. Maintenance work — does not change LLM behaviour at runtime today, but eliminates a future regression vector."
+        },
+        {
+            "id": "US-069",
+            "title": "Bring src/RoslynTools.Cli/ into Stryker mutation pilot",
+            "description": "src/RoslynTools.Cli/Commands/MakeSealedCommand.cs, DebugCommand.cs, and Results/DebugResult.cs are matched by stryker-config.json mutate globs but silently skipped by Stryker because the configured project is src/RoslynTools/RoslynTools.csproj (core library only). The pre-commit gate fires the glob-coverage check but Stryker never mutates Cli-project code, so the contract is paper-only.",
+            "acceptanceCriteria": [
+                "stryker-config.json `project` is extended (or a second config introduced) so that files under `src/RoslynTools.Cli/` actually get mutated when matched by mutate globs",
+                "Existing globs `**/Commands/MakeSealedCommand.cs`, `**/Commands/DebugCommand.cs`, `**/Commands/Results/DebugResult.cs` produce non-zero mutant counts in the Stryker report (currently zero — silently skipped)",
+                "Each of those files reaches 100% mutation score (kill, delete, or mark equivalent per CLAUDE.md)",
+                "Pre-commit gate continues to block on staged Cli production files that aren't covered"
+            ],
+            "priority": 73,
+            "passes": false,
+            "notes": "Discovered 2026-05-20 while landing the Debug 100% mutation work. Existing Cli files in mutate globs were authored under the assumption that Stryker would cover them."
+        },
+        {
+            "id": "US-070",
+            "title": "Bring src/RoslynTools.Mcp/ into Stryker mutation pilot",
+            "description": "src/RoslynTools.Mcp/ is a separate csproj from the core library and the existing Cli. stryker-config.json's project field points at the core library, so Mcp files are never matched by the Stryker run even when added to mutate globs. The pre-commit gate currently has no useful path other than RT_MUTATION_ALLOW_UNSCOPED=1 when any Mcp file is staged.",
+            "acceptanceCriteria": [
+                "src/RoslynTools.Mcp/RoslynTools.Mcp.csproj has a matching Stryker config or is included in the existing one such that its production files participate in mutation testing",
+                "src/RoslynTools.Mcp/Tools/CliCommandBridge.cs and ToolSchemaBuilder.cs reach 100% mutation score (kill, delete, or mark equivalent)",
+                "Pre-commit gate runs Stryker against Mcp files when staged — RT_MUTATION_ALLOW_UNSCOPED=1 is no longer needed for Mcp commits",
+                "tests/RoslynTools.Tests.Mcp/ is used as the Stryker test-projects entry (already present)"
+            ],
+            "priority": 74,
+            "passes": false,
+            "notes": "Discovered 2026-05-20: committed df9e43a (MCP array pass-through) used the bypass for this reason. Likely solved together with the Cli pilot story (US-069) by switching to a multi-project or per-project Stryker setup."
         }
     ]
 }

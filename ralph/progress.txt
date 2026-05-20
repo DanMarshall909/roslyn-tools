@@ -1,7 +1,7 @@
 roslyn-tools
 Branch: backlog
 
-Current Status: 1/36 stories complete (3%)
+Current Status: 1/43 stories complete (2%)
 
 EP-005 — codebase consistency sweep (1/1)
 [x] US-025 fix formatting violations: CRLF and encoding errors in 4 files
@@ -50,3 +50,10 @@ Loose stories
 [ ] US-055 Add rt refactor extract-orchestrator command (rt-003)
 [ ] US-056 rt refactor rename: accept symbol FQN from stdin JSON for pipe chains (rt-008)
 [ ] US-067 Revisit nested-branch pattern in execute skill for trunk-based repos
+[ ] US-068 Introduce Result<T,RtError> for routine user-error flows in core services
+[ ] RT-001 rt dump-help --json: emit machine-readable command catalog
+[ ] RT-002 Expand command help text with output shape, exit codes, and error modes
+[ ] RT-003 Make --decisions YAML schema self-discoverable from the CLI
+[ ] RT-004 Finish stderr discipline migration: Console.Write to RtLog/RtConsole
+[ ] US-069 Bring src/RoslynTools.Cli/ into Stryker mutation pilot
+[ ] US-070 Bring src/RoslynTools.Mcp/ into Stryker mutation pilot
