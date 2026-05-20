@@ -339,6 +339,24 @@
       "notes": "P2. OutlineCommand.cs line ~90 calls Environment.Exit(1). Replace with context.ExitCode = 1; return; — same pattern as every other command in the codebase.",
       "resolution": "No-op: OutlineCommand already uses context.ExitCode = 1; return; (line 96-97) — no Environment.Exit(1) call exists in the file. The bug was fixed in commit 93a96d1 (May 15, 2026: feat(feedback): capture workspace warning context) before this story was created. All three ACs satisfied by the current code: no Environment.Exit(1), error path sets context.ExitCode = 1 and returns, graceful cleanup runs. Verified via grep of full src/ tree — zero matches for Environment.Exit(. Closing without code change.",
       "completedAt": "2026-05-20"
+    },
+    {
+      "id": "US-044",
+      "title": "Guard .First()/.Last() calls in SymbolLocator and MethodExtractor against empty sequences",
+      "description": "As a developer using rt, I want empty-sequence edge cases to produce a clear error rather than an InvalidOperationException crash.",
+      "acceptanceCriteria": [
+        "No .First() or .Last() call in SymbolLocator or MethodExtractor throws InvalidOperationException when the sequence is empty",
+        "Each call site uses FirstOrDefault with a null check, or validates the collection is non-empty before calling First/Last",
+        "When an expected symbol or statement is not found, the command emits a descriptive error to stderr and exits 1 rather than crashing"
+      ],
+      "priority": 44,
+      "urgency": 16,
+      "urgencyReason": "Same crash class as US-042 — .First()/.Last() on potentially empty sequences in SymbolLocator (~4 sites) and MethodExtractor (~8 sites). Mechanical, one TDD batch.",
+      "effort": 2,
+      "passes": true,
+      "notes": "P2. SymbolLocator.cs lines ~49, 96, 135, 188 and MethodExtractor.cs lines ~57, 164, 168, 378, 501, 529-532 call .First()/.Last() on sequences that could be empty under certain inputs. Replace with FirstOrDefault + null check or add pre-call validation.",
+      "resolution": "No-op: all 12 .First()/.Last() sites are invariant by construction. SymbolLocator: all four sites are g.First() after GroupBy — a group always has at least one element. MethodExtractor: all eight sites flow downstream of the selected.Count == 0 validation at line 350, which throws InvalidOperationException(\"No statements found in lines X-Y...\") before any First()/Last() call. AC3 (descriptive error + exit 1 instead of crash) is now satisfied automatically via US-042 catching InvalidOperationException and emitting Error: + exit 1. Verified end-to-end: rt inspect find-refs --symbol DoesNotExistSymbolFoo and rt refactor extract-method --start-line 9000 --end-line 9001 both produce descriptive stderr lines and exit 1. No code change needed.",
+      "completedAt": "2026-05-20"
     }
   ]
 }

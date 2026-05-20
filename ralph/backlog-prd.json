@@ -209,22 +209,6 @@
       "notes": "P2. Affects WorkspaceLoader / MSBuildWorkspace diagnostic handling. Suppress all MSBuildWorkspace diagnostics by default; add --show-workspace-warnings global flag to restore them. Genuine load errors (exit 1) must still surface."
     },
     {
-      "id": "US-044",
-      "title": "Guard .First()/.Last() calls in SymbolLocator and MethodExtractor against empty sequences",
-      "description": "As a developer using rt, I want empty-sequence edge cases to produce a clear error rather than an InvalidOperationException crash.",
-      "acceptanceCriteria": [
-        "No .First() or .Last() call in SymbolLocator or MethodExtractor throws InvalidOperationException when the sequence is empty",
-        "Each call site uses FirstOrDefault with a null check, or validates the collection is non-empty before calling First/Last",
-        "When an expected symbol or statement is not found, the command emits a descriptive error to stderr and exits 1 rather than crashing"
-      ],
-      "priority": 44,
-      "urgency": 16,
-      "urgencyReason": "Same crash class as US-042 — .First()/.Last() on potentially empty sequences in SymbolLocator (~4 sites) and MethodExtractor (~8 sites). Mechanical, one TDD batch.",
-      "effort": 2,
-      "passes": false,
-      "notes": "P2. SymbolLocator.cs lines ~49, 96, 135, 188 and MethodExtractor.cs lines ~57, 164, 168, 378, 501, 529-532 call .First()/.Last() on sequences that could be empty under certain inputs. Replace with FirstOrDefault + null check or add pre-call validation."
-    },
-    {
       "id": "US-045",
       "title": "rt inspect find-refs: structured JSON output",
       "description": "As an automation consumer, I want rt inspect find-refs to emit a JSON array when --json is passed so I can process symbol references without parsing plain text.",
