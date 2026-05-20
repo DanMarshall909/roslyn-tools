@@ -1,7 +1,7 @@
 roslyn-tools
 Branch: feat/analyze-complexity
 
-Current Status: 11/12 stories complete (92%)
+Current Status: 15/16 stories complete (94%)
 
 Stories
 [x] US-001 Add rt analyze complexity command
@@ -15,4 +15,8 @@ Stories
 [x] US-031 rt: replace-new argument-reshaping — drop matched arg, keep remaining args
 [x] US-032 rt analyze solid: SRP detector — flag classes with high method/dependency count
 [x] US-041 Convert solution-not-found crash to clean exit-1 error message
-[ ] US-042 Catch common exception types in UseExceptionHandler and emit clean exit-1 messages
+[x] US-042 Catch common exception types in UseExceptionHandler and emit clean exit-1 messages
+[x] US-043 Replace Environment.Exit(1) in OutlineCommand with context.ExitCode = 1
+[x] US-044 Guard .First()/.Last() calls in SymbolLocator and MethodExtractor against empty sequences
+[x] US-040 Suppress MSBuild workspace warnings by default; opt in with --show-workspace-warnings
+[ ] US-068 Introduce Result<T,RtError> for routine user-error flows in core services

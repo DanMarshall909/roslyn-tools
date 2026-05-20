@@ -1,775 +1,751 @@
 {
-  "project": "roslyn-tools",
-  "branchName": "backlog",
-  "description": "Triaged backlog",
-  "epics": [
-    {
-      "id": "EP-005",
-      "title": "codebase consistency sweep",
-      "description": "Fix formatting violations and consolidate structural duplication identified in the May 2026 consistency analysis.",
-      "notes": "Findings from rt analyze list-smells + find-duplicates sweep on 2026-05-11."
-    },
-    {
-      "id": "EP-006",
-      "title": "SOLID Adherence Analysis",
-      "description": "Family of rt analyze solid subcommands that detect likely SOLID-principle violations using Roslyn semantic model. One detector per principle; output is JSON grouped by detector name.",
-      "notes": "P2. Five child stories: SRP, ISP, DIP, OCP, LSP. Each independently shippable."
-    },
-    {
-      "id": "EP-007",
-      "title": "Add structured JSON output to all inspect/analyze commands",
-      "description": "All rt inspect and rt analyze commands should support --json output so automation consumers (agents, scripts, CI tools) can pipe results without text parsing. Eight commands currently output plain text only.",
-      "notes": "P2. Affects: find-refs, find-callers, find-undocumented, find-unused, circular-deps, find-magic-strings, list-imports, list-smells. Template: see describe/outline/find-impl which already have JSON output."
-    },
-    {
-      "id": "EP-008",
-      "title": "Platform abstractions: IWorkspaceSessionFactory + ISolutionApplier",
-      "description": "Introduce injectable abstractions for WorkspaceLoader and SolutionWriter so commands depend on interfaces, not static helpers. Enables testability without AsyncLocal overrides and unblocks daemon workspace caching. Must be a single coordinated change across all ~30 commands.",
-      "notes": "P2. Architecture gate NoStaticWorkspaceLoaderUse already exists in tests/. rt-006 + rt-007 from issues backlog. Must ship together — splitting doubles the 30-command churn."
-    },
-    {
-      "id": "EP-009",
-      "title": "Consistent command contracts and migration ratchets",
-      "description": "Make rt commands consistent across handler structure, option vocabulary, metadata, output envelopes, and symbol resolution so dogfooding workflows are predictable and architecture tests can ratchet progress.",
-      "notes": "From rt dogfooding consistency discussion on 2026-05-15."
-    }
-  ],
-  "userStories": [
-    {
-      "id": "US-025",
-      "epicId": "EP-005",
-      "title": "fix formatting violations: CRLF and encoding errors in 4 files",
-      "description": "As a contributor, I want all source files to pass dotnet format so that CI and editor tooling agree on line endings and encoding.",
-      "acceptanceCriteria": [
-        "dotnet format RoslynTools.slnx --verify-no-changes exits 0",
-        "TransformParametersService.cs uses LF line endings",
-        "ControlFlowUnwinder.cs, ConsumerNarrowerService.cs, InterfaceAnalyzerService.cs use project-standard encoding (no BOM)"
-      ],
-      "priority": 25,
-      "passes": true,
-      "notes": "P1. Run dotnet format RoslynTools.slnx to auto-fix. Affected: src/RoslynTools/Services/TransformParametersService.cs (CRLF lines 13-14), src/RoslynTools/Core/ControlFlowUnwinder.cs, src/RoslynTools/Services/ConsumerNarrowerService.cs, src/RoslynTools/Services/InterfaceAnalyzerService.cs (encoding).",
-      "resolution": "Fixed: ran dotnet format; 55 files normalised to LF + encoding cleaned. .gitattributes eol=lf prevents recurrence. Commit 206326a.",
-      "resolvedAt": "2026-05-11"
-    },
-    {
-      "id": "US-033",
-      "title": "rt analyze solid: ISP detector — flag fat interfaces and NotImplementedException members",
-      "description": "As a developer, I want rt analyze solid --principle ISP to flag over-broad interfaces and implementing classes that throw on members they cannot fulfill.",
-      "acceptanceCriteria": [
-        "rt analyze solid --principle ISP --solution <sln> exits 0 and emits JSON to stdout",
-        "Output has a top-level 'ISP' key with sub-arrays for 'FatInterfaces' and 'UnimplementedMembers'",
-        "Each FatInterface item includes: InterfaceName, FilePath, Line, MemberCount",
-        "Each UnimplementedMember item includes: TypeName, MemberName, InterfaceName, FilePath, Line",
-        "--min-members <N> (default 7) is configurable for the fat-interface threshold",
-        "Classes throwing NotImplementedException or NotSupportedException on implemented interface members are flagged under UnimplementedMembers",
-        "rt analyze solid --principle all includes ISP results"
-      ],
-      "priority": 33,
-      "urgency": 92,
-      "urgencyReason": "EP-006 epic in flight — ISP detector follows the US-032 SRP template (SolidAnalyzer, SolidResult, mirrored tests). Lowest-risk SOLID addition.",
-      "effort": 5,
-      "passes": false,
-      "epicId": "EP-006",
-      "notes": "P2. Two sub-checks: (1) interfaces with member count above threshold; (2) classes implementing an interface but throwing NotImplementedException/NotSupportedException on one or more members. Output grouped under 'ISP' detector key."
-    },
-    {
-      "id": "US-034",
-      "title": "rt analyze solid: DIP detector — flag concrete constructor params and inline new calls",
-      "description": "As a developer, I want rt analyze solid --principle DIP to flag high-level classes that depend directly on concrete types rather than abstractions.",
-      "acceptanceCriteria": [
-        "rt analyze solid --principle DIP --solution <sln> exits 0 and emits JSON to stdout",
-        "Output has a top-level 'DIP' key with sub-arrays for 'ConcreteConstructorParams' and 'InlineNewCalls'",
-        "Each ConcreteConstructorParam item includes: TypeName, ParamName, ConcreteType, FilePath, Line",
-        "Each InlineNewCall item includes: TypeName, MemberName, ConcreteType, FilePath, Line",
-        "Value types, record types, and Exception-derived types are excluded from InlineNewCalls",
-        "Classes named *Factory, *Builder, or *Provider are excluded from InlineNewCalls (they are expected to new things)",
-        "rt analyze solid --principle all includes DIP results"
-      ],
-      "priority": 34,
-      "urgency": 96,
-      "urgencyReason": "EP-006 — DIP detector, same template as US-032/033.",
-      "effort": 5,
-      "passes": false,
-      "epicId": "EP-006",
-      "notes": "P2. Two sub-checks: (1) constructors accepting concrete class params (not interfaces/abstract); (2) non-factory class bodies calling new ConcreteType() where ConcreteType is not a value type, DTO, or exception. Output grouped under 'DIP' detector key."
-    },
-    {
-      "id": "US-035",
-      "title": "rt analyze solid: OCP detector — flag switch/if chains branching on concrete types",
-      "description": "As a developer, I want rt analyze solid --principle OCP to flag code that must be modified every time a new concrete type is added.",
-      "acceptanceCriteria": [
-        "rt analyze solid --principle OCP --solution <sln> exits 0 and emits JSON to stdout",
-        "Output has a top-level 'OCP' key containing an array of violation items",
-        "Each item includes: TypeName, MemberName, FilePath, Line, BranchCount, ViolationType ('switch' or 'if-chain')",
-        "Flags switch expressions/statements matching on 'is ConcreteType' patterns",
-        "Flags if/else chains using 'is ConcreteType' or 'obj.GetType() == typeof(X)' with 2 or more concrete-type branches",
-        "--min-branches <N> (default 2) is configurable",
-        "rt analyze solid --principle all includes OCP results"
-      ],
-      "priority": 35,
-      "urgency": 100,
-      "urgencyReason": "EP-006 — OCP detector, same template.",
-      "effort": 5,
-      "passes": false,
-      "epicId": "EP-006",
-      "notes": "P2. Detects: (1) switch expressions/statements matching on 'is ConcreteType'; (2) if/else chains using 'is ConcreteType' or obj.GetType() == typeof(X) with 2+ branches. Output grouped under 'OCP' detector key."
-    },
-    {
-      "id": "US-036",
-      "title": "rt analyze solid: LSP detector — flag overrides throwing or narrowing contracts",
-      "description": "As a developer, I want rt analyze solid --principle LSP to flag override methods that break Liskov substitutability so that I can identify types that cannot safely replace their base.",
-      "acceptanceCriteria": [
-        "rt analyze solid --principle LSP --solution <sln> exits 0 and emits JSON to stdout",
-        "Output has a top-level 'LSP' key with sub-arrays for 'ThrowingOverrides' and 'ContractNarrowings'",
-        "Each ThrowingOverride item includes: TypeName, MemberName, ExceptionType, FilePath, Line",
-        "Each ContractNarrowing item includes: TypeName, MemberName, BaseType, FilePath, Line",
-        "Flags override methods whose body contains throw new NotImplementedException() or NotSupportedException()",
-        "Flags explicit interface implementations that throw on every code path",
-        "rt analyze solid --principle all includes LSP results"
-      ],
-      "priority": 36,
-      "urgency": 104,
-      "urgencyReason": "EP-006 — LSP detector, closes the epic.",
-      "effort": 5,
-      "passes": false,
-      "epicId": "EP-006",
-      "notes": "P2. Two sub-checks: (1) override methods whose body throws NotImplementedException/NotSupportedException; (2) explicit interface implementations that throw on every code path. Output grouped under 'LSP' detector key."
-    },
-    {
-      "id": "US-037",
-      "title": "rt: convert-static-class — interface generation",
-      "description": "When --no-interface is not passed, generate an I<TypeName> interface file alongside the destated class, extracting all public/internal instance methods and properties. Interface only matters when consumers need to mock the dependency in tests. Discovered during US-027 df pass; command currently warns and skips.",
-      "acceptanceCriteria": [
-        "rt analyze solid --principle LSP --solution <sln> exits 0 and emits JSON to stdout",
-        "Output has a top-level 'LSP' key with sub-arrays for 'ThrowingOverrides' and 'ContractNarrowings'",
-        "Each ThrowingOverride item includes: TypeName, MemberName, ExceptionType, FilePath, Line",
-        "Each ContractNarrowing item includes: TypeName, MemberName, BaseType, FilePath, Line",
-        "Flags override methods whose body contains throw new NotImplementedException() or NotSupportedException()",
-        "Flags explicit interface implementations that throw on every code path",
-        "rt analyze solid --principle all includes LSP results"
-      ],
-      "priority": 37,
-      "urgency": 170,
-      "urgencyReason": "convert-static-class — interface generation. Largest of the trio. Links to project_static_class_migration.",
-      "effort": 8,
-      "passes": false,
-      "notes": "P2. Enables mock-friendly DI patterns in roslyn-tools tests. Relates to US-027 df."
-    },
-    {
-      "id": "US-038",
-      "title": "rt: convert-static-class — DI registration in Bootstrap.cs",
-      "description": "When --no-di-registration is not passed, find a Bootstrap.RegisterServices method in the solution and add a services.Add<Lifetime><ITypeName, TypeName>() line. Discovered during US-027 df pass; command currently warns and skips.",
-      "acceptanceCriteria": [
-        "When --no-di-registration is not passed and a Bootstrap.RegisterServices method exists in the solution, a services.AddSingleton<ITypeName, TypeName>() line is added",
-        "If --lifetime is scoped or transient, the correct Add method is used",
-        "If no Bootstrap-style registration method is found, a warning is emitted and the step is skipped",
-        "Running with --dry-run shows the Bootstrap.cs diff without writing it",
-        "If --no-interface was also passed (no interface generated), registers the concrete type: services.AddSingleton<TypeName>()"
-      ],
-      "priority": 38,
-      "urgency": 166,
-      "urgencyReason": "convert-static-class — DI registration in Bootstrap. Pair with US-037 for usable output.",
-      "effort": 5,
-      "passes": false,
-      "notes": "P2. Pairs with US-037 (interface gen). Relates to US-027 df."
-    },
-    {
-      "id": "US-039",
-      "title": "rt: convert-static-class — fix field and ctor formatting in existing-constructor path",
-      "description": "When a consumer class already has constructors, AddConstructorInjection inserts the new field without a trailing newline, causing it to merge with the existing first member on the same line. Similarly, AddConstructorParameter inserts parameters without comma spacing and prepends assignments without newlines before the closing brace. dotnet format corrects these cosmetically but they should be emitted correctly. Discovered during US-027 df dry-run.",
-      "acceptanceCriteria": [
-        "When a consumer class already has a constructor, the injected field is inserted on its own line (with correct indentation), not concatenated with the existing first member on the same line",
-        "When AddConstructorParameter adds a parameter to an existing constructor, a space follows the preceding comma in the parameter list",
-        "When AddConstructorParameter prepends an assignment to the constructor body, the assignment is on its own line before the closing brace",
-        "All three fixes apply when multiple constructors are present in the consumer class",
-        "Existing tests for add_dependencies_to_existing_instance_constructors remain green"
-      ],
-      "priority": 39,
-      "urgency": 162,
-      "urgencyReason": "convert-static-class — field/ctor formatting. Smallest of the trio so floats above US-037/038 inside the band.",
-      "effort": 2,
-      "passes": false,
-      "notes": "P2. df dogfood bug. Sibling of the no-constructor formatting bug fixed in the df/convert-static-class-interface-and-di branch commit 1fcf269."
-    },
-    {
-      "id": "US-045",
-      "title": "rt inspect find-refs: structured JSON output",
-      "description": "As an automation consumer, I want rt inspect find-refs to emit a JSON array when --json is passed so I can process symbol references without parsing plain text.",
-      "acceptanceCriteria": [
-        "--json outputs a JSON array to stdout; each element has {file, line, column, kind, snippet}",
-        "Without --json, plain-text output is unchanged (backward compatible)",
-        "No references found produces [] not a blank line or error",
-        "RtCommandInfo.JsonOutput is set to true",
-        "rt dump-help shows JSON output for find-refs",
-        "kind field distinguishes between read/write/nameof/other reference types"
-      ],
-      "priority": 45,
-      "urgency": 244,
-      "urgencyReason": "EP-007: find-refs JSON output. Most-used inspect command — highest payoff among M-sized JSON outputs.",
-      "effort": 5,
-      "passes": false,
-      "epicId": "EP-007",
-      "notes": "P2. Command: src/RoslynTools.Cli/Commands/FindRefsCommand.cs. Set RtCommandInfo.JsonOutput=true and branch on RtContext.Format==OutputFormat.Json."
-    },
-    {
-      "id": "US-046",
-      "title": "rt inspect find-callers: structured JSON output",
-      "description": "As an automation consumer, I want rt inspect find-callers to emit a JSON array when --json is passed so call-site data can be used programmatically.",
-      "acceptanceCriteria": [
-        "--json outputs a JSON array; each element has {file, line, column, snippet}",
-        "Without --json, plain-text output is unchanged",
-        "No callers found produces [] not a blank line",
-        "RtCommandInfo.JsonOutput is set to true",
-        "rt dump-help shows JSON output for find-callers"
-      ],
-      "priority": 46,
-      "urgency": 248,
-      "urgencyReason": "EP-007: find-callers JSON output. High-traffic.",
-      "effort": 5,
-      "passes": false,
-      "epicId": "EP-007",
-      "notes": "P2. Command: src/RoslynTools.Cli/Commands/FindCallersCommand.cs. Set RtCommandInfo.JsonOutput=true."
-    },
-    {
-      "id": "US-047",
-      "title": "rt inspect find-undocumented: structured JSON output",
-      "description": "As an automation consumer, I want rt inspect find-undocumented to emit a JSON array when --json is passed so missing-doc reports can feed CI or doc generation tooling.",
-      "acceptanceCriteria": [
-        "--json outputs a JSON array; each element has {fqn, kind, file, line}",
-        "kind distinguishes between type, method, property, etc.",
-        "Without --json, plain-text output is unchanged",
-        "No undocumented members produces [] not blank",
-        "RtCommandInfo.JsonOutput is set to true",
-        "rt dump-help shows JSON output for find-undocumented"
-      ],
-      "priority": 47,
-      "urgency": 272,
-      "urgencyReason": "EP-007: find-undocumented JSON output. Lowest-traffic of the eight.",
-      "effort": 5,
-      "passes": false,
-      "epicId": "EP-007",
-      "notes": "P2. Command: src/RoslynTools.Cli/Commands/FindUndocumentedCommand.cs. Set RtCommandInfo.JsonOutput=true."
-    },
-    {
-      "id": "US-048",
-      "title": "rt inspect find-unused: structured JSON output",
-      "description": "As an automation consumer, I want rt inspect find-unused to emit a JSON array when --json is passed so dead-code reports can drive automated safe-delete workflows.",
-      "acceptanceCriteria": [
-        "--json outputs a JSON array; each element has {fqn, kind, file, line}",
-        "Without --json, plain-text output is unchanged",
-        "No unused symbols produces [] not blank",
-        "RtCommandInfo.JsonOutput is set to true",
-        "rt dump-help shows JSON output for find-unused"
-      ],
-      "priority": 48,
-      "urgency": 252,
-      "urgencyReason": "EP-007: find-unused JSON output. Common in cleanup workflows.",
-      "effort": 5,
-      "passes": false,
-      "epicId": "EP-007",
-      "notes": "P2. Command: src/RoslynTools.Cli/Commands/FindUnusedCommand.cs. Set RtCommandInfo.JsonOutput=true."
-    },
-    {
-      "id": "US-049",
-      "title": "rt analyze circular-deps: structured JSON output",
-      "description": "As an automation consumer, I want rt analyze circular-deps to emit a JSON array of cycle objects when --json is passed so dependency violations can be processed programmatically.",
-      "acceptanceCriteria": [
-        "--json outputs a JSON array of cycle objects; each has {cycle: [namespace, namespace, ...]}",
-        "Without --json, plain-text output is unchanged",
-        "No cycles produces [] not blank or zero-line",
-        "RtCommandInfo.JsonOutput is set to true",
-        "rt dump-help shows JSON output for circular-deps"
-      ],
-      "priority": 49,
-      "urgency": 256,
-      "urgencyReason": "EP-007: circular-deps JSON output. Common in architecture sweeps.",
-      "effort": 5,
-      "passes": false,
-      "epicId": "EP-007",
-      "notes": "P2. Command: src/RoslynTools.Cli/Commands/CircularDepsCommand.cs. Set RtCommandInfo.JsonOutput=true."
-    },
-    {
-      "id": "US-050",
-      "title": "rt analyze find-magic-strings: structured JSON output",
-      "description": "As an automation consumer, I want rt analyze find-magic-strings to emit a JSON array when --json is passed so repeated literals can be fed into automated extract-string-constant workflows.",
-      "acceptanceCriteria": [
-        "--json outputs a JSON array; each element has {value, count, occurrences: [{file, line}]}",
-        "occurrences is sorted by file then line",
-        "Without --json, plain-text output is unchanged",
-        "No magic strings produces [] not blank",
-        "RtCommandInfo.JsonOutput is set to true",
-        "rt dump-help shows JSON output for find-magic-strings"
-      ],
-      "priority": 50,
-      "urgency": 268,
-      "urgencyReason": "EP-007: find-magic-strings JSON output.",
-      "effort": 5,
-      "passes": false,
-      "epicId": "EP-007",
-      "notes": "P2. Command: src/RoslynTools.Cli/Commands/FindMagicStringsCommand.cs. Set RtCommandInfo.JsonOutput=true."
-    },
-    {
-      "id": "US-051",
-      "title": "rt analyze list-imports: structured JSON output",
-      "description": "As an automation consumer, I want rt analyze list-imports to emit a JSON array per-file when --json is passed so import audits can be processed programmatically.",
-      "acceptanceCriteria": [
-        "--json outputs a JSON array; each element has {file, usings: [{namespace, isGlobal, isStatic}]}",
-        "Without --json, plain-text output is unchanged",
-        "File with no usings is omitted or represented as {file, usings: []}",
-        "RtCommandInfo.JsonOutput is set to true",
-        "rt dump-help shows JSON output for list-imports"
-      ],
-      "priority": 51,
-      "urgency": 264,
-      "urgencyReason": "EP-007: list-imports JSON output.",
-      "effort": 5,
-      "passes": false,
-      "epicId": "EP-007",
-      "notes": "P2. Command: src/RoslynTools.Cli/Commands/ListImportsCommand.cs. Set RtCommandInfo.JsonOutput=true."
-    },
-    {
-      "id": "US-052",
-      "title": "rt analyze list-smells: structured JSON output",
-      "description": "As an automation consumer, I want rt analyze list-smells to emit a JSON array when --json is passed so code smell reports can feed automated refactor planning.",
-      "acceptanceCriteria": [
-        "--json outputs a JSON array; each element has {kind, description, fqn, file, line, severity}",
-        "severity is one of: warning, info",
-        "Without --json, plain-text output is unchanged",
-        "No smells produces [] not blank",
-        "RtCommandInfo.JsonOutput is set to true",
-        "rt dump-help shows JSON output for list-smells"
-      ],
-      "priority": 52,
-      "urgency": 260,
-      "urgencyReason": "EP-007: list-smells JSON output. Agent-driven refactor consumes this.",
-      "effort": 5,
-      "passes": false,
-      "epicId": "EP-007",
-      "notes": "P2. Command: src/RoslynTools.Cli/Commands/ListSmellsCommand.cs. Set RtCommandInfo.JsonOutput=true."
-    },
-    {
-      "id": "US-053",
-      "epicId": "EP-008",
-      "title": "Introduce IWorkspaceSessionFactory + WorkspaceSession (rt-006)",
-      "description": "As a developer, I want all commands to depend on IWorkspaceSessionFactory instead of calling WorkspaceLoader.LoadAsync directly so that the static coupling is broken and daemon workspace caching becomes possible.",
-      "acceptanceCriteria": [
-        "IWorkspaceSessionFactory interface defined in Core/ with LoadAsync(string? solutionPath) signature",
-        "WorkspaceSession : IWorkspaceSessionFactory introduced — instance wrapper delegating to static WorkspaceLoader internals",
-        "All ~30 production command handlers accept IWorkspaceSessionFactory, not WorkspaceLoader directly",
-        "No command file imports WorkspaceLoader after the change",
-        "rt inspect find-refs --symbol WorkspaceLoader --solution RoslynTools.slnx shows 0 production call sites",
-        "Architecture gate NoStaticWorkspaceLoaderUse (tests/RoslynTools.Tests/Architecture/) passes",
-        "All existing tests pass — WorkspaceLoader.UseOverride pattern updated to stub IWorkspaceSessionFactory",
-        "Must ship in same PR as US-054 (ISolutionApplier) — partial rollout is not safe"
-      ],
-      "priority": 53,
-      "urgency": 420,
-      "urgencyReason": "EP-008: IWorkspaceSessionFactory + WorkspaceSession. Must ship together with US-054 — splitting doubles the 30-command churn (per epic notes). Heaviest items → bottom of band.",
-      "effort": 13,
-      "passes": false,
-      "notes": "P2. Blast radius: 30 production call sites + 100+ test references (WorkspaceLoader.UseOverride). Architecture gate already exists. WorkspaceLoader is static so cannot implement the interface — WorkspaceSession wrapper is the bridge. From issue rt-006."
-    },
-    {
-      "id": "US-054",
-      "epicId": "EP-008",
-      "title": "Introduce ISolutionApplier and update mutation commands (rt-007)",
-      "description": "As a developer, I want all mutation commands to depend on ISolutionApplier instead of calling SolutionWriter.ApplyChangesAsync directly, bundled with US-053 so the 30-command update happens once.",
-      "acceptanceCriteria": [
-        "ISolutionApplier interface defined: Task ApplyAsync(Solution original, Solution updated, bool dryRun)",
-        "SolutionWriter implements ISolutionApplier",
-        "All mutation commands accept ISolutionApplier, not SolutionWriter directly",
-        "rt inspect find-refs --symbol SolutionWriter --solution RoslynTools.slnx shows 0 production call sites after change",
-        "All existing tests pass",
-        "Implemented in the same PR as US-053"
-      ],
-      "priority": 54,
-      "urgency": 424,
-      "urgencyReason": "EP-008: ISolutionApplier. Pair with US-053.",
-      "effort": 13,
-      "passes": false,
-      "notes": "P2. 22 fan-in from Commands scope. Must ship with US-053 — splitting doubles the churn across all 30 commands. From issue rt-007."
-    },
-    {
-      "id": "US-055",
-      "title": "Add rt refactor extract-orchestrator command (rt-003)",
-      "description": "As a developer, I want rt refactor extract-orchestrator to pull a command's SetHandler lambda body into a dedicated <Feature>Handler class so commands become thin CLI adapters with no workspace or business logic.",
-      "acceptanceCriteria": [
-        "rt refactor extract-orchestrator --type RoslynTools.Commands.ChangeSignatureCommand --name RenameParameterHandler --request RenameParameterRequest --namespace RoslynTools.Features.ChangeSignature --solution RoslynTools.slnx --dry-run produces the diff from ralph/sessions/2026-04-21-change-signature-2.md step 5",
-        "ChangeSignatureCommand.Build() drops from 76 to ~42 lines after apply",
-        "Command file no longer imports WorkspaceLoader or SolutionWriter after apply",
-        "Created handler class has signature: static async Task<int> HandleAsync(<RequestType> request)",
-        "Lambda body replaced with: context.ExitCode = await <HandlerName>.HandleAsync(new <RequestType>(...))",
-        "Using directives in the command file updated to reference the new handler namespace",
-        "--dry-run shows diff without writing; without flag, writes files",
-        "IRtCommand contract satisfied; command registered under rt refactor group",
-        "Test suite passes after apply (no broken imports)"
-      ],
-      "priority": 55,
-      "urgency": 310,
-      "urgencyReason": "extract-orchestrator command. Significant new feature; deferred until refactor infra stable.",
-      "effort": 8,
-      "passes": false,
-      "notes": "P2. Reference diff: ralph/sessions/2026-04-21-change-signature-2.md step 5. Linked to rt-004 (introduce-record) now shipped as transform-parameters. From issue rt-003."
-    },
-    {
-      "id": "US-056",
-      "title": "rt refactor rename: accept symbol FQN from stdin JSON for pipe chains (rt-008)",
-      "description": "As a developer, I want rt refactor rename to read a fullyQualifiedName from piped stdin JSON so that rt inspect find-refs | rt rename pipe chains work end-to-end.",
-      "acceptanceCriteria": [
-        "When stdin is redirected (Console.IsInputRedirected is true), rename reads the first JSON line and extracts fullyQualifiedName",
-        "Positional <symbol> argument takes precedence over stdin FQN if both are provided",
-        "Falls back gracefully to positional arg if stdin produces no FQN",
-        "rt inspect find-refs --symbol WorkspaceLoader --json | rt refactor rename --new-name SolutionLoader --dry-run produces the correct diff",
-        "No behaviour change when stdin is a TTY (non-pipe invocation)",
-        "Works with --dry-run and --solution flags as normal"
-      ],
-      "priority": 56,
-      "urgency": 230,
-      "urgencyReason": "rename: accept FQN from stdin JSON. Automation feature, single command.",
-      "effort": 2,
-      "passes": false,
-      "notes": "P2. First of the pipe-protocol tasks. Discovered in ralph/sessions/2026-05-04-daemon-protocol.md Step 4. Command: src/RoslynTools.Cli/Commands/RenameCommand.cs. From issue rt-008."
-    },
-    {
-      "id": "US-057",
-      "epicId": "EP-009",
-      "title": "Introduce a shared read-only command handler wrapper",
-      "description": "As an rt maintainer, I want read-only commands to execute through a shared wrapper so solution loading, timing, cancellation, error mapping, and result rendering are consistent.",
-      "acceptanceCriteria": [
-        "A shared wrapper exists for read-only handlers with one entry point used by migrated commands",
-        "The wrapper owns solution loading, cancellation token flow, exception-to-exit-code mapping, and output rendering",
-        "At least one representative inspect command and one analyze command are migrated to the wrapper",
-        "Migrated command tests cover success, not found, and invalid input paths",
-        "An architecture test detects migrated commands that bypass the wrapper"
-      ],
-      "priority": 57,
-      "urgency": 360,
-      "urgencyReason": "EP-009 opener: shared read-only command handler wrapper.",
-      "effort": 8,
-      "passes": false,
-      "notes": "P2. Start with a low-risk read-only command already using RtResult<T>."
-    },
-    {
-      "id": "US-058",
-      "epicId": "EP-009",
-      "title": "Standardize common CLI options through option factories",
-      "description": "As an rt maintainer, I want common options to be created by shared factories so aliases, descriptions, defaults, and required flags do not drift between commands.",
-      "acceptanceCriteria": [
-        "CommandOptionFactory exposes factories for solution, format/json, scope, top, symbol, type, dry-run, and verbose options",
-        "Existing migrated commands use the shared factories instead of manually declaring equivalent options",
-        "Factory-created options preserve current public CLI behavior unless explicitly documented",
-        "Tests assert consistent aliases and descriptions for at least solution, format/json, scope, and top",
-        "An architecture test flags manual declarations of common options in migrated command files"
-      ],
-      "priority": 58,
-      "urgency": 364,
-      "urgencyReason": "EP-009: standardize common CLI options via factory.",
-      "effort": 8,
-      "passes": false,
-      "notes": "P2. This should precede broad command migration to reduce repeated churn."
-    },
-    {
-      "id": "US-059",
-      "epicId": "EP-009",
-      "title": "Add machine-readable command capabilities to RtCommandInfo",
-      "description": "As an automation consumer, I want every command to declare its capabilities so agents can choose commands and output formats without scraping prose help.",
-      "acceptanceCriteria": [
-        "RtCommandInfo includes supported formats, scope support, top support, solution requirement, prompt support, and mutation flags",
-        "All existing commands compile with explicit capability values",
-        "dump-help includes the new capability metadata in its machine-readable output",
-        "Architecture tests require explicit capability values for every IRtCommand",
-        "At least one test verifies capability metadata matches actual command options"
-      ],
-      "priority": 59,
-      "urgency": 368,
-      "urgencyReason": "EP-009: machine-readable command capabilities in RtCommandInfo.",
-      "effort": 8,
-      "passes": false,
-      "notes": "P2. Capability names should stay stable for external automation."
-    },
-    {
-      "id": "US-060",
-      "epicId": "EP-009",
-      "title": "Normalize command outputs around shared result contracts",
-      "description": "As an automation consumer, I want rt commands to return shared result envelopes so success, empty, diagnostic, and change-plan outputs are predictable.",
-      "acceptanceCriteria": [
-        "Read-only commands use RtResult<TOutput> or an approved equivalent",
-        "Mutation commands use a shared change result contract such as RtChangeResult<TPlan>",
-        "Diagnostic commands use a shared diagnostic result contract such as RtDiagnosticResult",
-        "JSON output shape is documented and tested for success, empty, and error-like diagnostic cases",
-        "Architecture tests ratchet migrated commands away from ad hoc Console.WriteLine rendering"
-      ],
-      "priority": 60,
-      "urgency": 372,
-      "urgencyReason": "EP-009: normalize command outputs via shared result contract.",
-      "effort": 8,
-      "passes": false,
-      "notes": "P2. Builds on the existing RtResult<T> migration."
-    },
-    {
-      "id": "US-061",
-      "epicId": "EP-009",
-      "title": "Introduce SymbolQuery for consistent symbol resolution",
-      "description": "As an rt user, I want commands that accept symbols to resolve names, fully qualified names, and ambiguity in the same way across inspect and refactor workflows.",
-      "acceptanceCriteria": [
-        "SymbolQuery represents raw input, expected symbol kind, optional scope, and ambiguity policy",
-        "A shared resolver handles exact, fully qualified, and partial symbol matches",
-        "Ambiguous matches produce a consistent diagnostic payload with candidate symbols",
-        "At least two symbol-consuming commands are migrated to SymbolQuery",
-        "Tests cover exact match, no match, ambiguous match, and kind mismatch"
-      ],
-      "priority": 61,
-      "urgency": 376,
-      "urgencyReason": "EP-009: SymbolQuery for consistent symbol resolution.",
-      "effort": 8,
-      "passes": false,
-      "notes": "P2. This is a prerequisite for reliable pipe chains between inspect and refactor commands."
-    },
-    {
-      "id": "US-062",
-      "epicId": "EP-009",
-      "title": "Standardize command vocabulary and aliases",
-      "description": "As an rt user, I want equivalent concepts to use the same option names across commands so I do not have to relearn each workflow.",
-      "acceptanceCriteria": [
-        "Canonical option names are documented for --symbol, --type, --scope, --top, --format, --json, --solution, and --dry-run",
-        "Commands with equivalent concepts use the canonical option names and aliases",
-        "Legacy aliases remain where needed for compatibility and are documented as aliases",
-        "dump-help output groups canonical options consistently",
-        "Tests catch accidental introduction of a non-canonical common option name"
-      ],
-      "priority": 62,
-      "urgency": 380,
-      "urgencyReason": "EP-009: standardize command vocabulary and aliases.",
-      "effort": 8,
-      "passes": false,
-      "notes": "P2. Pair with option factory work when practical."
-    },
-    {
-      "id": "US-063",
-      "epicId": "EP-009",
-      "title": "Standardize command file structure",
-      "description": "As an rt contributor, I want command files to follow a common structure so reviews and automated refactors can reason about metadata, option construction, handler wiring, and logic boundaries.",
-      "acceptanceCriteria": [
-        "A command file structure convention is documented with metadata, option declarations, command construction, and handler binding order",
-        "At least three commands are migrated to the convention",
-        "Business logic is moved out of command construction for migrated commands when feasible",
-        "Tests or architecture rules catch obvious convention violations for migrated commands",
-        "The convention avoids broad rewrites for commands that still need larger handler extraction"
-      ],
-      "priority": 63,
-      "urgency": 384,
-      "urgencyReason": "EP-009: standardize command file structure.",
-      "effort": 8,
-      "passes": false,
-      "notes": "P3. Keep this incremental so it supports, rather than blocks, feature work."
-    },
-    {
-      "id": "US-064",
-      "epicId": "EP-009",
-      "title": "Add migration ratchets for command consistency",
-      "description": "As an rt maintainer, I want architecture tests to enforce only migrated command slices so consistency improves without forcing unsafe all-at-once rewrites.",
-      "acceptanceCriteria": [
-        "A migrated-command allowlist or marker exists for each enforced convention",
-        "Architecture tests fail when a marked command regresses from the wrapper, option factory, result contract, or metadata conventions",
-        "Tests report actionable command names and violated rules",
-        "Adding a command to the migrated set requires no test code duplication",
-        "The ratchet strategy is documented in the migration playbook"
-      ],
-      "priority": 64,
-      "urgency": 388,
-      "urgencyReason": "EP-009: migration ratchets for command consistency.",
-      "effort": 8,
-      "passes": false,
-      "notes": "P2. This formalizes the dogfooding approach used during the command output migration."
-    },
-    {
-      "id": "US-065",
-      "epicId": "EP-009",
-      "title": "Make dump-help metadata-driven and consistency-tested",
-      "description": "As an automation consumer, I want rt dump-help to reflect command metadata and options consistently so it can be trusted as the command contract.",
-      "acceptanceCriteria": [
-        "dump-help derives command categories, output formats, and capabilities from RtCommandInfo where available",
-        "dump-help includes consistent option metadata for common option factories",
-        "Tests verify every registered command appears in dump-help",
-        "Tests verify commands declaring JSON or structured formats expose matching options",
-        "Human-readable help remains concise and does not duplicate stale hand-written metadata"
-      ],
-      "priority": 65,
-      "urgency": 392,
-      "urgencyReason": "EP-009: make dump-help metadata-driven and consistency-tested.",
-      "effort": 8,
-      "passes": false,
-      "notes": "P2. This turns command metadata into a visible contract for agents."
-    },
-    {
-      "id": "US-066",
-      "epicId": "EP-009",
-      "title": "Create a command migration playbook",
-      "description": "As an rt contributor, I want a concise migration playbook so future command refactors follow the same sequence and know which architecture ratchets to update.",
-      "acceptanceCriteria": [
-        "A playbook documents the recommended order: result contract, option factories, handler wrapper, capabilities, symbol query, and ratchet update",
-        "The playbook includes a before/after checklist for one migrated command",
-        "The playbook explains when to use feedback for missing rt affordances",
-        "The playbook lists verification commands including architecture tests and targeted command tests",
-        "The playbook is linked from the relevant backlog epic or developer docs"
-      ],
-      "priority": 66,
-      "urgency": 396,
-      "urgencyReason": "EP-009: command migration playbook. Closes EP-009.",
-      "effort": 8,
-      "passes": false,
-      "notes": "P3. Keep this short and operational; it should support ongoing dogfooding rather than becoming a design document."
-    },
-    {
-      "id": "US-067",
-      "title": "Revisit nested-branch pattern in execute skill for trunk-based repos",
-      "description": "As a developer running /execute on a trunk repo, I want a clear consistent policy on RT gap handling, so the skill matches the actual workflow.",
-      "acceptanceCriteria": [
-        "The skill documents a clear policy: nested branches OR fix-on-main for trunk repos — not both",
-        "The Opus review section and regression handler are consistent with the chosen policy",
-        "The branch cleanup gate is present or removed to match",
-        "Risks of fix-on-main are documented (no revert path) if that approach is chosen"
-      ],
-      "priority": 67,
-      "urgency": 322,
-      "urgencyReason": "Revisit nested-branch pattern in execute skill. Process improvement, no production impact. Smallest H-band item → top of band.",
-      "effort": 5,
-      "passes": false,
-      "notes": "P3. Deferred from 2026-05-15 retro (Proposal 4). Aggressive version in ai-rules commit 8c1a08a; conservative rollback in dae9046. Three places still inconsistent: RT gap section, Opus review section, regression handler. Must be decided and applied consistently."
-    },
-    {
-      "id": "US-068",
-      "title": "Introduce Result<T,RtError> for routine user-error flows in core services",
-      "description": "As a developer, I want routine \"not found\" / \"bad input\" cases in SymbolLocator, MethodExtractor, WorkspaceLoader to return a Result type (success or RtError) instead of throwing InvalidOperationException, so the global exception handler can produce clean exit-1 stderr lines for known user errors while still surfacing real bugs with full stack traces — without resorting to substring-matching exception messages.",
-      "acceptanceCriteria": [
-        "Add Result<T, RtError> (or equivalent ADT) in src/RoslynTools/Core/. RtError is a record with a Kind enum (NotFound, InvalidInput, AmbiguousMatch, WorkspaceLoadFailure) plus message and optional context dictionary.",
-        "Convert SymbolLocator.FindSymbolAsync / FindSymbolByFqnAsync / FindTypeByFqnAsync / FindMethodBySpecAsync to return Result<ISymbol, RtError>; routine \"not found\" / ambiguous cases produce RtError, never throw.",
-        "Convert WorkspaceLoader.LoadAsync to return Result<(MSBuildWorkspace, Solution), RtError> for the no-projects-and-failure-diagnostic case; throw only for genuinely unexpected exceptions.",
-        "MethodExtractor: routine user-input rejections (no statements in range, multiple parent blocks, return statements in selection, --after + --before conflict) become RtError; AST-rewrite-produced-no-changes and similar internal-invariant violations remain exceptions.",
-        "Update every caller of the converted APIs to propagate or handle the Result; commands surface RtError via a single RtLog.Error + context.ExitCode = 1 helper.",
-        "Add a typed-only catch ladder in App.CaptureExceptionAsync for FileNotFoundException, DirectoryNotFoundException, ArgumentException, JsonException — these are routine OS/parse errors. No substring-matching of exception messages anywhere.",
-        "feedback.json still captures every exception with the full diagnostic payload from US-042; only the user-facing stderr shape changes.",
-        "Tests: SymbolLocator returns RtError.NotFound for unknown symbol; OutlineCommand returns exit 1 + single stderr line for missing file; build remains clean.",
-        "Documentation: add a short Result-types section to CLAUDE.md / AGENTS.md so new commands follow the pattern."
-      ],
-      "priority": 68,
-      "urgency": 32,
-      "urgencyReason": "Architectural fix that supersedes US-042+US-044: Result<T, RtError> for routine errors. Story explicitly cites 2026-05-15 quality-first rule. Sequenced after US-042/044 ship so the bug-class diagnosis is validated by quick fixes first.",
-      "effort": 13,
-      "passes": 0,
-      "notes": "Driven by quality-first rule (2026-05-15): refuses the substring-matching shortcut and instead models routine vs bug differences in the type system. Replaces the deferred classification half of US-042. Large change — touches ~10-15 throw sites and every caller — sequence carefully via /execute with TDD.",
-      "resolution": "",
-      "resolvedAt": ""
-    },
-    {
-      "id": "RT-001",
-      "title": "rt dump-help --json: emit machine-readable command catalog",
-      "description": "As an LLM agent, I want `rt dump-help --json` to emit the full RtCommandInfo catalog as structured JSON so I can ingest the command surface programmatically instead of parsing prose.",
-      "acceptanceCriteria": [
-        "`rt dump-help --json` exits 0 and writes valid JSON to stdout.",
-        "The JSON document includes every command discovered by the reflection-based registry — the command count equals what plain `rt dump-help` reports.",
-        "Each command entry includes Name, Category, Mutates, JsonOutput, Aliases, WhenToUse, Examples, KnownIssues, and SupportedFormats from RtCommandInfo. Missing or null fields are represented explicitly (no silent drops).",
-        "The plain `rt dump-help` (no flag) text output is byte-identical to today's — JSON is purely additive.",
-        "An LLM can parse the JSON output and reconstruct the command surface without reading any source file or markdown.",
-        "If `--strict-json` is passed alongside, the output is RFC 8259 compliant (non-ASCII escaped as \\uXXXX)."
-      ],
-      "priority": 69,
-      "urgency": 240,
-      "urgencyReason": "rt dump-help --json — unlocks agent automation; touches one command. Opens the EP-007 wave.",
-      "effort": 5,
-      "passes": false,
-      "notes": "P2. Deferred from LLM-ergonomics quick-wins plan. The RtCommandInfo record and reflection-discovered registry in App.cs already expose every field — wiring it through JsonRenderer should be near-free. Affected files: src/RoslynTools.Cli/Commands/DumpHelpCommand.cs, src/RoslynTools/Core/RtCommandInfo.cs."
-    },
-    {
-      "id": "RT-002",
-      "title": "Expand command help text with output shape, exit codes, and error modes",
-      "description": "As an LLM agent, I want every rt command's --help to describe its output shape, exit codes, and common error modes so I can predict behaviour without source-diving or trial-and-error.",
-      "acceptanceCriteria": [
-        "Every command's `--help` output includes a section stating the output format (text vs JSON vs both, mutating vs read-only).",
-        "Every command's `--help` lists the exit codes it can return (0, 1, 2) and the trigger for each (success / error / decisions required).",
-        "Every command's `--help` lists at least one common error mode the user should expect (e.g. \"symbol not found\", \"ambiguous match without --decisions\", \"file outside solution\").",
-        "Information is sourced from RtCommandInfo (or a new metadata field on it) rather than hand-maintained in each Command.cs — no drift between help and reality.",
-        "`docs/COMMANDS.md` regenerates on build and includes the new fields for every command.",
-        "An LLM reading only `rt <cmd> --help` can predict the shape of stdout, stderr, and exit code for both success and the most common failure."
-      ],
-      "priority": 70,
-      "urgency": 222,
-      "urgencyReason": "Expand command help text with output shape + exit codes. Smallest of the discoverability wave — floats first.",
-      "effort": 2,
-      "passes": false,
-      "notes": "P2. Deferred from LLM-ergonomics quick-wins plan. Sampled commands (DescribeCommand, FindCallersCommand, ExtractMethodCommand) currently have one-line descriptions only — no failure mode docs, no output schema. Drive from RtCommandInfo so docs/COMMANDS.md stays in sync."
-    },
-    {
-      "id": "RT-003",
-      "title": "Make --decisions YAML schema self-discoverable from the CLI",
-      "description": "As an LLM agent, I want the --decisions YAML schema to be discoverable from rt --help (or a meta sub-command) so I can author a decisions file without reading DecisionStore.cs source.",
-      "acceptanceCriteria": [
-        "`rt --help` (or a sub-command such as `rt decisions --schema`) prints the YAML schema for the --decisions file.",
-        "The printed schema documents every field used today (id, q, options, choose) with types and a one-line description per field.",
-        "A complete worked example is included: the YAML rt would write on first run, plus the same YAML with `choose:` filled in by the user.",
-        "An LLM that has not read source can author or edit a --decisions YAML correctly using only CLI help output.",
-        "When --decisions YAML fails to parse or is missing a required field, stderr reports which file and which entry (id) is malformed — not a stack trace.",
-        "Existing --decisions behaviour (exit 2, write pending entries) is unchanged."
-      ],
-      "priority": 71,
-      "urgency": 226,
-      "urgencyReason": "Self-describing --decisions YAML schema.",
-      "effort": 2,
-      "passes": false,
-      "notes": "P3. Deferred from LLM-ergonomics quick-wins plan. The mechanism is mentioned in --help but the file structure (fields, indices, how to fill the choose field) requires source inspection today. Affected files: src/RoslynTools/Core/Decisions/DecisionStore.cs, src/RoslynTools/Core/Decisions/DecisionEntry.cs, src/RoslynTools.Cli/App.cs."
-    },
-    {
-      "id": "RT-004",
-      "title": "Finish stderr discipline migration: Console.Write to RtLog/RtConsole",
-      "description": "As an LLM agent piping stdout to a parser and stderr to logs, I want every rt command to honour the stdout=results, stderr=diagnostics contract so I can rely on stream separation without per-command quirks.",
-      "acceptanceCriteria": [
-        "No remaining `Console.Write*` calls exist in src/RoslynTools/Commands/ or src/RoslynTools.Cli/Commands/ (verified by grep, gated in CI or a unit test).",
-        "All progress and diagnostic messages from command handlers route through RtLog.* (stderr).",
-        "All primary command results route through RtConsole.Write (stdout).",
-        "Existing tests pass without modification (output contracts preserved).",
-        "docs/logging-standards.md is updated to remove the \"migration incomplete\" notice and document the now-enforced convention.",
-        "An LLM piping stdout to a JSON parser and stderr to logs gets clean separation across every command."
-      ],
-      "priority": 72,
-      "urgency": 180,
-      "urgencyReason": "Finish stderr discipline migration: stray Console.Write to stdout in error paths. Completes a longstanding push.",
-      "effort": 5,
-      "passes": false,
-      "notes": "P2. Deferred from LLM-ergonomics quick-wins plan. docs/logging-standards.md acknowledges the migration is in progress; several commands still call Console.Write directly. Maintenance work — does not change LLM behaviour at runtime today, but eliminates a future regression vector."
-    },
-    {
-      "id": "US-069",
-      "title": "Bring src/RoslynTools.Cli/ into Stryker mutation pilot",
-      "description": "src/RoslynTools.Cli/Commands/MakeSealedCommand.cs, DebugCommand.cs, and Results/DebugResult.cs are matched by stryker-config.json mutate globs but silently skipped by Stryker because the configured project is src/RoslynTools/RoslynTools.csproj (core library only). The pre-commit gate fires the glob-coverage check but Stryker never mutates Cli-project code, so the contract is paper-only.",
-      "acceptanceCriteria": [
-        "stryker-config.json `project` is extended (or a second config introduced) so that files under `src/RoslynTools.Cli/` actually get mutated when matched by mutate globs",
-        "Existing globs `**/Commands/MakeSealedCommand.cs`, `**/Commands/DebugCommand.cs`, `**/Commands/Results/DebugResult.cs` produce non-zero mutant counts in the Stryker report (currently zero — silently skipped)",
-        "Each of those files reaches 100% mutation score (kill, delete, or mark equivalent per CLAUDE.md)",
-        "Pre-commit gate continues to block on staged Cli production files that aren't covered"
-      ],
-      "priority": 73,
-      "urgency": 152,
-      "urgencyReason": "Mutation pilot rollout: memory project_mutation_pilot_project_boundary explicitly flags Cli files are silently skipped today. Stryker config + gate currently does not defend src/RoslynTools.Cli/.",
-      "effort": 2,
-      "passes": false,
-      "notes": "Discovered 2026-05-20 while landing the Debug 100% mutation work. Existing Cli files in mutate globs were authored under the assumption that Stryker would cover them."
-    },
-    {
-      "id": "US-070",
-      "title": "Bring src/RoslynTools.Mcp/ into Stryker mutation pilot",
-      "description": "src/RoslynTools.Mcp/ is a separate csproj from the core library and the existing Cli. stryker-config.json's project field points at the core library, so Mcp files are never matched by the Stryker run even when added to mutate globs. The pre-commit gate currently has no useful path other than RT_MUTATION_ALLOW_UNSCOPED=1 when any Mcp file is staged.",
-      "acceptanceCriteria": [
-        "src/RoslynTools.Mcp/RoslynTools.Mcp.csproj has a matching Stryker config or is included in the existing one such that its production files participate in mutation testing",
-        "src/RoslynTools.Mcp/Tools/CliCommandBridge.cs and ToolSchemaBuilder.cs reach 100% mutation score (kill, delete, or mark equivalent)",
-        "Pre-commit gate runs Stryker against Mcp files when staged — RT_MUTATION_ALLOW_UNSCOPED=1 is no longer needed for Mcp commits",
-        "tests/RoslynTools.Tests.Mcp/ is used as the Stryker test-projects entry (already present)"
-      ],
-      "priority": 74,
-      "urgency": 156,
-      "urgencyReason": "Same scope as US-069 for src/RoslynTools.Mcp/. Finishes the Stryker rollout.",
-      "effort": 2,
-      "passes": false,
-      "notes": "Discovered 2026-05-20: committed df9e43a (MCP array pass-through) used the bypass for this reason. Likely solved together with the Cli pilot story (US-069) by switching to a multi-project or per-project Stryker setup."
-    }
-  ]
+    "project": "roslyn-tools",
+    "branchName": "backlog",
+    "description": "Triaged backlog",
+    "epics": [
+        {
+            "id": "EP-005",
+            "title": "codebase consistency sweep",
+            "description": "Fix formatting violations and consolidate structural duplication identified in the May 2026 consistency analysis.",
+            "notes": "Findings from rt analyze list-smells + find-duplicates sweep on 2026-05-11."
+        },
+        {
+            "id": "EP-006",
+            "title": "SOLID Adherence Analysis",
+            "description": "Family of rt analyze solid subcommands that detect likely SOLID-principle violations using Roslyn semantic model. One detector per principle; output is JSON grouped by detector name.",
+            "notes": "P2. Five child stories: SRP, ISP, DIP, OCP, LSP. Each independently shippable."
+        },
+        {
+            "id": "EP-007",
+            "title": "Add structured JSON output to all inspect/analyze commands",
+            "description": "All rt inspect and rt analyze commands should support --json output so automation consumers (agents, scripts, CI tools) can pipe results without text parsing. Eight commands currently output plain text only.",
+            "notes": "P2. Affects: find-refs, find-callers, find-undocumented, find-unused, circular-deps, find-magic-strings, list-imports, list-smells. Template: see describe/outline/find-impl which already have JSON output."
+        },
+        {
+            "id": "EP-008",
+            "title": "Platform abstractions: IWorkspaceSessionFactory + ISolutionApplier",
+            "description": "Introduce injectable abstractions for WorkspaceLoader and SolutionWriter so commands depend on interfaces, not static helpers. Enables testability without AsyncLocal overrides and unblocks daemon workspace caching. Must be a single coordinated change across all ~30 commands.",
+            "notes": "P2. Architecture gate NoStaticWorkspaceLoaderUse already exists in tests/. rt-006 + rt-007 from issues backlog. Must ship together — splitting doubles the 30-command churn."
+        },
+        {
+            "id": "EP-009",
+            "title": "Consistent command contracts and migration ratchets",
+            "description": "Make rt commands consistent across handler structure, option vocabulary, metadata, output envelopes, and symbol resolution so dogfooding workflows are predictable and architecture tests can ratchet progress.",
+            "notes": "From rt dogfooding consistency discussion on 2026-05-15."
+        }
+    ],
+    "userStories": [
+        {
+            "id": "US-025",
+            "epicId": "EP-005",
+            "title": "fix formatting violations: CRLF and encoding errors in 4 files",
+            "description": "As a contributor, I want all source files to pass dotnet format so that CI and editor tooling agree on line endings and encoding.",
+            "acceptanceCriteria": [
+                "dotnet format RoslynTools.slnx --verify-no-changes exits 0",
+                "TransformParametersService.cs uses LF line endings",
+                "ControlFlowUnwinder.cs, ConsumerNarrowerService.cs, InterfaceAnalyzerService.cs use project-standard encoding (no BOM)"
+            ],
+            "priority": 25,
+            "passes": true,
+            "notes": "P1. Run dotnet format RoslynTools.slnx to auto-fix. Affected: src/RoslynTools/Services/TransformParametersService.cs (CRLF lines 13-14), src/RoslynTools/Core/ControlFlowUnwinder.cs, src/RoslynTools/Services/ConsumerNarrowerService.cs, src/RoslynTools/Services/InterfaceAnalyzerService.cs (encoding).",
+            "resolution": "Fixed: ran dotnet format; 55 files normalised to LF + encoding cleaned. .gitattributes eol=lf prevents recurrence. Commit 206326a.",
+            "resolvedAt": "2026-05-11"
+        },
+        {
+            "id": "US-033",
+            "title": "rt analyze solid: ISP detector — flag fat interfaces and NotImplementedException members",
+            "description": "As a developer, I want rt analyze solid --principle ISP to flag over-broad interfaces and implementing classes that throw on members they cannot fulfill.",
+            "acceptanceCriteria": [
+                "rt analyze solid --principle ISP --solution <sln> exits 0 and emits JSON to stdout",
+                "Output has a top-level 'ISP' key with sub-arrays for 'FatInterfaces' and 'UnimplementedMembers'",
+                "Each FatInterface item includes: InterfaceName, FilePath, Line, MemberCount",
+                "Each UnimplementedMember item includes: TypeName, MemberName, InterfaceName, FilePath, Line",
+                "--min-members <N> (default 7) is configurable for the fat-interface threshold",
+                "Classes throwing NotImplementedException or NotSupportedException on implemented interface members are flagged under UnimplementedMembers",
+                "rt analyze solid --principle all includes ISP results"
+            ],
+            "priority": 33,
+            "urgency": 92,
+            "urgencyReason": "EP-006 epic in flight — ISP detector follows the US-032 SRP template (SolidAnalyzer, SolidResult, mirrored tests). Lowest-risk SOLID addition.",
+            "effort": 5,
+            "passes": false,
+            "epicId": "EP-006",
+            "notes": "P2. Two sub-checks: (1) interfaces with member count above threshold; (2) classes implementing an interface but throwing NotImplementedException/NotSupportedException on one or more members. Output grouped under 'ISP' detector key."
+        },
+        {
+            "id": "US-034",
+            "title": "rt analyze solid: DIP detector — flag concrete constructor params and inline new calls",
+            "description": "As a developer, I want rt analyze solid --principle DIP to flag high-level classes that depend directly on concrete types rather than abstractions.",
+            "acceptanceCriteria": [
+                "rt analyze solid --principle DIP --solution <sln> exits 0 and emits JSON to stdout",
+                "Output has a top-level 'DIP' key with sub-arrays for 'ConcreteConstructorParams' and 'InlineNewCalls'",
+                "Each ConcreteConstructorParam item includes: TypeName, ParamName, ConcreteType, FilePath, Line",
+                "Each InlineNewCall item includes: TypeName, MemberName, ConcreteType, FilePath, Line",
+                "Value types, record types, and Exception-derived types are excluded from InlineNewCalls",
+                "Classes named *Factory, *Builder, or *Provider are excluded from InlineNewCalls (they are expected to new things)",
+                "rt analyze solid --principle all includes DIP results"
+            ],
+            "priority": 34,
+            "urgency": 96,
+            "urgencyReason": "EP-006 — DIP detector, same template as US-032/033.",
+            "effort": 5,
+            "passes": false,
+            "epicId": "EP-006",
+            "notes": "P2. Two sub-checks: (1) constructors accepting concrete class params (not interfaces/abstract); (2) non-factory class bodies calling new ConcreteType() where ConcreteType is not a value type, DTO, or exception. Output grouped under 'DIP' detector key."
+        },
+        {
+            "id": "US-035",
+            "title": "rt analyze solid: OCP detector — flag switch/if chains branching on concrete types",
+            "description": "As a developer, I want rt analyze solid --principle OCP to flag code that must be modified every time a new concrete type is added.",
+            "acceptanceCriteria": [
+                "rt analyze solid --principle OCP --solution <sln> exits 0 and emits JSON to stdout",
+                "Output has a top-level 'OCP' key containing an array of violation items",
+                "Each item includes: TypeName, MemberName, FilePath, Line, BranchCount, ViolationType ('switch' or 'if-chain')",
+                "Flags switch expressions/statements matching on 'is ConcreteType' patterns",
+                "Flags if/else chains using 'is ConcreteType' or 'obj.GetType() == typeof(X)' with 2 or more concrete-type branches",
+                "--min-branches <N> (default 2) is configurable",
+                "rt analyze solid --principle all includes OCP results"
+            ],
+            "priority": 35,
+            "urgency": 100,
+            "urgencyReason": "EP-006 — OCP detector, same template.",
+            "effort": 5,
+            "passes": false,
+            "epicId": "EP-006",
+            "notes": "P2. Detects: (1) switch expressions/statements matching on 'is ConcreteType'; (2) if/else chains using 'is ConcreteType' or obj.GetType() == typeof(X) with 2+ branches. Output grouped under 'OCP' detector key."
+        },
+        {
+            "id": "US-036",
+            "title": "rt analyze solid: LSP detector — flag overrides throwing or narrowing contracts",
+            "description": "As a developer, I want rt analyze solid --principle LSP to flag override methods that break Liskov substitutability so that I can identify types that cannot safely replace their base.",
+            "acceptanceCriteria": [
+                "rt analyze solid --principle LSP --solution <sln> exits 0 and emits JSON to stdout",
+                "Output has a top-level 'LSP' key with sub-arrays for 'ThrowingOverrides' and 'ContractNarrowings'",
+                "Each ThrowingOverride item includes: TypeName, MemberName, ExceptionType, FilePath, Line",
+                "Each ContractNarrowing item includes: TypeName, MemberName, BaseType, FilePath, Line",
+                "Flags override methods whose body contains throw new NotImplementedException() or NotSupportedException()",
+                "Flags explicit interface implementations that throw on every code path",
+                "rt analyze solid --principle all includes LSP results"
+            ],
+            "priority": 36,
+            "urgency": 104,
+            "urgencyReason": "EP-006 — LSP detector, closes the epic.",
+            "effort": 5,
+            "passes": false,
+            "epicId": "EP-006",
+            "notes": "P2. Two sub-checks: (1) override methods whose body throws NotImplementedException/NotSupportedException; (2) explicit interface implementations that throw on every code path. Output grouped under 'LSP' detector key."
+        },
+        {
+            "id": "US-037",
+            "title": "rt: convert-static-class — interface generation",
+            "description": "When --no-interface is not passed, generate an I<TypeName> interface file alongside the destated class, extracting all public/internal instance methods and properties. Interface only matters when consumers need to mock the dependency in tests. Discovered during US-027 df pass; command currently warns and skips.",
+            "acceptanceCriteria": [
+                "rt analyze solid --principle LSP --solution <sln> exits 0 and emits JSON to stdout",
+                "Output has a top-level 'LSP' key with sub-arrays for 'ThrowingOverrides' and 'ContractNarrowings'",
+                "Each ThrowingOverride item includes: TypeName, MemberName, ExceptionType, FilePath, Line",
+                "Each ContractNarrowing item includes: TypeName, MemberName, BaseType, FilePath, Line",
+                "Flags override methods whose body contains throw new NotImplementedException() or NotSupportedException()",
+                "Flags explicit interface implementations that throw on every code path",
+                "rt analyze solid --principle all includes LSP results"
+            ],
+            "priority": 37,
+            "urgency": 170,
+            "urgencyReason": "convert-static-class — interface generation. Largest of the trio. Links to project_static_class_migration.",
+            "effort": 8,
+            "passes": false,
+            "notes": "P2. Enables mock-friendly DI patterns in roslyn-tools tests. Relates to US-027 df."
+        },
+        {
+            "id": "US-038",
+            "title": "rt: convert-static-class — DI registration in Bootstrap.cs",
+            "description": "When --no-di-registration is not passed, find a Bootstrap.RegisterServices method in the solution and add a services.Add<Lifetime><ITypeName, TypeName>() line. Discovered during US-027 df pass; command currently warns and skips.",
+            "acceptanceCriteria": [
+                "When --no-di-registration is not passed and a Bootstrap.RegisterServices method exists in the solution, a services.AddSingleton<ITypeName, TypeName>() line is added",
+                "If --lifetime is scoped or transient, the correct Add method is used",
+                "If no Bootstrap-style registration method is found, a warning is emitted and the step is skipped",
+                "Running with --dry-run shows the Bootstrap.cs diff without writing it",
+                "If --no-interface was also passed (no interface generated), registers the concrete type: services.AddSingleton<TypeName>()"
+            ],
+            "priority": 38,
+            "urgency": 166,
+            "urgencyReason": "convert-static-class — DI registration in Bootstrap. Pair with US-037 for usable output.",
+            "effort": 5,
+            "passes": false,
+            "notes": "P2. Pairs with US-037 (interface gen). Relates to US-027 df."
+        },
+        {
+            "id": "US-039",
+            "title": "rt: convert-static-class — fix field and ctor formatting in existing-constructor path",
+            "description": "When a consumer class already has constructors, AddConstructorInjection inserts the new field without a trailing newline, causing it to merge with the existing first member on the same line. Similarly, AddConstructorParameter inserts parameters without comma spacing and prepends assignments without newlines before the closing brace. dotnet format corrects these cosmetically but they should be emitted correctly. Discovered during US-027 df dry-run.",
+            "acceptanceCriteria": [
+                "When a consumer class already has a constructor, the injected field is inserted on its own line (with correct indentation), not concatenated with the existing first member on the same line",
+                "When AddConstructorParameter adds a parameter to an existing constructor, a space follows the preceding comma in the parameter list",
+                "When AddConstructorParameter prepends an assignment to the constructor body, the assignment is on its own line before the closing brace",
+                "All three fixes apply when multiple constructors are present in the consumer class",
+                "Existing tests for add_dependencies_to_existing_instance_constructors remain green"
+            ],
+            "priority": 39,
+            "urgency": 162,
+            "urgencyReason": "convert-static-class — field/ctor formatting. Smallest of the trio so floats above US-037/038 inside the band.",
+            "effort": 2,
+            "passes": false,
+            "notes": "P2. df dogfood bug. Sibling of the no-constructor formatting bug fixed in the df/convert-static-class-interface-and-di branch commit 1fcf269."
+        },
+        {
+            "id": "US-045",
+            "title": "rt inspect find-refs: structured JSON output",
+            "description": "As an automation consumer, I want rt inspect find-refs to emit a JSON array when --json is passed so I can process symbol references without parsing plain text.",
+            "acceptanceCriteria": [
+                "--json outputs a JSON array to stdout; each element has {file, line, column, kind, snippet}",
+                "Without --json, plain-text output is unchanged (backward compatible)",
+                "No references found produces [] not a blank line or error",
+                "RtCommandInfo.JsonOutput is set to true",
+                "rt dump-help shows JSON output for find-refs",
+                "kind field distinguishes between read/write/nameof/other reference types"
+            ],
+            "priority": 45,
+            "urgency": 244,
+            "urgencyReason": "EP-007: find-refs JSON output. Most-used inspect command — highest payoff among M-sized JSON outputs.",
+            "effort": 5,
+            "passes": false,
+            "epicId": "EP-007",
+            "notes": "P2. Command: src/RoslynTools.Cli/Commands/FindRefsCommand.cs. Set RtCommandInfo.JsonOutput=true and branch on RtContext.Format==OutputFormat.Json."
+        },
+        {
+            "id": "US-046",
+            "title": "rt inspect find-callers: structured JSON output",
+            "description": "As an automation consumer, I want rt inspect find-callers to emit a JSON array when --json is passed so call-site data can be used programmatically.",
+            "acceptanceCriteria": [
+                "--json outputs a JSON array; each element has {file, line, column, snippet}",
+                "Without --json, plain-text output is unchanged",
+                "No callers found produces [] not a blank line",
+                "RtCommandInfo.JsonOutput is set to true",
+                "rt dump-help shows JSON output for find-callers"
+            ],
+            "priority": 46,
+            "urgency": 248,
+            "urgencyReason": "EP-007: find-callers JSON output. High-traffic.",
+            "effort": 5,
+            "passes": false,
+            "epicId": "EP-007",
+            "notes": "P2. Command: src/RoslynTools.Cli/Commands/FindCallersCommand.cs. Set RtCommandInfo.JsonOutput=true."
+        },
+        {
+            "id": "US-047",
+            "title": "rt inspect find-undocumented: structured JSON output",
+            "description": "As an automation consumer, I want rt inspect find-undocumented to emit a JSON array when --json is passed so missing-doc reports can feed CI or doc generation tooling.",
+            "acceptanceCriteria": [
+                "--json outputs a JSON array; each element has {fqn, kind, file, line}",
+                "kind distinguishes between type, method, property, etc.",
+                "Without --json, plain-text output is unchanged",
+                "No undocumented members produces [] not blank",
+                "RtCommandInfo.JsonOutput is set to true",
+                "rt dump-help shows JSON output for find-undocumented"
+            ],
+            "priority": 47,
+            "urgency": 272,
+            "urgencyReason": "EP-007: find-undocumented JSON output. Lowest-traffic of the eight.",
+            "effort": 5,
+            "passes": false,
+            "epicId": "EP-007",
+            "notes": "P2. Command: src/RoslynTools.Cli/Commands/FindUndocumentedCommand.cs. Set RtCommandInfo.JsonOutput=true."
+        },
+        {
+            "id": "US-048",
+            "title": "rt inspect find-unused: structured JSON output",
+            "description": "As an automation consumer, I want rt inspect find-unused to emit a JSON array when --json is passed so dead-code reports can drive automated safe-delete workflows.",
+            "acceptanceCriteria": [
+                "--json outputs a JSON array; each element has {fqn, kind, file, line}",
+                "Without --json, plain-text output is unchanged",
+                "No unused symbols produces [] not blank",
+                "RtCommandInfo.JsonOutput is set to true",
+                "rt dump-help shows JSON output for find-unused"
+            ],
+            "priority": 48,
+            "urgency": 252,
+            "urgencyReason": "EP-007: find-unused JSON output. Common in cleanup workflows.",
+            "effort": 5,
+            "passes": false,
+            "epicId": "EP-007",
+            "notes": "P2. Command: src/RoslynTools.Cli/Commands/FindUnusedCommand.cs. Set RtCommandInfo.JsonOutput=true."
+        },
+        {
+            "id": "US-049",
+            "title": "rt analyze circular-deps: structured JSON output",
+            "description": "As an automation consumer, I want rt analyze circular-deps to emit a JSON array of cycle objects when --json is passed so dependency violations can be processed programmatically.",
+            "acceptanceCriteria": [
+                "--json outputs a JSON array of cycle objects; each has {cycle: [namespace, namespace, ...]}",
+                "Without --json, plain-text output is unchanged",
+                "No cycles produces [] not blank or zero-line",
+                "RtCommandInfo.JsonOutput is set to true",
+                "rt dump-help shows JSON output for circular-deps"
+            ],
+            "priority": 49,
+            "urgency": 256,
+            "urgencyReason": "EP-007: circular-deps JSON output. Common in architecture sweeps.",
+            "effort": 5,
+            "passes": false,
+            "epicId": "EP-007",
+            "notes": "P2. Command: src/RoslynTools.Cli/Commands/CircularDepsCommand.cs. Set RtCommandInfo.JsonOutput=true."
+        },
+        {
+            "id": "US-050",
+            "title": "rt analyze find-magic-strings: structured JSON output",
+            "description": "As an automation consumer, I want rt analyze find-magic-strings to emit a JSON array when --json is passed so repeated literals can be fed into automated extract-string-constant workflows.",
+            "acceptanceCriteria": [
+                "--json outputs a JSON array; each element has {value, count, occurrences: [{file, line}]}",
+                "occurrences is sorted by file then line",
+                "Without --json, plain-text output is unchanged",
+                "No magic strings produces [] not blank",
+                "RtCommandInfo.JsonOutput is set to true",
+                "rt dump-help shows JSON output for find-magic-strings"
+            ],
+            "priority": 50,
+            "urgency": 268,
+            "urgencyReason": "EP-007: find-magic-strings JSON output.",
+            "effort": 5,
+            "passes": false,
+            "epicId": "EP-007",
+            "notes": "P2. Command: src/RoslynTools.Cli/Commands/FindMagicStringsCommand.cs. Set RtCommandInfo.JsonOutput=true."
+        },
+        {
+            "id": "US-051",
+            "title": "rt analyze list-imports: structured JSON output",
+            "description": "As an automation consumer, I want rt analyze list-imports to emit a JSON array per-file when --json is passed so import audits can be processed programmatically.",
+            "acceptanceCriteria": [
+                "--json outputs a JSON array; each element has {file, usings: [{namespace, isGlobal, isStatic}]}",
+                "Without --json, plain-text output is unchanged",
+                "File with no usings is omitted or represented as {file, usings: []}",
+                "RtCommandInfo.JsonOutput is set to true",
+                "rt dump-help shows JSON output for list-imports"
+            ],
+            "priority": 51,
+            "urgency": 264,
+            "urgencyReason": "EP-007: list-imports JSON output.",
+            "effort": 5,
+            "passes": false,
+            "epicId": "EP-007",
+            "notes": "P2. Command: src/RoslynTools.Cli/Commands/ListImportsCommand.cs. Set RtCommandInfo.JsonOutput=true."
+        },
+        {
+            "id": "US-052",
+            "title": "rt analyze list-smells: structured JSON output",
+            "description": "As an automation consumer, I want rt analyze list-smells to emit a JSON array when --json is passed so code smell reports can feed automated refactor planning.",
+            "acceptanceCriteria": [
+                "--json outputs a JSON array; each element has {kind, description, fqn, file, line, severity}",
+                "severity is one of: warning, info",
+                "Without --json, plain-text output is unchanged",
+                "No smells produces [] not blank",
+                "RtCommandInfo.JsonOutput is set to true",
+                "rt dump-help shows JSON output for list-smells"
+            ],
+            "priority": 52,
+            "urgency": 260,
+            "urgencyReason": "EP-007: list-smells JSON output. Agent-driven refactor consumes this.",
+            "effort": 5,
+            "passes": false,
+            "epicId": "EP-007",
+            "notes": "P2. Command: src/RoslynTools.Cli/Commands/ListSmellsCommand.cs. Set RtCommandInfo.JsonOutput=true."
+        },
+        {
+            "id": "US-053",
+            "epicId": "EP-008",
+            "title": "Introduce IWorkspaceSessionFactory + WorkspaceSession (rt-006)",
+            "description": "As a developer, I want all commands to depend on IWorkspaceSessionFactory instead of calling WorkspaceLoader.LoadAsync directly so that the static coupling is broken and daemon workspace caching becomes possible.",
+            "acceptanceCriteria": [
+                "IWorkspaceSessionFactory interface defined in Core/ with LoadAsync(string? solutionPath) signature",
+                "WorkspaceSession : IWorkspaceSessionFactory introduced — instance wrapper delegating to static WorkspaceLoader internals",
+                "All ~30 production command handlers accept IWorkspaceSessionFactory, not WorkspaceLoader directly",
+                "No command file imports WorkspaceLoader after the change",
+                "rt inspect find-refs --symbol WorkspaceLoader --solution RoslynTools.slnx shows 0 production call sites",
+                "Architecture gate NoStaticWorkspaceLoaderUse (tests/RoslynTools.Tests/Architecture/) passes",
+                "All existing tests pass — WorkspaceLoader.UseOverride pattern updated to stub IWorkspaceSessionFactory",
+                "Must ship in same PR as US-054 (ISolutionApplier) — partial rollout is not safe"
+            ],
+            "priority": 53,
+            "urgency": 420,
+            "urgencyReason": "EP-008: IWorkspaceSessionFactory + WorkspaceSession. Must ship together with US-054 — splitting doubles the 30-command churn (per epic notes). Heaviest items → bottom of band.",
+            "effort": 13,
+            "passes": false,
+            "notes": "P2. Blast radius: 30 production call sites + 100+ test references (WorkspaceLoader.UseOverride). Architecture gate already exists. WorkspaceLoader is static so cannot implement the interface — WorkspaceSession wrapper is the bridge. From issue rt-006."
+        },
+        {
+            "id": "US-054",
+            "epicId": "EP-008",
+            "title": "Introduce ISolutionApplier and update mutation commands (rt-007)",
+            "description": "As a developer, I want all mutation commands to depend on ISolutionApplier instead of calling SolutionWriter.ApplyChangesAsync directly, bundled with US-053 so the 30-command update happens once.",
+            "acceptanceCriteria": [
+                "ISolutionApplier interface defined: Task ApplyAsync(Solution original, Solution updated, bool dryRun)",
+                "SolutionWriter implements ISolutionApplier",
+                "All mutation commands accept ISolutionApplier, not SolutionWriter directly",
+                "rt inspect find-refs --symbol SolutionWriter --solution RoslynTools.slnx shows 0 production call sites after change",
+                "All existing tests pass",
+                "Implemented in the same PR as US-053"
+            ],
+            "priority": 54,
+            "urgency": 424,
+            "urgencyReason": "EP-008: ISolutionApplier. Pair with US-053.",
+            "effort": 13,
+            "passes": false,
+            "notes": "P2. 22 fan-in from Commands scope. Must ship with US-053 — splitting doubles the churn across all 30 commands. From issue rt-007."
+        },
+        {
+            "id": "US-055",
+            "title": "Add rt refactor extract-orchestrator command (rt-003)",
+            "description": "As a developer, I want rt refactor extract-orchestrator to pull a command's SetHandler lambda body into a dedicated <Feature>Handler class so commands become thin CLI adapters with no workspace or business logic.",
+            "acceptanceCriteria": [
+                "rt refactor extract-orchestrator --type RoslynTools.Commands.ChangeSignatureCommand --name RenameParameterHandler --request RenameParameterRequest --namespace RoslynTools.Features.ChangeSignature --solution RoslynTools.slnx --dry-run produces the diff from ralph/sessions/2026-04-21-change-signature-2.md step 5",
+                "ChangeSignatureCommand.Build() drops from 76 to ~42 lines after apply",
+                "Command file no longer imports WorkspaceLoader or SolutionWriter after apply",
+                "Created handler class has signature: static async Task<int> HandleAsync(<RequestType> request)",
+                "Lambda body replaced with: context.ExitCode = await <HandlerName>.HandleAsync(new <RequestType>(...))",
+                "Using directives in the command file updated to reference the new handler namespace",
+                "--dry-run shows diff without writing; without flag, writes files",
+                "IRtCommand contract satisfied; command registered under rt refactor group",
+                "Test suite passes after apply (no broken imports)"
+            ],
+            "priority": 55,
+            "urgency": 310,
+            "urgencyReason": "extract-orchestrator command. Significant new feature; deferred until refactor infra stable.",
+            "effort": 8,
+            "passes": false,
+            "notes": "P2. Reference diff: ralph/sessions/2026-04-21-change-signature-2.md step 5. Linked to rt-004 (introduce-record) now shipped as transform-parameters. From issue rt-003."
+        },
+        {
+            "id": "US-056",
+            "title": "rt refactor rename: accept symbol FQN from stdin JSON for pipe chains (rt-008)",
+            "description": "As a developer, I want rt refactor rename to read a fullyQualifiedName from piped stdin JSON so that rt inspect find-refs | rt rename pipe chains work end-to-end.",
+            "acceptanceCriteria": [
+                "When stdin is redirected (Console.IsInputRedirected is true), rename reads the first JSON line and extracts fullyQualifiedName",
+                "Positional <symbol> argument takes precedence over stdin FQN if both are provided",
+                "Falls back gracefully to positional arg if stdin produces no FQN",
+                "rt inspect find-refs --symbol WorkspaceLoader --json | rt refactor rename --new-name SolutionLoader --dry-run produces the correct diff",
+                "No behaviour change when stdin is a TTY (non-pipe invocation)",
+                "Works with --dry-run and --solution flags as normal"
+            ],
+            "priority": 56,
+            "urgency": 230,
+            "urgencyReason": "rename: accept FQN from stdin JSON. Automation feature, single command.",
+            "effort": 2,
+            "passes": false,
+            "notes": "P2. First of the pipe-protocol tasks. Discovered in ralph/sessions/2026-05-04-daemon-protocol.md Step 4. Command: src/RoslynTools.Cli/Commands/RenameCommand.cs. From issue rt-008."
+        },
+        {
+            "id": "US-057",
+            "epicId": "EP-009",
+            "title": "Introduce a shared read-only command handler wrapper",
+            "description": "As an rt maintainer, I want read-only commands to execute through a shared wrapper so solution loading, timing, cancellation, error mapping, and result rendering are consistent.",
+            "acceptanceCriteria": [
+                "A shared wrapper exists for read-only handlers with one entry point used by migrated commands",
+                "The wrapper owns solution loading, cancellation token flow, exception-to-exit-code mapping, and output rendering",
+                "At least one representative inspect command and one analyze command are migrated to the wrapper",
+                "Migrated command tests cover success, not found, and invalid input paths",
+                "An architecture test detects migrated commands that bypass the wrapper"
+            ],
+            "priority": 57,
+            "urgency": 360,
+            "urgencyReason": "EP-009 opener: shared read-only command handler wrapper.",
+            "effort": 8,
+            "passes": false,
+            "notes": "P2. Start with a low-risk read-only command already using RtResult<T>."
+        },
+        {
+            "id": "US-058",
+            "epicId": "EP-009",
+            "title": "Standardize common CLI options through option factories",
+            "description": "As an rt maintainer, I want common options to be created by shared factories so aliases, descriptions, defaults, and required flags do not drift between commands.",
+            "acceptanceCriteria": [
+                "CommandOptionFactory exposes factories for solution, format/json, scope, top, symbol, type, dry-run, and verbose options",
+                "Existing migrated commands use the shared factories instead of manually declaring equivalent options",
+                "Factory-created options preserve current public CLI behavior unless explicitly documented",
+                "Tests assert consistent aliases and descriptions for at least solution, format/json, scope, and top",
+                "An architecture test flags manual declarations of common options in migrated command files"
+            ],
+            "priority": 58,
+            "urgency": 364,
+            "urgencyReason": "EP-009: standardize common CLI options via factory.",
+            "effort": 8,
+            "passes": false,
+            "notes": "P2. This should precede broad command migration to reduce repeated churn."
+        },
+        {
+            "id": "US-059",
+            "epicId": "EP-009",
+            "title": "Add machine-readable command capabilities to RtCommandInfo",
+            "description": "As an automation consumer, I want every command to declare its capabilities so agents can choose commands and output formats without scraping prose help.",
+            "acceptanceCriteria": [
+                "RtCommandInfo includes supported formats, scope support, top support, solution requirement, prompt support, and mutation flags",
+                "All existing commands compile with explicit capability values",
+                "dump-help includes the new capability metadata in its machine-readable output",
+                "Architecture tests require explicit capability values for every IRtCommand",
+                "At least one test verifies capability metadata matches actual command options"
+            ],
+            "priority": 59,
+            "urgency": 368,
+            "urgencyReason": "EP-009: machine-readable command capabilities in RtCommandInfo.",
+            "effort": 8,
+            "passes": false,
+            "notes": "P2. Capability names should stay stable for external automation."
+        },
+        {
+            "id": "US-060",
+            "epicId": "EP-009",
+            "title": "Normalize command outputs around shared result contracts",
+            "description": "As an automation consumer, I want rt commands to return shared result envelopes so success, empty, diagnostic, and change-plan outputs are predictable.",
+            "acceptanceCriteria": [
+                "Read-only commands use RtResult<TOutput> or an approved equivalent",
+                "Mutation commands use a shared change result contract such as RtChangeResult<TPlan>",
+                "Diagnostic commands use a shared diagnostic result contract such as RtDiagnosticResult",
+                "JSON output shape is documented and tested for success, empty, and error-like diagnostic cases",
+                "Architecture tests ratchet migrated commands away from ad hoc Console.WriteLine rendering"
+            ],
+            "priority": 60,
+            "urgency": 372,
+            "urgencyReason": "EP-009: normalize command outputs via shared result contract.",
+            "effort": 8,
+            "passes": false,
+            "notes": "P2. Builds on the existing RtResult<T> migration."
+        },
+        {
+            "id": "US-061",
+            "epicId": "EP-009",
+            "title": "Introduce SymbolQuery for consistent symbol resolution",
+            "description": "As an rt user, I want commands that accept symbols to resolve names, fully qualified names, and ambiguity in the same way across inspect and refactor workflows.",
+            "acceptanceCriteria": [
+                "SymbolQuery represents raw input, expected symbol kind, optional scope, and ambiguity policy",
+                "A shared resolver handles exact, fully qualified, and partial symbol matches",
+                "Ambiguous matches produce a consistent diagnostic payload with candidate symbols",
+                "At least two symbol-consuming commands are migrated to SymbolQuery",
+                "Tests cover exact match, no match, ambiguous match, and kind mismatch"
+            ],
+            "priority": 61,
+            "urgency": 376,
+            "urgencyReason": "EP-009: SymbolQuery for consistent symbol resolution.",
+            "effort": 8,
+            "passes": false,
+            "notes": "P2. This is a prerequisite for reliable pipe chains between inspect and refactor commands."
+        },
+        {
+            "id": "US-062",
+            "epicId": "EP-009",
+            "title": "Standardize command vocabulary and aliases",
+            "description": "As an rt user, I want equivalent concepts to use the same option names across commands so I do not have to relearn each workflow.",
+            "acceptanceCriteria": [
+                "Canonical option names are documented for --symbol, --type, --scope, --top, --format, --json, --solution, and --dry-run",
+                "Commands with equivalent concepts use the canonical option names and aliases",
+                "Legacy aliases remain where needed for compatibility and are documented as aliases",
+                "dump-help output groups canonical options consistently",
+                "Tests catch accidental introduction of a non-canonical common option name"
+            ],
+            "priority": 62,
+            "urgency": 380,
+            "urgencyReason": "EP-009: standardize command vocabulary and aliases.",
+            "effort": 8,
+            "passes": false,
+            "notes": "P2. Pair with option factory work when practical."
+        },
+        {
+            "id": "US-063",
+            "epicId": "EP-009",
+            "title": "Standardize command file structure",
+            "description": "As an rt contributor, I want command files to follow a common structure so reviews and automated refactors can reason about metadata, option construction, handler wiring, and logic boundaries.",
+            "acceptanceCriteria": [
+                "A command file structure convention is documented with metadata, option declarations, command construction, and handler binding order",
+                "At least three commands are migrated to the convention",
+                "Business logic is moved out of command construction for migrated commands when feasible",
+                "Tests or architecture rules catch obvious convention violations for migrated commands",
+                "The convention avoids broad rewrites for commands that still need larger handler extraction"
+            ],
+            "priority": 63,
+            "urgency": 384,
+            "urgencyReason": "EP-009: standardize command file structure.",
+            "effort": 8,
+            "passes": false,
+            "notes": "P3. Keep this incremental so it supports, rather than blocks, feature work."
+        },
+        {
+            "id": "US-064",
+            "epicId": "EP-009",
+            "title": "Add migration ratchets for command consistency",
+            "description": "As an rt maintainer, I want architecture tests to enforce only migrated command slices so consistency improves without forcing unsafe all-at-once rewrites.",
+            "acceptanceCriteria": [
+                "A migrated-command allowlist or marker exists for each enforced convention",
+                "Architecture tests fail when a marked command regresses from the wrapper, option factory, result contract, or metadata conventions",
+                "Tests report actionable command names and violated rules",
+                "Adding a command to the migrated set requires no test code duplication",
+                "The ratchet strategy is documented in the migration playbook"
+            ],
+            "priority": 64,
+            "urgency": 388,
+            "urgencyReason": "EP-009: migration ratchets for command consistency.",
+            "effort": 8,
+            "passes": false,
+            "notes": "P2. This formalizes the dogfooding approach used during the command output migration."
+        },
+        {
+            "id": "US-065",
+            "epicId": "EP-009",
+            "title": "Make dump-help metadata-driven and consistency-tested",
+            "description": "As an automation consumer, I want rt dump-help to reflect command metadata and options consistently so it can be trusted as the command contract.",
+            "acceptanceCriteria": [
+                "dump-help derives command categories, output formats, and capabilities from RtCommandInfo where available",
+                "dump-help includes consistent option metadata for common option factories",
+                "Tests verify every registered command appears in dump-help",
+                "Tests verify commands declaring JSON or structured formats expose matching options",
+                "Human-readable help remains concise and does not duplicate stale hand-written metadata"
+            ],
+            "priority": 65,
+            "urgency": 392,
+            "urgencyReason": "EP-009: make dump-help metadata-driven and consistency-tested.",
+            "effort": 8,
+            "passes": false,
+            "notes": "P2. This turns command metadata into a visible contract for agents."
+        },
+        {
+            "id": "US-066",
+            "epicId": "EP-009",
+            "title": "Create a command migration playbook",
+            "description": "As an rt contributor, I want a concise migration playbook so future command refactors follow the same sequence and know which architecture ratchets to update.",
+            "acceptanceCriteria": [
+                "A playbook documents the recommended order: result contract, option factories, handler wrapper, capabilities, symbol query, and ratchet update",
+                "The playbook includes a before/after checklist for one migrated command",
+                "The playbook explains when to use feedback for missing rt affordances",
+                "The playbook lists verification commands including architecture tests and targeted command tests",
+                "The playbook is linked from the relevant backlog epic or developer docs"
+            ],
+            "priority": 66,
+            "urgency": 396,
+            "urgencyReason": "EP-009: command migration playbook. Closes EP-009.",
+            "effort": 8,
+            "passes": false,
+            "notes": "P3. Keep this short and operational; it should support ongoing dogfooding rather than becoming a design document."
+        },
+        {
+            "id": "US-067",
+            "title": "Revisit nested-branch pattern in execute skill for trunk-based repos",
+            "description": "As a developer running /execute on a trunk repo, I want a clear consistent policy on RT gap handling, so the skill matches the actual workflow.",
+            "acceptanceCriteria": [
+                "The skill documents a clear policy: nested branches OR fix-on-main for trunk repos — not both",
+                "The Opus review section and regression handler are consistent with the chosen policy",
+                "The branch cleanup gate is present or removed to match",
+                "Risks of fix-on-main are documented (no revert path) if that approach is chosen"
+            ],
+            "priority": 67,
+            "urgency": 322,
+            "urgencyReason": "Revisit nested-branch pattern in execute skill. Process improvement, no production impact. Smallest H-band item → top of band.",
+            "effort": 5,
+            "passes": false,
+            "notes": "P3. Deferred from 2026-05-15 retro (Proposal 4). Aggressive version in ai-rules commit 8c1a08a; conservative rollback in dae9046. Three places still inconsistent: RT gap section, Opus review section, regression handler. Must be decided and applied consistently."
+        },
+        {
+            "id": "RT-001",
+            "title": "rt dump-help --json: emit machine-readable command catalog",
+            "description": "As an LLM agent, I want `rt dump-help --json` to emit the full RtCommandInfo catalog as structured JSON so I can ingest the command surface programmatically instead of parsing prose.",
+            "acceptanceCriteria": [
+                "`rt dump-help --json` exits 0 and writes valid JSON to stdout.",
+                "The JSON document includes every command discovered by the reflection-based registry — the command count equals what plain `rt dump-help` reports.",
+                "Each command entry includes Name, Category, Mutates, JsonOutput, Aliases, WhenToUse, Examples, KnownIssues, and SupportedFormats from RtCommandInfo. Missing or null fields are represented explicitly (no silent drops).",
+                "The plain `rt dump-help` (no flag) text output is byte-identical to today's — JSON is purely additive.",
+                "An LLM can parse the JSON output and reconstruct the command surface without reading any source file or markdown.",
+                "If `--strict-json` is passed alongside, the output is RFC 8259 compliant (non-ASCII escaped as \\uXXXX)."
+            ],
+            "priority": 69,
+            "urgency": 240,
+            "urgencyReason": "rt dump-help --json — unlocks agent automation; touches one command. Opens the EP-007 wave.",
+            "effort": 5,
+            "passes": false,
+            "notes": "P2. Deferred from LLM-ergonomics quick-wins plan. The RtCommandInfo record and reflection-discovered registry in App.cs already expose every field — wiring it through JsonRenderer should be near-free. Affected files: src/RoslynTools.Cli/Commands/DumpHelpCommand.cs, src/RoslynTools/Core/RtCommandInfo.cs."
+        },
+        {
+            "id": "RT-002",
+            "title": "Expand command help text with output shape, exit codes, and error modes",
+            "description": "As an LLM agent, I want every rt command's --help to describe its output shape, exit codes, and common error modes so I can predict behaviour without source-diving or trial-and-error.",
+            "acceptanceCriteria": [
+                "Every command's `--help` output includes a section stating the output format (text vs JSON vs both, mutating vs read-only).",
+                "Every command's `--help` lists the exit codes it can return (0, 1, 2) and the trigger for each (success / error / decisions required).",
+                "Every command's `--help` lists at least one common error mode the user should expect (e.g. \"symbol not found\", \"ambiguous match without --decisions\", \"file outside solution\").",
+                "Information is sourced from RtCommandInfo (or a new metadata field on it) rather than hand-maintained in each Command.cs — no drift between help and reality.",
+                "`docs/COMMANDS.md` regenerates on build and includes the new fields for every command.",
+                "An LLM reading only `rt <cmd> --help` can predict the shape of stdout, stderr, and exit code for both success and the most common failure."
+            ],
+            "priority": 70,
+            "urgency": 222,
+            "urgencyReason": "Expand command help text with output shape + exit codes. Smallest of the discoverability wave — floats first.",
+            "effort": 2,
+            "passes": false,
+            "notes": "P2. Deferred from LLM-ergonomics quick-wins plan. Sampled commands (DescribeCommand, FindCallersCommand, ExtractMethodCommand) currently have one-line descriptions only — no failure mode docs, no output schema. Drive from RtCommandInfo so docs/COMMANDS.md stays in sync."
+        },
+        {
+            "id": "RT-003",
+            "title": "Make --decisions YAML schema self-discoverable from the CLI",
+            "description": "As an LLM agent, I want the --decisions YAML schema to be discoverable from rt --help (or a meta sub-command) so I can author a decisions file without reading DecisionStore.cs source.",
+            "acceptanceCriteria": [
+                "`rt --help` (or a sub-command such as `rt decisions --schema`) prints the YAML schema for the --decisions file.",
+                "The printed schema documents every field used today (id, q, options, choose) with types and a one-line description per field.",
+                "A complete worked example is included: the YAML rt would write on first run, plus the same YAML with `choose:` filled in by the user.",
+                "An LLM that has not read source can author or edit a --decisions YAML correctly using only CLI help output.",
+                "When --decisions YAML fails to parse or is missing a required field, stderr reports which file and which entry (id) is malformed — not a stack trace.",
+                "Existing --decisions behaviour (exit 2, write pending entries) is unchanged."
+            ],
+            "priority": 71,
+            "urgency": 226,
+            "urgencyReason": "Self-describing --decisions YAML schema.",
+            "effort": 2,
+            "passes": false,
+            "notes": "P3. Deferred from LLM-ergonomics quick-wins plan. The mechanism is mentioned in --help but the file structure (fields, indices, how to fill the choose field) requires source inspection today. Affected files: src/RoslynTools/Core/Decisions/DecisionStore.cs, src/RoslynTools/Core/Decisions/DecisionEntry.cs, src/RoslynTools.Cli/App.cs."
+        },
+        {
+            "id": "RT-004",
+            "title": "Finish stderr discipline migration: Console.Write to RtLog/RtConsole",
+            "description": "As an LLM agent piping stdout to a parser and stderr to logs, I want every rt command to honour the stdout=results, stderr=diagnostics contract so I can rely on stream separation without per-command quirks.",
+            "acceptanceCriteria": [
+                "No remaining `Console.Write*` calls exist in src/RoslynTools/Commands/ or src/RoslynTools.Cli/Commands/ (verified by grep, gated in CI or a unit test).",
+                "All progress and diagnostic messages from command handlers route through RtLog.* (stderr).",
+                "All primary command results route through RtConsole.Write (stdout).",
+                "Existing tests pass without modification (output contracts preserved).",
+                "docs/logging-standards.md is updated to remove the \"migration incomplete\" notice and document the now-enforced convention.",
+                "An LLM piping stdout to a JSON parser and stderr to logs gets clean separation across every command."
+            ],
+            "priority": 72,
+            "urgency": 180,
+            "urgencyReason": "Finish stderr discipline migration: stray Console.Write to stdout in error paths. Completes a longstanding push.",
+            "effort": 5,
+            "passes": false,
+            "notes": "P2. Deferred from LLM-ergonomics quick-wins plan. docs/logging-standards.md acknowledges the migration is in progress; several commands still call Console.Write directly. Maintenance work — does not change LLM behaviour at runtime today, but eliminates a future regression vector."
+        },
+        {
+            "id": "US-069",
+            "title": "Bring src/RoslynTools.Cli/ into Stryker mutation pilot",
+            "description": "src/RoslynTools.Cli/Commands/MakeSealedCommand.cs, DebugCommand.cs, and Results/DebugResult.cs are matched by stryker-config.json mutate globs but silently skipped by Stryker because the configured project is src/RoslynTools/RoslynTools.csproj (core library only). The pre-commit gate fires the glob-coverage check but Stryker never mutates Cli-project code, so the contract is paper-only.",
+            "acceptanceCriteria": [
+                "stryker-config.json `project` is extended (or a second config introduced) so that files under `src/RoslynTools.Cli/` actually get mutated when matched by mutate globs",
+                "Existing globs `**/Commands/MakeSealedCommand.cs`, `**/Commands/DebugCommand.cs`, `**/Commands/Results/DebugResult.cs` produce non-zero mutant counts in the Stryker report (currently zero — silently skipped)",
+                "Each of those files reaches 100% mutation score (kill, delete, or mark equivalent per CLAUDE.md)",
+                "Pre-commit gate continues to block on staged Cli production files that aren't covered"
+            ],
+            "priority": 73,
+            "urgency": 152,
+            "urgencyReason": "Mutation pilot rollout: memory project_mutation_pilot_project_boundary explicitly flags Cli files are silently skipped today. Stryker config + gate currently does not defend src/RoslynTools.Cli/.",
+            "effort": 2,
+            "passes": false,
+            "notes": "Discovered 2026-05-20 while landing the Debug 100% mutation work. Existing Cli files in mutate globs were authored under the assumption that Stryker would cover them."
+        },
+        {
+            "id": "US-070",
+            "title": "Bring src/RoslynTools.Mcp/ into Stryker mutation pilot",
+            "description": "src/RoslynTools.Mcp/ is a separate csproj from the core library and the existing Cli. stryker-config.json's project field points at the core library, so Mcp files are never matched by the Stryker run even when added to mutate globs. The pre-commit gate currently has no useful path other than RT_MUTATION_ALLOW_UNSCOPED=1 when any Mcp file is staged.",
+            "acceptanceCriteria": [
+                "src/RoslynTools.Mcp/RoslynTools.Mcp.csproj has a matching Stryker config or is included in the existing one such that its production files participate in mutation testing",
+                "src/RoslynTools.Mcp/Tools/CliCommandBridge.cs and ToolSchemaBuilder.cs reach 100% mutation score (kill, delete, or mark equivalent)",
+                "Pre-commit gate runs Stryker against Mcp files when staged — RT_MUTATION_ALLOW_UNSCOPED=1 is no longer needed for Mcp commits",
+                "tests/RoslynTools.Tests.Mcp/ is used as the Stryker test-projects entry (already present)"
+            ],
+            "priority": 74,
+            "urgency": 156,
+            "urgencyReason": "Same scope as US-069 for src/RoslynTools.Mcp/. Finishes the Stryker rollout.",
+            "effort": 2,
+            "passes": false,
+            "notes": "Discovered 2026-05-20: committed df9e43a (MCP array pass-through) used the bypass for this reason. Likely solved together with the Cli pilot story (US-069) by switching to a multi-project or per-project Stryker setup."
+        }
+    ]
 }
