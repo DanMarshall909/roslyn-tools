@@ -300,6 +300,32 @@ public class SolidIspTests
     }
 
     [Fact]
+    public async Task record_synthesized_equals_is_not_flagged_when_sibling_throws()
+    {
+        // Regression: record-synthesized Equals (from IEquatable<T>) has its
+        // DeclaringSyntaxReferences pointing at the record declaration, which
+        // would include sibling members that throw — those must not be attributed
+        // to the synthesized member.
+        var report = await AnalyzeSourceAsync("""
+            public interface IRtOutput
+            {
+                void RenderText(System.IO.TextWriter writer);
+            }
+            public sealed record FakeResult : IRtOutput
+            {
+                public required string Name { get; init; }
+                public void RenderText(System.IO.TextWriter writer)
+                {
+                    throw new System.NotSupportedException("Use the parent renderer");
+                }
+            }
+            """);
+        // Only RenderText should be flagged, not Equals or GetHashCode.
+        Assert.Single(report.UnimplementedMembers);
+        Assert.Equal("RenderText", report.UnimplementedMembers[0].MemberName);
+    }
+
+    [Fact]
     public async Task abstract_class_throwing_on_interface_member_is_not_flagged()
     {
         // Abstract classes are typically excluded from "concrete implementation" checks

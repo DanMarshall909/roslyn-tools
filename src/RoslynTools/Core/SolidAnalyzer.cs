@@ -191,6 +191,12 @@ internal static class SolidAnalyzer
                 if (!SymbolEqualityComparer.Default.Equals(impl.ContainingType, classSymbol))
                     continue;
 
+                // Skip compiler-synthesized members (e.g. record-generated Equals/GetHashCode)
+                // — their DeclaringSyntaxReferences point at the type declaration,
+                // which can yield spurious throw matches from sibling members.
+                if (impl.IsImplicitlyDeclared)
+                    continue;
+
                 if (!ImplementationThrowsNotImplemented(impl))
                     continue;
 
