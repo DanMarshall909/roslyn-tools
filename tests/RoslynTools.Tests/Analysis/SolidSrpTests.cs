@@ -442,35 +442,35 @@ public class SolidSrpTests
     [Fact]
     public async Task execute_async_returns_1_for_negative_min_methods()
     {
-        var exitCode = await SolidCommand.ExecuteAsync(null, "SRP", -1, 5);
+        var exitCode = await SolidCommand.ExecuteAsync(null, "SRP", -1, 5, 7);
         Assert.Equal(1, exitCode);
     }
 
     [Fact]
     public async Task execute_async_returns_1_for_negative_min_deps()
     {
-        var exitCode = await SolidCommand.ExecuteAsync(null, "SRP", 10, -1);
+        var exitCode = await SolidCommand.ExecuteAsync(null, "SRP", 10, -1, 7);
         Assert.Equal(1, exitCode);
     }
 
     [Fact]
     public async Task execute_async_returns_1_for_invalid_principle()
     {
-        var exitCode = await SolidCommand.ExecuteAsync(null, "OCP", 10, 5);
+        var exitCode = await SolidCommand.ExecuteAsync(null, "OCP", 10, 5, 7);
         Assert.Equal(1, exitCode);
     }
 
     [Fact]
     public async Task execute_async_returns_0_for_valid_srp_principle()
     {
-        var exitCode = await SolidCommand.ExecuteAsync(null, "SRP", 10, 5);
+        var exitCode = await SolidCommand.ExecuteAsync(null, "SRP", 10, 5, 7);
         Assert.Equal(0, exitCode);
     }
 
     [Fact]
     public async Task execute_async_returns_0_for_all_principle()
     {
-        var exitCode = await SolidCommand.ExecuteAsync(null, "all", 10, 5);
+        var exitCode = await SolidCommand.ExecuteAsync(null, "all", 10, 5, 7);
         Assert.Equal(0, exitCode);
     }
 

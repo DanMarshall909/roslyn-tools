@@ -390,4 +390,40 @@ public class SolidIspTests
         Assert.Equal(JsonValueKind.Array, fat.ValueKind);
         Assert.Equal(JsonValueKind.Array, unimpl.ValueKind);
     }
+
+    // -----------------------------------------------------------------------
+    // Batch 3: SolidCommand CLI wiring for ISP
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task execute_async_returns_0_for_valid_isp_principle()
+    {
+        var exitCode = await SolidCommand.ExecuteAsync(null, "ISP", 10, 5, 7);
+        Assert.Equal(0, exitCode);
+    }
+
+    [Fact]
+    public async Task execute_async_returns_1_for_negative_min_members()
+    {
+        var exitCode = await SolidCommand.ExecuteAsync(null, "ISP", 10, 5, -1);
+        Assert.Equal(1, exitCode);
+    }
+
+    [Fact]
+    public void execute_async_defaults_min_members_to_7()
+    {
+        var cmd = SolidCommand.Build();
+        var minMembersOpt = cmd.Options.OfType<Option<int>>()
+            .First(o => o.Name == "min-members");
+        Assert.Equal(7, minMembersOpt.Parse("").GetValueForOption(minMembersOpt));
+    }
+
+    [Fact]
+    public void principle_help_mentions_ISP()
+    {
+        var cmd = SolidCommand.Build();
+        var principleOpt = cmd.Options.OfType<Option<string>>()
+            .First(o => o.Name == "principle");
+        Assert.Contains("ISP", principleOpt.Description, StringComparison.Ordinal);
+    }
 }
