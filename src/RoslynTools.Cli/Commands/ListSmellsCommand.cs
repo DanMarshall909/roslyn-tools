@@ -64,7 +64,7 @@ internal sealed class ListSmellsCommand : IRtCommand
             }
 
             var sp = ctx.BindingContext.GetService<IServiceProvider>();
-            var loader = sp?.GetService<WorkspaceLoader>() ?? new WorkspaceLoader();
+            var loader = sp?.GetService<IWorkspaceSessionFactory>() ?? IWorkspaceSessionFactory.CreateDefault();
             var sln = await loader.GetSolutionAsync(solution);
 
             RtLog.Info("Analyzing solution for code smells...");

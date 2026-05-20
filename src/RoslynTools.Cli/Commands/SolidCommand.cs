@@ -51,7 +51,7 @@ internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand
         cmd.SetHandler(async context =>
         {
             var sp = context.BindingContext.GetService<IServiceProvider>();
-            var loader = sp?.GetService<WorkspaceLoader>() ?? new WorkspaceLoader();
+            var loader = sp?.GetService<IWorkspaceSessionFactory>() ?? IWorkspaceSessionFactory.CreateDefault();
             context.ExitCode = await ExecuteAsync(
                 context.ParseResult.GetValueForOption(solutionOpt),
                 context.ParseResult.GetValueForOption(principleOpt)!,
@@ -67,7 +67,7 @@ internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand
 
     internal static async Task<int> ExecuteAsync(
         string? solution, string principle, int minMethods, int minDeps, int minMembers, int minBranches,
-        WorkspaceLoader? loader = null)
+        IWorkspaceSessionFactory? loader = null)
     {
         if (minMethods < 0)
         {
@@ -100,7 +100,7 @@ internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand
             return 1;
         }
 
-        var effectiveLoader = loader ?? new WorkspaceLoader();
+        var effectiveLoader = loader ?? IWorkspaceSessionFactory.CreateDefault();
         var sln = await effectiveLoader.GetSolutionAsync(solution);
         RtLog.Info("Analyzing SOLID principles...");
 

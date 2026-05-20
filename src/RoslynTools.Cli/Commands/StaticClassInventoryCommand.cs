@@ -41,7 +41,7 @@ internal sealed class StaticClassInventoryCommand : IRtCommand, IStructuredOutpu
         {
             var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
             var sp = ctx.BindingContext.GetService<IServiceProvider>();
-            var loader = sp?.GetService<WorkspaceLoader>() ?? new WorkspaceLoader();
+            var loader = sp?.GetService<IWorkspaceSessionFactory>() ?? IWorkspaceSessionFactory.CreateDefault();
 
             var sln = await loader.GetSolutionAsync(solution);
             var report = await RtServiceProvider.Get<StaticClassInventoryService>().AnalyzeAsync(sln);

@@ -50,7 +50,7 @@ internal sealed class FindRefsCommand : IRtCommand
             var symbol = ctx.ParseResult.GetValueForOption(symbolOpt)!;
             var kind = ctx.ParseResult.GetValueForOption(kindOpt);
             var sp = ctx.BindingContext.GetService<IServiceProvider>();
-            var loader = sp?.GetService<WorkspaceLoader>() ?? new WorkspaceLoader();
+            var loader = sp?.GetService<IWorkspaceSessionFactory>() ?? IWorkspaceSessionFactory.CreateDefault();
             var sln = await loader.GetSolutionAsync(solution);
             var result = await RtServiceProvider.Get<FindRefsService>().FindAsync(sln, symbol, kind);
             RtResultRenderer.WriteOutput(RtResult<FindRefsResult>.Ok(result));

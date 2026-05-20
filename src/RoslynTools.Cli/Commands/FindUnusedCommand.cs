@@ -48,7 +48,7 @@ internal sealed class FindUnusedCommand : IRtCommand
             var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
             var scope = ctx.ParseResult.GetValueForOption(scopeOpt);
             var sp = ctx.BindingContext.GetService<IServiceProvider>();
-            var loader = sp?.GetService<WorkspaceLoader>() ?? new WorkspaceLoader();
+            var loader = sp?.GetService<IWorkspaceSessionFactory>() ?? IWorkspaceSessionFactory.CreateDefault();
 
             var sln = await loader.GetSolutionAsync(solution);
             var symbols = await RtServiceProvider.Get<FindUnusedService>().AnalyzeAsync(sln, scope ?? "all");

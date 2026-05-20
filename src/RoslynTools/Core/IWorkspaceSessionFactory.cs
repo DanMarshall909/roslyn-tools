@@ -10,6 +10,16 @@ namespace RoslynTools.Core;
 internal interface IWorkspaceSessionFactory
 {
     /// <summary>
+    ///     The sanctioned default factory for code paths that may run without an
+    ///     IServiceProvider (e.g. tests that call <c>App.RunAsync</c> with
+    ///     <c>services: null</c>). Centralising the construction here is what
+    ///     lets the <c>NoConcreteWorkspaceLoaderInProduction</c> architecture
+    ///     gate ban every other production reference to the concrete
+    ///     <c>WorkspaceLoader</c>.
+    /// </summary>
+    static IWorkspaceSessionFactory CreateDefault() => new WorkspaceLoader();
+
+    /// <summary>
     ///     Load and return the solution. The implementation owns the underlying
     ///     <see cref="Workspace" /> for its lifetime; callers must not dispose it.
     /// </summary>

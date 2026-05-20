@@ -57,7 +57,7 @@ internal sealed class DependencyGraphCommand : IRtCommand, IStructuredOutputComm
             var scope = ctx.ParseResult.GetValueForOption(scopeOpt);
             var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
             var sp = ctx.BindingContext.GetService<IServiceProvider>();
-            var loader = sp?.GetService<WorkspaceLoader>() ?? new WorkspaceLoader();
+            var loader = sp?.GetService<IWorkspaceSessionFactory>() ?? IWorkspaceSessionFactory.CreateDefault();
 
             var sln = await loader.GetSolutionAsync(solution);
             var result = await RtServiceProvider.Get<DependencyGraphService>()
