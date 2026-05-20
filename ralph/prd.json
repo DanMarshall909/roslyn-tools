@@ -399,7 +399,12 @@
             "passes": 0,
             "notes": "Driven by quality-first rule (2026-05-15): refuses the substring-matching shortcut and instead models routine vs bug differences in the type system. Replaces the deferred classification half of US-042. Large change — touches ~10-15 throw sites and every caller — sequence carefully via /execute with TDD.",
             "resolution": "",
-            "resolvedAt": ""
+            "resolvedAt": "",
+            "paused": true,
+            "pauseAt": "2026-05-20",
+            "pauseBranch": "wip/US-068",
+            "pauseQuestion": "Commit to introducing Result<T, RtError> ADT across SymbolLocator/WorkspaceLoader/MethodExtractor and the App exception ladder in one batch, or sequence it incrementally (e.g. SymbolLocator first, then WorkspaceLoader, then MethodExtractor) across smaller stories?",
+            "pauseContext": "13-effort cross-cutting architectural change. Story prescribes specific types (Result<T, RtError> ADT, RtError record with Kind enum {NotFound, InvalidInput, AmbiguousMatch, WorkspaceLoadFailure}) and a typed catch ladder in App.CaptureExceptionAsync — architectural commitments warranting a human call before an autonomous run sprays them across the codebase.\n\nBlast radius: 4 SymbolLocator methods (FindSymbolAsync, FindSymbolByFqnAsync, FindTypeByFqnAsync, FindMethodBySpecAsync), WorkspaceLoader.LoadAsync (tuple-returning Result), MethodExtractor user-input validations (no statements in range, multiple parent blocks, return statements in selection, --after + --before conflict), and every caller of those APIs across src/RoslynTools/Commands/ (~30+ sites). Also adds typed catches for FileNotFoundException, DirectoryNotFoundException, ArgumentException, JsonException in App.CaptureExceptionAsync.\n\nSupersedes the substring-matching deferred half of US-042 (which currently does substring-matching in App.TryHandleUserErrorAsync). Open question whether US-042's handler stays alongside the typed ladder or is replaced wholesale.\n\nVerified: no existing Result<T> or RtError types in src/RoslynTools/Core/ (grep returned no matches). Start sha 1b4118d already had the promotion commit on main; no working changes attempted."
         }
     ]
 }
