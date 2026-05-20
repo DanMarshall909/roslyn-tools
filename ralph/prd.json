@@ -301,6 +301,24 @@
             "notes": "P1. WorkspaceLoader.cs:84 throws FileNotFoundException; it propagates unhandled through the System.CommandLine pipeline. Catch at the top-level UseExceptionHandler in App.cs (or at the throw site) and emit a single stderr line. No stack trace in normal output.",
             "resolution": "Added TryHandleUserErrorAsync helper in App.cs middleware that catches FileNotFoundException, emits 'solution not found: <path>' via RtLog.Error, sets exit code 1, and returns without rethrowing. WorkspaceLoader.ResolveSolutionPath now passes the offending path as FileNotFoundException.FileName so callers can format without parsing the message. Subprocess-level test in CliBootstrap.cs verifies exit 1 + clean stderr + no stack trace.",
             "resolvedAt": "2026-05-20"
+        },
+        {
+            "id": "US-042",
+            "title": "Catch common exception types in UseExceptionHandler and emit clean exit-1 messages",
+            "description": "As a developer using rt, I want routine exceptions (bad file, bad JSON, not-found) to produce a single clean error line to stderr, not an unhandled exception stack trace.",
+            "acceptanceCriteria": [
+                "UseExceptionHandler in App.cs catches FileNotFoundException, IOException, InvalidOperationException, JsonException, and YamlException and emits a single 'Error: <message>' line to stderr with exit code 1",
+                "No stack trace or 'Unhandled exception:' prefix appears for these exception types",
+                "Exceptions from DecisionStore.Load/Save (FileNotFoundException, YamlException, IOException) are handled the same way",
+                "Exceptions from AddXmlDocCommand JSON file loading are handled the same way",
+                "Unexpected exceptions (not in the list above) still surface as unhandled so they are visible during development"
+            ],
+            "priority": 42,
+            "urgency": 1,
+            "urgencyReason": "Live telemetry: ralph/feedback.json FB-027/028 (2026-05-20) — users hit unhandled InvalidOperationException on analyze-interface non-interface input. Enforces \"no exceptions for results\" rule.",
+            "effort": 2,
+            "passes": false,
+            "notes": "P1. App.cs UseExceptionHandler currently does not catch typed exceptions. Catch: FileNotFoundException, IOException, InvalidOperationException, JsonException, YamlException. Format as 'Error: <ex.Message>' to stderr, exit 1. Covers: WorkspaceLoader throws beyond the missing-solution case (US-041), DecisionStore.Load/Save, AddXmlDocCommand JSON load, MigrateToIOptionsService."
         }
     ]
 }

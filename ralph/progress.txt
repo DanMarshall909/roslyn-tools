@@ -1,7 +1,7 @@
 roslyn-tools
 Branch: feat/analyze-complexity
 
-Current Status: 11/11 stories complete (100%)
+Current Status: 11/12 stories complete (92%)
 
 Stories
 [x] US-001 Add rt analyze complexity command
@@ -15,3 +15,4 @@ Stories
 [x] US-031 rt: replace-new argument-reshaping — drop matched arg, keep remaining args
 [x] US-032 rt analyze solid: SRP detector — flag classes with high method/dependency count
 [x] US-041 Convert solution-not-found crash to clean exit-1 error message
+[ ] US-042 Catch common exception types in UseExceptionHandler and emit clean exit-1 messages

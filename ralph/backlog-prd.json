@@ -209,24 +209,6 @@
             "notes": "P2. Affects WorkspaceLoader / MSBuildWorkspace diagnostic handling. Suppress all MSBuildWorkspace diagnostics by default; add --show-workspace-warnings global flag to restore them. Genuine load errors (exit 1) must still surface."
         },
         {
-            "id": "US-042",
-            "title": "Catch common exception types in UseExceptionHandler and emit clean exit-1 messages",
-            "description": "As a developer using rt, I want routine exceptions (bad file, bad JSON, not-found) to produce a single clean error line to stderr, not an unhandled exception stack trace.",
-            "acceptanceCriteria": [
-                "UseExceptionHandler in App.cs catches FileNotFoundException, IOException, InvalidOperationException, JsonException, and YamlException and emits a single 'Error: <message>' line to stderr with exit code 1",
-                "No stack trace or 'Unhandled exception:' prefix appears for these exception types",
-                "Exceptions from DecisionStore.Load/Save (FileNotFoundException, YamlException, IOException) are handled the same way",
-                "Exceptions from AddXmlDocCommand JSON file loading are handled the same way",
-                "Unexpected exceptions (not in the list above) still surface as unhandled so they are visible during development"
-            ],
-            "priority": 42,
-            "urgency": 1,
-            "urgencyReason": "Live telemetry: ralph/feedback.json FB-027/028 (2026-05-20) — users hit unhandled InvalidOperationException on analyze-interface non-interface input. Enforces \"no exceptions for results\" rule.",
-            "effort": 2,
-            "passes": false,
-            "notes": "P1. App.cs UseExceptionHandler currently does not catch typed exceptions. Catch: FileNotFoundException, IOException, InvalidOperationException, JsonException, YamlException. Format as 'Error: <ex.Message>' to stderr, exit 1. Covers: WorkspaceLoader throws beyond the missing-solution case (US-041), DecisionStore.Load/Save, AddXmlDocCommand JSON load, MigrateToIOptionsService."
-        },
-        {
             "id": "US-043",
             "title": "Replace Environment.Exit(1) in OutlineCommand with context.ExitCode = 1",
             "description": "As a developer, I want OutlineCommand to exit consistently with all other commands so that graceful cleanup runs on error.",
