@@ -13,6 +13,7 @@ internal static class Bootstrap
     public static void RegisterServices(IServiceCollection services)
     {
         services.AddSingleton<WorkspaceLoader>();
+        services.AddSingleton<IWorkspaceSessionFactory>(sp => sp.GetRequiredService<WorkspaceLoader>());
         services.AddSingleton<GitService>();
         services.AddSingleton<DaemonClient>();
         services.AddSingleton<ISymbolResolutionService, SymbolResolutionService>();
