@@ -357,6 +357,25 @@
       "notes": "P2. SymbolLocator.cs lines ~49, 96, 135, 188 and MethodExtractor.cs lines ~57, 164, 168, 378, 501, 529-532 call .First()/.Last() on sequences that could be empty under certain inputs. Replace with FirstOrDefault + null check or add pre-call validation.",
       "resolution": "No-op: all 12 .First()/.Last() sites are invariant by construction. SymbolLocator: all four sites are g.First() after GroupBy — a group always has at least one element. MethodExtractor: all eight sites flow downstream of the selected.Count == 0 validation at line 350, which throws InvalidOperationException(\"No statements found in lines X-Y...\") before any First()/Last() call. AC3 (descriptive error + exit 1 instead of crash) is now satisfied automatically via US-042 catching InvalidOperationException and emitting Error: + exit 1. Verified end-to-end: rt inspect find-refs --symbol DoesNotExistSymbolFoo and rt refactor extract-method --start-line 9000 --end-line 9001 both produce descriptive stderr lines and exit 1. No code change needed.",
       "completedAt": "2026-05-20"
+    },
+    {
+      "id": "US-040",
+      "title": "Suppress MSBuild workspace warnings by default; opt in with --show-workspace-warnings",
+      "description": "As a developer using rt, I want MSBuild workspace warnings suppressed by default so that NuGet audit noise and compatibility warnings from the loaded solution don't pollute rt's output.",
+      "acceptanceCriteria": [
+        "All MSBuild workspace warnings are suppressed from stderr by default when rt loads a solution",
+        "A --show-workspace-warnings flag (or equivalent) re-enables them for debugging",
+        "Genuine solution load errors that prevent rt from running still exit 1 with a clear message",
+        "The [workspace-warnings] block does not appear in normal output"
+      ],
+      "priority": 40,
+      "urgency": 62,
+      "urgencyReason": "Daily noise: MSBuild workspace warnings block pollutes every command's stderr. Suppress by default; --show-workspace-warnings opt-in.",
+      "effort": 2,
+      "passes": true,
+      "notes": "P2. Affects WorkspaceLoader / MSBuildWorkspace diagnostic handling. Suppress all MSBuildWorkspace diagnostics by default; add --show-workspace-warnings global flag to restore them. Genuine load errors (exit 1) must still surface.",
+      "resolution": "No-op: --show-workspace-warnings global flag already exists (App.cs RegisterGlobalOptions line 235-236) and is plumbed through RtContext.ShowWorkspaceWarnings. Verified end-to-end: rt inspect describe ProjectX.Service.Services.ServiceController --solution ProjectX.Libraries.sln produces zero stderr lines by default (AC1, AC4); passing --show-workspace-warnings emits 26 lines of NuGet audit / MSBuild warnings (AC2); US-042 ensures genuine solution-load errors still produce Error: + exit 1 (AC3). All four ACs satisfied by existing code.",
+      "completedAt": "2026-05-20"
     }
   ]
 }

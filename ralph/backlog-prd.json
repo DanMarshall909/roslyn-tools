@@ -192,23 +192,6 @@
       "notes": "P2. df dogfood bug. Sibling of the no-constructor formatting bug fixed in the df/convert-static-class-interface-and-di branch commit 1fcf269."
     },
     {
-      "id": "US-040",
-      "title": "Suppress MSBuild workspace warnings by default; opt in with --show-workspace-warnings",
-      "description": "As a developer using rt, I want MSBuild workspace warnings suppressed by default so that NuGet audit noise and compatibility warnings from the loaded solution don't pollute rt's output.",
-      "acceptanceCriteria": [
-        "All MSBuild workspace warnings are suppressed from stderr by default when rt loads a solution",
-        "A --show-workspace-warnings flag (or equivalent) re-enables them for debugging",
-        "Genuine solution load errors that prevent rt from running still exit 1 with a clear message",
-        "The [workspace-warnings] block does not appear in normal output"
-      ],
-      "priority": 40,
-      "urgency": 62,
-      "urgencyReason": "Daily noise: MSBuild workspace warnings block pollutes every command's stderr. Suppress by default; --show-workspace-warnings opt-in.",
-      "effort": 2,
-      "passes": false,
-      "notes": "P2. Affects WorkspaceLoader / MSBuildWorkspace diagnostic handling. Suppress all MSBuildWorkspace diagnostics by default; add --show-workspace-warnings global flag to restore them. Genuine load errors (exit 1) must still surface."
-    },
-    {
       "id": "US-045",
       "title": "rt inspect find-refs: structured JSON output",
       "description": "As an automation consumer, I want rt inspect find-refs to emit a JSON array when --json is passed so I can process symbol references without parsing plain text.",
