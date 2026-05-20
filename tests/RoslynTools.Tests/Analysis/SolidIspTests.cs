@@ -315,4 +315,79 @@ public class SolidIspTests
             """);
         Assert.Empty(report.UnimplementedMembers);
     }
+
+    // -----------------------------------------------------------------------
+    // Batch 2: Result types + SolidResult.ISP block
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public void isp_fat_interface_item_has_required_fields()
+    {
+        var item = new IspFatInterfaceItem
+        {
+            InterfaceName = "IBig",
+            FilePath = "src/IBig.cs",
+            Line = 10,
+            MemberCount = 12
+        };
+        Assert.Equal("IBig", item.InterfaceName);
+        Assert.Equal("src/IBig.cs", item.FilePath);
+        Assert.Equal(10, item.Line);
+        Assert.Equal(12, item.MemberCount);
+    }
+
+    [Fact]
+    public void isp_unimplemented_member_item_has_required_fields()
+    {
+        var item = new IspUnimplementedMemberItem
+        {
+            TypeName = "BadImpl",
+            MemberName = "DoIt",
+            InterfaceName = "IService",
+            FilePath = "src/BadImpl.cs",
+            Line = 20
+        };
+        Assert.Equal("BadImpl", item.TypeName);
+        Assert.Equal("DoIt", item.MemberName);
+        Assert.Equal("IService", item.InterfaceName);
+        Assert.Equal("src/BadImpl.cs", item.FilePath);
+        Assert.Equal(20, item.Line);
+    }
+
+    [Fact]
+    public void solid_result_isp_block_is_empty_by_default()
+    {
+        var result = new SolidResult();
+        Assert.NotNull(result.ISP);
+        Assert.Empty(result.ISP.FatInterfaces);
+        Assert.Empty(result.ISP.UnimplementedMembers);
+    }
+
+    [Fact]
+    public void solid_result_json_has_top_level_ISP_key()
+    {
+        var result = new SolidResult();
+        using var output = new StringWriter();
+        RtContext.Format = OutputFormat.Json;
+        RtSerializer.Write(result, output);
+
+        using var doc = JsonDocument.Parse(output.ToString());
+        Assert.True(doc.RootElement.TryGetProperty("ISP", out _));
+    }
+
+    [Fact]
+    public void solid_result_json_isp_has_fatInterfaces_and_unimplementedMembers_arrays()
+    {
+        var result = new SolidResult();
+        using var output = new StringWriter();
+        RtContext.Format = OutputFormat.Json;
+        RtSerializer.Write(result, output);
+
+        using var doc = JsonDocument.Parse(output.ToString());
+        var isp = doc.RootElement.GetProperty("ISP");
+        Assert.True(isp.TryGetProperty("FatInterfaces", out var fat));
+        Assert.True(isp.TryGetProperty("UnimplementedMembers", out var unimpl));
+        Assert.Equal(JsonValueKind.Array, fat.ValueKind);
+        Assert.Equal(JsonValueKind.Array, unimpl.ValueKind);
+    }
 }
