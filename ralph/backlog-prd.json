@@ -52,27 +52,6 @@
             "resolvedAt": "2026-05-11"
         },
         {
-            "id": "US-035",
-            "title": "rt analyze solid: OCP detector — flag switch/if chains branching on concrete types",
-            "description": "As a developer, I want rt analyze solid --principle OCP to flag code that must be modified every time a new concrete type is added.",
-            "acceptanceCriteria": [
-                "rt analyze solid --principle OCP --solution <sln> exits 0 and emits JSON to stdout",
-                "Output has a top-level 'OCP' key containing an array of violation items",
-                "Each item includes: TypeName, MemberName, FilePath, Line, BranchCount, ViolationType ('switch' or 'if-chain')",
-                "Flags switch expressions/statements matching on 'is ConcreteType' patterns",
-                "Flags if/else chains using 'is ConcreteType' or 'obj.GetType() == typeof(X)' with 2 or more concrete-type branches",
-                "--min-branches <N> (default 2) is configurable",
-                "rt analyze solid --principle all includes OCP results"
-            ],
-            "priority": 35,
-            "urgency": 100,
-            "urgencyReason": "EP-006 — OCP detector, same template.",
-            "effort": 5,
-            "passes": false,
-            "epicId": "EP-006",
-            "notes": "P2. Detects: (1) switch expressions/statements matching on 'is ConcreteType'; (2) if/else chains using 'is ConcreteType' or obj.GetType() == typeof(X) with 2+ branches. Output grouped under 'OCP' detector key."
-        },
-        {
             "id": "US-036",
             "title": "rt analyze solid: LSP detector — flag overrides throwing or narrowing contracts",
             "description": "As a developer, I want rt analyze solid --principle LSP to flag override methods that break Liskov substitutability so that I can identify types that cannot safely replace their base.",
