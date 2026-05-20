@@ -1,7 +1,7 @@
 roslyn-tools
 Branch: feat/analyze-complexity
 
-Current Status: 16/18 stories complete (89%)
+Current Status: 17/18 stories complete (94%)
 
 Stories
 [x] US-001 Add rt analyze complexity command
@@ -21,4 +21,4 @@ Stories
 [x] US-040 Suppress MSBuild workspace warnings by default; opt in with --show-workspace-warnings
 [ ] US-068 Introduce Result<T,RtError> for routine user-error flows in core services
 [x] US-033 rt analyze solid: ISP detector — flag fat interfaces and NotImplementedException members
-[ ] US-034 rt analyze solid: DIP detector — flag concrete constructor params and inline new calls
+[x] US-034 rt analyze solid: DIP detector — flag concrete constructor params and inline new calls
