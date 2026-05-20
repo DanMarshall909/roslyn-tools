@@ -423,9 +423,11 @@
             "urgency": 92,
             "urgencyReason": "EP-006 epic in flight — ISP detector follows the US-032 SRP template (SolidAnalyzer, SolidResult, mirrored tests). Lowest-risk SOLID addition.",
             "effort": 5,
-            "passes": false,
+            "passes": true,
             "epicId": "EP-006",
-            "notes": "P2. Two sub-checks: (1) interfaces with member count above threshold; (2) classes implementing an interface but throwing NotImplementedException/NotSupportedException on one or more members. Output grouped under 'ISP' detector key."
+            "notes": "P2. Two sub-checks: (1) interfaces with member count above threshold; (2) classes implementing an interface but throwing NotImplementedException/NotSupportedException on one or more members. Output grouped under 'ISP' detector key.",
+            "resolution": "Added rt analyze solid --principle ISP detector. SolidAnalyzer.AnalyzeIspAsync flags fat interfaces (declared members >= --min-members, default 7) and concrete classes whose direct interface-method/property/event implementations throw NotImplementedException or NotSupportedException. SolidCommand wires --min-members and accepts ISP, SRP, or all. SolidResult.ISP block contains FatInterfaces and UnimplementedMembers arrays. 23 new ISP tests + 1 dogfood-driven regression test (skip compiler-synthesized members like record-synthesized Equals).",
+            "resolvedAt": "2026-05-20"
         }
     ]
 }
