@@ -396,7 +396,7 @@ public class SolidDipTests
     [Fact]
     public async Task execute_async_returns_0_for_valid_dip_principle()
     {
-        var exitCode = await SolidCommand.ExecuteAsync(null, "DIP", 10, 5, 7);
+        var exitCode = await SolidCommand.ExecuteAsync(null, "DIP", 10, 5, 7, 2);
         Assert.Equal(0, exitCode);
     }
 

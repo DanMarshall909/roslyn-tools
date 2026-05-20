@@ -424,14 +424,14 @@ public class SolidIspTests
     [Fact]
     public async Task execute_async_returns_0_for_valid_isp_principle()
     {
-        var exitCode = await SolidCommand.ExecuteAsync(null, "ISP", 10, 5, 7);
+        var exitCode = await SolidCommand.ExecuteAsync(null, "ISP", 10, 5, 7, 2);
         Assert.Equal(0, exitCode);
     }
 
     [Fact]
     public async Task execute_async_returns_1_for_negative_min_members()
     {
-        var exitCode = await SolidCommand.ExecuteAsync(null, "ISP", 10, 5, -1);
+        var exitCode = await SolidCommand.ExecuteAsync(null, "ISP", 10, 5, -1, 2);
         Assert.Equal(1, exitCode);
     }
 

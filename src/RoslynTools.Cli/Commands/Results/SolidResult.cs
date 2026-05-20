@@ -175,6 +175,32 @@ internal sealed record DipBlock : IRtOutput
     }
 }
 
+internal sealed record OcpViolationItem : IRtOutput
+{
+    [OutputField(OutputLevel.Default, "typeName")]
+    public string TypeName { get; init; } = "";
+
+    [OutputField(OutputLevel.Default, "memberName")]
+    public string MemberName { get; init; } = "";
+
+    [OutputField(OutputLevel.Default, "filePath")]
+    public string FilePath { get; init; } = "";
+
+    [OutputField(OutputLevel.Default, "line")]
+    public int Line { get; init; }
+
+    [OutputField(OutputLevel.Default, "branchCount")]
+    public int BranchCount { get; init; }
+
+    [OutputField(OutputLevel.Default, "violationType")]
+    public string ViolationType { get; init; } = "";
+
+    public void RenderText(TextWriter writer)
+    {
+        writer.Write($"{TypeName}.{MemberName} ({ViolationType}, {BranchCount} branches)  {FilePath}:{Line}");
+    }
+}
+
 internal sealed record SolidResult : IRtOutput
 {
     [OutputField(OutputLevel.Default, "SRP")]
@@ -186,11 +212,15 @@ internal sealed record SolidResult : IRtOutput
     [OutputField(OutputLevel.Default, "DIP")]
     public DipBlock DIP { get; init; } = new();
 
+    [OutputField(OutputLevel.Default, "OCP")]
+    public IList<OcpViolationItem> OCP { get; init; } = [];
+
     public void RenderText(TextWriter writer)
     {
         if (SRP.Count == 0
             && ISP.FatInterfaces.Count == 0 && ISP.UnimplementedMembers.Count == 0
-            && DIP.ConcreteConstructorParams.Count == 0 && DIP.InlineNewCalls.Count == 0)
+            && DIP.ConcreteConstructorParams.Count == 0 && DIP.InlineNewCalls.Count == 0
+            && OCP.Count == 0)
         {
             writer.WriteLine("No SOLID violations found.");
             return;
@@ -203,5 +233,10 @@ internal sealed record SolidResult : IRtOutput
         }
         ISP.RenderText(writer);
         DIP.RenderText(writer);
+        foreach (var item in OCP)
+        {
+            item.RenderText(writer);
+            writer.WriteLine();
+        }
     }
 }

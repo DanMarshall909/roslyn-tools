@@ -18,12 +18,13 @@ internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand
         JsonOutput: true,
         Category: "analyze",
         WhenToUse:
-        "Detect classes that may violate SOLID principles using heuristic analysis. Use --principle SRP to flag classes with too many public methods and injected dependencies. Use --principle ISP to flag fat interfaces and implementations that throw NotImplementedException. Use --principle DIP to flag concrete constructor params and inline new calls. Use --principle all to run every active detector.",
+        "Detect classes that may violate SOLID principles using heuristic analysis. --principle SRP flags classes with too many public methods and injected dependencies. --principle ISP flags fat interfaces and unimplemented members. --principle DIP flags concrete constructor params and inline new calls. --principle OCP flags switch/if chains that branch on concrete types. --principle all runs every active detector.",
         Examples:
         [
             "rt analyze solid --principle SRP --solution RoslynTools.slnx",
             "rt analyze solid --principle ISP --solution RoslynTools.slnx",
             "rt analyze solid --principle DIP --solution RoslynTools.slnx",
+            "rt analyze solid --principle OCP --solution RoslynTools.slnx",
             "rt analyze solid --principle all --solution RoslynTools.slnx"
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json]
@@ -33,16 +34,18 @@ internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand
     {
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
         var principleOpt = new Option<string>("--principle", () => "SRP",
-            "SOLID principle to check: SRP, ISP, DIP, or all");
+            "SOLID principle to check: SRP, ISP, DIP, OCP, or all");
         var minMethodsOpt = new Option<int>("--min-methods", () => 10,
             "Minimum public method count to flag a class for SRP (default 10)");
         var minDepsOpt = new Option<int>("--min-deps", () => 5,
             "Minimum injected dependency count to flag a class for SRP (default 5)");
         var minMembersOpt = new Option<int>("--min-members", () => 7,
             "Minimum declared interface member count to flag a fat interface for ISP (default 7)");
+        var minBranchesOpt = new Option<int>("--min-branches", () => 2,
+            "Minimum concrete-type branches to flag a switch or if-chain for OCP (default 2)");
 
         var cmd = new Command("solid", "Detect SOLID principle violations using heuristic analysis");
-        cmd.AddAll(solutionOpt, principleOpt, minMethodsOpt, minDepsOpt, minMembersOpt);
+        cmd.AddAll(solutionOpt, principleOpt, minMethodsOpt, minDepsOpt, minMembersOpt, minBranchesOpt);
 
         cmd.SetHandler(async context =>
         {
@@ -54,6 +57,7 @@ internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand
                 context.ParseResult.GetValueForOption(minMethodsOpt),
                 context.ParseResult.GetValueForOption(minDepsOpt),
                 context.ParseResult.GetValueForOption(minMembersOpt),
+                context.ParseResult.GetValueForOption(minBranchesOpt),
                 loader);
         });
 
@@ -61,7 +65,7 @@ internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand
     }
 
     internal static async Task<int> ExecuteAsync(
-        string? solution, string principle, int minMethods, int minDeps, int minMembers,
+        string? solution, string principle, int minMethods, int minDeps, int minMembers, int minBranches,
         WorkspaceLoader? loader = null)
     {
         if (minMethods < 0)
@@ -82,10 +86,16 @@ internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand
             return 1;
         }
 
-        var normalised = principle.ToUpperInvariant();
-        if (normalised is not ("SRP" or "ISP" or "DIP" or "ALL"))
+        if (minBranches < 0)
         {
-            RtLog.Error("--principle must be SRP, ISP, DIP, or all.");
+            RtLog.Error("--min-branches must be >= 0.");
+            return 1;
+        }
+
+        var normalised = principle.ToUpperInvariant();
+        if (normalised is not ("SRP" or "ISP" or "DIP" or "OCP" or "ALL"))
+        {
+            RtLog.Error("--principle must be SRP, ISP, DIP, OCP, or all.");
             return 1;
         }
 
@@ -97,6 +107,7 @@ internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand
         var runSrp = normalised is "SRP" or "ALL";
         var runIsp = normalised is "ISP" or "ALL";
         var runDip = normalised is "DIP" or "ALL";
+        var runOcp = normalised is "OCP" or "ALL";
 
         if (runSrp)
         {
@@ -168,6 +179,23 @@ internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand
             };
         }
 
+        if (runOcp)
+        {
+            var ocpReport = await SolidAnalyzer.AnalyzeOcpAsync(sln, minBranches);
+            result = result with
+            {
+                OCP = ocpReport.Violations.Select(v => new OcpViolationItem
+                {
+                    TypeName = v.TypeName,
+                    MemberName = v.MemberName,
+                    FilePath = v.FilePath,
+                    Line = v.Line,
+                    BranchCount = v.BranchCount,
+                    ViolationType = v.ViolationType
+                }).ToList()
+            };
+        }
+
         RtResultRenderer.WriteOutput(RtResult<SolidResult>.Ok(result));
         if (runSrp)
             RtLog.Info("Found {Count} SRP violation(s).", result.SRP.Count);
@@ -177,6 +205,8 @@ internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand
         if (runDip)
             RtLog.Info("Found {Ctor} concrete ctor param(s) and {New} inline new call(s).",
                 result.DIP.ConcreteConstructorParams.Count, result.DIP.InlineNewCalls.Count);
+        if (runOcp)
+            RtLog.Info("Found {Count} OCP violation(s).", result.OCP.Count);
         return 0;
     }
 }

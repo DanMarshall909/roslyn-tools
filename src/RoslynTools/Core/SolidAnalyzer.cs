@@ -33,6 +33,12 @@ internal record SolidDipReport(
     IList<DipConcreteCtorParam> ConcreteConstructorParams,
     IList<DipInlineNewCall> InlineNewCalls);
 
+internal record OcpViolation(
+    string TypeName, string MemberName, string FilePath, int Line,
+    int BranchCount, string ViolationType);
+
+internal record SolidOcpReport(IList<OcpViolation> Violations);
+
 internal static class SolidAnalyzer
 {
     public static async Task<SolidSrpReport> AnalyzeSrpAsync(
@@ -447,6 +453,202 @@ internal static class SolidAnalyzer
             }
         }
         return null;
+    }
+
+    public static async Task<SolidOcpReport> AnalyzeOcpAsync(Solution sln, int minBranches)
+    {
+        var violations = new List<OcpViolation>();
+
+        foreach (var project in sln.Projects)
+        {
+            var compilation = await project.GetCompilationAsync().ConfigureAwait(false);
+            if (compilation is null) // coverage: defensive guard
+                continue;
+
+            foreach (var document in project.Documents)
+            {
+                var filePath = document.FilePath ?? string.Empty;
+
+                if (FilePathFilters.IsGeneratedOrIntermediate(filePath))
+                    continue;
+
+                var root = await document.GetSyntaxRootAsync().ConfigureAwait(false);
+                if (root is null) // coverage: defensive guard
+                    continue;
+
+                var model = compilation.GetSemanticModel(root.SyntaxTree);
+
+                foreach (var typeDecl in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
+                {
+                    if (model.GetDeclaredSymbol(typeDecl) is not INamedTypeSymbol symbol) // coverage: defensive guard
+                        continue;
+
+                    var typeName = symbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+
+                    // (1) Switch expressions matching on 'is ConcreteType'
+                    foreach (var sw in typeDecl.DescendantNodes().OfType<SwitchExpressionSyntax>())
+                    {
+                        var count = CountConcreteTypePatternArms(sw, model);
+                        if (count < minBranches)
+                            continue;
+                        AddViolation(violations, typeName, sw, filePath, count, "switch");
+                    }
+                    foreach (var sw in typeDecl.DescendantNodes().OfType<SwitchStatementSyntax>())
+                    {
+                        var count = CountConcreteTypePatternSections(sw, model);
+                        if (count < minBranches)
+                            continue;
+                        AddViolation(violations, typeName, sw, filePath, count, "switch");
+                    }
+
+                    // (2) if/else chains using 'is ConcreteType' or GetType() == typeof(...)
+                    foreach (var ifStmt in typeDecl.DescendantNodes().OfType<IfStatementSyntax>())
+                    {
+                        // Only consider the top of a chain (one whose parent is not an else clause)
+                        if (ifStmt.Parent is ElseClauseSyntax)
+                            continue;
+
+                        var count = CountConcreteTypeIfBranches(ifStmt, model);
+                        if (count < minBranches)
+                            continue;
+                        AddViolation(violations, typeName, ifStmt, filePath, count, "if-chain");
+                    }
+                }
+            }
+        }
+
+        violations.Sort((a, b) =>
+        {
+            var byType = StringComparer.Ordinal.Compare(a.TypeName, b.TypeName);
+            if (byType != 0) return byType;
+            return StringComparer.Ordinal.Compare(a.MemberName, b.MemberName);
+        });
+
+        return new SolidOcpReport(violations);
+    }
+
+    private static void AddViolation(
+        List<OcpViolation> violations, string typeName, SyntaxNode node,
+        string filePath, int branchCount, string violationType)
+    {
+        var memberName = FindEnclosingMemberName(node) ?? "<unknown>";
+        var line = node.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+        violations.Add(new OcpViolation(typeName, memberName, filePath, line, branchCount, violationType));
+    }
+
+    private static int CountConcreteTypePatternArms(SwitchExpressionSyntax sw, SemanticModel model)
+    {
+        var count = 0;
+        foreach (var arm in sw.Arms)
+        {
+            if (IsConcreteTypePattern(arm.Pattern, model))
+                count++;
+        }
+        return count;
+    }
+
+    private static int CountConcreteTypePatternSections(SwitchStatementSyntax sw, SemanticModel model)
+    {
+        var count = 0;
+        foreach (var section in sw.Sections)
+        {
+            foreach (var label in section.Labels)
+            {
+                if (label is CasePatternSwitchLabelSyntax cp && IsConcreteTypePattern(cp.Pattern, model))
+                {
+                    count++;
+                    break;
+                }
+            }
+        }
+        return count;
+    }
+
+    private static bool IsConcreteTypePattern(PatternSyntax pattern, SemanticModel model)
+    {
+        // DeclarationPattern: `Cat c => ...`
+        // TypePattern:        `Cat => ...` (treated by Roslyn as type pattern only when
+        //                                   the parser sees the bare identifier in a switch arm
+        //                                   context as a type)
+        // ConstantPattern:    older parses of `Cat => ...` arrive as a constant pattern with
+        //                                   an identifier; we resolve the symbol and check
+        //                                   whether it binds to a type.
+        TypeSyntax? typeSyntax = pattern switch
+        {
+            DeclarationPatternSyntax d => d.Type,
+            TypePatternSyntax t => t.Type,
+            _ => null
+        };
+
+        if (typeSyntax is null && pattern is ConstantPatternSyntax cp)
+        {
+            var symInfo = model.GetSymbolInfo(cp.Expression);
+            if (symInfo.Symbol is INamedTypeSymbol named)
+                return IsConcreteType(named);
+        }
+
+        if (typeSyntax is null)
+            return false;
+
+        var symbol = model.GetTypeInfo(typeSyntax).Type as INamedTypeSymbol;
+        return IsConcreteType(symbol);
+    }
+
+    private static int CountConcreteTypeIfBranches(IfStatementSyntax ifStmt, SemanticModel model)
+    {
+        var count = 0;
+        for (IfStatementSyntax? current = ifStmt; current is not null;)
+        {
+            if (ExpressionDiscriminatesConcreteType(current.Condition, model))
+                count++;
+            current = current.Else?.Statement as IfStatementSyntax;
+        }
+        return count;
+    }
+
+    private static bool ExpressionDiscriminatesConcreteType(ExpressionSyntax expr, SemanticModel model)
+    {
+        // o is ConcreteType  (BinaryExpressionSyntax IsExpression OR IsPatternExpressionSyntax)
+        if (expr is IsPatternExpressionSyntax isPattern && IsConcreteTypePattern(isPattern.Pattern, model))
+            return true;
+        if (expr is BinaryExpressionSyntax bin && bin.IsKind(SyntaxKind.IsExpression))
+        {
+            if (bin.Right is TypeSyntax t)
+            {
+                var sym = model.GetTypeInfo(t).Type as INamedTypeSymbol;
+                if (IsConcreteType(sym)) return true;
+            }
+        }
+        // o.GetType() == typeof(X)  OR  typeof(X) == o.GetType()
+        if (expr is BinaryExpressionSyntax eq && eq.IsKind(SyntaxKind.EqualsExpression))
+        {
+            if (IsGetTypeEqTypeOf(eq.Left, eq.Right, model) || IsGetTypeEqTypeOf(eq.Right, eq.Left, model))
+                return true;
+        }
+        return false;
+    }
+
+    private static bool IsGetTypeEqTypeOf(ExpressionSyntax left, ExpressionSyntax right, SemanticModel model)
+    {
+        if (left is not InvocationExpressionSyntax inv)
+            return false;
+        if (inv.Expression is not MemberAccessExpressionSyntax ma || ma.Name.Identifier.Text != "GetType")
+            return false;
+        if (right is not TypeOfExpressionSyntax tof)
+            return false;
+        var sym = model.GetTypeInfo(tof.Type).Type as INamedTypeSymbol;
+        return IsConcreteType(sym);
+    }
+
+    private static bool IsConcreteType(INamedTypeSymbol? symbol)
+    {
+        if (symbol is null)
+            return false;
+        if (symbol.TypeKind != TypeKind.Class)
+            return false;
+        if (symbol.IsAbstract)
+            return false;
+        return true;
     }
 
     private static int CountPublicOrdinaryMethods(INamedTypeSymbol symbol)
