@@ -52,27 +52,6 @@
             "resolvedAt": "2026-05-11"
         },
         {
-            "id": "US-033",
-            "title": "rt analyze solid: ISP detector — flag fat interfaces and NotImplementedException members",
-            "description": "As a developer, I want rt analyze solid --principle ISP to flag over-broad interfaces and implementing classes that throw on members they cannot fulfill.",
-            "acceptanceCriteria": [
-                "rt analyze solid --principle ISP --solution <sln> exits 0 and emits JSON to stdout",
-                "Output has a top-level 'ISP' key with sub-arrays for 'FatInterfaces' and 'UnimplementedMembers'",
-                "Each FatInterface item includes: InterfaceName, FilePath, Line, MemberCount",
-                "Each UnimplementedMember item includes: TypeName, MemberName, InterfaceName, FilePath, Line",
-                "--min-members <N> (default 7) is configurable for the fat-interface threshold",
-                "Classes throwing NotImplementedException or NotSupportedException on implemented interface members are flagged under UnimplementedMembers",
-                "rt analyze solid --principle all includes ISP results"
-            ],
-            "priority": 33,
-            "urgency": 92,
-            "urgencyReason": "EP-006 epic in flight — ISP detector follows the US-032 SRP template (SolidAnalyzer, SolidResult, mirrored tests). Lowest-risk SOLID addition.",
-            "effort": 5,
-            "passes": false,
-            "epicId": "EP-006",
-            "notes": "P2. Two sub-checks: (1) interfaces with member count above threshold; (2) classes implementing an interface but throwing NotImplementedException/NotSupportedException on one or more members. Output grouped under 'ISP' detector key."
-        },
-        {
             "id": "US-034",
             "title": "rt analyze solid: DIP detector — flag concrete constructor params and inline new calls",
             "description": "As a developer, I want rt analyze solid --principle DIP to flag high-level classes that depend directly on concrete types rather than abstractions.",

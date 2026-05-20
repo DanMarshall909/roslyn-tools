@@ -1,7 +1,7 @@
 roslyn-tools
 Branch: feat/analyze-complexity
 
-Current Status: 15/16 stories complete (94%)
+Current Status: 15/17 stories complete (88%)
 
 Stories
 [x] US-001 Add rt analyze complexity command
@@ -20,3 +20,4 @@ Stories
 [x] US-044 Guard .First()/.Last() calls in SymbolLocator and MethodExtractor against empty sequences
 [x] US-040 Suppress MSBuild workspace warnings by default; opt in with --show-workspace-warnings
 [ ] US-068 Introduce Result<T,RtError> for routine user-error flows in core services
+[ ] US-033 rt analyze solid: ISP detector — flag fat interfaces and NotImplementedException members
