@@ -98,7 +98,7 @@ internal sealed class WorkspaceLoader : IDisposable
         solutionPath = ResolveSolutionPath(solutionPath);
 
         if (!File.Exists(solutionPath))
-            throw new FileNotFoundException($"Solution not found: {solutionPath}");
+            throw new FileNotFoundException($"Solution not found: {solutionPath}", solutionPath);
 
         var workspace = MSBuildWorkspace.Create(new Dictionary<string, string>
         {

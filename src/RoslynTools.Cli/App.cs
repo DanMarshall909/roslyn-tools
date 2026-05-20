@@ -185,7 +185,8 @@ internal static class App
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
-                        await CaptureExceptionAsync(context, ex);
+                        if (await TryHandleUserErrorAsync(context, ex))
+                            return;
                         throw;
                     }
                     finally
@@ -203,7 +204,8 @@ internal static class App
                         }
                         catch (Exception ex) when (ex is not OperationCanceledException)
                         {
-                            await CaptureExceptionAsync(context, ex);
+                            if (await TryHandleUserErrorAsync(context, ex))
+                                return;
                             throw;
                         }
                     }
@@ -278,6 +280,26 @@ internal static class App
         var parsedOptions = TryCaptureParsedOptions(context);
         await FeedbackStore.AppendExceptionAsync(cmdLine, ex, solutionPath, parsedOptions);
         RtLog.Warning("Exception captured — run `rt feedback list` to view.");
+    }
+
+    /// <summary>
+    /// Translates known user-error exception types into a clean stderr line + exit 1 so the
+    /// CLI never surfaces a raw stack trace for predictable failures like a missing solution
+    /// path. Telemetry is still recorded via <see cref="CaptureExceptionAsync"/>. Returns
+    /// true when the exception was handled; the caller must NOT rethrow in that case.
+    /// </summary>
+    private static async Task<bool> TryHandleUserErrorAsync(InvocationContext context, Exception ex)
+    {
+        await CaptureExceptionAsync(context, ex);
+
+        if (ex is FileNotFoundException fnf)
+        {
+            RtLog.Error("solution not found: {Path}", fnf.FileName ?? "(unknown)");
+            context.ExitCode = 1;
+            return true;
+        }
+
+        return false;
     }
 
     private static string? TryExtractSolutionPath(InvocationContext context)

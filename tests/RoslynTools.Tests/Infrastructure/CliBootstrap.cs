@@ -17,6 +17,29 @@ public class CliBootstrap
         Assert.Equal(string.Empty, result.Stderr);
     }
 
+    [Fact]
+    public async Task missing_solution_path_produces_clean_exit_one_with_no_stack_trace()
+    {
+        // US-041: when --solution points at a file that doesn't exist, rt must print a single
+        // stderr line and exit 1 — no FileNotFoundException stack trace, no "Unhandled exception:"
+        // banner from System.CommandLine's default UseExceptionHandler.
+        var repoRoot = FindRepoRoot();
+        var rtDll = Path.Combine(repoRoot, "src", "RoslynTools.Cli", "bin", "Debug", "net8.0", "rt.dll");
+        var missingPath = Path.Combine(Path.GetTempPath(), $"does-not-exist-{Guid.NewGuid():N}.slnx");
+
+        var result = await RunAsync(
+            "dotnet",
+            $"\"{rtDll}\" inspect describe Foo --solution \"{missingPath}\"",
+            repoRoot);
+
+        Assert.Equal(1, result.ExitCode);
+        Assert.Contains("solution not found", result.Stderr, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(missingPath, result.Stderr, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Unhandled exception", result.Stderr, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("at System.IO.", result.Stderr, StringComparison.Ordinal);
+        Assert.DoesNotContain("at Microsoft.CodeAnalysis.", result.Stderr, StringComparison.Ordinal);
+    }
+
     private static async Task<CommandResult> RunAsync(string fileName, string arguments, string workingDirectory)
     {
         var startInfo = new ProcessStartInfo
