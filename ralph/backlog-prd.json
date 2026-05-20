@@ -52,27 +52,6 @@
             "resolvedAt": "2026-05-11"
         },
         {
-            "id": "US-036",
-            "title": "rt analyze solid: LSP detector — flag overrides throwing or narrowing contracts",
-            "description": "As a developer, I want rt analyze solid --principle LSP to flag override methods that break Liskov substitutability so that I can identify types that cannot safely replace their base.",
-            "acceptanceCriteria": [
-                "rt analyze solid --principle LSP --solution <sln> exits 0 and emits JSON to stdout",
-                "Output has a top-level 'LSP' key with sub-arrays for 'ThrowingOverrides' and 'ContractNarrowings'",
-                "Each ThrowingOverride item includes: TypeName, MemberName, ExceptionType, FilePath, Line",
-                "Each ContractNarrowing item includes: TypeName, MemberName, BaseType, FilePath, Line",
-                "Flags override methods whose body contains throw new NotImplementedException() or NotSupportedException()",
-                "Flags explicit interface implementations that throw on every code path",
-                "rt analyze solid --principle all includes LSP results"
-            ],
-            "priority": 36,
-            "urgency": 104,
-            "urgencyReason": "EP-006 — LSP detector, closes the epic.",
-            "effort": 5,
-            "passes": false,
-            "epicId": "EP-006",
-            "notes": "P2. Two sub-checks: (1) override methods whose body throws NotImplementedException/NotSupportedException; (2) explicit interface implementations that throw on every code path. Output grouped under 'LSP' detector key."
-        },
-        {
             "id": "US-037",
             "title": "rt: convert-static-class — interface generation",
             "description": "When --no-interface is not passed, generate an I<TypeName> interface file alongside the destated class, extracting all public/internal instance methods and properties. Interface only matters when consumers need to mock the dependency in tests. Discovered during US-027 df pass; command currently warns and skips.",

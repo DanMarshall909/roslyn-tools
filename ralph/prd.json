@@ -474,6 +474,27 @@
             "notes": "P2. Detects: (1) switch expressions/statements matching on 'is ConcreteType'; (2) if/else chains using 'is ConcreteType' or obj.GetType() == typeof(X) with 2+ branches. Output grouped under 'OCP' detector key.",
             "resolution": "Added rt analyze solid --principle OCP detector. SolidAnalyzer.AnalyzeOcpAsync flags switch expressions/statements with 2+ arms matching on concrete-type patterns (DeclarationPattern, TypePattern, ConstantPattern resolving to a type) and if/else chains using 'is ConcreteType' or 'GetType() == typeof(X)' for 2+ concrete-type branches. Interface patterns and value comparisons are not flagged. --min-branches (default 2) is configurable. SolidResult.OCP is a flat array of OcpViolationItem with ViolationType ('switch'|'if-chain') and BranchCount. 16 new OCP tests + dogfood validation.",
             "resolvedAt": "2026-05-20"
+        },
+        {
+            "id": "US-036",
+            "title": "rt analyze solid: LSP detector — flag overrides throwing or narrowing contracts",
+            "description": "As a developer, I want rt analyze solid --principle LSP to flag override methods that break Liskov substitutability so that I can identify types that cannot safely replace their base.",
+            "acceptanceCriteria": [
+                "rt analyze solid --principle LSP --solution <sln> exits 0 and emits JSON to stdout",
+                "Output has a top-level 'LSP' key with sub-arrays for 'ThrowingOverrides' and 'ContractNarrowings'",
+                "Each ThrowingOverride item includes: TypeName, MemberName, ExceptionType, FilePath, Line",
+                "Each ContractNarrowing item includes: TypeName, MemberName, BaseType, FilePath, Line",
+                "Flags override methods whose body contains throw new NotImplementedException() or NotSupportedException()",
+                "Flags explicit interface implementations that throw on every code path",
+                "rt analyze solid --principle all includes LSP results"
+            ],
+            "priority": 36,
+            "urgency": 104,
+            "urgencyReason": "EP-006 — LSP detector, closes the epic.",
+            "effort": 5,
+            "passes": false,
+            "epicId": "EP-006",
+            "notes": "P2. Two sub-checks: (1) override methods whose body throws NotImplementedException/NotSupportedException; (2) explicit interface implementations that throw on every code path. Output grouped under 'LSP' detector key."
         }
     ]
 }
