@@ -284,6 +284,23 @@
             "notes": "P2. Heuristic: classes where public method count AND distinct constructor-injected type count both exceed configurable thresholds. Output grouped under 'SRP' detector key.",
             "resolution": "Added rt analyze solid --principle SRP command. SrpViolationItem + SolidResult models, SolidAnalyzer heuristic (public method count + constructor dep count, both thresholds), CLI wiring with --principle/--min-methods/--min-deps. 31 tests. Dogfooded against RoslynTools.slnx.",
             "resolvedAt": "2026-05-15"
+        },
+        {
+            "id": "US-041",
+            "title": "Convert solution-not-found crash to clean exit-1 error message",
+            "description": "As a developer using rt, I want a missing solution file to produce a clear error message and exit 1, not an unhandled FileNotFoundException stack trace.",
+            "acceptanceCriteria": [
+                "When the --solution path does not exist, rt prints a single error line to stderr (e.g. 'Error: solution not found: <path>') and exits 1 — no stack trace",
+                "The same clean exit-1 pattern applies to any FileNotFoundException thrown during solution loading",
+                "The UseExceptionHandler in App.cs (or equivalent top-level handler) catches FileNotFoundException and formats it as a user-facing error",
+                "Exit code is 1 (not 0, not unhandled crash code)",
+                "No stack trace or 'Unhandled exception:' prefix appears in output"
+            ],
+            "priority": 41,
+            "passes": true,
+            "notes": "P1. WorkspaceLoader.cs:84 throws FileNotFoundException; it propagates unhandled through the System.CommandLine pipeline. Catch at the top-level UseExceptionHandler in App.cs (or at the throw site) and emit a single stderr line. No stack trace in normal output.",
+            "resolution": "Added TryHandleUserErrorAsync helper in App.cs middleware that catches FileNotFoundException, emits 'solution not found: <path>' via RtLog.Error, sets exit code 1, and returns without rethrowing. WorkspaceLoader.ResolveSolutionPath now passes the offending path as FileNotFoundException.FileName so callers can format without parsing the message. Subprocess-level test in CliBootstrap.cs verifies exit 1 + clean stderr + no stack trace.",
+            "resolvedAt": "2026-05-20"
         }
     ]
 }

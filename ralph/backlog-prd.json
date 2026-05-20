@@ -185,21 +185,6 @@
             "notes": "P2. Affects WorkspaceLoader / MSBuildWorkspace diagnostic handling. Suppress all MSBuildWorkspace diagnostics by default; add --show-workspace-warnings global flag to restore them. Genuine load errors (exit 1) must still surface."
         },
         {
-            "id": "US-041",
-            "title": "Convert solution-not-found crash to clean exit-1 error message",
-            "description": "As a developer using rt, I want a missing solution file to produce a clear error message and exit 1, not an unhandled FileNotFoundException stack trace.",
-            "acceptanceCriteria": [
-                "When the --solution path does not exist, rt prints a single error line to stderr (e.g. 'Error: solution not found: <path>') and exits 1 — no stack trace",
-                "The same clean exit-1 pattern applies to any FileNotFoundException thrown during solution loading",
-                "The UseExceptionHandler in App.cs (or equivalent top-level handler) catches FileNotFoundException and formats it as a user-facing error",
-                "Exit code is 1 (not 0, not unhandled crash code)",
-                "No stack trace or 'Unhandled exception:' prefix appears in output"
-            ],
-            "priority": 41,
-            "passes": false,
-            "notes": "P1. WorkspaceLoader.cs:84 throws FileNotFoundException; it propagates unhandled through the System.CommandLine pipeline. Catch at the top-level UseExceptionHandler in App.cs (or at the throw site) and emit a single stderr line. No stack trace in normal output."
-        },
-        {
             "id": "US-042",
             "title": "Catch common exception types in UseExceptionHandler and emit clean exit-1 messages",
             "description": "As a developer using rt, I want routine exceptions (bad file, bad JSON, not-found) to produce a single clean error line to stderr, not an unhandled exception stack trace.",
