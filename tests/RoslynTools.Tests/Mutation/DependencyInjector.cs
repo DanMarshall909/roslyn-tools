@@ -465,6 +465,27 @@ public sealed class DependencyInjector
     }
 
     [Fact]
+    public void normalizes_internal_whitespace_in_generic_type_when_matching_parameter()
+    {
+        // Kills NormalizeTypeName's " "→"Stryker was here!" mutation: an existing parameter
+        // typed `IDictionary<int, string>` (with a space after the comma) must be recognised
+        // as already injecting `IDictionary<int,string>` (without the space).
+        var source = """
+                     class MyService
+                     {
+                         private readonly IDictionary<int, string> _map;
+                         public MyService(IDictionary<int, string> map) { _map = map; }
+                     }
+                     """;
+        var tree = CSharpSyntaxTree.ParseText(source);
+        var injector = new Core.DependencyInjector("MyService", "IDictionary<int,string>", "_map", "map");
+
+        injector.Visit(tree.GetRoot());
+
+        Assert.Equal(DependencyInjectionStatus.AlreadyInjected, injector.Status);
+    }
+
+    [Fact]
     public void synthesized_constructor_has_valid_block_body()
     {
         var source = "class MyService { }";

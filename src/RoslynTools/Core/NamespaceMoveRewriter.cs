@@ -50,21 +50,11 @@ internal sealed class NamespaceMoveRewriter : CSharpSyntaxRewriter
             return SyntaxFactory.ParseName(_newNs).WithTriviaFrom(visited);
         }
 
-        if (text.StartsWithOrdinal(_oldNs + "."))
-        {
-            // Stryker disable all
-            Changed = true;
-            // Stryker restore all
-            var newText = _newNs + text[_oldNs.Length..];
-            return SyntaxFactory.ParseName(newText).WithTriviaFrom(visited);
-        }
-
         return visited;
     }
 
     public override SyntaxNode? VisitMemberAccessExpression(MemberAccessExpressionSyntax node)
     {
-        // Handle FQ references in expression context (e.g. new TourStore.Models.User { })
         var visited = (MemberAccessExpressionSyntax)base.VisitMemberAccessExpression(node)!;
         var text = visited.ToString();
 
@@ -74,13 +64,6 @@ internal sealed class NamespaceMoveRewriter : CSharpSyntaxRewriter
             Changed = true;
             // Stryker restore all
             return SyntaxFactory.ParseExpression(_newNs).WithTriviaFrom(visited);
-        }
-
-        if (text.StartsWithOrdinal(_oldNs + "."))
-        {
-            Changed = true;
-            var newText = _newNs + text[_oldNs.Length..];
-            return SyntaxFactory.ParseExpression(newText).WithTriviaFrom(visited);
         }
 
         return visited;

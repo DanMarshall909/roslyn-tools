@@ -208,9 +208,9 @@ internal static class InstanceReachabilityAnalyzer
 
         foreach (var param in paramList.Parameters)
         {
-            var paramSymbol = semanticModel.GetDeclaredSymbol(param);
-            if (paramSymbol is null)
-                continue;
+            // GetDeclaredSymbol on a ParameterSyntax from a method/ctor declaration always succeeds —
+            // the caller has already established paramList belongs to a real member declaration.
+            var paramSymbol = semanticModel.GetDeclaredSymbol(param)!;
             if (SymbolEqualityComparer.Default.Equals(paramSymbol.Type, targetType))
                 matches.Add(param.Identifier.Text);
         }

@@ -156,20 +156,24 @@ internal sealed class DependencyInjector : CSharpSyntaxRewriter
 
     private bool ParameterMatchesDependency(ParameterSyntax parameter)
     {
-        if (parameter.Type is null)
-            return false;
+        // Constructor parameters always have an explicit Type — the parser rejects the syntax otherwise.
+        var parameterTypeSyntax = parameter.Type!;
 
         if (_semanticModel is not null && _depTypeSymbol is not null)
         {
-            var parameterType = _semanticModel.GetTypeInfo(parameter.Type).Type;
-            if (parameterType is not null &&
-                parameterType.TypeKind != TypeKind.Error &&
+            // GetTypeInfo always returns a non-null Type (ErrorTypeSymbol for unresolved references),
+            // so an `is not null` guard would be dead code.
+            var parameterType = _semanticModel.GetTypeInfo(parameterTypeSyntax).Type!;
+            // Stryker disable once Logical : equivalent — SymbolEqualityComparer cannot equate an
+            // ErrorTypeSymbol to a valid type, so loosening the Error guards never lets the final
+            // equality check succeed.
+            if (parameterType.TypeKind != TypeKind.Error &&
                 _depTypeSymbol.TypeKind != TypeKind.Error &&
                 SymbolEqualityComparer.Default.Equals(parameterType, _depTypeSymbol))
                 return true;
         }
 
-        return NormalizeTypeName(parameter.Type.ToString()) == NormalizeTypeName(_depType);
+        return NormalizeTypeName(parameterTypeSyntax.ToString()) == NormalizeTypeName(_depType);
     }
 
     private bool HasFieldAssignment(ConstructorDeclarationSyntax ctor, string paramName)

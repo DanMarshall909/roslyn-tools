@@ -227,6 +227,39 @@ public sealed class InstanceReachabilityAnalyzer
     }
 
     [Fact]
+    public void finds_local_variable_name_returns_name_of_matching_local_in_scope()
+    {
+        // Kills L138 Block-removal mutation on FindLocalVariableName: if the body is replaced
+        // with `{}`, the method returns null and this assertion fails.
+        var source = """
+                     class Target { public void Run() { } }
+                     class Caller
+                     {
+                         void M()
+                         {
+                             var t = new Target();
+                             t.Run();
+                         }
+                     }
+                     """;
+        var tree = CSharpSyntaxTree.ParseText(source);
+        var invocation = tree.GetRoot().DescendantNodes()
+            .OfType<InvocationExpressionSyntax>()
+            .First(i => i.ToString().StartsWith("t.Run", StringComparison.Ordinal));
+
+        var comp = CSharpCompilation.Create(
+            "FindLocalVar",
+            new[] { tree },
+            new[] { MetadataReference.CreateFromFile(typeof(object).Assembly.Location) });
+        var model = comp.GetSemanticModel(tree);
+        var targetType = (INamedTypeSymbol)model.GetTypeInfo(((MemberAccessExpressionSyntax)invocation.Expression).Expression).Type!;
+
+        var result = Core.InstanceReachabilityAnalyzer.FindLocalVariableName(invocation, model, targetType);
+
+        Assert.Equal("t", result);
+    }
+
+    [Fact]
     public void finds_local_variable_name_returns_null_when_callsite_has_no_block_ancestor()
     {
         // Kills L84 FirstOrDefault()→First() mutant: if First() is used, it throws
