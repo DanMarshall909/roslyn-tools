@@ -18,13 +18,13 @@ internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand
         JsonOutput: true,
         Category: "analyze",
         WhenToUse:
-        "Detect classes that may violate SOLID principles using heuristic analysis. Use --principle SRP to flag classes with too many public methods and injected dependencies. Use --principle ISP to flag fat interfaces and implementations that throw NotImplementedException. Use --principle all to run every active detector.",
+        "Detect classes that may violate SOLID principles using heuristic analysis. Use --principle SRP to flag classes with too many public methods and injected dependencies. Use --principle ISP to flag fat interfaces and implementations that throw NotImplementedException. Use --principle DIP to flag concrete constructor params and inline new calls. Use --principle all to run every active detector.",
         Examples:
         [
             "rt analyze solid --principle SRP --solution RoslynTools.slnx",
             "rt analyze solid --principle ISP --solution RoslynTools.slnx",
-            "rt analyze solid --principle all --solution RoslynTools.slnx",
-            "rt analyze solid --principle ISP --min-members 5 --solution RoslynTools.slnx"
+            "rt analyze solid --principle DIP --solution RoslynTools.slnx",
+            "rt analyze solid --principle all --solution RoslynTools.slnx"
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json]
     );
@@ -33,7 +33,7 @@ internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand
     {
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
         var principleOpt = new Option<string>("--principle", () => "SRP",
-            "SOLID principle to check: SRP, ISP, or all");
+            "SOLID principle to check: SRP, ISP, DIP, or all");
         var minMethodsOpt = new Option<int>("--min-methods", () => 10,
             "Minimum public method count to flag a class for SRP (default 10)");
         var minDepsOpt = new Option<int>("--min-deps", () => 5,
@@ -83,9 +83,9 @@ internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand
         }
 
         var normalised = principle.ToUpperInvariant();
-        if (normalised is not ("SRP" or "ISP" or "ALL"))
+        if (normalised is not ("SRP" or "ISP" or "DIP" or "ALL"))
         {
-            RtLog.Error("--principle must be SRP, ISP, or all.");
+            RtLog.Error("--principle must be SRP, ISP, DIP, or all.");
             return 1;
         }
 
@@ -96,6 +96,7 @@ internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand
         var result = new SolidResult();
         var runSrp = normalised is "SRP" or "ALL";
         var runIsp = normalised is "ISP" or "ALL";
+        var runDip = normalised is "DIP" or "ALL";
 
         if (runSrp)
         {
@@ -140,12 +141,42 @@ internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand
             };
         }
 
+        if (runDip)
+        {
+            var dipReport = await SolidAnalyzer.AnalyzeDipAsync(sln);
+            result = result with
+            {
+                DIP = new DipBlock
+                {
+                    ConcreteConstructorParams = dipReport.ConcreteConstructorParams.Select(c => new DipConcreteCtorParamItem
+                    {
+                        TypeName = c.TypeName,
+                        ParamName = c.ParamName,
+                        ConcreteType = c.ConcreteType,
+                        FilePath = c.FilePath,
+                        Line = c.Line
+                    }).ToList(),
+                    InlineNewCalls = dipReport.InlineNewCalls.Select(n => new DipInlineNewCallItem
+                    {
+                        TypeName = n.TypeName,
+                        MemberName = n.MemberName,
+                        ConcreteType = n.ConcreteType,
+                        FilePath = n.FilePath,
+                        Line = n.Line
+                    }).ToList()
+                }
+            };
+        }
+
         RtResultRenderer.WriteOutput(RtResult<SolidResult>.Ok(result));
         if (runSrp)
             RtLog.Info("Found {Count} SRP violation(s).", result.SRP.Count);
         if (runIsp)
             RtLog.Info("Found {Fat} fat interface(s) and {Unimpl} unimplemented interface member(s).",
                 result.ISP.FatInterfaces.Count, result.ISP.UnimplementedMembers.Count);
+        if (runDip)
+            RtLog.Info("Found {Ctor} concrete ctor param(s) and {New} inline new call(s).",
+                result.DIP.ConcreteConstructorParams.Count, result.DIP.InlineNewCalls.Count);
         return 0;
     }
 }

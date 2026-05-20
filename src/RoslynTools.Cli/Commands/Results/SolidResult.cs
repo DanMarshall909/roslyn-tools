@@ -100,6 +100,81 @@ internal sealed record IspBlock : IRtOutput
     }
 }
 
+internal sealed record DipConcreteCtorParamItem : IRtOutput
+{
+    [OutputField(OutputLevel.Default, "typeName")]
+    public string TypeName { get; init; } = "";
+
+    [OutputField(OutputLevel.Default, "paramName")]
+    public string ParamName { get; init; } = "";
+
+    [OutputField(OutputLevel.Default, "concreteType")]
+    public string ConcreteType { get; init; } = "";
+
+    [OutputField(OutputLevel.Default, "filePath")]
+    public string FilePath { get; init; } = "";
+
+    [OutputField(OutputLevel.Default, "line")]
+    public int Line { get; init; }
+
+    public void RenderText(TextWriter writer)
+    {
+        writer.Write($"{TypeName}({ParamName}: {ConcreteType})  {FilePath}:{Line}");
+    }
+}
+
+internal sealed record DipInlineNewCallItem : IRtOutput
+{
+    [OutputField(OutputLevel.Default, "typeName")]
+    public string TypeName { get; init; } = "";
+
+    [OutputField(OutputLevel.Default, "memberName")]
+    public string MemberName { get; init; } = "";
+
+    [OutputField(OutputLevel.Default, "concreteType")]
+    public string ConcreteType { get; init; } = "";
+
+    [OutputField(OutputLevel.Default, "filePath")]
+    public string FilePath { get; init; } = "";
+
+    [OutputField(OutputLevel.Default, "line")]
+    public int Line { get; init; }
+
+    public void RenderText(TextWriter writer)
+    {
+        writer.Write($"{TypeName}.{MemberName} new {ConcreteType}()  {FilePath}:{Line}");
+    }
+}
+
+internal sealed record DipBlock : IRtOutput
+{
+    [OutputField(OutputLevel.Default, "ConcreteConstructorParams")]
+    public IList<DipConcreteCtorParamItem> ConcreteConstructorParams { get; init; } = [];
+
+    [OutputField(OutputLevel.Default, "InlineNewCalls")]
+    public IList<DipInlineNewCallItem> InlineNewCalls { get; init; } = [];
+
+    public void RenderText(TextWriter writer)
+    {
+        if (ConcreteConstructorParams.Count == 0 && InlineNewCalls.Count == 0)
+        {
+            writer.WriteLine("No DIP violations found.");
+            return;
+        }
+
+        foreach (var item in ConcreteConstructorParams)
+        {
+            item.RenderText(writer);
+            writer.WriteLine();
+        }
+        foreach (var item in InlineNewCalls)
+        {
+            item.RenderText(writer);
+            writer.WriteLine();
+        }
+    }
+}
+
 internal sealed record SolidResult : IRtOutput
 {
     [OutputField(OutputLevel.Default, "SRP")]
@@ -108,9 +183,14 @@ internal sealed record SolidResult : IRtOutput
     [OutputField(OutputLevel.Default, "ISP")]
     public IspBlock ISP { get; init; } = new();
 
+    [OutputField(OutputLevel.Default, "DIP")]
+    public DipBlock DIP { get; init; } = new();
+
     public void RenderText(TextWriter writer)
     {
-        if (SRP.Count == 0 && ISP.FatInterfaces.Count == 0 && ISP.UnimplementedMembers.Count == 0)
+        if (SRP.Count == 0
+            && ISP.FatInterfaces.Count == 0 && ISP.UnimplementedMembers.Count == 0
+            && DIP.ConcreteConstructorParams.Count == 0 && DIP.InlineNewCalls.Count == 0)
         {
             writer.WriteLine("No SOLID violations found.");
             return;
@@ -122,5 +202,6 @@ internal sealed record SolidResult : IRtOutput
             writer.WriteLine();
         }
         ISP.RenderText(writer);
+        DIP.RenderText(writer);
     }
 }

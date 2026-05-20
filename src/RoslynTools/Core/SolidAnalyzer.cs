@@ -21,6 +21,18 @@ internal record SolidIspReport(
     IList<IspFatInterface> FatInterfaces,
     IList<IspUnimplementedMember> UnimplementedMembers);
 
+internal record DipConcreteCtorParam(
+    string TypeName, string ParamName, string ConcreteType,
+    string FilePath, int Line);
+
+internal record DipInlineNewCall(
+    string TypeName, string MemberName, string ConcreteType,
+    string FilePath, int Line);
+
+internal record SolidDipReport(
+    IList<DipConcreteCtorParam> ConcreteConstructorParams,
+    IList<DipInlineNewCall> InlineNewCalls);
+
 internal static class SolidAnalyzer
 {
     public static async Task<SolidSrpReport> AnalyzeSrpAsync(
@@ -244,6 +256,197 @@ internal static class SolidAnalyzer
         var typeName = oc.Type.ToString();
         return typeName.EndsWith("NotImplementedException", StringComparison.Ordinal)
             || typeName.EndsWith("NotSupportedException", StringComparison.Ordinal);
+    }
+
+    public static async Task<SolidDipReport> AnalyzeDipAsync(Solution sln)
+    {
+        var ctorParams = new List<DipConcreteCtorParam>();
+        var newCalls = new List<DipInlineNewCall>();
+        var seenTypes = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
+
+        foreach (var project in sln.Projects)
+        {
+            var compilation = await project.GetCompilationAsync().ConfigureAwait(false);
+            if (compilation is null) // coverage: defensive guard
+                continue;
+
+            foreach (var document in project.Documents)
+            {
+                var filePath = document.FilePath ?? string.Empty;
+
+                if (FilePathFilters.IsGeneratedOrIntermediate(filePath))
+                    continue;
+
+                var root = await document.GetSyntaxRootAsync().ConfigureAwait(false);
+                if (root is null) // coverage: defensive guard
+                    continue;
+
+                var model = compilation.GetSemanticModel(root.SyntaxTree);
+
+                foreach (var typeDecl in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
+                {
+                    if (model.GetDeclaredSymbol(typeDecl) is not INamedTypeSymbol symbol) // coverage: defensive guard
+                        continue;
+
+                    // Only concrete classes (skip interfaces, abstract, static, records, structs)
+                    if (symbol.TypeKind != TypeKind.Class)
+                        continue;
+                    if (symbol.IsAbstract || symbol.IsStatic || symbol.IsRecord)
+                        continue;
+
+                    if (!seenTypes.Add(symbol))
+                        continue;
+
+                    var typeName = symbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+
+                    // (1) Constructor concrete params
+                    foreach (var ctor in symbol.InstanceConstructors)
+                    {
+                        if (ctor.IsImplicitlyDeclared)
+                            continue;
+
+                        foreach (var param in ctor.Parameters)
+                        {
+                            if (!IsConcreteDependencyType(param.Type))
+                                continue;
+
+                            var line = GetDeclarationLine(param);
+                            var concreteName = param.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+                            ctorParams.Add(new DipConcreteCtorParam(
+                                typeName, param.Name, concreteName, filePath, line));
+                        }
+                    }
+
+                    // (2) Inline new calls — skip factory/builder/provider classes
+                    if (IsFactoryStyleClass(symbol.Name))
+                        continue;
+
+                    foreach (var newExpr in typeDecl.DescendantNodes().OfType<ObjectCreationExpressionSyntax>())
+                    {
+                        var typeInfo = model.GetTypeInfo(newExpr.Type);
+                        if (typeInfo.Type is not INamedTypeSymbol newType)
+                            continue;
+
+                        if (!IsExternalConcreteDependency(newType))
+                            continue;
+
+                        var memberName = FindEnclosingMemberName(newExpr) ?? "<unknown>";
+                        var line = newExpr.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+                        var concreteName = newType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+                        newCalls.Add(new DipInlineNewCall(
+                            typeName, memberName, concreteName, filePath, line));
+                    }
+                }
+            }
+        }
+
+        ctorParams.Sort((a, b) =>
+        {
+            var byType = StringComparer.Ordinal.Compare(a.TypeName, b.TypeName);
+            if (byType != 0) return byType;
+            return StringComparer.Ordinal.Compare(a.ParamName, b.ParamName);
+        });
+        newCalls.Sort((a, b) =>
+        {
+            var byType = StringComparer.Ordinal.Compare(a.TypeName, b.TypeName);
+            if (byType != 0) return byType;
+            return StringComparer.Ordinal.Compare(a.MemberName, b.MemberName);
+        });
+
+        return new SolidDipReport(ctorParams, newCalls);
+    }
+
+    private static bool IsConcreteDependencyType(ITypeSymbol type)
+    {
+        // Must be a concrete class to qualify
+        if (type is not INamedTypeSymbol named)
+            return false;
+        if (named.TypeKind != TypeKind.Class)
+            return false;
+        if (named.IsAbstract || named.IsRecord)
+            return false;
+
+        // Skip BCL types (System.*) — they are primitives, exceptions, DTOs, delegates etc.
+        if (IsSystemNamespaceType(named))
+            return false;
+
+        return true;
+    }
+
+    private static bool IsExternalConcreteDependency(INamedTypeSymbol type)
+    {
+        if (type.TypeKind != TypeKind.Class)
+            return false;
+        if (type.IsAbstract || type.IsRecord || type.IsValueType)
+            return false;
+
+        // Exclude Exception-derived
+        if (IsExceptionDerived(type))
+            return false;
+
+        // Exclude BCL types
+        if (IsSystemNamespaceType(type))
+            return false;
+
+        return true;
+    }
+
+    private static bool IsExceptionDerived(INamedTypeSymbol type)
+    {
+        for (var t = type; t is not null; t = t.BaseType)
+        {
+            if (t.ToDisplayString() == "System.Exception")
+                return true;
+        }
+        return false;
+    }
+
+    private static bool IsSystemNamespaceType(INamedTypeSymbol type)
+    {
+        var ns = type.ContainingNamespace;
+        while (ns is { IsGlobalNamespace: false })
+        {
+            if (ns.Name == "System")
+            {
+                // True if the root or any ancestor is exactly "System"
+                if (ns.ContainingNamespace is null || ns.ContainingNamespace.IsGlobalNamespace)
+                    return true;
+            }
+            ns = ns.ContainingNamespace;
+        }
+        return false;
+    }
+
+    private static bool IsFactoryStyleClass(string name)
+    {
+        return name.EndsWith("Factory", StringComparison.Ordinal)
+            || name.EndsWith("Builder", StringComparison.Ordinal)
+            || name.EndsWith("Provider", StringComparison.Ordinal);
+    }
+
+    private static int GetDeclarationLine(ISymbol symbol)
+    {
+        var loc = symbol.Locations.FirstOrDefault(l => l.IsInSource);
+        if (loc is null)
+            return 0;
+        return loc.GetLineSpan().StartLinePosition.Line + 1;
+    }
+
+    private static string? FindEnclosingMemberName(SyntaxNode node)
+    {
+        for (var current = node.Parent; current is not null; current = current.Parent)
+        {
+            switch (current)
+            {
+                case MethodDeclarationSyntax m: return m.Identifier.Text;
+                case ConstructorDeclarationSyntax c: return $"{c.Identifier.Text}.ctor";
+                case PropertyDeclarationSyntax p: return p.Identifier.Text;
+                case AccessorDeclarationSyntax a when a.Parent?.Parent is PropertyDeclarationSyntax pp:
+                    return $"{pp.Identifier.Text}.{a.Keyword.Text}";
+                case LocalFunctionStatementSyntax lf: return lf.Identifier.Text;
+            }
+        }
+        return null;
     }
 
     private static int CountPublicOrdinaryMethods(INamedTypeSymbol symbol)
