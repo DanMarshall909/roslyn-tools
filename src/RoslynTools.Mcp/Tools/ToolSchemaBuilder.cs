@@ -38,7 +38,7 @@ internal sealed class ToolSchemaBuilder
 
         foreach (var option in cmd.Options)
         {
-            var prop = new Dictionary<string, object> { ["type"] = ToJsonType(option.ValueType) };
+            var prop = BuildPropertySchema(option.ValueType);
             if (!string.IsNullOrEmpty(option.Description))
                 prop["description"] = option.Description;
             properties[option.Name] = prop;
@@ -49,6 +49,21 @@ internal sealed class ToolSchemaBuilder
         return JsonSchemaBuilder.Object(
             required.Count > 0 ? [.. required] : null,
             properties.Count > 0 ? properties : null);
+    }
+
+    private static Dictionary<string, object> BuildPropertySchema(Type type)
+    {
+        if (type.IsArray)
+        {
+            var elementType = type.GetElementType() ?? typeof(string);
+            return new Dictionary<string, object>
+            {
+                ["type"] = "array",
+                ["items"] = new Dictionary<string, object> { ["type"] = ToJsonType(elementType) }
+            };
+        }
+
+        return new Dictionary<string, object> { ["type"] = ToJsonType(type) };
     }
 
     private static string ToJsonType(Type type)

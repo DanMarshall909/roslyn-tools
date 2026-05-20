@@ -85,6 +85,14 @@ internal sealed class CliCommandBridge
                     break;
                 case JsonValueKind.False:
                     break;
+                case JsonValueKind.Array:
+                    foreach (var item in prop.Value.EnumerateArray())
+                    {
+                        named.Add("--" + prop.Name);
+                        named.Add(GetValue(item));
+                    }
+
+                    break;
                 default:
                     named.Add("--" + prop.Name);
                     named.Add(GetValue(prop.Value));

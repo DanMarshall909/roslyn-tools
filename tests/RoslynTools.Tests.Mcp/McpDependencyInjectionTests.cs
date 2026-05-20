@@ -42,6 +42,51 @@ public sealed class McpDependencyInjectionTests
     }
 
     [Fact]
+    public void Tool_schema_builder_models_debug_break_and_assert_as_arrays()
+    {
+        var builder = new ToolSchemaBuilder();
+
+        var debug = builder.Build().Single(tool => tool.name == "debug");
+        var properties = Assert.IsType<Dictionary<string, Dictionary<string, object>>>(debug.inputSchema["properties"]);
+
+        AssertArrayOfStrings(properties["break"]);
+        AssertArrayOfStrings(properties["assert"]);
+    }
+
+    [Fact]
+    public async Task Tool_registry_expands_debug_break_and_assert_arrays()
+    {
+        var trace = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.jsonl");
+        await File.WriteAllTextAsync(
+            trace,
+            """
+            {"event":"tool_call","tool":"apply_patch","files":["src/Foo.cs"],"summary":"edit file"}
+            {"event":"final_response","content":"done"}
+            """);
+
+        using var provider = McpTestHost.CreateProvider();
+        var registry = provider.GetRequiredService<ToolRegistry>();
+        using var args = JsonDocument.Parse(
+            $$"""
+              {
+                "trace": "{{JsonEncodedText.Encode(trace)}}",
+                "break": ["tool:apply_patch", "file:src/Foo.cs"],
+                "assert": ["requires-event:final_response", "no-tool:web"],
+                "break-only": true
+              }
+              """);
+
+        var result = await registry.InvokeAsync("debug", args.RootElement);
+
+        Assert.False(result.isError);
+        using var output = JsonDocument.Parse(result.content);
+        var root = output.RootElement;
+        Assert.Equal(2, root.GetProperty("breakpointHits").GetArrayLength());
+        Assert.All(root.GetProperty("assertions").EnumerateArray(), assertion =>
+            Assert.True(assertion.GetProperty("passed").GetBoolean()));
+    }
+
+    [Fact]
     public void Mcp_runtime_does_not_use_static_service_locator_or_static_workspace_loading()
     {
         var repoRoot = FindRepoRoot();
@@ -102,6 +147,13 @@ public sealed class McpDependencyInjectionTests
         }
 
         throw new InvalidOperationException("Could not locate repository root.");
+    }
+
+    private static void AssertArrayOfStrings(Dictionary<string, object> schema)
+    {
+        Assert.Equal("array", schema["type"]);
+        var items = Assert.IsType<Dictionary<string, object>>(schema["items"]);
+        Assert.Equal("string", items["type"]);
     }
 
 }
