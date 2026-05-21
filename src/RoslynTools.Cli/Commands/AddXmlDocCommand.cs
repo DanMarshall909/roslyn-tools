@@ -12,8 +12,14 @@ internal sealed class AddXmlDocCommand : IRtCommand
 {
     private static readonly JsonSerializerOptions JsonOptions =
         new() { PropertyNameCaseInsensitive = true };
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly AddXmlDocService _addXmlDoc;
 
-    private AddXmlDocCommand() { }
+    public AddXmlDocCommand(IWorkspaceSessionFactory sessionFactory, AddXmlDocService addXmlDoc)
+    {
+        _addXmlDoc = addXmlDoc;
+        _sessionFactory = sessionFactory;
+    }
 
     public static RtCommandInfo Info { get; } = new(
         "add-xml-doc",
@@ -32,7 +38,7 @@ internal sealed class AddXmlDocCommand : IRtCommand
         ]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var fromJsonOpt = new Option<FileInfo>("--from-json", "JSON file mapping FQN → summary string") { IsRequired = true };
         var solutionOpt = CommandOptionFactory.CreateSolutionOption();
@@ -53,10 +59,10 @@ internal sealed class AddXmlDocCommand : IRtCommand
                 return;
             }
 
-            var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
+            var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
             using (workspace)
             {
-                await RtServiceProvider.Get<AddXmlDocService>().RunAsync(sln, docs, dryRun);
+                await _addXmlDoc.RunAsync(sln, docs, dryRun);
             }
         }, fromJsonOpt, solutionOpt, dryRunOpt);
 
