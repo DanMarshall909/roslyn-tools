@@ -1,6 +1,5 @@
 using System.CommandLine;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
@@ -13,8 +12,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class FindCallersCommand : IRtCommand
 {
-    private FindCallersCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly FindCallersService _findCallers;
+    public FindCallersCommand(IWorkspaceSessionFactory sessionFactory, FindCallersService findCallers)
     {
+        _findCallers = findCallers;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -34,7 +37,7 @@ internal sealed class FindCallersCommand : IRtCommand
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var symbolOpt = new Option<string>("--symbol", "Method name to find callers of") { IsRequired = true };
         var solutionOpt = CommandOptionFactory.CreateSolutionOption();
@@ -51,20 +54,17 @@ internal sealed class FindCallersCommand : IRtCommand
             var symbol = ctx.ParseResult.GetValueForOption(symbolOpt)!;
             var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
             var includeTests = ctx.ParseResult.GetValueForOption(includeTestsOpt);
-            var sp = ctx.BindingContext.GetService<IServiceProvider>();
-            var loader = sp?.GetService<IWorkspaceSessionFactory>() ?? IWorkspaceSessionFactory.CreateDefault();
 
-            var sln = await loader.GetSolutionAsync(solution);
-            var result = await RtServiceProvider.Get<FindCallersService>().FindAsync(sln, symbol, includeTests);
+            var sln = await _sessionFactory.GetSolutionAsync(solution);
+            var result = await _findCallers.FindAsync(sln, symbol, includeTests);
             RtResultRenderer.WriteOutput(RtResult<FindCallersResult>.Ok(result));
         });
 
         return cmd;
     }
 
-    // Forwarding stubs kept for backwards compatibility with tests
-    internal static bool IsNameofExpression(InvocationExpressionSyntax invocation)
+    internal bool IsNameofExpression(InvocationExpressionSyntax invocation)
     {
-        return RtServiceProvider.Get<FindCallersService>().IsNameofExpression(invocation);
+        return _findCallers.IsNameofExpression(invocation);
     }
 }
