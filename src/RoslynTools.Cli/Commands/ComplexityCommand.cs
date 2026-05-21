@@ -11,9 +11,11 @@ namespace RoslynTools.Commands;
 internal sealed class ComplexityCommand : IRtCommand, IStructuredOutputCommand
 {
     internal static readonly string[] ValidSortValues = ["cyclomatic", "cognitive", "loc", "params"];
+    private readonly IWorkspaceSessionFactory _sessionFactory;
 
-    private ComplexityCommand()
+    public ComplexityCommand(IWorkspaceSessionFactory sessionFactory)
     {
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -33,7 +35,7 @@ internal sealed class ComplexityCommand : IRtCommand, IStructuredOutputCommand
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
         var thresholdOpt = new Option<int>("--threshold", () => 0,
@@ -62,7 +64,7 @@ internal sealed class ComplexityCommand : IRtCommand, IStructuredOutputCommand
     /// <summary>
     /// Executes complexity analysis with optional parameters.
     /// </summary>
-    internal static async Task<int> ExecuteAsync(string? solution, int threshold, string sort, int top)
+    internal async Task<int> ExecuteAsync(string? solution, int threshold, string sort, int top)
     {
         if (threshold < 0)
         {
@@ -82,7 +84,7 @@ internal sealed class ComplexityCommand : IRtCommand, IStructuredOutputCommand
             return 1;
         }
 
-        var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
+        var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
         using (workspace)
         {
             RtLog.Info("Analyzing complexity...");
