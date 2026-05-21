@@ -283,8 +283,10 @@
             "urgency": 420,
             "urgencyReason": "EP-008: IWorkspaceSessionFactory. Must ship together with US-054 — splitting doubles the 57-site churn (per epic notes). Heaviest items → bottom of band.",
             "effort": 8,
-            "passes": false,
-            "notes": "P2. Existing foundation (instance-API WorkspaceLoader, DI registration, AsyncLocal Override, passing NoStaticWorkspaceLoaderUse gate) reduces remaining work from a full re-architecture to an interface-extraction + type-reference migration. Real blast radius: 57 production call sites (45 LoadWorkspaceAsync + 12 GetSolutionAsync) and 27 test files. From issue rt-006."
+            "passes": true,
+            "notes": "P2. Existing foundation (instance-API WorkspaceLoader, DI registration, AsyncLocal Override, passing NoStaticWorkspaceLoaderUse gate) reduces remaining work from a full re-architecture to an interface-extraction + type-reference migration. Real blast radius: 57 production call sites (45 LoadWorkspaceAsync + 12 GetSolutionAsync) and 27 test files. From issue rt-006.",
+            "resolution": "Shipped on branch ep-008-isessionfactory. IWorkspaceSessionFactory interface introduced (Core/IWorkspaceSessionFactory.cs) with GetSolutionAsync + LoadWorkspaceAsync + static CreateDefault factory. WorkspaceLoader implements it. RtServiceProvider gained GetOrDefault<T>(Func<T>) for interface-typed resolution with test-friendly fallback. All ~57 production call sites migrated (11 inspect fallback + 45 RtServiceProvider sites + 2 MCP handlers). NoConcreteWorkspaceLoaderInProduction architecture gate added and passing — production refs limited to WorkspaceLoader.cs, IWorkspaceSessionFactory.cs, and Bootstrap.cs (composition root). Static WorkspaceLoader.LoadAsync retained as test-only convenience (per advisor) with updated docstring; existing NoStaticWorkspaceLoaderUse gate keeps it out of src/. 1145 tests pass.",
+            "resolvedAt": "2026-05-21"
         },
         {
             "id": "US-054",
@@ -304,8 +306,10 @@
             "urgency": 424,
             "urgencyReason": "EP-008: ISolutionChangeWriter coverage. Pair with US-053.",
             "effort": 5,
-            "passes": false,
-            "notes": "P2. ISolutionChangeWriter + SolutionChangeWriter adapter already exist (src/RoslynTools/Services/SolutionChangeWriter.cs) and are DI-registered. Real blast radius: 5 direct call sites (much smaller than the original '22 fan-in' estimate, because the adapter already siphons most callers). From issue rt-007."
+            "passes": true,
+            "notes": "P2. ISolutionChangeWriter + SolutionChangeWriter adapter already exist (src/RoslynTools/Services/SolutionChangeWriter.cs) and are DI-registered. Real blast radius: 5 direct call sites (much smaller than the original '22 fan-in' estimate, because the adapter already siphons most callers). From issue rt-007.",
+            "resolution": "Shipped on branch ep-008-isessionfactory. Migrated 7 direct SolutionWriter.ApplyChangesAsync call sites (ConsoleLoggingCore, ChangeSignatureCommandHandlers x4, ConvertConsoleLoggingCommand, ExtractMethodCommand) to RtServiceProvider.GetOrDefault(ISolutionChangeWriter.CreateDefault).ApplyChangesAsync. ISolutionChangeWriter + SolutionChangeWriter moved from RoslynTools.Services into RoslynTools.Core to break a Core→Services→Core cycle that emerged when ConsoleLoggingCore needed the interface. Added static ISolutionChangeWriter.CreateDefault() factory mirroring IWorkspaceSessionFactory. NoDirectSolutionWriterUse architecture gate added and passing — production refs to SolutionWriter limited to SolutionChangeWriter adapter only. 1145 tests pass.",
+            "resolvedAt": "2026-05-21"
         },
         {
             "id": "US-055",
