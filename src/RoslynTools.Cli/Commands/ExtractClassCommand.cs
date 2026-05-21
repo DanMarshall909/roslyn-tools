@@ -9,8 +9,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class ExtractClassCommand : IRtCommand
 {
-    private ExtractClassCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly ExtractClassService _extractClass;
+    public ExtractClassCommand(IWorkspaceSessionFactory sessionFactory, ExtractClassService extractClass)
     {
+        _extractClass = extractClass;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -29,7 +33,7 @@ internal sealed class ExtractClassCommand : IRtCommand
         ]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var typeOpt = new Option<string>("--type", "Source class name") { IsRequired = true };
         var membersOpt = new Option<string>("--members", "Comma-separated member names to extract")
@@ -56,7 +60,7 @@ internal sealed class ExtractClassCommand : IRtCommand
     /// <summary>
     /// Executes the extraction of a class with optional parameters.
     /// </summary>
-    internal static async Task ExecuteAsync(
+    internal async Task ExecuteAsync(
         string typeName,
         string members,
         string newTypeName,
@@ -65,10 +69,10 @@ internal sealed class ExtractClassCommand : IRtCommand
         string? outputDir,
         bool dryRun)
     {
-        var (workspace, solution) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
+        var (workspace, solution) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
-            await RtServiceProvider.Get<ExtractClassService>().ExecuteAsync(solution, typeName, members, newTypeName,
+            await _extractClass.ExecuteAsync(solution, typeName, members, newTypeName,
                 isStatic, outputDir, dryRun);
         }
     }

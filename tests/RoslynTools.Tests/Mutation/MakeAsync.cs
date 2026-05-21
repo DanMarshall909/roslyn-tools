@@ -1,10 +1,14 @@
 using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Tests.Infrastructure;
 
 namespace RoslynTools.Tests.Mutation;
 
-public class MakeAsync
+public class MakeAsync : IClassFixture<RtServicesFixture>
 {
+    private readonly RtServicesFixture _services;
+    public MakeAsync(RtServicesFixture services) => _services = services;
+
     private const string AgentServiceSource = """
                                               using System.Threading.Tasks;
 
@@ -38,7 +42,7 @@ public class MakeAsync
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await MakeAsyncCommand.ExecuteAsync("AgentService", "GetAgent", false, "ignored", false);
+            await _services.Resolve<MakeAsyncCommand>().ExecuteAsync("AgentService", "GetAgent", false, "ignored", false);
         }
 
         var content = await project.ReadSourceAsync("AgentService.cs");
@@ -55,7 +59,7 @@ public class MakeAsync
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await MakeAsyncCommand.ExecuteAsync("AgentService", "GetAgent", false, "ignored", false);
+            await _services.Resolve<MakeAsyncCommand>().ExecuteAsync("AgentService", "GetAgent", false, "ignored", false);
         }
 
         var content = await project.ReadSourceAsync("AgentService.cs");
@@ -72,7 +76,7 @@ public class MakeAsync
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await MakeAsyncCommand.ExecuteAsync("AgentService", "GetAgent", false, "ignored", false);
+            await _services.Resolve<MakeAsyncCommand>().ExecuteAsync("AgentService", "GetAgent", false, "ignored", false);
         }
 
         var content = await project.ReadSourceAsync("AgentService.cs");
@@ -88,7 +92,7 @@ public class MakeAsync
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await MakeAsyncCommand.ExecuteAsync("AgentService", "GetAgent", false, "ignored", false);
+            await _services.Resolve<MakeAsyncCommand>().ExecuteAsync("AgentService", "GetAgent", false, "ignored", false);
         }
 
         var content = await project.ReadSourceAsync("AgentService.cs");
@@ -106,7 +110,7 @@ public class MakeAsync
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await MakeAsyncCommand.ExecuteAsync("AgentService", "AlreadyAsyncMethod", false, "ignored", false);
+            await _services.Resolve<MakeAsyncCommand>().ExecuteAsync("AgentService", "AlreadyAsyncMethod", false, "ignored", false);
         }
 
         var afterContent = await project.ReadSourceAsync("AgentService.cs");
@@ -122,7 +126,7 @@ public class MakeAsync
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await MakeAsyncCommand.ExecuteAsync("AgentService", "GetAgent", true, "ignored", false);
+            await _services.Resolve<MakeAsyncCommand>().ExecuteAsync("AgentService", "GetAgent", true, "ignored", false);
         }
 
         var content = await project.ReadSourceAsync("AgentService.cs");
@@ -146,7 +150,7 @@ public class MakeAsync
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await MakeAsyncCommand.ExecuteAsync("Svc", "Send", false, "ignored", false);
+            await _services.Resolve<MakeAsyncCommand>().ExecuteAsync("Svc", "Send", false, "ignored", false);
         }
 
         var content = await project.ReadSourceAsync("Svc.cs");
@@ -163,7 +167,7 @@ public class MakeAsync
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await MakeAsyncCommand.ExecuteAsync("AgentService", "GetAgent", false, "ignored", false);
+            await _services.Resolve<MakeAsyncCommand>().ExecuteAsync("AgentService", "GetAgent", false, "ignored", false);
         }
 
         var content = await project.ReadSourceAsync("AgentService.cs");
@@ -198,7 +202,7 @@ public class MakeAsync
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await MakeAsyncCommand.ExecuteAsync("Processor", "Run", false, "ignored", false);
+            await _services.Resolve<MakeAsyncCommand>().ExecuteAsync("Processor", "Run", false, "ignored", false);
         }
 
         var content = await project.ReadSourceAsync("Svc.cs");
@@ -233,7 +237,7 @@ public class MakeAsync
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await MakeAsyncCommand.ExecuteAsync("Worker", "Fetch", false, "ignored", false);
+            await _services.Resolve<MakeAsyncCommand>().ExecuteAsync("Worker", "Fetch", false, "ignored", false);
         }
 
         var content = await project.ReadSourceAsync("Svc.cs");
@@ -252,7 +256,7 @@ public class MakeAsync
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                MakeAsyncCommand.ExecuteAsync("AgentService", "NonExistent", false, "ignored", false));
+                _services.Resolve<MakeAsyncCommand>().ExecuteAsync("AgentService", "NonExistent", false, "ignored", false));
         }
     }
 }

@@ -9,8 +9,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class NarrowDependencyCommand : IRtCommand
 {
-    private NarrowDependencyCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly NarrowDependencyService _narrow;
+    public NarrowDependencyCommand(IWorkspaceSessionFactory sessionFactory, NarrowDependencyService narrow)
     {
+        _narrow = narrow;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -29,7 +33,7 @@ internal sealed class NarrowDependencyCommand : IRtCommand
         ]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var interfaceArg = new Argument<string>("interface", "Source interface to extract members from");
         var membersOpt = new Option<string[]>("--members", "Comma-separated or repeated member names to extract")
@@ -60,18 +64,17 @@ internal sealed class NarrowDependencyCommand : IRtCommand
     /// <summary>
     /// Asynchronously narrows dependencies using provided parameters.
     /// </summary>
-    internal static async Task ExecuteAsync(
+    internal async Task ExecuteAsync(
         string sourceInterface,
         string[] members,
         string newInterfaceName,
         string? solutionPath,
         bool dryRun)
     {
-        var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
+        var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
-            await RtServiceProvider.Get<NarrowDependencyService>()
-                .ExecuteAsync(sln, sourceInterface, members, newInterfaceName, dryRun);
+            await _narrow.ExecuteAsync(sln, sourceInterface, members, newInterfaceName, dryRun);
         }
     }
 }

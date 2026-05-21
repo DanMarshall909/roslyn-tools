@@ -9,8 +9,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class TransformParametersCommand : IRtCommand
 {
-    private TransformParametersCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly TransformParametersService _transform;
+    public TransformParametersCommand(IWorkspaceSessionFactory sessionFactory, TransformParametersService transform)
     {
+        _transform = transform;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -29,7 +33,7 @@ internal sealed class TransformParametersCommand : IRtCommand
         ]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var methodOpt =
             new Option<string>("--method", "Dot-separated TypeName.MethodName, e.g. OrderService.PlaceOrder")
@@ -49,13 +53,12 @@ internal sealed class TransformParametersCommand : IRtCommand
 
         cmd.SetHandler(async (method, newType, existingType, solution, dryRun) =>
         {
-            var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
+            var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
             using (workspace)
             {
                 try
                 {
-                    await RtServiceProvider.Get<TransformParametersService>()
-                        .RunAsync(sln, method, newType, existingType, dryRun);
+                    await _transform.RunAsync(sln, method, newType, existingType, dryRun);
                 }
                 catch (InvalidOperationException ex)
                 {

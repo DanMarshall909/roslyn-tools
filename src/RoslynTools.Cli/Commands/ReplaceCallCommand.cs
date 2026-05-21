@@ -9,8 +9,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class ReplaceCallCommand : IRtCommand
 {
-    private ReplaceCallCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly ReplaceCallService _replace;
+    public ReplaceCallCommand(IWorkspaceSessionFactory sessionFactory, ReplaceCallService replace)
     {
+        _replace = replace;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -29,7 +33,7 @@ internal sealed class ReplaceCallCommand : IRtCommand
         ]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var fromOpt = new Option<string>("--from", "Full method reference to replace, e.g. Logger.Log")
         { IsRequired = true };
@@ -59,14 +63,13 @@ internal sealed class ReplaceCallCommand : IRtCommand
     /// <summary>
     /// Asynchronously replaces a call with new parameters.
     /// </summary>
-    internal static async Task ExecuteAsync(string from, string to, string? solutionPath, bool dryRun,
+    internal async Task ExecuteAsync(string from, string to, string? solutionPath, bool dryRun,
         int? ifArgIndex = null, string? ifArgLiteral = null)
     {
-        var (workspace, solution) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
+        var (workspace, solution) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
-            await RtServiceProvider.Get<ReplaceCallService>()
-                .RunAsync(solution, from, to, dryRun, ifArgIndex, ifArgLiteral);
+            await _replace.RunAsync(solution, from, to, dryRun, ifArgIndex, ifArgLiteral);
         }
     }
 }

@@ -1,5 +1,4 @@
 using System.CommandLine;
-using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
@@ -11,8 +10,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class DescribeCommand : IRtCommand, IStructuredOutputCommand
 {
-    private DescribeCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly InspectService _inspect;
+    public DescribeCommand(IWorkspaceSessionFactory sessionFactory, InspectService inspect)
     {
+        _inspect = inspect;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -32,7 +35,7 @@ internal sealed class DescribeCommand : IRtCommand, IStructuredOutputCommand
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var symbolArg = new Argument<string>("symbol", "Fully-qualified symbol name to inspect");
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln/.slnx file");
@@ -48,12 +51,10 @@ internal sealed class DescribeCommand : IRtCommand, IStructuredOutputCommand
                 var symbol = ctx.ParseResult.GetValueForArgument(symbolArg);
                 var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
                 var kind = ctx.ParseResult.GetValueForOption(kindOpt);
-                var sp = ctx.BindingContext.GetService<IServiceProvider>();
-                var loader = sp?.GetService<IWorkspaceSessionFactory>() ?? IWorkspaceSessionFactory.CreateDefault();
 
-                var sln = await loader.GetSolutionAsync(solution);
+                var sln = await _sessionFactory.GetSolutionAsync(solution);
                 var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, symbol, kind);
-                var result = RtServiceProvider.Get<InspectService>().BuildInspection(sym, sln);
+                var result = _inspect.BuildInspection(sym, sln);
 
                 RtResultRenderer.Write(
                     RtResult<object>.Ok(result),

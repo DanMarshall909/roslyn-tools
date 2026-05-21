@@ -9,8 +9,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class InlineMethodCommand : IRtCommand
 {
-    private InlineMethodCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly InlineMethodService _inlineMethod;
+    public InlineMethodCommand(IWorkspaceSessionFactory sessionFactory, InlineMethodService inlineMethod)
     {
+        _inlineMethod = inlineMethod;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -28,7 +32,7 @@ internal sealed class InlineMethodCommand : IRtCommand
         ]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var typeOpt = CommandOptionFactory.CreateTypeOption("--type", "Class containing the method to inline");
         var methodOpt = CommandOptionFactory.CreateMethodOption("--method", "Method name to inline at all call sites");
@@ -52,12 +56,12 @@ internal sealed class InlineMethodCommand : IRtCommand
     /// <summary>
     /// Executes the InlineMethodCommand with async parameters
     /// </summary>
-    internal static async Task ExecuteAsync(string typeName, string methodName, string? solutionPath, bool dryRun)
+    internal async Task ExecuteAsync(string typeName, string methodName, string? solutionPath, bool dryRun)
     {
-        var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
+        var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
-            await RtServiceProvider.Get<InlineMethodService>().RunAsync(sln, typeName, methodName, dryRun);
+            await _inlineMethod.RunAsync(sln, typeName, methodName, dryRun);
         }
     }
 }

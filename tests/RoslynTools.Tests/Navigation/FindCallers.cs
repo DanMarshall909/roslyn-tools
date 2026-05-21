@@ -3,11 +3,15 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Tests.Infrastructure;
 
 namespace RoslynTools.Tests.Navigation;
 
-public class FindCallers
+public class FindCallers : IClassFixture<RtServicesFixture>
 {
+    private readonly RtServicesFixture _services;
+    public FindCallers(RtServicesFixture services) => _services = services;
+
     [Fact]
     public async Task returns_invocation_sites()
     {
@@ -37,7 +41,7 @@ public class FindCallers
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var methodSymbol = await SymbolLocator.FindSymbolAsync(sln, "Greet", "method");
+            var methodSymbol = await RoslynTools.Core.SymbolLocator.FindSymbolAsync(sln, "Greet", "method");
             var callers = await FindInvocationCallersAsync(sln, methodSymbol);
 
             Assert.Equal(2, callers.Count);
@@ -64,7 +68,7 @@ public class FindCallers
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var methodSymbol = await SymbolLocator.FindSymbolAsync(sln, "NeverCalled", "method");
+            var methodSymbol = await RoslynTools.Core.SymbolLocator.FindSymbolAsync(sln, "NeverCalled", "method");
             var callers = await FindInvocationCallersAsync(sln, methodSymbol);
 
             Assert.Empty(callers);
@@ -94,14 +98,14 @@ public class FindCallers
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var methodSymbol = await SymbolLocator.FindSymbolAsync(sln, "Greet", "method");
+            var methodSymbol = await RoslynTools.Core.SymbolLocator.FindSymbolAsync(sln, "Greet", "method");
             var callers = await FindInvocationCallersAsync(sln, methodSymbol);
 
             Assert.Empty(callers);
         }
     }
 
-    private static async Task<List<CallerInfo>> FindInvocationCallersAsync(
+    private async Task<List<CallerInfo>> FindInvocationCallersAsync(
         Solution solution,
         ISymbol symbol)
     {
@@ -123,7 +127,7 @@ public class FindCallers
                     .OfType<InvocationExpressionSyntax>()
                     .FirstOrDefault();
 
-                if (invocation is null || FindCallersCommand.IsNameofExpression(invocation))
+                if (invocation is null || _services.Resolve<FindCallersCommand>().IsNameofExpression(invocation))
                     continue;
 
                 var lineSpan = loc.Location.GetLineSpan();

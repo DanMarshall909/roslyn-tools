@@ -11,8 +11,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class FindUndocumentedCommand : IRtCommand
 {
-    private FindUndocumentedCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly FindUndocumentedService _findUndocumented;
+    public FindUndocumentedCommand(IWorkspaceSessionFactory sessionFactory, FindUndocumentedService findUndocumented)
     {
+        _findUndocumented = findUndocumented;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -33,7 +37,7 @@ internal sealed class FindUndocumentedCommand : IRtCommand
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var solutionOpt = CommandOptionFactory.CreateSolutionOption();
         var membersOpt = new Option<bool>("--members", "Also report undocumented public methods and properties");
@@ -54,10 +58,10 @@ internal sealed class FindUndocumentedCommand : IRtCommand
             var levels = level.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             var accessibilityKinds = FindUndocumentedService.ParseAccessibilityLevels(levels);
 
-            var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
+            var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
             using (workspace)
             {
-                var symbols = await RtServiceProvider.Get<FindUndocumentedService>()
+                var symbols = await _findUndocumented
                     .AnalyzeAsync(sln, members, scope, accessibilityKinds);
                 RtResultRenderer.WriteOutput(RtResult<FindUndocumentedResult>.Ok(FindUndocumentedResult.From(symbols)));
             }

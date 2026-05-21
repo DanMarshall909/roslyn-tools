@@ -12,24 +12,27 @@ internal static class ChangeSignatureCommandHandlers
     /// Renames a parameter in a command signature.
     /// </summary>
     internal static async Task<int> RenameParamAsync(
+        IWorkspaceSessionFactory sessionFactory,
+        ChangeSignatureService changeSignature,
+        ISolutionChangeWriter solutionChangeWriter,
         string methodSpec,
         string oldName,
         string newName,
         string? solution,
         bool dryRun)
     {
-        var (workspace, loadedSolution) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
+        var (workspace, loadedSolution) = await sessionFactory.LoadWorkspaceAsync(solution);
         using (workspace)
         {
             try
             {
-                var updatedSolution = await RtServiceProvider.Get<ChangeSignatureService>().RenameParamAsync(
+                var updatedSolution = await changeSignature.RenameParamAsync(
                     loadedSolution,
                     methodSpec,
                     oldName,
                     newName);
 
-                await RtServiceProvider.GetOrDefault(ISolutionChangeWriter.CreateDefault).ApplyChangesAsync(loadedSolution, updatedSolution, dryRun);
+                await solutionChangeWriter.ApplyChangesAsync(loadedSolution, updatedSolution, dryRun);
                 return CommandHandlerConstants.SuccessExitCode;
             }
             catch (InvalidOperationException ex)
@@ -44,22 +47,25 @@ internal static class ChangeSignatureCommandHandlers
     /// Reorders parameters in a command signature.
     /// </summary>
     internal static async Task<int> ReorderAsync(
+        IWorkspaceSessionFactory sessionFactory,
+        ChangeSignatureService changeSignature,
+        ISolutionChangeWriter solutionChangeWriter,
         string methodSpec,
         string[] newOrder,
         string? solution,
         bool dryRun)
     {
-        var (workspace, loadedSolution) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
+        var (workspace, loadedSolution) = await sessionFactory.LoadWorkspaceAsync(solution);
         using (workspace)
         {
             try
             {
-                var updatedSolution = await RtServiceProvider.Get<ChangeSignatureService>().ReorderParamsAsync(
+                var updatedSolution = await changeSignature.ReorderParamsAsync(
                     loadedSolution,
                     methodSpec,
                     newOrder);
 
-                await RtServiceProvider.GetOrDefault(ISolutionChangeWriter.CreateDefault).ApplyChangesAsync(loadedSolution, updatedSolution, dryRun);
+                await solutionChangeWriter.ApplyChangesAsync(loadedSolution, updatedSolution, dryRun);
                 return CommandHandlerConstants.SuccessExitCode;
             }
             catch (InvalidOperationException ex)
@@ -74,24 +80,27 @@ internal static class ChangeSignatureCommandHandlers
     /// Adds a parameter to a command signature.
     /// </summary>
     internal static async Task<int> AddParamAsync(
+        IWorkspaceSessionFactory sessionFactory,
+        ChangeSignatureService changeSignature,
+        ISolutionChangeWriter solutionChangeWriter,
         string methodSpec,
         string paramSpec,
         string? after,
         string? solution,
         bool dryRun)
     {
-        var (workspace, loadedSolution) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
+        var (workspace, loadedSolution) = await sessionFactory.LoadWorkspaceAsync(solution);
         using (workspace)
         {
             try
             {
-                var updatedSolution = await RtServiceProvider.Get<ChangeSignatureService>().AddParamAsync(
+                var updatedSolution = await changeSignature.AddParamAsync(
                     loadedSolution,
                     methodSpec,
                     paramSpec,
                     after);
 
-                await RtServiceProvider.GetOrDefault(ISolutionChangeWriter.CreateDefault).ApplyChangesAsync(loadedSolution, updatedSolution, dryRun);
+                await solutionChangeWriter.ApplyChangesAsync(loadedSolution, updatedSolution, dryRun);
                 return CommandHandlerConstants.SuccessExitCode;
             }
             catch (InvalidOperationException ex)
@@ -106,24 +115,27 @@ internal static class ChangeSignatureCommandHandlers
     /// Removes a parameter from a command signature.
     /// </summary>
     internal static async Task<int> RemoveParamAsync(
+        IWorkspaceSessionFactory sessionFactory,
+        ChangeSignatureService changeSignature,
+        ISolutionChangeWriter solutionChangeWriter,
         string methodSpec,
         string paramName,
         bool force,
         string? solution,
         bool dryRun)
     {
-        var (workspace, loadedSolution) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
+        var (workspace, loadedSolution) = await sessionFactory.LoadWorkspaceAsync(solution);
         using (workspace)
         {
             try
             {
-                var updatedSolution = await RtServiceProvider.Get<ChangeSignatureService>().RemoveParamAsync(
+                var updatedSolution = await changeSignature.RemoveParamAsync(
                     loadedSolution,
                     methodSpec,
                     paramName,
                     force);
 
-                await RtServiceProvider.GetOrDefault(ISolutionChangeWriter.CreateDefault).ApplyChangesAsync(loadedSolution, updatedSolution, dryRun);
+                await solutionChangeWriter.ApplyChangesAsync(loadedSolution, updatedSolution, dryRun);
                 return CommandHandlerConstants.SuccessExitCode;
             }
             catch (InvalidOperationException ex)

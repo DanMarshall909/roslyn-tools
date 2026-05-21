@@ -5,11 +5,15 @@ using Microsoft.Extensions.Logging.Abstractions;
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Services;
+using RoslynTools.Tests.Infrastructure;
 
 namespace RoslynTools.Tests.Mutation;
 
-public class SafeDelete
+public class SafeDelete : IClassFixture<RtServicesFixture>
 {
+    private readonly RtServicesFixture _services;
+    public SafeDelete(RtServicesFixture services) => _services = services;
+
     private const string SafeAppSource = """
                                          public class Orphan { }
 
@@ -40,7 +44,7 @@ public class SafeDelete
         using (project)
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await SafeDeleteCommand.ExecuteAsync("Orphan", null, "ignored", false);
+            await _services.Resolve<SafeDeleteCommand>().ExecuteAsync("Orphan", null, "ignored", false);
 
             var content = await project.ReadSourceAsync("SafeApp.cs");
             Assert.DoesNotContain("class Orphan", content);
@@ -55,7 +59,7 @@ public class SafeDelete
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                SafeDeleteCommand.ExecuteAsync("Used", null, "ignored", false));
+                _services.Resolve<SafeDeleteCommand>().ExecuteAsync("Used", null, "ignored", false));
 
             Assert.Contains("Used", ex.Message);
         }
@@ -68,7 +72,7 @@ public class SafeDelete
         using (project)
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await SafeDeleteCommand.ExecuteAsync("Svc.Dead", "method", "ignored", false);
+            await _services.Resolve<SafeDeleteCommand>().ExecuteAsync("Svc.Dead", "method", "ignored", false);
 
             var content = await project.ReadSourceAsync("SafeApp.cs");
             Assert.DoesNotContain("void Dead()", content);
@@ -84,7 +88,7 @@ public class SafeDelete
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                SafeDeleteCommand.ExecuteAsync("Svc.Live", "method", "ignored", false));
+                _services.Resolve<SafeDeleteCommand>().ExecuteAsync("Svc.Live", "method", "ignored", false));
 
             Assert.Contains("Live", ex.Message);
         }
@@ -99,7 +103,7 @@ public class SafeDelete
         {
             var originalContent = await project.ReadSourceAsync("SafeApp.cs");
 
-            await SafeDeleteCommand.ExecuteAsync("Orphan", null, "ignored", true);
+            await _services.Resolve<SafeDeleteCommand>().ExecuteAsync("Orphan", null, "ignored", true);
 
             var afterContent = await project.ReadSourceAsync("SafeApp.cs");
             Assert.Equal(originalContent, afterContent);
@@ -131,7 +135,7 @@ public class SafeDelete
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
             // Logger is only used inside nameof() — should be deletable
-            await SafeDeleteCommand.ExecuteAsync("Logger", null, "ignored", false);
+            await _services.Resolve<SafeDeleteCommand>().ExecuteAsync("Logger", null, "ignored", false);
 
             var content = await project.ReadSourceAsync("SafeApp.cs");
             Assert.DoesNotContain("class Logger", content);

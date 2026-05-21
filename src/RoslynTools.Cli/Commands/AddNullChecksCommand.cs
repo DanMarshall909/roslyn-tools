@@ -9,8 +9,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class AddNullChecksCommand : IRtCommand
 {
-    private AddNullChecksCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly AddNullChecksService _addNullChecks;
+    public AddNullChecksCommand(IWorkspaceSessionFactory sessionFactory, AddNullChecksService addNullChecks)
     {
+        _addNullChecks = addNullChecks;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -29,7 +33,7 @@ internal sealed class AddNullChecksCommand : IRtCommand
         ]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var typeOpt = CommandOptionFactory.CreateTypeOption("--type", "Class containing the method");
         var methodOpt = CommandOptionFactory.CreateMethodOption("--method", "Method name to add null checks to");
@@ -51,12 +55,12 @@ internal sealed class AddNullChecksCommand : IRtCommand
     /// <summary>
     /// Executes the add null checks command asynchronously.
     /// </summary>
-    internal static async Task ExecuteAsync(string typeName, string methodName, string? solutionPath, bool dryRun)
+    internal async Task ExecuteAsync(string typeName, string methodName, string? solutionPath, bool dryRun)
     {
-        var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
+        var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
-            await RtServiceProvider.Get<AddNullChecksService>().RunAsync(sln, typeName, methodName, dryRun);
+            await _addNullChecks.RunAsync(sln, typeName, methodName, dryRun);
         }
     }
 }

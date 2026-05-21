@@ -9,8 +9,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class AddStaticImportCommand : IRtCommand
 {
-    private AddStaticImportCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly ImportDirectiveService _importDirective;
+    public AddStaticImportCommand(IWorkspaceSessionFactory sessionFactory, ImportDirectiveService importDirective)
     {
+        _importDirective = importDirective;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -29,7 +33,7 @@ internal sealed class AddStaticImportCommand : IRtCommand
         ]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var fileOpt = CommandOptionFactory.CreateStringOption("--file", "Path to the .cs file to update");
         var typeOpt = CommandOptionFactory.CreateTypeOption("--type", "Fully qualified type to import statically");
@@ -42,10 +46,10 @@ internal sealed class AddStaticImportCommand : IRtCommand
 
         cmd.SetHandler(async (file, type, solution, dryRun) =>
         {
-            var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
+            var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
             using (workspace)
             {
-                await RtServiceProvider.Get<ImportDirectiveService>().AddStaticUsingAsync(sln, file, type, dryRun);
+                await _importDirective.AddStaticUsingAsync(sln, file, type, dryRun);
             }
         }, fileOpt, typeOpt, solutionOpt, dryRunOpt);
 

@@ -1,11 +1,15 @@
 using Microsoft.CodeAnalysis;
 using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Tests.Infrastructure;
 
 namespace RoslynTools.Tests.Mutation;
 
-public class ReplaceCall
+public class ReplaceCall : IClassFixture<RtServicesFixture>
 {
+    private readonly RtServicesFixture _services;
+    public ReplaceCall(RtServicesFixture services) => _services = services;
+
     private const string LogAppSource = """
                                         class Logger {
                                           public static void Log(string msg) { }
@@ -31,7 +35,7 @@ public class ReplaceCall
         using (project)
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await ReplaceCallCommand.ExecuteAsync("Logger.Log", "LogInfo", "ignored", false);
+            await _services.Resolve<ReplaceCallCommand>().ExecuteAsync("Logger.Log", "LogInfo", "ignored", false);
 
             var content = await project.ReadSourceAsync("LogApp.cs");
 
@@ -57,7 +61,7 @@ public class ReplaceCall
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await ReplaceCallCommand.ExecuteAsync("Logger.Log", "LogInfo", "ignored", false);
+            await _services.Resolve<ReplaceCallCommand>().ExecuteAsync("Logger.Log", "LogInfo", "ignored", false);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -86,7 +90,7 @@ public class ReplaceCall
         {
             using (WorkspaceLoader.UseOverride(workspace, sln))
             {
-                await ReplaceCallCommand.ExecuteAsync("Logger.Log", "LogInfo", "ignored", false);
+                await _services.Resolve<ReplaceCallCommand>().ExecuteAsync("Logger.Log", "LogInfo", "ignored", false);
             }
         }
         finally
@@ -112,7 +116,7 @@ public class ReplaceCall
             Console.SetOut(sw);
             try
             {
-                await ReplaceCallCommand.ExecuteAsync("Logger.Log", "LogInfo", "ignored", true);
+                await _services.Resolve<ReplaceCallCommand>().ExecuteAsync("Logger.Log", "LogInfo", "ignored", true);
             }
             finally
             {
@@ -148,7 +152,7 @@ public class ReplaceCall
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await ReplaceCallCommand.ExecuteAsync("Factory.CreateStringOption", "Factory.CreateMethodOption", "ignored",
+            await _services.Resolve<ReplaceCallCommand>().ExecuteAsync("Factory.CreateStringOption", "Factory.CreateMethodOption", "ignored",
                 false, 0, "--method");
         }
 

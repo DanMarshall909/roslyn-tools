@@ -10,8 +10,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class ExtractMethodCommand : IRtCommand
 {
-    private ExtractMethodCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
+    public ExtractMethodCommand(IWorkspaceSessionFactory sessionFactory, ISolutionChangeWriter solutionChangeWriter)
     {
+        _solutionChangeWriter = solutionChangeWriter;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -42,7 +46,7 @@ internal sealed class ExtractMethodCommand : IRtCommand
         ]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var fileArg = new Argument<string>("file", "Path to the .cs file containing the method to extract from.");
         var newNameArg = new Argument<string>("new-name", "Name for the extracted method.");
@@ -78,7 +82,7 @@ internal sealed class ExtractMethodCommand : IRtCommand
             var dryRun = ctx.ParseResult.GetValueForOption(dryRunOpt);
             var replaceDuplicates = ctx.ParseResult.GetValueForOption(replaceDuplicatesOpt);
 
-            var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
+            var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
             using (workspace)
             {
                 RtLog.Info("Extracting lines {StartLine}–{EndLine} of '{File}' → '{NewName}'...", startLine, endLine,
@@ -110,7 +114,7 @@ internal sealed class ExtractMethodCommand : IRtCommand
                     return;
                 }
 
-                await RtServiceProvider.GetOrDefault(ISolutionChangeWriter.CreateDefault).ApplyChangesAsync(sln, newSln, dryRun);
+                await _solutionChangeWriter.ApplyChangesAsync(sln, newSln, dryRun);
             }
         });
 

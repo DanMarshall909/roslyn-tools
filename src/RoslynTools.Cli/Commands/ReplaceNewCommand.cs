@@ -9,8 +9,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class ReplaceNewCommand : IRtCommand
 {
-    private ReplaceNewCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly ReplaceNewService _replace;
+    public ReplaceNewCommand(IWorkspaceSessionFactory sessionFactory, ReplaceNewService replace)
     {
+        _replace = replace;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -29,7 +33,7 @@ internal sealed class ReplaceNewCommand : IRtCommand
         ]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var typeOpt = new Option<string>("--type", "Type name to replace, e.g. Option<string> or Option<string?>")
         { IsRequired = true };
@@ -61,14 +65,13 @@ internal sealed class ReplaceNewCommand : IRtCommand
     /// <summary>
     /// Asynchronously replaces an old call with new parameters.
     /// </summary>
-    internal static async Task ExecuteAsync(string type, string with_method, string? solutionPath, bool dryRun,
+    internal async Task ExecuteAsync(string type, string with_method, string? solutionPath, bool dryRun,
         int? ifArgIndex = null, string? ifArgLiteral = null, bool dropMatchedArg = false)
     {
-        var (workspace, solution) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
+        var (workspace, solution) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
-            await RtServiceProvider.Get<ReplaceNewService>()
-                .RunAsync(solution, type, with_method, dryRun, ifArgIndex, ifArgLiteral, dropMatchedArg);
+            await _replace.RunAsync(solution, type, with_method, dryRun, ifArgIndex, ifArgLiteral, dropMatchedArg);
         }
     }
 }

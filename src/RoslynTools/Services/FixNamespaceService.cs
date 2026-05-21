@@ -16,14 +16,11 @@ internal class FixNamespaceService : IRtService
 {
     private readonly ILogger<FixNamespaceService> _logger;
     private readonly ISolutionChangeWriter _solutionChangeWriter;
+    private readonly IWorkspaceSessionFactory _sessionFactory;
 
-    public FixNamespaceService()
-        : this(new RtConsoleLogger<FixNamespaceService>(), new SolutionChangeWriter())
+    public FixNamespaceService(ILogger<FixNamespaceService> logger, ISolutionChangeWriter solutionChangeWriter, IWorkspaceSessionFactory sessionFactory)
     {
-    }
-
-    public FixNamespaceService(ILogger<FixNamespaceService> logger, ISolutionChangeWriter solutionChangeWriter)
-    {
+        _sessionFactory = sessionFactory;
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
     }
@@ -35,7 +32,7 @@ internal class FixNamespaceService : IRtService
     {
         filePath = Path.GetFullPath(filePath);
 
-        var (workspace, solution) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
+        var (workspace, solution) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
             await RunAsync(solution, filePath, dryRun);

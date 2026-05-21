@@ -3,8 +3,11 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Tests.Infrastructure;
 
-public class LoggingRefactor
+public class LoggingRefactor : IClassFixture<RtServicesFixture>
 {
+    private readonly RtServicesFixture _services;
+    public LoggingRefactor(RtServicesFixture services) => _services = services;
+
     [Fact]
     public async Task captures_info_warning_and_error_without_redirecting_console()
     {
@@ -25,7 +28,7 @@ public class LoggingRefactor
             using (recordWorkspace)
             using (WorkspaceLoader.UseOverride(recordWorkspace, recordSolution))
             {
-                await ConvertToRecordCommand.ExecuteAsync("WithMutableProp", "ignored", false);
+                await _services.Resolve<ConvertToRecordCommand>().ExecuteAsync("WithMutableProp", "ignored", false);
             }
 
             using var staticProject = new AdhocProjectBuilder("StaticApp");
@@ -42,7 +45,7 @@ public class LoggingRefactor
             using (WorkspaceLoader.UseOverride(staticWorkspace, staticSolution))
             {
                 Environment.ExitCode = 0;
-                await MakeStaticCommand.ExecuteAsync("Service.GetValue", "ignored", false);
+                await _services.Resolve<MakeStaticCommand>().ExecuteAsync("Service.GetValue", "ignored", false);
                 Assert.Equal(1, Environment.ExitCode);
                 Environment.ExitCode = 0;
             }
@@ -119,7 +122,7 @@ public class LoggingRefactor
         using (WorkspaceLoader.UseOverride(workspace, solution))
         using (Core.RtConsole.UseConsole(console))
         {
-            await FixNamespaceCommand.ExecuteAsync(
+            await _services.Resolve<FixNamespaceCommand>().ExecuteAsync(
                 Path.Combine(project.ProjectDir, "Services", "AgentService.cs"),
                 "ignored",
                 true);
@@ -193,7 +196,7 @@ public class LoggingRefactor
         using (WorkspaceLoader.UseOverride(workspace, solution))
         using (Core.RtConsole.UseConsole(console))
         {
-            await NarrowDependencyCommand.ExecuteAsync(
+            await _services.Resolve<NarrowDependencyCommand>().ExecuteAsync(
                 "IWideFacade",
                 ["Send"],
                 "ISender",

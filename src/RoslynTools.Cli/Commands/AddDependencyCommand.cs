@@ -10,8 +10,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class AddDependencyCommand : IRtCommand
 {
-    private AddDependencyCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly AddDependencyService _addDependency;
+    public AddDependencyCommand(IWorkspaceSessionFactory sessionFactory, AddDependencyService addDependency)
     {
+        _addDependency = addDependency;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -30,7 +34,7 @@ internal sealed class AddDependencyCommand : IRtCommand
         ]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var typeOpt = new Option<string>("--type", "Target class name") { IsRequired = true };
         var depOpt = new Option<string>("--dependency", "Dependency type to inject (e.g. IEmailService)")
@@ -54,24 +58,22 @@ internal sealed class AddDependencyCommand : IRtCommand
     /// <summary>
     /// Executes the add dependency command asynchronously.
     /// </summary>
-    internal static async Task ExecuteAsync(string typeName, string depType, string? fieldName, string? solutionPath,
+    internal async Task ExecuteAsync(string typeName, string depType, string? fieldName, string? solutionPath,
         bool dryRun)
     {
-        var (workspace, solution) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
+        var (workspace, solution) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
-            await RtServiceProvider.Get<AddDependencyService>()
-                .RunAsync(solution, typeName, depType, fieldName, dryRun);
+            await _addDependency.RunAsync(solution, typeName, depType, fieldName, dryRun);
         }
     }
 
-    // Forwarding stub kept for backwards compatibility
     /// <summary>
     /// Executes the add dependency command in the core context.
     /// </summary>
-    internal static Task ExecuteCoreAsync(Solution solution, string typeName, string depType, string? fieldName,
+    internal Task ExecuteCoreAsync(Solution solution, string typeName, string depType, string? fieldName,
         bool dryRun)
     {
-        return RtServiceProvider.Get<AddDependencyService>().RunAsync(solution, typeName, depType, fieldName, dryRun);
+        return _addDependency.RunAsync(solution, typeName, depType, fieldName, dryRun);
     }
 }

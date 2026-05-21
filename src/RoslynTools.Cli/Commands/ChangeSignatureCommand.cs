@@ -1,6 +1,7 @@
 using System.CommandLine;
 using RoslynTools.Commands.CommandHandlers;
 using RoslynTools.Core;
+using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
@@ -9,8 +10,14 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class ChangeSignatureCommand : IRtCommand
 {
-    private ChangeSignatureCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly ChangeSignatureService _changeSignature;
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
+    public ChangeSignatureCommand(IWorkspaceSessionFactory sessionFactory, ChangeSignatureService changeSignature, ISolutionChangeWriter solutionChangeWriter)
     {
+        _solutionChangeWriter = solutionChangeWriter;
+        _changeSignature = changeSignature;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -27,7 +34,7 @@ internal sealed class ChangeSignatureCommand : IRtCommand
         ]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var methodSpecArg =
             new Argument<string>("methodSpec", "Method spec, e.g. MyApp.Services.OrderService.PlaceOrder");
@@ -54,7 +61,7 @@ internal sealed class ChangeSignatureCommand : IRtCommand
             var dryRun = context.ParseResult.GetValueForOption(dryRunOpt);
 
             context.ExitCode =
-                await ChangeSignatureCommandHandlers.RenameParamAsync(methodSpec, oldName, newName, solution, dryRun);
+                await ChangeSignatureCommandHandlers.RenameParamAsync(_sessionFactory, _changeSignature, _solutionChangeWriter, methodSpec, oldName, newName, solution, dryRun);
         });
 
         // ── reorder ────────────────────────────────────────────────────────────
@@ -82,7 +89,7 @@ internal sealed class ChangeSignatureCommand : IRtCommand
 
             var newOrder = orderRaw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             context.ExitCode =
-                await ChangeSignatureCommandHandlers.ReorderAsync(methodSpec, newOrder, solution, dryRun);
+                await ChangeSignatureCommandHandlers.ReorderAsync(_sessionFactory, _changeSignature, _solutionChangeWriter, methodSpec, newOrder, solution, dryRun);
         });
 
         // ── add-param ──────────────────────────────────────────────────────────
@@ -112,7 +119,7 @@ internal sealed class ChangeSignatureCommand : IRtCommand
             var dryRun = context.ParseResult.GetValueForOption(addDryRunOpt);
 
             context.ExitCode =
-                await ChangeSignatureCommandHandlers.AddParamAsync(methodSpec, paramSpec, after, solution, dryRun);
+                await ChangeSignatureCommandHandlers.AddParamAsync(_sessionFactory, _changeSignature, _solutionChangeWriter, methodSpec, paramSpec, after, solution, dryRun);
         });
 
         // ── remove-param ───────────────────────────────────────────────────────
@@ -142,7 +149,7 @@ internal sealed class ChangeSignatureCommand : IRtCommand
             var dryRun = context.ParseResult.GetValueForOption(removeDryRunOpt);
 
             context.ExitCode =
-                await ChangeSignatureCommandHandlers.RemoveParamAsync(methodSpec, paramName, force, solution, dryRun);
+                await ChangeSignatureCommandHandlers.RemoveParamAsync(_sessionFactory, _changeSignature, _solutionChangeWriter, methodSpec, paramName, force, solution, dryRun);
         });
 
         var command = new Command("change-signature", "Change method signatures.")

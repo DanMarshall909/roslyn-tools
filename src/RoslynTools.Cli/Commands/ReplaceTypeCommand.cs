@@ -9,8 +9,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class ReplaceTypeCommand : IRtCommand
 {
-    private ReplaceTypeCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly ReplaceTypeService _replace;
+    public ReplaceTypeCommand(IWorkspaceSessionFactory sessionFactory, ReplaceTypeService replace)
     {
+        _replace = replace;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -29,7 +33,7 @@ internal sealed class ReplaceTypeCommand : IRtCommand
         ]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln file");
         var dryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk");
@@ -42,10 +46,10 @@ internal sealed class ReplaceTypeCommand : IRtCommand
 
         cmd.SetHandler(async (solution, dryRun) =>
             {
-                var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
+                var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
                 using (workspace)
                 {
-                    await RtServiceProvider.Get<ReplaceTypeService>().RunAsync(sln, dryRun);
+                    await _replace.RunAsync(sln, dryRun);
                 }
             },
             solutionOpt, dryRunOpt);

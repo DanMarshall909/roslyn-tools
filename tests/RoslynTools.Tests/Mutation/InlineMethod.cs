@@ -1,10 +1,14 @@
 using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Tests.Infrastructure;
 
 namespace RoslynTools.Tests.Mutation;
 
-public class InlineMethod
+public class InlineMethod : IClassFixture<RtServicesFixture>
 {
+    private readonly RtServicesFixture _services;
+    public InlineMethod(RtServicesFixture services) => _services = services;
+
     private const string MathHelperSource = """
                                             namespace MathApp;
 
@@ -32,7 +36,7 @@ public class InlineMethod
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await InlineMethodCommand.ExecuteAsync("MathHelper", "Double", "ignored", false);
+            await _services.Resolve<InlineMethodCommand>().ExecuteAsync("MathHelper", "Double", "ignored", false);
         }
 
         var content = await project.ReadSourceAsync("MathHelper.cs");
@@ -64,7 +68,7 @@ public class InlineMethod
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await InlineMethodCommand.ExecuteAsync("MathHelper", "Triple", "ignored", false);
+            await _services.Resolve<InlineMethodCommand>().ExecuteAsync("MathHelper", "Triple", "ignored", false);
         }
 
         var content = await project.ReadSourceAsync("MathHelper.cs");
@@ -80,7 +84,7 @@ public class InlineMethod
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await InlineMethodCommand.ExecuteAsync("MathHelper", "Double", "ignored", false);
+            await _services.Resolve<InlineMethodCommand>().ExecuteAsync("MathHelper", "Double", "ignored", false);
         }
 
         var content = await project.ReadSourceAsync("MathHelper.cs");
@@ -113,7 +117,7 @@ public class InlineMethod
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await InlineMethodCommand.ExecuteAsync("MathHelper", "Square", "ignored", false);
+            await _services.Resolve<InlineMethodCommand>().ExecuteAsync("MathHelper", "Square", "ignored", false);
         }
 
         var content = await project.ReadSourceAsync("MathHelper.cs");
@@ -134,7 +138,7 @@ public class InlineMethod
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await InlineMethodCommand.ExecuteAsync("MathHelper", "Double", "ignored", true);
+            await _services.Resolve<InlineMethodCommand>().ExecuteAsync("MathHelper", "Double", "ignored", true);
         }
 
         var afterContent = await project.ReadSourceAsync("MathHelper.cs");
@@ -168,7 +172,7 @@ public class InlineMethod
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await InlineMethodCommand.ExecuteAsync("MathHelper", "Complex", "ignored", false);
+            await _services.Resolve<InlineMethodCommand>().ExecuteAsync("MathHelper", "Complex", "ignored", false);
         }
 
         var afterContent = await project.ReadSourceAsync("MathHelper.cs");
@@ -187,7 +191,7 @@ public class InlineMethod
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await InlineMethodCommand.ExecuteAsync("MathHelper", "NonExistent", "ignored", false);
+            await _services.Resolve<InlineMethodCommand>().ExecuteAsync("MathHelper", "NonExistent", "ignored", false);
         }
 
         var afterContent = await project.ReadSourceAsync("MathHelper.cs");
@@ -222,7 +226,7 @@ public class InlineMethod
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await InlineMethodCommand.ExecuteAsync("MathHelper", "Double", "ignored", false);
+            await _services.Resolve<InlineMethodCommand>().ExecuteAsync("MathHelper", "Double", "ignored", false);
         }
 
         var content = await project.ReadSourceAsync("MathHelper.cs");
@@ -253,7 +257,7 @@ public class InlineMethod
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await InlineMethodCommand.ExecuteAsync("MathHelper", "Double", "ignored", false);
+            await _services.Resolve<InlineMethodCommand>().ExecuteAsync("MathHelper", "Double", "ignored", false);
         }
 
         var content = await project.ReadSourceAsync("MathHelper.cs");

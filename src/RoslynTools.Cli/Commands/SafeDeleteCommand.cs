@@ -9,8 +9,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class SafeDeleteCommand : IRtCommand
 {
-    private SafeDeleteCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly SafeDeleteService _safeDelete;
+    public SafeDeleteCommand(IWorkspaceSessionFactory sessionFactory, SafeDeleteService safeDelete)
     {
+        _safeDelete = safeDelete;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -29,7 +33,7 @@ internal sealed class SafeDeleteCommand : IRtCommand
         ]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var symbolOpt = new Option<string>("--symbol", "Type or member FQN or simple name to delete")
         { IsRequired = true };
@@ -60,12 +64,12 @@ internal sealed class SafeDeleteCommand : IRtCommand
         return cmd;
     }
 
-    internal static async Task ExecuteAsync(string symbol, string? kind, string? solutionPath, bool dryRun)
+    internal async Task ExecuteAsync(string symbol, string? kind, string? solutionPath, bool dryRun)
     {
-        var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
+        var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
-            await RtServiceProvider.Get<SafeDeleteService>().RunAsync(sln, symbol, kind, dryRun);
+            await _safeDelete.RunAsync(sln, symbol, kind, dryRun);
         }
     }
 }

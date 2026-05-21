@@ -9,8 +9,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class MoveCommand : IRtCommand
 {
-    private MoveCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly MoveService _moveService;
+    public MoveCommand(IWorkspaceSessionFactory sessionFactory, MoveService moveService)
     {
+        _moveService = moveService;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -31,7 +35,7 @@ internal sealed class MoveCommand : IRtCommand
         ]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln/.slnx file");
         var typeOpt = new Option<string?>("--type",
@@ -73,18 +77,15 @@ internal sealed class MoveCommand : IRtCommand
                     return;
                 }
 
-                var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
+                var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
                 using (workspace)
                 {
                     if (nsFrom != null)
-                        await RtServiceProvider.Get<MoveService>()
-                            .ExecuteNamespaceMoveAsync(workspace, sln, nsFrom, nsTo!, moveFile, dryRun);
+                        await _moveService.ExecuteNamespaceMoveAsync(workspace, sln, nsFrom, nsTo!, moveFile, dryRun);
                     else if (toProject != null)
-                        await RtServiceProvider.Get<MoveService>()
-                            .ExecuteCrossProjectMoveAsync(workspace, sln, type!, toProject, nsTo, dryRun);
+                        await _moveService.ExecuteCrossProjectMoveAsync(workspace, sln, type!, toProject, nsTo, dryRun);
                     else
-                        await RtServiceProvider.Get<MoveService>()
-                            .ExecuteSingleTypeMoveAsync(workspace, sln, type!, nsTo!, moveFile, dryRun);
+                        await _moveService.ExecuteSingleTypeMoveAsync(workspace, sln, type!, nsTo!, moveFile, dryRun);
                 }
             },
             solutionOpt, typeOpt, nsFromOpt, nsToOpt, toProjectOpt, dryRunOpt, moveFileOpt);

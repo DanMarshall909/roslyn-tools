@@ -1,10 +1,14 @@
 using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Tests.Infrastructure;
 
 namespace RoslynTools.Tests.Mutation;
 
-public class ExtractClass
+public class ExtractClass : IClassFixture<RtServicesFixture>
 {
+    private readonly RtServicesFixture _services;
+    public ExtractClass(RtServicesFixture services) => _services = services;
+
     private static AdhocProjectBuilder BuildFixture()
     {
         var project = new AdhocProjectBuilder("MyApp");
@@ -28,7 +32,7 @@ public class ExtractClass
         return project;
     }
 
-    private static async Task<CommandCapture> RunExtractClassAsync(
+    private async Task<CommandCapture> RunExtractClassAsync(
         string typeName,
         string members,
         string newTypeName,
@@ -48,7 +52,7 @@ public class ExtractClass
 
         try
         {
-            await ExtractClassCommand.ExecuteAsync(
+            await _services.Resolve<ExtractClassCommand>().ExecuteAsync(
                 typeName,
                 members,
                 newTypeName,
@@ -76,7 +80,7 @@ public class ExtractClass
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await ExtractClassCommand.ExecuteAsync(
+            await _services.Resolve<ExtractClassCommand>().ExecuteAsync(
                 "BigService",
                 "LogInfo",
                 "LogHelper",
@@ -98,7 +102,7 @@ public class ExtractClass
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await ExtractClassCommand.ExecuteAsync(
+            await _services.Resolve<ExtractClassCommand>().ExecuteAsync(
                 "BigService",
                 "LogInfo",
                 "LogHelper",
@@ -120,7 +124,7 @@ public class ExtractClass
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await ExtractClassCommand.ExecuteAsync(
+            await _services.Resolve<ExtractClassCommand>().ExecuteAsync(
                 "BigService",
                 "LogInfo",
                 "LogHelper",
@@ -142,7 +146,7 @@ public class ExtractClass
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await ExtractClassCommand.ExecuteAsync(
+            await _services.Resolve<ExtractClassCommand>().ExecuteAsync(
                 "BigService",
                 "LogInfo",
                 "LogHelper",
@@ -336,7 +340,7 @@ public class ExtractClass
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await ExtractClassCommand.ExecuteAsync(
+            await _services.Resolve<ExtractClassCommand>().ExecuteAsync(
                 "BigService",
                 "_prefix,FormatPath",
                 "PathFormatter",
@@ -467,7 +471,7 @@ public class ExtractClass
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await ExtractClassCommand.ExecuteAsync("BigService", "Version", "VersionInfo", true, "ignored", null,
+            await _services.Resolve<ExtractClassCommand>().ExecuteAsync("BigService", "Version", "VersionInfo", true, "ignored", null,
                 false);
         }
 

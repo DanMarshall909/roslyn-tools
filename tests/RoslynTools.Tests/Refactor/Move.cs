@@ -5,11 +5,15 @@ using Microsoft.CodeAnalysis.Text;
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Services;
+using RoslynTools.Tests.Infrastructure;
 
 namespace RoslynTools.Tests.Refactor;
 
-public class Move
+public class Move : IClassFixture<RtServicesFixture>
 {
+    private readonly RtServicesFixture _services;
+    public Move(RtServicesFixture services) => _services = services;
+
     [Fact]
     [Trait("Concern", "Metadata")]
     public void examples_include_to_project_usage()
@@ -22,7 +26,7 @@ public class Move
     [Trait("Concern", "Metadata")]
     public void to_project_option_is_registered_with_optional_to_namespace_noted()
     {
-        var cmd = MoveCommand.Build();
+        var cmd = _services.Resolve<MoveCommand>().Build();
 
         var toProjectOpt = cmd.Options.FirstOrDefault(o => o.Name == "to-project");
         Assert.NotNull(toProjectOpt);
@@ -57,7 +61,7 @@ public class Move
                                                    """);
 
         var stdout = new List<string>();
-        using (RtConsole.UseConsole(new CollectingResultConsole(stdout)))
+        using (RoslynTools.Core.RtConsole.UseConsole(new CollectingResultConsole(stdout)))
         {
             await new MoveService().ExecuteCrossProjectMoveAsync(
                 workspace, solution,
@@ -366,7 +370,7 @@ public class Move
         // WhenToUse/Examples must document that --to-project overrides it.
         // We verify the option exists; runtime precedence is tested via the handler's
         // branch order (to-project path never reads moveFile).
-        var cmd = MoveCommand.Build();
+        var cmd = _services.Resolve<MoveCommand>().Build();
         var moveFileOpt = cmd.Options.FirstOrDefault(o => o.Name == "move-file");
         Assert.NotNull(moveFileOpt);
 

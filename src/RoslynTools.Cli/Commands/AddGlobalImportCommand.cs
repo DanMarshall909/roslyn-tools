@@ -9,8 +9,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class AddGlobalImportCommand : IRtCommand
 {
-    private AddGlobalImportCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly ImportDirectiveService _importDirective;
+    public AddGlobalImportCommand(IWorkspaceSessionFactory sessionFactory, ImportDirectiveService importDirective)
     {
+        _importDirective = importDirective;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -29,7 +33,7 @@ internal sealed class AddGlobalImportCommand : IRtCommand
         ]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var fileOpt = CommandOptionFactory.CreateFileOption();
         var namespaceOpt = CommandOptionFactory.CreateNamespaceOption();
@@ -42,10 +46,10 @@ internal sealed class AddGlobalImportCommand : IRtCommand
 
         cmd.SetHandler(async (file, ns, solution, dryRun) =>
         {
-            var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
+            var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
             using (workspace)
             {
-                await RtServiceProvider.Get<ImportDirectiveService>().AddGlobalUsingAsync(sln, file, ns, dryRun);
+                await _importDirective.AddGlobalUsingAsync(sln, file, ns, dryRun);
             }
         }, fileOpt, namespaceOpt, solutionOpt, dryRunOpt);
 

@@ -9,8 +9,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class MakeStaticCommand : IRtCommand
 {
-    private MakeStaticCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly MakeStaticService _makeStatic;
+    public MakeStaticCommand(IWorkspaceSessionFactory sessionFactory, MakeStaticService makeStatic)
     {
+        _makeStatic = makeStatic;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -30,7 +34,7 @@ internal sealed class MakeStaticCommand : IRtCommand
         ]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var methodOpt = CommandOptionFactory.CreateMethodOption("--method", "Method to convert: <Type>.<Method>");
         var solutionOpt = CommandOptionFactory.CreateSolutionOption();
@@ -50,12 +54,12 @@ internal sealed class MakeStaticCommand : IRtCommand
     /// <summary>
     /// Asynchronously executes a static command with provided parameters.
     /// </summary>
-    internal static async Task ExecuteAsync(string methodSpec, string? solutionPath, bool dryRun)
+    internal async Task ExecuteAsync(string methodSpec, string? solutionPath, bool dryRun)
     {
-        var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
+        var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
-            var exitCode = await RtServiceProvider.Get<MakeStaticService>().RunAsync(sln, methodSpec, dryRun);
+            var exitCode = await _makeStatic.RunAsync(sln, methodSpec, dryRun);
             if (exitCode != 0)
                 Environment.ExitCode = exitCode;
         }

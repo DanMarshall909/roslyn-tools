@@ -1,10 +1,14 @@
 using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Tests.Infrastructure;
 
 namespace RoslynTools.Tests.Analysis;
 
-public class Complexity
+public class Complexity : IClassFixture<RtServicesFixture>
 {
+    private readonly RtServicesFixture _services;
+    public Complexity(RtServicesFixture services) => _services = services;
+
     // -----------------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------------
@@ -452,7 +456,7 @@ public class Complexity
     public async Task cli_returns_exit_code_1_for_invalid_arguments(string scenario, int threshold, string sort, int top)
     {
         _ = scenario;
-        var exitCode = await ComplexityCommand.ExecuteAsync(null, threshold, sort, top);
+        var exitCode = await _services.Resolve<ComplexityCommand>().ExecuteAsync(null, threshold, sort, top);
         Assert.Equal(1, exitCode);
     }
 

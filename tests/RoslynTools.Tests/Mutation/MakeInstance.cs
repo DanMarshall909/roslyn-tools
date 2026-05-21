@@ -1,10 +1,14 @@
 using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Tests.Infrastructure;
 
 namespace RoslynTools.Tests.Mutation;
 
-public class MakeInstance
+public class MakeInstance : IClassFixture<RtServicesFixture>
 {
+    private readonly RtServicesFixture _services;
+    public MakeInstance(RtServicesFixture services) => _services = services;
+
     // ── 1. Call site with reachable local variable ────────────────────────────
 
     [Fact]
@@ -34,7 +38,7 @@ public class MakeInstance
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await MakeInstanceCommand.ExecuteAsync("Calculator.Add", "ignored", false);
+            await _services.Resolve<MakeInstanceCommand>().ExecuteAsync("Calculator.Add", "ignored", false);
         }
 
         var content = await proj.ReadSourceAsync("Calc.cs");
@@ -76,7 +80,7 @@ public class MakeInstance
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await MakeInstanceCommand.ExecuteAsync("Formatter.Format", "ignored", false);
+            await _services.Resolve<MakeInstanceCommand>().ExecuteAsync("Formatter.Format", "ignored", false);
         }
 
         var content = await proj.ReadSourceAsync("Fmt.cs");
@@ -116,7 +120,7 @@ public class MakeInstance
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await MakeInstanceCommand.ExecuteAsync("Parser.Parse", "ignored", false);
+            await _services.Resolve<MakeInstanceCommand>().ExecuteAsync("Parser.Parse", "ignored", false);
         }
 
         var after = await proj.ReadSourceAsync("Parser.cs");
@@ -154,7 +158,7 @@ public class MakeInstance
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await MakeInstanceCommand.ExecuteAsync("Service.Sanitize", "ignored", false);
+            await _services.Resolve<MakeInstanceCommand>().ExecuteAsync("Service.Sanitize", "ignored", false);
         }
 
         var content = await proj.ReadSourceAsync("Service.cs");
@@ -189,7 +193,7 @@ public class MakeInstance
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await MakeInstanceCommand.ExecuteAsync("Helper.Double", "ignored", false);
+            await _services.Resolve<MakeInstanceCommand>().ExecuteAsync("Helper.Double", "ignored", false);
         }
 
         var content = await proj.ReadSourceAsync("Helper.cs");
@@ -231,7 +235,7 @@ public class MakeInstance
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await MakeInstanceCommand.ExecuteAsync("Greeter.Hello", "ignored", true);
+            await _services.Resolve<MakeInstanceCommand>().ExecuteAsync("Greeter.Hello", "ignored", true);
         }
 
         var after = await proj.ReadSourceAsync("Greeter.cs");
@@ -273,7 +277,7 @@ public class MakeInstance
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await MakeInstanceCommand.ExecuteAsync("MathUtil.Square", "ignored", false);
+            await _services.Resolve<MakeInstanceCommand>().ExecuteAsync("MathUtil.Square", "ignored", false);
         }
 
         var utilContent = await proj.ReadSourceAsync("MathUtil.cs");
@@ -322,7 +326,7 @@ public class MakeInstance
         {
             using (WorkspaceLoader.UseOverride(workspace, sln))
             {
-                await MakeInstanceCommand.ExecuteAsync("Utility.Ping", "ignored", false);
+                await _services.Resolve<MakeInstanceCommand>().ExecuteAsync("Utility.Ping", "ignored", false);
             }
         }
         finally

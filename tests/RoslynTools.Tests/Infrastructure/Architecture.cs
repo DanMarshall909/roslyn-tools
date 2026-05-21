@@ -7,8 +7,11 @@ namespace RoslynTools.Tests.Infrastructure;
 /// <summary>
 ///     Architecture validation tests using rt analysis APIs directly (no subprocess).
 /// </summary>
-public class Architecture
+public class Architecture : IClassFixture<RtServicesFixture>
 {
+    private readonly RtServicesFixture _services;
+    public Architecture(RtServicesFixture services) => _services = services;
+
     static Architecture()
     {
         MsBuildFixture.Ensure();
@@ -20,7 +23,7 @@ public class Architecture
         var (workspace, solution) = await WorkspaceLoader.LoadAsync(FindSolutionPath());
         using (workspace)
         {
-            var cycles = await CircularDepsCommand.AnalyzeCyclesAsync(solution, null);
+            var cycles = await _services.Resolve<CircularDepsCommand>().AnalyzeCyclesAsync(solution, null);
 
             Assert.True(
                 cycles.Count == 0,

@@ -11,8 +11,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class FindDuplicatesCommand : IRtCommand, IStructuredOutputCommand
 {
-    private FindDuplicatesCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly FindDuplicatesService _findDuplicates;
+    public FindDuplicatesCommand(IWorkspaceSessionFactory sessionFactory, FindDuplicatesService findDuplicates)
     {
+        _findDuplicates = findDuplicates;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -36,7 +40,7 @@ internal sealed class FindDuplicatesCommand : IRtCommand, IStructuredOutputComma
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
         var minStatementsOpt = new Option<int>("--min-statements", () => 3,
@@ -59,12 +63,12 @@ internal sealed class FindDuplicatesCommand : IRtCommand, IStructuredOutputComma
 
         cmd.SetHandler(async (solution, minStatements, minOccurrences, scope, includeTests, maxStatements) =>
         {
-            var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
+            var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
             using (workspace)
             {
                 var options =
                     new FindDuplicatesOptions(minStatements, minOccurrences, scope, includeTests, maxStatements);
-                var groups = await RtServiceProvider.Get<FindDuplicatesService>().RunAsync(sln, options);
+                var groups = await _findDuplicates.RunAsync(sln, options);
 
                 var solutionDir = sln.FilePath is not null
                     ? Path.GetDirectoryName(sln.FilePath)

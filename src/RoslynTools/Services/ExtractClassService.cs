@@ -23,14 +23,11 @@ internal class ExtractClassService : IRtService
         SymbolDisplayGlobalNamespaceStyle.Omitted,
         SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
         SymbolDisplayGenericsOptions.IncludeTypeParameters);
+    private readonly IWorkspaceSessionFactory _sessionFactory;
 
-    public ExtractClassService()
-        : this(new RtConsoleLogger<ExtractClassService>(), new SolutionChangeWriter())
+    public ExtractClassService(ILogger<ExtractClassService> logger, ISolutionChangeWriter solutionChangeWriter, IWorkspaceSessionFactory sessionFactory)
     {
-    }
-
-    public ExtractClassService(ILogger<ExtractClassService> logger, ISolutionChangeWriter solutionChangeWriter)
-    {
+        _sessionFactory = sessionFactory;
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
     }
@@ -47,7 +44,7 @@ internal class ExtractClassService : IRtService
         string? outputDir,
         bool dryRun)
     {
-        var (workspace, solution) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
+        var (workspace, solution) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
             await ExecuteAsync(solution, typeName, members, newTypeName, isStatic, outputDir, dryRun);

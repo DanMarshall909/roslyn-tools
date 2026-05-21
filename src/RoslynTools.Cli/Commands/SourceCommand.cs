@@ -1,5 +1,4 @@
 using System.CommandLine;
-using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
@@ -11,8 +10,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class SourceCommand : IRtCommand, IStructuredOutputCommand
 {
-    private SourceCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly InspectService _inspect;
+    public SourceCommand(IWorkspaceSessionFactory sessionFactory, InspectService inspect)
     {
+        _inspect = inspect;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -32,7 +35,7 @@ internal sealed class SourceCommand : IRtCommand, IStructuredOutputCommand
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var symbolArg = new Argument<string>("symbol", "Fully-qualified member or type name");
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln/.slnx file");
@@ -48,12 +51,9 @@ internal sealed class SourceCommand : IRtCommand, IStructuredOutputCommand
                 var symbol = ctx.ParseResult.GetValueForArgument(symbolArg);
                 var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
                 var kind = ctx.ParseResult.GetValueForOption(kindOpt);
-                var sp = ctx.BindingContext.GetService<IServiceProvider>();
-                var loader = sp?.GetService<IWorkspaceSessionFactory>() ?? IWorkspaceSessionFactory.CreateDefault();
-
-                var sln = await loader.GetSolutionAsync(solution);
+                var sln = await _sessionFactory.GetSolutionAsync(solution);
                 var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, symbol, kind);
-                var source = await RtServiceProvider.Get<InspectService>().GetSourceAsync(sym);
+                var source = await _inspect.GetSourceAsync(sym);
 
                 RtResultRenderer.Write(
                     RtResult<object>.Ok(source),

@@ -67,13 +67,17 @@ internal static class ConsoleLoggingCore
     /// <summary>
     /// ConsoleLoggingCore.RunAsync
     /// </summary>
-    internal static async Task RunAsync(Solution solution, ConsoleLoggingOptions options, bool dryRun)
+    internal static async Task RunAsync(
+        Solution solution,
+        ConsoleLoggingOptions options,
+        bool dryRun,
+        ISolutionChangeWriter solutionChangeWriter)
     {
         ArgumentNullException.ThrowIfNull(options);
 
         var originalSolution = solution;
         var newSolution = await ApplyAsync(solution, options);
-        await RtServiceProvider.GetOrDefault(ISolutionChangeWriter.CreateDefault).ApplyChangesAsync(originalSolution, newSolution, dryRun);
+        await solutionChangeWriter.ApplyChangesAsync(originalSolution, newSolution, dryRun);
     }
 
     /// <summary>

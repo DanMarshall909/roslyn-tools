@@ -9,8 +9,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class ImplementInterfaceCommand : IRtCommand
 {
-    private ImplementInterfaceCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly ImplementInterfaceService _implementInterface;
+    public ImplementInterfaceCommand(IWorkspaceSessionFactory sessionFactory, ImplementInterfaceService implementInterface)
     {
+        _implementInterface = implementInterface;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -29,7 +33,7 @@ internal sealed class ImplementInterfaceCommand : IRtCommand
         ]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var typeOpt = new Option<string>("--type", "Class to add interface stubs to") { IsRequired = true };
         var interfaceOpt =
@@ -54,12 +58,12 @@ internal sealed class ImplementInterfaceCommand : IRtCommand
     /// <summary>
     /// Executes the ImplementInterfaceCommand with async parameters
     /// </summary>
-    internal static async Task ExecuteAsync(string typeName, string? interfaceName, string? solutionPath, bool dryRun)
+    internal async Task ExecuteAsync(string typeName, string? interfaceName, string? solutionPath, bool dryRun)
     {
-        var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
+        var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
-            await RtServiceProvider.Get<ImplementInterfaceService>().RunAsync(sln, typeName, interfaceName, dryRun);
+            await _implementInterface.RunAsync(sln, typeName, interfaceName, dryRun);
         }
     }
 }

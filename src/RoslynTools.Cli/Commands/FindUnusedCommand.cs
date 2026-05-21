@@ -1,5 +1,4 @@
 using System.CommandLine;
-using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
@@ -12,8 +11,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class FindUnusedCommand : IRtCommand
 {
-    private FindUnusedCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly FindUnusedService _findUnused;
+    public FindUnusedCommand(IWorkspaceSessionFactory sessionFactory, FindUnusedService findUnused)
     {
+        _findUnused = findUnused;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -33,7 +36,7 @@ internal sealed class FindUnusedCommand : IRtCommand
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
         var scopeOpt = new Option<string?>("--scope", "Filter: types, methods, or all (default: all)");
@@ -47,11 +50,9 @@ internal sealed class FindUnusedCommand : IRtCommand
         {
             var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
             var scope = ctx.ParseResult.GetValueForOption(scopeOpt);
-            var sp = ctx.BindingContext.GetService<IServiceProvider>();
-            var loader = sp?.GetService<IWorkspaceSessionFactory>() ?? IWorkspaceSessionFactory.CreateDefault();
 
-            var sln = await loader.GetSolutionAsync(solution);
-            var symbols = await RtServiceProvider.Get<FindUnusedService>().AnalyzeAsync(sln, scope ?? "all");
+            var sln = await _sessionFactory.GetSolutionAsync(solution);
+            var symbols = await _findUnused.AnalyzeAsync(sln, scope ?? "all");
             var result = FindUnusedResult.FromSymbols(symbols);
             RtResultRenderer.WriteOutput(RtResult<FindUnusedResult>.Ok(result));
         });

@@ -1,6 +1,5 @@
 using System.CommandLine;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
@@ -12,8 +11,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class DependencyGraphCommand : IRtCommand, IStructuredOutputCommand
 {
-    private DependencyGraphCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly DependencyGraphService _dependencyGraph;
+    public DependencyGraphCommand(IWorkspaceSessionFactory sessionFactory, DependencyGraphService dependencyGraph)
     {
+        _dependencyGraph = dependencyGraph;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -37,7 +40,7 @@ internal sealed class DependencyGraphCommand : IRtCommand, IStructuredOutputComm
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var typeOpt = new Option<string?>("--type", "Root type to start graph from (optional)");
         var depthOpt = new Option<int?>("--depth", "Maximum traversal depth (optional)");
@@ -56,11 +59,9 @@ internal sealed class DependencyGraphCommand : IRtCommand, IStructuredOutputComm
             var format = ctx.ParseResult.GetValueForOption(formatOpt);
             var scope = ctx.ParseResult.GetValueForOption(scopeOpt);
             var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
-            var sp = ctx.BindingContext.GetService<IServiceProvider>();
-            var loader = sp?.GetService<IWorkspaceSessionFactory>() ?? IWorkspaceSessionFactory.CreateDefault();
 
-            var sln = await loader.GetSolutionAsync(solution);
-            var result = await RtServiceProvider.Get<DependencyGraphService>()
+            var sln = await _sessionFactory.GetSolutionAsync(solution);
+            var result = await _dependencyGraph
                 .BuildGraphAsync(sln, typeName, depth, format ?? "json", scope);
 
             RtResultRenderer.WriteText(RtResult<string>.Ok(result));
@@ -73,13 +74,13 @@ internal sealed class DependencyGraphCommand : IRtCommand, IStructuredOutputComm
     ///     Builds a type-level dependency graph and returns it in the requested format.
     ///     Delegates to <see cref="DependencyGraphService.BuildGraphAsync" />.
     /// </summary>
-    internal static Task<string> BuildGraphAsync(
+    internal Task<string> BuildGraphAsync(
         Solution sln,
         string? typeName,
         int? depth,
         string format,
         string? scope)
     {
-        return RtServiceProvider.Get<DependencyGraphService>().BuildGraphAsync(sln, typeName, depth, format, scope);
+        return _dependencyGraph.BuildGraphAsync(sln, typeName, depth, format, scope);
     }
 }

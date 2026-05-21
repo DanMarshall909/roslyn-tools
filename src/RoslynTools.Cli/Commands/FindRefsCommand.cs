@@ -1,5 +1,4 @@
 using System.CommandLine;
-using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
@@ -12,8 +11,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class FindRefsCommand : IRtCommand
 {
-    private FindRefsCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly FindRefsService _findRefs;
+    public FindRefsCommand(IWorkspaceSessionFactory sessionFactory, FindRefsService findRefs)
     {
+        _findRefs = findRefs;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -33,7 +36,7 @@ internal sealed class FindRefsCommand : IRtCommand
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln/.slnx file");
         var symbolOpt = new Option<string>("--symbol", "Simple name of the symbol") { IsRequired = true };
@@ -49,10 +52,8 @@ internal sealed class FindRefsCommand : IRtCommand
             var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
             var symbol = ctx.ParseResult.GetValueForOption(symbolOpt)!;
             var kind = ctx.ParseResult.GetValueForOption(kindOpt);
-            var sp = ctx.BindingContext.GetService<IServiceProvider>();
-            var loader = sp?.GetService<IWorkspaceSessionFactory>() ?? IWorkspaceSessionFactory.CreateDefault();
-            var sln = await loader.GetSolutionAsync(solution);
-            var result = await RtServiceProvider.Get<FindRefsService>().FindAsync(sln, symbol, kind);
+            var sln = await _sessionFactory.GetSolutionAsync(solution);
+            var result = await _findRefs.FindAsync(sln, symbol, kind);
             RtResultRenderer.WriteOutput(RtResult<FindRefsResult>.Ok(result));
         });
 

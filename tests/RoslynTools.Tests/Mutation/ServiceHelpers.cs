@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis.CSharp;
 using RoslynTools.Core;
 using RoslynTools.Services;
+using RoslynTools.Tests.Infrastructure;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -9,8 +10,11 @@ namespace RoslynTools.Tests.Mutation;
 ///     Integration-level behaviour (workspace write/dry-run) is covered by the
 ///     existing command-level tests in the same folder.
 /// </summary>
-public class ServiceHelpers
+public class ServiceHelpers : IClassFixture<RtServicesFixture>
 {
+    private readonly RtServicesFixture _services;
+    public ServiceHelpers(RtServicesFixture services) => _services = services;
+
     // ── FixNamespaceService ───────────────────────────────────────────────
 
     [Theory]
@@ -24,7 +28,7 @@ public class ServiceHelpers
         filePath = filePath.Replace('/', Path.DirectorySeparatorChar);
         projectDir = projectDir.Replace('/', Path.DirectorySeparatorChar);
 
-        var result = new FixNamespaceService().ComputeExpectedNamespace(filePath, projectDir, assemblyName);
+        var result = _services.Resolve<FixNamespaceService>().ComputeExpectedNamespace(filePath, projectDir, assemblyName);
         Assert.Equal(expected, result);
     }
 
@@ -33,7 +37,7 @@ public class ServiceHelpers
     {
         var tree = CSharpSyntaxTree.ParseText("namespace Foo.Bar;");
         var root = tree.GetRoot();
-        Assert.Equal("Foo.Bar", new FixNamespaceService().GetDeclaredNamespace(root));
+        Assert.Equal("Foo.Bar", _services.Resolve<FixNamespaceService>().GetDeclaredNamespace(root));
     }
 
     [Fact]
@@ -41,7 +45,7 @@ public class ServiceHelpers
     {
         var tree = CSharpSyntaxTree.ParseText("namespace Foo.Bar { }");
         var root = tree.GetRoot();
-        Assert.Equal("Foo.Bar", new FixNamespaceService().GetDeclaredNamespace(root));
+        Assert.Equal("Foo.Bar", _services.Resolve<FixNamespaceService>().GetDeclaredNamespace(root));
     }
 
     [Fact]
@@ -49,7 +53,7 @@ public class ServiceHelpers
     {
         var tree = CSharpSyntaxTree.ParseText("public class Foo { }");
         var root = tree.GetRoot();
-        Assert.Null(new FixNamespaceService().GetDeclaredNamespace(root));
+        Assert.Null(_services.Resolve<FixNamespaceService>().GetDeclaredNamespace(root));
     }
 
     // ── AddDependencyService ──────────────────────────────────────────────
@@ -76,21 +80,21 @@ public class ServiceHelpers
     [Fact]
     public void extracts_class_derive_field_name_returns_camel_case_with_underscore()
     {
-        Assert.Equal("_myHelper", new ExtractClassService().DeriveFieldName("MyHelper"));
-        Assert.Equal("_dependency", new ExtractClassService().DeriveFieldName(""));
-        Assert.Equal("_a", new ExtractClassService().DeriveFieldName("A"));
+        Assert.Equal("_myHelper", _services.Resolve<ExtractClassService>().DeriveFieldName("MyHelper"));
+        Assert.Equal("_dependency", _services.Resolve<ExtractClassService>().DeriveFieldName(""));
+        Assert.Equal("_a", _services.Resolve<ExtractClassService>().DeriveFieldName("A"));
     }
 
     [Fact]
     public void extracts_class_normalize_type_name_strips_global_prefix()
     {
-        Assert.Equal("My.Type", new ExtractClassService().NormalizeTypeName("global::My.Type"));
+        Assert.Equal("My.Type", _services.Resolve<ExtractClassService>().NormalizeTypeName("global::My.Type"));
     }
 
     [Fact]
     public void builds_new_class_text_generates_static_class_when_flag_set()
     {
-        var text = new ExtractClassService().BuildNewClassText(
+        var text = _services.Resolve<ExtractClassService>().BuildNewClassText(
             "MyApp",
             "Helper",
             true,
@@ -103,7 +107,7 @@ public class ServiceHelpers
     [Fact]
     public void builds_new_class_text_generates_instance_class_without_namespace()
     {
-        var text = new ExtractClassService().BuildNewClassText(
+        var text = _services.Resolve<ExtractClassService>().BuildNewClassText(
             "",
             "Helper",
             false,

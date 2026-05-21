@@ -1,10 +1,14 @@
 using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Tests.Infrastructure;
 
 namespace RoslynTools.Tests.Mutation;
 
-public sealed class NarrowDependency
+public sealed class NarrowDependency : IClassFixture<RtServicesFixture>
 {
+    private readonly RtServicesFixture _services;
+    public NarrowDependency(RtServicesFixture services) => _services = services;
+
     // -------------------------------------------------------------------------
     // AC1 + AC3: extracts selected members into a new interface file
     // -------------------------------------------------------------------------
@@ -16,7 +20,7 @@ public sealed class NarrowDependency
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await NarrowDependencyCommand.ExecuteAsync(
+            await _services.Resolve<NarrowDependencyCommand>().ExecuteAsync(
                 "IWideFacade",
                 ["Send"],
                 "ISender",
@@ -45,7 +49,7 @@ public sealed class NarrowDependency
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await NarrowDependencyCommand.ExecuteAsync(
+            await _services.Resolve<NarrowDependencyCommand>().ExecuteAsync(
                 "IWideFacade",
                 ["Send"],
                 "ISender",
@@ -69,7 +73,7 @@ public sealed class NarrowDependency
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await NarrowDependencyCommand.ExecuteAsync(
+            await _services.Resolve<NarrowDependencyCommand>().ExecuteAsync(
                 "IWideFacade",
                 ["Send"],
                 "ISender",
@@ -94,7 +98,7 @@ public sealed class NarrowDependency
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                NarrowDependencyCommand.ExecuteAsync(
+                _services.Resolve<NarrowDependencyCommand>().ExecuteAsync(
                     "IWideFacade",
                     ["NonExistentMethod"],
                     "INarrow",
@@ -120,7 +124,7 @@ public sealed class NarrowDependency
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await NarrowDependencyCommand.ExecuteAsync(
+            await _services.Resolve<NarrowDependencyCommand>().ExecuteAsync(
                 "IWideFacade",
                 ["Send"],
                 "ISender",
@@ -148,7 +152,7 @@ public sealed class NarrowDependency
         {
             using (WorkspaceLoader.UseOverride(workspace, sln))
             {
-                await NarrowDependencyCommand.ExecuteAsync(
+                await _services.Resolve<NarrowDependencyCommand>().ExecuteAsync(
                     "IWideFacade",
                     ["Send"],
                     "ISender",
@@ -181,7 +185,7 @@ public sealed class NarrowDependency
         {
             using (WorkspaceLoader.UseOverride(workspace, sln))
             {
-                await NarrowDependencyCommand.ExecuteAsync(
+                await _services.Resolve<NarrowDependencyCommand>().ExecuteAsync(
                     "IWideFacade",
                     ["Send"],
                     "ISender",
@@ -208,7 +212,7 @@ public sealed class NarrowDependency
     {
         Assert.Contains(App.Commands, entry => entry.Info.Name == "narrow-dependency");
 
-        var command = NarrowDependencyCommand.Build();
+        var command = _services.Resolve<NarrowDependencyCommand>().Build();
 
         Assert.Contains(command.Arguments, arg => arg.Name == "interface");
         Assert.Contains(command.Options, opt => opt.Name == "members");
@@ -246,7 +250,7 @@ public sealed class NarrowDependency
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await NarrowDependencyCommand.ExecuteAsync(
+            await _services.Resolve<NarrowDependencyCommand>().ExecuteAsync(
                 "IWideFacade",
                 ["Send"],
                 "ISender",

@@ -1,10 +1,14 @@
 using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Tests.Infrastructure;
 
 namespace RoslynTools.Tests.Mutation;
 
-public class ConvertToRecord
+public class ConvertToRecord : IClassFixture<RtServicesFixture>
 {
+    private readonly RtServicesFixture _services;
+    public ConvertToRecord(RtServicesFixture services) => _services = services;
+
     private const string RecordAppSource = """
                                            class Point { public int X { get; init; } public int Y { get; init; } }
                                            class WithEquals {
@@ -28,7 +32,7 @@ public class ConvertToRecord
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await ConvertToRecordCommand.ExecuteAsync("Point", "ignored", false);
+            await _services.Resolve<ConvertToRecordCommand>().ExecuteAsync("Point", "ignored", false);
         }
 
         var content = await proj.ReadSourceAsync("Types.cs");
@@ -49,7 +53,7 @@ public class ConvertToRecord
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await ConvertToRecordCommand.ExecuteAsync("Point", "ignored", false);
+            await _services.Resolve<ConvertToRecordCommand>().ExecuteAsync("Point", "ignored", false);
         }
 
         var content = await proj.ReadSourceAsync("Types.cs");
@@ -71,7 +75,7 @@ public class ConvertToRecord
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await ConvertToRecordCommand.ExecuteAsync("WithEquals", "ignored", false);
+            await _services.Resolve<ConvertToRecordCommand>().ExecuteAsync("WithEquals", "ignored", false);
         }
 
         var content = await proj.ReadSourceAsync("Types.cs");
@@ -98,7 +102,7 @@ public class ConvertToRecord
         {
             using (WorkspaceLoader.UseOverride(workspace, sln))
             {
-                await ConvertToRecordCommand.ExecuteAsync("WithMutableProp", "ignored", false);
+                await _services.Resolve<ConvertToRecordCommand>().ExecuteAsync("WithMutableProp", "ignored", false);
             }
         }
         finally
@@ -128,7 +132,7 @@ public class ConvertToRecord
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await ConvertToRecordCommand.ExecuteAsync("Point", "ignored", true);
+            await _services.Resolve<ConvertToRecordCommand>().ExecuteAsync("Point", "ignored", true);
         }
 
         var after = await proj.ReadSourceAsync("Types.cs");

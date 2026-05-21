@@ -9,8 +9,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class DestaticClassCommand : IRtCommand
 {
-    private DestaticClassCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly DestaticClassService _destaticClass;
+    public DestaticClassCommand(IWorkspaceSessionFactory sessionFactory, DestaticClassService destaticClass)
     {
+        _destaticClass = destaticClass;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -29,7 +33,7 @@ internal sealed class DestaticClassCommand : IRtCommand
         ]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var typeArg = new Argument<string>("type", "Fully-qualified name of the static class to migrate");
         var interfaceNameOpt =
@@ -62,10 +66,10 @@ internal sealed class DestaticClassCommand : IRtCommand
                 && !string.Equals(lifetime, "transient", StringComparison.Ordinal))
                 throw new InvalidOperationException("--lifetime must be singleton, scoped, or transient.");
 
-            var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
+            var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
             using (workspace)
             {
-                await RtServiceProvider.Get<DestaticClassService>().RunAsync(sln, type, dryRun);
+                await _destaticClass.RunAsync(sln, type, dryRun);
             }
         }, typeArg, interfaceNameOpt, noInterfaceOpt, noDiOpt, lifetimeOpt, solutionOpt, dryRunOpt);
 

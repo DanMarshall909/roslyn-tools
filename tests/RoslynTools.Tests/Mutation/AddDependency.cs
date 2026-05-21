@@ -1,9 +1,15 @@
 using RoslynTools.Commands;
+using RoslynTools.Core;
+using RoslynTools.Services;
+using RoslynTools.Tests.Infrastructure;
 
 namespace RoslynTools.Tests.Mutation;
 
-public class AddDependency
+public class AddDependency : IClassFixture<RtServicesFixture>
 {
+    private readonly RtServicesFixture _services;
+    public AddDependency(RtServicesFixture services) => _services = services;
+
     // ──────────────────────────────────────────────────────────────────────────
     //  1. Basic field + ctor param injection
     // ──────────────────────────────────────────────────────────────────────────
@@ -32,7 +38,7 @@ public class AddDependency
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            await AddDependencyCommand.ExecuteCoreAsync(
+            await _services.Resolve<AddDependencyCommand>().ExecuteCoreAsync(
                 sln,
                 "AgentService",
                 "IEmailService",
@@ -75,7 +81,7 @@ public class AddDependency
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            await AddDependencyCommand.ExecuteCoreAsync(
+            await _services.Resolve<AddDependencyCommand>().ExecuteCoreAsync(
                 sln,
                 "AgentService",
                 "IEmailService",
@@ -119,7 +125,7 @@ public class AddDependency
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            await AddDependencyCommand.ExecuteCoreAsync(
+            await _services.Resolve<AddDependencyCommand>().ExecuteCoreAsync(
                 sln,
                 "NoCtor",
                 "ILogService",
@@ -164,7 +170,7 @@ public class AddDependency
 
         using (workspace)
         {
-            await AddDependencyCommand.ExecuteCoreAsync(
+            await _services.Resolve<AddDependencyCommand>().ExecuteCoreAsync(
                 sln,
                 "AgentService",
                 "IEmailService",
