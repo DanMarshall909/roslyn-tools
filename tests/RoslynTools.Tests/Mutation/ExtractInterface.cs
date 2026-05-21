@@ -2,11 +2,15 @@ using Microsoft.Extensions.Logging.Abstractions;
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Services;
+using RoslynTools.Tests.Infrastructure;
 
 namespace RoslynTools.Tests.Mutation;
 
-public class ExtractInterface
+public class ExtractInterface : IClassFixture<RtServicesFixture>
 {
+    private readonly RtServicesFixture _services;
+    public ExtractInterface(RtServicesFixture services) => _services = services;
+
     [Fact]
     public async Task creates_interface_file()
     {
@@ -25,7 +29,7 @@ public class ExtractInterface
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await ExtractInterfaceCommand.ExecuteAsync(
+            await _services.Resolve<ExtractInterfaceCommand>().ExecuteAsync(
                 "AgentService",
                 "ignored",
                 null,
@@ -55,7 +59,7 @@ public class ExtractInterface
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await ExtractInterfaceCommand.ExecuteAsync(
+            await _services.Resolve<ExtractInterfaceCommand>().ExecuteAsync(
                 "AgentService",
                 "ignored",
                 null,
@@ -87,7 +91,7 @@ public class ExtractInterface
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await ExtractInterfaceCommand.ExecuteAsync(
+            await _services.Resolve<ExtractInterfaceCommand>().ExecuteAsync(
                 "AgentService",
                 "ignored",
                 null,
@@ -117,7 +121,7 @@ public class ExtractInterface
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await ExtractInterfaceCommand.ExecuteAsync(
+            await _services.Resolve<ExtractInterfaceCommand>().ExecuteAsync(
                 "AgentService",
                 "ignored",
                 null,
@@ -164,7 +168,7 @@ public class ExtractInterface
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await ExtractInterfaceCommand.ExecuteAsync("Widget", "ignored", null, null, false);
+            await _services.Resolve<ExtractInterfaceCommand>().ExecuteAsync("Widget", "ignored", null, null, false);
         }
 
         var content = await project.ReadSourceAsync("Widget.cs");
@@ -189,7 +193,7 @@ public class ExtractInterface
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await ExtractInterfaceCommand.ExecuteAsync("Repo", "ignored", null, null, false);
+            await _services.Resolve<ExtractInterfaceCommand>().ExecuteAsync("Repo", "ignored", null, null, false);
         }
 
         var content = await project.ReadSourceAsync("IRepo.cs");
@@ -215,7 +219,7 @@ public class ExtractInterface
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await ExtractInterfaceCommand.ExecuteAsync("Widget", "ignored", null, "MyApp.Contracts", false);
+            await _services.Resolve<ExtractInterfaceCommand>().ExecuteAsync("Widget", "ignored", null, "MyApp.Contracts", false);
         }
 
         var content = await project.ReadSourceAsync("IWidget.cs");
@@ -237,7 +241,7 @@ public class ExtractInterface
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await ExtractInterfaceCommand.ExecuteAsync("Calculator", "ignored", null, null, false);
+            await _services.Resolve<ExtractInterfaceCommand>().ExecuteAsync("Calculator", "ignored", null, null, false);
         }
 
         var content = await project.ReadSourceAsync("ICalculator.cs");

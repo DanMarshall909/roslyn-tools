@@ -9,8 +9,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class ExtractInterfaceCommand : IRtCommand
 {
-    private ExtractInterfaceCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly ExtractInterfaceService _extractInterface;
+    public ExtractInterfaceCommand(IWorkspaceSessionFactory sessionFactory, ExtractInterfaceService extractInterface)
     {
+        _extractInterface = extractInterface;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -29,7 +33,7 @@ internal sealed class ExtractInterfaceCommand : IRtCommand
         ]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var typeOpt = new Option<string>("--type", "Class to extract interface from") { IsRequired = true };
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
@@ -53,17 +57,17 @@ internal sealed class ExtractInterfaceCommand : IRtCommand
     /// <summary>
     /// Executes the extraction of an interface with optional parameters.
     /// </summary>
-    internal static async Task ExecuteAsync(
+    internal async Task ExecuteAsync(
         string typeName,
         string? solutionPath,
         string? outputDir,
         string? ns,
         bool dryRun)
     {
-        var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
+        var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
-            await RtServiceProvider.Get<ExtractInterfaceService>().RunAsync(sln, typeName, outputDir, ns, dryRun);
+            await _extractInterface.RunAsync(sln, typeName, outputDir, ns, dryRun);
         }
     }
 }
