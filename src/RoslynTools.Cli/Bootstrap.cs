@@ -28,5 +28,15 @@ internal static class Bootstrap
             .AddClasses(classes => classes.AssignableTo<IRtService>(), false)
             .AsSelfWithInterfaces()
             .WithTransientLifetime());
+
+        // Register every IRtCommand in this assembly as a transient so commands that move
+        // to ctor-injection can be resolved via App.Discover (US-072). The set is small
+        // enough (one instance per CLI invocation) that transient is the right lifetime.
+        // Non-generic AssignableTo because IRtCommand has static-abstract members.
+        services.Scan(scan => scan
+            .FromAssemblies(typeof(Bootstrap).Assembly)
+            .AddClasses(classes => classes.AssignableTo(typeof(IRtCommand)), false)
+            .AsSelf()
+            .WithTransientLifetime());
     }
 }

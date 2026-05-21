@@ -5,6 +5,7 @@ using System.CommandLine.Invocation;
 using System.CommandLine.Parsing;
 using System.Reflection;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Core.Decisions;
@@ -101,6 +102,40 @@ internal static class App
     internal static async Task<int> RunAsync(string[] args, IServiceProvider? services = null,
         IReadOnlyList<Command>? additionalCommands = null)
     {
+        // Ensure an SP is always available for instance-based commands. Callers that pass
+        // an explicit SP (CLI host, MCP host) win; callers that pass null (dump-help fast
+        // path, tests) get a default Bootstrap-wired SP synthesised here. We own the
+        // lifetime of the synthesised one and dispose it on the way out.
+        ServiceProvider? ownedServices = null;
+        if (services is null)
+        {
+            ownedServices = BuildDefaultServiceProvider();
+            services = ownedServices;
+        }
+
+        _currentServices = services;
+
+        try
+        {
+            return await RunCoreAsync(args, services, additionalCommands);
+        }
+        finally
+        {
+            _currentServices = null;
+            ownedServices?.Dispose();
+        }
+    }
+
+    private static ServiceProvider BuildDefaultServiceProvider()
+    {
+        var sc = new ServiceCollection();
+        Bootstrap.RegisterServices(sc);
+        return sc.BuildServiceProvider();
+    }
+
+    private static async Task<int> RunCoreAsync(string[] args, IServiceProvider services,
+        IReadOnlyList<Command>? additionalCommands)
+    {
         var root = new RootCommand("Roslyn-based C# refactoring tool");
 
         var groups = GroupDescriptions.ToDictionary(
@@ -146,8 +181,7 @@ internal static class App
             .CancelOnProcessTermination()
             .AddMiddleware((context, next) =>
             {
-                if (services is not null)
-                    context.BindingContext.AddService<IServiceProvider>(_ => services);
+                context.BindingContext.AddService<IServiceProvider>(_ => services);
                 return next(context);
             })
             .AddMiddleware(async (context, next) =>
@@ -355,9 +389,17 @@ internal static class App
         }
     }
 
+    /// <summary>
+    ///     Set by <see cref="RunAsync" /> before any command is built; read by the closures
+    ///     produced in <see cref="Discover" /> to resolve instance-based commands from DI.
+    ///     Cleared in the <c>finally</c> of <see cref="RunAsync" />.
+    /// </summary>
+    private static IServiceProvider? _currentServices;
+
     private static List<(Func<Command>, RtCommandInfo)> Discover()
     {
         const BindingFlags staticFlags = BindingFlags.Static | BindingFlags.Public;
+        const BindingFlags instanceFlags = BindingFlags.Instance | BindingFlags.Public;
 
         var implementers = typeof(App).Assembly.GetTypes()
             .Where(t => !t.IsAbstract && !t.IsInterface && typeof(IRtCommand).IsAssignableFrom(t))
@@ -367,16 +409,37 @@ internal static class App
         var list = new List<(Func<Command>, RtCommandInfo)>(implementers.Length);
         foreach (var type in implementers)
         {
-            var build = type.GetMethod("Build", staticFlags)
-                        ?? throw new InvalidOperationException(
-                            $"{type.Name} implements IRtCommand but exposes no public static Build() — "
-                            + "check visibility (interface members are implicitly public).");
             var infoProp = type.GetProperty("Info", staticFlags)
                            ?? throw new InvalidOperationException(
                                $"{type.Name} implements IRtCommand but exposes no public static Info property.");
-
             var info = (RtCommandInfo)infoProp.GetValue(null)!;
-            list.Add((() => (Command)build.Invoke(null, null)!, info));
+
+            var staticBuild = type.GetMethod("Build", staticFlags);
+            var instanceBuild = type.GetMethod("Build", instanceFlags);
+
+            if (staticBuild is null && instanceBuild is null)
+                throw new InvalidOperationException(
+                    $"{type.Name} implements IRtCommand but exposes no public Build() — add either "
+                    + "a `public static Command Build()` or a `public Command Build()` instance method.");
+
+            // Capture in locals so the closure doesn't carry the whole iteration variable.
+            var capturedType = type;
+            var capturedStatic = staticBuild;
+            var capturedInstance = instanceBuild;
+
+            Func<Command> factory = capturedStatic is not null
+                ? () => (Command)capturedStatic.Invoke(null, null)!
+                : () =>
+                {
+                    var sp = _currentServices ?? throw new InvalidOperationException(
+                        $"{capturedType.Name} has an instance Build() but no service provider is currently "
+                        + "available. Ensure App.RunAsync was called with a non-null services argument, "
+                        + "or wait until the default-SP fallback inside RunAsync has run.");
+                    var instance = sp.GetRequiredService(capturedType);
+                    return (Command)capturedInstance!.Invoke(instance, null)!;
+                };
+
+            list.Add((factory, info));
         }
 
         return list;
