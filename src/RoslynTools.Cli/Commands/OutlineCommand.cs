@@ -10,8 +10,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class OutlineCommand : IRtCommand, IStructuredOutputCommand
 {
-    private OutlineCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly OutlineService _outline;
+    public OutlineCommand(IWorkspaceSessionFactory sessionFactory, OutlineService outline)
     {
+        _outline = outline;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -36,7 +40,7 @@ internal sealed class OutlineCommand : IRtCommand, IStructuredOutputCommand
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var targetArg = new Argument<string?>("target", () => null,
             "File path, directory, glob pattern, or namespace to outline");
@@ -58,37 +62,36 @@ internal sealed class OutlineCommand : IRtCommand, IStructuredOutputCommand
             var regex = context.ParseResult.GetValueForOption(regexOpt);
             var summary = context.ParseResult.GetValueForOption(summaryOpt);
 
-            var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
+            var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
             using (workspace)
             {
                 List<Dictionary<string, object?>> result;
-                var svc = RtServiceProvider.Get<OutlineService>();
 
                 if (regex is not null)
                 {
-                    result = await svc.OutlineRegexAsync(sln, regex, summary);
+                    result = await _outline.OutlineRegexAsync(sln, regex, summary);
                 }
                 else if (target?.EndsWith(".*", StringComparison.Ordinal) == true
                          && !target.Contains('/') && !target.Contains('\\'))
                 {
-                    result = await svc.OutlineNamespaceAsync(sln, target, summary);
+                    result = await _outline.OutlineNamespaceAsync(sln, target, summary);
                 }
                 else if (target is not null && (target.Contains('*') || target.Contains('?')))
                 {
-                    result = await svc.OutlineGlobAsync(sln, target, summary);
+                    result = await _outline.OutlineGlobAsync(sln, target, summary);
                 }
                 else if (target is not null && Directory.Exists(target))
                 {
-                    result = await svc.OutlineDirectoryAsync(sln, target, summary);
+                    result = await _outline.OutlineDirectoryAsync(sln, target, summary);
                 }
                 else if (target is not null && (target.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) ||
                                                 Path.Exists(target)))
                 {
-                    result = await svc.OutlineFileAsync(sln, target, summary);
+                    result = await _outline.OutlineFileAsync(sln, target, summary);
                 }
                 else if (target is not null)
                 {
-                    result = await svc.OutlineNamespaceAsync(sln, target, summary);
+                    result = await _outline.OutlineNamespaceAsync(sln, target, summary);
                 }
                 else
                 {
