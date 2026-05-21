@@ -1,4 +1,6 @@
 using RoslynTools.Commands;
+using RoslynTools.Core;
+using RoslynTools.Services;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -32,7 +34,9 @@ public class AddDependency
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            await AddDependencyCommand.ExecuteCoreAsync(
+            await new AddDependencyCommand(
+                IWorkspaceSessionFactory.CreateDefault(),
+                new AddDependencyService()).ExecuteCoreAsync(
                 sln,
                 "AgentService",
                 "IEmailService",
@@ -75,7 +79,9 @@ public class AddDependency
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            await AddDependencyCommand.ExecuteCoreAsync(
+            await new AddDependencyCommand(
+                IWorkspaceSessionFactory.CreateDefault(),
+                new AddDependencyService()).ExecuteCoreAsync(
                 sln,
                 "AgentService",
                 "IEmailService",
@@ -119,7 +125,9 @@ public class AddDependency
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            await AddDependencyCommand.ExecuteCoreAsync(
+            await new AddDependencyCommand(
+                IWorkspaceSessionFactory.CreateDefault(),
+                new AddDependencyService()).ExecuteCoreAsync(
                 sln,
                 "NoCtor",
                 "ILogService",
@@ -164,7 +172,9 @@ public class AddDependency
 
         using (workspace)
         {
-            await AddDependencyCommand.ExecuteCoreAsync(
+            await new AddDependencyCommand(
+                IWorkspaceSessionFactory.CreateDefault(),
+                new AddDependencyService()).ExecuteCoreAsync(
                 sln,
                 "AgentService",
                 "IEmailService",
