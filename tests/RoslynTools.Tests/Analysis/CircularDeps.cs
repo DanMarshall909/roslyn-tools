@@ -1,9 +1,13 @@
 using RoslynTools.Commands;
+using RoslynTools.Tests.Infrastructure;
 
 namespace RoslynTools.Tests.Analysis;
 
-public class CircularDeps
+public class CircularDeps : IClassFixture<RtServicesFixture>
 {
+    private readonly RtServicesFixture _services;
+    public CircularDeps(RtServicesFixture services) => _services = services;
+
     // Three namespaces that form a cycle: A -> B -> C -> A
     private static AdhocProjectBuilder BuildCycleProject()
     {
@@ -34,7 +38,7 @@ public class CircularDeps
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var result = await CircularDepsCommand.AnalyzeAsync(sln, null);
+            var result = await _services.Resolve<CircularDepsCommand>().AnalyzeAsync(sln, null);
 
             Assert.Contains("CycleApp.A", result);
             Assert.Contains("CycleApp.B", result);
@@ -53,7 +57,7 @@ public class CircularDeps
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var result = await CircularDepsCommand.AnalyzeAsync(sln, null);
+            var result = await _services.Resolve<CircularDepsCommand>().AnalyzeAsync(sln, null);
 
             Assert.Contains("->", result);
         }
@@ -70,7 +74,7 @@ public class CircularDeps
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var result = await CircularDepsCommand.AnalyzeAsync(sln, null);
+            var result = await _services.Resolve<CircularDepsCommand>().AnalyzeAsync(sln, null);
 
             Assert.Contains("No circular", result, StringComparison.OrdinalIgnoreCase);
         }
@@ -93,7 +97,7 @@ public class CircularDeps
         {
             using (workspace)
             {
-                var result = await CircularDepsCommand.AnalyzeAsync(sln, null);
+                var result = await _services.Resolve<CircularDepsCommand>().AnalyzeAsync(sln, null);
                 Console.WriteLine(result);
             }
         }
@@ -127,7 +131,7 @@ public class CircularDeps
             var (workspace, sln) = proj.Build();
             using (workspace)
             {
-                var result = await CircularDepsCommand.AnalyzeAsync(sln, "CycleApp");
+                var result = await _services.Resolve<CircularDepsCommand>().AnalyzeAsync(sln, "CycleApp");
                 Assert.Contains("CycleApp", result);
                 Assert.DoesNotContain("External", result);
             }
@@ -148,7 +152,7 @@ public class CircularDeps
             var (workspace, sln) = proj.Build();
             using (workspace)
             {
-                var result = await CircularDepsCommand.AnalyzeAsync(sln, "Clean");
+                var result = await _services.Resolve<CircularDepsCommand>().AnalyzeAsync(sln, "Clean");
                 Assert.Contains("No circular", result, StringComparison.OrdinalIgnoreCase);
             }
         }
@@ -170,7 +174,7 @@ public class CircularDeps
             var (workspace, sln) = proj.Build();
             using (workspace)
             {
-                var result = await CircularDepsCommand.AnalyzeAsync(sln, null);
+                var result = await _services.Resolve<CircularDepsCommand>().AnalyzeAsync(sln, null);
                 Assert.Contains("Fs.P", result);
                 Assert.Contains("Fs.Q", result);
             }

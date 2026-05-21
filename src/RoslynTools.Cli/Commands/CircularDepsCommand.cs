@@ -12,8 +12,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class CircularDepsCommand : IRtCommand
 {
-    private CircularDepsCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly CircularDepsService _circularDeps;
+    public CircularDepsCommand(IWorkspaceSessionFactory sessionFactory, CircularDepsService circularDeps)
     {
+        _circularDeps = circularDeps;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -33,7 +37,7 @@ internal sealed class CircularDepsCommand : IRtCommand
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var scopeOpt = new Option<string?>("--scope", "Optional namespace prefix to limit analysis");
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
@@ -45,10 +49,10 @@ internal sealed class CircularDepsCommand : IRtCommand
 
         cmd.SetHandler(async (scope, solution) =>
         {
-            var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
+            var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
             using (workspace)
             {
-                var cycles = await RtServiceProvider.Get<CircularDepsService>().AnalyzeCyclesAsync(sln, scope);
+                var cycles = await _circularDeps.AnalyzeCyclesAsync(sln, scope);
                 var result = CircularDepsResult.FromCycles(cycles);
                 RtResultRenderer.WriteOutput(RtResult<CircularDepsResult>.Ok(result));
             }
@@ -57,20 +61,19 @@ internal sealed class CircularDepsCommand : IRtCommand
         return cmd;
     }
 
-    // Kept for test backwards-compatibility — delegates to the service.
     /// <summary>
     /// Analyzes cycles in a solution using Roslyn.
     /// </summary>
-    internal static Task<IReadOnlyList<IReadOnlyList<string>>> AnalyzeCyclesAsync(Solution sln, string? scope)
+    internal Task<IReadOnlyList<IReadOnlyList<string>>> AnalyzeCyclesAsync(Solution sln, string? scope)
     {
-        return RtServiceProvider.Get<CircularDepsService>().AnalyzeCyclesAsync(sln, scope);
+        return _circularDeps.AnalyzeCyclesAsync(sln, scope);
     }
 
     /// <summary>
     /// Analyzes cycles in a solution asynchronously.
     /// </summary>
-    internal static Task<string> AnalyzeAsync(Solution sln, string? scope)
+    internal Task<string> AnalyzeAsync(Solution sln, string? scope)
     {
-        return RtServiceProvider.Get<CircularDepsService>().AnalyzeAsync(sln, scope);
+        return _circularDeps.AnalyzeAsync(sln, scope);
     }
 }

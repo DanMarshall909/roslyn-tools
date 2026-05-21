@@ -133,6 +133,21 @@ internal static class App
         return sc.BuildServiceProvider();
     }
 
+    // Lazy process-scoped SP used by App.Commands consumers that operate outside RunAsync
+    // (architecture tests, dump-help fast path). Never disposed — the AppDomain owns its lifetime.
+    private static ServiceProvider? _registryServices;
+    private static readonly object _registryServicesLock = new();
+    private static ServiceProvider GetOrCreateRegistryServices()
+    {
+        if (_registryServices is not null)
+            return _registryServices;
+        lock (_registryServicesLock)
+        {
+            _registryServices ??= BuildDefaultServiceProvider();
+            return _registryServices;
+        }
+    }
+
     private static async Task<int> RunCoreAsync(string[] args, IServiceProvider services,
         IReadOnlyList<Command>? additionalCommands)
     {
@@ -431,10 +446,11 @@ internal static class App
                 ? () => (Command)capturedStatic.Invoke(null, null)!
                 : () =>
                 {
-                    var sp = _currentServices ?? throw new InvalidOperationException(
-                        $"{capturedType.Name} has an instance Build() but no service provider is currently "
-                        + "available. Ensure App.RunAsync was called with a non-null services argument, "
-                        + "or wait until the default-SP fallback inside RunAsync has run.");
+                    // Prefer the SP scoped to the current RunAsync invocation. If callers reach
+                    // App.Commands outside RunAsync (architecture tests, dump-help fast path),
+                    // fall back to a lazily-built default SP so registry-only consumers don't
+                    // crash. The default SP lifetime is process-scoped — never disposed.
+                    var sp = _currentServices ?? GetOrCreateRegistryServices();
                     var instance = sp.GetRequiredService(capturedType);
                     return (Command)capturedInstance!.Invoke(instance, null)!;
                 };

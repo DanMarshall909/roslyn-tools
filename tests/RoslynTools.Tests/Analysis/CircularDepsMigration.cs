@@ -2,13 +2,16 @@ using System.Text.Json;
 using RoslynTools.Commands;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core.Output;
+using RoslynTools.Tests.Infrastructure;
 
 namespace RoslynTools.Tests.Analysis;
 
-public class CircularDepsMigration : IDisposable
+public class CircularDepsMigration : IClassFixture<RtServicesFixture>, IDisposable
 {
-    public CircularDepsMigration()
+    private readonly RtServicesFixture _services;
+    public CircularDepsMigration(RtServicesFixture services)
     {
+        _services = services;
         RtContext.Format = OutputFormat.Text;
     }
 
@@ -45,9 +48,9 @@ public class CircularDepsMigration : IDisposable
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var legacyText = await CircularDepsCommand.AnalyzeAsync(sln, null);
+            var legacyText = await _services.Resolve<CircularDepsCommand>().AnalyzeAsync(sln, null);
 
-            var cycles = await CircularDepsCommand.AnalyzeCyclesAsync(sln, null);
+            var cycles = await _services.Resolve<CircularDepsCommand>().AnalyzeCyclesAsync(sln, null);
             var result = CircularDepsResult.FromCycles(cycles);
 
             var sw = new StringWriter();
@@ -68,7 +71,7 @@ public class CircularDepsMigration : IDisposable
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var cycles = await CircularDepsCommand.AnalyzeCyclesAsync(sln, null);
+            var cycles = await _services.Resolve<CircularDepsCommand>().AnalyzeCyclesAsync(sln, null);
             var result = CircularDepsResult.FromCycles(cycles);
 
             var sw = new StringWriter();
@@ -87,7 +90,7 @@ public class CircularDepsMigration : IDisposable
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var cycles = await CircularDepsCommand.AnalyzeCyclesAsync(sln, null);
+            var cycles = await _services.Resolve<CircularDepsCommand>().AnalyzeCyclesAsync(sln, null);
             Assert.NotEmpty(cycles);
 
             var result = CircularDepsResult.FromCycles(cycles);
@@ -124,7 +127,7 @@ public class CircularDepsMigration : IDisposable
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var cycles = await CircularDepsCommand.AnalyzeCyclesAsync(sln, null);
+            var cycles = await _services.Resolve<CircularDepsCommand>().AnalyzeCyclesAsync(sln, null);
             Assert.NotEmpty(cycles);
 
             var result = CircularDepsResult.FromCycles(cycles);
@@ -147,7 +150,7 @@ public class CircularDepsMigration : IDisposable
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var cycles = await CircularDepsCommand.AnalyzeCyclesAsync(sln, null);
+            var cycles = await _services.Resolve<CircularDepsCommand>().AnalyzeCyclesAsync(sln, null);
             var result = CircularDepsResult.FromCycles(cycles);
 
             var sw = new StringWriter();
@@ -169,7 +172,7 @@ public class CircularDepsMigration : IDisposable
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var cycles = await CircularDepsCommand.AnalyzeCyclesAsync(sln, null);
+            var cycles = await _services.Resolve<CircularDepsCommand>().AnalyzeCyclesAsync(sln, null);
             Assert.NotEmpty(cycles);
 
             var result = CircularDepsResult.FromCycles(cycles);
@@ -194,9 +197,9 @@ public class CircularDepsMigration : IDisposable
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var legacyText = await CircularDepsCommand.AnalyzeAsync(sln, null);
+            var legacyText = await _services.Resolve<CircularDepsCommand>().AnalyzeAsync(sln, null);
 
-            var cycles = await CircularDepsCommand.AnalyzeCyclesAsync(sln, null);
+            var cycles = await _services.Resolve<CircularDepsCommand>().AnalyzeCyclesAsync(sln, null);
             var result = CircularDepsResult.FromCycles(cycles);
 
             var sw = new StringWriter();
