@@ -9,6 +9,15 @@ namespace RoslynTools.Services;
 /// </summary>
 internal interface ISolutionChangeWriter
 {
+    /// <summary>
+    ///     The sanctioned default factory for code paths that may run without an
+    ///     IServiceProvider (test paths using <c>App.RunAsync</c> with
+    ///     <c>services: null</c>). Centralising the construction here is what
+    ///     lets the <c>NoDirectSolutionWriterUse</c> architecture gate ban every
+    ///     other production reference to the static <c>SolutionWriter</c> helper.
+    /// </summary>
+    static ISolutionChangeWriter CreateDefault() => new SolutionChangeWriter();
+
     Task ApplyChangesAsync(Solution originalSolution, Solution newSolution, bool dryRun);
 }
 

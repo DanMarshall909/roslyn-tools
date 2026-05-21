@@ -24,9 +24,12 @@ public sealed class NoConcreteWorkspaceLoaderInProduction
             if (file.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase)) continue;
             if (file.EndsWith(".g.i.cs", StringComparison.OrdinalIgnoreCase)) continue;
 
-            // The WorkspaceLoader class itself is allowed to reference its own name.
-            if (Path.GetFileName(file).Equals("WorkspaceLoader.cs", StringComparison.OrdinalIgnoreCase))
-                continue;
+            // The WorkspaceLoader class itself, and the IWorkspaceSessionFactory file
+            // (which hosts the sanctioned CreateDefault factory), are allowed to
+            // reference the concrete type.
+            var fileName = Path.GetFileName(file);
+            if (fileName.Equals("WorkspaceLoader.cs", StringComparison.OrdinalIgnoreCase)) continue;
+            if (fileName.Equals("IWorkspaceSessionFactory.cs", StringComparison.OrdinalIgnoreCase)) continue;
 
             var source = File.ReadAllText(file);
             var tree = CSharpSyntaxTree.ParseText(source);

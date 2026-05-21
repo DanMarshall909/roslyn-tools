@@ -11,10 +11,10 @@ internal sealed class RenameSymbolHandler
 {
     private readonly RenameService _rename;
     private readonly ISolutionChangeWriter _solutionChangeWriter;
-    private readonly WorkspaceLoader _workspaceLoader;
+    private readonly IWorkspaceSessionFactory _workspaceLoader;
 
     public RenameSymbolHandler(
-        WorkspaceLoader workspaceLoader,
+        IWorkspaceSessionFactory workspaceLoader,
         RenameService rename,
         ISolutionChangeWriter solutionChangeWriter)
     {

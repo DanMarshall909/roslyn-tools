@@ -5,6 +5,8 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
+using RoslynTools.Services;
+
 namespace RoslynTools.Core;
 
 /// <summary>
@@ -73,7 +75,7 @@ internal static class ConsoleLoggingCore
 
         var originalSolution = solution;
         var newSolution = await ApplyAsync(solution, options);
-        await SolutionWriter.ApplyChangesAsync(originalSolution, newSolution, dryRun);
+        await RtServiceProvider.GetOrDefault(ISolutionChangeWriter.CreateDefault).ApplyChangesAsync(originalSolution, newSolution, dryRun);
     }
 
     /// <summary>

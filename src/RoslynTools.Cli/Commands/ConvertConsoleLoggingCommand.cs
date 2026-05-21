@@ -191,7 +191,7 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
         }
 
         solution = await ConsoleLoggingCore.ApplyAsync(solution, options);
-        await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
+        await RtServiceProvider.GetOrDefault(ISolutionChangeWriter.CreateDefault).ApplyChangesAsync(originalSolution, solution, dryRun);
     }
 
     private static async Task ReviewAsync(

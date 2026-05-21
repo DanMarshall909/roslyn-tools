@@ -1,6 +1,7 @@
 using System.CommandLine;
 using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
+using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
@@ -109,7 +110,7 @@ internal sealed class ExtractMethodCommand : IRtCommand
                     return;
                 }
 
-                await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun);
+                await RtServiceProvider.GetOrDefault(ISolutionChangeWriter.CreateDefault).ApplyChangesAsync(sln, newSln, dryRun);
             }
         });
 
