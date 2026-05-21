@@ -196,7 +196,7 @@ public class LoggingRefactor : IClassFixture<RtServicesFixture>
         using (WorkspaceLoader.UseOverride(workspace, solution))
         using (Core.RtConsole.UseConsole(console))
         {
-            await NarrowDependencyCommand.ExecuteAsync(
+            await _services.Resolve<NarrowDependencyCommand>().ExecuteAsync(
                 "IWideFacade",
                 ["Send"],
                 "ISender",
