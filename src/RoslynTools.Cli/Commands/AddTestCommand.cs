@@ -9,8 +9,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class AddTestCommand : IRtCommand
 {
-    private AddTestCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly AddTestService _addTest;
+    public AddTestCommand(IWorkspaceSessionFactory sessionFactory, AddTestService addTest)
     {
+        _addTest = addTest;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -30,7 +34,7 @@ internal sealed class AddTestCommand : IRtCommand
         ]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         // Legacy mode options
         var classOpt = new Option<string?>("--class", "Test class name to add methods to");
@@ -86,7 +90,7 @@ internal sealed class AddTestCommand : IRtCommand
     /// <summary>
     /// Executes the add test command asynchronously.
     /// </summary>
-    internal static async Task ExecuteAsync(
+    internal async Task ExecuteAsync(
         string? className,
         string? name,
         string? acs,
@@ -137,10 +141,10 @@ internal sealed class AddTestCommand : IRtCommand
                 return;
             }
 
-            var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
+            var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
             using (workspace)
             {
-                await RtServiceProvider.Get<AddTestService>().RunCommandBasedAsync(sln, commandInfo, scenario, outcome,
+                await _addTest.RunCommandBasedAsync(sln, commandInfo, scenario, outcome,
                     concern, beforePath, afterPath, dryRun);
             }
         }
@@ -161,11 +165,10 @@ internal sealed class AddTestCommand : IRtCommand
                 return;
             }
 
-            var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
+            var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
             using (workspace)
             {
-                await RtServiceProvider.Get<AddTestService>()
-                    .RunAsync(sln, className, name, acs, nestedClass, filePath, dryRun);
+                await _addTest.RunAsync(sln, className, name, acs, nestedClass, filePath, dryRun);
             }
         }
     }
@@ -177,9 +180,9 @@ internal sealed class AddTestCommand : IRtCommand
     /// <summary>
     /// Converts a command to a method name.
     /// </summary>
-    internal static string AcToMethodName(string ac)
+    internal string AcToMethodName(string ac)
     {
-        return RtServiceProvider.Get<AddTestService>().AcToMethodName(ac);
+        return _addTest.AcToMethodName(ac);
     }
 
     // ──────────────────────────────────────────────────────────────────────────

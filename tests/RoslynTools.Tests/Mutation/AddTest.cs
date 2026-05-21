@@ -1,10 +1,14 @@
 using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Tests.Infrastructure;
 
 namespace RoslynTools.Tests.Mutation;
 
-public class AddTest
+public class AddTest : IClassFixture<RtServicesFixture>
 {
+    private readonly RtServicesFixture _services;
+    public AddTest(RtServicesFixture services) => _services = services;
+
     // ──────────────────────────────────────────────────────────────────────────
     //  1. AcToMethodName pure conversion — no Roslyn needed
     // ──────────────────────────────────────────────────────────────────────────
@@ -13,14 +17,14 @@ public class AddTest
     public void creates_valid_test_identifiers()
     {
         Assert.Equal("Returns_404_When_Order_Not_Found",
-            AddTestCommand.AcToMethodName("Returns 404 when order not found"));
+            _services.Resolve<AddTestCommand>().AcToMethodName("Returns 404 when order not found"));
     }
 
     [Fact]
     public void strips_punctuation()
     {
         Assert.Equal("It_Works",
-            AddTestCommand.AcToMethodName("It works!"));
+            _services.Resolve<AddTestCommand>().AcToMethodName("It works!"));
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -44,7 +48,7 @@ public class AddTest
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await AddTestCommand.ExecuteAsync(
+            await _services.Resolve<AddTestCommand>().ExecuteAsync(
                 "MyTests",
                 "Should_DoSomething",
                 null,
@@ -87,7 +91,7 @@ public class AddTest
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await AddTestCommand.ExecuteAsync(
+            await _services.Resolve<AddTestCommand>().ExecuteAsync(
                 "OrderTests",
                 null,
                 "Returns 404 when not found; Creates order successfully",
@@ -130,7 +134,7 @@ public class AddTest
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await AddTestCommand.ExecuteAsync(
+            await _services.Resolve<AddTestCommand>().ExecuteAsync(
                 "OrderTests",
                 null,
                 "Returns 404 when not found",
@@ -178,7 +182,7 @@ public class AddTest
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await AddTestCommand.ExecuteAsync(
+            await _services.Resolve<AddTestCommand>().ExecuteAsync(
                 "MyTests",
                 "Should_DoSomething",
                 null,
@@ -218,7 +222,7 @@ public class AddTest
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await AddTestCommand.ExecuteAsync(
+            await _services.Resolve<AddTestCommand>().ExecuteAsync(
                 "MyTests",
                 "Should_DoSomething",
                 null,
