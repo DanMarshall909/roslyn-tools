@@ -9,8 +9,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class ExtractStringConstantCommand : IRtCommand
 {
-    private ExtractStringConstantCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly MagicStringService _magicString;
+    public ExtractStringConstantCommand(IWorkspaceSessionFactory sessionFactory, MagicStringService magicString)
     {
+        _magicString = magicString;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -29,7 +33,7 @@ internal sealed class ExtractStringConstantCommand : IRtCommand
         ]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var fileOpt = CommandOptionFactory.CreateStringOption("--file", "Path to the .cs file containing the literal");
         var lineOpt = new Option<int>("--line", "Line number of the string literal to extract") { IsRequired = true };
@@ -43,10 +47,10 @@ internal sealed class ExtractStringConstantCommand : IRtCommand
 
         cmd.SetHandler(async (file, line, name, solution, dryRun) =>
         {
-            var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
+            var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
             using (workspace)
             {
-                await RtServiceProvider.Get<MagicStringService>().ExtractConstantAsync(sln, file, line, name, dryRun);
+                await _magicString.ExtractConstantAsync(sln, file, line, name, dryRun);
             }
         }, fileOpt, lineOpt, nameOpt, solutionOpt, dryRunOpt);
 
