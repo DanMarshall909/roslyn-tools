@@ -9,8 +9,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class MakeSealedCommand : IRtCommand
 {
-    private MakeSealedCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly MakeSealedService _makeSealed;
+    public MakeSealedCommand(IWorkspaceSessionFactory sessionFactory, MakeSealedService makeSealed)
     {
+        _makeSealed = makeSealed;
+        _sessionFactory = sessionFactory;
     }
 
     // Stryker disable all
@@ -32,7 +36,7 @@ internal sealed class MakeSealedCommand : IRtCommand
     // Stryker restore all
 
     // Stryker disable all
-    public static Command Build()
+    public Command Build()
     {
         var typeOpt = CommandOptionFactory.CreateTypeOption("--type", "Class to seal");
         var solutionOpt = CommandOptionFactory.CreateSolutionOption();
@@ -52,12 +56,12 @@ internal sealed class MakeSealedCommand : IRtCommand
     /// <summary>
     /// Executes the MakeSealedCommand with async parameters
     /// </summary>
-    internal static async Task ExecuteAsync(string typeName, string? solutionPath, bool dryRun)
+    internal async Task ExecuteAsync(string typeName, string? solutionPath, bool dryRun)
     {
-        var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
+        var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
-            await RtServiceProvider.Get<MakeSealedService>().RunAsync(sln, typeName, dryRun);
+            await _makeSealed.RunAsync(sln, typeName, dryRun);
         }
     }
 }

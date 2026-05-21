@@ -1,12 +1,15 @@
-using Microsoft.Extensions.Logging.Abstractions;
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Services;
+using RoslynTools.Tests.Infrastructure;
 
 namespace RoslynTools.Tests.Mutation;
 
-public class MakeSealed
+public class MakeSealed : IClassFixture<RtServicesFixture>
 {
+    private readonly RtServicesFixture _services;
+    public MakeSealed(RtServicesFixture services) => _services = services;
+
     private const string SealAppSource = """
                                          class Standalone { public void Go() { } }
                                          class Animal { }
@@ -28,7 +31,7 @@ public class MakeSealed
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await MakeSealedCommand.ExecuteAsync("Standalone", "ignored", false);
+            await _services.Resolve<MakeSealedCommand>().ExecuteAsync("Standalone", "ignored", false);
         }
 
         var content = await proj.ReadSourceAsync("Types.cs");
@@ -49,7 +52,7 @@ public class MakeSealed
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                MakeSealedCommand.ExecuteAsync("Animal", "ignored", false));
+                _services.Resolve<MakeSealedCommand>().ExecuteAsync("Animal", "ignored", false));
 
             Assert.Contains("Dog", ex.Message);
         }
@@ -71,7 +74,7 @@ public class MakeSealed
         // Should not throw — just skip
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await MakeSealedCommand.ExecuteAsync("Shape", "ignored", false);
+            await _services.Resolve<MakeSealedCommand>().ExecuteAsync("Shape", "ignored", false);
         }
 
         var after = await proj.ReadSourceAsync("Types.cs");
@@ -93,7 +96,7 @@ public class MakeSealed
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await MakeSealedCommand.ExecuteAsync("Circle", "ignored", false);
+            await _services.Resolve<MakeSealedCommand>().ExecuteAsync("Circle", "ignored", false);
         }
 
         var after = await proj.ReadSourceAsync("Types.cs");
@@ -115,7 +118,7 @@ public class MakeSealed
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await MakeSealedCommand.ExecuteAsync("Standalone", "ignored", true);
+            await _services.Resolve<MakeSealedCommand>().ExecuteAsync("Standalone", "ignored", true);
         }
 
         var after = await proj.ReadSourceAsync("Types.cs");
@@ -130,8 +133,7 @@ public class MakeSealed
         var (_, sln) = proj.Build();
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            new MakeSealedService(NullLogger<MakeSealedService>.Instance, new CapturingSolutionChangeWriter())
-                .RunAsync(sln, "Missing", false));
+            _services.Resolve<MakeSealedService>().RunAsync(sln, "Missing", false));
 
         Assert.Contains("Class 'Missing' not found", exception.Message);
     }
