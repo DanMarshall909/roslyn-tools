@@ -2,11 +2,15 @@ using System.CommandLine;
 using Microsoft.CodeAnalysis;
 using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Tests.Infrastructure;
 
 namespace RoslynTools.Tests.Refactor;
 
-public class MigrateToIOptions
+public class MigrateToIOptions : IClassFixture<RtServicesFixture>
 {
+    private readonly RtServicesFixture _services;
+    public MigrateToIOptions(RtServicesFixture services) => _services = services;
+
     [Fact]
     [Trait("Concern", "PocoGeneration")]
     public async Task section_run_writes_internal_sealed_poco_under_host_project()
@@ -86,9 +90,9 @@ public class MigrateToIOptions
     {
         var output = new CollectingConsole();
 
-        using (RtConsole.UseConsole(output))
+        using (RoslynTools.Core.RtConsole.UseConsole(output))
         {
-            var exit = await MigrateToIOptionsCommand.ExecuteAsync(null, "MyFeatureOptions", "ignored", false);
+            var exit = await _services.Resolve<MigrateToIOptionsCommand>().ExecuteAsync(null, "MyFeatureOptions", "ignored", false);
             Assert.Equal(1, exit);
         }
 
@@ -101,9 +105,9 @@ public class MigrateToIOptions
     {
         var output = new CollectingConsole();
 
-        using (RtConsole.UseConsole(output))
+        using (RoslynTools.Core.RtConsole.UseConsole(output))
         {
-            var exit = await MigrateToIOptionsCommand.ExecuteAsync("MyFeature", null, "ignored", false);
+            var exit = await _services.Resolve<MigrateToIOptionsCommand>().ExecuteAsync("MyFeature", null, "ignored", false);
             Assert.Equal(1, exit);
         }
 
@@ -117,10 +121,10 @@ public class MigrateToIOptions
         using var fixture = BuildFixture();
         var output = new CollectingConsole();
 
-        using (RtConsole.UseConsole(output))
+        using (RoslynTools.Core.RtConsole.UseConsole(output))
         using (WorkspaceLoader.UseOverride(fixture.Workspace, fixture.Solution))
         {
-            var exit = await MigrateToIOptionsCommand.ExecuteAsync("MyFeature", "myfeatureoptions", "ignored", false);
+            var exit = await _services.Resolve<MigrateToIOptionsCommand>().ExecuteAsync("MyFeature", "myfeatureoptions", "ignored", false);
             Assert.Equal(1, exit);
         }
 
@@ -135,10 +139,10 @@ public class MigrateToIOptions
         using var fixture = BuildFixture();
         var output = new CollectingConsole();
 
-        using (RtConsole.UseConsole(output))
+        using (RoslynTools.Core.RtConsole.UseConsole(output))
         using (WorkspaceLoader.UseOverride(fixture.Workspace, fixture.Solution))
         {
-            var exit = await MigrateToIOptionsCommand.ExecuteAsync(":foo", "MyFeatureOptions", "ignored", false);
+            var exit = await _services.Resolve<MigrateToIOptionsCommand>().ExecuteAsync(":foo", "MyFeatureOptions", "ignored", false);
             Assert.Equal(1, exit);
         }
 
@@ -168,7 +172,7 @@ public class MigrateToIOptions
 
         using (WorkspaceLoader.UseOverride(fixture.Workspace, fixture.Solution))
         {
-            var exit = await MigrateToIOptionsCommand.ExecuteAsync("MyFeature", "MyFeatureOptions", null, true);
+            var exit = await _services.Resolve<MigrateToIOptionsCommand>().ExecuteAsync("MyFeature", "MyFeatureOptions", null, true);
             Assert.Equal(0, exit);
         }
     }
@@ -179,9 +183,9 @@ public class MigrateToIOptions
     {
         var output = new CollectingConsole();
 
-        using (RtConsole.UseConsole(output))
+        using (RoslynTools.Core.RtConsole.UseConsole(output))
         {
-            var exit = await MigrateToIOptionsCommand.ExecuteAsync("MyFeature", "MyFeatureOptions", "NoSuch.slnx",
+            var exit = await _services.Resolve<MigrateToIOptionsCommand>().ExecuteAsync("MyFeature", "MyFeatureOptions", "NoSuch.slnx",
                 false);
             Assert.Equal(1, exit);
         }
@@ -299,7 +303,7 @@ public class MigrateToIOptions
         Assert.Equal("refactor", MigrateToIOptionsCommand.Info.Category);
         Assert.True(MigrateToIOptionsCommand.Info.Mutates);
         Assert.False(MigrateToIOptionsCommand.Info.JsonOutput);
-        Assert.IsType<Command>(MigrateToIOptionsCommand.Build());
+        Assert.IsType<Command>(_services.Resolve<MigrateToIOptionsCommand>().Build());
         Assert.Contains(App.Commands, c => c.Info.Name == "migrate-to-ioptions");
     }
 
@@ -378,14 +382,14 @@ public class MigrateToIOptions
         return fixture;
     }
 
-    private static async Task<CollectingConsole> RunMigrationAsync(TestFixture fixture, bool dryRun = false)
+    private async Task<CollectingConsole> RunMigrationAsync(TestFixture fixture, bool dryRun = false)
     {
         var output = new CollectingConsole();
-        using (RtConsole.UseConsole(output))
+        using (RoslynTools.Core.RtConsole.UseConsole(output))
         using (WorkspaceLoader.UseOverride(fixture.Workspace, fixture.Solution))
         {
             output.ExitCode =
-                await MigrateToIOptionsCommand.ExecuteAsync("MyFeature", "MyFeatureOptions", "ignored", dryRun);
+                await _services.Resolve<MigrateToIOptionsCommand>().ExecuteAsync("MyFeature", "MyFeatureOptions", "ignored", dryRun);
         }
 
         return output;
@@ -442,7 +446,7 @@ public class MigrateToIOptions
 
         public void Log(RtLogLevel level, string template, object?[] args)
         {
-            Diagnostics.Add(RtConsole.RenderTemplate(template, args));
+            Diagnostics.Add(RoslynTools.Core.RtConsole.RenderTemplate(template, args));
         }
 
         public void WriteLine(RtOutputContext context, string message = "", ConsoleColor? color = null)

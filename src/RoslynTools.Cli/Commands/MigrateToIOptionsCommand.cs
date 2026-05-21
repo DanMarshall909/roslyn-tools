@@ -9,8 +9,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class MigrateToIOptionsCommand : IRtCommand
 {
-    private MigrateToIOptionsCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly MigrateToIOptionsService _migrate;
+    public MigrateToIOptionsCommand(IWorkspaceSessionFactory sessionFactory, MigrateToIOptionsService migrate)
     {
+        _migrate = migrate;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -27,7 +31,7 @@ internal sealed class MigrateToIOptionsCommand : IRtCommand
             "rt refactor migrate-to-ioptions --section MyFeature --name MyFeatureOptions --dry-run"
         ]);
 
-    public static Command Build()
+    public Command Build()
     {
         var sectionOpt = new Option<string?>("--section",
             "Configuration section name, for example MyFeature or Parent:Child");
@@ -55,7 +59,7 @@ internal sealed class MigrateToIOptionsCommand : IRtCommand
     /// <summary>
     /// Asynchronously executes a migration to IOptions interface.
     /// </summary>
-    internal static async Task<int> ExecuteAsync(string? section, string? name, string? solutionPath, bool dryRun)
+    internal async Task<int> ExecuteAsync(string? section, string? name, string? solutionPath, bool dryRun)
     {
         if (string.IsNullOrWhiteSpace(section))
         {
@@ -83,11 +87,10 @@ internal sealed class MigrateToIOptionsCommand : IRtCommand
 
         try
         {
-            var (workspace, solution) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
+            var (workspace, solution) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
             using (workspace)
             {
-                return await RtServiceProvider.Get<MigrateToIOptionsService>()
-                    .RunAsync(solution, section, name, dryRun);
+                return await _migrate.RunAsync(solution, section, name, dryRun);
             }
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or ArgumentException)
