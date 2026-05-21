@@ -9,8 +9,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class MoveMethodCommand : IRtCommand
 {
-    private MoveMethodCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly MoveMethodService _moveMethod;
+    public MoveMethodCommand(IWorkspaceSessionFactory sessionFactory, MoveMethodService moveMethod)
     {
+        _moveMethod = moveMethod;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -26,7 +30,7 @@ internal sealed class MoveMethodCommand : IRtCommand
         ]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var methodFqnArg = new Argument<string>("method-fqn", "Fully-qualified method name (e.g. App.Source.Add)");
         var toTypeOpt = new Option<string>("--to-type", "Fully-qualified target class name (e.g. App.Target)")
@@ -52,18 +56,17 @@ internal sealed class MoveMethodCommand : IRtCommand
     /// <summary>
     /// Asynchronously executes a method move with additional parameters.
     /// </summary>
-    internal static async Task ExecuteAsync(
+    internal async Task ExecuteAsync(
         string methodFqn,
         string toType,
         bool createFile,
         string? solutionPath,
         bool dryRun)
     {
-        var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
+        var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
-            var ok = await RtServiceProvider.Get<MoveMethodService>()
-                .RunAsync(sln, methodFqn, toType, createFile, dryRun);
+            var ok = await _moveMethod.RunAsync(sln, methodFqn, toType, createFile, dryRun);
             if (!ok)
                 Environment.ExitCode = 1;
         }
