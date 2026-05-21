@@ -1,7 +1,7 @@
 roslyn-tools
 Branch: backlog
 
-Current Status: 1/34 stories complete (3%)
+Current Status: 3/36 stories complete (8%)
 
 EP-005 — codebase consistency sweep (1/1)
 [x] US-025 fix formatting violations: CRLF and encoding errors in 4 files
@@ -19,9 +19,10 @@ EP-007 — Add structured JSON output to all inspect/analyze commands (0/8)
 [ ] US-051 rt analyze list-imports: structured JSON output
 [ ] US-052 rt analyze list-smells: structured JSON output
 
-EP-008 — Platform abstractions: IWorkspaceSessionFactory + ISolutionApplier (0/2)
-[ ] US-053 Introduce IWorkspaceSessionFactory + WorkspaceSession (rt-006)
-[ ] US-054 Migrate direct SolutionWriter call sites to ISolutionChangeWriter (rt-007)
+EP-008 — Platform abstractions: IWorkspaceSessionFactory + ISolutionApplier (2/3)
+[x] US-053 Introduce IWorkspaceSessionFactory + WorkspaceSession (rt-006)
+[x] US-054 Migrate direct SolutionWriter call sites to ISolutionChangeWriter (rt-007)
+[ ] US-072 Eliminate RtServiceProvider.Get<T> service locator in favour of ctor injection
 
 EP-009 — Consistent command contracts and migration ratchets (0/10)
 [ ] US-057 Introduce a shared read-only command handler wrapper
@@ -48,3 +49,4 @@ Loose stories
 [ ] RT-004 Finish stderr discipline migration: Console.Write to RtLog/RtConsole
 [ ] US-069 Bring src/RoslynTools.Cli/ into Stryker mutation pilot
 [ ] US-070 Bring src/RoslynTools.Mcp/ into Stryker mutation pilot
+[ ] US-073 migrate solution to .NET 10

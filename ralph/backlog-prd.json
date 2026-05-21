@@ -704,6 +704,25 @@
             "passes": false,
             "epicId": "EP-008",
             "notes": "P2. Follow-on from EP-008 (US-053/US-054). Scope: 64 RtServiceProvider.Get/GetOrDefault call sites across 46 files. Approach approved 2026-05-21: convert IRtCommand from static Build() factory to instance class so DI can ctor-inject services. App.Discover resolves each command via the service provider. RtServiceProvider class deleted (or shrunk to just the AsyncLocal Use scope if needed). New NoRtServiceProviderInProduction architecture gate mirrors NoConcreteWorkspaceLoaderInProduction. Trunk-based delivery."
+        },
+        {
+            "id": "US-073",
+            "title": "migrate solution to .NET 10",
+            "description": "As a maintainer, I want the solution targeting .NET 10 so that we stay on a supported runtime and get access to language/runtime improvements ahead of net8.0 going out of mainstream support.",
+            "acceptanceCriteria": [
+                "All projects in RoslynTools.slnx target net10.0 (TargetFramework + any Directory.Build.props)",
+                "dotnet build RoslynTools.slnx succeeds with no new warnings",
+                "dotnet test RoslynTools.slnx passes the full suite",
+                "dotnet format RoslynTools.slnx --verify-no-changes is clean",
+                "rt dump-help runs to completion against RoslynTools.slnx",
+                "rt smoke tests (inspect describe, refactor rename --dry-run) work against a non-trivial Hero solution",
+                "All NuGet packages updated to versions that support net10 with no runtime-only fallbacks",
+                "Microsoft.CodeAnalysis.* bumped to a Roslyn version compatible with the net10 SDK toolchain",
+                "CI workflows (if any) updated to install net10 SDK"
+            ],
+            "priority": 77,
+            "passes": false,
+            "notes": "P2. Currently net8.0 across all projects. Migration touches: TFM in every csproj + Directory.Build.props, Microsoft.CodeAnalysis.* package bump (currently 4.9.2), DiffPlex/YamlDotNet/Scrutor checks for net10 support, CI image bump if any, smoke tests on roslyn-tools.slnx then a Hero solution. Watch for breakage in Roslyn syntax APIs and MSBuildLocator behavior — net10 SDK discovery may diverge."
         }
     ]
 }
