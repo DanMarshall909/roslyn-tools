@@ -11,8 +11,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class FindMagicStringsCommand : IRtCommand
 {
-    private FindMagicStringsCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly MagicStringService _magicString;
+    public FindMagicStringsCommand(IWorkspaceSessionFactory sessionFactory, MagicStringService magicString)
     {
+        _magicString = magicString;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -32,7 +36,7 @@ internal sealed class FindMagicStringsCommand : IRtCommand
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
         var minLengthOpt = new Option<int>("--min-length", () => 3, "Minimum string length to report");
@@ -44,10 +48,10 @@ internal sealed class FindMagicStringsCommand : IRtCommand
 
         cmd.SetHandler(async (solution, minLength, minOccurrences) =>
         {
-            var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
+            var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
             using (workspace)
             {
-                var groups = await RtServiceProvider.Get<MagicStringService>()
+                var groups = await _magicString
                     .AnalyzeAsync(sln, minLength, minOccurrences);
                 RtResultRenderer.WriteOutput(RtResult<MagicStringResult>.Ok(MagicStringResult.FromGroups(groups)));
             }
