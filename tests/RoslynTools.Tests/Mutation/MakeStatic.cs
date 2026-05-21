@@ -1,10 +1,14 @@
 using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Tests.Infrastructure;
 
 namespace RoslynTools.Tests.Mutation;
 
-public class MakeStatic
+public class MakeStatic : IClassFixture<RtServicesFixture>
 {
+    private readonly RtServicesFixture _services;
+    public MakeStatic(RtServicesFixture services) => _services = services;
+
     // ──────────────────────────────────────────────────────────────────────────
     //  1. Clean method (no instance state) becomes static
     // ──────────────────────────────────────────────────────────────────────────
@@ -22,7 +26,7 @@ public class MakeStatic
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await MakeStaticCommand.ExecuteAsync("Calc.Add", "ignored", false);
+            await _services.Resolve<MakeStaticCommand>().ExecuteAsync("Calc.Add", "ignored", false);
         }
 
         var content = await proj.ReadSourceAsync("Calc.cs");
@@ -50,7 +54,7 @@ public class MakeStatic
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await MakeStaticCommand.ExecuteAsync("Service.GetValue", "ignored", false);
+            await _services.Resolve<MakeStaticCommand>().ExecuteAsync("Service.GetValue", "ignored", false);
         }
 
         var output = stderr.ToString();
@@ -83,7 +87,7 @@ public class MakeStatic
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await MakeStaticCommand.ExecuteAsync("Repo.GetCount", "ignored", false);
+            await _services.Resolve<MakeStaticCommand>().ExecuteAsync("Repo.GetCount", "ignored", false);
         }
 
         var output = stderr.ToString();
@@ -115,7 +119,7 @@ public class MakeStatic
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await MakeStaticCommand.ExecuteAsync("Base.Describe", "ignored", false);
+            await _services.Resolve<MakeStaticCommand>().ExecuteAsync("Base.Describe", "ignored", false);
         }
 
         var output = stderr.ToString();
@@ -151,7 +155,7 @@ public class MakeStatic
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await MakeStaticCommand.ExecuteAsync("Helper.Format", "ignored", false);
+            await _services.Resolve<MakeStaticCommand>().ExecuteAsync("Helper.Format", "ignored", false);
         }
 
         var helperContent = await proj.ReadSourceAsync("Helper.cs");
@@ -186,7 +190,7 @@ public class MakeStatic
         {
             using (WorkspaceLoader.UseOverride(workspace, sln))
             {
-                await MakeStaticCommand.ExecuteAsync("Util.Square", "ignored", true);
+                await _services.Resolve<MakeStaticCommand>().ExecuteAsync("Util.Square", "ignored", true);
             }
         }
         finally
