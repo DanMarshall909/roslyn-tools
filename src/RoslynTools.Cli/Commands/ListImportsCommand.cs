@@ -11,8 +11,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class ListImportsCommand : IRtCommand
 {
-    private ListImportsCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly ImportDirectiveService _importDirective;
+    public ListImportsCommand(IWorkspaceSessionFactory sessionFactory, ImportDirectiveService importDirective)
     {
+        _importDirective = importDirective;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -32,7 +36,7 @@ internal sealed class ListImportsCommand : IRtCommand
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
         var kindOpt = new Option<string>("--kind", () => "all", "Filter: all, global, static, or alias");
@@ -43,10 +47,10 @@ internal sealed class ListImportsCommand : IRtCommand
 
         cmd.SetHandler(async (solution, kind) =>
         {
-            var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
+            var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
             using (workspace)
             {
-                var imports = await RtServiceProvider.Get<ImportDirectiveService>().AnalyzeAsync(sln, kind);
+                var imports = await _importDirective.AnalyzeAsync(sln, kind);
                 RtResultRenderer.WriteOutput(RtResult<ImportDirectiveResult>.Ok(ImportDirectiveResult.FromImports(imports)));
             }
         }, solutionOpt, kindOpt);
