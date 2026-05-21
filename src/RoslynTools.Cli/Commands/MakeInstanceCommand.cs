@@ -9,8 +9,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class MakeInstanceCommand : IRtCommand
 {
-    private MakeInstanceCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly MakeInstanceService _makeInstance;
+    public MakeInstanceCommand(IWorkspaceSessionFactory sessionFactory, MakeInstanceService makeInstance)
     {
+        _makeInstance = makeInstance;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -28,7 +32,7 @@ internal sealed class MakeInstanceCommand : IRtCommand
         ]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var methodOpt =
             CommandOptionFactory.CreateMethodOption("--method", "Fully-qualified method to convert: Type.Method");
@@ -48,12 +52,12 @@ internal sealed class MakeInstanceCommand : IRtCommand
     /// <summary>
     /// Executes the MakeInstanceCommand with async parameters
     /// </summary>
-    internal static async Task ExecuteAsync(string methodSpec, string? solutionPath, bool dryRun)
+    internal async Task ExecuteAsync(string methodSpec, string? solutionPath, bool dryRun)
     {
-        var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
+        var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
-            await RtServiceProvider.Get<MakeInstanceService>().RunAsync(sln, methodSpec, dryRun);
+            await _makeInstance.RunAsync(sln, methodSpec, dryRun);
         }
     }
 }
