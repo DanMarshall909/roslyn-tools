@@ -114,7 +114,7 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
         string loggerDependency,
         string loggerField)
     {
-        var (workspace, solution) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solutionPath);
+        var (workspace, solution) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
             await ExecuteCoreAsync(solution, dryRun, loggerExpression, informationMethod, warningMethod, errorMethod,
@@ -191,7 +191,7 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
         }
 
         solution = await ConsoleLoggingCore.ApplyAsync(solution, options);
-        await SolutionWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
+        await RtServiceProvider.GetOrDefault(ISolutionChangeWriter.CreateDefault).ApplyChangesAsync(originalSolution, solution, dryRun);
     }
 
     private static async Task ReviewAsync(

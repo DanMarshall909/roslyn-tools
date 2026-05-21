@@ -49,7 +49,7 @@ internal sealed class FindImplementationsCommand : IRtCommand, IStructuredOutput
                 var symbol = ctx.ParseResult.GetValueForArgument(symbolArg);
                 var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
                 var sp = ctx.BindingContext.GetService<IServiceProvider>();
-                var loader = sp?.GetService<WorkspaceLoader>() ?? new WorkspaceLoader();
+                var loader = sp?.GetService<IWorkspaceSessionFactory>() ?? IWorkspaceSessionFactory.CreateDefault();
 
                 var sln = await loader.GetSolutionAsync(solution);
                 var sym = symbol.Contains('.', StringComparison.Ordinal)

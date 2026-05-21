@@ -12,7 +12,12 @@ internal static class Bootstrap
 {
     public static void RegisterServices(IServiceCollection services)
     {
+        // Concrete-then-forward registration so both
+        // GetService<WorkspaceLoader>() and GetService<IWorkspaceSessionFactory>()
+        // return the same disposable singleton. The forwarder, not a second
+        // AddSingleton<WorkspaceLoader>, is what keeps disposal correct.
         services.AddSingleton<WorkspaceLoader>();
+        services.AddSingleton<IWorkspaceSessionFactory>(sp => sp.GetRequiredService<WorkspaceLoader>());
         services.AddSingleton<GitService>();
         services.AddSingleton<DaemonClient>();
         services.AddSingleton<ISymbolResolutionService, SymbolResolutionService>();

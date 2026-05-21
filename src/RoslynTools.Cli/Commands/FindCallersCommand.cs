@@ -52,7 +52,7 @@ internal sealed class FindCallersCommand : IRtCommand
             var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
             var includeTests = ctx.ParseResult.GetValueForOption(includeTestsOpt);
             var sp = ctx.BindingContext.GetService<IServiceProvider>();
-            var loader = sp?.GetService<WorkspaceLoader>() ?? new WorkspaceLoader();
+            var loader = sp?.GetService<IWorkspaceSessionFactory>() ?? IWorkspaceSessionFactory.CreateDefault();
 
             var sln = await loader.GetSolutionAsync(solution);
             var result = await RtServiceProvider.Get<FindCallersService>().FindAsync(sln, symbol, includeTests);

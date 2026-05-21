@@ -45,7 +45,7 @@ internal sealed class CircularDepsCommand : IRtCommand
 
         cmd.SetHandler(async (scope, solution) =>
         {
-            var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
+            var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
             using (workspace)
             {
                 var cycles = await RtServiceProvider.Get<CircularDepsService>().AnalyzeCyclesAsync(sln, scope);

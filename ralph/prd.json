@@ -317,8 +317,186 @@
             "urgency": 1,
             "urgencyReason": "Live telemetry: ralph/feedback.json FB-027/028 (2026-05-20) — users hit unhandled InvalidOperationException on analyze-interface non-interface input. Enforces \"no exceptions for results\" rule.",
             "effort": 2,
-            "passes": false,
-            "notes": "P1. App.cs UseExceptionHandler currently does not catch typed exceptions. Catch: FileNotFoundException, IOException, InvalidOperationException, JsonException, YamlException. Format as 'Error: <ex.Message>' to stderr, exit 1. Covers: WorkspaceLoader throws beyond the missing-solution case (US-041), DecisionStore.Load/Save, AddXmlDocCommand JSON load, MigrateToIOptionsService."
+            "passes": true,
+            "notes": "P1. App.cs UseExceptionHandler currently does not catch typed exceptions. Catch: FileNotFoundException, IOException, InvalidOperationException, JsonException, YamlException. Format as 'Error: <ex.Message>' to stderr, exit 1. Covers: WorkspaceLoader throws beyond the missing-solution case (US-041), DecisionStore.Load/Save, AddXmlDocCommand JSON load, MigrateToIOptionsService.",
+            "resolution": "Extended App.TryHandleUserErrorAsync to catch IOException, InvalidOperationException, JsonException, and YamlException (in addition to existing FileNotFoundException) and emit a single \"Error: <message>\" line to stderr with exit code 1. Moved DecisionStore.Load inside the try block so malformed --decisions YAML is also handled. Added 4 end-to-end tests in CliBootstrap.cs covering the non-interface InvalidOperationException (FB-027/028), malformed JSON in add-xml-doc, and malformed YAML in --decisions. FB-027 and FB-028 marked resolved.",
+            "completedAt": "2026-05-20"
+        },
+        {
+            "id": "US-043",
+            "title": "Replace Environment.Exit(1) in OutlineCommand with context.ExitCode = 1",
+            "description": "As a developer, I want OutlineCommand to exit consistently with all other commands so that graceful cleanup runs on error.",
+            "acceptanceCriteria": [
+                "OutlineCommand no longer calls Environment.Exit(1) for any error condition",
+                "Error cases in OutlineCommand set context.ExitCode = 1 and return, consistent with all other commands",
+                "Process exit allows graceful cleanup (log flushing, disposables) to run"
+            ],
+            "priority": 43,
+            "urgency": 12,
+            "urgencyReason": "One-line consistency fix: Environment.Exit(1) → context.ExitCode = 1; return; in OutlineCommand so graceful cleanup runs on error. Quickest defensive fix → ahead of US-044 in the same band.",
+            "effort": 1,
+            "passes": true,
+            "notes": "P2. OutlineCommand.cs line ~90 calls Environment.Exit(1). Replace with context.ExitCode = 1; return; — same pattern as every other command in the codebase.",
+            "resolution": "No-op: OutlineCommand already uses context.ExitCode = 1; return; (line 96-97) — no Environment.Exit(1) call exists in the file. The bug was fixed in commit 93a96d1 (May 15, 2026: feat(feedback): capture workspace warning context) before this story was created. All three ACs satisfied by the current code: no Environment.Exit(1), error path sets context.ExitCode = 1 and returns, graceful cleanup runs. Verified via grep of full src/ tree — zero matches for Environment.Exit(. Closing without code change.",
+            "completedAt": "2026-05-20"
+        },
+        {
+            "id": "US-044",
+            "title": "Guard .First()/.Last() calls in SymbolLocator and MethodExtractor against empty sequences",
+            "description": "As a developer using rt, I want empty-sequence edge cases to produce a clear error rather than an InvalidOperationException crash.",
+            "acceptanceCriteria": [
+                "No .First() or .Last() call in SymbolLocator or MethodExtractor throws InvalidOperationException when the sequence is empty",
+                "Each call site uses FirstOrDefault with a null check, or validates the collection is non-empty before calling First/Last",
+                "When an expected symbol or statement is not found, the command emits a descriptive error to stderr and exits 1 rather than crashing"
+            ],
+            "priority": 44,
+            "urgency": 16,
+            "urgencyReason": "Same crash class as US-042 — .First()/.Last() on potentially empty sequences in SymbolLocator (~4 sites) and MethodExtractor (~8 sites). Mechanical, one TDD batch.",
+            "effort": 2,
+            "passes": true,
+            "notes": "P2. SymbolLocator.cs lines ~49, 96, 135, 188 and MethodExtractor.cs lines ~57, 164, 168, 378, 501, 529-532 call .First()/.Last() on sequences that could be empty under certain inputs. Replace with FirstOrDefault + null check or add pre-call validation.",
+            "resolution": "No-op: all 12 .First()/.Last() sites are invariant by construction. SymbolLocator: all four sites are g.First() after GroupBy — a group always has at least one element. MethodExtractor: all eight sites flow downstream of the selected.Count == 0 validation at line 350, which throws InvalidOperationException(\"No statements found in lines X-Y...\") before any First()/Last() call. AC3 (descriptive error + exit 1 instead of crash) is now satisfied automatically via US-042 catching InvalidOperationException and emitting Error: + exit 1. Verified end-to-end: rt inspect find-refs --symbol DoesNotExistSymbolFoo and rt refactor extract-method --start-line 9000 --end-line 9001 both produce descriptive stderr lines and exit 1. No code change needed.",
+            "completedAt": "2026-05-20"
+        },
+        {
+            "id": "US-040",
+            "title": "Suppress MSBuild workspace warnings by default; opt in with --show-workspace-warnings",
+            "description": "As a developer using rt, I want MSBuild workspace warnings suppressed by default so that NuGet audit noise and compatibility warnings from the loaded solution don't pollute rt's output.",
+            "acceptanceCriteria": [
+                "All MSBuild workspace warnings are suppressed from stderr by default when rt loads a solution",
+                "A --show-workspace-warnings flag (or equivalent) re-enables them for debugging",
+                "Genuine solution load errors that prevent rt from running still exit 1 with a clear message",
+                "The [workspace-warnings] block does not appear in normal output"
+            ],
+            "priority": 40,
+            "urgency": 62,
+            "urgencyReason": "Daily noise: MSBuild workspace warnings block pollutes every command's stderr. Suppress by default; --show-workspace-warnings opt-in.",
+            "effort": 2,
+            "passes": true,
+            "notes": "P2. Affects WorkspaceLoader / MSBuildWorkspace diagnostic handling. Suppress all MSBuildWorkspace diagnostics by default; add --show-workspace-warnings global flag to restore them. Genuine load errors (exit 1) must still surface.",
+            "resolution": "No-op: --show-workspace-warnings global flag already exists (App.cs RegisterGlobalOptions line 235-236) and is plumbed through RtContext.ShowWorkspaceWarnings. Verified end-to-end: rt inspect describe ProjectX.Service.Services.ServiceController --solution ProjectX.Libraries.sln produces zero stderr lines by default (AC1, AC4); passing --show-workspace-warnings emits 26 lines of NuGet audit / MSBuild warnings (AC2); US-042 ensures genuine solution-load errors still produce Error: + exit 1 (AC3). All four ACs satisfied by existing code.",
+            "completedAt": "2026-05-20"
+        },
+        {
+            "id": "US-068",
+            "title": "Introduce Result<T,RtError> for routine user-error flows in core services",
+            "description": "As a developer, I want routine \"not found\" / \"bad input\" cases in SymbolLocator, MethodExtractor, WorkspaceLoader to return a Result type (success or RtError) instead of throwing InvalidOperationException, so the global exception handler can produce clean exit-1 stderr lines for known user errors while still surfacing real bugs with full stack traces — without resorting to substring-matching exception messages.",
+            "acceptanceCriteria": [
+                "Add Result<T, RtError> (or equivalent ADT) in src/RoslynTools/Core/. RtError is a record with a Kind enum (NotFound, InvalidInput, AmbiguousMatch, WorkspaceLoadFailure) plus message and optional context dictionary.",
+                "Convert SymbolLocator.FindSymbolAsync / FindSymbolByFqnAsync / FindTypeByFqnAsync / FindMethodBySpecAsync to return Result<ISymbol, RtError>; routine \"not found\" / ambiguous cases produce RtError, never throw.",
+                "Convert WorkspaceLoader.LoadAsync to return Result<(MSBuildWorkspace, Solution), RtError> for the no-projects-and-failure-diagnostic case; throw only for genuinely unexpected exceptions.",
+                "MethodExtractor: routine user-input rejections (no statements in range, multiple parent blocks, return statements in selection, --after + --before conflict) become RtError; AST-rewrite-produced-no-changes and similar internal-invariant violations remain exceptions.",
+                "Update every caller of the converted APIs to propagate or handle the Result; commands surface RtError via a single RtLog.Error + context.ExitCode = 1 helper.",
+                "Add a typed-only catch ladder in App.CaptureExceptionAsync for FileNotFoundException, DirectoryNotFoundException, ArgumentException, JsonException — these are routine OS/parse errors. No substring-matching of exception messages anywhere.",
+                "feedback.json still captures every exception with the full diagnostic payload from US-042; only the user-facing stderr shape changes.",
+                "Tests: SymbolLocator returns RtError.NotFound for unknown symbol; OutlineCommand returns exit 1 + single stderr line for missing file; build remains clean.",
+                "Documentation: add a short Result-types section to CLAUDE.md / AGENTS.md so new commands follow the pattern."
+            ],
+            "priority": 68,
+            "urgency": 32,
+            "urgencyReason": "Architectural fix that supersedes US-042+US-044: Result<T, RtError> for routine errors. Story explicitly cites 2026-05-15 quality-first rule. Sequenced after US-042/044 ship so the bug-class diagnosis is validated by quick fixes first.",
+            "effort": 13,
+            "passes": 0,
+            "notes": "Driven by quality-first rule (2026-05-15): refuses the substring-matching shortcut and instead models routine vs bug differences in the type system. Replaces the deferred classification half of US-042. Large change — touches ~10-15 throw sites and every caller — sequence carefully via /execute with TDD.",
+            "resolution": "",
+            "resolvedAt": "",
+            "paused": true,
+            "pauseAt": "2026-05-20",
+            "pauseBranch": "wip/US-068",
+            "pauseQuestion": "Commit to introducing Result<T, RtError> ADT across SymbolLocator/WorkspaceLoader/MethodExtractor and the App exception ladder in one batch, or sequence it incrementally (e.g. SymbolLocator first, then WorkspaceLoader, then MethodExtractor) across smaller stories?",
+            "pauseContext": "13-effort cross-cutting architectural change. Story prescribes specific types (Result<T, RtError> ADT, RtError record with Kind enum {NotFound, InvalidInput, AmbiguousMatch, WorkspaceLoadFailure}) and a typed catch ladder in App.CaptureExceptionAsync — architectural commitments warranting a human call before an autonomous run sprays them across the codebase.\n\nBlast radius: 4 SymbolLocator methods (FindSymbolAsync, FindSymbolByFqnAsync, FindTypeByFqnAsync, FindMethodBySpecAsync), WorkspaceLoader.LoadAsync (tuple-returning Result), MethodExtractor user-input validations (no statements in range, multiple parent blocks, return statements in selection, --after + --before conflict), and every caller of those APIs across src/RoslynTools/Commands/ (~30+ sites). Also adds typed catches for FileNotFoundException, DirectoryNotFoundException, ArgumentException, JsonException in App.CaptureExceptionAsync.\n\nSupersedes the substring-matching deferred half of US-042 (which currently does substring-matching in App.TryHandleUserErrorAsync). Open question whether US-042's handler stays alongside the typed ladder or is replaced wholesale.\n\nVerified: no existing Result<T> or RtError types in src/RoslynTools/Core/ (grep returned no matches). Start sha 1b4118d already had the promotion commit on main; no working changes attempted."
+        },
+        {
+            "id": "US-033",
+            "title": "rt analyze solid: ISP detector — flag fat interfaces and NotImplementedException members",
+            "description": "As a developer, I want rt analyze solid --principle ISP to flag over-broad interfaces and implementing classes that throw on members they cannot fulfill.",
+            "acceptanceCriteria": [
+                "rt analyze solid --principle ISP --solution <sln> exits 0 and emits JSON to stdout",
+                "Output has a top-level 'ISP' key with sub-arrays for 'FatInterfaces' and 'UnimplementedMembers'",
+                "Each FatInterface item includes: InterfaceName, FilePath, Line, MemberCount",
+                "Each UnimplementedMember item includes: TypeName, MemberName, InterfaceName, FilePath, Line",
+                "--min-members <N> (default 7) is configurable for the fat-interface threshold",
+                "Classes throwing NotImplementedException or NotSupportedException on implemented interface members are flagged under UnimplementedMembers",
+                "rt analyze solid --principle all includes ISP results"
+            ],
+            "priority": 33,
+            "urgency": 92,
+            "urgencyReason": "EP-006 epic in flight — ISP detector follows the US-032 SRP template (SolidAnalyzer, SolidResult, mirrored tests). Lowest-risk SOLID addition.",
+            "effort": 5,
+            "passes": true,
+            "epicId": "EP-006",
+            "notes": "P2. Two sub-checks: (1) interfaces with member count above threshold; (2) classes implementing an interface but throwing NotImplementedException/NotSupportedException on one or more members. Output grouped under 'ISP' detector key.",
+            "resolution": "Added rt analyze solid --principle ISP detector. SolidAnalyzer.AnalyzeIspAsync flags fat interfaces (declared members >= --min-members, default 7) and concrete classes whose direct interface-method/property/event implementations throw NotImplementedException or NotSupportedException. SolidCommand wires --min-members and accepts ISP, SRP, or all. SolidResult.ISP block contains FatInterfaces and UnimplementedMembers arrays. 23 new ISP tests + 1 dogfood-driven regression test (skip compiler-synthesized members like record-synthesized Equals).",
+            "resolvedAt": "2026-05-20"
+        },
+        {
+            "id": "US-034",
+            "title": "rt analyze solid: DIP detector — flag concrete constructor params and inline new calls",
+            "description": "As a developer, I want rt analyze solid --principle DIP to flag high-level classes that depend directly on concrete types rather than abstractions.",
+            "acceptanceCriteria": [
+                "rt analyze solid --principle DIP --solution <sln> exits 0 and emits JSON to stdout",
+                "Output has a top-level 'DIP' key with sub-arrays for 'ConcreteConstructorParams' and 'InlineNewCalls'",
+                "Each ConcreteConstructorParam item includes: TypeName, ParamName, ConcreteType, FilePath, Line",
+                "Each InlineNewCall item includes: TypeName, MemberName, ConcreteType, FilePath, Line",
+                "Value types, record types, and Exception-derived types are excluded from InlineNewCalls",
+                "Classes named *Factory, *Builder, or *Provider are excluded from InlineNewCalls (they are expected to new things)",
+                "rt analyze solid --principle all includes DIP results"
+            ],
+            "priority": 34,
+            "urgency": 96,
+            "urgencyReason": "EP-006 — DIP detector, same template as US-032/033.",
+            "effort": 5,
+            "passes": true,
+            "epicId": "EP-006",
+            "notes": "P2. Two sub-checks: (1) constructors accepting concrete class params (not interfaces/abstract); (2) non-factory class bodies calling new ConcreteType() where ConcreteType is not a value type, DTO, or exception. Output grouped under 'DIP' detector key.",
+            "resolution": "Added rt analyze solid --principle DIP detector. SolidAnalyzer.AnalyzeDipAsync flags concrete-class constructor parameters (excluding BCL System.* types, records, abstract classes, interfaces, value types) and inline new ConcreteType() calls inside non-factory classes. Classes named *Factory/*Builder/*Provider are skipped. SolidResult.DIP block contains ConcreteConstructorParams and InlineNewCalls arrays. 25 new DIP tests + dogfood validation against RoslynTools.slnx.",
+            "resolvedAt": "2026-05-20"
+        },
+        {
+            "id": "US-035",
+            "title": "rt analyze solid: OCP detector — flag switch/if chains branching on concrete types",
+            "description": "As a developer, I want rt analyze solid --principle OCP to flag code that must be modified every time a new concrete type is added.",
+            "acceptanceCriteria": [
+                "rt analyze solid --principle OCP --solution <sln> exits 0 and emits JSON to stdout",
+                "Output has a top-level 'OCP' key containing an array of violation items",
+                "Each item includes: TypeName, MemberName, FilePath, Line, BranchCount, ViolationType ('switch' or 'if-chain')",
+                "Flags switch expressions/statements matching on 'is ConcreteType' patterns",
+                "Flags if/else chains using 'is ConcreteType' or 'obj.GetType() == typeof(X)' with 2 or more concrete-type branches",
+                "--min-branches <N> (default 2) is configurable",
+                "rt analyze solid --principle all includes OCP results"
+            ],
+            "priority": 35,
+            "urgency": 100,
+            "urgencyReason": "EP-006 — OCP detector, same template.",
+            "effort": 5,
+            "passes": true,
+            "epicId": "EP-006",
+            "notes": "P2. Detects: (1) switch expressions/statements matching on 'is ConcreteType'; (2) if/else chains using 'is ConcreteType' or obj.GetType() == typeof(X) with 2+ branches. Output grouped under 'OCP' detector key.",
+            "resolution": "Added rt analyze solid --principle OCP detector. SolidAnalyzer.AnalyzeOcpAsync flags switch expressions/statements with 2+ arms matching on concrete-type patterns (DeclarationPattern, TypePattern, ConstantPattern resolving to a type) and if/else chains using 'is ConcreteType' or 'GetType() == typeof(X)' for 2+ concrete-type branches. Interface patterns and value comparisons are not flagged. --min-branches (default 2) is configurable. SolidResult.OCP is a flat array of OcpViolationItem with ViolationType ('switch'|'if-chain') and BranchCount. 16 new OCP tests + dogfood validation.",
+            "resolvedAt": "2026-05-20"
+        },
+        {
+            "id": "US-036",
+            "title": "rt analyze solid: LSP detector — flag overrides throwing or narrowing contracts",
+            "description": "As a developer, I want rt analyze solid --principle LSP to flag override methods that break Liskov substitutability so that I can identify types that cannot safely replace their base.",
+            "acceptanceCriteria": [
+                "rt analyze solid --principle LSP --solution <sln> exits 0 and emits JSON to stdout",
+                "Output has a top-level 'LSP' key with sub-arrays for 'ThrowingOverrides' and 'ContractNarrowings'",
+                "Each ThrowingOverride item includes: TypeName, MemberName, ExceptionType, FilePath, Line",
+                "Each ContractNarrowing item includes: TypeName, MemberName, BaseType, FilePath, Line",
+                "Flags override methods whose body contains throw new NotImplementedException() or NotSupportedException()",
+                "Flags explicit interface implementations that throw on every code path",
+                "rt analyze solid --principle all includes LSP results"
+            ],
+            "priority": 36,
+            "urgency": 104,
+            "urgencyReason": "EP-006 — LSP detector, closes the epic.",
+            "effort": 5,
+            "passes": true,
+            "epicId": "EP-006",
+            "notes": "P2. Two sub-checks: (1) override methods whose body throws NotImplementedException/NotSupportedException; (2) explicit interface implementations that throw on every code path. Output grouped under 'LSP' detector key.",
+            "resolution": "Added rt analyze solid --principle LSP detector. SolidAnalyzer.AnalyzeLspAsync flags override methods that throw NotImplementedException/NotSupportedException (ThrowingOverrides) and explicit interface implementations that throw on every code path (ContractNarrowings). Skips compiler-synthesized overrides to avoid record-synthesized Equals/GetHashCode/ToString false positives. SolidResult.LSP block has ThrowingOverrides and ContractNarrowings arrays. Closes EP-006 — all five detectors (SRP, ISP, DIP, OCP, LSP) now ship under rt analyze solid. 16 new LSP tests + dogfood validation.",
+            "resolvedAt": "2026-05-20"
         }
     ]
 }

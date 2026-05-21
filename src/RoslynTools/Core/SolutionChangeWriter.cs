@@ -2,18 +2,11 @@ using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
 
-namespace RoslynTools.Services;
+namespace RoslynTools.Core;
 
 /// <summary>
-/// An interface representing a solution change writer.
-/// </summary>
-internal interface ISolutionChangeWriter
-{
-    Task ApplyChangesAsync(Solution originalSolution, Solution newSolution, bool dryRun);
-}
-
-/// <summary>
-/// A class that implements the ISolutionChangeWriter interface.
+/// The default <see cref="ISolutionChangeWriter" /> — a thin adapter over the
+/// static <c>SolutionWriter</c> helper. DI-registered as the production binding.
 /// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance service registered through DI for dependency inversion.")]

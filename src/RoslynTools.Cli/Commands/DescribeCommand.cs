@@ -49,7 +49,7 @@ internal sealed class DescribeCommand : IRtCommand, IStructuredOutputCommand
                 var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
                 var kind = ctx.ParseResult.GetValueForOption(kindOpt);
                 var sp = ctx.BindingContext.GetService<IServiceProvider>();
-                var loader = sp?.GetService<WorkspaceLoader>() ?? new WorkspaceLoader();
+                var loader = sp?.GetService<IWorkspaceSessionFactory>() ?? IWorkspaceSessionFactory.CreateDefault();
 
                 var sln = await loader.GetSolutionAsync(solution);
                 var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, symbol, kind);

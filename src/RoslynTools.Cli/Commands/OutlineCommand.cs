@@ -58,7 +58,7 @@ internal sealed class OutlineCommand : IRtCommand, IStructuredOutputCommand
             var regex = context.ParseResult.GetValueForOption(regexOpt);
             var summary = context.ParseResult.GetValueForOption(summaryOpt);
 
-            var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
+            var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
             using (workspace)
             {
                 List<Dictionary<string, object?>> result;

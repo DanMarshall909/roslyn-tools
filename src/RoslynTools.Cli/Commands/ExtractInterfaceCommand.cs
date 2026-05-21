@@ -60,7 +60,7 @@ internal sealed class ExtractInterfaceCommand : IRtCommand
         string? ns,
         bool dryRun)
     {
-        var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solutionPath);
+        var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
             await RtServiceProvider.Get<ExtractInterfaceService>().RunAsync(sln, typeName, outputDir, ns, dryRun);

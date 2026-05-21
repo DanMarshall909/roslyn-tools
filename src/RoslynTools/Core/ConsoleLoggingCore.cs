@@ -73,7 +73,7 @@ internal static class ConsoleLoggingCore
 
         var originalSolution = solution;
         var newSolution = await ApplyAsync(solution, options);
-        await SolutionWriter.ApplyChangesAsync(originalSolution, newSolution, dryRun);
+        await RtServiceProvider.GetOrDefault(ISolutionChangeWriter.CreateDefault).ApplyChangesAsync(originalSolution, newSolution, dryRun);
     }
 
     /// <summary>

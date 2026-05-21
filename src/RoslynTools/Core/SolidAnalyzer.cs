@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace RoslynTools.Core;
@@ -8,6 +9,47 @@ internal record SrpViolation(
     int PublicMethodCount, int DependencyCount, string Detail);
 
 internal record SolidSrpReport(IList<SrpViolation> Violations);
+
+internal record IspFatInterface(
+    string InterfaceName, string FilePath, int Line, int MemberCount);
+
+internal record IspUnimplementedMember(
+    string TypeName, string MemberName, string InterfaceName,
+    string FilePath, int Line);
+
+internal record SolidIspReport(
+    IList<IspFatInterface> FatInterfaces,
+    IList<IspUnimplementedMember> UnimplementedMembers);
+
+internal record DipConcreteCtorParam(
+    string TypeName, string ParamName, string ConcreteType,
+    string FilePath, int Line);
+
+internal record DipInlineNewCall(
+    string TypeName, string MemberName, string ConcreteType,
+    string FilePath, int Line);
+
+internal record SolidDipReport(
+    IList<DipConcreteCtorParam> ConcreteConstructorParams,
+    IList<DipInlineNewCall> InlineNewCalls);
+
+internal record OcpViolation(
+    string TypeName, string MemberName, string FilePath, int Line,
+    int BranchCount, string ViolationType);
+
+internal record SolidOcpReport(IList<OcpViolation> Violations);
+
+internal record LspThrowingOverride(
+    string TypeName, string MemberName, string ExceptionType,
+    string FilePath, int Line);
+
+internal record LspContractNarrowing(
+    string TypeName, string MemberName, string BaseType,
+    string FilePath, int Line);
+
+internal record SolidLspReport(
+    IList<LspThrowingOverride> ThrowingOverrides,
+    IList<LspContractNarrowing> ContractNarrowings);
 
 internal static class SolidAnalyzer
 {
@@ -71,6 +113,691 @@ internal static class SolidAnalyzer
 
         violations.Sort((a, b) => StringComparer.Ordinal.Compare(a.TypeName, b.TypeName));
         return new SolidSrpReport(violations);
+    }
+
+    public static async Task<SolidIspReport> AnalyzeIspAsync(
+        Solution sln, int minMembers)
+    {
+        var fatInterfaces = new List<IspFatInterface>();
+        var unimplementedMembers = new List<IspUnimplementedMember>();
+        var seenInterfaces = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
+        var seenClasses = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
+
+        foreach (var project in sln.Projects)
+        {
+            var compilation = await project.GetCompilationAsync().ConfigureAwait(false);
+            if (compilation is null) // coverage: unreachable via AdhocWorkspace; defensive guard
+                continue;
+
+            foreach (var document in project.Documents)
+            {
+                var filePath = document.FilePath ?? string.Empty;
+
+                if (FilePathFilters.IsGeneratedOrIntermediate(filePath))
+                    continue;
+
+                var root = await document.GetSyntaxRootAsync().ConfigureAwait(false);
+                if (root is null) // coverage: unreachable via AdhocWorkspace; defensive guard
+                    continue;
+
+                var model = compilation.GetSemanticModel(root.SyntaxTree);
+
+                foreach (var typeDecl in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
+                {
+                    if (model.GetDeclaredSymbol(typeDecl) is not INamedTypeSymbol symbol) // coverage: defensive guard
+                        continue;
+
+                    if (symbol.TypeKind == TypeKind.Interface)
+                    {
+                        if (!seenInterfaces.Add(symbol))
+                            continue;
+
+                        var declaredCount = CountDeclaredInterfaceMembers(symbol);
+                        if (declaredCount < minMembers)
+                            continue;
+
+                        var line = typeDecl.Identifier.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+                        var name = symbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+                        fatInterfaces.Add(new IspFatInterface(name, filePath, line, declaredCount));
+                    }
+                    else if (symbol.TypeKind == TypeKind.Class && !symbol.IsAbstract)
+                    {
+                        if (!seenClasses.Add(symbol))
+                            continue;
+
+                        CollectUnimplementedInterfaceMembers(
+                            symbol, typeDecl, filePath, unimplementedMembers);
+                    }
+                }
+            }
+        }
+
+        fatInterfaces.Sort((a, b) => StringComparer.Ordinal.Compare(a.InterfaceName, b.InterfaceName));
+        unimplementedMembers.Sort((a, b) =>
+        {
+            var byType = StringComparer.Ordinal.Compare(a.TypeName, b.TypeName);
+            if (byType != 0) return byType;
+            return StringComparer.Ordinal.Compare(a.MemberName, b.MemberName);
+        });
+
+        return new SolidIspReport(fatInterfaces, unimplementedMembers);
+    }
+
+    private static int CountDeclaredInterfaceMembers(INamedTypeSymbol interfaceSymbol)
+    {
+        // Count only members directly declared on this interface — exclude inherited.
+        // Members of TypeKind.Property/Event are top-level here; their accessor methods are not.
+        return interfaceSymbol.GetMembers()
+            .Count(m => m switch
+            {
+                IMethodSymbol method => method.MethodKind == MethodKind.Ordinary,
+                IPropertySymbol => true,
+                IEventSymbol => true,
+                _ => false
+            });
+    }
+
+    private static void CollectUnimplementedInterfaceMembers(
+        INamedTypeSymbol classSymbol, TypeDeclarationSyntax typeDecl, string filePath,
+        List<IspUnimplementedMember> results)
+    {
+        if (classSymbol.AllInterfaces.IsDefaultOrEmpty)
+            return;
+
+        var typeName = classSymbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+
+        foreach (var iface in classSymbol.AllInterfaces)
+        {
+            foreach (var ifaceMember in iface.GetMembers())
+            {
+                if (ifaceMember is not (IMethodSymbol { MethodKind: MethodKind.Ordinary } or IPropertySymbol or IEventSymbol))
+                    continue;
+
+                var impl = classSymbol.FindImplementationForInterfaceMember(ifaceMember);
+                if (impl is null)
+                    continue;
+
+                // Only flag implementations declared directly on this class
+                if (!SymbolEqualityComparer.Default.Equals(impl.ContainingType, classSymbol))
+                    continue;
+
+                // Skip compiler-synthesized members (e.g. record-generated Equals/GetHashCode)
+                // — their DeclaringSyntaxReferences point at the type declaration,
+                // which can yield spurious throw matches from sibling members.
+                if (impl.IsImplicitlyDeclared)
+                    continue;
+
+                if (!ImplementationThrowsNotImplemented(impl))
+                    continue;
+
+                var line = typeDecl.Identifier.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+                var memberName = impl.Name;
+                var ifaceName = iface.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+                results.Add(new IspUnimplementedMember(typeName, memberName, ifaceName, filePath, line));
+            }
+        }
+    }
+
+    private static bool ImplementationThrowsNotImplemented(ISymbol implMember)
+    {
+        foreach (var declRef in implMember.DeclaringSyntaxReferences)
+        {
+            var syntax = declRef.GetSyntax();
+            if (SyntaxThrowsNotImplemented(syntax))
+                return true;
+        }
+        return false;
+    }
+
+    private static bool SyntaxThrowsNotImplemented(SyntaxNode node)
+    {
+        // Match: => throw new System.NotImplementedException()/NotSupportedException()
+        // Match: { throw new ...(); }  (single statement body)
+        // Accessors come through as AccessorDeclarationSyntax whose body or expressionBody applies.
+        foreach (var throwExpr in node.DescendantNodes().OfType<ThrowExpressionSyntax>())
+        {
+            if (IsNotImplementedOrSupportedCreation(throwExpr.Expression))
+                return true;
+        }
+        foreach (var throwStmt in node.DescendantNodes().OfType<ThrowStatementSyntax>())
+        {
+            if (throwStmt.Expression is { } expr && IsNotImplementedOrSupportedCreation(expr))
+                return true;
+        }
+        return false;
+    }
+
+    private static bool IsNotImplementedOrSupportedCreation(ExpressionSyntax expr)
+    {
+        if (expr is not ObjectCreationExpressionSyntax oc)
+            return false;
+        var typeName = oc.Type.ToString();
+        return typeName.EndsWith("NotImplementedException", StringComparison.Ordinal)
+            || typeName.EndsWith("NotSupportedException", StringComparison.Ordinal);
+    }
+
+    public static async Task<SolidDipReport> AnalyzeDipAsync(Solution sln)
+    {
+        var ctorParams = new List<DipConcreteCtorParam>();
+        var newCalls = new List<DipInlineNewCall>();
+        var seenTypes = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
+
+        foreach (var project in sln.Projects)
+        {
+            var compilation = await project.GetCompilationAsync().ConfigureAwait(false);
+            if (compilation is null) // coverage: defensive guard
+                continue;
+
+            foreach (var document in project.Documents)
+            {
+                var filePath = document.FilePath ?? string.Empty;
+
+                if (FilePathFilters.IsGeneratedOrIntermediate(filePath))
+                    continue;
+
+                var root = await document.GetSyntaxRootAsync().ConfigureAwait(false);
+                if (root is null) // coverage: defensive guard
+                    continue;
+
+                var model = compilation.GetSemanticModel(root.SyntaxTree);
+
+                foreach (var typeDecl in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
+                {
+                    if (model.GetDeclaredSymbol(typeDecl) is not INamedTypeSymbol symbol) // coverage: defensive guard
+                        continue;
+
+                    // Only concrete classes (skip interfaces, abstract, static, records, structs)
+                    if (symbol.TypeKind != TypeKind.Class)
+                        continue;
+                    if (symbol.IsAbstract || symbol.IsStatic || symbol.IsRecord)
+                        continue;
+
+                    if (!seenTypes.Add(symbol))
+                        continue;
+
+                    var typeName = symbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+
+                    // (1) Constructor concrete params
+                    foreach (var ctor in symbol.InstanceConstructors)
+                    {
+                        if (ctor.IsImplicitlyDeclared)
+                            continue;
+
+                        foreach (var param in ctor.Parameters)
+                        {
+                            if (!IsConcreteDependencyType(param.Type))
+                                continue;
+
+                            var line = GetDeclarationLine(param);
+                            var concreteName = param.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+                            ctorParams.Add(new DipConcreteCtorParam(
+                                typeName, param.Name, concreteName, filePath, line));
+                        }
+                    }
+
+                    // (2) Inline new calls — skip factory/builder/provider classes
+                    if (IsFactoryStyleClass(symbol.Name))
+                        continue;
+
+                    foreach (var newExpr in typeDecl.DescendantNodes().OfType<ObjectCreationExpressionSyntax>())
+                    {
+                        var typeInfo = model.GetTypeInfo(newExpr.Type);
+                        if (typeInfo.Type is not INamedTypeSymbol newType)
+                            continue;
+
+                        if (!IsExternalConcreteDependency(newType))
+                            continue;
+
+                        var memberName = FindEnclosingMemberName(newExpr) ?? "<unknown>";
+                        var line = newExpr.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+                        var concreteName = newType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+                        newCalls.Add(new DipInlineNewCall(
+                            typeName, memberName, concreteName, filePath, line));
+                    }
+                }
+            }
+        }
+
+        ctorParams.Sort((a, b) =>
+        {
+            var byType = StringComparer.Ordinal.Compare(a.TypeName, b.TypeName);
+            if (byType != 0) return byType;
+            return StringComparer.Ordinal.Compare(a.ParamName, b.ParamName);
+        });
+        newCalls.Sort((a, b) =>
+        {
+            var byType = StringComparer.Ordinal.Compare(a.TypeName, b.TypeName);
+            if (byType != 0) return byType;
+            return StringComparer.Ordinal.Compare(a.MemberName, b.MemberName);
+        });
+
+        return new SolidDipReport(ctorParams, newCalls);
+    }
+
+    private static bool IsConcreteDependencyType(ITypeSymbol type)
+    {
+        // Must be a concrete class to qualify
+        if (type is not INamedTypeSymbol named)
+            return false;
+        if (named.TypeKind != TypeKind.Class)
+            return false;
+        if (named.IsAbstract || named.IsRecord)
+            return false;
+
+        // Skip BCL types (System.*) — they are primitives, exceptions, DTOs, delegates etc.
+        if (IsSystemNamespaceType(named))
+            return false;
+
+        return true;
+    }
+
+    private static bool IsExternalConcreteDependency(INamedTypeSymbol type)
+    {
+        if (type.TypeKind != TypeKind.Class)
+            return false;
+        if (type.IsAbstract || type.IsRecord || type.IsValueType)
+            return false;
+
+        // Exclude Exception-derived
+        if (IsExceptionDerived(type))
+            return false;
+
+        // Exclude BCL types
+        if (IsSystemNamespaceType(type))
+            return false;
+
+        return true;
+    }
+
+    private static bool IsExceptionDerived(INamedTypeSymbol type)
+    {
+        for (var t = type; t is not null; t = t.BaseType)
+        {
+            if (t.ToDisplayString() == "System.Exception")
+                return true;
+        }
+        return false;
+    }
+
+    private static bool IsSystemNamespaceType(INamedTypeSymbol type)
+    {
+        var ns = type.ContainingNamespace;
+        while (ns is { IsGlobalNamespace: false })
+        {
+            if (ns.Name == "System")
+            {
+                // True if the root or any ancestor is exactly "System"
+                if (ns.ContainingNamespace is null || ns.ContainingNamespace.IsGlobalNamespace)
+                    return true;
+            }
+            ns = ns.ContainingNamespace;
+        }
+        return false;
+    }
+
+    private static bool IsFactoryStyleClass(string name)
+    {
+        return name.EndsWith("Factory", StringComparison.Ordinal)
+            || name.EndsWith("Builder", StringComparison.Ordinal)
+            || name.EndsWith("Provider", StringComparison.Ordinal);
+    }
+
+    private static int GetDeclarationLine(ISymbol symbol)
+    {
+        var loc = symbol.Locations.FirstOrDefault(l => l.IsInSource);
+        if (loc is null)
+            return 0;
+        return loc.GetLineSpan().StartLinePosition.Line + 1;
+    }
+
+    private static string? FindEnclosingMemberName(SyntaxNode node)
+    {
+        for (var current = node.Parent; current is not null; current = current.Parent)
+        {
+            switch (current)
+            {
+                case MethodDeclarationSyntax m: return m.Identifier.Text;
+                case ConstructorDeclarationSyntax c: return $"{c.Identifier.Text}.ctor";
+                case PropertyDeclarationSyntax p: return p.Identifier.Text;
+                case AccessorDeclarationSyntax a when a.Parent?.Parent is PropertyDeclarationSyntax pp:
+                    return $"{pp.Identifier.Text}.{a.Keyword.Text}";
+                case LocalFunctionStatementSyntax lf: return lf.Identifier.Text;
+            }
+        }
+        return null;
+    }
+
+    public static async Task<SolidOcpReport> AnalyzeOcpAsync(Solution sln, int minBranches)
+    {
+        var violations = new List<OcpViolation>();
+
+        foreach (var project in sln.Projects)
+        {
+            var compilation = await project.GetCompilationAsync().ConfigureAwait(false);
+            if (compilation is null) // coverage: defensive guard
+                continue;
+
+            foreach (var document in project.Documents)
+            {
+                var filePath = document.FilePath ?? string.Empty;
+
+                if (FilePathFilters.IsGeneratedOrIntermediate(filePath))
+                    continue;
+
+                var root = await document.GetSyntaxRootAsync().ConfigureAwait(false);
+                if (root is null) // coverage: defensive guard
+                    continue;
+
+                var model = compilation.GetSemanticModel(root.SyntaxTree);
+
+                foreach (var typeDecl in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
+                {
+                    if (model.GetDeclaredSymbol(typeDecl) is not INamedTypeSymbol symbol) // coverage: defensive guard
+                        continue;
+
+                    var typeName = symbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+
+                    // (1) Switch expressions matching on 'is ConcreteType'
+                    foreach (var sw in typeDecl.DescendantNodes().OfType<SwitchExpressionSyntax>())
+                    {
+                        var count = CountConcreteTypePatternArms(sw, model);
+                        if (count < minBranches)
+                            continue;
+                        AddViolation(violations, typeName, sw, filePath, count, "switch");
+                    }
+                    foreach (var sw in typeDecl.DescendantNodes().OfType<SwitchStatementSyntax>())
+                    {
+                        var count = CountConcreteTypePatternSections(sw, model);
+                        if (count < minBranches)
+                            continue;
+                        AddViolation(violations, typeName, sw, filePath, count, "switch");
+                    }
+
+                    // (2) if/else chains using 'is ConcreteType' or GetType() == typeof(...)
+                    foreach (var ifStmt in typeDecl.DescendantNodes().OfType<IfStatementSyntax>())
+                    {
+                        // Only consider the top of a chain (one whose parent is not an else clause)
+                        if (ifStmt.Parent is ElseClauseSyntax)
+                            continue;
+
+                        var count = CountConcreteTypeIfBranches(ifStmt, model);
+                        if (count < minBranches)
+                            continue;
+                        AddViolation(violations, typeName, ifStmt, filePath, count, "if-chain");
+                    }
+                }
+            }
+        }
+
+        violations.Sort((a, b) =>
+        {
+            var byType = StringComparer.Ordinal.Compare(a.TypeName, b.TypeName);
+            if (byType != 0) return byType;
+            return StringComparer.Ordinal.Compare(a.MemberName, b.MemberName);
+        });
+
+        return new SolidOcpReport(violations);
+    }
+
+    private static void AddViolation(
+        List<OcpViolation> violations, string typeName, SyntaxNode node,
+        string filePath, int branchCount, string violationType)
+    {
+        var memberName = FindEnclosingMemberName(node) ?? "<unknown>";
+        var line = node.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+        violations.Add(new OcpViolation(typeName, memberName, filePath, line, branchCount, violationType));
+    }
+
+    private static int CountConcreteTypePatternArms(SwitchExpressionSyntax sw, SemanticModel model)
+    {
+        var count = 0;
+        foreach (var arm in sw.Arms)
+        {
+            if (IsConcreteTypePattern(arm.Pattern, model))
+                count++;
+        }
+        return count;
+    }
+
+    private static int CountConcreteTypePatternSections(SwitchStatementSyntax sw, SemanticModel model)
+    {
+        var count = 0;
+        foreach (var section in sw.Sections)
+        {
+            foreach (var label in section.Labels)
+            {
+                if (label is CasePatternSwitchLabelSyntax cp && IsConcreteTypePattern(cp.Pattern, model))
+                {
+                    count++;
+                    break;
+                }
+            }
+        }
+        return count;
+    }
+
+    private static bool IsConcreteTypePattern(PatternSyntax pattern, SemanticModel model)
+    {
+        // DeclarationPattern: `Cat c => ...`
+        // TypePattern:        `Cat => ...` (treated by Roslyn as type pattern only when
+        //                                   the parser sees the bare identifier in a switch arm
+        //                                   context as a type)
+        // ConstantPattern:    older parses of `Cat => ...` arrive as a constant pattern with
+        //                                   an identifier; we resolve the symbol and check
+        //                                   whether it binds to a type.
+        TypeSyntax? typeSyntax = pattern switch
+        {
+            DeclarationPatternSyntax d => d.Type,
+            TypePatternSyntax t => t.Type,
+            _ => null
+        };
+
+        if (typeSyntax is null && pattern is ConstantPatternSyntax cp)
+        {
+            var symInfo = model.GetSymbolInfo(cp.Expression);
+            if (symInfo.Symbol is INamedTypeSymbol named)
+                return IsConcreteType(named);
+        }
+
+        if (typeSyntax is null)
+            return false;
+
+        var symbol = model.GetTypeInfo(typeSyntax).Type as INamedTypeSymbol;
+        return IsConcreteType(symbol);
+    }
+
+    private static int CountConcreteTypeIfBranches(IfStatementSyntax ifStmt, SemanticModel model)
+    {
+        var count = 0;
+        for (IfStatementSyntax? current = ifStmt; current is not null;)
+        {
+            if (ExpressionDiscriminatesConcreteType(current.Condition, model))
+                count++;
+            current = current.Else?.Statement as IfStatementSyntax;
+        }
+        return count;
+    }
+
+    private static bool ExpressionDiscriminatesConcreteType(ExpressionSyntax expr, SemanticModel model)
+    {
+        // o is ConcreteType  (BinaryExpressionSyntax IsExpression OR IsPatternExpressionSyntax)
+        if (expr is IsPatternExpressionSyntax isPattern && IsConcreteTypePattern(isPattern.Pattern, model))
+            return true;
+        if (expr is BinaryExpressionSyntax bin && bin.IsKind(SyntaxKind.IsExpression))
+        {
+            if (bin.Right is TypeSyntax t)
+            {
+                var sym = model.GetTypeInfo(t).Type as INamedTypeSymbol;
+                if (IsConcreteType(sym)) return true;
+            }
+        }
+        // o.GetType() == typeof(X)  OR  typeof(X) == o.GetType()
+        if (expr is BinaryExpressionSyntax eq && eq.IsKind(SyntaxKind.EqualsExpression))
+        {
+            if (IsGetTypeEqTypeOf(eq.Left, eq.Right, model) || IsGetTypeEqTypeOf(eq.Right, eq.Left, model))
+                return true;
+        }
+        return false;
+    }
+
+    private static bool IsGetTypeEqTypeOf(ExpressionSyntax left, ExpressionSyntax right, SemanticModel model)
+    {
+        if (left is not InvocationExpressionSyntax inv)
+            return false;
+        if (inv.Expression is not MemberAccessExpressionSyntax ma || ma.Name.Identifier.Text != "GetType")
+            return false;
+        if (right is not TypeOfExpressionSyntax tof)
+            return false;
+        var sym = model.GetTypeInfo(tof.Type).Type as INamedTypeSymbol;
+        return IsConcreteType(sym);
+    }
+
+    private static bool IsConcreteType(INamedTypeSymbol? symbol)
+    {
+        if (symbol is null)
+            return false;
+        if (symbol.TypeKind != TypeKind.Class)
+            return false;
+        if (symbol.IsAbstract)
+            return false;
+        return true;
+    }
+
+    public static async Task<SolidLspReport> AnalyzeLspAsync(Solution sln)
+    {
+        var throwingOverrides = new List<LspThrowingOverride>();
+        var contractNarrowings = new List<LspContractNarrowing>();
+        var seenTypes = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
+
+        foreach (var project in sln.Projects)
+        {
+            var compilation = await project.GetCompilationAsync().ConfigureAwait(false);
+            if (compilation is null) // coverage: defensive
+                continue;
+
+            foreach (var document in project.Documents)
+            {
+                var filePath = document.FilePath ?? string.Empty;
+
+                if (FilePathFilters.IsGeneratedOrIntermediate(filePath))
+                    continue;
+
+                var root = await document.GetSyntaxRootAsync().ConfigureAwait(false);
+                if (root is null) // coverage: defensive
+                    continue;
+
+                var model = compilation.GetSemanticModel(root.SyntaxTree);
+
+                foreach (var typeDecl in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
+                {
+                    if (model.GetDeclaredSymbol(typeDecl) is not INamedTypeSymbol symbol) // coverage: defensive
+                        continue;
+
+                    if (symbol.TypeKind != TypeKind.Class)
+                        continue;
+
+                    if (!seenTypes.Add(symbol))
+                        continue;
+
+                    var typeName = symbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+
+                    foreach (var member in symbol.GetMembers())
+                    {
+                        if (member is not IMethodSymbol method)
+                            continue;
+                        // Accept ordinary methods and explicit interface implementations.
+                        // ExplicitInterfaceImplementation has its own MethodKind that we want to
+                        // include for the contract-narrowing check below.
+                        if (method.MethodKind is not (MethodKind.Ordinary or MethodKind.ExplicitInterfaceImplementation))
+                            continue;
+
+                        // Skip compiler-synthesized overrides (e.g. record-synthesized
+                        // Equals/GetHashCode/ToString) — their DeclaringSyntaxReferences point at
+                        // the type declaration, yielding spurious throw matches from sibling
+                        // members.
+                        if (method.IsImplicitlyDeclared)
+                            continue;
+
+                        // (1) override methods that throw
+                        if (method.IsOverride)
+                        {
+                            var exType = FindThrownNotImplementedKind(method);
+                            if (exType is not null)
+                            {
+                                var line = GetDeclarationLine(method);
+                                throwingOverrides.Add(new LspThrowingOverride(
+                                    typeName, method.Name, exType, filePath, line));
+                            }
+                        }
+
+                        // (2) explicit interface implementations that throw on every path
+                        if (!method.ExplicitInterfaceImplementations.IsDefaultOrEmpty)
+                        {
+                            var exType = FindThrownNotImplementedKind(method);
+                            if (exType is not null)
+                            {
+                                var ifaceMember = method.ExplicitInterfaceImplementations[0];
+                                var iface = ifaceMember.ContainingType;
+                                var line = GetDeclarationLine(method);
+                                contractNarrowings.Add(new LspContractNarrowing(
+                                    typeName, ifaceMember.Name,
+                                    iface.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+                                    filePath, line));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        throwingOverrides.Sort((a, b) =>
+        {
+            var byType = StringComparer.Ordinal.Compare(a.TypeName, b.TypeName);
+            if (byType != 0) return byType;
+            return StringComparer.Ordinal.Compare(a.MemberName, b.MemberName);
+        });
+        contractNarrowings.Sort((a, b) =>
+        {
+            var byType = StringComparer.Ordinal.Compare(a.TypeName, b.TypeName);
+            if (byType != 0) return byType;
+            return StringComparer.Ordinal.Compare(a.MemberName, b.MemberName);
+        });
+
+        return new SolidLspReport(throwingOverrides, contractNarrowings);
+    }
+
+    private static string? FindThrownNotImplementedKind(IMethodSymbol method)
+    {
+        foreach (var declRef in method.DeclaringSyntaxReferences)
+        {
+            var syntax = declRef.GetSyntax();
+            foreach (var throwExpr in syntax.DescendantNodes().OfType<ThrowExpressionSyntax>())
+            {
+                var kind = NotImplementedOrSupportedTypeName(throwExpr.Expression);
+                if (kind is not null) return kind;
+            }
+            foreach (var throwStmt in syntax.DescendantNodes().OfType<ThrowStatementSyntax>())
+            {
+                if (throwStmt.Expression is not null)
+                {
+                    var kind = NotImplementedOrSupportedTypeName(throwStmt.Expression);
+                    if (kind is not null) return kind;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static string? NotImplementedOrSupportedTypeName(ExpressionSyntax expr)
+    {
+        if (expr is not ObjectCreationExpressionSyntax oc)
+            return null;
+        var typeName = oc.Type.ToString();
+        if (typeName.EndsWith("NotImplementedException", StringComparison.Ordinal))
+            return "NotImplementedException";
+        if (typeName.EndsWith("NotSupportedException", StringComparison.Ordinal))
+            return "NotSupportedException";
+        return null;
     }
 
     private static int CountPublicOrdinaryMethods(INamedTypeSymbol symbol)

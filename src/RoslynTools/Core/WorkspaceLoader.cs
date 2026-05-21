@@ -8,7 +8,7 @@ namespace RoslynTools.Core;
 /// <summary>
 /// Loads and manages workspaces for solution processing.
 /// </summary>
-internal sealed class WorkspaceLoader : IDisposable
+internal sealed class WorkspaceLoader : IWorkspaceSessionFactory, IDisposable
 {
     private MSBuildWorkspace? _workspace;
 
@@ -49,7 +49,7 @@ internal sealed class WorkspaceLoader : IDisposable
     ///     from the call site. The workspace is disposed when this <see cref="WorkspaceLoader" />
     ///     is disposed (i.e. when the DI container tears down).
     /// </summary>
-    internal async Task<Solution> GetSolutionAsync(string? solutionPath)
+    public async Task<Solution> GetSolutionAsync(string? solutionPath)
     {
         if (Override.Value is { } o)
             return o.Solution;
@@ -64,7 +64,7 @@ internal sealed class WorkspaceLoader : IDisposable
     ///     Compatibility instance API for commands that still need workspace ownership while
     ///     they migrate to solution-only operations.
     /// </summary>
-    internal async Task<(Workspace Workspace, Solution Solution)> LoadWorkspaceAsync(string? solutionPath)
+    public async Task<(Workspace Workspace, Solution Solution)> LoadWorkspaceAsync(string? solutionPath)
     {
         if (Override.Value is { } o)
             return (o.Workspace, o.Solution);
@@ -75,12 +75,13 @@ internal sealed class WorkspaceLoader : IDisposable
         return (workspace, solution);
     }
 
-    // ── Static API (backward-compat for not-yet-migrated commands) ──────────
+    // ── Static API (test-only convenience) ─────────────────────────────────
 
     /// <summary>
-    ///     Loads a fresh workspace and solution. Caller owns the returned workspace and must
-    ///     dispose it. Prefer the DI-injected <see cref="WorkspaceLoader" /> and
-    ///     <see cref="GetSolutionAsync" /> for new code.
+    ///     Test-only convenience for smoke tests and architecture checks that need a
+    ///     one-liner load without the DI ceremony. Caller owns the returned workspace
+    ///     and must dispose it. Production code must use <see cref="IWorkspaceSessionFactory" />
+    ///     — the <c>NoStaticWorkspaceLoaderUse</c> architecture gate enforces this.
     /// </summary>
     internal static async Task<(Workspace Workspace, Solution Solution)> LoadAsync(string? solutionPath)
     {

@@ -10,9 +10,9 @@ namespace RoslynTools.Mcp.Handlers;
 internal sealed class FindReferencesHandler
 {
     private readonly FindRefsService _findRefs;
-    private readonly WorkspaceLoader _workspaceLoader;
+    private readonly IWorkspaceSessionFactory _workspaceLoader;
 
-    public FindReferencesHandler(WorkspaceLoader workspaceLoader, FindRefsService findRefs)
+    public FindReferencesHandler(IWorkspaceSessionFactory workspaceLoader, FindRefsService findRefs)
     {
         _workspaceLoader = workspaceLoader;
         _findRefs = findRefs;

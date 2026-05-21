@@ -62,7 +62,7 @@ internal sealed class DestaticClassCommand : IRtCommand
                 && !string.Equals(lifetime, "transient", StringComparison.Ordinal))
                 throw new InvalidOperationException("--lifetime must be singleton, scoped, or transient.");
 
-            var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
+            var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
             using (workspace)
             {
                 await RtServiceProvider.Get<DestaticClassService>().RunAsync(sln, type, dryRun);

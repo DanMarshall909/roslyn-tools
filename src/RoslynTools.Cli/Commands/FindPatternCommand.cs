@@ -59,7 +59,7 @@ internal sealed class FindPatternCommand : IRtCommand, IStructuredOutputCommand
             var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
             var scope = ctx.ParseResult.GetValueForOption(scopeOpt);
             var sp = ctx.BindingContext.GetService<IServiceProvider>();
-            var loader = sp?.GetService<WorkspaceLoader>() ?? new WorkspaceLoader();
+            var loader = sp?.GetService<IWorkspaceSessionFactory>() ?? IWorkspaceSessionFactory.CreateDefault();
 
             var sln = await loader.GetSolutionAsync(solution);
             RtLog.Info("Searching for pattern at {File}:{StartLine}-{EndLine}...", file, startLine, endLine);

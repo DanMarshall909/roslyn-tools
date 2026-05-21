@@ -18,7 +18,7 @@ internal static class ChangeSignatureCommandHandlers
         string? solution,
         bool dryRun)
     {
-        var (workspace, loadedSolution) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
+        var (workspace, loadedSolution) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
         using (workspace)
         {
             try
@@ -29,7 +29,7 @@ internal static class ChangeSignatureCommandHandlers
                     oldName,
                     newName);
 
-                await SolutionWriter.ApplyChangesAsync(loadedSolution, updatedSolution, dryRun);
+                await RtServiceProvider.GetOrDefault(ISolutionChangeWriter.CreateDefault).ApplyChangesAsync(loadedSolution, updatedSolution, dryRun);
                 return CommandHandlerConstants.SuccessExitCode;
             }
             catch (InvalidOperationException ex)
@@ -49,7 +49,7 @@ internal static class ChangeSignatureCommandHandlers
         string? solution,
         bool dryRun)
     {
-        var (workspace, loadedSolution) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
+        var (workspace, loadedSolution) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
         using (workspace)
         {
             try
@@ -59,7 +59,7 @@ internal static class ChangeSignatureCommandHandlers
                     methodSpec,
                     newOrder);
 
-                await SolutionWriter.ApplyChangesAsync(loadedSolution, updatedSolution, dryRun);
+                await RtServiceProvider.GetOrDefault(ISolutionChangeWriter.CreateDefault).ApplyChangesAsync(loadedSolution, updatedSolution, dryRun);
                 return CommandHandlerConstants.SuccessExitCode;
             }
             catch (InvalidOperationException ex)
@@ -80,7 +80,7 @@ internal static class ChangeSignatureCommandHandlers
         string? solution,
         bool dryRun)
     {
-        var (workspace, loadedSolution) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
+        var (workspace, loadedSolution) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
         using (workspace)
         {
             try
@@ -91,7 +91,7 @@ internal static class ChangeSignatureCommandHandlers
                     paramSpec,
                     after);
 
-                await SolutionWriter.ApplyChangesAsync(loadedSolution, updatedSolution, dryRun);
+                await RtServiceProvider.GetOrDefault(ISolutionChangeWriter.CreateDefault).ApplyChangesAsync(loadedSolution, updatedSolution, dryRun);
                 return CommandHandlerConstants.SuccessExitCode;
             }
             catch (InvalidOperationException ex)
@@ -112,7 +112,7 @@ internal static class ChangeSignatureCommandHandlers
         string? solution,
         bool dryRun)
     {
-        var (workspace, loadedSolution) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
+        var (workspace, loadedSolution) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
         using (workspace)
         {
             try
@@ -123,7 +123,7 @@ internal static class ChangeSignatureCommandHandlers
                     paramName,
                     force);
 
-                await SolutionWriter.ApplyChangesAsync(loadedSolution, updatedSolution, dryRun);
+                await RtServiceProvider.GetOrDefault(ISolutionChangeWriter.CreateDefault).ApplyChangesAsync(loadedSolution, updatedSolution, dryRun);
                 return CommandHandlerConstants.SuccessExitCode;
             }
             catch (InvalidOperationException ex)

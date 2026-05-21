@@ -1,6 +1,7 @@
 using System.CommandLine;
 using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
+using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
@@ -77,7 +78,7 @@ internal sealed class ExtractMethodCommand : IRtCommand
             var dryRun = ctx.ParseResult.GetValueForOption(dryRunOpt);
             var replaceDuplicates = ctx.ParseResult.GetValueForOption(replaceDuplicatesOpt);
 
-            var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
+            var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
             using (workspace)
             {
                 RtLog.Info("Extracting lines {StartLine}–{EndLine} of '{File}' → '{NewName}'...", startLine, endLine,
@@ -109,7 +110,7 @@ internal sealed class ExtractMethodCommand : IRtCommand
                     return;
                 }
 
-                await SolutionWriter.ApplyChangesAsync(sln, newSln, dryRun);
+                await RtServiceProvider.GetOrDefault(ISolutionChangeWriter.CreateDefault).ApplyChangesAsync(sln, newSln, dryRun);
             }
         });
 

@@ -54,7 +54,7 @@ internal sealed class MakeSealedCommand : IRtCommand
     /// </summary>
     internal static async Task ExecuteAsync(string typeName, string? solutionPath, bool dryRun)
     {
-        var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solutionPath);
+        var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
             await RtServiceProvider.Get<MakeSealedService>().RunAsync(sln, typeName, dryRun);

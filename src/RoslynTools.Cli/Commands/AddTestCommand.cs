@@ -137,7 +137,7 @@ internal sealed class AddTestCommand : IRtCommand
                 return;
             }
 
-            var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solutionPath);
+            var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
             using (workspace)
             {
                 await RtServiceProvider.Get<AddTestService>().RunCommandBasedAsync(sln, commandInfo, scenario, outcome,
@@ -161,7 +161,7 @@ internal sealed class AddTestCommand : IRtCommand
                 return;
             }
 
-            var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solutionPath);
+            var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
             using (workspace)
             {
                 await RtServiceProvider.Get<AddTestService>()

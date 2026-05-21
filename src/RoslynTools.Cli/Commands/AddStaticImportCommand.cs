@@ -42,7 +42,7 @@ internal sealed class AddStaticImportCommand : IRtCommand
 
         cmd.SetHandler(async (file, type, solution, dryRun) =>
         {
-            var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
+            var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
             using (workspace)
             {
                 await RtServiceProvider.Get<ImportDirectiveService>().AddStaticUsingAsync(sln, file, type, dryRun);

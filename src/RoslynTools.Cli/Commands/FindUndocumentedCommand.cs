@@ -54,7 +54,7 @@ internal sealed class FindUndocumentedCommand : IRtCommand
             var levels = level.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             var accessibilityKinds = FindUndocumentedService.ParseAccessibilityLevels(levels);
 
-            var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
+            var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
             using (workspace)
             {
                 var symbols = await RtServiceProvider.Get<FindUndocumentedService>()

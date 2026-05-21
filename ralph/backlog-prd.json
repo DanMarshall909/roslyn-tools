@@ -52,90 +52,6 @@
             "resolvedAt": "2026-05-11"
         },
         {
-            "id": "US-033",
-            "title": "rt analyze solid: ISP detector — flag fat interfaces and NotImplementedException members",
-            "description": "As a developer, I want rt analyze solid --principle ISP to flag over-broad interfaces and implementing classes that throw on members they cannot fulfill.",
-            "acceptanceCriteria": [
-                "rt analyze solid --principle ISP --solution <sln> exits 0 and emits JSON to stdout",
-                "Output has a top-level 'ISP' key with sub-arrays for 'FatInterfaces' and 'UnimplementedMembers'",
-                "Each FatInterface item includes: InterfaceName, FilePath, Line, MemberCount",
-                "Each UnimplementedMember item includes: TypeName, MemberName, InterfaceName, FilePath, Line",
-                "--min-members <N> (default 7) is configurable for the fat-interface threshold",
-                "Classes throwing NotImplementedException or NotSupportedException on implemented interface members are flagged under UnimplementedMembers",
-                "rt analyze solid --principle all includes ISP results"
-            ],
-            "priority": 33,
-            "urgency": 92,
-            "urgencyReason": "EP-006 epic in flight — ISP detector follows the US-032 SRP template (SolidAnalyzer, SolidResult, mirrored tests). Lowest-risk SOLID addition.",
-            "effort": 5,
-            "passes": false,
-            "epicId": "EP-006",
-            "notes": "P2. Two sub-checks: (1) interfaces with member count above threshold; (2) classes implementing an interface but throwing NotImplementedException/NotSupportedException on one or more members. Output grouped under 'ISP' detector key."
-        },
-        {
-            "id": "US-034",
-            "title": "rt analyze solid: DIP detector — flag concrete constructor params and inline new calls",
-            "description": "As a developer, I want rt analyze solid --principle DIP to flag high-level classes that depend directly on concrete types rather than abstractions.",
-            "acceptanceCriteria": [
-                "rt analyze solid --principle DIP --solution <sln> exits 0 and emits JSON to stdout",
-                "Output has a top-level 'DIP' key with sub-arrays for 'ConcreteConstructorParams' and 'InlineNewCalls'",
-                "Each ConcreteConstructorParam item includes: TypeName, ParamName, ConcreteType, FilePath, Line",
-                "Each InlineNewCall item includes: TypeName, MemberName, ConcreteType, FilePath, Line",
-                "Value types, record types, and Exception-derived types are excluded from InlineNewCalls",
-                "Classes named *Factory, *Builder, or *Provider are excluded from InlineNewCalls (they are expected to new things)",
-                "rt analyze solid --principle all includes DIP results"
-            ],
-            "priority": 34,
-            "urgency": 96,
-            "urgencyReason": "EP-006 — DIP detector, same template as US-032/033.",
-            "effort": 5,
-            "passes": false,
-            "epicId": "EP-006",
-            "notes": "P2. Two sub-checks: (1) constructors accepting concrete class params (not interfaces/abstract); (2) non-factory class bodies calling new ConcreteType() where ConcreteType is not a value type, DTO, or exception. Output grouped under 'DIP' detector key."
-        },
-        {
-            "id": "US-035",
-            "title": "rt analyze solid: OCP detector — flag switch/if chains branching on concrete types",
-            "description": "As a developer, I want rt analyze solid --principle OCP to flag code that must be modified every time a new concrete type is added.",
-            "acceptanceCriteria": [
-                "rt analyze solid --principle OCP --solution <sln> exits 0 and emits JSON to stdout",
-                "Output has a top-level 'OCP' key containing an array of violation items",
-                "Each item includes: TypeName, MemberName, FilePath, Line, BranchCount, ViolationType ('switch' or 'if-chain')",
-                "Flags switch expressions/statements matching on 'is ConcreteType' patterns",
-                "Flags if/else chains using 'is ConcreteType' or 'obj.GetType() == typeof(X)' with 2 or more concrete-type branches",
-                "--min-branches <N> (default 2) is configurable",
-                "rt analyze solid --principle all includes OCP results"
-            ],
-            "priority": 35,
-            "urgency": 100,
-            "urgencyReason": "EP-006 — OCP detector, same template.",
-            "effort": 5,
-            "passes": false,
-            "epicId": "EP-006",
-            "notes": "P2. Detects: (1) switch expressions/statements matching on 'is ConcreteType'; (2) if/else chains using 'is ConcreteType' or obj.GetType() == typeof(X) with 2+ branches. Output grouped under 'OCP' detector key."
-        },
-        {
-            "id": "US-036",
-            "title": "rt analyze solid: LSP detector — flag overrides throwing or narrowing contracts",
-            "description": "As a developer, I want rt analyze solid --principle LSP to flag override methods that break Liskov substitutability so that I can identify types that cannot safely replace their base.",
-            "acceptanceCriteria": [
-                "rt analyze solid --principle LSP --solution <sln> exits 0 and emits JSON to stdout",
-                "Output has a top-level 'LSP' key with sub-arrays for 'ThrowingOverrides' and 'ContractNarrowings'",
-                "Each ThrowingOverride item includes: TypeName, MemberName, ExceptionType, FilePath, Line",
-                "Each ContractNarrowing item includes: TypeName, MemberName, BaseType, FilePath, Line",
-                "Flags override methods whose body contains throw new NotImplementedException() or NotSupportedException()",
-                "Flags explicit interface implementations that throw on every code path",
-                "rt analyze solid --principle all includes LSP results"
-            ],
-            "priority": 36,
-            "urgency": 104,
-            "urgencyReason": "EP-006 — LSP detector, closes the epic.",
-            "effort": 5,
-            "passes": false,
-            "epicId": "EP-006",
-            "notes": "P2. Two sub-checks: (1) override methods whose body throws NotImplementedException/NotSupportedException; (2) explicit interface implementations that throw on every code path. Output grouped under 'LSP' detector key."
-        },
-        {
             "id": "US-037",
             "title": "rt: convert-static-class — interface generation",
             "description": "When --no-interface is not passed, generate an I<TypeName> interface file alongside the destated class, extracting all public/internal instance methods and properties. Interface only matters when consumers need to mock the dependency in tests. Discovered during US-027 df pass; command currently warns and skips.",
@@ -190,55 +106,6 @@
             "effort": 2,
             "passes": false,
             "notes": "P2. df dogfood bug. Sibling of the no-constructor formatting bug fixed in the df/convert-static-class-interface-and-di branch commit 1fcf269."
-        },
-        {
-            "id": "US-040",
-            "title": "Suppress MSBuild workspace warnings by default; opt in with --show-workspace-warnings",
-            "description": "As a developer using rt, I want MSBuild workspace warnings suppressed by default so that NuGet audit noise and compatibility warnings from the loaded solution don't pollute rt's output.",
-            "acceptanceCriteria": [
-                "All MSBuild workspace warnings are suppressed from stderr by default when rt loads a solution",
-                "A --show-workspace-warnings flag (or equivalent) re-enables them for debugging",
-                "Genuine solution load errors that prevent rt from running still exit 1 with a clear message",
-                "The [workspace-warnings] block does not appear in normal output"
-            ],
-            "priority": 40,
-            "urgency": 62,
-            "urgencyReason": "Daily noise: MSBuild workspace warnings block pollutes every command's stderr. Suppress by default; --show-workspace-warnings opt-in.",
-            "effort": 2,
-            "passes": false,
-            "notes": "P2. Affects WorkspaceLoader / MSBuildWorkspace diagnostic handling. Suppress all MSBuildWorkspace diagnostics by default; add --show-workspace-warnings global flag to restore them. Genuine load errors (exit 1) must still surface."
-        },
-        {
-            "id": "US-043",
-            "title": "Replace Environment.Exit(1) in OutlineCommand with context.ExitCode = 1",
-            "description": "As a developer, I want OutlineCommand to exit consistently with all other commands so that graceful cleanup runs on error.",
-            "acceptanceCriteria": [
-                "OutlineCommand no longer calls Environment.Exit(1) for any error condition",
-                "Error cases in OutlineCommand set context.ExitCode = 1 and return, consistent with all other commands",
-                "Process exit allows graceful cleanup (log flushing, disposables) to run"
-            ],
-            "priority": 43,
-            "urgency": 12,
-            "urgencyReason": "One-line consistency fix: Environment.Exit(1) → context.ExitCode = 1; return; in OutlineCommand so graceful cleanup runs on error. Quickest defensive fix → ahead of US-044 in the same band.",
-            "effort": 1,
-            "passes": false,
-            "notes": "P2. OutlineCommand.cs line ~90 calls Environment.Exit(1). Replace with context.ExitCode = 1; return; — same pattern as every other command in the codebase."
-        },
-        {
-            "id": "US-044",
-            "title": "Guard .First()/.Last() calls in SymbolLocator and MethodExtractor against empty sequences",
-            "description": "As a developer using rt, I want empty-sequence edge cases to produce a clear error rather than an InvalidOperationException crash.",
-            "acceptanceCriteria": [
-                "No .First() or .Last() call in SymbolLocator or MethodExtractor throws InvalidOperationException when the sequence is empty",
-                "Each call site uses FirstOrDefault with a null check, or validates the collection is non-empty before calling First/Last",
-                "When an expected symbol or statement is not found, the command emits a descriptive error to stderr and exits 1 rather than crashing"
-            ],
-            "priority": 44,
-            "urgency": 16,
-            "urgencyReason": "Same crash class as US-042 — .First()/.Last() on potentially empty sequences in SymbolLocator (~4 sites) and MethodExtractor (~8 sites). Mechanical, one TDD batch.",
-            "effort": 2,
-            "passes": false,
-            "notes": "P2. SymbolLocator.cs lines ~49, 96, 135, 188 and MethodExtractor.cs lines ~57, 164, 168, 378, 501, 529-532 call .First()/.Last() on sequences that could be empty under certain inputs. Replace with FirstOrDefault + null check or add pre-call validation."
         },
         {
             "id": "US-045",
@@ -400,43 +267,49 @@
             "id": "US-053",
             "epicId": "EP-008",
             "title": "Introduce IWorkspaceSessionFactory + WorkspaceSession (rt-006)",
-            "description": "As a developer, I want all commands to depend on IWorkspaceSessionFactory instead of calling WorkspaceLoader.LoadAsync directly so that the static coupling is broken and daemon workspace caching becomes possible.",
+            "description": "As a developer, I want all commands to depend on IWorkspaceSessionFactory instead of the concrete WorkspaceLoader type so that the static coupling is broken and daemon workspace caching becomes possible.",
             "acceptanceCriteria": [
-                "IWorkspaceSessionFactory interface defined in Core/ with LoadAsync(string? solutionPath) signature",
-                "WorkspaceSession : IWorkspaceSessionFactory introduced — instance wrapper delegating to static WorkspaceLoader internals",
-                "All ~30 production command handlers accept IWorkspaceSessionFactory, not WorkspaceLoader directly",
-                "No command file imports WorkspaceLoader after the change",
-                "rt inspect find-refs --symbol WorkspaceLoader --solution RoslynTools.slnx shows 0 production call sites",
-                "Architecture gate NoStaticWorkspaceLoaderUse (tests/RoslynTools.Tests/Architecture/) passes",
-                "All existing tests pass — WorkspaceLoader.UseOverride pattern updated to stub IWorkspaceSessionFactory",
-                "Must ship in same PR as US-054 (ISolutionApplier) — partial rollout is not safe"
+                "IWorkspaceSessionFactory interface defined in src/RoslynTools/Core/ with GetSolutionAsync(string?) and LoadWorkspaceAsync(string?) signatures matching the existing WorkspaceLoader instance methods",
+                "WorkspaceLoader implements IWorkspaceSessionFactory (no new WorkspaceSession class required — the existing instance-API WorkspaceLoader fills that role)",
+                "IWorkspaceSessionFactory registered in Bootstrap.cs alongside the WorkspaceLoader singleton",
+                "All 57 production call sites depend on IWorkspaceSessionFactory, not the concrete WorkspaceLoader type (covers src/RoslynTools.Cli/Commands/, src/RoslynTools/Services/, src/RoslynTools/Core/, and MCP handlers)",
+                "rt inspect find-refs --symbol WorkspaceLoader --solution RoslynTools.slnx shows only the type-declaration and test-fixture references (no production call sites)",
+                "Architecture gate NoStaticWorkspaceLoaderUse strengthened to also flag concrete WorkspaceLoader references from src/ outside the class itself, and continues to pass",
+                "Static WorkspaceLoader.LoadAsync compat surface deleted (the gate proves it has no production callers)",
+                "WorkspaceLoader.UseOverride test-hook reworked to stub IWorkspaceSessionFactory; existing tests pass without changes to call sites",
+                "Must ship in same PR as US-054 — partial rollout is not safe"
             ],
             "priority": 53,
             "urgency": 420,
-            "urgencyReason": "EP-008: IWorkspaceSessionFactory + WorkspaceSession. Must ship together with US-054 — splitting doubles the 30-command churn (per epic notes). Heaviest items → bottom of band.",
-            "effort": 13,
-            "passes": false,
-            "notes": "P2. Blast radius: 30 production call sites + 100+ test references (WorkspaceLoader.UseOverride). Architecture gate already exists. WorkspaceLoader is static so cannot implement the interface — WorkspaceSession wrapper is the bridge. From issue rt-006."
+            "urgencyReason": "EP-008: IWorkspaceSessionFactory. Must ship together with US-054 — splitting doubles the 57-site churn (per epic notes). Heaviest items → bottom of band.",
+            "effort": 8,
+            "passes": true,
+            "notes": "P2. Existing foundation (instance-API WorkspaceLoader, DI registration, AsyncLocal Override, passing NoStaticWorkspaceLoaderUse gate) reduces remaining work from a full re-architecture to an interface-extraction + type-reference migration. Real blast radius: 57 production call sites (45 LoadWorkspaceAsync + 12 GetSolutionAsync) and 27 test files. From issue rt-006.",
+            "resolution": "Shipped on branch ep-008-isessionfactory. IWorkspaceSessionFactory interface introduced (Core/IWorkspaceSessionFactory.cs) with GetSolutionAsync + LoadWorkspaceAsync + static CreateDefault factory. WorkspaceLoader implements it. RtServiceProvider gained GetOrDefault<T>(Func<T>) for interface-typed resolution with test-friendly fallback. All ~57 production call sites migrated (11 inspect fallback + 45 RtServiceProvider sites + 2 MCP handlers). NoConcreteWorkspaceLoaderInProduction architecture gate added and passing — production refs limited to WorkspaceLoader.cs, IWorkspaceSessionFactory.cs, and Bootstrap.cs (composition root). Static WorkspaceLoader.LoadAsync retained as test-only convenience (per advisor) with updated docstring; existing NoStaticWorkspaceLoaderUse gate keeps it out of src/. 1145 tests pass.",
+            "resolvedAt": "2026-05-21"
         },
         {
             "id": "US-054",
             "epicId": "EP-008",
-            "title": "Introduce ISolutionApplier and update mutation commands (rt-007)",
-            "description": "As a developer, I want all mutation commands to depend on ISolutionApplier instead of calling SolutionWriter.ApplyChangesAsync directly, bundled with US-053 so the 30-command update happens once.",
+            "title": "Migrate direct SolutionWriter call sites to ISolutionChangeWriter (rt-007)",
+            "description": "As a developer, I want all production code that mutates a solution to depend on ISolutionChangeWriter instead of calling the static SolutionWriter.ApplyChangesAsync directly, so that mutation tests can stub the writer and daemon caching doesn't fight per-call workspace ownership. Bundled with US-053 so the related command churn ships once.",
             "acceptanceCriteria": [
-                "ISolutionApplier interface defined: Task ApplyAsync(Solution original, Solution updated, bool dryRun)",
-                "SolutionWriter implements ISolutionApplier",
-                "All mutation commands accept ISolutionApplier, not SolutionWriter directly",
-                "rt inspect find-refs --symbol SolutionWriter --solution RoslynTools.slnx shows 0 production call sites after change",
+                "ISolutionChangeWriter interface (already defined in src/RoslynTools/Services/SolutionChangeWriter.cs with Task ApplyChangesAsync(Solution, Solution, bool dryRun)) is the sole production path to SolutionWriter — the existing name is kept; renaming to ISolutionApplier is out of scope",
+                "5 direct SolutionWriter.ApplyChangesAsync call sites migrated to ISolutionChangeWriter via DI: src/RoslynTools/Core/ConsoleLoggingCore.cs:76, src/RoslynTools.Cli/CommandHandlers/ChangeSignatureCommandHandlers.cs (lines 32, 62, 94, 126), src/RoslynTools.Cli/Commands/ConvertConsoleLoggingCommand.cs:194, src/RoslynTools.Cli/Commands/ExtractMethodCommand.cs:112",
+                "New architecture gate NoDirectSolutionWriterUse added under tests/RoslynTools.Tests/Architecture/, mirroring NoStaticWorkspaceLoaderUse, banning direct SolutionWriter.ApplyChangesAsync calls from src/ outside the SolutionChangeWriter adapter",
+                "AsyncLocal Override pattern added to ISolutionChangeWriter so mutation tests can capture writes without disk I/O (matches WorkspaceLoader.UseOverride ergonomics)",
+                "rt inspect find-refs --symbol SolutionWriter --solution RoslynTools.slnx shows only the SolutionChangeWriter adapter and SolutionWriter's own type-declaration locations after the change",
                 "All existing tests pass",
                 "Implemented in the same PR as US-053"
             ],
             "priority": 54,
             "urgency": 424,
-            "urgencyReason": "EP-008: ISolutionApplier. Pair with US-053.",
-            "effort": 13,
-            "passes": false,
-            "notes": "P2. 22 fan-in from Commands scope. Must ship with US-053 — splitting doubles the churn across all 30 commands. From issue rt-007."
+            "urgencyReason": "EP-008: ISolutionChangeWriter coverage. Pair with US-053.",
+            "effort": 5,
+            "passes": true,
+            "notes": "P2. ISolutionChangeWriter + SolutionChangeWriter adapter already exist (src/RoslynTools/Services/SolutionChangeWriter.cs) and are DI-registered. Real blast radius: 5 direct call sites (much smaller than the original '22 fan-in' estimate, because the adapter already siphons most callers). From issue rt-007.",
+            "resolution": "Shipped on branch ep-008-isessionfactory. Migrated 7 direct SolutionWriter.ApplyChangesAsync call sites (ConsoleLoggingCore, ChangeSignatureCommandHandlers x4, ConvertConsoleLoggingCommand, ExtractMethodCommand) to RtServiceProvider.GetOrDefault(ISolutionChangeWriter.CreateDefault).ApplyChangesAsync. ISolutionChangeWriter + SolutionChangeWriter moved from RoslynTools.Services into RoslynTools.Core to break a Core→Services→Core cycle that emerged when ConsoleLoggingCore needed the interface. Added static ISolutionChangeWriter.CreateDefault() factory mirroring IWorkspaceSessionFactory. NoDirectSolutionWriterUse architecture gate added and passing — production refs to SolutionWriter limited to SolutionChangeWriter adapter only. 1145 tests pass.",
+            "resolvedAt": "2026-05-21"
         },
         {
             "id": "US-055",
@@ -687,30 +560,6 @@
             "notes": "P3. Deferred from 2026-05-15 retro (Proposal 4). Aggressive version in ai-rules commit 8c1a08a; conservative rollback in dae9046. Three places still inconsistent: RT gap section, Opus review section, regression handler. Must be decided and applied consistently."
         },
         {
-            "id": "US-068",
-            "title": "Introduce Result<T,RtError> for routine user-error flows in core services",
-            "description": "As a developer, I want routine \"not found\" / \"bad input\" cases in SymbolLocator, MethodExtractor, WorkspaceLoader to return a Result type (success or RtError) instead of throwing InvalidOperationException, so the global exception handler can produce clean exit-1 stderr lines for known user errors while still surfacing real bugs with full stack traces — without resorting to substring-matching exception messages.",
-            "acceptanceCriteria": [
-                "Add Result<T, RtError> (or equivalent ADT) in src/RoslynTools/Core/. RtError is a record with a Kind enum (NotFound, InvalidInput, AmbiguousMatch, WorkspaceLoadFailure) plus message and optional context dictionary.",
-                "Convert SymbolLocator.FindSymbolAsync / FindSymbolByFqnAsync / FindTypeByFqnAsync / FindMethodBySpecAsync to return Result<ISymbol, RtError>; routine \"not found\" / ambiguous cases produce RtError, never throw.",
-                "Convert WorkspaceLoader.LoadAsync to return Result<(MSBuildWorkspace, Solution), RtError> for the no-projects-and-failure-diagnostic case; throw only for genuinely unexpected exceptions.",
-                "MethodExtractor: routine user-input rejections (no statements in range, multiple parent blocks, return statements in selection, --after + --before conflict) become RtError; AST-rewrite-produced-no-changes and similar internal-invariant violations remain exceptions.",
-                "Update every caller of the converted APIs to propagate or handle the Result; commands surface RtError via a single RtLog.Error + context.ExitCode = 1 helper.",
-                "Add a typed-only catch ladder in App.CaptureExceptionAsync for FileNotFoundException, DirectoryNotFoundException, ArgumentException, JsonException — these are routine OS/parse errors. No substring-matching of exception messages anywhere.",
-                "feedback.json still captures every exception with the full diagnostic payload from US-042; only the user-facing stderr shape changes.",
-                "Tests: SymbolLocator returns RtError.NotFound for unknown symbol; OutlineCommand returns exit 1 + single stderr line for missing file; build remains clean.",
-                "Documentation: add a short Result-types section to CLAUDE.md / AGENTS.md so new commands follow the pattern."
-            ],
-            "priority": 68,
-            "urgency": 32,
-            "urgencyReason": "Architectural fix that supersedes US-042+US-044: Result<T, RtError> for routine errors. Story explicitly cites 2026-05-15 quality-first rule. Sequenced after US-042/044 ship so the bug-class diagnosis is validated by quick fixes first.",
-            "effort": 13,
-            "passes": 0,
-            "notes": "Driven by quality-first rule (2026-05-15): refuses the substring-matching shortcut and instead models routine vs bug differences in the type system. Replaces the deferred classification half of US-042. Large change — touches ~10-15 throw sites and every caller — sequence carefully via /execute with TDD.",
-            "resolution": "",
-            "resolvedAt": ""
-        },
-        {
             "id": "RT-001",
             "title": "rt dump-help --json: emit machine-readable command catalog",
             "description": "As an LLM agent, I want `rt dump-help --json` to emit the full RtCommandInfo catalog as structured JSON so I can ingest the command surface programmatically instead of parsing prose.",
@@ -819,6 +668,42 @@
             "effort": 2,
             "passes": false,
             "notes": "Discovered 2026-05-20: committed df9e43a (MCP array pass-through) used the bypass for this reason. Likely solved together with the Cli pilot story (US-069) by switching to a multi-project or per-project Stryker setup."
+        },
+        {
+            "id": "US-071",
+            "title": "rt refactor extract-interface produces malformed output for internal classes",
+            "description": "As a roslyn-tools developer, I want extract-interface to honor source class accessibility, include internal members when the source is internal, and emit syntactically valid C# so that I can dogfood it during DI migrations on internal types.",
+            "acceptanceCriteria": [
+                "rt refactor extract-interface --type WorkspaceLoader --solution RoslynTools.slnx --dry-run emits a syntactically valid diff: the new interface name is inserted into the existing base list with proper formatting (space after comma, brace placement matching the file's brace style), and the resulting file would compile",
+                "Extracting from an internal sealed class produces an internal interface (not public). Accessibility of the generated interface matches the source class accessibility",
+                "Extracting from an internal class includes the class's internal members in the generated interface (today only public members are picked up). Public-only behaviour remains the default for public source classes",
+                "Regression test added covering an internal class with internal members and an existing IDisposable base list, asserting both the file compiles and the interface accessibility/membership matches expectation",
+                "rt refactor extract-interface --type WorkspaceLoader --solution RoslynTools.slnx (no dry-run) succeeds without producing files that fail dotnet build"
+            ],
+            "priority": 75,
+            "passes": false,
+            "epicId": "EP-006",
+            "notes": "P2. Surfaced during EP-008/US-053 dogfood at branch ep-008-isessionfactory. Three bundled defects: (1) base-list insertion is malformed -- 'IDisposable\\n,IWorkspaceLoader{' (no space, brace adjacent); (2) generated interface is hardcoded public regardless of source class accessibility (internal sealed class WorkspaceLoader yielded public interface IWorkspaceLoader); (3) only public members are extracted, missing internal GetSolutionAsync/LoadWorkspaceAsync from WorkspaceLoader. Repro: rt refactor extract-interface --type WorkspaceLoader --solution RoslynTools.slnx --dry-run. Forced fallback to hand-authoring IWorkspaceSessionFactory."
+        },
+        {
+            "id": "US-072",
+            "title": "Eliminate RtServiceProvider.Get<T> service locator in favour of ctor injection",
+            "description": "As a roslyn-tools developer, I want commands to depend on services via constructor injection so the ambient service-locator anti-pattern (RtServiceProvider.Get<T>()) disappears and command dependencies become explicit and testable.",
+            "acceptanceCriteria": [
+                "IRtCommand contract revised to support instance classes — each command class is constructed by the DI container with required services injected via the constructor; the static Build() pattern is replaced with an instance Build() that closes over the injected services",
+                "App.Discover (or its replacement) resolves each command via the service provider rather than calling a static factory",
+                "All ~50 commands under src/RoslynTools.Cli/Commands/ (and src/RoslynTools.Cli/CommandHandlers/) refactored to declare their service dependencies as constructor parameters and reference them via private readonly fields",
+                "All 64 RtServiceProvider.Get<T>() and RtServiceProvider.GetOrDefault<T>(…) call sites removed from src/",
+                "RtServiceProvider class deleted (or kept only if it has remaining non-Get callers, e.g. the AsyncLocal Use scope; document the remaining surface in that case)",
+                "New architecture gate NoRtServiceProviderInProduction added under tests/RoslynTools.Tests/Architecture/, mirroring NoConcreteWorkspaceLoaderInProduction; flags any production reference to RtServiceProvider.Get or .GetOrDefault outside the class declaration itself",
+                "rt dump-help startup succeeds, every command listed, every Info.Examples invocation still works end-to-end (dogfood smoke matrix)",
+                "All existing tests pass; mutation tests that previously relied on WorkspaceLoader.UseOverride continue to pass via the same AsyncLocal hook",
+                "dotnet build, dotnet format --verify-no-changes, and the full test suite all clean"
+            ],
+            "priority": 76,
+            "passes": false,
+            "epicId": "EP-008",
+            "notes": "P2. Follow-on from EP-008 (US-053/US-054). Scope: 64 RtServiceProvider.Get/GetOrDefault call sites across 46 files. Approach approved 2026-05-21: convert IRtCommand from static Build() factory to instance class so DI can ctor-inject services. App.Discover resolves each command via the service provider. RtServiceProvider class deleted (or shrunk to just the AsyncLocal Use scope if needed). New NoRtServiceProviderInProduction architecture gate mirrors NoConcreteWorkspaceLoaderInProduction. Trunk-based delivery."
         }
     ]
 }

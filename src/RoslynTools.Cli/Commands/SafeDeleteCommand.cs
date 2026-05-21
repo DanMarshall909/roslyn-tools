@@ -62,7 +62,7 @@ internal sealed class SafeDeleteCommand : IRtCommand
 
     internal static async Task ExecuteAsync(string symbol, string? kind, string? solutionPath, bool dryRun)
     {
-        var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solutionPath);
+        var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
             await RtServiceProvider.Get<SafeDeleteService>().RunAsync(sln, symbol, kind, dryRun);
