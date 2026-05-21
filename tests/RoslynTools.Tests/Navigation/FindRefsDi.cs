@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using RoslynTools;
 using RoslynTools.Core;
 
 namespace RoslynTools.Tests.Navigation;
@@ -34,9 +35,9 @@ public class FindRefsDi
         using (workspace)
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            var services = new ServiceCollection()
-                .AddSingleton<WorkspaceLoader>()
-                .BuildServiceProvider();
+            var sc = new ServiceCollection();
+            RoslynTools.Bootstrap.RegisterServices(sc);
+            var services = sc.BuildServiceProvider();
 
             var (exitCode, stdout, _) = await InvokeAsync(
                 ["find-refs", "--symbol", "Widget", "--solution", "ignored"],
