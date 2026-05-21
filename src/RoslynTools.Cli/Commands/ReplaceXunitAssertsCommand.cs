@@ -12,8 +12,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class ReplaceXunitAssertsCommand : IRtCommand
 {
-    private ReplaceXunitAssertsCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly ReplaceXunitAssertsService _replace;
+    public ReplaceXunitAssertsCommand(IWorkspaceSessionFactory sessionFactory, ReplaceXunitAssertsService replace)
     {
+        _replace = replace;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -38,7 +42,7 @@ internal sealed class ReplaceXunitAssertsCommand : IRtCommand
         ]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln/.slnx file");
         var dryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk");
@@ -61,9 +65,9 @@ internal sealed class ReplaceXunitAssertsCommand : IRtCommand
     /// <summary>
     /// Asynchronously replaces XUnit assertions with alternative testing methods.
     /// </summary>
-    internal static async Task ExecuteAsync(string? solutionPath, bool dryRun, bool apply, bool review)
+    internal async Task ExecuteAsync(string? solutionPath, bool dryRun, bool apply, bool review)
     {
-        var (workspace, solution) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
+        var (workspace, solution) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
             await ExecuteCoreAsync(solution, dryRun, apply, review);
@@ -73,7 +77,7 @@ internal sealed class ReplaceXunitAssertsCommand : IRtCommand
     /// <summary>
     /// Asynchronously replaces XUnit assertions with alternative testing methods using core analysis.
     /// </summary>
-    internal static async Task ExecuteCoreAsync(
+    internal async Task ExecuteCoreAsync(
         Solution solution,
         bool dryRun,
         bool apply = false,
@@ -85,12 +89,12 @@ internal sealed class ReplaceXunitAssertsCommand : IRtCommand
             return;
         }
 
-        await RtServiceProvider.Get<ReplaceXunitAssertsService>().RunAsync(solution, dryRun);
+        await _replace.RunAsync(solution, dryRun);
     }
 
-    private static async Task ReviewAsync(Solution solution)
+    private async Task ReviewAsync(Solution solution)
     {
-        var review = await RtServiceProvider.Get<ReplaceXunitAssertsService>().AnalyzeAsync(solution);
+        var review = await _replace.AnalyzeAsync(solution);
         var entries = review.Entries;
         var output = new StringBuilder();
 

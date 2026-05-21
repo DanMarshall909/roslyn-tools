@@ -1,10 +1,14 @@
 using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Tests.Infrastructure;
 
 namespace RoslynTools.Tests.Mutation;
 
-public class ReplaceXunitAsserts
+public class ReplaceXunitAsserts : IClassFixture<RtServicesFixture>
 {
+    private readonly RtServicesFixture _services;
+    public ReplaceXunitAsserts(RtServicesFixture services) => _services = services;
+
     [Fact]
     public async Task converts_equality_assertions_to_fluent_assertions()
     {
@@ -77,7 +81,7 @@ public class ReplaceXunitAsserts
 
         using (workspace)
         {
-            await ReplaceXunitAssertsCommand.ExecuteCoreAsync(solution, false, true);
+            await _services.Resolve<ReplaceXunitAssertsCommand>().ExecuteCoreAsync(solution, false, true);
         }
 
         var content = await project.ReadSourceAsync("ExampleTests.cs");
@@ -120,7 +124,7 @@ public class ReplaceXunitAsserts
 
         using (workspace)
         {
-            await ReplaceXunitAssertsCommand.ExecuteCoreAsync(solution, false, true);
+            await _services.Resolve<ReplaceXunitAssertsCommand>().ExecuteCoreAsync(solution, false, true);
         }
 
         var content = await project.ReadSourceAsync("ExampleTests.cs");
@@ -154,7 +158,7 @@ public class ReplaceXunitAsserts
         {
             using (workspace)
             {
-                await ReplaceXunitAssertsCommand.ExecuteCoreAsync(solution, false);
+                await _services.Resolve<ReplaceXunitAssertsCommand>().ExecuteCoreAsync(solution, false);
             }
         }
         finally
