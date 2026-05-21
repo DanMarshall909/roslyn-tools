@@ -9,8 +9,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class ConvertToRecordCommand : IRtCommand
 {
-    private ConvertToRecordCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly ConvertToRecordService _convertToRecord;
+    public ConvertToRecordCommand(IWorkspaceSessionFactory sessionFactory, ConvertToRecordService convertToRecord)
     {
+        _convertToRecord = convertToRecord;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -29,7 +33,7 @@ internal sealed class ConvertToRecordCommand : IRtCommand
         ]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var typeOpt = CommandOptionFactory.CreateTypeOption();
         var solutionOpt = CommandOptionFactory.CreateSolutionOption();
@@ -48,12 +52,12 @@ internal sealed class ConvertToRecordCommand : IRtCommand
     /// <summary>
     /// Executes the conversion of a type to a record.
     /// </summary>
-    internal static async Task ExecuteAsync(string typeName, string? solutionPath, bool dryRun)
+    internal async Task ExecuteAsync(string typeName, string? solutionPath, bool dryRun)
     {
-        var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
+        var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
-            await RtServiceProvider.Get<ConvertToRecordService>().RunAsync(sln, typeName, dryRun);
+            await _convertToRecord.RunAsync(sln, typeName, dryRun);
         }
     }
 }

@@ -3,8 +3,11 @@ using RoslynTools.Core;
 
 namespace RoslynTools.Tests.Infrastructure;
 
-public class LoggingRefactor
+public class LoggingRefactor : IClassFixture<RtServicesFixture>
 {
+    private readonly RtServicesFixture _services;
+    public LoggingRefactor(RtServicesFixture services) => _services = services;
+
     [Fact]
     public async Task captures_info_warning_and_error_without_redirecting_console()
     {
@@ -25,7 +28,7 @@ public class LoggingRefactor
             using (recordWorkspace)
             using (WorkspaceLoader.UseOverride(recordWorkspace, recordSolution))
             {
-                await ConvertToRecordCommand.ExecuteAsync("WithMutableProp", "ignored", false);
+                await _services.Resolve<ConvertToRecordCommand>().ExecuteAsync("WithMutableProp", "ignored", false);
             }
 
             using var staticProject = new AdhocProjectBuilder("StaticApp");
