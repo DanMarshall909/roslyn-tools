@@ -1,5 +1,4 @@
 using System.CommandLine;
-using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
@@ -12,8 +11,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class StaticClassInventoryCommand : IRtCommand, IStructuredOutputCommand
 {
-    private StaticClassInventoryCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly StaticClassInventoryService _inventory;
+    public StaticClassInventoryCommand(IWorkspaceSessionFactory sessionFactory, StaticClassInventoryService inventory)
     {
+        _inventory = inventory;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -29,7 +32,7 @@ internal sealed class StaticClassInventoryCommand : IRtCommand, IStructuredOutpu
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json]);
 
-    public static Command Build()
+    public Command Build()
     {
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln/.slnx file");
 
@@ -40,11 +43,9 @@ internal sealed class StaticClassInventoryCommand : IRtCommand, IStructuredOutpu
         cmd.SetHandler(async ctx =>
         {
             var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
-            var sp = ctx.BindingContext.GetService<IServiceProvider>();
-            var loader = sp?.GetService<IWorkspaceSessionFactory>() ?? IWorkspaceSessionFactory.CreateDefault();
 
-            var sln = await loader.GetSolutionAsync(solution);
-            var report = await RtServiceProvider.Get<StaticClassInventoryService>().AnalyzeAsync(sln);
+            var sln = await _sessionFactory.GetSolutionAsync(solution);
+            var report = await _inventory.AnalyzeAsync(sln);
             var result = StaticClassInventoryResult.FromReport(report);
 
             RtResultRenderer.WriteOutput(RtResult<StaticClassInventoryResult>.Ok(result));
