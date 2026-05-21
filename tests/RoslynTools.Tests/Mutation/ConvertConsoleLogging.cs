@@ -1,9 +1,13 @@
 using RoslynTools.Commands;
+using RoslynTools.Tests.Infrastructure;
 
 namespace RoslynTools.Tests.Mutation;
 
-public class ConvertConsoleLogging
+public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
 {
+    private readonly RtServicesFixture _services;
+    public ConvertConsoleLogging(RtServicesFixture services) => _services = services;
+
     [Fact]
     public async Task converts_console_write_line_to_information_log()
     {
@@ -22,7 +26,7 @@ public class ConvertConsoleLogging
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, false, apply: true);
+            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(solution, false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -49,7 +53,7 @@ public class ConvertConsoleLogging
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, false, apply: true);
+            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(solution, false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -79,7 +83,7 @@ public class ConvertConsoleLogging
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(
+            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(
                 solution,
                 false,
                 stream: "stderr",
@@ -109,7 +113,7 @@ public class ConvertConsoleLogging
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(
+            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(
                 solution,
                 false,
                 stream: "stderr",
@@ -139,7 +143,7 @@ public class ConvertConsoleLogging
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, false, apply: true);
+            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(solution, false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -165,7 +169,7 @@ public class ConvertConsoleLogging
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, false, apply: true);
+            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(solution, false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -193,7 +197,7 @@ public class ConvertConsoleLogging
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, false, apply: true);
+            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(solution, false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -219,7 +223,7 @@ public class ConvertConsoleLogging
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(
+            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(
                 solution,
                 false,
                 "_log",
@@ -250,7 +254,7 @@ public class ConvertConsoleLogging
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, true);
+            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(solution, true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -280,7 +284,7 @@ public class ConvertConsoleLogging
         {
             using (workspace)
             {
-                await ConvertConsoleLoggingCommand.ExecuteCoreAsync(
+                await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(
                     solution,
                     false,
                     stream: "stderr");
@@ -314,7 +318,7 @@ public class ConvertConsoleLogging
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(
+            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(
                 solution,
                 false,
                 stream: "stderr",
@@ -352,7 +356,7 @@ public class ConvertConsoleLogging
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(
+            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(
                 solution,
                 false,
                 stream: "stderr",
@@ -390,7 +394,7 @@ public class ConvertConsoleLogging
         {
             using (workspace)
             {
-                await ConvertConsoleLoggingCommand.ExecuteCoreAsync(
+                await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(
                     solution,
                     false,
                     stream: "all",
@@ -441,7 +445,7 @@ public class ConvertConsoleLogging
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(
+            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(
                 solution,
                 false,
                 stream: "stderr",
@@ -479,7 +483,7 @@ public class ConvertConsoleLogging
         {
             using (workspace)
             {
-                await ConvertConsoleLoggingCommand.ExecuteCoreAsync(
+                await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(
                     solution,
                     false,
                     stream: "stderr",
@@ -517,7 +521,7 @@ public class ConvertConsoleLogging
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, false, apply: true);
+            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(solution, false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -544,7 +548,7 @@ public class ConvertConsoleLogging
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, false, apply: true);
+            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(solution, false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -573,7 +577,7 @@ public class ConvertConsoleLogging
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, false, apply: true);
+            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(solution, false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -601,7 +605,7 @@ public class ConvertConsoleLogging
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, false, apply: true);
+            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(solution, false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -629,7 +633,7 @@ public class ConvertConsoleLogging
 
         using (workspace)
         {
-            await ConvertConsoleLoggingCommand.ExecuteCoreAsync(solution, false, apply: true);
+            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(solution, false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");

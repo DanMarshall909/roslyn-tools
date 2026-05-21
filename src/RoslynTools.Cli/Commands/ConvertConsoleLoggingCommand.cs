@@ -12,8 +12,14 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class ConvertConsoleLoggingCommand : IRtCommand
 {
-    private ConvertConsoleLoggingCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly AddDependencyService _addDependency;
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
+    public ConvertConsoleLoggingCommand(IWorkspaceSessionFactory sessionFactory, AddDependencyService addDependency, ISolutionChangeWriter solutionChangeWriter)
     {
+        _solutionChangeWriter = solutionChangeWriter;
+        _addDependency = addDependency;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -38,7 +44,7 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
         ]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln/.slnx file");
         var dryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk");
@@ -98,7 +104,7 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
     /// <summary>
     /// Executes console logging conversion with detailed parameters.
     /// </summary>
-    internal static async Task ExecuteAsync(
+    internal async Task ExecuteAsync(
         string? solutionPath,
         bool dryRun,
         string loggerExpression,
@@ -114,7 +120,7 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
         string loggerDependency,
         string loggerField)
     {
-        var (workspace, solution) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
+        var (workspace, solution) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
             await ExecuteCoreAsync(solution, dryRun, loggerExpression, informationMethod, warningMethod, errorMethod,
@@ -125,7 +131,7 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
     /// <summary>
     /// Executes console logging conversion core functionality with optional parameters.
     /// </summary>
-    internal static Task ExecuteCoreAsync(
+    internal Task ExecuteCoreAsync(
         Solution solution,
         bool dryRun,
         string loggerExpression = "_logger",
@@ -170,7 +176,7 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
         };
     }
 
-    private static async Task ApplyWithLoggerInjectionAsync(
+    private async Task ApplyWithLoggerInjectionAsync(
         Solution solution,
         ConsoleLoggingOptions options,
         bool dryRun,
@@ -182,7 +188,7 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
 
         foreach (var target in GetInjectionTargets(review, loggerDependency))
         {
-            var result = await RtServiceProvider.Get<AddDependencyService>().ApplyAsync(
+            var result = await _addDependency.ApplyAsync(
                 solution,
                 target.TypeFullName,
                 target.DependencyType,
@@ -191,7 +197,7 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
         }
 
         solution = await ConsoleLoggingCore.ApplyAsync(solution, options);
-        await RtServiceProvider.GetOrDefault(ISolutionChangeWriter.CreateDefault).ApplyChangesAsync(originalSolution, solution, dryRun);
+        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
     }
 
     private static async Task ReviewAsync(
