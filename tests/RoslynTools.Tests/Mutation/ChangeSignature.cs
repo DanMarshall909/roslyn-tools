@@ -286,7 +286,10 @@ public class ChangeSignature
         Assert.Contains(ChangeSignatureCommand.Info.Examples,
             example => example.Contains("rename-param", StringComparison.Ordinal));
 
-        var command = ChangeSignatureCommand.Build();
+        var command = new ChangeSignatureCommand(
+            IWorkspaceSessionFactory.CreateDefault(),
+            new ChangeSignatureService(),
+            ISolutionChangeWriter.CreateDefault()).Build();
         var renameParam = command.Subcommands.Single(subcommand => subcommand.Name == "rename-param");
 
         Assert.Equal("change-signature", command.Name);
@@ -465,7 +468,10 @@ public class ChangeSignature
     [Fact]
     public void registers_the_reorder_subcommand()
     {
-        var command = ChangeSignatureCommand.Build();
+        var command = new ChangeSignatureCommand(
+            IWorkspaceSessionFactory.CreateDefault(),
+            new ChangeSignatureService(),
+            ISolutionChangeWriter.CreateDefault()).Build();
         var reorder = command.Subcommands.Single(sub => sub.Name == "reorder");
 
         Assert.Equal(["methodSpec", "order"], reorder.Arguments.Select(a => a.Name));
@@ -1713,7 +1719,10 @@ public class ChangeSignature
     [Fact]
     public void registers_add_param_and_remove_param_subcommands()
     {
-        var command = ChangeSignatureCommand.Build();
+        var command = new ChangeSignatureCommand(
+            IWorkspaceSessionFactory.CreateDefault(),
+            new ChangeSignatureService(),
+            ISolutionChangeWriter.CreateDefault()).Build();
 
         var addParam = command.Subcommands.Single(subcommand => subcommand.Name == "add-param");
         var removeParam = command.Subcommands.Single(subcommand => subcommand.Name == "remove-param");
