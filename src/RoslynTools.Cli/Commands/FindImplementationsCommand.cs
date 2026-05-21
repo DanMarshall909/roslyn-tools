@@ -1,6 +1,5 @@
 using System.CommandLine;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
@@ -12,8 +11,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class FindImplementationsCommand : IRtCommand, IStructuredOutputCommand
 {
-    private FindImplementationsCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly FindImplementationsService _findImplementations;
+    public FindImplementationsCommand(IWorkspaceSessionFactory sessionFactory, FindImplementationsService findImplementations)
     {
+        _findImplementations = findImplementations;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -33,7 +36,7 @@ internal sealed class FindImplementationsCommand : IRtCommand, IStructuredOutput
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var symbolArg = new Argument<string>("symbol", "Fully-qualified interface or abstract class name");
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln/.slnx file");
@@ -48,10 +51,8 @@ internal sealed class FindImplementationsCommand : IRtCommand, IStructuredOutput
             {
                 var symbol = ctx.ParseResult.GetValueForArgument(symbolArg);
                 var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
-                var sp = ctx.BindingContext.GetService<IServiceProvider>();
-                var loader = sp?.GetService<IWorkspaceSessionFactory>() ?? IWorkspaceSessionFactory.CreateDefault();
 
-                var sln = await loader.GetSolutionAsync(solution);
+                var sln = await _sessionFactory.GetSolutionAsync(solution);
                 var sym = symbol.Contains('.', StringComparison.Ordinal)
                     ? await SymbolLocator.FindSymbolByFqnAsync(sln, symbol, "type")
                     : await SymbolLocator.FindSymbolAsync(sln, symbol, "type");
@@ -64,7 +65,7 @@ internal sealed class FindImplementationsCommand : IRtCommand, IStructuredOutput
                         symbol);
 
                 var implementations =
-                    await RtServiceProvider.Get<FindImplementationsService>().FindAsync(sln, typeSymbol);
+                    await _findImplementations.FindAsync(sln, typeSymbol);
 
                 var result = new Dictionary<string, object?>
                 {
