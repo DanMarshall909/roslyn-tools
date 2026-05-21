@@ -24,6 +24,20 @@ internal static class RtServiceProvider
         return service ?? new T();
     }
 
+    /// <summary>
+    ///     Resolve an interface (or any type without a public parameterless constructor)
+    ///     from the ambient provider, falling back to the supplied factory when no
+    ///     provider is wired up (test paths that exercise <c>App.RunAsync</c>
+    ///     with <c>services: null</c>). Used for DI-only services such as
+    ///     <see cref="IWorkspaceSessionFactory" />.
+    /// </summary>
+    internal static T GetOrDefault<T>(Func<T> defaultFactory)
+        where T : class
+    {
+        var service = CurrentProvider.Value?.GetService(typeof(T)) as T;
+        return service ?? defaultFactory();
+    }
+
     private sealed class Scope(IServiceProvider? previous) : IDisposable
     {
         public void Dispose()

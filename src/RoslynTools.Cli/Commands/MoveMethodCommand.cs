@@ -59,7 +59,7 @@ internal sealed class MoveMethodCommand : IRtCommand
         string? solutionPath,
         bool dryRun)
     {
-        var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solutionPath);
+        var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
             var ok = await RtServiceProvider.Get<MoveMethodService>()

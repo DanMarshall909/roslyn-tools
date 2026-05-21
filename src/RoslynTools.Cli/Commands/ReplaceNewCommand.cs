@@ -64,7 +64,7 @@ internal sealed class ReplaceNewCommand : IRtCommand
     internal static async Task ExecuteAsync(string type, string with_method, string? solutionPath, bool dryRun,
         int? ifArgIndex = null, string? ifArgLiteral = null, bool dropMatchedArg = false)
     {
-        var (workspace, solution) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solutionPath);
+        var (workspace, solution) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
             await RtServiceProvider.Get<ReplaceNewService>()

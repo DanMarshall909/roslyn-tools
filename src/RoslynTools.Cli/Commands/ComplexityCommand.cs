@@ -82,7 +82,7 @@ internal sealed class ComplexityCommand : IRtCommand, IStructuredOutputCommand
             return 1;
         }
 
-        var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
+        var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
         using (workspace)
         {
             RtLog.Info("Analyzing complexity...");

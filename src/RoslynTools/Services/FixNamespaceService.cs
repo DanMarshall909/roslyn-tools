@@ -35,7 +35,7 @@ internal class FixNamespaceService : IRtService
     {
         filePath = Path.GetFullPath(filePath);
 
-        var (workspace, solution) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solutionPath);
+        var (workspace, solution) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
             await RunAsync(solution, filePath, dryRun);

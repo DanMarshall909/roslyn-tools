@@ -44,7 +44,7 @@ internal sealed class FindMagicStringsCommand : IRtCommand
 
         cmd.SetHandler(async (solution, minLength, minOccurrences) =>
         {
-            var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
+            var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
             using (workspace)
             {
                 var groups = await RtServiceProvider.Get<MagicStringService>()

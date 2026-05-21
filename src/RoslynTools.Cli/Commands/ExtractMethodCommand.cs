@@ -77,7 +77,7 @@ internal sealed class ExtractMethodCommand : IRtCommand
             var dryRun = ctx.ParseResult.GetValueForOption(dryRunOpt);
             var replaceDuplicates = ctx.ParseResult.GetValueForOption(replaceDuplicatesOpt);
 
-            var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
+            var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
             using (workspace)
             {
                 RtLog.Info("Extracting lines {StartLine}–{EndLine} of '{File}' → '{NewName}'...", startLine, endLine,

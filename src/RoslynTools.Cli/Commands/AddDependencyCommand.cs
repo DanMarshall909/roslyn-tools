@@ -57,7 +57,7 @@ internal sealed class AddDependencyCommand : IRtCommand
     internal static async Task ExecuteAsync(string typeName, string depType, string? fieldName, string? solutionPath,
         bool dryRun)
     {
-        var (workspace, solution) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solutionPath);
+        var (workspace, solution) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
             await RtServiceProvider.Get<AddDependencyService>()

@@ -53,7 +53,7 @@ internal sealed class AddNullChecksCommand : IRtCommand
     /// </summary>
     internal static async Task ExecuteAsync(string typeName, string methodName, string? solutionPath, bool dryRun)
     {
-        var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solutionPath);
+        var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
             await RtServiceProvider.Get<AddNullChecksService>().RunAsync(sln, typeName, methodName, dryRun);

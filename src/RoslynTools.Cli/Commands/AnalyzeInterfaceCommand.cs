@@ -47,7 +47,7 @@ internal sealed class AnalyzeInterfaceCommand : IRtCommand, IStructuredOutputCom
 
         cmd.SetHandler(async (interfaceSpec, solution, scope, includeTests, suggest) =>
         {
-            var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
+            var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
             using (workspace)
             {
                 var report = await RtServiceProvider.Get<AnalyzeInterfaceService>().AnalyzeAsync(

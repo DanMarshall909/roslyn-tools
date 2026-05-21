@@ -49,7 +49,7 @@ internal sealed class TransformParametersCommand : IRtCommand
 
         cmd.SetHandler(async (method, newType, existingType, solution, dryRun) =>
         {
-            var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
+            var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
             using (workspace)
             {
                 try

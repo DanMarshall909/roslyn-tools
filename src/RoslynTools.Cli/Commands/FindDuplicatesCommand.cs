@@ -59,7 +59,7 @@ internal sealed class FindDuplicatesCommand : IRtCommand, IStructuredOutputComma
 
         cmd.SetHandler(async (solution, minStatements, minOccurrences, scope, includeTests, maxStatements) =>
         {
-            var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
+            var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
             using (workspace)
             {
                 var options =

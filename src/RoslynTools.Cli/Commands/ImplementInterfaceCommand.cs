@@ -56,7 +56,7 @@ internal sealed class ImplementInterfaceCommand : IRtCommand
     /// </summary>
     internal static async Task ExecuteAsync(string typeName, string? interfaceName, string? solutionPath, bool dryRun)
     {
-        var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solutionPath);
+        var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
             await RtServiceProvider.Get<ImplementInterfaceService>().RunAsync(sln, typeName, interfaceName, dryRun);

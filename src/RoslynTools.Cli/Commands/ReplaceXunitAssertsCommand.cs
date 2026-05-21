@@ -63,7 +63,7 @@ internal sealed class ReplaceXunitAssertsCommand : IRtCommand
     /// </summary>
     internal static async Task ExecuteAsync(string? solutionPath, bool dryRun, bool apply, bool review)
     {
-        var (workspace, solution) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solutionPath);
+        var (workspace, solution) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
             await ExecuteCoreAsync(solution, dryRun, apply, review);

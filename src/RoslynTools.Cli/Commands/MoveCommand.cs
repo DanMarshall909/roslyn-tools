@@ -73,7 +73,7 @@ internal sealed class MoveCommand : IRtCommand
                     return;
                 }
 
-                var (workspace, sln) = await RtServiceProvider.Get<WorkspaceLoader>().LoadWorkspaceAsync(solution);
+                var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
                 using (workspace)
                 {
                     if (nsFrom != null)
