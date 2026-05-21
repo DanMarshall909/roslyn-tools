@@ -1,10 +1,14 @@
 using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Tests.Infrastructure;
 
 namespace RoslynTools.Tests.Mutation;
 
-public class ImplementInterface
+public class ImplementInterface : IClassFixture<RtServicesFixture>
 {
+    private readonly RtServicesFixture _services;
+    public ImplementInterface(RtServicesFixture services) => _services = services;
+
     // Source that compiles: Repo and PartialRepo don't yet declare IRepository,
     // so they build successfully before implement-interface runs.
     private const string ImplAppSource = """
@@ -32,7 +36,7 @@ public class ImplementInterface
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await ImplementInterfaceCommand.ExecuteAsync("Repo", "IRepository", "ignored", false);
+            await _services.Resolve<ImplementInterfaceCommand>().ExecuteAsync("Repo", "IRepository", "ignored", false);
         }
 
         var content = await proj.ReadSourceAsync("Types.cs");
@@ -54,7 +58,7 @@ public class ImplementInterface
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await ImplementInterfaceCommand.ExecuteAsync("Repo", "IRepository", "ignored", false);
+            await _services.Resolve<ImplementInterfaceCommand>().ExecuteAsync("Repo", "IRepository", "ignored", false);
         }
 
         var content = await proj.ReadSourceAsync("Types.cs");
@@ -74,7 +78,7 @@ public class ImplementInterface
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await ImplementInterfaceCommand.ExecuteAsync("PartialRepo", "IRepository", "ignored", false);
+            await _services.Resolve<ImplementInterfaceCommand>().ExecuteAsync("PartialRepo", "IRepository", "ignored", false);
         }
 
         var content = await proj.ReadSourceAsync("Types.cs");
@@ -100,7 +104,7 @@ public class ImplementInterface
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await ImplementInterfaceCommand.ExecuteAsync("Repo", "IRepository", "ignored", false);
+            await _services.Resolve<ImplementInterfaceCommand>().ExecuteAsync("Repo", "IRepository", "ignored", false);
         }
 
         var content = await proj.ReadSourceAsync("Types.cs");
@@ -123,7 +127,7 @@ public class ImplementInterface
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await ImplementInterfaceCommand.ExecuteAsync("Repo", "IRepository", "ignored", true);
+            await _services.Resolve<ImplementInterfaceCommand>().ExecuteAsync("Repo", "IRepository", "ignored", true);
         }
 
         var after = await proj.ReadSourceAsync("Types.cs");
