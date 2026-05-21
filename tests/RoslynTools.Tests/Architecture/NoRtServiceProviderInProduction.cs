@@ -12,7 +12,7 @@ namespace RoslynTools.Tests.Architecture;
 /// </summary>
 public sealed class NoRtServiceProviderInProduction
 {
-    [Fact(Skip = "US-072: unskip once all RtServiceProvider.Get/.GetOrDefault sites migrate to ctor injection.")]
+    [Fact]
     public void production_code_does_not_call_rt_service_provider_locator()
     {
         var srcDir = LocateSrcDirectory();

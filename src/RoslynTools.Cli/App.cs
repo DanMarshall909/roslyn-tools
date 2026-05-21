@@ -221,10 +221,7 @@ internal static class App
                         // Load is inside the try so malformed YAML / missing file errors flow
                         // through TryHandleUserErrorAsync and get the clean exit-1 treatment.
                         DecisionContext.Store = DecisionStore.Load(decisionsFile.FullName);
-                        using (RtServiceProvider.Use(services))
-                        {
-                            await next(context);
-                        }
+                        await next(context);
                     }
                     catch (DecisionsRequiredException)
                     {
@@ -249,18 +246,15 @@ internal static class App
                 }
                 else
                 {
-                    using (RtServiceProvider.Use(services))
+                    try
                     {
-                        try
-                        {
-                            await next(context);
-                        }
-                        catch (Exception ex) when (ex is not OperationCanceledException)
-                        {
-                            if (await TryHandleUserErrorAsync(context, ex))
-                                return;
-                            throw;
-                        }
+                        await next(context);
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        if (await TryHandleUserErrorAsync(context, ex))
+                            return;
+                        throw;
                     }
                 }
             }, MiddlewareOrder.Configuration)

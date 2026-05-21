@@ -701,7 +701,9 @@
                 "dotnet build, dotnet format --verify-no-changes, and the full test suite all clean"
             ],
             "priority": 76,
-            "passes": false,
+            "passes": true,
+            "resolvedAt": "2026-05-21",
+            "resolution": "Completed on branch us-072-ctor-injection (PR forthcoming). IRtCommand.Build() is now an instance member; all ~50 commands under src/RoslynTools.Cli/Commands/ migrated to constructor-injected services (commits 199eefe through e1560db). RtServiceProvider.cs deleted entirely — Get/GetOrDefault eliminated and Use no longer needed because no consumers remain. Three production services (FixNamespaceService, ExtractClassService, ConsoleLoggingCore) also migrated. Bootstrap.cs registers ILogger<> via RtConsoleLogger<> as an open generic so Scrutor-discovered services with ILogger<T> ctor params resolve cleanly. Tests retrofitted to xUnit IClassFixture<RtServicesFixture> and resolve commands/services via _services.Resolve<T>(). NoRtServiceProviderInProduction architecture gate unskipped and passing. Full suite green (1146 + 9 tests), dotnet format clean.",
             "epicId": "EP-008",
             "notes": "P2. Follow-on from EP-008 (US-053/US-054). Scope: 64 RtServiceProvider.Get/GetOrDefault call sites across 46 files. Approach approved 2026-05-21: convert IRtCommand from static Build() factory to instance class so DI can ctor-inject services. App.Discover resolves each command via the service provider. RtServiceProvider class deleted (or shrunk to just the AsyncLocal Use scope if needed). New NoRtServiceProviderInProduction architecture gate mirrors NoConcreteWorkspaceLoaderInProduction. Trunk-based delivery."
         },
@@ -723,6 +725,39 @@
             "priority": 77,
             "passes": false,
             "notes": "P2. Currently net8.0 across all projects. Migration touches: TFM in every csproj + Directory.Build.props, Microsoft.CodeAnalysis.* package bump (currently 4.9.2), DiffPlex/YamlDotNet/Scrutor checks for net10 support, CI image bump if any, smoke tests on roslyn-tools.slnx then a Hero solution. Watch for breakage in Roslyn syntax APIs and MSBuildLocator behavior — net10 SDK discovery may diverge."
+        },
+        {
+            "id": "US-074",
+            "title": "rt analyze list-smells: add --top N limiter",
+            "description": "As an agent driving rt, I want `rt analyze list-smells --top N` to cap the output to the N highest-priority smells so that I can run concise smell scans without paging through thousands of lines of JSON.",
+            "acceptanceCriteria": [
+                "rt analyze list-smells --solution <sln> --top 30 exits 0 and emits at most 30 smell entries to stdout",
+                "Ordering is deterministic and matches the existing default ordering (highest severity/score first; tie-break by file path then line)",
+                "Omitting --top preserves current behaviour (no limit)",
+                "--top 0 emits an empty smells array (still valid JSON with metadata intact)",
+                "--top with a negative integer exits 1 with stderr 'Invalid --top value: must be >= 0' (no stack trace)",
+                "rt dump-help shows --top in the list-smells command help",
+                "ListSmellsCommand.Info.Examples includes a --top example"
+            ],
+            "priority": 60,
+            "passes": false,
+            "notes": "P2. Source: FB-006 (feedback.json, 2026-05-15). Pure CLI surface — slice the result list after ranking, before JSON serialisation. No behavioural change to the analyser itself."
+        },
+        {
+            "id": "US-075",
+            "title": "make rt parallel-safe for agent dogfooding (feedback file, wrapper rebuild, deploy-skill, MSBuild obj)",
+            "description": "As an agent running /execute-style parallel rt invocations across worktrees, I want rt and its build/deploy plumbing to be safe under concurrency so that parallel dogfooding does not corrupt feedback.json, race the rt.cmd rebuild, fight deploy-skill Copy-Item, or trip MSBuild obj/Debug file locks.",
+            "acceptanceCriteria": [
+                "rt feedback add is safe under concurrent invocation: parallel calls each get a unique FB-id and every entry is persisted (regression test runs N parallel `rt feedback add` and asserts N distinct ids + N items on disk)",
+                "Concurrent ./rt.cmd / rt.ps1 invocations after a source edit serialise on a build mutex so only one rebuild runs at a time; subsequent invocations wait then execute against the freshly built binary (no CS2012 / rt.exe copy-lock warnings)",
+                "deploy-skill Copy-Item retries on file-lock with bounded backoff, or skips with a clear stderr message when the destination is locked by a concurrent build (no unhandled IOException)",
+                "Read-only `rt analyze …` commands accept a flag (e.g. --isolated-obj) or unconditionally redirect BaseIntermediateOutputPath to a per-process temp dir so parallel analyses do not race on shared obj/Debug files",
+                "Integration test exercises FB-007/FB-008/FB-013 reproduction scenarios in parallel and confirms no exceptions and no MSBuild lock warnings on stderr",
+                "Documentation update in AGENTS.md and CLAUDE.md noting that rt is now parallel-safe for agent use"
+            ],
+            "priority": 70,
+            "passes": false,
+            "notes": "P2. Source cluster: FB-007, FB-008, FB-012, FB-013 (feedback.json, 2026-05-15). Four distinct race sites but one story — each is a small fix and they share the same trigger (parallel agent invocation). Implementation order: (1) feedback file mutex (FileStream with FileShare.None + retry loop on id allocation), (2) rt.cmd build mutex via named mutex around dotnet build, (3) deploy-skill retry, (4) MSBuildWorkspace BaseIntermediateOutputPath isolation for read-only commands."
         }
     ]
 }

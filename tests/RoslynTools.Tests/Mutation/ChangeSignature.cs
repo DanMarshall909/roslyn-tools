@@ -2,11 +2,15 @@ using Microsoft.CodeAnalysis;
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Services;
+using RoslynTools.Tests.Infrastructure;
 
 namespace RoslynTools.Tests.Mutation;
 
-public class ChangeSignature
+public class ChangeSignature : IClassFixture<RtServicesFixture>
 {
+    private readonly RtServicesFixture _services;
+    public ChangeSignature(RtServicesFixture services) => _services = services;
+
     [Fact]
     public async Task renames_a_parameter_and_updates_named_arguments()
     {
@@ -286,10 +290,7 @@ public class ChangeSignature
         Assert.Contains(ChangeSignatureCommand.Info.Examples,
             example => example.Contains("rename-param", StringComparison.Ordinal));
 
-        var command = new ChangeSignatureCommand(
-            IWorkspaceSessionFactory.CreateDefault(),
-            new ChangeSignatureService(),
-            ISolutionChangeWriter.CreateDefault()).Build();
+        var command = _services.Resolve<ChangeSignatureCommand>().Build();
         var renameParam = command.Subcommands.Single(subcommand => subcommand.Name == "rename-param");
 
         Assert.Equal("change-signature", command.Name);
@@ -468,10 +469,7 @@ public class ChangeSignature
     [Fact]
     public void registers_the_reorder_subcommand()
     {
-        var command = new ChangeSignatureCommand(
-            IWorkspaceSessionFactory.CreateDefault(),
-            new ChangeSignatureService(),
-            ISolutionChangeWriter.CreateDefault()).Build();
+        var command = _services.Resolve<ChangeSignatureCommand>().Build();
         var reorder = command.Subcommands.Single(sub => sub.Name == "reorder");
 
         Assert.Equal(["methodSpec", "order"], reorder.Arguments.Select(a => a.Name));
@@ -1719,10 +1717,7 @@ public class ChangeSignature
     [Fact]
     public void registers_add_param_and_remove_param_subcommands()
     {
-        var command = new ChangeSignatureCommand(
-            IWorkspaceSessionFactory.CreateDefault(),
-            new ChangeSignatureService(),
-            ISolutionChangeWriter.CreateDefault()).Build();
+        var command = _services.Resolve<ChangeSignatureCommand>().Build();
 
         var addParam = command.Subcommands.Single(subcommand => subcommand.Name == "add-param");
         var removeParam = command.Subcommands.Single(subcommand => subcommand.Name == "remove-param");

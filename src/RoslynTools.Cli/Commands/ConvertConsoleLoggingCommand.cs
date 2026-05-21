@@ -162,7 +162,7 @@ internal sealed class ConvertConsoleLoggingCommand : IRtCommand
         if (injectLogger)
             return ApplyWithLoggerInjectionAsync(solution, options, dryRun, loggerDependency, loggerField);
 
-        return ConsoleLoggingCore.RunAsync(solution, options, dryRun);
+        return ConsoleLoggingCore.RunAsync(solution, options, dryRun, _solutionChangeWriter);
     }
 
     private static ConsoleLoggingStream ParseStream(string stream)
