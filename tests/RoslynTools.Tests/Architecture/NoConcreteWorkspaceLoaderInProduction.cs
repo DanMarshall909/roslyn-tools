@@ -11,7 +11,7 @@ namespace RoslynTools.Tests.Architecture;
 /// </summary>
 public sealed class NoConcreteWorkspaceLoaderInProduction
 {
-    [Fact(Skip = "EP-008/US-053: unskip once the migration to IWorkspaceSessionFactory completes.")]
+    [Fact]
     public void production_code_does_not_reference_concrete_workspace_loader()
     {
         var srcDir = LocateSrcDirectory();
@@ -24,12 +24,14 @@ public sealed class NoConcreteWorkspaceLoaderInProduction
             if (file.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase)) continue;
             if (file.EndsWith(".g.i.cs", StringComparison.OrdinalIgnoreCase)) continue;
 
-            // The WorkspaceLoader class itself, and the IWorkspaceSessionFactory file
-            // (which hosts the sanctioned CreateDefault factory), are allowed to
-            // reference the concrete type.
+            // Sanctioned references to the concrete type:
+            //  - WorkspaceLoader.cs declares the class
+            //  - IWorkspaceSessionFactory.cs hosts the CreateDefault factory
+            //  - Bootstrap.cs is the composition root that wires the interface to the impl
             var fileName = Path.GetFileName(file);
             if (fileName.Equals("WorkspaceLoader.cs", StringComparison.OrdinalIgnoreCase)) continue;
             if (fileName.Equals("IWorkspaceSessionFactory.cs", StringComparison.OrdinalIgnoreCase)) continue;
+            if (fileName.Equals("Bootstrap.cs", StringComparison.OrdinalIgnoreCase)) continue;
 
             var source = File.ReadAllText(file);
             var tree = CSharpSyntaxTree.ParseText(source);

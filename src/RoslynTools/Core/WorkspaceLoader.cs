@@ -75,12 +75,13 @@ internal sealed class WorkspaceLoader : IWorkspaceSessionFactory, IDisposable
         return (workspace, solution);
     }
 
-    // ── Static API (backward-compat for not-yet-migrated commands) ──────────
+    // ── Static API (test-only convenience) ─────────────────────────────────
 
     /// <summary>
-    ///     Loads a fresh workspace and solution. Caller owns the returned workspace and must
-    ///     dispose it. Prefer the DI-injected <see cref="WorkspaceLoader" /> and
-    ///     <see cref="GetSolutionAsync" /> for new code.
+    ///     Test-only convenience for smoke tests and architecture checks that need a
+    ///     one-liner load without the DI ceremony. Caller owns the returned workspace
+    ///     and must dispose it. Production code must use <see cref="IWorkspaceSessionFactory" />
+    ///     — the <c>NoStaticWorkspaceLoaderUse</c> architecture gate enforces this.
     /// </summary>
     internal static async Task<(Workspace Workspace, Solution Solution)> LoadAsync(string? solutionPath)
     {

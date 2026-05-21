@@ -11,7 +11,7 @@ namespace RoslynTools.Tests.Architecture;
 /// </summary>
 public sealed class NoDirectSolutionWriterUse
 {
-    [Fact(Skip = "EP-008/US-054: unskip once the direct SolutionWriter.ApplyChangesAsync sites migrate to ISolutionChangeWriter.")]
+    [Fact]
     public void production_code_does_not_call_static_solution_writer_apply_changes_async()
     {
         var srcDir = LocateSrcDirectory();
