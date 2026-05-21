@@ -9,8 +9,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class MakeAsyncCommand : IRtCommand
 {
-    private MakeAsyncCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly MakeAsyncService _makeAsync;
+    public MakeAsyncCommand(IWorkspaceSessionFactory sessionFactory, MakeAsyncService makeAsync)
     {
+        _makeAsync = makeAsync;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -29,7 +33,7 @@ internal sealed class MakeAsyncCommand : IRtCommand
         ]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var typeOpt = new Option<string>("--type", "Class containing the method") { IsRequired = true };
         var methodOpt = new Option<string>("--method", "Method name to make async") { IsRequired = true };
@@ -53,13 +57,13 @@ internal sealed class MakeAsyncCommand : IRtCommand
     /// <summary>
     /// Executes the MakeAsyncCommand with async parameters
     /// </summary>
-    internal static async Task ExecuteAsync(string typeName, string methodName, bool noRename, string? solutionPath,
+    internal async Task ExecuteAsync(string typeName, string methodName, bool noRename, string? solutionPath,
         bool dryRun)
     {
-        var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solutionPath);
+        var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
         using (workspace)
         {
-            await RtServiceProvider.Get<MakeAsyncService>().RunAsync(sln, typeName, methodName, noRename, dryRun);
+            await _makeAsync.RunAsync(sln, typeName, methodName, noRename, dryRun);
         }
     }
 }
