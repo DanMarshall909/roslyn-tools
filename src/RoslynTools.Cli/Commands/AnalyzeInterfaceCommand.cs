@@ -12,8 +12,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class AnalyzeInterfaceCommand : IRtCommand, IStructuredOutputCommand
 {
-    private AnalyzeInterfaceCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly AnalyzeInterfaceService _analyzeInterface;
+    public AnalyzeInterfaceCommand(IWorkspaceSessionFactory sessionFactory, AnalyzeInterfaceService analyzeInterface)
     {
+        _analyzeInterface = analyzeInterface;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -29,7 +33,7 @@ internal sealed class AnalyzeInterfaceCommand : IRtCommand, IStructuredOutputCom
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]);
 
-    public static Command Build()
+    public Command Build()
     {
         var interfaceArg = new Argument<string>("interface", "Interface symbol to analyze");
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln/.slnx file");
@@ -47,10 +51,10 @@ internal sealed class AnalyzeInterfaceCommand : IRtCommand, IStructuredOutputCom
 
         cmd.SetHandler(async (interfaceSpec, solution, scope, includeTests, suggest) =>
         {
-            var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
+            var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
             using (workspace)
             {
-                var report = await RtServiceProvider.Get<AnalyzeInterfaceService>().AnalyzeAsync(
+                var report = await _analyzeInterface.AnalyzeAsync(
                     sln,
                     interfaceSpec,
                     new AnalyzeInterfaceOptions(scope, includeTests, suggest));

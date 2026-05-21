@@ -5,13 +5,16 @@ using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Models;
 using RoslynTools.Services;
+using RoslynTools.Tests.Infrastructure;
 
 namespace RoslynTools.Tests.Analysis;
 
-public sealed class AnalyzeInterface : IDisposable
+public sealed class AnalyzeInterface : IClassFixture<RtServicesFixture>, IDisposable
 {
-    public AnalyzeInterface()
+    private readonly RtServicesFixture _services;
+    public AnalyzeInterface(RtServicesFixture services)
     {
+        _services = services;
         RtContext.Format = OutputFormat.Text;
     }
 
@@ -227,7 +230,7 @@ public sealed class AnalyzeInterface : IDisposable
     {
         Assert.Contains(App.Commands, entry => entry.Info.Name == "analyze-interface");
 
-        var command = AnalyzeInterfaceCommand.Build();
+        var command = _services.Resolve<AnalyzeInterfaceCommand>().Build();
 
         Assert.Contains(command.Arguments, argument => argument.Name == "interface");
         Assert.Contains(command.Options, option => option.Name == "solution");
@@ -247,7 +250,7 @@ public sealed class AnalyzeInterface : IDisposable
     [Fact]
     public async Task registers_suggest_flag_on_the_command()
     {
-        var command = AnalyzeInterfaceCommand.Build();
+        var command = _services.Resolve<AnalyzeInterfaceCommand>().Build();
         Assert.Contains(command.Options, option => option.Name == "suggest");
     }
 
