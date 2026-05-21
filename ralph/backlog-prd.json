@@ -684,6 +684,26 @@
             "passes": false,
             "epicId": "EP-006",
             "notes": "P2. Surfaced during EP-008/US-053 dogfood at branch ep-008-isessionfactory. Three bundled defects: (1) base-list insertion is malformed -- 'IDisposable\\n,IWorkspaceLoader{' (no space, brace adjacent); (2) generated interface is hardcoded public regardless of source class accessibility (internal sealed class WorkspaceLoader yielded public interface IWorkspaceLoader); (3) only public members are extracted, missing internal GetSolutionAsync/LoadWorkspaceAsync from WorkspaceLoader. Repro: rt refactor extract-interface --type WorkspaceLoader --solution RoslynTools.slnx --dry-run. Forced fallback to hand-authoring IWorkspaceSessionFactory."
+        },
+        {
+            "id": "US-072",
+            "title": "Eliminate RtServiceProvider.Get<T> service locator in favour of ctor injection",
+            "description": "As a roslyn-tools developer, I want commands to depend on services via constructor injection so the ambient service-locator anti-pattern (RtServiceProvider.Get<T>()) disappears and command dependencies become explicit and testable.",
+            "acceptanceCriteria": [
+                "IRtCommand contract revised to support instance classes — each command class is constructed by the DI container with required services injected via the constructor; the static Build() pattern is replaced with an instance Build() that closes over the injected services",
+                "App.Discover (or its replacement) resolves each command via the service provider rather than calling a static factory",
+                "All ~50 commands under src/RoslynTools.Cli/Commands/ (and src/RoslynTools.Cli/CommandHandlers/) refactored to declare their service dependencies as constructor parameters and reference them via private readonly fields",
+                "All 64 RtServiceProvider.Get<T>() and RtServiceProvider.GetOrDefault<T>(…) call sites removed from src/",
+                "RtServiceProvider class deleted (or kept only if it has remaining non-Get callers, e.g. the AsyncLocal Use scope; document the remaining surface in that case)",
+                "New architecture gate NoRtServiceProviderInProduction added under tests/RoslynTools.Tests/Architecture/, mirroring NoConcreteWorkspaceLoaderInProduction; flags any production reference to RtServiceProvider.Get or .GetOrDefault outside the class declaration itself",
+                "rt dump-help startup succeeds, every command listed, every Info.Examples invocation still works end-to-end (dogfood smoke matrix)",
+                "All existing tests pass; mutation tests that previously relied on WorkspaceLoader.UseOverride continue to pass via the same AsyncLocal hook",
+                "dotnet build, dotnet format --verify-no-changes, and the full test suite all clean"
+            ],
+            "priority": 76,
+            "passes": false,
+            "epicId": "EP-008",
+            "notes": "P2. Follow-on from EP-008 (US-053/US-054). Scope: 64 RtServiceProvider.Get/GetOrDefault call sites across 46 files. Approach approved 2026-05-21: convert IRtCommand from static Build() factory to instance class so DI can ctor-inject services. App.Discover resolves each command via the service provider. RtServiceProvider class deleted (or shrunk to just the AsyncLocal Use scope if needed). New NoRtServiceProviderInProduction architecture gate mirrors NoConcreteWorkspaceLoaderInProduction. Trunk-based delivery."
         }
     ]
 }

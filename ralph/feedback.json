@@ -3932,6 +3932,104 @@
         "solution": "RoslynTools.slnx",
         "symbol": "SolutionWriter"
       }
+    },
+    {
+      "id": "FB-212",
+      "type": "exception",
+      "timestamp": "2026-05-21T00:25:33.2063843\u002B00:00",
+      "commandLine": "refactor add-xml-doc --from-json C:\\Users\\DanMarshall\\AppData\\Local\\Temp\\bad-json-1a7c15b8965a4894859841601f5eeaa3.json --solution C:\\code\\roslyn-tools\\RoslynTools.slnx",
+      "description": "\u0027t\u0027 is an invalid start of a property name. Expected a \u0027\u0022\u0027. Path: $ | LineNumber: 0 | BytePositionInLine: 2.",
+      "actualResult": "JsonException: \u0027t\u0027 is an invalid start of a property name. Expected a \u0027\u0022\u0027. Path: $ | LineNumber: 0 | BytePositionInLine: 2.",
+      "stackTrace": "System.Text.Json.JsonException: \u0027t\u0027 is an invalid start of a property name. Expected a \u0027\u0022\u0027. Path: $ | LineNumber: 0 | BytePositionInLine: 2.\r\n ---\u003E System.Text.Json.JsonReaderException: \u0027t\u0027 is an invalid start of a property name. Expected a \u0027\u0022\u0027. LineNumber: 0 | BytePositionInLine: 2.\r\n   at System.Text.Json.ThrowHelper.ThrowJsonReaderException(Utf8JsonReader\u0026 json, ExceptionResource resource, Byte nextByte, ReadOnlySpan\u00601 bytes)\r\n   at System.Text.Json.Utf8JsonReader.ReadSingleSegment()\r\n   at System.Text.Json.Utf8JsonReader.Read()\r\n   at System.Text.Json.Serialization.JsonDictionaryConverter\u00603.OnTryRead(Utf8JsonReader\u0026 reader, Type typeToConvert, JsonSerializerOptions options, ReadStack\u0026 state, TDictionary\u0026 value)\r\n   at System.Text.Json.Serialization.JsonConverter\u00601.TryRead(Utf8JsonReader\u0026 reader, Type typeToConvert, JsonSerializerOptions options, ReadStack\u0026 state, T\u0026 value, Boolean\u0026 isPopulatedValue)\r\n   at System.Text.Json.Serialization.JsonConverter\u00601.ReadCore(Utf8JsonReader\u0026 reader, T\u0026 value, JsonSerializerOptions options, ReadStack\u0026 state)\r\n   --- End of inner exception stack trace ---\r\n   at System.Text.Json.ThrowHelper.ReThrowWithPath(ReadStack\u0026 state, JsonReaderException ex)\r\n   at System.Text.Json.Serialization.JsonConverter\u00601.ReadCore(Utf8JsonReader\u0026 reader, T\u0026 value, JsonSerializerOptions options, ReadStack\u0026 state)\r\n   at System.Text.Json.Serialization.Metadata.JsonTypeInfo\u00601.Deserialize(Utf8JsonReader\u0026 reader, ReadStack\u0026 state)\r\n   at System.Text.Json.JsonSerializer.ReadFromSpan[TValue](ReadOnlySpan\u00601 utf8Json, JsonTypeInfo\u00601 jsonTypeInfo, Nullable\u00601 actualByteCount)\r\n   at System.Text.Json.JsonSerializer.ReadFromSpan[TValue](ReadOnlySpan\u00601 json, JsonTypeInfo\u00601 jsonTypeInfo)\r\n   at System.Text.Json.JsonSerializer.Deserialize[TValue](String json, JsonSerializerOptions options)\r\n   at RoslynTools.Commands.AddXmlDocCommand.\u003C\u003Ec.\u003C\u003CBuild\u003Eb__5_0\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\AddXmlDocCommand.cs:line 48\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass5_0.\u003C\u003CRunAsync\u003Eb__4\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 207",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools",
+      "rtVersion": "1.0.0\u002B0f8a8d7ac149f17abb91a495b9530d85d3944db2",
+      "dotnetVersion": "8.0.27",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "C:\\code\\roslyn-tools\\RoslynTools.slnx",
+      "innerExceptions": [
+        "JsonReaderException: \u0027t\u0027 is an invalid start of a property name. Expected a \u0027\u0022\u0027. LineNumber: 0 | BytePositionInLine: 2."
+      ],
+      "parsedOptions": {
+        "from-json": "C:\\Users\\DanMarshall\\AppData\\Local\\Temp\\bad-json-1a7c15b8965a4894859841601f5eeaa3.json",
+        "solution": "C:\\code\\roslyn-tools\\RoslynTools.slnx"
+      }
+    },
+    {
+      "id": "FB-213",
+      "type": "exception",
+      "timestamp": "2026-05-21T00:25:33.5704044\u002B00:00",
+      "commandLine": "inspect describe Foo --solution C:\\code\\roslyn-tools\\RoslynTools.slnx --decisions C:\\Users\\DanMarshall\\AppData\\Local\\Temp\\bad-yaml-d0fed7b0b60a47f5b6b951da539711a5.yaml",
+      "description": "Expected \u0027SequenceStart\u0027, got \u0027MappingStart\u0027 (at Line: 1, Col: 1, Idx: 0).",
+      "actualResult": "YamlException: Expected \u0027SequenceStart\u0027, got \u0027MappingStart\u0027 (at Line: 1, Col: 1, Idx: 0).",
+      "stackTrace": "(Line: 1, Col: 1, Idx: 0) - (Line: 1, Col: 1, Idx: 0): Expected \u0027SequenceStart\u0027, got \u0027MappingStart\u0027 (at Line: 1, Col: 1, Idx: 0).",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools",
+      "rtVersion": "1.0.0\u002B0f8a8d7ac149f17abb91a495b9530d85d3944db2",
+      "dotnetVersion": "8.0.27",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "C:\\code\\roslyn-tools\\RoslynTools.slnx",
+      "parsedOptions": {
+        "solution": "C:\\code\\roslyn-tools\\RoslynTools.slnx"
+      }
+    },
+    {
+      "id": "FB-214",
+      "type": "exception",
+      "timestamp": "2026-05-21T00:25:34.1340160\u002B00:00",
+      "commandLine": "inspect describe Foo --solution C:\\Users\\DanMarshall\\AppData\\Local\\Temp\\does-not-exist-478ab16f88904e428c2d2e8a1999f881.slnx",
+      "description": "Solution not found: C:\\Users\\DanMarshall\\AppData\\Local\\Temp\\does-not-exist-478ab16f88904e428c2d2e8a1999f881.slnx",
+      "actualResult": "FileNotFoundException: Solution not found: C:\\Users\\DanMarshall\\AppData\\Local\\Temp\\does-not-exist-478ab16f88904e428c2d2e8a1999f881.slnx",
+      "stackTrace": "System.IO.FileNotFoundException: Solution not found: C:\\Users\\DanMarshall\\AppData\\Local\\Temp\\does-not-exist-478ab16f88904e428c2d2e8a1999f881.slnx\r\nFile name: \u0027C:\\Users\\DanMarshall\\AppData\\Local\\Temp\\does-not-exist-478ab16f88904e428c2d2e8a1999f881.slnx\u0027\r\n   at RoslynTools.Core.WorkspaceLoader.LoadCoreAsync(String solutionPath) in C:\\code\\roslyn-tools\\src\\RoslynTools\\Core\\WorkspaceLoader.cs:line 102\r\n   at RoslynTools.Core.WorkspaceLoader.GetSolutionAsync(String solutionPath) in C:\\code\\roslyn-tools\\src\\RoslynTools\\Core\\WorkspaceLoader.cs:line 57\r\n   at RoslynTools.Commands.DescribeCommand.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuild\u003Eb__0\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\DescribeCommand.cs:line 54\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass5_0.\u003C\u003CRunAsync\u003Eb__4\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 207",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools",
+      "rtVersion": "1.0.0\u002B0f8a8d7ac149f17abb91a495b9530d85d3944db2",
+      "dotnetVersion": "8.0.27",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "C:\\Users\\DanMarshall\\AppData\\Local\\Temp\\does-not-exist-478ab16f88904e428c2d2e8a1999f881.slnx",
+      "parsedOptions": {
+        "solution": "C:\\Users\\DanMarshall\\AppData\\Local\\Temp\\does-not-exist-478ab16f88904e428c2d2e8a1999f881.slnx"
+      }
+    },
+    {
+      "id": "FB-215",
+      "type": "exception",
+      "timestamp": "2026-05-21T00:25:38.3512614\u002B00:00",
+      "commandLine": "analyze analyze-interface RoslynTools.App --solution C:\\code\\roslyn-tools\\RoslynTools.slnx",
+      "description": "\u0027RoslynTools.App\u0027 is not an interface; resolved type kind was Class.",
+      "actualResult": "InvalidOperationException: \u0027RoslynTools.App\u0027 is not an interface; resolved type kind was Class.",
+      "stackTrace": "System.InvalidOperationException: \u0027RoslynTools.App\u0027 is not an interface; resolved type kind was Class.\r\n   at RoslynTools.Services.AnalyzeInterfaceService.ResolveInterfaceAsync(Solution solution, String interfaceSymbolSpec) in C:\\code\\roslyn-tools\\src\\RoslynTools\\Services\\AnalyzeInterfaceService.cs:line 203\r\n   at RoslynTools.Services.AnalyzeInterfaceService.AnalyzeAsync(Solution solution, String interfaceSymbolSpec, AnalyzeInterfaceOptions options) in C:\\code\\roslyn-tools\\src\\RoslynTools\\Services\\AnalyzeInterfaceService.cs:line 41\r\n   at RoslynTools.Commands.AnalyzeInterfaceCommand.\u003C\u003Ec.\u003C\u003CBuild\u003Eb__4_2\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\AnalyzeInterfaceCommand.cs:line 53\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass5_0.\u003C\u003CRunAsync\u003Eb__4\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 207",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools",
+      "rtVersion": "1.0.0\u002B0f8a8d7ac149f17abb91a495b9530d85d3944db2",
+      "dotnetVersion": "8.0.27",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "C:\\code\\roslyn-tools\\RoslynTools.slnx",
+      "parsedOptions": {
+        "solution": "C:\\code\\roslyn-tools\\RoslynTools.slnx",
+        "include-tests": "False",
+        "suggest": "False"
+      }
+    },
+    {
+      "id": "FB-216",
+      "type": "exception",
+      "timestamp": "2026-05-21T00:25:40.7710683\u002B00:00",
+      "commandLine": "analyze-interface Demo.Contracts.ConcreteWorker --solution ignored",
+      "description": "\u0027Demo.Contracts.ConcreteWorker\u0027 is not an interface; resolved type kind was Class.",
+      "actualResult": "InvalidOperationException: \u0027Demo.Contracts.ConcreteWorker\u0027 is not an interface; resolved type kind was Class.",
+      "stackTrace": "System.InvalidOperationException: \u0027Demo.Contracts.ConcreteWorker\u0027 is not an interface; resolved type kind was Class.\r\n   at RoslynTools.Services.AnalyzeInterfaceService.ResolveInterfaceAsync(Solution solution, String interfaceSymbolSpec) in C:\\code\\roslyn-tools\\src\\RoslynTools\\Services\\AnalyzeInterfaceService.cs:line 203\r\n   at RoslynTools.Services.AnalyzeInterfaceService.AnalyzeAsync(Solution solution, String interfaceSymbolSpec, AnalyzeInterfaceOptions options) in C:\\code\\roslyn-tools\\src\\RoslynTools\\Services\\AnalyzeInterfaceService.cs:line 41\r\n   at RoslynTools.Commands.AnalyzeInterfaceCommand.\u003C\u003Ec.\u003C\u003CBuild\u003Eb__4_2\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\AnalyzeInterfaceCommand.cs:line 53\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass5_0.\u003C\u003CRunAsync\u003Eb__4\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 207",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net8.0\\win-x64",
+      "rtVersion": "1.0.0\u002B0f8a8d7ac149f17abb91a495b9530d85d3944db2",
+      "dotnetVersion": "8.0.27",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored",
+        "include-tests": "False",
+        "suggest": "False"
+      }
     }
   ]
 }
