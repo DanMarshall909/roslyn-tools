@@ -10,8 +10,12 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class RenameCommand : IRtCommand
 {
-    private RenameCommand()
+    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly RenameService _rename;
+    public RenameCommand(IWorkspaceSessionFactory sessionFactory, RenameService rename)
     {
+        _rename = rename;
+        _sessionFactory = sessionFactory;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -31,7 +35,7 @@ internal sealed class RenameCommand : IRtCommand
         ]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var symbolArg = new Argument<string?>("symbol", () => null, "Fully-qualified symbol name to rename.")
         {
@@ -54,19 +58,19 @@ internal sealed class RenameCommand : IRtCommand
 
         cmd.SetHandler(async (symbol, newName, solution, kind, csv, dryRun) =>
             {
-                var (workspace, sln) = await RtServiceProvider.GetOrDefault(IWorkspaceSessionFactory.CreateDefault).LoadWorkspaceAsync(solution);
+                var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
                 using (workspace)
                 {
                     if (!string.IsNullOrWhiteSpace(csv))
                     {
-                        await RtServiceProvider.Get<RenameService>().ExecuteBatchAsync(sln, csv, dryRun);
+                        await _rename.ExecuteBatchAsync(sln, csv, dryRun);
                         return;
                     }
 
                     if (string.IsNullOrWhiteSpace(symbol) || string.IsNullOrWhiteSpace(newName))
                         throw new InvalidOperationException("Provide either <symbol> <new-name> or --csv <path>.");
 
-                    await RtServiceProvider.Get<RenameService>().ExecuteSingleAsync(sln, symbol, newName, kind, dryRun);
+                    await _rename.ExecuteSingleAsync(sln, symbol, newName, kind, dryRun);
                 }
             },
             symbolArg, newNameArg, solutionOpt, kindOpt, csvOpt, dryRunOpt);
@@ -76,31 +80,12 @@ internal sealed class RenameCommand : IRtCommand
         return cmd;
     }
 
-    // Forwarding stubs kept for backwards compatibility
-    /// <summary>
-    /// Asynchronously renames symbols in the solution with additional parameters.
-    /// </summary>
-    internal static Task<Solution> RenameAsync(
-        Solution sln, string symbol, string newName, string? kind)
-    {
-        return RtServiceProvider.Get<RenameService>().RenameAsync(sln, symbol, newName, kind);
-    }
-
-    /// <summary>
-    /// Asynchronously renames a single symbol in the solution.
-    /// </summary>
-    internal static Task ExecuteSingleAsync(
-        Solution sln, string symbol, string newName, string? kind, bool dryRun)
-    {
-        return RtServiceProvider.Get<RenameService>().ExecuteSingleAsync(sln, symbol, newName, kind, dryRun);
-    }
-
     /// <summary>
     /// Asynchronously renames multiple symbols in the solution.
     /// </summary>
-    internal static Task ExecuteBatchAsync(
+    internal Task ExecuteBatchAsync(
         Solution sln, string csvPath, bool dryRun)
     {
-        return RtServiceProvider.Get<RenameService>().ExecuteBatchAsync(sln, csvPath, dryRun);
+        return _rename.ExecuteBatchAsync(sln, csvPath, dryRun);
     }
 }

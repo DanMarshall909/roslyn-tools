@@ -1,11 +1,15 @@
 using Microsoft.CodeAnalysis.Rename;
 using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Tests.Infrastructure;
 
 namespace RoslynTools.Tests.Mutation;
 
-public class Rename
+public class Rename : IClassFixture<RtServicesFixture>
 {
+    private readonly RtServicesFixture _services;
+    public Rename(RtServicesFixture services) => _services = services;
+
     [Fact]
     public async Task updates_the_declaration_and_references()
     {
@@ -32,7 +36,7 @@ public class Rename
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.Product", "type");
+            var sym = await RoslynTools.Core.SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.Product", "type");
 
             var options = new SymbolRenameOptions(
                 false,
@@ -42,7 +46,7 @@ public class Rename
 
             var newSln = await Renamer.RenameSymbolAsync(sln, sym, options, "Item");
 
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await RoslynTools.Core.SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var modelContent = await project.ReadSourceAsync("Model.cs");
@@ -83,7 +87,7 @@ public class Rename
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.StringHelper.Sanitize", "method");
+            var sym = await RoslynTools.Core.SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.StringHelper.Sanitize", "method");
 
             var options = new SymbolRenameOptions(
                 false,
@@ -92,7 +96,7 @@ public class Rename
                 false);
 
             var newSln = await Renamer.RenameSymbolAsync(sln, sym, options, "Clean");
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
+            await RoslynTools.Core.SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var utilContent = await project.ReadSourceAsync("Util.cs");
@@ -121,7 +125,7 @@ public class Rename
 
         using (workspace)
         {
-            var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.Foo", "type");
+            var sym = await RoslynTools.Core.SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.Foo", "type");
 
             var options = new SymbolRenameOptions(
                 false,
@@ -130,7 +134,7 @@ public class Rename
                 false);
 
             var newSln = await Renamer.RenameSymbolAsync(sln, sym, options, "Bar");
-            await SolutionWriter.ApplyChangesAsync(sln, newSln, true);
+            await RoslynTools.Core.SolutionWriter.ApplyChangesAsync(sln, newSln, true);
         }
 
         var afterContent = await project.ReadSourceAsync("Original.cs");
@@ -216,7 +220,7 @@ public class Rename
         using (workspace)
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                RenameCommand.ExecuteBatchAsync(sln, csvPath, true));
+                _services.Resolve<RenameCommand>().ExecuteBatchAsync(sln, csvPath, true));
 
             Assert.Contains("review column", ex.Message);
         }
