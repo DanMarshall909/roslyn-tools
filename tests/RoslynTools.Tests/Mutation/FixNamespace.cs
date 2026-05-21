@@ -1,10 +1,14 @@
 using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Tests.Infrastructure;
 
 namespace RoslynTools.Tests.Mutation;
 
-public class FixNamespace
+public class FixNamespace : IClassFixture<RtServicesFixture>
 {
+    private readonly RtServicesFixture _services;
+    public FixNamespace(RtServicesFixture services) => _services = services;
+
     [Fact]
     public async Task updates_declaration_to_match_path()
     {
@@ -22,7 +26,7 @@ public class FixNamespace
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await FixNamespaceCommand.ExecuteAsync(
+            await _services.Resolve<FixNamespaceCommand>().ExecuteAsync(
                 Path.Combine(project.ProjectDir, "Services", "AgentService.cs"),
                 "ignored",
                 false);
@@ -50,7 +54,7 @@ public class FixNamespace
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await FixNamespaceCommand.ExecuteAsync(
+            await _services.Resolve<FixNamespaceCommand>().ExecuteAsync(
                 Path.Combine(project.ProjectDir, "Services", "AgentService.cs"),
                 "ignored",
                 false);
@@ -86,7 +90,7 @@ public class FixNamespace
         {
             using (WorkspaceLoader.UseOverride(workspace, sln))
             {
-                await FixNamespaceCommand.ExecuteAsync(
+                await _services.Resolve<FixNamespaceCommand>().ExecuteAsync(
                     Path.Combine(project.ProjectDir, "Services", "AgentService.cs"),
                     "ignored",
                     true);

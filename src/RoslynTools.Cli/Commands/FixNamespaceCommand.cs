@@ -9,8 +9,10 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class FixNamespaceCommand : IRtCommand
 {
-    private FixNamespaceCommand()
+    private readonly FixNamespaceService _fixNamespace;
+    public FixNamespaceCommand(FixNamespaceService fixNamespace)
     {
+        _fixNamespace = fixNamespace;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -29,7 +31,7 @@ internal sealed class FixNamespaceCommand : IRtCommand
         ]
     );
 
-    public static Command Build()
+    public Command Build()
     {
         var fileOpt = CommandOptionFactory.CreateStringOption("--file", "Path to the .cs file to fix");
         var solutionOpt = CommandOptionFactory.CreateSolutionOption();
@@ -42,7 +44,7 @@ internal sealed class FixNamespaceCommand : IRtCommand
         cmd.SetHandler(
             async (file, solution, dryRun) =>
             {
-                await RtServiceProvider.Get<FixNamespaceService>().ExecuteAsync(file, solution, dryRun);
+                await _fixNamespace.ExecuteAsync(file, solution, dryRun);
             }, fileOpt, solutionOpt, dryRunOpt);
 
         return cmd;
@@ -51,8 +53,8 @@ internal sealed class FixNamespaceCommand : IRtCommand
     /// <summary>
     /// Executes the FixNamespaceCommand with async parameters
     /// </summary>
-    internal static Task ExecuteAsync(string filePath, string? solutionPath, bool dryRun)
+    internal Task ExecuteAsync(string filePath, string? solutionPath, bool dryRun)
     {
-        return RtServiceProvider.Get<FixNamespaceService>().ExecuteAsync(filePath, solutionPath, dryRun);
+        return _fixNamespace.ExecuteAsync(filePath, solutionPath, dryRun);
     }
 }

@@ -122,7 +122,7 @@ public class LoggingRefactor : IClassFixture<RtServicesFixture>
         using (WorkspaceLoader.UseOverride(workspace, solution))
         using (Core.RtConsole.UseConsole(console))
         {
-            await FixNamespaceCommand.ExecuteAsync(
+            await _services.Resolve<FixNamespaceCommand>().ExecuteAsync(
                 Path.Combine(project.ProjectDir, "Services", "AgentService.cs"),
                 "ignored",
                 true);
