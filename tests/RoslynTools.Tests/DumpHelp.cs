@@ -2,6 +2,7 @@ using System.CommandLine;
 using System.Text;
 using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 using Shouldly;
 
 namespace RoslynTools.Tests;
@@ -334,5 +335,108 @@ public sealed class DumpHelp
         output.ShouldContain("## `rt inspect`", Case.Sensitive);
         output.ShouldContain("## `rt analyze`", Case.Sensitive);
         output.ShouldContain("## `rt refactor`", Case.Sensitive);
+    }
+
+    // ── RenderColouredCommandHeader (the `rt <cmd> --help` path; US-077) ──────────
+
+    private static string CaptureColouredHeader(RtCommandInfo info, string description)
+    {
+        var capture = new CapturingConsole();
+        using (Core.RtConsole.UseConsole(capture))
+        {
+            DumpHelpCommand.RenderColouredCommandHeader(info, description);
+        }
+        return capture.Text;
+    }
+
+    [Fact]
+    public void coloured_command_header_includes_when_to_use_and_examples()
+    {
+        var info = new RtCommandInfo(
+            "describe", Mutates: false, JsonOutput: true, Category: "inspect",
+            WhenToUse: "Use for symbol shape lookups.",
+            Examples: ["rt inspect describe Foo --solution x.slnx"]);
+
+        var output = CaptureColouredHeader(info, "Show type shape");
+
+        output.ShouldContain("rt describe", Case.Sensitive);
+        output.ShouldContain("Show type shape", Case.Sensitive);
+        output.ShouldContain("When to use:", Case.Sensitive);
+        output.ShouldContain("Use for symbol shape lookups.", Case.Sensitive);
+        output.ShouldContain("Examples:", Case.Sensitive);
+        output.ShouldContain("rt inspect describe Foo --solution x.slnx", Case.Sensitive);
+    }
+
+    [Fact]
+    public void coloured_command_header_renders_supported_formats_when_set()
+    {
+        var info = new RtCommandInfo(
+            "outline", Mutates: false, JsonOutput: true, Category: "inspect",
+            WhenToUse: "Outline a file.",
+            Examples: ["rt inspect outline file.cs --solution x.slnx"],
+            SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown]);
+
+        var output = CaptureColouredHeader(info, "List members");
+
+        output.ShouldContain("Output:", Case.Sensitive);
+        output.ShouldContain("Text", Case.Sensitive);
+        output.ShouldContain("Json", Case.Sensitive);
+        output.ShouldContain("Markdown", Case.Sensitive);
+    }
+
+    [Fact]
+    public void coloured_command_header_omits_supported_formats_when_unset()
+    {
+        var info = new RtCommandInfo(
+            "rename", Mutates: true, JsonOutput: false, Category: "refactor",
+            WhenToUse: "Rename a symbol.",
+            Examples: ["rt refactor rename A B --solution x.slnx"]);
+
+        var output = CaptureColouredHeader(info, "Rename symbol");
+
+        output.ShouldNotContain("Output:", Case.Sensitive);
+    }
+
+    [Fact]
+    public void coloured_command_header_renders_known_issues_when_present()
+    {
+        var info = new RtCommandInfo(
+            "move", Mutates: true, JsonOutput: false, Category: "refactor",
+            WhenToUse: "Move a type.",
+            Examples: ["rt refactor move --type T --to-namespace N --solution x.slnx"],
+            KnownIssues: ["fails on partial types", "rewrites whitespace"]);
+
+        var output = CaptureColouredHeader(info, "Move type");
+
+        output.ShouldContain("Known issues:", Case.Sensitive);
+        output.ShouldContain("fails on partial types", Case.Sensitive);
+        output.ShouldContain("rewrites whitespace", Case.Sensitive);
+    }
+
+    [Fact]
+    public void coloured_command_header_omits_known_issues_when_unset()
+    {
+        var info = new RtCommandInfo(
+            "describe", Mutates: false, JsonOutput: true, Category: "inspect",
+            WhenToUse: "Describe a symbol.",
+            Examples: ["rt inspect describe Foo --solution x.slnx"]);
+
+        var output = CaptureColouredHeader(info, "Describe symbol");
+
+        output.ShouldNotContain("Known issues:", Case.Sensitive);
+    }
+
+    private sealed class CapturingConsole : IRtConsole
+    {
+        private readonly StringBuilder _sb = new();
+        public bool IsOutputRedirected => false;
+        public TextWriter Out => Console.Out;
+        public string Text => _sb.ToString();
+        public void Log(RtLogLevel level, string template, params object?[] args) { }
+        public void WriteLine(RtOutputContext context, string message = "", ConsoleColor? color = null)
+            => _sb.AppendLine(message);
+        public void Write(RtOutputContext context, string message, ConsoleColor? color = null)
+            => _sb.Append(message);
+        public string? ReadLine() => null;
     }
 }

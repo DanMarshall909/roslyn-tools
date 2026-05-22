@@ -251,9 +251,20 @@ internal static class DumpHelpCommand
     }
 
     /// <summary>
-    /// Renders the command header with colored text.
+    /// Renders the command header with colored text. Shim that forwards to the
+    /// <see cref="RenderColouredCommandHeader(RtCommandInfo, string)"/> overload —
+    /// the latter is the unit-testable surface, free of <see cref="HelpContext"/>.
     /// </summary>
     internal static void RenderColouredCommandHeader(HelpContext ctx, RtCommandInfo info)
+        => RenderColouredCommandHeader(info, ctx.Command.Description ?? string.Empty);
+
+    /// <summary>
+    /// Renders the same rich content that <c>rt dump-help</c> emits for a single
+    /// command: name + aliases + read-only/writes flag, description, When-to-use,
+    /// Examples, supported output formats, and known-issues block. Drives the
+    /// <c>rt &lt;cmd&gt; --help</c> output via <see cref="App.BuildHelpLayout"/>.
+    /// </summary>
+    internal static void RenderColouredCommandHeader(RtCommandInfo info, string description)
     {
         RtConsole.WriteLine(RtOutputContext.Ui);
         RtConsole.Write(RtOutputContext.Ui, $"  rt {info.Name}", ConsoleColor.White);
@@ -262,7 +273,7 @@ internal static class DumpHelpCommand
         RtConsole.Write(RtOutputContext.Ui, info.Mutates ? "  writes" : "  read-only",
             info.Mutates ? ConsoleColor.DarkRed : ConsoleColor.DarkGreen);
         RtConsole.WriteLine(RtOutputContext.Ui);
-        RtConsole.WriteLine(RtOutputContext.Ui, $"  {ctx.Command.Description}", ConsoleColor.Gray);
+        RtConsole.WriteLine(RtOutputContext.Ui, $"  {description}", ConsoleColor.Gray);
         RtConsole.WriteLine(RtOutputContext.Ui);
         RtConsole.WriteLine(RtOutputContext.Ui, "  When to use:", ConsoleColor.White);
         RtConsole.WriteLine(RtOutputContext.Ui, $"  {info.WhenToUse}", ConsoleColor.Gray);
@@ -272,6 +283,23 @@ internal static class DumpHelpCommand
             RtConsole.WriteLine(RtOutputContext.Ui, "  Examples:", ConsoleColor.White);
             foreach (var ex in info.Examples)
                 RtConsole.WriteLine(RtOutputContext.Ui, $"    {ex}", ConsoleColor.DarkCyan);
+            RtConsole.WriteLine(RtOutputContext.Ui);
+        }
+
+        if (info.SupportedFormats is { Length: > 0 })
+        {
+            RtConsole.Write(RtOutputContext.Ui, "  Output: ", ConsoleColor.White);
+            RtConsole.WriteLine(RtOutputContext.Ui,
+                string.Join(", ", info.SupportedFormats.Select(f => f.ToString())),
+                ConsoleColor.Gray);
+            RtConsole.WriteLine(RtOutputContext.Ui);
+        }
+
+        if (info.KnownIssues is { Length: > 0 })
+        {
+            RtConsole.WriteLine(RtOutputContext.Ui, "  Known issues:", ConsoleColor.White);
+            foreach (var issue in info.KnownIssues)
+                RtConsole.WriteLine(RtOutputContext.Ui, $"    - {issue}", ConsoleColor.DarkYellow);
             RtConsole.WriteLine(RtOutputContext.Ui);
         }
 
