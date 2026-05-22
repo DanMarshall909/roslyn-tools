@@ -758,6 +758,21 @@
             "priority": 70,
             "passes": false,
             "notes": "P2. Source cluster: FB-007, FB-008, FB-012, FB-013 (feedback.json, 2026-05-15). Four distinct race sites but one story — each is a small fix and they share the same trigger (parallel agent invocation). Implementation order: (1) feedback file mutex (FileStream with FileShare.None + retry loop on id allocation), (2) rt.cmd build mutex via named mutex around dotnet build, (3) deploy-skill retry, (4) MSBuildWorkspace BaseIntermediateOutputPath isolation for read-only commands."
+        },
+        {
+            "id": "US-076",
+            "title": "stop capturing handled user-error exceptions to feedback.json",
+            "description": "As a roslyn-tools maintainer, I want App.CaptureExceptionAsync to skip exception types that App.TryHandleUserErrorAsync already maps to a clean exit-1 + stderr UX, so feedback.json only collects genuinely unexpected failures that need human triage — not the expected bad-input UX paths that the dogfood/integration harness exercises on every run.",
+            "acceptanceCriteria": [
+                "App.TryHandleUserErrorAsync (src/RoslynTools.Cli/App.cs:342) no longer calls CaptureExceptionAsync for exception types it already translates (FileNotFoundException, IOException, InvalidOperationException, JsonException, YamlException) — those are documented, expected user errors with a clean stderr message and exit 1; capturing them adds noise without adding signal",
+                "Exceptions that fall through TryHandleUserErrorAsync (return false → rethrow) ARE still captured to feedback.json — the unmapped path is the one that needs human triage",
+                "Running the bad-input integration scenarios (`refactor add-xml-doc --from-json <invalid.json>`, `inspect describe Foo --decisions <invalid.yaml>`, `inspect describe Foo --solution <missing.slnx>`, `analyze analyze-interface <non-interface>`) leaves feedback.json untouched — exit code is still 1, stderr is still the friendly message, but no FB-NNN entry is appended",
+                "Regression test added under tests/RoslynTools.Tests/Cli/ that runs one of the four scenarios end-to-end and asserts feedback.json count is unchanged",
+                "Existing tests pass; dotnet format --verify-no-changes clean"
+            ],
+            "priority": 65,
+            "passes": false,
+            "notes": "P3. Source cluster: FB-280 through FB-299 (feedback.json, 2026-05-22) — 5 repeated runs of 4 identical scenarios from a dogfood/integration harness that exercises bad-input UX paths. All four scenarios are already handled correctly by TryHandleUserErrorAsync (exit 1 + stderr); the only output of those captures was 20 lines of feedback.json noise. Implementation: invert the order in TryHandleUserErrorAsync — only capture when the exception is NOT in the handled set (i.e. capture inside the trailing `return false` branch, not at the top). The 20 FB-280..FB-299 entries themselves are discarded; this story will be the audit trail."
         }
     ]
 }
