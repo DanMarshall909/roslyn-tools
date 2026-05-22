@@ -22,7 +22,14 @@ coverage/
 StrykerOutput/
 
 ## Claude Code local state (worktrees, user settings)
-.claude/
+## settings.local.json + worktrees are per-user; the rest is shared so the
+## rt-first PreToolUse gate, project commands, and scripts ship with the repo.
+.claude/*
+!.claude/settings.json
+!.claude/scripts/
+!.claude/scripts/**
+!.claude/commands/
+!.claude/commands/**
 
 ## Auto-generated command reference (view via: rt dump-help)
 docs/COMMANDS.md

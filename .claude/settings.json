@@ -1,0 +1,53 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git *)",
+      "Bash(dotnet build*)",
+      "Bash(dotnet test*)",
+      "Bash(dotnet format*)",
+      "Bash(dotnet publish*)",
+      "Bash(dotnet run*)",
+      "Bash(dotnet clean*)",
+      "Bash(rt *)",
+      "Bash(cd *)",
+      "Read",
+      "Edit(src/**/*.cs)",
+      "Edit(tests/**/*.cs)",
+      "Edit(.claude)",
+      "Write(ralph/**)",
+      "Write(tasks/**)",
+      "Write(docs/**)"
+    ],
+    "deny": [
+      "Bash(find *)",
+      "Bash(sed *)",
+      "Bash(grep *)",
+      "Bash(rg *)",
+      "Bash(mv *)",
+      "Bash(cp *)",
+      "Bash(rm *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/scripts/rt-first-gate.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/scripts/rt-inspect-log.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
