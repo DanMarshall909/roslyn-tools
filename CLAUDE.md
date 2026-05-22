@@ -118,6 +118,8 @@ dotnet run --project src/RoslynTools.Cli/RoslynTools.Cli.csproj -- dump-help
 ```
 The build also writes this output to `docs/COMMANDS.md` locally (gitignored) as a convenience — do not commit it. For an agent-friendly pre-loaded reference, load the `use-rt` skill.
 
+`rt <cmd> --help` (and `rt <group> <cmd> --help`) now renders the same rich content `dump-help` does for that single command — description, when-to-use, examples, supported output formats, and known-issues. No need to scrape `dump-help` output to find one command's invocation.
+
 ## Command metadata contract (read before changing any command)
 
 Every class in `src/RoslynTools/Commands/` ending with `Command` MUST implement `IRtCommand` (defined in `Core/IRtCommand.cs`). The compiler is strict enough that the registry is reflection-discovered — no hand-maintained list — and a static assertion in `App.cs` throws at startup (and therefore fails the post-build MD generation) if any class drifts from the contract.

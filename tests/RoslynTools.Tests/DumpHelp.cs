@@ -426,6 +426,89 @@ public sealed class DumpHelp
         output.ShouldNotContain("Known issues:", Case.Sensitive);
     }
 
+    private static string CaptureColouredHeaderForRegistered(string commandName)
+    {
+        var entry = App.Commands.Single(e =>
+            e.Info.Name == commandName || (e.Info.Aliases?.Contains(commandName) ?? false));
+        var cmd = entry.Build();
+        var capture = new CapturingConsole();
+        using (Core.RtConsole.UseConsole(capture))
+        {
+            DumpHelpCommand.RenderColouredCommandHeader(entry.Info, cmd.Description ?? string.Empty);
+        }
+        return capture.Text;
+    }
+
+    [Fact(DisplayName = "inspect/describe --help mirrors its RtCommandInfo")]
+    public void describe_help_matches_command_info()
+    {
+        var output = CaptureColouredHeaderForRegistered("describe");
+
+        output.ShouldContain("rt describe", Case.Sensitive);
+        output.ShouldContain("read-only", Case.Sensitive);
+        output.ShouldContain("When to use:", Case.Sensitive);
+        output.ShouldContain("Examples:", Case.Sensitive);
+        // describe declares SupportedFormats=[Text, Json] in its RtCommandInfo.
+        output.ShouldContain("Output:", Case.Sensitive);
+    }
+
+    [Fact(DisplayName = "analyze/circular-deps --help mirrors its RtCommandInfo")]
+    public void circular_deps_help_matches_command_info()
+    {
+        var output = CaptureColouredHeaderForRegistered("circular-deps");
+
+        output.ShouldContain("rt circular-deps", Case.Sensitive);
+        output.ShouldContain("(cdeps)", Case.Sensitive);
+        output.ShouldContain("read-only", Case.Sensitive);
+        output.ShouldContain("When to use:", Case.Sensitive);
+    }
+
+    [Fact(DisplayName = "refactor/replace-xunit-asserts --help mirrors its RtCommandInfo")]
+    public void replace_xunit_asserts_help_matches_command_info()
+    {
+        var output = CaptureColouredHeaderForRegistered("replace-xunit-asserts");
+
+        output.ShouldContain("rt replace-xunit-asserts", Case.Sensitive);
+        output.ShouldContain("(rxa)", Case.Sensitive);
+        output.ShouldContain("writes", Case.Sensitive);
+        output.ShouldContain("When to use:", Case.Sensitive);
+        // This command declares KnownIssues in its RtCommandInfo.
+        output.ShouldContain("Known issues:", Case.Sensitive);
+    }
+
+    [Fact(DisplayName = "Every registered command renders --help without throwing")]
+    public void every_registered_command_renders_help_without_throwing()
+    {
+        var failures = new List<string>();
+
+        foreach (var entry in App.Commands)
+        {
+            var capture = new CapturingConsole();
+            using (Core.RtConsole.UseConsole(capture))
+            {
+                var cmd = entry.Build();
+                try
+                {
+                    DumpHelpCommand.RenderColouredCommandHeader(entry.Info, cmd.Description ?? string.Empty);
+                }
+                catch (Exception ex)
+                {
+                    failures.Add($"{entry.Info.Name}: {ex.GetType().Name}: {ex.Message}");
+                    continue;
+                }
+            }
+
+            var output = capture.Text;
+            if (!output.Contains($"rt {entry.Info.Name}", StringComparison.Ordinal))
+                failures.Add($"{entry.Info.Name}: output missing 'rt {entry.Info.Name}' header");
+            if (!output.Contains("When to use:", StringComparison.Ordinal))
+                failures.Add($"{entry.Info.Name}: output missing 'When to use:' section");
+        }
+
+        Assert.True(failures.Count == 0,
+            "Every command must render --help cleanly:\n  " + string.Join("\n  ", failures));
+    }
+
     private sealed class CapturingConsole : IRtConsole
     {
         private readonly StringBuilder _sb = new();
