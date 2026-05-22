@@ -1,5 +1,6 @@
 using RoslynTools.Commands;
 using RoslynTools.Tests.Infrastructure;
+using Shouldly;
 
 namespace RoslynTools.Tests.Analysis;
 
@@ -40,9 +41,9 @@ public class CircularDeps : IClassFixture<RtServicesFixture>
         {
             var result = await _services.Resolve<CircularDepsCommand>().AnalyzeAsync(sln, null);
 
-            Assert.Contains("CycleApp.A", result);
-            Assert.Contains("CycleApp.B", result);
-            Assert.Contains("CycleApp.C", result);
+            result.ShouldContain("CycleApp.A", Case.Sensitive);
+            result.ShouldContain("CycleApp.B", Case.Sensitive);
+            result.ShouldContain("CycleApp.C", Case.Sensitive);
         }
     }
 
@@ -59,7 +60,7 @@ public class CircularDeps : IClassFixture<RtServicesFixture>
         {
             var result = await _services.Resolve<CircularDepsCommand>().AnalyzeAsync(sln, null);
 
-            Assert.Contains("->", result);
+            result.ShouldContain("->", Case.Sensitive);
         }
     }
 
@@ -107,7 +108,7 @@ public class CircularDeps : IClassFixture<RtServicesFixture>
         }
 
         var captured = sw.ToString();
-        Assert.Contains("->", captured);
+        captured.ShouldContain("->", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -132,8 +133,8 @@ public class CircularDeps : IClassFixture<RtServicesFixture>
             using (workspace)
             {
                 var result = await _services.Resolve<CircularDepsCommand>().AnalyzeAsync(sln, "CycleApp");
-                Assert.Contains("CycleApp", result);
-                Assert.DoesNotContain("External", result);
+                result.ShouldContain("CycleApp", Case.Sensitive);
+                result.ShouldNotContain("External", Case.Sensitive);
             }
         }
     }
@@ -175,8 +176,8 @@ public class CircularDeps : IClassFixture<RtServicesFixture>
             using (workspace)
             {
                 var result = await _services.Resolve<CircularDepsCommand>().AnalyzeAsync(sln, null);
-                Assert.Contains("Fs.P", result);
-                Assert.Contains("Fs.Q", result);
+                result.ShouldContain("Fs.P", Case.Sensitive);
+                result.ShouldContain("Fs.Q", Case.Sensitive);
             }
         }
     }

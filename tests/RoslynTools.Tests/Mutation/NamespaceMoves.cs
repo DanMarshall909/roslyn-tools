@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using RoslynTools.Services;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -44,10 +45,10 @@ public sealed class NamespaceMoves
             var widgetText = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "Widget.cs");
             var consumerText = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "Consumer.cs");
 
-            Assert.Contains("namespace Sample.Domain;", widgetText);
-            Assert.Contains("using Sample.Domain;", consumerText);
-            Assert.Contains("public Sample.Domain.Widget Build() => new Sample.Domain.Widget();", consumerText);
-            Assert.False(writer.DryRun);
+            widgetText.ShouldContain("namespace Sample.Domain;", Case.Sensitive);
+            consumerText.ShouldContain("using Sample.Domain;", Case.Sensitive);
+            consumerText.ShouldContain("public Sample.Domain.Widget Build() => new Sample.Domain.Widget();", Case.Sensitive);
+            writer.DryRun.ShouldBe(false);
         }
     }
 
@@ -77,7 +78,7 @@ public sealed class NamespaceMoves
                 false,
                 false);
 
-            Assert.Null(writer.Solution);
+            writer.Solution.ShouldBeNull();
         }
     }
 }

@@ -1,4 +1,5 @@
 using RoslynTools.Core;
+using Shouldly;
 
 namespace RoslynTools.Tests.Infrastructure;
 
@@ -22,8 +23,8 @@ public class WorkspaceLoaderResolution
             var (workspace, solution) = await WorkspaceLoader.LoadAsync(null);
             using (workspace)
             {
-                Assert.Equal(child.SolutionPath, solution.FilePath);
-                Assert.Contains(solution.Projects, p => p.Name == child.ProjectName);
+                solution.FilePath.ShouldBe(child.SolutionPath);
+                solution.Projects.ShouldContain(p => p.Name == child.ProjectName);
             }
         }
     }
@@ -40,8 +41,8 @@ public class WorkspaceLoaderResolution
             var (workspace, solution) = await WorkspaceLoader.LoadAsync(null);
             using (workspace)
             {
-                Assert.Equal(parent.SolutionPath, solution.FilePath);
-                Assert.Contains(solution.Projects, p => p.Name == parent.ProjectName);
+                solution.FilePath.ShouldBe(parent.SolutionPath);
+                solution.Projects.ShouldContain(p => p.Name == parent.ProjectName);
             }
         }
     }
@@ -58,9 +59,9 @@ public class WorkspaceLoaderResolution
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => WorkspaceLoader.LoadAsync(null));
 
-            Assert.Contains("Alpha.sln", ex.Message);
-            Assert.Contains("Beta.sln", ex.Message);
-            Assert.Contains("--solution", ex.Message);
+            ex.Message.ShouldContain("Alpha.sln", Case.Sensitive);
+            ex.Message.ShouldContain("Beta.sln", Case.Sensitive);
+            ex.Message.ShouldContain("--solution", Case.Sensitive);
         }
     }
 
@@ -74,8 +75,8 @@ public class WorkspaceLoaderResolution
         {
             var ex = await Assert.ThrowsAsync<FileNotFoundException>(() => WorkspaceLoader.LoadAsync(null));
 
-            Assert.Contains("No .sln", ex.Message);
-            Assert.Contains("--solution", ex.Message);
+            ex.Message.ShouldContain("No .sln", Case.Sensitive);
+            ex.Message.ShouldContain("--solution", Case.Sensitive);
         }
     }
 
@@ -93,8 +94,8 @@ public class WorkspaceLoaderResolution
             var (workspace, solution) = await WorkspaceLoader.LoadAsync(null);
             using (workspace)
             {
-                Assert.Equal(preferred.SolutionPath, solution.FilePath);
-                Assert.Contains(solution.Projects, p => p.Name == preferred.ProjectName);
+                solution.FilePath.ShouldBe(preferred.SolutionPath);
+                solution.Projects.ShouldContain(p => p.Name == preferred.ProjectName);
             }
         }
     }
@@ -121,8 +122,8 @@ public class WorkspaceLoaderResolution
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => WorkspaceLoader.LoadAsync(null));
 
-            Assert.Contains(".rt-solution", ex.Message);
-            Assert.Contains(configuredPath, ex.Message);
+            ex.Message.ShouldContain(".rt-solution", Case.Sensitive);
+            ex.Message.ShouldContain(configuredPath, Case.Sensitive);
         }
     }
 
@@ -140,8 +141,8 @@ public class WorkspaceLoaderResolution
             var (workspace, solution) = await WorkspaceLoader.LoadAsync(explicitSolution.SolutionPath);
             using (workspace)
             {
-                Assert.Equal(explicitSolution.SolutionPath, solution.FilePath);
-                Assert.Contains(solution.Projects, p => p.Name == explicitSolution.ProjectName);
+                solution.FilePath.ShouldBe(explicitSolution.SolutionPath);
+                solution.Projects.ShouldContain(p => p.Name == explicitSolution.ProjectName);
             }
         }
     }
@@ -156,7 +157,7 @@ public class WorkspaceLoaderResolution
         var ex = await Assert.ThrowsAnyAsync<Exception>(() => WorkspaceLoader.LoadAsync(slnxPath));
 
         Assert.DoesNotContain("unsupported format", ex.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("MSBuildWorkspace does not support .slnx", ex.Message);
+        ex.Message.ShouldNotContain("MSBuildWorkspace does not support .slnx", Case.Sensitive);
     }
 
     [Fact]
@@ -171,7 +172,7 @@ public class WorkspaceLoaderResolution
             var ex = await Assert.ThrowsAnyAsync<Exception>(() => WorkspaceLoader.LoadAsync(null));
 
             Assert.DoesNotContain("No .sln/.slnx", ex.Message, StringComparison.Ordinal);
-            Assert.DoesNotContain("MSBuildWorkspace does not support .slnx", ex.Message);
+            ex.Message.ShouldNotContain("MSBuildWorkspace does not support .slnx", Case.Sensitive);
         }
     }
 }

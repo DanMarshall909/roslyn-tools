@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 using RoslynTools.Core;
+using Shouldly;
 
 namespace RoslynTools.Tests.Infrastructure;
 
@@ -34,7 +35,7 @@ public class SolutionWriterIntegration
 
             Assert.True(File.Exists(newFilePath), $"Expected new file at {newFilePath}");
             var content = await File.ReadAllTextAsync(newFilePath);
-            Assert.Contains("class NewClass", content);
+            content.ShouldContain("class NewClass", Case.Sensitive);
         }
     }
 
@@ -77,7 +78,7 @@ public class SolutionWriterIntegration
 
             Assert.False(File.Exists(newFilePath), "File should NOT be created in dry-run mode");
             var output = sw.ToString();
-            Assert.Contains("NewClass", output);
+            output.ShouldContain("NewClass", Case.Sensitive);
         }
     }
 

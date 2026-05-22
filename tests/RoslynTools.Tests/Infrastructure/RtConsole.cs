@@ -1,4 +1,5 @@
 using RoslynTools.Core;
+using Shouldly;
 
 namespace RoslynTools.Tests.Infrastructure;
 
@@ -29,12 +30,12 @@ public class RtConsole
             Console.SetError(originalErr);
         }
 
-        Assert.Contains("[WARNING] Skipped 2 file(s)", stderr.ToString());
-        Assert.Contains("[ERROR] Failed Build", stderr.ToString());
-        Assert.Contains("diagnostic line", stderr.ToString());
-        Assert.Contains("result payload", stdout.ToString());
-        Assert.Contains("--- file.cs", stdout.ToString());
-        Assert.DoesNotContain("[WARNING]", stdout.ToString());
+        stderr.ToString().ShouldContain("[WARNING] Skipped 2 file(s)", Case.Sensitive);
+        stderr.ToString().ShouldContain("[ERROR] Failed Build", Case.Sensitive);
+        stderr.ToString().ShouldContain("diagnostic line", Case.Sensitive);
+        stdout.ToString().ShouldContain("result payload", Case.Sensitive);
+        stdout.ToString().ShouldContain("--- file.cs", Case.Sensitive);
+        stdout.ToString().ShouldNotContain("[WARNING]", Case.Sensitive);
     }
 
     [Fact]
@@ -55,8 +56,8 @@ public class RtConsole
             RtLog.Info("outer after");
         }
 
-        Assert.Equal(["outer before", "outer after"], outer.LogEntries.Select(e => e.RenderedMessage));
-        Assert.Equal(["inner"], inner.LogEntries.Select(e => e.RenderedMessage));
+        outer.LogEntries.Select(e => e.RenderedMessage).ShouldBe(["outer before", "outer after"]);
+        inner.LogEntries.Select(e => e.RenderedMessage).ShouldBe(["inner"]);
     }
 
     [Fact]
@@ -66,7 +67,7 @@ public class RtConsole
             "Processed {Count} item(s) in {Elapsed:0.00} ms",
             [3, 12.345]);
 
-        Assert.Equal("Processed 3 item(s) in 12.35 ms", rendered);
+        rendered.ShouldBe("Processed 3 item(s) in 12.35 ms");
     }
 
     [Fact]
@@ -80,8 +81,8 @@ public class RtConsole
         }
 
         var entry = Assert.Single(logger.LogEntries);
-        Assert.Equal(RtLogLevel.Warning, entry.Level);
-        Assert.Equal("Skipped Widget", entry.Message);
+        entry.Level.ShouldBe(RtLogLevel.Warning);
+        entry.Message.ShouldBe("Skipped Widget");
     }
 
     private sealed class CollectingConsole : IRtConsole

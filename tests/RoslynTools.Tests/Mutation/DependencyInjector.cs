@@ -2,6 +2,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using RoslynTools.Core;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -57,7 +58,7 @@ public sealed class DependencyInjector
     {
         var source = "class Foo { }";
         var result = Rewrite(source, "Bar", "ILogger", "_logger", "logger");
-        Assert.Equal(source, result);
+        result.ShouldBe(source);
     }
 
     [Fact]
@@ -65,7 +66,7 @@ public sealed class DependencyInjector
     {
         var source = "class MyService { }";
         var result = Rewrite(source, "MyService", "ILogger", "_logger", "logger");
-        Assert.Contains("private readonly ILogger _logger;", result);
+        result.ShouldContain("private readonly ILogger _logger;", Case.Sensitive);
     }
 
     [Fact]
@@ -73,8 +74,8 @@ public sealed class DependencyInjector
     {
         var source = "class MyService { }";
         var result = Rewrite(source, "MyService", "ILogger", "_logger", "logger");
-        Assert.Contains("public MyService(ILogger logger)", result);
-        Assert.Contains("_logger = logger;", result);
+        result.ShouldContain("public MyService(ILogger logger)", Case.Sensitive);
+        result.ShouldContain("_logger = logger;", Case.Sensitive);
     }
 
     [Fact]
@@ -88,8 +89,8 @@ public sealed class DependencyInjector
                      }
                      """;
         var result = Rewrite(source, "MyService", "ILogger", "_logger", "logger");
-        Assert.Contains("ILogger logger", result);
-        Assert.Contains("_logger = logger;", result);
+        result.ShouldContain("ILogger logger", Case.Sensitive);
+        result.ShouldContain("_logger = logger;", Case.Sensitive);
     }
 
     [Fact]
@@ -103,7 +104,7 @@ public sealed class DependencyInjector
                      }
                      """;
         var result = Rewrite(source, "MyService", "ILogger", "_logger", "logger");
-        Assert.Equal(1, CountOccurrences(result, "private readonly ILogger _logger"));
+        CountOccurrences(result, "private readonly ILogger _logger").ShouldBe(1);
     }
 
     [Fact]
@@ -117,8 +118,8 @@ public sealed class DependencyInjector
                      }
                      """;
         var result = Rewrite(source, "MyService", "ILogger", "_logger", "logger");
-        Assert.Contains("private readonly ILogger _logger;", result);
-        Assert.Equal(1, CountOccurrences(result, "ILogger logger"));
+        result.ShouldContain("private readonly ILogger _logger;", Case.Sensitive);
+        CountOccurrences(result, "ILogger logger").ShouldBe(1);
     }
 
     [Fact]
@@ -133,7 +134,7 @@ public sealed class DependencyInjector
                      }
                      """;
         var result = Rewrite(source, "MyService", "ILogger", "_logger", "logger");
-        Assert.Equal(1, CountOccurrences(result, "private readonly ILogger _logger"));
+        CountOccurrences(result, "private readonly ILogger _logger").ShouldBe(1);
     }
 
     [Fact]
@@ -153,8 +154,8 @@ public sealed class DependencyInjector
         var loggerDeclarators = fields.SelectMany(f => f.Declaration.Variables)
             .Count(v => v.Identifier.Text == "_logger");
 
-        Assert.Equal(1, loggerDeclarators);
-        Assert.DoesNotContain("private readonly ILogger _logger;", result);
+        loggerDeclarators.ShouldBe(1);
+        result.ShouldNotContain("private readonly ILogger _logger;", Case.Sensitive);
     }
 
     [Fact]
@@ -250,8 +251,8 @@ public sealed class DependencyInjector
                      }
                      """;
         var result = Rewrite(source, "MyService", "ILogger", "_logger", "logger");
-        Assert.Contains("private readonly ILogger _logger;", result);
-        Assert.Equal(2, CountOccurrences(result, "ILogger logger"));
+        result.ShouldContain("private readonly ILogger _logger;", Case.Sensitive);
+        CountOccurrences(result, "ILogger logger").ShouldBe(2);
     }
 
     [Fact]
@@ -277,7 +278,7 @@ public sealed class DependencyInjector
         var constructor = GetFirstConstructor(result);
 
         Assert.Single(constructor.ParameterList.Parameters);
-        Assert.Contains("_logger = logger;", result);
+        result.ShouldContain("_logger = logger;", Case.Sensitive);
     }
 
     [Fact]
@@ -301,7 +302,7 @@ public sealed class DependencyInjector
         var constructor = GetFirstConstructor(result);
 
         Assert.Single(constructor.ParameterList.Parameters);
-        Assert.Contains("_logger = logger;", result);
+        result.ShouldContain("_logger = logger;", Case.Sensitive);
     }
 
     [Fact]
@@ -349,10 +350,10 @@ public sealed class DependencyInjector
 
         injector.Visit(tree.GetRoot());
 
-        Assert.Equal(DependencyInjectionStatus.Unsupported, injector.Status);
-        Assert.False(injector.Applied);
-        Assert.Contains("MyService", injector.ValidationError);
-        Assert.Contains("_logger", injector.ValidationError);
+        injector.Status.ShouldBe(DependencyInjectionStatus.Unsupported);
+        injector.Applied.ShouldBeFalse();
+        injector.ValidationError!.ShouldContain("MyService", Case.Sensitive);
+        injector.ValidationError!.ShouldContain("_logger", Case.Sensitive);
     }
 
     [Fact]
@@ -376,8 +377,8 @@ public sealed class DependencyInjector
 
         injector.Visit(tree.GetRoot());
 
-        Assert.Equal(DependencyInjectionStatus.Unsupported, injector.Status);
-        Assert.Contains("_logger", injector.ValidationError);
+        injector.Status.ShouldBe(DependencyInjectionStatus.Unsupported);
+        injector.ValidationError!.ShouldContain("_logger", Case.Sensitive);
     }
 
     [Fact]
@@ -398,8 +399,8 @@ public sealed class DependencyInjector
 
         injector.Visit(tree.GetRoot());
 
-        Assert.Equal(DependencyInjectionStatus.AlreadyInjected, injector.Status);
-        Assert.Null(injector.ValidationError);
+        injector.Status.ShouldBe(DependencyInjectionStatus.AlreadyInjected);
+        injector.ValidationError.ShouldBeNull();
     }
 
     [Fact]
@@ -416,8 +417,8 @@ public sealed class DependencyInjector
 
         var result = Rewrite(source, "MyService", "ILogger", "_logger", "logger");
 
-        Assert.Contains("_logger = logger;", result);
-        Assert.Contains("_other = logger;", result);
+        result.ShouldContain("_logger = logger;", Case.Sensitive);
+        result.ShouldContain("_other = logger;", Case.Sensitive);
     }
 
     [Fact]
@@ -440,8 +441,8 @@ public sealed class DependencyInjector
 
         var result = injector.Visit(tree.GetRoot())!.ToFullString();
 
-        Assert.Equal(source, result);
-        Assert.Equal(DependencyInjectionStatus.ClassNotFound, injector.Status);
+        result.ShouldBe(source);
+        injector.Status.ShouldBe(DependencyInjectionStatus.ClassNotFound);
     }
 
     [Fact]
@@ -461,7 +462,7 @@ public sealed class DependencyInjector
         var constructor = GetFirstConstructor(result);
 
         Assert.Single(constructor.ParameterList.Parameters);
-        Assert.Equal(DependencyInjectionStatus.AlreadyInjected, injector.Status);
+        injector.Status.ShouldBe(DependencyInjectionStatus.AlreadyInjected);
     }
 
     [Fact]
@@ -482,7 +483,7 @@ public sealed class DependencyInjector
 
         injector.Visit(tree.GetRoot());
 
-        Assert.Equal(DependencyInjectionStatus.AlreadyInjected, injector.Status);
+        injector.Status.ShouldBe(DependencyInjectionStatus.AlreadyInjected);
     }
 
     [Fact]
@@ -495,10 +496,10 @@ public sealed class DependencyInjector
             .OfType<ConstructorDeclarationSyntax>()
             .Single();
 
-        Assert.Empty(tree.GetDiagnostics());
-        Assert.NotNull(constructor.Body);
+        tree.GetDiagnostics().ShouldBeEmpty();
+        constructor.Body.ShouldNotBeNull();
         Assert.Single(constructor.Body!.Statements);
-        Assert.Equal("_logger = logger;", constructor.Body.Statements[0].ToString());
+        constructor.Body.Statements[0].ToString().ShouldBe("_logger = logger;");
     }
 
     // ─── parameter list formatting ────────────────────────────────────────────
@@ -525,13 +526,13 @@ public sealed class DependencyInjector
         var parenOpen = result.IndexOf('(', ctorStart);
         var parenClose = result.IndexOf(')', parenOpen);
         var paramText = result[parenOpen..parenClose];
-        Assert.Contains("IFoo foo", paramText);
-        Assert.Contains("IBar bar", paramText);
+        paramText.ShouldContain("IFoo foo", Case.Sensitive);
+        paramText.ShouldContain("IBar bar", Case.Sensitive);
         // the two params must be on separate lines
         var fooIdx = paramText.IndexOf("IFoo foo", StringComparison.Ordinal);
         var barIdx = paramText.IndexOf("IBar bar", StringComparison.Ordinal);
         var between = paramText[fooIdx..barIdx];
-        Assert.Contains('\n', between);
+        between.ShouldContain('\n');
     }
 
     [Fact]
@@ -547,7 +548,7 @@ public sealed class DependencyInjector
                      }
                      """;
         var result = Rewrite(source, "MyService", "IBar", "_bar", "bar");
-        Assert.Contains("IFoo foo, IBar bar", result);
+        result.ShouldContain("IFoo foo, IBar bar", Case.Sensitive);
     }
 
     [Fact]
@@ -557,7 +558,7 @@ public sealed class DependencyInjector
         // parameter list must be "(IBar bar)" — not "( IBar bar)" or "(,IBar bar)".
         var source = "class MyService { }";
         var result = Rewrite(source, "MyService", "IBar", "_bar", "bar");
-        Assert.Contains("(IBar bar)", result);
+        result.ShouldContain("(IBar bar)", Case.Sensitive);
     }
 
     [Fact]
@@ -573,8 +574,8 @@ public sealed class DependencyInjector
         var result = Rewrite(source, "MyService", "ILogger", "_logger", "logger");
         var constructor = GetFirstConstructor(result);
 
-        Assert.Equal("(ILogger logger)", constructor.ParameterList.ToString());
-        Assert.DoesNotContain("( ILogger logger)", constructor.ParameterList.ToFullString());
+        constructor.ParameterList.ToString().ShouldBe("(ILogger logger)");
+        constructor.ParameterList.ToFullString().ShouldNotContain("( ILogger logger)", Case.Sensitive);
     }
 
     // ─── delegating constructor (this(...)) scenarios ─────────────────────────
@@ -593,7 +594,7 @@ public sealed class DependencyInjector
         var tree = CSharpSyntaxTree.ParseText(source);
         var injector = new Core.DependencyInjector("MyService", "ILogger", "_logger", "logger");
         injector.Visit(tree.GetRoot());
-        Assert.Equal(DependencyInjectionStatus.AlreadyInjected, injector.Status);
+        injector.Status.ShouldBe(DependencyInjectionStatus.AlreadyInjected);
     }
 
     [Fact]
@@ -609,11 +610,11 @@ public sealed class DependencyInjector
                      """;
         var result = Rewrite(source, "MyService", "IBar", "_bar", "bar");
         // fallback ctor stays parameterless
-        Assert.DoesNotContain("public MyService(IBar", result);
-        Assert.DoesNotContain("MyService() : this(new DefaultFoo()) {\r\n        _bar", result);
+        result.ShouldNotContain("public MyService(IBar", Case.Sensitive);
+        result.ShouldNotContain("MyService() : this(new DefaultFoo()) {\r\n        _bar", Case.Sensitive);
         // full ctor gets the new param
-        Assert.Contains("IBar bar", result);
-        Assert.Contains("_bar = bar;", result);
+        result.ShouldContain("IBar bar", Case.Sensitive);
+        result.ShouldContain("_bar = bar;", Case.Sensitive);
     }
 
     [Fact]
@@ -630,10 +631,10 @@ public sealed class DependencyInjector
                      """;
         var result = Rewrite(source, "MyService", "IBar", "_bar", "bar");
         // only one occurrence of new param — in the terminal ctor
-        Assert.Equal(1, CountOccurrences(result, "IBar bar"));
+        CountOccurrences(result, "IBar bar").ShouldBe(1);
         // neither delegating ctor was touched
-        Assert.Contains("public MyService() : this(42) { }", result);
-        Assert.Contains("public MyService(int value) : this(value, new DefaultFoo()) { }", result);
+        result.ShouldContain("public MyService() : this(42) { }", Case.Sensitive);
+        result.ShouldContain("public MyService(int value) : this(value, new DefaultFoo()) { }", Case.Sensitive);
     }
 
     [Fact]
@@ -648,8 +649,8 @@ public sealed class DependencyInjector
                      }
                      """;
         var result = Rewrite(source, "MyService", "IBar", "_bar", "bar");
-        Assert.Contains("IBar bar", result);
-        Assert.Contains("_bar = bar;", result);
+        result.ShouldContain("IBar bar", Case.Sensitive);
+        result.ShouldContain("_bar = bar;", Case.Sensitive);
     }
 
     [Fact]
@@ -658,8 +659,8 @@ public sealed class DependencyInjector
         // regression guard: the fix must not break the zero-ctor synthesis path
         var source = "class MyService { }";
         var result = Rewrite(source, "MyService", "IBar", "_bar", "bar");
-        Assert.Contains("public MyService(IBar bar)", result);
-        Assert.Contains("_bar = bar;", result);
+        result.ShouldContain("public MyService(IBar bar)", Case.Sensitive);
+        result.ShouldContain("_bar = bar;", Case.Sensitive);
     }
 
     private static int CountOccurrences(string text, string pattern)

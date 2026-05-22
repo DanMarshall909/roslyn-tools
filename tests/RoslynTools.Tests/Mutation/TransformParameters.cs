@@ -1,4 +1,5 @@
 using RoslynTools.Services;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -52,18 +53,18 @@ public class TransformParameters
         var callerContent = await project.ReadSourceAsync("Caller.cs");
 
         // Record generated in the same file
-        Assert.Contains("record PlaceOrderArgs", serviceContent);
-        Assert.Contains("string CustomerId", serviceContent);
-        Assert.Contains("string ProductId", serviceContent);
-        Assert.Contains("int Quantity", serviceContent);
+        serviceContent.ShouldContain("record PlaceOrderArgs", Case.Sensitive);
+        serviceContent.ShouldContain("string CustomerId", Case.Sensitive);
+        serviceContent.ShouldContain("string ProductId", Case.Sensitive);
+        serviceContent.ShouldContain("int Quantity", Case.Sensitive);
 
         // Method signature rewritten
-        Assert.Contains("PlaceOrder(PlaceOrderArgs args)", serviceContent);
-        Assert.DoesNotContain("PlaceOrder(string customerId, string productId, int quantity)", serviceContent);
+        serviceContent.ShouldContain("PlaceOrder(PlaceOrderArgs args)", Case.Sensitive);
+        serviceContent.ShouldNotContain("PlaceOrder(string customerId, string productId, int quantity)", Case.Sensitive);
 
         // Call site updated
-        Assert.Contains("PlaceOrder(new PlaceOrderArgs(\"c1\", \"p1\", 3))", callerContent);
-        Assert.DoesNotContain("PlaceOrder(\"c1\", \"p1\", 3)", callerContent);
+        callerContent.ShouldContain("PlaceOrder(new PlaceOrderArgs(\"c1\", \"p1\", 3))", Case.Sensitive);
+        callerContent.ShouldNotContain("PlaceOrder(\"c1\", \"p1\", 3)", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -95,9 +96,9 @@ public class TransformParameters
 
         var content = await project.ReadSourceAsync("Greeter.cs");
 
-        Assert.Contains("record GreetArgs", content);
+        content.ShouldContain("record GreetArgs", Case.Sensitive);
         // Default value 1 must appear in the record parameter list
-        Assert.Contains("Times = 1", content);
+        content.ShouldContain("Times = 1", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -127,8 +128,8 @@ public class TransformParameters
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new TransformParametersService().RunAsync(sln, "Parser.TryParse", "ParseArgs", null, false));
 
-            Assert.Contains("result", ex.Message);
-            Assert.Contains("out/ref/in", ex.Message);
+            ex.Message.ShouldContain("result", Case.Sensitive);
+            ex.Message.ShouldContain("out/ref/in", Case.Sensitive);
         }
     }
 
@@ -154,7 +155,7 @@ public class TransformParameters
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new TransformParametersService().RunAsync(sln, "Modifier.Increment", "IncrementArgs", null, false));
 
-            Assert.Contains("counter", ex.Message);
+            ex.Message.ShouldContain("counter", Case.Sensitive);
         }
     }
 
@@ -210,15 +211,15 @@ public class TransformParameters
         var client1Content = await project.ReadSourceAsync("Client1.cs");
         var client2Content = await project.ReadSourceAsync("Client2.cs");
 
-        Assert.Contains("record AddArgs", calcContent);
-        Assert.Contains("Add(AddArgs args)", calcContent);
+        calcContent.ShouldContain("record AddArgs", Case.Sensitive);
+        calcContent.ShouldContain("Add(AddArgs args)", Case.Sensitive);
 
-        Assert.Contains("Add(new AddArgs(1, 2))", client1Content);
-        Assert.Contains("Add(new AddArgs(3, 4))", client1Content);
-        Assert.DoesNotContain("Add(1, 2)", client1Content);
+        client1Content.ShouldContain("Add(new AddArgs(1, 2))", Case.Sensitive);
+        client1Content.ShouldContain("Add(new AddArgs(3, 4))", Case.Sensitive);
+        client1Content.ShouldNotContain("Add(1, 2)", Case.Sensitive);
 
-        Assert.Contains("Add(new AddArgs(10, 20))", client2Content);
-        Assert.DoesNotContain("Add(10, 20)", client2Content);
+        client2Content.ShouldContain("Add(new AddArgs(10, 20))", Case.Sensitive);
+        client2Content.ShouldNotContain("Add(10, 20)", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -249,7 +250,7 @@ public class TransformParameters
         }
 
         var afterContent = await project.ReadSourceAsync("Service.cs");
-        Assert.Equal(originalContent, afterContent);
+        afterContent.ShouldBe(originalContent);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -300,7 +301,7 @@ public class TransformParameters
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new TransformParametersService().RunAsync(sln, "Empty.Run", "RunArgs", null, false));
 
-            Assert.Contains("no parameters", ex.Message);
+            ex.Message.ShouldContain("no parameters", Case.Sensitive);
         }
     }
 
@@ -324,7 +325,7 @@ public class TransformParameters
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new TransformParametersService().RunAsync(sln, "NoMethodSeparatorHere", "Args", null, false));
 
-            Assert.Contains("TypeName.MethodName", ex.Message);
+            ex.Message.ShouldContain("TypeName.MethodName", Case.Sensitive);
         }
     }
 
@@ -376,15 +377,15 @@ public class TransformParameters
         var callerContent = await project.ReadSourceAsync("Caller.cs");
 
         // Method signature rewritten to use existing type
-        Assert.Contains("PlaceOrder(OrderArgs args)", serviceContent);
-        Assert.DoesNotContain("string customerId", serviceContent);
+        serviceContent.ShouldContain("PlaceOrder(OrderArgs args)", Case.Sensitive);
+        serviceContent.ShouldNotContain("string customerId", Case.Sensitive);
 
         // Call site uses positional constructor (record)
-        Assert.Contains("PlaceOrder(new OrderArgs(\"c1\", \"p1\", 3))", callerContent);
-        Assert.DoesNotContain("PlaceOrder(\"c1\", \"p1\", 3)", callerContent);
+        callerContent.ShouldContain("PlaceOrder(new OrderArgs(\"c1\", \"p1\", 3))", Case.Sensitive);
+        callerContent.ShouldNotContain("PlaceOrder(\"c1\", \"p1\", 3)", Case.Sensitive);
 
         // No new record generated in OrderService.cs
-        Assert.DoesNotContain("record OrderArgs", serviceContent);
+        serviceContent.ShouldNotContain("record OrderArgs", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -439,13 +440,13 @@ public class TransformParameters
         var callerContent = await project.ReadSourceAsync("SearchCaller.cs");
 
         // Method signature rewritten
-        Assert.Contains("Search(SearchArgs args)", serviceContent);
+        serviceContent.ShouldContain("Search(SearchArgs args)", Case.Sensitive);
 
         // Call site uses object initializer (class)
-        Assert.Contains("Search(new SearchArgs", callerContent);
-        Assert.Contains("Query = \"hello\"", callerContent);
-        Assert.Contains("MaxResults = 10", callerContent);
-        Assert.DoesNotContain("Search(\"hello\", 10)", callerContent);
+        callerContent.ShouldContain("Search(new SearchArgs", Case.Sensitive);
+        callerContent.ShouldContain("Query = \"hello\"", Case.Sensitive);
+        callerContent.ShouldContain("MaxResults = 10", Case.Sensitive);
+        callerContent.ShouldNotContain("Search(\"hello\", 10)", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -484,8 +485,8 @@ public class TransformParameters
                 new TransformParametersService().RunAsync(sln, "PersonService.Register", null, "TestApp.IncompleteArgs",
                     false));
 
-            Assert.Contains("age", ex.Message);
-            Assert.Contains("email", ex.Message);
+            ex.Message.ShouldContain("age", Case.Sensitive);
+            ex.Message.ShouldContain("email", Case.Sensitive);
             Assert.Contains("missing", ex.Message, StringComparison.OrdinalIgnoreCase);
         }
     }
@@ -519,8 +520,8 @@ public class TransformParameters
                 new TransformParametersService().RunAsync(sln, "MathService.Add", null, "TestApp.PartialArgs", false));
 
             // 'y' is missing; 'x' is present
-            Assert.Contains("y", ex.Message);
-            Assert.DoesNotContain("\"x\"", ex.Message);
+            ex.Message.ShouldContain("y", Case.Sensitive);
+            ex.Message.ShouldNotContain("\"x\"", Case.Sensitive);
         }
     }
 
@@ -548,7 +549,7 @@ public class TransformParameters
                 new TransformParametersService().RunAsync(sln, "BothFlagsService.Do", "NewArgs", "TestApp.ExistingArgs",
                     false));
 
-            Assert.Contains("mutually exclusive", ex.Message);
+            ex.Message.ShouldContain("mutually exclusive", Case.Sensitive);
         }
     }
 
@@ -575,8 +576,8 @@ public class TransformParameters
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new TransformParametersService().RunAsync(sln, "NeitherService.Do", null, null, false));
 
-            Assert.Contains("--new-type", ex.Message);
-            Assert.Contains("--existing-type", ex.Message);
+            ex.Message.ShouldContain("--new-type", Case.Sensitive);
+            ex.Message.ShouldContain("--existing-type", Case.Sensitive);
         }
     }
 }

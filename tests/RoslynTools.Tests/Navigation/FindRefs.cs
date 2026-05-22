@@ -1,5 +1,6 @@
 using Microsoft.CodeAnalysis.FindSymbols;
 using RoslynTools.Core;
+using Shouldly;
 
 namespace RoslynTools.Tests.Navigation;
 
@@ -58,8 +59,8 @@ public class FindRefs
                 .Distinct()
                 .ToList();
 
-            Assert.Contains("Service.cs", files);
-            Assert.Contains("Controller.cs", files);
+            files.ShouldContain("Service.cs");
+            files.ShouldContain("Controller.cs");
         }
     }
 
@@ -93,7 +94,7 @@ public class FindRefs
             var refs = await SymbolFinder.FindReferencesAsync(sym, sln);
 
             var locations = refs.SelectMany(r => r.Locations).ToList();
-            Assert.Equal(2, locations.Count); // Two call sites
+            locations.Count.ShouldBe(2); // Two call sites
         }
     }
 
@@ -117,7 +118,7 @@ public class FindRefs
             var refs = await SymbolFinder.FindReferencesAsync(sym, sln);
 
             var locations = refs.SelectMany(r => r.Locations).ToList();
-            Assert.Empty(locations);
+            locations.ShouldBeEmpty();
         }
     }
 }

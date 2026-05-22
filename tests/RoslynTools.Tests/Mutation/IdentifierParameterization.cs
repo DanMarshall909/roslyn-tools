@@ -1,4 +1,5 @@
 using RoslynTools.Core;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -73,12 +74,12 @@ public class IdentifierParameterization
         var contentB = await project.ReadSourceAsync("B.cs");
 
         // Extracted method exists in A
-        Assert.Contains("DoWork(", contentA);
+        contentA.ShouldContain("DoWork(", Case.Sensitive);
         // B's call site passes _serviceB as the argument
-        Assert.Contains("DoWork(", contentB);
-        Assert.Contains("_serviceB", contentB);
+        contentB.ShouldContain("DoWork(", Case.Sensitive);
+        contentB.ShouldContain("_serviceB", Case.Sensitive);
         // B's original statements replaced
-        Assert.DoesNotContain("System.Console.WriteLine(_serviceB)", contentB);
+        contentB.ShouldNotContain("System.Console.WriteLine(_serviceB)", Case.Sensitive);
 
         // KNOWN LIMITATION (logged in tasks/dogfood-gaps.md):
         // The source-file (A.cs) call site is NOT updated with parameterized arguments.
@@ -149,12 +150,12 @@ public class IdentifierParameterization
         var contentB = await project.ReadSourceAsync("B.cs");
 
         // Extracted method exists in A
-        Assert.Contains("RunPipeline(", contentA);
+        contentA.ShouldContain("RunPipeline(", Case.Sensitive);
         // B's call site passes B's identifiers
-        Assert.Contains("_readerB", contentB);
-        Assert.Contains("_writerB", contentB);
+        contentB.ShouldContain("_readerB", Case.Sensitive);
+        contentB.ShouldContain("_writerB", Case.Sensitive);
         // Original statements removed from B
-        Assert.DoesNotContain("System.Console.WriteLine(_readerB)", contentB);
+        contentB.ShouldNotContain("System.Console.WriteLine(_readerB)", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -214,13 +215,13 @@ public class IdentifierParameterization
         var contentB = await project.ReadSourceAsync("B.cs");
 
         // Extracted method exists in A with parameters
-        Assert.Contains("DoPrint(", contentA);
+        contentA.ShouldContain("DoPrint(", Case.Sensitive);
         // B's call site passes B's identifier and the different literal
-        Assert.Contains("DoPrint(", contentB);
-        Assert.Contains("_fieldB", contentB);
-        Assert.Contains("goodbye", contentB);
+        contentB.ShouldContain("DoPrint(", Case.Sensitive);
+        contentB.ShouldContain("_fieldB", Case.Sensitive);
+        contentB.ShouldContain("goodbye", Case.Sensitive);
         // Original statements removed from B
-        Assert.DoesNotContain("System.Console.WriteLine(\"goodbye\")", contentB);
-        Assert.DoesNotContain("System.Console.WriteLine(_fieldB)", contentB);
+        contentB.ShouldNotContain("System.Console.WriteLine(\"goodbye\")", Case.Sensitive);
+        contentB.ShouldNotContain("System.Console.WriteLine(_fieldB)", Case.Sensitive);
     }
 }

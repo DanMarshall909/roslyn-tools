@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using RoslynTools.Services;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -37,11 +38,11 @@ public sealed class DestaticClass
 
         var consumerText = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "Consumer.cs");
 
-        Assert.Contains("private readonly Helper _helper;", consumerText);
-        Assert.Contains("public Consumer(Helper helper)", consumerText);
-        Assert.Contains("_helper = helper;", consumerText);
-        Assert.Contains("_helper.Format(value)", consumerText);
-        Assert.DoesNotContain("new Helper().Format(value)", consumerText);
+        consumerText.ShouldContain("private readonly Helper _helper;", Case.Sensitive);
+        consumerText.ShouldContain("public Consumer(Helper helper)", Case.Sensitive);
+        consumerText.ShouldContain("_helper = helper;", Case.Sensitive);
+        consumerText.ShouldContain("_helper.Format(value)", Case.Sensitive);
+        consumerText.ShouldNotContain("new Helper().Format(value)", Case.Sensitive);
     }
 
     [Fact]
@@ -76,8 +77,8 @@ public sealed class DestaticClass
 
         var consumerText = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "Consumer.cs");
 
-        Assert.Contains("new Helper().Format(value)", consumerText);
-        Assert.DoesNotContain("private readonly Helper _helper;", consumerText);
+        consumerText.ShouldContain("new Helper().Format(value)", Case.Sensitive);
+        consumerText.ShouldNotContain("private readonly Helper _helper;", Case.Sensitive);
     }
 
     [Fact]
@@ -106,14 +107,14 @@ public sealed class DestaticClass
 
         var helperText = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "Helper.cs");
 
-        Assert.Contains("using System.Diagnostics.CodeAnalysis;", helperText);
-        Assert.Contains("[SuppressMessage", helperText);
-        Assert.Contains("public class Helper", helperText);
-        Assert.Contains("public string Prefix", helperText);
-        Assert.Contains("public string Name", helperText);
-        Assert.Contains("public string Format(string value)", helperText);
-        Assert.DoesNotContain("public static class Helper", helperText);
-        Assert.False(writer.DryRun);
+        helperText.ShouldContain("using System.Diagnostics.CodeAnalysis;", Case.Sensitive);
+        helperText.ShouldContain("[SuppressMessage", Case.Sensitive);
+        helperText.ShouldContain("public class Helper", Case.Sensitive);
+        helperText.ShouldContain("public string Prefix", Case.Sensitive);
+        helperText.ShouldContain("public string Name", Case.Sensitive);
+        helperText.ShouldContain("public string Format(string value)", Case.Sensitive);
+        helperText.ShouldNotContain("public static class Helper", Case.Sensitive);
+        writer.DryRun.ShouldBe(false);
     }
 
     [Fact]
@@ -138,8 +139,8 @@ public sealed class DestaticClass
                 new DocumentLocatorService(),
                 writer).RunAsync(solution, "TestApp.Helper", false));
 
-        Assert.Contains("is not a static class", exception.Message);
-        Assert.Null(writer.Solution);
+        exception.Message.ShouldContain("is not a static class", Case.Sensitive);
+        writer.Solution.ShouldBeNull();
     }
 
     [Fact]
@@ -181,11 +182,11 @@ public sealed class DestaticClass
 
         var consumerText = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "Consumer.cs");
 
-        Assert.Contains("private readonly Helper _helper;", consumerText);
-        Assert.Contains("public Consumer(", consumerText);
+        consumerText.ShouldContain("private readonly Helper _helper;", Case.Sensitive);
+        consumerText.ShouldContain("public Consumer(", Case.Sensitive);
         Assert.True(consumerText.Contains("Helper helper", StringComparison.Ordinal), consumerText);
-        Assert.Contains("_helper = helper;", consumerText);
-        Assert.Contains("_name = name;", consumerText);
+        consumerText.ShouldContain("_helper = helper;", Case.Sensitive);
+        consumerText.ShouldContain("_name = name;", Case.Sensitive);
     }
 
     [Fact]
@@ -225,7 +226,7 @@ public sealed class DestaticClass
 
         Assert.True(fieldLineIndex >= 0, "Field declaration not found");
         Assert.True(ctorLineIndex >= 0, "Constructor not found");
-        Assert.NotEqual(fieldLineIndex, ctorLineIndex);
+        ctorLineIndex.ShouldNotBe(fieldLineIndex);
     }
 
     [Fact]
@@ -260,7 +261,7 @@ public sealed class DestaticClass
 
         var consumerText = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "Consumer.cs");
 
-        Assert.Contains("private readonly string _value = new Helper().Format(\"x\");", consumerText);
-        Assert.DoesNotContain("private readonly Helper _helper;", consumerText);
+        consumerText.ShouldContain("private readonly string _value = new Helper().Format(\"x\");", Case.Sensitive);
+        consumerText.ShouldNotContain("private readonly Helper _helper;", Case.Sensitive);
     }
 }

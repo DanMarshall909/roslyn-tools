@@ -2,6 +2,7 @@ using Microsoft.CodeAnalysis.Rename;
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Tests.Infrastructure;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -50,13 +51,13 @@ public class Rename : IClassFixture<RtServicesFixture>
         }
 
         var modelContent = await project.ReadSourceAsync("Model.cs");
-        Assert.Contains("public class Item", modelContent);
-        Assert.DoesNotContain("class Product", modelContent);
+        modelContent.ShouldContain("public class Item", Case.Sensitive);
+        modelContent.ShouldNotContain("class Product", Case.Sensitive);
 
         var serviceContent = await project.ReadSourceAsync("Service.cs");
-        Assert.Contains("Item", serviceContent);
-        Assert.DoesNotContain("new Product()", serviceContent);
-        Assert.Contains("new Item()", serviceContent);
+        serviceContent.ShouldContain("Item", Case.Sensitive);
+        serviceContent.ShouldNotContain("new Product()", Case.Sensitive);
+        serviceContent.ShouldContain("new Item()", Case.Sensitive);
     }
 
     [Fact]
@@ -100,11 +101,11 @@ public class Rename : IClassFixture<RtServicesFixture>
         }
 
         var utilContent = await project.ReadSourceAsync("Util.cs");
-        Assert.Contains("public static string Clean(", utilContent);
+        utilContent.ShouldContain("public static string Clean(", Case.Sensitive);
 
         var consumerContent = await project.ReadSourceAsync("Consumer.cs");
-        Assert.Contains("StringHelper.Clean(", consumerContent);
-        Assert.DoesNotContain("Sanitize", consumerContent);
+        consumerContent.ShouldContain("StringHelper.Clean(", Case.Sensitive);
+        consumerContent.ShouldNotContain("Sanitize", Case.Sensitive);
     }
 
     [Fact]
@@ -138,7 +139,7 @@ public class Rename : IClassFixture<RtServicesFixture>
         }
 
         var afterContent = await project.ReadSourceAsync("Original.cs");
-        Assert.Equal(originalContent, afterContent);
+        afterContent.ShouldBe(originalContent);
     }
 
     [Fact]
@@ -190,11 +191,11 @@ public class Rename : IClassFixture<RtServicesFixture>
         }
 
         var modelContent = await project.ReadSourceAsync("Model.cs");
-        Assert.Contains("class Item", modelContent);
+        modelContent.ShouldContain("class Item", Case.Sensitive);
 
         var serviceContent = await project.ReadSourceAsync("Service.cs");
-        Assert.Contains("Item FetchItem()", serviceContent);
-        Assert.Contains("new Item()", serviceContent);
+        serviceContent.ShouldContain("Item FetchItem()", Case.Sensitive);
+        serviceContent.ShouldContain("new Item()", Case.Sensitive);
     }
 
     [Fact]
@@ -222,7 +223,7 @@ public class Rename : IClassFixture<RtServicesFixture>
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 _services.Resolve<RenameCommand>().ExecuteBatchAsync(sln, csvPath, true));
 
-            Assert.Contains("review column", ex.Message);
+            ex.Message.ShouldContain("review column", Case.Sensitive);
         }
     }
 }

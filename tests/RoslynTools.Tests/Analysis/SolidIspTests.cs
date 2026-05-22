@@ -4,6 +4,7 @@ using RoslynTools.Commands;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
+using Shouldly;
 
 namespace RoslynTools.Tests.Analysis;
 
@@ -39,7 +40,7 @@ public class SolidIspTests
                 void M3();
             }
             """);
-        Assert.Empty(report.FatInterfaces);
+        report.FatInterfaces.ShouldBeEmpty();
     }
 
     [Fact]
@@ -58,8 +59,8 @@ public class SolidIspTests
             }
             """);
         Assert.Single(report.FatInterfaces);
-        Assert.Equal("IBig", report.FatInterfaces[0].InterfaceName);
-        Assert.Equal(7, report.FatInterfaces[0].MemberCount);
+        report.FatInterfaces[0].InterfaceName.ShouldBe("IBig");
+        report.FatInterfaces[0].MemberCount.ShouldBe(7);
     }
 
     [Fact]
@@ -78,7 +79,7 @@ public class SolidIspTests
             }
             """);
         Assert.Single(report.FatInterfaces);
-        Assert.Equal(7, report.FatInterfaces[0].MemberCount);
+        report.FatInterfaces[0].MemberCount.ShouldBe(7);
     }
 
     [Fact]
@@ -101,7 +102,7 @@ public class SolidIspTests
             }
             """);
         // Only IBase qualifies as fat (6 declared, below default 7) — neither is flagged at default
-        Assert.Empty(report.FatInterfaces);
+        report.FatInterfaces.ShouldBeEmpty();
 
         // Lower threshold so IBase qualifies; verify IExtra is not lifted by inherited members
         var report2 = await AnalyzeSourceAsync("""
@@ -120,8 +121,8 @@ public class SolidIspTests
             }
             """, minMembers: 6);
         Assert.Single(report2.FatInterfaces);
-        Assert.Equal("IBase", report2.FatInterfaces[0].InterfaceName);
-        Assert.Equal(6, report2.FatInterfaces[0].MemberCount);
+        report2.FatInterfaces[0].InterfaceName.ShouldBe("IBase");
+        report2.FatInterfaces[0].MemberCount.ShouldBe(6);
     }
 
     [Fact]
@@ -140,8 +141,8 @@ public class SolidIspTests
             }
             """, fileName: "Foo.cs");
         Assert.Single(report.FatInterfaces);
-        Assert.EndsWith("Foo.cs", report.FatInterfaces[0].FilePath);
-        Assert.Equal(1, report.FatInterfaces[0].Line);
+        report.FatInterfaces[0].FilePath.ShouldEndWith("Foo.cs", Case.Sensitive);
+        report.FatInterfaces[0].Line.ShouldBe(1);
     }
 
     [Fact]
@@ -159,9 +160,9 @@ public class SolidIspTests
                 void M4(); void M5(); void M6(); void M7();
             }
             """);
-        Assert.Equal(2, report.FatInterfaces.Count);
-        Assert.Equal("IApple", report.FatInterfaces[0].InterfaceName);
-        Assert.Equal("IZebra", report.FatInterfaces[1].InterfaceName);
+        report.FatInterfaces.Count.ShouldBe(2);
+        report.FatInterfaces[0].InterfaceName.ShouldBe("IApple");
+        report.FatInterfaces[1].InterfaceName.ShouldBe("IZebra");
     }
 
     // ----- UnimplementedMembers -----
@@ -183,9 +184,9 @@ public class SolidIspTests
             """);
         Assert.Single(report.UnimplementedMembers);
         var item = report.UnimplementedMembers[0];
-        Assert.Equal("BadImpl", item.TypeName);
-        Assert.Equal("DoIt", item.MemberName);
-        Assert.Equal("IService", item.InterfaceName);
+        item.TypeName.ShouldBe("BadImpl");
+        item.MemberName.ShouldBe("DoIt");
+        item.InterfaceName.ShouldBe("IService");
     }
 
     [Fact]
@@ -202,7 +203,7 @@ public class SolidIspTests
             }
             """);
         Assert.Single(report.UnimplementedMembers);
-        Assert.Equal("DoIt", report.UnimplementedMembers[0].MemberName);
+        report.UnimplementedMembers[0].MemberName.ShouldBe("DoIt");
     }
 
     [Fact]
@@ -237,7 +238,7 @@ public class SolidIspTests
                 public void DoIt() { var x = 1 + 1; }
             }
             """);
-        Assert.Empty(report.UnimplementedMembers);
+        report.UnimplementedMembers.ShouldBeEmpty();
     }
 
     [Fact]
@@ -250,7 +251,7 @@ public class SolidIspTests
                 public void Helper() => throw new System.NotImplementedException();
             }
             """);
-        Assert.Empty(report.UnimplementedMembers);
+        report.UnimplementedMembers.ShouldBeEmpty();
     }
 
     [Fact]
@@ -267,7 +268,7 @@ public class SolidIspTests
             }
             """);
         Assert.Single(report.UnimplementedMembers);
-        Assert.Equal("Value", report.UnimplementedMembers[0].MemberName);
+        report.UnimplementedMembers[0].MemberName.ShouldBe("Value");
     }
 
     [Fact]
@@ -290,13 +291,13 @@ public class SolidIspTests
                 public void B() => throw new System.NotImplementedException();
             }
             """);
-        Assert.Equal(4, report.UnimplementedMembers.Count);
-        Assert.Equal("AlphaImpl", report.UnimplementedMembers[0].TypeName);
-        Assert.Equal("A", report.UnimplementedMembers[0].MemberName);
-        Assert.Equal("AlphaImpl", report.UnimplementedMembers[1].TypeName);
-        Assert.Equal("B", report.UnimplementedMembers[1].MemberName);
-        Assert.Equal("ZetaImpl", report.UnimplementedMembers[2].TypeName);
-        Assert.Equal("ZetaImpl", report.UnimplementedMembers[3].TypeName);
+        report.UnimplementedMembers.Count.ShouldBe(4);
+        report.UnimplementedMembers[0].TypeName.ShouldBe("AlphaImpl");
+        report.UnimplementedMembers[0].MemberName.ShouldBe("A");
+        report.UnimplementedMembers[1].TypeName.ShouldBe("AlphaImpl");
+        report.UnimplementedMembers[1].MemberName.ShouldBe("B");
+        report.UnimplementedMembers[2].TypeName.ShouldBe("ZetaImpl");
+        report.UnimplementedMembers[3].TypeName.ShouldBe("ZetaImpl");
     }
 
     [Fact]
@@ -322,7 +323,7 @@ public class SolidIspTests
             """);
         // Only RenderText should be flagged, not Equals or GetHashCode.
         Assert.Single(report.UnimplementedMembers);
-        Assert.Equal("RenderText", report.UnimplementedMembers[0].MemberName);
+        report.UnimplementedMembers[0].MemberName.ShouldBe("RenderText");
     }
 
     [Fact]
@@ -339,7 +340,7 @@ public class SolidIspTests
                 public virtual void DoIt() => throw new System.NotImplementedException();
             }
             """);
-        Assert.Empty(report.UnimplementedMembers);
+        report.UnimplementedMembers.ShouldBeEmpty();
     }
 
     // -----------------------------------------------------------------------
@@ -356,10 +357,10 @@ public class SolidIspTests
             Line = 10,
             MemberCount = 12
         };
-        Assert.Equal("IBig", item.InterfaceName);
-        Assert.Equal("src/IBig.cs", item.FilePath);
-        Assert.Equal(10, item.Line);
-        Assert.Equal(12, item.MemberCount);
+        item.InterfaceName.ShouldBe("IBig");
+        item.FilePath.ShouldBe("src/IBig.cs");
+        item.Line.ShouldBe(10);
+        item.MemberCount.ShouldBe(12);
     }
 
     [Fact]
@@ -373,20 +374,20 @@ public class SolidIspTests
             FilePath = "src/BadImpl.cs",
             Line = 20
         };
-        Assert.Equal("BadImpl", item.TypeName);
-        Assert.Equal("DoIt", item.MemberName);
-        Assert.Equal("IService", item.InterfaceName);
-        Assert.Equal("src/BadImpl.cs", item.FilePath);
-        Assert.Equal(20, item.Line);
+        item.TypeName.ShouldBe("BadImpl");
+        item.MemberName.ShouldBe("DoIt");
+        item.InterfaceName.ShouldBe("IService");
+        item.FilePath.ShouldBe("src/BadImpl.cs");
+        item.Line.ShouldBe(20);
     }
 
     [Fact]
     public void solid_result_isp_block_is_empty_by_default()
     {
         var result = new SolidResult();
-        Assert.NotNull(result.ISP);
-        Assert.Empty(result.ISP.FatInterfaces);
-        Assert.Empty(result.ISP.UnimplementedMembers);
+        result.ISP.ShouldNotBeNull();
+        result.ISP.FatInterfaces.ShouldBeEmpty();
+        result.ISP.UnimplementedMembers.ShouldBeEmpty();
     }
 
     [Fact]
@@ -398,7 +399,7 @@ public class SolidIspTests
         RtSerializer.Write(result, output);
 
         using var doc = JsonDocument.Parse(output.ToString());
-        Assert.True(doc.RootElement.TryGetProperty("ISP", out _));
+        doc.RootElement.TryGetProperty("ISP", out _).ShouldBeTrue();
     }
 
     [Fact]
@@ -411,10 +412,10 @@ public class SolidIspTests
 
         using var doc = JsonDocument.Parse(output.ToString());
         var isp = doc.RootElement.GetProperty("ISP");
-        Assert.True(isp.TryGetProperty("FatInterfaces", out var fat));
-        Assert.True(isp.TryGetProperty("UnimplementedMembers", out var unimpl));
-        Assert.Equal(JsonValueKind.Array, fat.ValueKind);
-        Assert.Equal(JsonValueKind.Array, unimpl.ValueKind);
+        isp.TryGetProperty("FatInterfaces", out var fat).ShouldBeTrue();
+        isp.TryGetProperty("UnimplementedMembers", out var unimpl).ShouldBeTrue();
+        fat.ValueKind.ShouldBe(JsonValueKind.Array);
+        unimpl.ValueKind.ShouldBe(JsonValueKind.Array);
     }
 
     // -----------------------------------------------------------------------
@@ -425,14 +426,14 @@ public class SolidIspTests
     public async Task execute_async_returns_0_for_valid_isp_principle()
     {
         var exitCode = await SolidCommand.ExecuteAsync(null, "ISP", 10, 5, 7, 2);
-        Assert.Equal(0, exitCode);
+        exitCode.ShouldBe(0);
     }
 
     [Fact]
     public async Task execute_async_returns_1_for_negative_min_members()
     {
         var exitCode = await SolidCommand.ExecuteAsync(null, "ISP", 10, 5, -1, 2);
-        Assert.Equal(1, exitCode);
+        exitCode.ShouldBe(1);
     }
 
     [Fact]
@@ -441,7 +442,7 @@ public class SolidIspTests
         var cmd = SolidCommand.Build();
         var minMembersOpt = cmd.Options.OfType<Option<int>>()
             .First(o => o.Name == "min-members");
-        Assert.Equal(7, minMembersOpt.Parse("").GetValueForOption(minMembersOpt));
+        minMembersOpt.Parse("").GetValueForOption(minMembersOpt).ShouldBe(7);
     }
 
     [Fact]

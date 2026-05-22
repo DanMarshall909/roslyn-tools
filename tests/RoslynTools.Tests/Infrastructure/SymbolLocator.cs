@@ -1,5 +1,6 @@
 using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
+using Shouldly;
 
 namespace RoslynTools.Tests.Infrastructure;
 
@@ -34,10 +35,10 @@ public class SymbolLocator
                 var lookup = Core.SymbolLocator.FindMethodBySpecAsync(solution, "TestApp.Service.Foo");
                 var completed = await Task.WhenAny(lookup, Task.Delay(TimeSpan.FromSeconds(5)));
 
-                Assert.Same(lookup, completed);
+                completed.ShouldBeSameAs(lookup);
                 var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => lookup);
-                Assert.Contains("Multiple symbols match 'TestApp.Service.Foo'", ex.Message);
-                Assert.Contains("no selection was provided", ex.Message);
+                ex.Message.ShouldContain("Multiple symbols match 'TestApp.Service.Foo'", Case.Sensitive);
+                ex.Message.ShouldContain("no selection was provided", Case.Sensitive);
             }
             finally
             {
@@ -64,8 +65,8 @@ public class SymbolLocator
         {
             var symbol = await Core.SymbolLocator.FindSymbolAsync(solution, "Logger", "type");
 
-            Assert.Equal(SymbolKind.NamedType, symbol.Kind);
-            Assert.Equal("Logger", symbol.Name);
+            symbol.Kind.ShouldBe(SymbolKind.NamedType);
+            symbol.Name.ShouldBe("Logger");
         }
     }
 }

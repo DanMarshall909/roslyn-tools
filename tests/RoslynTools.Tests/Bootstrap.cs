@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Hosting;
+using Shouldly;
 
 namespace RoslynTools.Tests;
 
@@ -17,6 +18,6 @@ public sealed class Bootstrap
             .ConfigureServices(RoslynTools.Bootstrap.RegisterServices)
             .Build();
 
-        Assert.NotNull(host.Services);
+        host.Services.ShouldNotBeNull();
     }
 }

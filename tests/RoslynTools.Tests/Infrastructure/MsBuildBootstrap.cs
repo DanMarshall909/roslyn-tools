@@ -1,4 +1,5 @@
 using Microsoft.Build.Locator;
+using Shouldly;
 
 namespace RoslynTools.Tests.Infrastructure;
 
@@ -11,8 +12,8 @@ public class MsBuildBootstrap
 
         // On any machine with a .NET SDK installed (CI included), we expect
         // a DotNetSdk instance rather than a VS/.NET Framework one.
-        Assert.NotNull(instance);
-        Assert.Equal(DiscoveryType.DotNetSdk, instance.DiscoveryType);
+        instance.ShouldNotBeNull();
+        instance.DiscoveryType.ShouldBe(DiscoveryType.DotNetSdk);
     }
 
     [Fact]
@@ -26,6 +27,6 @@ public class MsBuildBootstrap
             .ToList();
 
         var highest = allSdk.Max(i => i.Version);
-        Assert.Equal(highest, instance.Version);
+        instance.Version.ShouldBe(highest);
     }
 }

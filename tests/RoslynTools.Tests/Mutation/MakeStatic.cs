@@ -1,6 +1,7 @@
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Tests.Infrastructure;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -30,7 +31,7 @@ public class MakeStatic : IClassFixture<RtServicesFixture>
         }
 
         var content = await proj.ReadSourceAsync("Calc.cs");
-        Assert.Contains("public static int Add", content);
+        content.ShouldContain("public static int Add", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -58,8 +59,8 @@ public class MakeStatic : IClassFixture<RtServicesFixture>
         }
 
         var output = stderr.ToString();
-        Assert.Contains("this", output);
-        Assert.Equal(1, Environment.ExitCode);
+        output.ShouldContain("this", Case.Sensitive);
+        Environment.ExitCode.ShouldBe(1);
 
         // Reset for other tests
         Environment.ExitCode = 0;
@@ -91,9 +92,9 @@ public class MakeStatic : IClassFixture<RtServicesFixture>
         }
 
         var output = stderr.ToString();
-        Assert.Contains("instance member", output);
-        Assert.Contains("_count", output);
-        Assert.Equal(1, Environment.ExitCode);
+        output.ShouldContain("instance member", Case.Sensitive);
+        output.ShouldContain("_count", Case.Sensitive);
+        Environment.ExitCode.ShouldBe(1);
 
         Environment.ExitCode = 0;
         Console.SetError(new StreamWriter(Stream.Null));
@@ -123,8 +124,8 @@ public class MakeStatic : IClassFixture<RtServicesFixture>
         }
 
         var output = stderr.ToString();
-        Assert.Contains("virtual", output);
-        Assert.Equal(1, Environment.ExitCode);
+        output.ShouldContain("virtual", Case.Sensitive);
+        Environment.ExitCode.ShouldBe(1);
 
         Environment.ExitCode = 0;
         Console.SetError(new StreamWriter(Stream.Null));
@@ -159,11 +160,11 @@ public class MakeStatic : IClassFixture<RtServicesFixture>
         }
 
         var helperContent = await proj.ReadSourceAsync("Helper.cs");
-        Assert.Contains("public static string Format", helperContent);
+        helperContent.ShouldContain("public static string Format", Case.Sensitive);
 
         var appContent = await proj.ReadSourceAsync("App.cs");
-        Assert.Contains("Helper.Format(", appContent);
-        Assert.DoesNotContain("h.Format(", appContent);
+        appContent.ShouldContain("Helper.Format(", Case.Sensitive);
+        appContent.ShouldNotContain("h.Format(", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -199,9 +200,9 @@ public class MakeStatic : IClassFixture<RtServicesFixture>
         }
 
         var after = await proj.ReadSourceAsync("Util.cs");
-        Assert.Equal(before, after);
+        after.ShouldBe(before);
 
         var diffOutput = sw.ToString();
-        Assert.Contains("static", diffOutput);
+        diffOutput.ShouldContain("static", Case.Sensitive);
     }
 }

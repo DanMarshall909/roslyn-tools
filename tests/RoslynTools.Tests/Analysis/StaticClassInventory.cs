@@ -1,4 +1,5 @@
 using RoslynTools.Services;
+using Shouldly;
 
 namespace RoslynTools.Tests.Analysis;
 
@@ -131,7 +132,7 @@ public class StaticClassInventory
             var report = await new StaticClassInventoryService().AnalyzeAsync(sln);
 
             var leaf = report.Classes.Single(c => c.Fqn.EndsWith("LeafService", StringComparison.Ordinal));
-            Assert.Equal("leaf", leaf.MigrationDifficulty);
+            leaf.MigrationDifficulty.ShouldBe("leaf");
         }
     }
 
@@ -149,7 +150,7 @@ public class StaticClassInventory
             var report = await new StaticClassInventoryService().AnalyzeAsync(sln);
 
             var mid = report.Classes.Single(c => c.Fqn.EndsWith("MidService", StringComparison.Ordinal));
-            Assert.Equal("mid", mid.MigrationDifficulty);
+            mid.MigrationDifficulty.ShouldBe("mid");
         }
     }
 
@@ -167,7 +168,7 @@ public class StaticClassInventory
             var report = await new StaticClassInventoryService().AnalyzeAsync(sln);
 
             var hub = report.Classes.Single(c => c.Fqn.EndsWith("HubService", StringComparison.Ordinal));
-            Assert.Equal("hub", hub.MigrationDifficulty);
+            hub.MigrationDifficulty.ShouldBe("hub");
         }
     }
 
@@ -185,7 +186,7 @@ public class StaticClassInventory
             var report = await new StaticClassInventoryService().AnalyzeAsync(sln);
 
             var isolated = report.Classes.Single(c => c.Fqn.EndsWith("IsolatedService", StringComparison.Ordinal));
-            Assert.Equal("leaf", isolated.MigrationDifficulty);
+            isolated.MigrationDifficulty.ShouldBe("leaf");
         }
     }
 
@@ -203,9 +204,8 @@ public class StaticClassInventory
             var report = await new StaticClassInventoryService().AnalyzeAsync(sln);
 
             var leaf = report.Classes.Single(c => c.Fqn.EndsWith("LeafService", StringComparison.Ordinal));
-            Assert.Contains(leaf.CalledFromInstanceClasses,
-                fqn => fqn.EndsWith("InstanceCaller", StringComparison.Ordinal));
-            Assert.Empty(leaf.CalledFromStaticClasses);
+            leaf.CalledFromInstanceClasses.ShouldContain(fqn => fqn.EndsWith("InstanceCaller", StringComparison.Ordinal));
+            leaf.CalledFromStaticClasses.ShouldBeEmpty();
         }
     }
 
@@ -219,7 +219,7 @@ public class StaticClassInventory
             var report = await new StaticClassInventoryService().AnalyzeAsync(sln);
 
             var mid = report.Classes.Single(c => c.Fqn.EndsWith("MidService", StringComparison.Ordinal));
-            Assert.Equal(2, mid.CalledFromStaticClasses.Count);
+            mid.CalledFromStaticClasses.Count.ShouldBe(2);
         }
     }
 
@@ -293,7 +293,7 @@ public class StaticClassInventory
         {
             var report = await new StaticClassInventoryService().AnalyzeAsync(sln);
 
-            Assert.Equal(report.TotalStaticClasses, report.Classes.Count);
+            report.Classes.Count.ShouldBe(report.TotalStaticClasses);
         }
     }
 
@@ -322,7 +322,7 @@ public class StaticClassInventory
                 var report = await new StaticClassInventoryService().AnalyzeAsync(sln);
 
                 var cls = report.Classes.Single(c => c.Fqn.EndsWith("TwoMember", StringComparison.Ordinal));
-                Assert.Equal(2, cls.MemberCount);
+                cls.MemberCount.ShouldBe(2);
             }
         }
     }

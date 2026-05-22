@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.FindSymbols;
 using RoslynTools.Core;
+using Shouldly;
 
 namespace RoslynTools.Tests.Navigation;
 
@@ -47,15 +48,15 @@ public class FindImplementations
         using (workspace)
         {
             var iface = await SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.IRepository", "type");
-            var namedType = Assert.IsAssignableFrom<INamedTypeSymbol>(iface);
+            var namedType = iface.ShouldBeAssignableTo<INamedTypeSymbol>()!;
 
             var impls = await SymbolFinder.FindImplementationsAsync(namedType, sln);
             var implNames = impls.Select(s => s.Name).ToList();
 
-            Assert.Contains("SqlRepository", implNames);
-            Assert.Contains("InMemoryRepository", implNames);
-            Assert.DoesNotContain("UnrelatedService", implNames);
-            Assert.Equal(2, implNames.Count);
+            implNames.ShouldContain("SqlRepository");
+            implNames.ShouldContain("InMemoryRepository");
+            implNames.ShouldNotContain("UnrelatedService");
+            implNames.Count.ShouldBe(2);
         }
     }
 
@@ -88,15 +89,15 @@ public class FindImplementations
         using (workspace)
         {
             var baseType = await SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.BaseHandler", "type");
-            var namedType = Assert.IsAssignableFrom<INamedTypeSymbol>(baseType);
+            var namedType = baseType.ShouldBeAssignableTo<INamedTypeSymbol>()!;
 
             var derived = await SymbolFinder.FindDerivedClassesAsync(namedType, sln);
             var derivedNames = derived.Select(s => s.Name).ToList();
 
-            Assert.Contains("CreateHandler", derivedNames);
-            Assert.Contains("DeleteHandler", derivedNames);
-            Assert.DoesNotContain("StandaloneService", derivedNames);
-            Assert.Equal(2, derivedNames.Count);
+            derivedNames.ShouldContain("CreateHandler");
+            derivedNames.ShouldContain("DeleteHandler");
+            derivedNames.ShouldNotContain("StandaloneService");
+            derivedNames.Count.ShouldBe(2);
         }
     }
 
@@ -117,10 +118,10 @@ public class FindImplementations
         using (workspace)
         {
             var iface = await SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.IUnimplemented", "type");
-            var namedType = Assert.IsAssignableFrom<INamedTypeSymbol>(iface);
+            var namedType = iface.ShouldBeAssignableTo<INamedTypeSymbol>()!;
 
             var impls = await SymbolFinder.FindImplementationsAsync(namedType, sln);
-            Assert.Empty(impls);
+            impls.ShouldBeEmpty();
         }
     }
 }

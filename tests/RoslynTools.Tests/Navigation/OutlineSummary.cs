@@ -1,4 +1,5 @@
 using RoslynTools.Services;
+using Shouldly;
 
 namespace RoslynTools.Tests.Navigation;
 
@@ -24,10 +25,10 @@ public class OutlineSummary
                 Path.Combine(project.ProjectDir, "Widget.cs"), true);
 
             var entry = Assert.Single(result);
-            Assert.Equal("TestApp.Widget", entry["fqn"]);
-            Assert.Equal("Class", entry["kind"]);
-            Assert.NotNull(entry["lineFrom"]);
-            Assert.NotNull(entry["lineTo"]);
+            entry["fqn"].ShouldBe("TestApp.Widget");
+            entry["kind"].ShouldBe("Class");
+            entry["lineFrom"].ShouldNotBeNull();
+            entry["lineTo"].ShouldNotBeNull();
             Assert.False(entry.ContainsKey("members"), "summary mode must not include member detail");
             Assert.False(entry.ContainsKey("name"), "summary mode must not include short name");
         }
@@ -51,7 +52,7 @@ public class OutlineSummary
 
             var entry = Assert.Single(result);
             Assert.True(entry.ContainsKey("description"), "should include description when XML doc exists");
-            Assert.Contains("Loads things from the database", (string)entry["description"]!);
+            ((string)entry["description"]!).ShouldContain("Loads things from the database", Case.Sensitive);
         }
     }
 
@@ -91,7 +92,7 @@ public class OutlineSummary
                 Path.Combine(project.ProjectDir, "Outer.cs"), true);
 
             Assert.Single(result);
-            Assert.Equal("TestApp.Outer", result[0]["fqn"]);
+            result[0]["fqn"].ShouldBe("TestApp.Outer");
         }
     }
 
@@ -108,8 +109,8 @@ public class OutlineSummary
             var result = await new OutlineService().OutlineDirectoryAsync(sln, project.ProjectDir);
             var fqns = result.Select(r => (string)r["fqn"]!).ToHashSet();
 
-            Assert.Contains("TestApp.Alpha", fqns);
-            Assert.Contains("TestApp.Beta", fqns);
+            fqns.ShouldContain("TestApp.Alpha");
+            fqns.ShouldContain("TestApp.Beta");
         }
     }
 
@@ -129,10 +130,10 @@ public class OutlineSummary
             var result = await new OutlineService().OutlineDirectoryAsync(sln, project.ProjectDir, true);
             var fqns = result.Select(r => (string)r["fqn"]!).ToHashSet();
 
-            Assert.Contains("TestApp.Parent", fqns);
-            Assert.Contains("TestApp.Sibling", fqns);
-            Assert.DoesNotContain("TestApp.Parent.Child", fqns);
-            Assert.True(result.All(r => !r.ContainsKey("members")));
+            fqns.ShouldContain("TestApp.Parent");
+            fqns.ShouldContain("TestApp.Sibling");
+            fqns.ShouldNotContain("TestApp.Parent.Child");
+            result.All(r => !r.ContainsKey("members")).ShouldBeTrue();
         }
     }
 
@@ -151,8 +152,8 @@ public class OutlineSummary
             var result = await new OutlineService().OutlineNamespaceAsync(sln, "TestApp", true);
 
             var entry = Assert.Single(result);
-            Assert.Equal("TestApp.MyService", entry["fqn"]);
-            Assert.False(entry.ContainsKey("members"));
+            entry["fqn"].ShouldBe("TestApp.MyService");
+            entry.ContainsKey("members").ShouldBeFalse();
         }
     }
 }

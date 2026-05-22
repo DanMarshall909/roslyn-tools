@@ -4,6 +4,7 @@ using RoslynTools.Commands;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
+using Shouldly;
 
 namespace RoslynTools.Tests.Analysis;
 
@@ -39,7 +40,7 @@ public class SolidSrpTests
                 public void MethodTwo() { }
             }
             """);
-        Assert.Empty(report.Violations);
+        report.Violations.ShouldBeEmpty();
     }
 
     [Fact]
@@ -61,7 +62,7 @@ public class SolidSrpTests
                 public void M10() { }
             }
             """);
-        Assert.Empty(report.Violations);
+        report.Violations.ShouldBeEmpty();
     }
 
     [Fact]
@@ -76,7 +77,7 @@ public class SolidSrpTests
                 public void M2() { }
             }
             """);
-        Assert.Empty(report.Violations);
+        report.Violations.ShouldBeEmpty();
     }
 
     [Fact]
@@ -105,7 +106,7 @@ public class SolidSrpTests
             }
             """);
         Assert.Single(report.Violations);
-        Assert.Equal("BadClass", report.Violations[0].TypeName);
+        report.Violations[0].TypeName.ShouldBe("BadClass");
     }
 
     [Fact]
@@ -122,7 +123,7 @@ public class SolidSrpTests
             }
             """, minMethods: 3, minDeps: 2);
         Assert.Single(report.Violations);
-        Assert.Equal("ExactClass", report.Violations[0].TypeName);
+        report.Violations[0].TypeName.ShouldBe("ExactClass");
     }
 
     [Fact]
@@ -138,7 +139,7 @@ public class SolidSrpTests
                 public void M3() { }
             }
             """, minMethods: 2, minDeps: 2);
-        Assert.Empty(report.Violations);
+        report.Violations.ShouldBeEmpty();
     }
 
     [Fact]
@@ -152,7 +153,7 @@ public class SolidSrpTests
                 public static void M3() { }
             }
             """, minMethods: 2, minDeps: 0);
-        Assert.Empty(report.Violations);
+        report.Violations.ShouldBeEmpty();
     }
 
     [Fact]
@@ -166,7 +167,7 @@ public class SolidSrpTests
                 void M3();
             }
             """, minMethods: 2, minDeps: 0);
-        Assert.Empty(report.Violations);
+        report.Violations.ShouldBeEmpty();
     }
 
     [Fact]
@@ -180,7 +181,7 @@ public class SolidSrpTests
                 public void M3() { }
             }
             """, minMethods: 2, minDeps: 0);
-        Assert.Empty(report.Violations);
+        report.Violations.ShouldBeEmpty();
     }
 
     [Fact]
@@ -195,7 +196,7 @@ public class SolidSrpTests
                 public void M3() { }
             }
             """, minMethods: 3, minDeps: 1);
-        Assert.Empty(report.Violations);
+        report.Violations.ShouldBeEmpty();
     }
 
     [Fact]
@@ -210,7 +211,7 @@ public class SolidSrpTests
                 public void M3() { }
             }
             """, minMethods: 3, minDeps: 1);
-        Assert.Empty(report.Violations);
+        report.Violations.ShouldBeEmpty();
     }
 
     [Fact]
@@ -226,7 +227,7 @@ public class SolidSrpTests
                 public void M3() { }
             }
             """, minMethods: 3, minDeps: 2);
-        Assert.Empty(report.Violations);
+        report.Violations.ShouldBeEmpty();
     }
 
     [Fact]
@@ -296,7 +297,7 @@ public class SolidSrpTests
                 public void M10() { }
             }
             """, fileName: "Generated.g.cs");
-        Assert.Empty(report.Violations);
+        report.Violations.ShouldBeEmpty();
     }
 
     [Fact]
@@ -363,36 +364,34 @@ public class SolidSrpTests
             }
             """);
         Assert.Single(report.Violations);
-        Assert.Equal(
-            "10 public methods, 5 injected dependencies",
-            report.Violations[0].Detail);
+        report.Violations[0].Detail.ShouldBe("10 public methods, 5 injected dependencies");
     }
 
     [Fact]
     public void command_info_category_is_analyze()
     {
-        Assert.Equal("analyze", SolidCommand.Info.Category);
+        SolidCommand.Info.Category.ShouldBe("analyze");
     }
 
     [Fact]
     public void command_info_json_output_is_true()
     {
-        Assert.True(SolidCommand.Info.JsonOutput);
+        SolidCommand.Info.JsonOutput.ShouldBeTrue();
     }
 
     [Fact]
     public void command_info_mutates_is_false()
     {
-        Assert.False(SolidCommand.Info.Mutates);
+        SolidCommand.Info.Mutates.ShouldBeFalse();
     }
 
     [Fact]
     public void command_info_supported_formats_includes_text_and_json()
     {
         var formats = SolidCommand.Info.SupportedFormats;
-        Assert.NotNull(formats);
-        Assert.Contains(OutputFormat.Text, formats);
-        Assert.Contains(OutputFormat.Json, formats);
+        formats.ShouldNotBeNull();
+        formats.ShouldContain(OutputFormat.Text);
+        formats.ShouldContain(OutputFormat.Json);
     }
 
     [Fact]
@@ -408,19 +407,19 @@ public class SolidSrpTests
             Detail = "Too many responsibilities"
         };
 
-        Assert.Equal("MyClass", item.TypeName);
-        Assert.Equal("src/MyClass.cs", item.FilePath);
-        Assert.Equal(10, item.Line);
-        Assert.Equal(7, item.PublicMethodCount);
-        Assert.Equal(4, item.DependencyCount);
-        Assert.Equal("Too many responsibilities", item.Detail);
+        item.TypeName.ShouldBe("MyClass");
+        item.FilePath.ShouldBe("src/MyClass.cs");
+        item.Line.ShouldBe(10);
+        item.PublicMethodCount.ShouldBe(7);
+        item.DependencyCount.ShouldBe(4);
+        item.Detail.ShouldBe("Too many responsibilities");
     }
 
     [Fact]
     public void solid_result_srp_list_is_empty_by_default()
     {
         var result = new SolidResult();
-        Assert.Empty(result.SRP);
+        result.SRP.ShouldBeEmpty();
     }
 
     [Fact]
@@ -432,7 +431,7 @@ public class SolidSrpTests
         RtSerializer.Write(result, output);
 
         using var doc = JsonDocument.Parse(output.ToString());
-        Assert.True(doc.RootElement.TryGetProperty("SRP", out _));
+        doc.RootElement.TryGetProperty("SRP", out _).ShouldBeTrue();
     }
 
     // -----------------------------------------------------------------------
@@ -443,35 +442,35 @@ public class SolidSrpTests
     public async Task execute_async_returns_1_for_negative_min_methods()
     {
         var exitCode = await SolidCommand.ExecuteAsync(null, "SRP", -1, 5, 7, 2);
-        Assert.Equal(1, exitCode);
+        exitCode.ShouldBe(1);
     }
 
     [Fact]
     public async Task execute_async_returns_1_for_negative_min_deps()
     {
         var exitCode = await SolidCommand.ExecuteAsync(null, "SRP", 10, -1, 7, 2);
-        Assert.Equal(1, exitCode);
+        exitCode.ShouldBe(1);
     }
 
     [Fact]
     public async Task execute_async_returns_1_for_invalid_principle()
     {
         var exitCode = await SolidCommand.ExecuteAsync(null, "ZZZ", 10, 5, 7, 2);
-        Assert.Equal(1, exitCode);
+        exitCode.ShouldBe(1);
     }
 
     [Fact]
     public async Task execute_async_returns_0_for_valid_srp_principle()
     {
         var exitCode = await SolidCommand.ExecuteAsync(null, "SRP", 10, 5, 7, 2);
-        Assert.Equal(0, exitCode);
+        exitCode.ShouldBe(0);
     }
 
     [Fact]
     public async Task execute_async_returns_0_for_all_principle()
     {
         var exitCode = await SolidCommand.ExecuteAsync(null, "all", 10, 5, 7, 2);
-        Assert.Equal(0, exitCode);
+        exitCode.ShouldBe(0);
     }
 
     [Fact]
@@ -480,7 +479,7 @@ public class SolidSrpTests
         var cmd = SolidCommand.Build();
         var minMethodsOpt = cmd.Options.OfType<Option<int>>()
             .First(o => o.Name == "min-methods");
-        Assert.Equal(10, minMethodsOpt.Parse("").GetValueForOption(minMethodsOpt));
+        minMethodsOpt.Parse("").GetValueForOption(minMethodsOpt).ShouldBe(10);
     }
 
     [Fact]
@@ -489,6 +488,6 @@ public class SolidSrpTests
         var cmd = SolidCommand.Build();
         var minDepsOpt = cmd.Options.OfType<Option<int>>()
             .First(o => o.Name == "min-deps");
-        Assert.Equal(5, minDepsOpt.Parse("").GetValueForOption(minDepsOpt));
+        minDepsOpt.Parse("").GetValueForOption(minDepsOpt).ShouldBe(5);
     }
 }

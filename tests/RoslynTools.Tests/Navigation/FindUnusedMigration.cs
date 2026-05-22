@@ -3,6 +3,7 @@ using RoslynTools.Commands;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
+using Shouldly;
 
 namespace RoslynTools.Tests.Navigation;
 
@@ -42,7 +43,7 @@ public class FindUnusedMigration : IDisposable
 
         // Legacy format: "{r.Kind,-10} {r.Name,-40} {r.FilePath}:{r.Line}"
         var expected = $"{"method",-10} {"UnusedMethod",-40} /path/to/Services.cs:42";
-        Assert.Equal(expected, sw.ToString().TrimEnd('\r', '\n'));
+        sw.ToString().TrimEnd('\r', '\n').ShouldBe(expected);
     }
 
     [Fact]
@@ -52,9 +53,9 @@ public class FindUnusedMigration : IDisposable
         var sw = new StringWriter();
         result.RenderText(sw);
         var lines = sw.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        Assert.Equal(2, lines.Length);
-        Assert.Contains("UnusedMethod", lines[0]);
-        Assert.Contains("OrphanClass", lines[1]);
+        lines.Length.ShouldBe(2);
+        lines[0].ShouldContain("UnusedMethod", Case.Sensitive);
+        lines[1].ShouldContain("OrphanClass", Case.Sensitive);
     }
 
     [Fact]
@@ -63,7 +64,7 @@ public class FindUnusedMigration : IDisposable
         var result = FindUnusedResult.FromSymbols([]);
         var sw = new StringWriter();
         result.RenderText(sw);
-        Assert.Equal(string.Empty, sw.ToString());
+        sw.ToString().ShouldBe(string.Empty);
     }
 
     // ── AC-4: --json produces well-formed JSON ────────────────────────────────
@@ -76,7 +77,7 @@ public class FindUnusedMigration : IDisposable
         var sw = new StringWriter();
         RtSerializer.Write(result, sw);
         var json = sw.ToString();
-        Assert.False(string.IsNullOrWhiteSpace(json));
+        string.IsNullOrWhiteSpace(json).ShouldBeFalse();
         using var doc = JsonDocument.Parse(json); // throws if malformed
     }
 
@@ -103,7 +104,7 @@ public class FindUnusedMigration : IDisposable
         var sw = new StringWriter();
         RtSerializer.Write(result, sw);
         var markdown = sw.ToString();
-        Assert.Contains("|", markdown);
+        markdown.ShouldContain("|", Case.Sensitive);
     }
 
     // ── AC-4: --llm produces key:value pairs ─────────────────────────────────
@@ -116,8 +117,8 @@ public class FindUnusedMigration : IDisposable
         var sw = new StringWriter();
         RtSerializer.Write(result, sw);
         var text = sw.ToString();
-        Assert.Contains("UnusedMethod", text);
-        Assert.Contains("OrphanClass", text);
+        text.ShouldContain("UnusedMethod", Case.Sensitive);
+        text.ShouldContain("OrphanClass", Case.Sensitive);
     }
 
     // ── AC-5: no flag produces unchanged legacy text ─────────────────────────
@@ -132,9 +133,9 @@ public class FindUnusedMigration : IDisposable
         var text = sw.ToString();
 
         // Should be plain columnar text, not JSON
-        Assert.DoesNotContain("{", text);
-        Assert.DoesNotContain("#", text);
-        Assert.Contains("UnusedMethod", text);
+        text.ShouldNotContain("{", Case.Sensitive);
+        text.ShouldNotContain("#", Case.Sensitive);
+        text.ShouldContain("UnusedMethod", Case.Sensitive);
     }
 
     // ── AC-6: SupportedFormats ────────────────────────────────────────────────
@@ -143,11 +144,11 @@ public class FindUnusedMigration : IDisposable
     public void finds_unused_command_supported_formats_contains_all_four()
     {
         var formats = FindUnusedCommand.Info.SupportedFormats;
-        Assert.NotNull(formats);
-        Assert.Contains(OutputFormat.Text, formats);
-        Assert.Contains(OutputFormat.Json, formats);
-        Assert.Contains(OutputFormat.Markdown, formats);
-        Assert.Contains(OutputFormat.Llm, formats);
+        formats.ShouldNotBeNull();
+        formats.ShouldContain(OutputFormat.Text);
+        formats.ShouldContain(OutputFormat.Json);
+        formats.ShouldContain(OutputFormat.Markdown);
+        formats.ShouldContain(OutputFormat.Llm);
     }
 
     // ── AC-1: IRtOutput contract ──────────────────────────────────────────────
@@ -156,7 +157,7 @@ public class FindUnusedMigration : IDisposable
     public void finds_unused_result_implements_irt_output()
     {
         var result = BuildSampleResult();
-        Assert.IsAssignableFrom<IRtOutput>(result);
+        result.ShouldBeAssignableTo<IRtOutput>();
     }
 
     [Fact]
@@ -169,6 +170,6 @@ public class FindUnusedMigration : IDisposable
             FilePath = "/a/b.cs",
             Line = 1
         };
-        Assert.IsAssignableFrom<IRtOutput>(symbolResult);
+        symbolResult.ShouldBeAssignableTo<IRtOutput>();
     }
 }

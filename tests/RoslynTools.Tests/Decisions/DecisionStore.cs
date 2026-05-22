@@ -1,4 +1,5 @@
 using RoslynTools.Core.Decisions;
+using Shouldly;
 
 namespace RoslynTools.Tests.Decisions;
 
@@ -11,8 +12,8 @@ public class DecisionStore
 
         var store = Core.Decisions.DecisionStore.Load(path);
 
-        Assert.False(store.AnyPending);
-        Assert.False(store.TryGetAnswer("ambig-Foo-2", out _));
+        store.AnyPending.ShouldBeFalse();
+        store.TryGetAnswer("ambig-Foo-2", out _).ShouldBeFalse();
     }
 
     [Fact]
@@ -36,9 +37,9 @@ public class DecisionStore
 
             var reloaded = Core.Decisions.DecisionStore.Load(path);
 
-            Assert.True(reloaded.AnyPending);
-            Assert.Equal(1, reloaded.PendingCount);
-            Assert.False(reloaded.TryGetAnswer("ambig-Foo-2", out _));
+            reloaded.AnyPending.ShouldBeTrue();
+            reloaded.PendingCount.ShouldBe(1);
+            reloaded.TryGetAnswer("ambig-Foo-2", out _).ShouldBeFalse();
         }
         finally
         {
@@ -63,9 +64,9 @@ public class DecisionStore
 
             var store = Core.Decisions.DecisionStore.Load(path);
 
-            Assert.False(store.AnyPending);
-            Assert.True(store.TryGetAnswer("ambig-Foo-2", out var choice));
-            Assert.Equal(1, choice);
+            store.AnyPending.ShouldBeFalse();
+            store.TryGetAnswer("ambig-Foo-2", out var choice).ShouldBeTrue();
+            choice.ShouldBe(1);
         }
         finally
         {
@@ -81,7 +82,7 @@ public class DecisionStore
         store.Add(new DecisionEntry { Id = "ambig-Foo-2", Q = "first" });
         store.Add(new DecisionEntry { Id = "ambig-Foo-2", Q = "second" });
 
-        Assert.Equal(1, store.PendingCount);
+        store.PendingCount.ShouldBe(1);
     }
 
     [Fact]
@@ -101,9 +102,9 @@ public class DecisionStore
 
             var text = File.ReadAllText(path);
 
-            Assert.StartsWith("# rt decisions", text);
-            Assert.Contains("ambig-Foo-2", text);
-            Assert.Contains("choose:", text);
+            text.ShouldStartWith("# rt decisions", Case.Sensitive);
+            text.ShouldContain("ambig-Foo-2", Case.Sensitive);
+            text.ShouldContain("choose:", Case.Sensitive);
         }
         finally
         {

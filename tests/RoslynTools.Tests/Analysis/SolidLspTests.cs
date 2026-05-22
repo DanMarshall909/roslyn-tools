@@ -4,6 +4,7 @@ using RoslynTools.Commands;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
+using Shouldly;
 
 namespace RoslynTools.Tests.Analysis;
 
@@ -42,9 +43,9 @@ public class SolidLspTests
             """);
         Assert.Single(report.ThrowingOverrides);
         var item = report.ThrowingOverrides[0];
-        Assert.Equal("Derived", item.TypeName);
-        Assert.Equal("DoIt", item.MemberName);
-        Assert.Equal("NotImplementedException", item.ExceptionType);
+        item.TypeName.ShouldBe("Derived");
+        item.MemberName.ShouldBe("DoIt");
+        item.ExceptionType.ShouldBe("NotImplementedException");
     }
 
     [Fact]
@@ -61,7 +62,7 @@ public class SolidLspTests
             }
             """);
         Assert.Single(report.ThrowingOverrides);
-        Assert.Equal("NotSupportedException", report.ThrowingOverrides[0].ExceptionType);
+        report.ThrowingOverrides[0].ExceptionType.ShouldBe("NotSupportedException");
     }
 
     [Fact]
@@ -77,7 +78,7 @@ public class SolidLspTests
                 public override void DoIt() { var x = 1; }
             }
             """);
-        Assert.Empty(report.ThrowingOverrides);
+        report.ThrowingOverrides.ShouldBeEmpty();
     }
 
     [Fact]
@@ -90,7 +91,7 @@ public class SolidLspTests
                 public void DoIt() => throw new System.NotImplementedException();
             }
             """);
-        Assert.Empty(report.ThrowingOverrides);
+        report.ThrowingOverrides.ShouldBeEmpty();
     }
 
     [Fact]
@@ -129,9 +130,9 @@ public class SolidLspTests
             """);
         Assert.Single(report.ContractNarrowings);
         var item = report.ContractNarrowings[0];
-        Assert.Equal("BadImpl", item.TypeName);
-        Assert.Equal("DoIt", item.MemberName);
-        Assert.Equal("IService", item.BaseType);
+        item.TypeName.ShouldBe("BadImpl");
+        item.MemberName.ShouldBe("DoIt");
+        item.BaseType.ShouldBe("IService");
     }
 
     [Fact]
@@ -147,7 +148,7 @@ public class SolidLspTests
                 void IService.DoIt() { var x = 1; }
             }
             """);
-        Assert.Empty(report.ContractNarrowings);
+        report.ContractNarrowings.ShouldBeEmpty();
     }
 
     [Fact]
@@ -164,7 +165,7 @@ public class SolidLspTests
                 public void DoIt() => throw new System.NotImplementedException();
             }
             """);
-        Assert.Empty(report.ContractNarrowings);
+        report.ContractNarrowings.ShouldBeEmpty();
     }
 
     [Fact]
@@ -186,12 +187,12 @@ public class SolidLspTests
                 public override void A() => throw new System.NotImplementedException();
             }
             """);
-        Assert.Equal(3, report.ThrowingOverrides.Count);
-        Assert.Equal("Alpha", report.ThrowingOverrides[0].TypeName);
-        Assert.Equal("Zeta", report.ThrowingOverrides[1].TypeName);
-        Assert.Equal("A", report.ThrowingOverrides[1].MemberName);
-        Assert.Equal("Zeta", report.ThrowingOverrides[2].TypeName);
-        Assert.Equal("B", report.ThrowingOverrides[2].MemberName);
+        report.ThrowingOverrides.Count.ShouldBe(3);
+        report.ThrowingOverrides[0].TypeName.ShouldBe("Alpha");
+        report.ThrowingOverrides[1].TypeName.ShouldBe("Zeta");
+        report.ThrowingOverrides[1].MemberName.ShouldBe("A");
+        report.ThrowingOverrides[2].TypeName.ShouldBe("Zeta");
+        report.ThrowingOverrides[2].MemberName.ShouldBe("B");
     }
 
     [Fact]
@@ -208,7 +209,7 @@ public class SolidLspTests
                 public void ThrowingHelper() => throw new System.NotSupportedException("nope");
             }
             """);
-        Assert.Empty(report.ThrowingOverrides);
+        report.ThrowingOverrides.ShouldBeEmpty();
     }
 
     // -----------------------------------------------------------------------
@@ -226,9 +227,9 @@ public class SolidLspTests
             FilePath = "src/Derived.cs",
             Line = 10
         };
-        Assert.Equal("Derived", item.TypeName);
-        Assert.Equal("DoIt", item.MemberName);
-        Assert.Equal("NotImplementedException", item.ExceptionType);
+        item.TypeName.ShouldBe("Derived");
+        item.MemberName.ShouldBe("DoIt");
+        item.ExceptionType.ShouldBe("NotImplementedException");
     }
 
     [Fact]
@@ -242,17 +243,17 @@ public class SolidLspTests
             FilePath = "src/BadImpl.cs",
             Line = 20
         };
-        Assert.Equal("BadImpl", item.TypeName);
-        Assert.Equal("IService", item.BaseType);
+        item.TypeName.ShouldBe("BadImpl");
+        item.BaseType.ShouldBe("IService");
     }
 
     [Fact]
     public void solid_result_lsp_block_is_empty_by_default()
     {
         var result = new SolidResult();
-        Assert.NotNull(result.LSP);
-        Assert.Empty(result.LSP.ThrowingOverrides);
-        Assert.Empty(result.LSP.ContractNarrowings);
+        result.LSP.ShouldNotBeNull();
+        result.LSP.ThrowingOverrides.ShouldBeEmpty();
+        result.LSP.ContractNarrowings.ShouldBeEmpty();
     }
 
     [Fact]
@@ -264,11 +265,11 @@ public class SolidLspTests
         RtSerializer.Write(result, output);
 
         using var doc = JsonDocument.Parse(output.ToString());
-        Assert.True(doc.RootElement.TryGetProperty("LSP", out var lsp));
-        Assert.True(lsp.TryGetProperty("ThrowingOverrides", out var to));
-        Assert.True(lsp.TryGetProperty("ContractNarrowings", out var cn));
-        Assert.Equal(JsonValueKind.Array, to.ValueKind);
-        Assert.Equal(JsonValueKind.Array, cn.ValueKind);
+        doc.RootElement.TryGetProperty("LSP", out var lsp).ShouldBeTrue();
+        lsp.TryGetProperty("ThrowingOverrides", out var to).ShouldBeTrue();
+        lsp.TryGetProperty("ContractNarrowings", out var cn).ShouldBeTrue();
+        to.ValueKind.ShouldBe(JsonValueKind.Array);
+        cn.ValueKind.ShouldBe(JsonValueKind.Array);
     }
 
     // -----------------------------------------------------------------------
@@ -279,7 +280,7 @@ public class SolidLspTests
     public async Task execute_async_returns_0_for_valid_lsp_principle()
     {
         var exitCode = await SolidCommand.ExecuteAsync(null, "LSP", 10, 5, 7, 2);
-        Assert.Equal(0, exitCode);
+        exitCode.ShouldBe(0);
     }
 
     [Fact]

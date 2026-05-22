@@ -6,6 +6,7 @@ using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Services;
 using RoslynTools.Tests.Infrastructure;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -47,7 +48,7 @@ public class SafeDelete : IClassFixture<RtServicesFixture>
             await _services.Resolve<SafeDeleteCommand>().ExecuteAsync("Orphan", null, "ignored", false);
 
             var content = await project.ReadSourceAsync("SafeApp.cs");
-            Assert.DoesNotContain("class Orphan", content);
+            content.ShouldNotContain("class Orphan", Case.Sensitive);
         }
     }
 
@@ -61,7 +62,7 @@ public class SafeDelete : IClassFixture<RtServicesFixture>
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 _services.Resolve<SafeDeleteCommand>().ExecuteAsync("Used", null, "ignored", false));
 
-            Assert.Contains("Used", ex.Message);
+            ex.Message.ShouldContain("Used", Case.Sensitive);
         }
     }
 
@@ -75,8 +76,8 @@ public class SafeDelete : IClassFixture<RtServicesFixture>
             await _services.Resolve<SafeDeleteCommand>().ExecuteAsync("Svc.Dead", "method", "ignored", false);
 
             var content = await project.ReadSourceAsync("SafeApp.cs");
-            Assert.DoesNotContain("void Dead()", content);
-            Assert.Contains("void Live()", content);
+            content.ShouldNotContain("void Dead()", Case.Sensitive);
+            content.ShouldContain("void Live()", Case.Sensitive);
         }
     }
 
@@ -90,7 +91,7 @@ public class SafeDelete : IClassFixture<RtServicesFixture>
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 _services.Resolve<SafeDeleteCommand>().ExecuteAsync("Svc.Live", "method", "ignored", false));
 
-            Assert.Contains("Live", ex.Message);
+            ex.Message.ShouldContain("Live", Case.Sensitive);
         }
     }
 
@@ -106,7 +107,7 @@ public class SafeDelete : IClassFixture<RtServicesFixture>
             await _services.Resolve<SafeDeleteCommand>().ExecuteAsync("Orphan", null, "ignored", true);
 
             var afterContent = await project.ReadSourceAsync("SafeApp.cs");
-            Assert.Equal(originalContent, afterContent);
+            afterContent.ShouldBe(originalContent);
         }
     }
 
@@ -138,7 +139,7 @@ public class SafeDelete : IClassFixture<RtServicesFixture>
             await _services.Resolve<SafeDeleteCommand>().ExecuteAsync("Logger", null, "ignored", false);
 
             var content = await project.ReadSourceAsync("SafeApp.cs");
-            Assert.DoesNotContain("class Logger", content);
+            content.ShouldNotContain("class Logger", Case.Sensitive);
         }
     }
 
@@ -162,8 +163,8 @@ public class SafeDelete : IClassFixture<RtServicesFixture>
                 .RunAsync(solution, "Dead", null, false);
 
             var content = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "SafeApp.cs");
-            Assert.DoesNotContain("void Dead()", content);
-            Assert.Contains("void Live()", content);
+            content.ShouldNotContain("void Dead()", Case.Sensitive);
+            content.ShouldContain("void Live()", Case.Sensitive);
         }
     }
 
@@ -189,25 +190,25 @@ public class SafeDelete : IClassFixture<RtServicesFixture>
             new SafeDeleteService(NullLogger<SafeDeleteService>.Instance, new CapturingSolutionChangeWriter());
 
         Assert.All(root.DescendantNodes().OfType<ClassDeclarationSyntax>(), node =>
-            Assert.Same(node, service.FindDeclarationNode(node)));
+            service.FindDeclarationNode(node).ShouldBeSameAs(node));
         Assert.All(root.DescendantNodes().OfType<InterfaceDeclarationSyntax>(), node =>
-            Assert.Same(node, service.FindDeclarationNode(node)));
+            service.FindDeclarationNode(node).ShouldBeSameAs(node));
         Assert.All(root.DescendantNodes().OfType<StructDeclarationSyntax>(), node =>
-            Assert.Same(node, service.FindDeclarationNode(node)));
+            service.FindDeclarationNode(node).ShouldBeSameAs(node));
         Assert.All(root.DescendantNodes().OfType<RecordDeclarationSyntax>(), node =>
-            Assert.Same(node, service.FindDeclarationNode(node)));
+            service.FindDeclarationNode(node).ShouldBeSameAs(node));
         Assert.All(root.DescendantNodes().OfType<EnumDeclarationSyntax>(), node =>
-            Assert.Same(node, service.FindDeclarationNode(node)));
+            service.FindDeclarationNode(node).ShouldBeSameAs(node));
         Assert.All(root.DescendantNodes().OfType<DelegateDeclarationSyntax>(), node =>
-            Assert.Same(node, service.FindDeclarationNode(node)));
+            service.FindDeclarationNode(node).ShouldBeSameAs(node));
         Assert.All(root.DescendantNodes().OfType<MethodDeclarationSyntax>(), node =>
-            Assert.Same(node, service.FindDeclarationNode(node)));
+            service.FindDeclarationNode(node).ShouldBeSameAs(node));
         Assert.All(root.DescendantNodes().OfType<PropertyDeclarationSyntax>(), node =>
-            Assert.Same(node, service.FindDeclarationNode(node)));
+            service.FindDeclarationNode(node).ShouldBeSameAs(node));
         Assert.All(root.DescendantNodes().OfType<FieldDeclarationSyntax>(), node =>
-            Assert.Same(node, service.FindDeclarationNode(node)));
+            service.FindDeclarationNode(node).ShouldBeSameAs(node));
         Assert.All(root.DescendantNodes().OfType<EventDeclarationSyntax>(), node =>
-            Assert.Same(node, service.FindDeclarationNode(node)));
-        Assert.Null(service.FindDeclarationNode(root));
+            service.FindDeclarationNode(node).ShouldBeSameAs(node));
+        service.FindDeclarationNode(root).ShouldBeNull();
     }
 }

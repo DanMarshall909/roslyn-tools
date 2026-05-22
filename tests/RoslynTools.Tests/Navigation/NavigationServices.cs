@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
 using RoslynTools.Services;
+using Shouldly;
 
 namespace RoslynTools.Tests.Navigation;
 
@@ -38,8 +39,8 @@ public class NavigationServices
         using (workspace)
         {
             var result = await new FindCallersService().FindAsync(sln, "Greet", true);
-            Assert.Equal("Greet", result.SymbolName);
-            Assert.NotEmpty(result.Callers);
+            result.SymbolName.ShouldBe("Greet");
+            result.Callers.ShouldNotBeEmpty();
         }
     }
 
@@ -52,16 +53,16 @@ public class NavigationServices
         using (workspace)
         {
             var result = await new FindCallersService().FindAsync(sln, "Greet", false);
-            Assert.Empty(result.Callers);
+            result.Callers.ShouldBeEmpty();
         }
     }
 
     [Fact]
     public void finds_callers_is_test_project_matches_test_in_name()
     {
-        Assert.True(new FindCallersService().IsTestProject("MyProject.Tests"));
-        Assert.True(new FindCallersService().IsTestProject("UnitTest"));
-        Assert.False(new FindCallersService().IsTestProject("OrderService"));
+        new FindCallersService().IsTestProject("MyProject.Tests").ShouldBeTrue();
+        new FindCallersService().IsTestProject("UnitTest").ShouldBeTrue();
+        new FindCallersService().IsTestProject("OrderService").ShouldBeFalse();
     }
 
     // ── FindRefsService ───────────────────────────────────────────────────
@@ -75,8 +76,8 @@ public class NavigationServices
         using (workspace)
         {
             var result = await new FindRefsService().FindAsync(sln, "Greeter", "type");
-            Assert.Equal("Greeter", result.SymbolName);
-            Assert.NotEmpty(result.References);
+            result.SymbolName.ShouldBe("Greeter");
+            result.References.ShouldNotBeEmpty();
         }
     }
 
@@ -100,8 +101,8 @@ public class NavigationServices
         {
             var result = await new FindRefsService().FindAsync(sln, "SupportedFormats", null);
 
-            Assert.Equal("SupportedFormats", result.SymbolName);
-            Assert.NotEmpty(result.References);
+            result.SymbolName.ShouldBe("SupportedFormats");
+            result.References.ShouldNotBeEmpty();
         }
     }
 
@@ -128,7 +129,7 @@ public class NavigationServices
         {
             var result = await new FindRefsService().FindAsync(sln, "App.FeedbackStore.MarkProcessed", null);
 
-            Assert.Equal("MarkProcessed", result.SymbolName);
+            result.SymbolName.ShouldBe("MarkProcessed");
             Assert.Single(result.References);
         }
     }
@@ -156,7 +157,7 @@ public class NavigationServices
         {
             var result = await new FindRefsService().FindAsync(sln, "PatternMatcher.FindMatchesAsync", null);
 
-            Assert.Equal("FindMatchesAsync", result.SymbolName);
+            result.SymbolName.ShouldBe("FindMatchesAsync");
             Assert.Single(result.References);
         }
     }
@@ -193,7 +194,7 @@ public class NavigationServices
         using (workspace)
         {
             var results = await new OutlineService().OutlineNamespaceAsync(sln, "App");
-            Assert.True(results.Count >= 2);
+            (results.Count >= 2).ShouldBeTrue();
             Assert.Contains(results, r => r["name"]?.ToString() == "Greeter");
             Assert.Contains(results, r => r["name"]?.ToString() == "Runner");
         }
@@ -221,7 +222,7 @@ public class NavigationServices
         using (workspace)
         {
             var result = await new OutlineService().OutlineFileAsync(sln, "/nonexistent/path.cs");
-            Assert.Empty(result);
+            result.ShouldBeEmpty();
         }
     }
 
@@ -232,7 +233,7 @@ public class NavigationServices
         // but here we verify the recursive behaviour directly using a real compilation.
         // This ensures FindNamespaceTypes isn't a dead path.
         // (Behaviour validated by OutlineNamespace_returns_type_outlines.)
-        Assert.True(true); // covered by integration test above
+        true.ShouldBeTrue(); // covered by integration test above
     }
 
     // ── InspectService ────────────────────────────────────────────────────
@@ -248,9 +249,9 @@ public class NavigationServices
             var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, "App.Greeter", "type");
             var result = new InspectService().BuildInspection(sym, sln);
 
-            Assert.Equal("Greeter", result["name"]);
-            Assert.Equal("NamedType", result["kind"]);
-            Assert.NotNull(result["members"]);
+            result["name"].ShouldBe("Greeter");
+            result["kind"].ShouldBe("NamedType");
+            result["members"].ShouldNotBeNull();
         }
     }
 
@@ -265,10 +266,10 @@ public class NavigationServices
             var sym = await SymbolLocator.FindSymbolAsync(sln, "Greet", "method");
             var result = new InspectService().BuildInspection(sym, sln);
 
-            Assert.Equal("Greet", result["name"]);
-            Assert.Equal("Method", result["kind"]);
-            Assert.NotNull(result["returnType"]);
-            Assert.NotNull(result["parameters"]);
+            result["name"].ShouldBe("Greet");
+            result["kind"].ShouldBe("Method");
+            result["returnType"].ShouldNotBeNull();
+            result["parameters"].ShouldNotBeNull();
         }
     }
 
@@ -286,9 +287,9 @@ public class NavigationServices
             var sym = await SymbolLocator.FindSymbolAsync(sln, "Id", "property");
             var result = new InspectService().BuildInspection(sym, sln);
 
-            Assert.Equal("Id", result["name"]);
-            Assert.True((bool?)result["hasGetter"]);
-            Assert.True((bool?)result["hasSetter"]);
+            result["name"].ShouldBe("Id");
+            ((bool?)result["hasGetter"]).ShouldBe(true);
+            ((bool?)result["hasSetter"]).ShouldBe(true);
         }
     }
 
@@ -306,9 +307,9 @@ public class NavigationServices
             var sym = await SymbolLocator.FindSymbolAsync(sln, "MaxSize", "field");
             var result = new InspectService().BuildInspection(sym, sln);
 
-            Assert.Equal("MaxSize", result["name"]);
-            Assert.True((bool?)result["isConst"]);
-            Assert.Equal(100, result["constantValue"]);
+            result["name"].ShouldBe("MaxSize");
+            ((bool?)result["isConst"]).ShouldBe(true);
+            result["constantValue"].ShouldBe(100);
         }
     }
 }

@@ -2,6 +2,7 @@ using System.CommandLine;
 using System.Text;
 using RoslynTools.Commands;
 using RoslynTools.Core;
+using Shouldly;
 
 namespace RoslynTools.Tests;
 
@@ -51,7 +52,7 @@ public sealed class DumpHelp
 
         DumpHelpCommand.BuildHeader(sb, registry);
 
-        Assert.Contains("# rt Commands", sb.ToString());
+        sb.ToString().ShouldContain("# rt Commands", Case.Sensitive);
     }
 
     [Fact]
@@ -66,7 +67,7 @@ public sealed class DumpHelp
 
         DumpHelpCommand.BuildHeader(sb, registry);
 
-        Assert.Contains("**2**", sb.ToString());
+        sb.ToString().ShouldContain("**2**", Case.Sensitive);
     }
 
     [Fact]
@@ -77,7 +78,7 @@ public sealed class DumpHelp
 
         DumpHelpCommand.BuildHeader(sb, registry);
 
-        Assert.Contains("Auto-generated", sb.ToString());
+        sb.ToString().ShouldContain("Auto-generated", Case.Sensitive);
     }
 
     // ── BuildContents ─────────────────────────────────────────────────────────────
@@ -92,7 +93,7 @@ public sealed class DumpHelp
 
         DumpHelpCommand.BuildContents(sb, groups);
 
-        Assert.Contains("## Contents", sb.ToString());
+        sb.ToString().ShouldContain("## Contents", Case.Sensitive);
     }
 
     [Fact]
@@ -110,8 +111,8 @@ public sealed class DumpHelp
         DumpHelpCommand.BuildContents(sb, groups);
 
         var output = sb.ToString();
-        Assert.Contains("rt inspect", output);
-        Assert.Contains("rt analyze", output);
+        output.ShouldContain("rt inspect", Case.Sensitive);
+        output.ShouldContain("rt analyze", Case.Sensitive);
     }
 
     [Fact]
@@ -124,7 +125,7 @@ public sealed class DumpHelp
 
         DumpHelpCommand.BuildContents(sb, groups);
 
-        Assert.Contains("[`describe`](#describe)", sb.ToString());
+        sb.ToString().ShouldContain("[`describe`](#describe)", Case.Sensitive);
     }
 
     [Fact]
@@ -140,7 +141,7 @@ public sealed class DumpHelp
 
         DumpHelpCommand.BuildContents(sb, groups);
 
-        Assert.Contains("refs", sb.ToString());
+        sb.ToString().ShouldContain("refs", Case.Sensitive);
     }
 
     // ── BuildGroupSection ─────────────────────────────────────────────────────────
@@ -156,8 +157,8 @@ public sealed class DumpHelp
         DumpHelpCommand.BuildGroupSection(sb, group);
 
         var output = sb.ToString();
-        Assert.Contains("## `rt inspect`", output);
-        Assert.Contains(App.GroupDescriptions["inspect"], output);
+        output.ShouldContain("## `rt inspect`", Case.Sensitive);
+        output.ShouldContain(App.GroupDescriptions["inspect"], Case.Sensitive);
     }
 
     [Fact]
@@ -170,7 +171,7 @@ public sealed class DumpHelp
 
         DumpHelpCommand.BuildGroupSection(sb, group);
 
-        Assert.Contains("### outline", sb.ToString());
+        sb.ToString().ShouldContain("### outline", Case.Sensitive);
     }
 
     // ── BuildCommandSection ───────────────────────────────────────────────────────
@@ -183,7 +184,7 @@ public sealed class DumpHelp
 
         DumpHelpCommand.BuildCommandSection(sb, cmd, info);
 
-        Assert.Contains("### describe", sb.ToString());
+        sb.ToString().ShouldContain("### describe", Case.Sensitive);
     }
 
     [Fact]
@@ -194,7 +195,7 @@ public sealed class DumpHelp
 
         DumpHelpCommand.BuildCommandSection(sb, cmd, info);
 
-        Assert.Contains("_Describes a symbol_", sb.ToString());
+        sb.ToString().ShouldContain("_Describes a symbol_", Case.Sensitive);
     }
 
     [Fact]
@@ -205,7 +206,7 @@ public sealed class DumpHelp
 
         DumpHelpCommand.BuildCommandSection(sb, cmd, info);
 
-        Assert.Contains("**Read-only**", sb.ToString());
+        sb.ToString().ShouldContain("**Read-only**", Case.Sensitive);
     }
 
     [Fact]
@@ -216,7 +217,7 @@ public sealed class DumpHelp
 
         DumpHelpCommand.BuildCommandSection(sb, cmd, info);
 
-        Assert.Contains("**Mutation**", sb.ToString());
+        sb.ToString().ShouldContain("**Mutation**", Case.Sensitive);
     }
 
     [Fact]
@@ -227,7 +228,7 @@ public sealed class DumpHelp
 
         DumpHelpCommand.BuildCommandSection(sb, cmd, info);
 
-        Assert.Contains("JSON output", sb.ToString());
+        sb.ToString().ShouldContain("JSON output", Case.Sensitive);
     }
 
     [Fact]
@@ -238,7 +239,7 @@ public sealed class DumpHelp
 
         DumpHelpCommand.BuildCommandSection(sb, cmd, info);
 
-        Assert.Contains("Plain-text output", sb.ToString());
+        sb.ToString().ShouldContain("Plain-text output", Case.Sensitive);
     }
 
     [Fact]
@@ -250,9 +251,9 @@ public sealed class DumpHelp
         DumpHelpCommand.BuildCommandSection(sb, cmd, info);
 
         var output = sb.ToString();
-        Assert.Contains("**Aliases:**", output);
-        Assert.Contains("`refs`", output);
-        Assert.Contains("`fr`", output);
+        output.ShouldContain("**Aliases:**", Case.Sensitive);
+        output.ShouldContain("`refs`", Case.Sensitive);
+        output.ShouldContain("`fr`", Case.Sensitive);
     }
 
     [Fact]
@@ -263,7 +264,7 @@ public sealed class DumpHelp
 
         DumpHelpCommand.BuildCommandSection(sb, cmd, info);
 
-        Assert.DoesNotContain("**Aliases:**", sb.ToString());
+        sb.ToString().ShouldNotContain("**Aliases:**", Case.Sensitive);
     }
 
     [Fact]
@@ -276,9 +277,9 @@ public sealed class DumpHelp
         DumpHelpCommand.BuildCommandSection(sb, cmd, info);
 
         var output = sb.ToString();
-        Assert.Contains("```bash", output);
-        Assert.Contains("rt inspect describe Foo --solution x.slnx", output);
-        Assert.Contains("```", output);
+        output.ShouldContain("```bash", Case.Sensitive);
+        output.ShouldContain("rt inspect describe Foo --solution x.slnx", Case.Sensitive);
+        output.ShouldContain("```", Case.Sensitive);
     }
 
     [Fact]
@@ -291,9 +292,9 @@ public sealed class DumpHelp
         DumpHelpCommand.BuildCommandSection(sb, cmd, info);
 
         var output = sb.ToString();
-        Assert.Contains("**Known issues:**", output);
-        Assert.Contains("- Known issue one", output);
-        Assert.Contains("- Known issue two", output);
+        output.ShouldContain("**Known issues:**", Case.Sensitive);
+        output.ShouldContain("- Known issue one", Case.Sensitive);
+        output.ShouldContain("- Known issue two", Case.Sensitive);
     }
 
     [Fact]
@@ -304,7 +305,7 @@ public sealed class DumpHelp
 
         DumpHelpCommand.BuildCommandSection(sb, cmd, info);
 
-        Assert.DoesNotContain("**Known issues:**", sb.ToString());
+        sb.ToString().ShouldNotContain("**Known issues:**", Case.Sensitive);
     }
 
     [Fact]
@@ -315,7 +316,7 @@ public sealed class DumpHelp
 
         DumpHelpCommand.BuildCommandSection(sb, cmd, info);
 
-        Assert.Contains("---", sb.ToString());
+        sb.ToString().ShouldContain("---", Case.Sensitive);
     }
 
     // ── RenderMarkdown round-trip ─────────────────────────────────────────────────
@@ -330,8 +331,8 @@ public sealed class DumpHelp
 
         var output = DumpHelpCommand.RenderMarkdown(snapshot);
 
-        Assert.Contains("## `rt inspect`", output);
-        Assert.Contains("## `rt analyze`", output);
-        Assert.Contains("## `rt refactor`", output);
+        output.ShouldContain("## `rt inspect`", Case.Sensitive);
+        output.ShouldContain("## `rt analyze`", Case.Sensitive);
+        output.ShouldContain("## `rt refactor`", Case.Sensitive);
     }
 }

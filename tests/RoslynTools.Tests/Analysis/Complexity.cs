@@ -1,6 +1,7 @@
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Tests.Infrastructure;
+using Shouldly;
 
 namespace RoslynTools.Tests.Analysis;
 
@@ -74,7 +75,7 @@ public class Complexity : IClassFixture<RtServicesFixture>
     {
         _ = scenario;
         var report = await AnalyzeSourceAsync(source);
-        Assert.Equal(expectedCyclomatic, GetMethod(report, "M").Cyclomatic);
+        GetMethod(report, "M").Cyclomatic.ShouldBe(expectedCyclomatic);
     }
 
     // ── LOC (lines of code) ─────────────────────────────────────────────────
@@ -109,7 +110,7 @@ public class Complexity : IClassFixture<RtServicesFixture>
     {
         _ = scenario;
         var report = await AnalyzeSourceAsync(source);
-        Assert.Equal(expectedLoc, GetMethod(report, "M").Loc);
+        GetMethod(report, "M").Loc.ShouldBe(expectedLoc);
     }
 
     // ── Params ──────────────────────────────────────────────────────────────
@@ -123,7 +124,7 @@ public class Complexity : IClassFixture<RtServicesFixture>
     {
         _ = scenario;
         var report = await AnalyzeSourceAsync(source);
-        Assert.Equal(expectedParams, GetMethod(report, "M").Params);
+        GetMethod(report, "M").Params.ShouldBe(expectedParams);
     }
 
     // ── Member coverage (which method-like declarations are reported) ───────
@@ -160,10 +161,10 @@ public class Complexity : IClassFixture<RtServicesFixture>
         var report = await AnalyzeSourceAsync(source);
 
         foreach (var suffix in includedCsv.Split(',', StringSplitOptions.RemoveEmptyEntries))
-            Assert.Contains(report.Methods, m => m.Method.EndsWith(suffix, StringComparison.Ordinal));
+            report.Methods.ShouldContain(m => m.Method.EndsWith(suffix, StringComparison.Ordinal));
 
         foreach (var suffix in excludedCsv.Split(',', StringSplitOptions.RemoveEmptyEntries))
-            Assert.DoesNotContain(report.Methods, m => m.Method.EndsWith(suffix, StringComparison.Ordinal));
+            report.Methods.ShouldNotContain(m => m.Method.EndsWith(suffix, StringComparison.Ordinal));
     }
 
     // ── Generated files / generated markers are skipped ─────────────────────
@@ -189,8 +190,8 @@ public class Complexity : IClassFixture<RtServicesFixture>
         using (workspace)
         {
             var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
-            Assert.DoesNotContain(report.Methods, m => m.Type == "Skipped");
-            Assert.Contains(report.Methods, m => m.Type == "Real");
+            report.Methods.ShouldNotContain(m => m.Type == "Skipped");
+            report.Methods.ShouldContain(m => m.Type == "Real");
         }
     }
 
@@ -217,8 +218,8 @@ public class Complexity : IClassFixture<RtServicesFixture>
         {
             var report = await ComplexityAnalyzer.AnalyzeAsync(sln, 4);
             // Complex has cyclomatic >= 4; Simple does not
-            Assert.DoesNotContain(report.Methods, m => m.Method.EndsWith(".Simple", StringComparison.Ordinal));
-            Assert.Contains(report.Methods, m => m.Method.EndsWith(".Complex", StringComparison.Ordinal));
+            report.Methods.ShouldNotContain(m => m.Method.EndsWith(".Simple", StringComparison.Ordinal));
+            report.Methods.ShouldContain(m => m.Method.EndsWith(".Complex", StringComparison.Ordinal));
         }
     }
 
@@ -246,10 +247,10 @@ public class Complexity : IClassFixture<RtServicesFixture>
         {
             // threshold=10 filters Methods to empty, but rollups should still have both
             var report = await ComplexityAnalyzer.AnalyzeAsync(sln, 10);
-            Assert.Empty(report.Methods);
+            report.Methods.ShouldBeEmpty();
             var typeRollup = Assert.Single(report.TypeRollups);
-            Assert.Equal("MyNs.C", typeRollup.Type);
-            Assert.Equal(2, typeRollup.MethodCount);
+            typeRollup.Type.ShouldBe("MyNs.C");
+            typeRollup.MethodCount.ShouldBe(2);
         }
     }
 
@@ -314,7 +315,7 @@ public class Complexity : IClassFixture<RtServicesFixture>
         using (workspace)
         {
             var report = await ComplexityAnalyzer.AnalyzeAsync(sln, top: 2);
-            Assert.Equal(2, report.Methods.Count);
+            report.Methods.Count.ShouldBe(2);
         }
     }
 
@@ -338,11 +339,11 @@ public class Complexity : IClassFixture<RtServicesFixture>
         {
             var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
             var rollup = Assert.Single(report.TypeRollups);
-            Assert.Equal("MyApp.MyClass", rollup.Type);
-            Assert.Equal("MyApp", rollup.Namespace);
-            Assert.Equal(2, rollup.MethodCount);
+            rollup.Type.ShouldBe("MyApp.MyClass");
+            rollup.Namespace.ShouldBe("MyApp");
+            rollup.MethodCount.ShouldBe(2);
             // A: cyclomatic=1, B: cyclomatic=2 => total=3
-            Assert.Equal(3, rollup.CyclomaticTotal);
+            rollup.CyclomaticTotal.ShouldBe(3);
         }
     }
 
@@ -364,8 +365,8 @@ public class Complexity : IClassFixture<RtServicesFixture>
         {
             var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
             var nsRollup = Assert.Single(report.NamespaceRollups);
-            Assert.Equal("MyNs", nsRollup.Namespace);
-            Assert.Equal(2, nsRollup.MethodCount);
+            nsRollup.Namespace.ShouldBe("MyNs");
+            nsRollup.MethodCount.ShouldBe(2);
         }
     }
 
@@ -380,7 +381,7 @@ public class Complexity : IClassFixture<RtServicesFixture>
     {
         _ = scenario;
         var report = await AnalyzeSourceAsync(source);
-        Assert.Equal(expectedCognitive, GetMethod(report, "M").Cognitive);
+        GetMethod(report, "M").Cognitive.ShouldBe(expectedCognitive);
     }
 
     // -----------------------------------------------------------------------
@@ -396,8 +397,8 @@ public class Complexity : IClassFixture<RtServicesFixture>
                                               }
                                               """);
         var m = GetMethod(report, "M");
-        Assert.False(string.IsNullOrEmpty(m.File));
-        Assert.True(m.Line > 0);
+        string.IsNullOrEmpty(m.File).ShouldBeFalse();
+        (m.Line > 0).ShouldBeTrue();
     }
 
     // -----------------------------------------------------------------------
@@ -414,8 +415,8 @@ public class Complexity : IClassFixture<RtServicesFixture>
                                               }
                                               """);
         var m = GetMethod(report, "M");
-        Assert.Equal("Foo.Bar.MyType", m.Type);
-        Assert.Equal("Foo.Bar", m.Namespace);
+        m.Type.ShouldBe("Foo.Bar.MyType");
+        m.Namespace.ShouldBe("Foo.Bar");
     }
 
     // -----------------------------------------------------------------------
@@ -431,9 +432,9 @@ public class Complexity : IClassFixture<RtServicesFixture>
         using (workspace)
         {
             var report = await ComplexityAnalyzer.AnalyzeAsync(sln);
-            Assert.Empty(report.Methods);
-            Assert.Empty(report.TypeRollups);
-            Assert.Empty(report.NamespaceRollups);
+            report.Methods.ShouldBeEmpty();
+            report.TypeRollups.ShouldBeEmpty();
+            report.NamespaceRollups.ShouldBeEmpty();
         }
     }
 
@@ -442,9 +443,9 @@ public class Complexity : IClassFixture<RtServicesFixture>
     [Fact]
     public void command_info_is_a_read_only_analyze_command_with_json_output()
     {
-        Assert.Equal("analyze", ComplexityCommand.Info.Category);
-        Assert.True(ComplexityCommand.Info.JsonOutput);
-        Assert.False(ComplexityCommand.Info.Mutates);
+        ComplexityCommand.Info.Category.ShouldBe("analyze");
+        ComplexityCommand.Info.JsonOutput.ShouldBeTrue();
+        ComplexityCommand.Info.Mutates.ShouldBeFalse();
     }
 
     // ── CLI input validation ────────────────────────────────────────────────
@@ -457,7 +458,7 @@ public class Complexity : IClassFixture<RtServicesFixture>
     {
         _ = scenario;
         var exitCode = await _services.Resolve<ComplexityCommand>().ExecuteAsync(null, threshold, sort, top);
-        Assert.Equal(1, exitCode);
+        exitCode.ShouldBe(1);
     }
 
     // -----------------------------------------------------------------------
@@ -488,7 +489,7 @@ public class Complexity : IClassFixture<RtServicesFixture>
                                                 }
                                                 """, 3);
         // threshold == cyclomatic => method should be included (>= not >)
-        Assert.Contains(filtered.Methods, m => m.Method.EndsWith(".M", StringComparison.Ordinal));
+        filtered.Methods.ShouldContain(m => m.Method.EndsWith(".M", StringComparison.Ordinal));
     }
 
     // -----------------------------------------------------------------------
@@ -514,7 +515,7 @@ public class Complexity : IClassFixture<RtServicesFixture>
             // Methods truncated to 1, but rollup covers all 3
             Assert.Single(report.Methods);
             var typeRollup = Assert.Single(report.TypeRollups);
-            Assert.Equal(3, typeRollup.MethodCount);
+            typeRollup.MethodCount.ShouldBe(3);
         }
     }
 
@@ -534,7 +535,7 @@ public class Complexity : IClassFixture<RtServicesFixture>
                                               }
                                               """);
         // base=1 only — await adds no decision point
-        Assert.Equal(1, GetMethod(report, "M").Cyclomatic);
+        GetMethod(report, "M").Cyclomatic.ShouldBe(1);
     }
 
     // -----------------------------------------------------------------------
@@ -554,7 +555,7 @@ public class Complexity : IClassFixture<RtServicesFixture>
                                               }
                                               """);
         // base=1 only — yield return/break add no decision point
-        Assert.Equal(1, GetMethod(report, "M").Cyclomatic);
+        GetMethod(report, "M").Cyclomatic.ShouldBe(1);
     }
 
     // -----------------------------------------------------------------------
@@ -580,10 +581,10 @@ public class Complexity : IClassFixture<RtServicesFixture>
             // threshold=2 filters out Low (cyclomatic=1); sort=cyclomatic desc; top=1 keeps only High
             var report = await ComplexityAnalyzer.AnalyzeAsync(sln, 2, "cyclomatic", 1);
             Assert.Single(report.Methods);
-            Assert.Contains(report.Methods, m => m.Method.EndsWith(".High", StringComparison.Ordinal));
+            report.Methods.ShouldContain(m => m.Method.EndsWith(".High", StringComparison.Ordinal));
             // Rollups still cover all 3 methods
             var rollup = Assert.Single(report.TypeRollups);
-            Assert.Equal(3, rollup.MethodCount);
+            rollup.MethodCount.ShouldBe(3);
         }
     }
 }

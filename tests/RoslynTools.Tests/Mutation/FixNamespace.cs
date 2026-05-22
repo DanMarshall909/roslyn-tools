@@ -1,6 +1,7 @@
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Tests.Infrastructure;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -33,8 +34,8 @@ public class FixNamespace : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("Services/AgentService.cs");
-        Assert.Contains("namespace MyApp.Services", content);
-        Assert.DoesNotContain("WrongNamespace", content);
+        content.ShouldContain("namespace MyApp.Services", Case.Sensitive);
+        content.ShouldNotContain("WrongNamespace", Case.Sensitive);
     }
 
     [Fact]
@@ -61,8 +62,8 @@ public class FixNamespace : IClassFixture<RtServicesFixture>
         }
 
         var programContent = await project.ReadSourceAsync("Program.cs");
-        Assert.Contains("using MyApp.Services;", programContent);
-        Assert.DoesNotContain("using WrongNamespace;", programContent);
+        programContent.ShouldContain("using MyApp.Services;", Case.Sensitive);
+        programContent.ShouldNotContain("using WrongNamespace;", Case.Sensitive);
     }
 
     [Fact]
@@ -104,11 +105,11 @@ public class FixNamespace : IClassFixture<RtServicesFixture>
         // Files on disk must be unchanged
         var afterAgentService = await project.ReadSourceAsync("Services/AgentService.cs");
         var afterProgram = await project.ReadSourceAsync("Program.cs");
-        Assert.Equal(originalAgentService, afterAgentService);
-        Assert.Equal(originalProgram, afterProgram);
+        afterAgentService.ShouldBe(originalAgentService);
+        afterProgram.ShouldBe(originalProgram);
 
         // Output should mention the diff
         var diffOutput = output.ToString();
-        Assert.Contains("WrongNamespace", diffOutput);
+        diffOutput.ShouldContain("WrongNamespace", Case.Sensitive);
     }
 }

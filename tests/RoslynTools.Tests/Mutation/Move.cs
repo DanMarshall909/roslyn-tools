@@ -2,6 +2,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using RoslynTools.Core;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -51,8 +52,8 @@ public class Move
         }
 
         var modelContent = await project.ReadSourceAsync("Model.cs");
-        Assert.Contains("namespace TestApp.NewNamespace", modelContent);
-        Assert.DoesNotContain("OldNamespace", modelContent);
+        modelContent.ShouldContain("namespace TestApp.NewNamespace", Case.Sensitive);
+        modelContent.ShouldNotContain("OldNamespace", Case.Sensitive);
     }
 
     [Fact]
@@ -109,15 +110,15 @@ public class Move
         }
 
         var modelsA = await project.ReadSourceAsync("ModelsA.cs");
-        Assert.Contains("namespace TestApp.Domain", modelsA);
-        Assert.DoesNotContain("Legacy", modelsA);
+        modelsA.ShouldContain("namespace TestApp.Domain", Case.Sensitive);
+        modelsA.ShouldNotContain("Legacy", Case.Sensitive);
 
         var modelsB = await project.ReadSourceAsync("ModelsB.cs");
-        Assert.Contains("namespace TestApp.Domain", modelsB);
-        Assert.DoesNotContain("Legacy", modelsB);
+        modelsB.ShouldContain("namespace TestApp.Domain", Case.Sensitive);
+        modelsB.ShouldNotContain("Legacy", Case.Sensitive);
 
         var service = await project.ReadSourceAsync("Service.cs");
-        Assert.Contains("TestApp.Domain", service);
+        service.ShouldContain("TestApp.Domain", Case.Sensitive);
     }
 
     [Fact]
@@ -154,7 +155,7 @@ public class Move
         }
 
         var afterContent = await project.ReadSourceAsync("Target.cs");
-        Assert.Equal(original, afterContent);
+        afterContent.ShouldBe(original);
     }
 
     /// <summary>

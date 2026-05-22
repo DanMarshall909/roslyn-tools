@@ -1,5 +1,6 @@
 using RoslynTools.Commands;
 using RoslynTools.Tests.Infrastructure;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -30,9 +31,9 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
-        Assert.DoesNotContain("Console.Write", content);
-        Assert.Contains("_logger.LogInformation(\"started\")", content);
-        Assert.Contains("_logger.LogInformation(\"still running\")", content);
+        content.ShouldNotContain("Console.Write", Case.Sensitive);
+        content.ShouldContain("_logger.LogInformation(\"started\")", Case.Sensitive);
+        content.ShouldContain("_logger.LogInformation(\"still running\")", Case.Sensitive);
     }
 
     [Fact]
@@ -57,9 +58,9 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
-        Assert.Contains("_logger.LogError(\"failed: {ErrorMessage}\"", content);
-        Assert.Contains("ex.Message", content);
-        Assert.Contains("_logger.LogInformation(\"retrying\")", content);
+        content.ShouldContain("_logger.LogError(\"failed: {ErrorMessage}\"", Case.Sensitive);
+        content.ShouldContain("ex.Message", Case.Sensitive);
+        content.ShouldContain("_logger.LogInformation(\"retrying\")", Case.Sensitive);
     }
 
     [Fact]
@@ -91,7 +92,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
-        Assert.Contains("\"Found {Symbol} in {FileName}\"", content);
+        content.ShouldContain("\"Found {Symbol} in {FileName}\"", Case.Sensitive);
     }
 
     [Fact]
@@ -121,9 +122,9 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
-        Assert.Contains("_logger.LogWarning(\"Warning: skipped item\")", content);
-        Assert.Contains("_logger.LogInformation(\"Finding matches...\")", content);
-        Assert.Contains("_logger.LogError(\"Error: failed\")", content);
+        content.ShouldContain("_logger.LogWarning(\"Warning: skipped item\")", Case.Sensitive);
+        content.ShouldContain("_logger.LogInformation(\"Finding matches...\")", Case.Sensitive);
+        content.ShouldContain("_logger.LogError(\"Error: failed\")", Case.Sensitive);
     }
 
     [Fact]
@@ -147,9 +148,9 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
-        Assert.Contains("_logger.LogInformation(\"Processed {Count} item(s) for {Name}\"", content);
-        Assert.Contains("count", content);
-        Assert.Contains("name", content);
+        content.ShouldContain("_logger.LogInformation(\"Processed {Count} item(s) for {Name}\"", Case.Sensitive);
+        content.ShouldContain("count", Case.Sensitive);
+        content.ShouldContain("name", Case.Sensitive);
     }
 
     [Fact]
@@ -173,11 +174,9 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
-        Assert.Contains(
-            "_logger.LogInformation(\"Processed {Count} item(s) for {Name}; see logs for details.\", count, name)",
-            content);
-        Assert.DoesNotContain("{Value1}", content);
-        Assert.DoesNotContain("$\"", content);
+        content.ShouldContain("_logger.LogInformation(\"Processed {Count} item(s) for {Name}; see logs for details.\", count, name)", Case.Sensitive);
+        content.ShouldNotContain("{Value1}", Case.Sensitive);
+        content.ShouldNotContain("$\"", Case.Sensitive);
     }
 
     [Fact]
@@ -201,9 +200,9 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
-        Assert.Contains("_logger.LogInformation(\"Processed {Count} item(s) for {Name}\"", content);
-        Assert.Contains("count", content);
-        Assert.Contains("name", content);
+        content.ShouldContain("_logger.LogInformation(\"Processed {Count} item(s) for {Name}\"", Case.Sensitive);
+        content.ShouldContain("count", Case.Sensitive);
+        content.ShouldContain("name", Case.Sensitive);
     }
 
     [Fact]
@@ -233,7 +232,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
-        Assert.Contains("_log.Info(\"started\")", content);
+        content.ShouldContain("_log.Info(\"started\")", Case.Sensitive);
     }
 
     [Fact]
@@ -258,7 +257,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
-        Assert.Equal(original, content);
+        content.ShouldBe(original);
     }
 
     [Fact]
@@ -296,8 +295,8 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
-        Assert.Equal(original, content);
-        Assert.Contains("console logging review: 1 call site(s)", stdout.ToString());
+        content.ShouldBe(original);
+        stdout.ToString().ShouldContain("console logging review: 1 call site(s)", Case.Sensitive);
     }
 
     [Fact]
@@ -326,8 +325,8 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
-        Assert.Contains("Console.WriteLine(\"payload\")", content);
-        Assert.Contains("_logger.LogInformation(\"diagnostic\")", content);
+        content.ShouldContain("Console.WriteLine(\"payload\")", Case.Sensitive);
+        content.ShouldContain("_logger.LogInformation(\"diagnostic\")", Case.Sensitive);
     }
 
     [Fact]
@@ -366,8 +365,8 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
 
         var included = await project.ReadSourceAsync("Include.cs");
         var excluded = await project.ReadSourceAsync("Exclude.cs");
-        Assert.Contains("_logger.LogInformation(\"include\")", included);
-        Assert.Contains("Console.Error.WriteLine(\"exclude\")", excluded);
+        included.ShouldContain("_logger.LogInformation(\"include\")", Case.Sensitive);
+        excluded.ShouldContain("Console.Error.WriteLine(\"exclude\")", Case.Sensitive);
     }
 
     [Fact]
@@ -407,13 +406,13 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
-        Assert.Equal(original, content);
+        content.ShouldBe(original);
 
         var output = stdout.ToString();
-        Assert.Contains("console logging review: 2 call site(s)", output);
-        Assert.Contains("stdout: 1", output);
-        Assert.Contains("stderr: 1", output);
-        Assert.Contains("needs-review: 1", output);
+        output.ShouldContain("console logging review: 2 call site(s)", Case.Sensitive);
+        output.ShouldContain("stdout: 1", Case.Sensitive);
+        output.ShouldContain("stderr: 1", Case.Sensitive);
+        output.ShouldContain("needs-review: 1", Case.Sensitive);
     }
 
     [Fact]
@@ -454,11 +453,11 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
-        Assert.Contains("private readonly ILogger<App> _logger;", content);
-        Assert.Contains("public App(", content);
-        Assert.Contains("ILogger<App> logger", content);
-        Assert.Contains("_logger = logger;", content);
-        Assert.Contains("_logger.LogInformation(\"Starting\")", content);
+        content.ShouldContain("private readonly ILogger<App> _logger;", Case.Sensitive);
+        content.ShouldContain("public App(", Case.Sensitive);
+        content.ShouldContain("ILogger<App> logger", Case.Sensitive);
+        content.ShouldContain("_logger = logger;", Case.Sensitive);
+        content.ShouldContain("_logger.LogInformation(\"Starting\")", Case.Sensitive);
     }
 
     [Fact]
@@ -497,8 +496,8 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
         }
 
         var output = stdout.ToString();
-        Assert.Contains("logger injections: 1", output);
-        Assert.Contains("App: ILogger<App>", output);
+        output.ShouldContain("logger injections: 1", Case.Sensitive);
+        output.ShouldContain("App: ILogger<App>", Case.Sensitive);
     }
 
     // US-001: string.Format decomposition tests
@@ -525,9 +524,9 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
-        Assert.DoesNotContain("string.Format", content);
-        Assert.DoesNotContain("{Value}", content);
-        Assert.Contains("_logger.LogInformation(\"x={X}\", x)", content);
+        content.ShouldNotContain("string.Format", Case.Sensitive);
+        content.ShouldNotContain("{Value}", Case.Sensitive);
+        content.ShouldContain("_logger.LogInformation(\"x={X}\", x)", Case.Sensitive);
     }
 
     [Fact]
@@ -552,11 +551,11 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
-        Assert.DoesNotContain("string.Format", content);
-        Assert.DoesNotContain("{Value}", content);
-        Assert.Contains("_logger.LogInformation(\"Hello {Name}, count={Count}\"", content);
-        Assert.Contains("name", content);
-        Assert.Contains("count", content);
+        content.ShouldNotContain("string.Format", Case.Sensitive);
+        content.ShouldNotContain("{Value}", Case.Sensitive);
+        content.ShouldContain("_logger.LogInformation(\"Hello {Name}, count={Count}\"", Case.Sensitive);
+        content.ShouldContain("name", Case.Sensitive);
+        content.ShouldContain("count", Case.Sensitive);
     }
 
     [Fact]
@@ -581,8 +580,8 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
-        Assert.DoesNotContain("string.Format", content);
-        Assert.Contains("_logger.LogInformation(\"hello world\")", content);
+        content.ShouldNotContain("string.Format", Case.Sensitive);
+        content.ShouldContain("_logger.LogInformation(\"hello world\")", Case.Sensitive);
     }
 
     [Fact]
@@ -610,7 +609,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
 
         var content = await project.ReadSourceAsync("LogApp.cs");
         // Falls back to {Value} wrapping the string.Format expression
-        Assert.Contains("{Value}", content);
+        content.ShouldContain("{Value}", Case.Sensitive);
     }
 
     [Fact]
@@ -637,8 +636,8 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
-        Assert.DoesNotContain("Console.WriteLine", content);
-        Assert.Contains("{Value}", content);
-        Assert.Contains("GetMessage()", content);
+        content.ShouldNotContain("Console.WriteLine", Case.Sensitive);
+        content.ShouldContain("{Value}", Case.Sensitive);
+        content.ShouldContain("GetMessage()", Case.Sensitive);
     }
 }

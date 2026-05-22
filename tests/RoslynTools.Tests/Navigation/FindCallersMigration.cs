@@ -2,6 +2,7 @@ using System.Text.Json;
 using RoslynTools.Commands;
 using RoslynTools.Core.Output;
 using RoslynTools.Services.Results;
+using Shouldly;
 
 namespace RoslynTools.Tests.Navigation;
 
@@ -30,8 +31,8 @@ public sealed class FindCallersMigration : IDisposable
         result.RenderText(sw);
 
         var output = sw.ToString();
-        Assert.Contains("/src/Foo.cs:10: RunJob: DoWork();", output);
-        Assert.Contains("/src/Bar.cs:42: Execute: DoWork();", output);
+        output.ShouldContain("/src/Foo.cs:10: RunJob: DoWork();", Case.Sensitive);
+        output.ShouldContain("/src/Bar.cs:42: Execute: DoWork();", Case.Sensitive);
     }
 
     [Fact]
@@ -43,7 +44,7 @@ public sealed class FindCallersMigration : IDisposable
         result.RenderText(sw);
 
         var lines = sw.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        Assert.Equal(2, lines.Length);
+        lines.Length.ShouldBe(2);
     }
 
     // ── CallerResult.RenderText byte-for-byte ─────────────────────────────────────
@@ -62,7 +63,7 @@ public sealed class FindCallersMigration : IDisposable
 
         caller.RenderText(sw);
 
-        Assert.Equal("C:/code/Foo.cs:7: MyMethod: foo.Bar();", sw.ToString());
+        sw.ToString().ShouldBe("C:/code/Foo.cs:7: MyMethod: foo.Bar();");
     }
 
     // ── JSON format ───────────────────────────────────────────────────────────────
@@ -79,12 +80,12 @@ public sealed class FindCallersMigration : IDisposable
         var doc = JsonDocument.Parse(sw.ToString());
         var root = doc.RootElement;
 
-        Assert.True(root.TryGetProperty("symbolName", out var sym));
-        Assert.Equal("DoWork", sym.GetString());
+        root.TryGetProperty("symbolName", out var sym).ShouldBeTrue();
+        sym.GetString().ShouldBe("DoWork");
 
-        Assert.True(root.TryGetProperty("callers", out var callers));
-        Assert.Equal(JsonValueKind.Array, callers.ValueKind);
-        Assert.Equal(2, callers.GetArrayLength());
+        root.TryGetProperty("callers", out var callers).ShouldBeTrue();
+        callers.ValueKind.ShouldBe(JsonValueKind.Array);
+        callers.GetArrayLength().ShouldBe(2);
     }
 
     [Fact]
@@ -99,10 +100,10 @@ public sealed class FindCallersMigration : IDisposable
         var doc = JsonDocument.Parse(sw.ToString());
         var first = doc.RootElement.GetProperty("callers")[0];
 
-        Assert.True(first.TryGetProperty("filePath", out _));
-        Assert.True(first.TryGetProperty("line", out _));
-        Assert.True(first.TryGetProperty("containingMethod", out _));
-        Assert.True(first.TryGetProperty("sourceLine", out _));
+        first.TryGetProperty("filePath", out _).ShouldBeTrue();
+        first.TryGetProperty("line", out _).ShouldBeTrue();
+        first.TryGetProperty("containingMethod", out _).ShouldBeTrue();
+        first.TryGetProperty("sourceLine", out _).ShouldBeTrue();
     }
 
     // ── Markdown format ───────────────────────────────────────────────────────────
@@ -117,8 +118,8 @@ public sealed class FindCallersMigration : IDisposable
         RtSerializer.Write(result, sw);
 
         var md = sw.ToString();
-        Assert.Contains("RunJob", md);
-        Assert.Contains("Execute", md);
+        md.ShouldContain("RunJob", Case.Sensitive);
+        md.ShouldContain("Execute", Case.Sensitive);
     }
 
     // ── LLM format ───────────────────────────────────────────────────────────────
@@ -133,7 +134,7 @@ public sealed class FindCallersMigration : IDisposable
         RtSerializer.Write(result, sw);
 
         var llm = sw.ToString();
-        Assert.Contains("DoWork", llm);
+        llm.ShouldContain("DoWork", Case.Sensitive);
     }
 
     [Fact]
@@ -146,8 +147,8 @@ public sealed class FindCallersMigration : IDisposable
         RtSerializer.Write(result, sw);
 
         var llm = sw.ToString();
-        Assert.Contains("/src/Foo.cs", llm);
-        Assert.Contains("/src/Bar.cs", llm);
+        llm.ShouldContain("/src/Foo.cs", Case.Sensitive);
+        llm.ShouldContain("/src/Bar.cs", Case.Sensitive);
     }
 
     // ── SupportedFormats ─────────────────────────────────────────────────────────
@@ -156,11 +157,11 @@ public sealed class FindCallersMigration : IDisposable
     public void finds_callers_command_info_supported_formats_contains_all_four_formats()
     {
         var formats = FindCallersCommand.Info.SupportedFormats;
-        Assert.NotNull(formats);
-        Assert.Contains(OutputFormat.Text, formats);
-        Assert.Contains(OutputFormat.Json, formats);
-        Assert.Contains(OutputFormat.Markdown, formats);
-        Assert.Contains(OutputFormat.Llm, formats);
+        formats.ShouldNotBeNull();
+        formats.ShouldContain(OutputFormat.Text);
+        formats.ShouldContain(OutputFormat.Json);
+        formats.ShouldContain(OutputFormat.Markdown);
+        formats.ShouldContain(OutputFormat.Llm);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────────

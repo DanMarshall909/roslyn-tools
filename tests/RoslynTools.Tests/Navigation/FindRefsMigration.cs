@@ -2,6 +2,7 @@ using System.Text.Json;
 using RoslynTools.Commands;
 using RoslynTools.Core.Output;
 using RoslynTools.Services.Results;
+using Shouldly;
 
 namespace RoslynTools.Tests.Navigation;
 
@@ -30,8 +31,8 @@ public sealed class FindRefsMigration : IDisposable
         result.RenderText(sw);
 
         var output = sw.ToString();
-        Assert.Contains("/src/Service.cs(15): var svc = new MyService();", output);
-        Assert.Contains("/src/Controller.cs(88): _svc.Process();", output);
+        output.ShouldContain("/src/Service.cs(15): var svc = new MyService();", Case.Sensitive);
+        output.ShouldContain("/src/Controller.cs(88): _svc.Process();", Case.Sensitive);
     }
 
     [Fact]
@@ -44,8 +45,8 @@ public sealed class FindRefsMigration : IDisposable
 
         var output = sw.ToString();
         // find-refs format is path(line): text — NOT path:line: text
-        Assert.Contains("(15):", output);
-        Assert.DoesNotContain(":15:", output);
+        output.ShouldContain("(15):", Case.Sensitive);
+        output.ShouldNotContain(":15:", Case.Sensitive);
     }
 
     [Fact]
@@ -57,7 +58,7 @@ public sealed class FindRefsMigration : IDisposable
         result.RenderText(sw);
 
         var output = sw.ToString();
-        Assert.Contains("Found 2 reference(s) to 'MyService'.", output);
+        output.ShouldContain("Found 2 reference(s) to 'MyService'.", Case.Sensitive);
     }
 
     [Fact]
@@ -70,7 +71,7 @@ public sealed class FindRefsMigration : IDisposable
 
         var output = sw.ToString();
         // The original code wrote $"\nFound..." which gives a blank line before the summary
-        Assert.Contains("\nFound", output);
+        output.ShouldContain("\nFound", Case.Sensitive);
     }
 
     // ── ReferenceResult.RenderText byte-for-byte ──────────────────────────────────
@@ -88,7 +89,7 @@ public sealed class FindRefsMigration : IDisposable
 
         reference.RenderText(sw);
 
-        Assert.Equal("C:/code/Foo.cs(7): var x = new Foo();", sw.ToString());
+        sw.ToString().ShouldBe("C:/code/Foo.cs(7): var x = new Foo();");
     }
 
     // ── JSON format ───────────────────────────────────────────────────────────────
@@ -105,12 +106,12 @@ public sealed class FindRefsMigration : IDisposable
         var doc = JsonDocument.Parse(sw.ToString());
         var root = doc.RootElement;
 
-        Assert.True(root.TryGetProperty("symbolName", out var sym));
-        Assert.Equal("MyService", sym.GetString());
+        root.TryGetProperty("symbolName", out var sym).ShouldBeTrue();
+        sym.GetString().ShouldBe("MyService");
 
-        Assert.True(root.TryGetProperty("references", out var refs));
-        Assert.Equal(JsonValueKind.Array, refs.ValueKind);
-        Assert.Equal(2, refs.GetArrayLength());
+        root.TryGetProperty("references", out var refs).ShouldBeTrue();
+        refs.ValueKind.ShouldBe(JsonValueKind.Array);
+        refs.GetArrayLength().ShouldBe(2);
     }
 
     [Fact]
@@ -125,9 +126,9 @@ public sealed class FindRefsMigration : IDisposable
         var doc = JsonDocument.Parse(sw.ToString());
         var first = doc.RootElement.GetProperty("references")[0];
 
-        Assert.True(first.TryGetProperty("filePath", out _));
-        Assert.True(first.TryGetProperty("line", out _));
-        Assert.True(first.TryGetProperty("lineText", out _));
+        first.TryGetProperty("filePath", out _).ShouldBeTrue();
+        first.TryGetProperty("line", out _).ShouldBeTrue();
+        first.TryGetProperty("lineText", out _).ShouldBeTrue();
     }
 
     // ── Markdown format ───────────────────────────────────────────────────────────
@@ -142,8 +143,8 @@ public sealed class FindRefsMigration : IDisposable
         RtSerializer.Write(result, sw);
 
         var md = sw.ToString();
-        Assert.Contains("MyService", md);
-        Assert.Contains("/src/Service.cs", md);
+        md.ShouldContain("MyService", Case.Sensitive);
+        md.ShouldContain("/src/Service.cs", Case.Sensitive);
     }
 
     // ── LLM format ───────────────────────────────────────────────────────────────
@@ -158,7 +159,7 @@ public sealed class FindRefsMigration : IDisposable
         RtSerializer.Write(result, sw);
 
         var llm = sw.ToString();
-        Assert.Contains("MyService", llm);
+        llm.ShouldContain("MyService", Case.Sensitive);
     }
 
     [Fact]
@@ -171,8 +172,8 @@ public sealed class FindRefsMigration : IDisposable
         RtSerializer.Write(result, sw);
 
         var llm = sw.ToString();
-        Assert.Contains("/src/Service.cs", llm);
-        Assert.Contains("/src/Controller.cs", llm);
+        llm.ShouldContain("/src/Service.cs", Case.Sensitive);
+        llm.ShouldContain("/src/Controller.cs", Case.Sensitive);
     }
 
     // ── SupportedFormats ─────────────────────────────────────────────────────────
@@ -181,11 +182,11 @@ public sealed class FindRefsMigration : IDisposable
     public void finds_refs_command_info_supported_formats_contains_all_four_formats()
     {
         var formats = FindRefsCommand.Info.SupportedFormats;
-        Assert.NotNull(formats);
-        Assert.Contains(OutputFormat.Text, formats);
-        Assert.Contains(OutputFormat.Json, formats);
-        Assert.Contains(OutputFormat.Markdown, formats);
-        Assert.Contains(OutputFormat.Llm, formats);
+        formats.ShouldNotBeNull();
+        formats.ShouldContain(OutputFormat.Text);
+        formats.ShouldContain(OutputFormat.Json);
+        formats.ShouldContain(OutputFormat.Markdown);
+        formats.ShouldContain(OutputFormat.Llm);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Tests.Infrastructure;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -40,9 +41,9 @@ public class ImplementInterface : IClassFixture<RtServicesFixture>
         }
 
         var content = await proj.ReadSourceAsync("Types.cs");
-        Assert.Contains("GetAsync", content);
-        Assert.Contains("Delete", content);
-        Assert.Contains("Name", content);
+        content.ShouldContain("GetAsync", Case.Sensitive);
+        content.ShouldContain("Delete", Case.Sensitive);
+        content.ShouldContain("Name", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -62,7 +63,7 @@ public class ImplementInterface : IClassFixture<RtServicesFixture>
         }
 
         var content = await proj.ReadSourceAsync("Types.cs");
-        Assert.Contains("throw new NotImplementedException()", content);
+        content.ShouldContain("throw new NotImplementedException()", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -83,12 +84,12 @@ public class ImplementInterface : IClassFixture<RtServicesFixture>
 
         var content = await proj.ReadSourceAsync("Types.cs");
         // Delete and Name should be added as stubs
-        Assert.Contains("Delete", content);
-        Assert.Contains("Name", content);
+        content.ShouldContain("Delete", Case.Sensitive);
+        content.ShouldContain("Name", Case.Sensitive);
         // GetAsync is already fully implemented — should not be duplicated
         // (count = 2: once in IRepository definition, once in PartialRepo body; not 3)
         var getAsyncCount = content.Split("GetAsync").Length - 1;
-        Assert.Equal(2, getAsyncCount);
+        getAsyncCount.ShouldBe(2);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -108,8 +109,8 @@ public class ImplementInterface : IClassFixture<RtServicesFixture>
         }
 
         var content = await proj.ReadSourceAsync("Types.cs");
-        Assert.Contains("get =>", content);
-        Assert.Contains("throw new NotImplementedException()", content);
+        content.ShouldContain("get =>", Case.Sensitive);
+        content.ShouldContain("throw new NotImplementedException()", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -131,6 +132,6 @@ public class ImplementInterface : IClassFixture<RtServicesFixture>
         }
 
         var after = await proj.ReadSourceAsync("Types.cs");
-        Assert.Equal(before, after);
+        after.ShouldBe(before);
     }
 }

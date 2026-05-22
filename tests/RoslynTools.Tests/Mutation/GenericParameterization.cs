@@ -1,4 +1,5 @@
 using RoslynTools.Core;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -79,16 +80,16 @@ public class GenericParameterization
         var contentB = await project.ReadSourceAsync("B.cs");
 
         // Extracted method exists in A with a type parameter
-        Assert.Contains("BuildList<", contentA);
+        contentA.ShouldContain("BuildList<", Case.Sensitive);
         // Method body uses T (or the type param name) not MyType directly
-        Assert.Contains("List<", contentA);
+        contentA.ShouldContain("List<", Case.Sensitive);
 
         // B's call site uses the extracted method with OtherType
-        Assert.Contains("BuildList<", contentB);
-        Assert.Contains("OtherType", contentB);
+        contentB.ShouldContain("BuildList<", Case.Sensitive);
+        contentB.ShouldContain("OtherType", Case.Sensitive);
         // B's original statements replaced
-        Assert.DoesNotContain("new List<OtherType>()", contentB);
-        Assert.DoesNotContain("list.Add(new OtherType())", contentB);
+        contentB.ShouldNotContain("new List<OtherType>()", Case.Sensitive);
+        contentB.ShouldNotContain("list.Add(new OtherType())", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -150,14 +151,14 @@ public class GenericParameterization
         var contentB = await project.ReadSourceAsync("B.cs");
 
         // Extracted method in A has multiple type parameters
-        Assert.Contains("BuildDict<", contentA);
+        contentA.ShouldContain("BuildDict<", Case.Sensitive);
 
         // B's call site passes explicit type arguments for both
-        Assert.Contains("BuildDict<", contentB);
-        Assert.Contains("KeyTypeB", contentB);
-        Assert.Contains("ValTypeB", contentB);
+        contentB.ShouldContain("BuildDict<", Case.Sensitive);
+        contentB.ShouldContain("KeyTypeB", Case.Sensitive);
+        contentB.ShouldContain("ValTypeB", Case.Sensitive);
         // Original statements removed from B
-        Assert.DoesNotContain("new Dictionary<KeyTypeB, ValTypeB>()", contentB);
+        contentB.ShouldNotContain("new Dictionary<KeyTypeB, ValTypeB>()", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -223,14 +224,14 @@ public class GenericParameterization
         var contentB = await project.ReadSourceAsync("B.cs");
 
         // Method exists in A with type parameter
-        Assert.Contains("DoWork<", contentA);
+        contentA.ShouldContain("DoWork<", Case.Sensitive);
 
         // B call site has the differing literal and type argument
-        Assert.Contains("DoWork<", contentB);
-        Assert.Contains("\"bye\"", contentB);
-        Assert.Contains("OtherType", contentB);
+        contentB.ShouldContain("DoWork<", Case.Sensitive);
+        contentB.ShouldContain("\"bye\"", Case.Sensitive);
+        contentB.ShouldContain("OtherType", Case.Sensitive);
         // Original statements removed
-        Assert.DoesNotContain("Console.WriteLine(\"bye\")", contentB);
-        Assert.DoesNotContain("new List<OtherType>()", contentB);
+        contentB.ShouldNotContain("Console.WriteLine(\"bye\")", Case.Sensitive);
+        contentB.ShouldNotContain("new List<OtherType>()", Case.Sensitive);
     }
 }

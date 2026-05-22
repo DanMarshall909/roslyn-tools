@@ -1,5 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Commands;
+using Shouldly;
 
 namespace RoslynTools.Tests.Infrastructure;
 
@@ -10,8 +11,8 @@ public class CommandOptionFactory_solution_overload
     {
         var opt = CommandOptionFactory.CreateSolutionOption("My custom help");
 
-        Assert.Equal("solution", opt.Name);
-        Assert.Equal("My custom help", opt.Description);
+        opt.Name.ShouldBe("solution");
+        opt.Description.ShouldBe("My custom help");
     }
 
     [Fact]
@@ -19,7 +20,7 @@ public class CommandOptionFactory_solution_overload
     {
         var opt = CommandOptionFactory.CreateSolutionOption("help");
 
-        Assert.IsType<Option<string?>>(opt);
+        opt.ShouldBeOfType<Option<string?>>();
     }
 
     [Fact]
@@ -27,6 +28,6 @@ public class CommandOptionFactory_solution_overload
     {
         var opt = CommandOptionFactory.CreateSolutionOption();
 
-        Assert.Equal("Path to .sln/.slnx", opt.Description);
+        opt.Description.ShouldBe("Path to .sln/.slnx");
     }
 }

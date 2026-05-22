@@ -1,6 +1,7 @@
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Tests.Infrastructure;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -16,15 +17,13 @@ public class AddTest : IClassFixture<RtServicesFixture>
     [Fact]
     public void creates_valid_test_identifiers()
     {
-        Assert.Equal("Returns_404_When_Order_Not_Found",
-            _services.Resolve<AddTestCommand>().AcToMethodName("Returns 404 when order not found"));
+        _services.Resolve<AddTestCommand>().AcToMethodName("Returns 404 when order not found").ShouldBe("Returns_404_When_Order_Not_Found");
     }
 
     [Fact]
     public void strips_punctuation()
     {
-        Assert.Equal("It_Works",
-            _services.Resolve<AddTestCommand>().AcToMethodName("It works!"));
+        _services.Resolve<AddTestCommand>().AcToMethodName("It works!").ShouldBe("It_Works");
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -66,9 +65,9 @@ public class AddTest : IClassFixture<RtServicesFixture>
 
         var content = await proj.ReadSourceAsync("MyTests.cs");
 
-        Assert.Contains("[Fact]", content);
-        Assert.Contains("public void Should_DoSomething()", content);
-        Assert.Contains("throw new NotImplementedException();", content);
+        content.ShouldContain("[Fact]", Case.Sensitive);
+        content.ShouldContain("public void Should_DoSomething()", Case.Sensitive);
+        content.ShouldContain("throw new NotImplementedException();", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -109,9 +108,9 @@ public class AddTest : IClassFixture<RtServicesFixture>
 
         var content = await proj.ReadSourceAsync("OrderTests.cs");
 
-        Assert.Contains("public void Returns_404_When_Not_Found()", content);
-        Assert.Contains("public void Creates_Order_Successfully()", content);
-        Assert.Contains("throw new NotImplementedException();", content);
+        content.ShouldContain("public void Returns_404_When_Not_Found()", Case.Sensitive);
+        content.ShouldContain("public void Creates_Order_Successfully()", Case.Sensitive);
+        content.ShouldContain("throw new NotImplementedException();", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -152,8 +151,8 @@ public class AddTest : IClassFixture<RtServicesFixture>
 
         var content = await proj.ReadSourceAsync("OrderTests.cs");
 
-        Assert.Contains("public class WhenOrderMissing", content);
-        Assert.Contains("public void Returns_404_When_Not_Found()", content);
+        content.ShouldContain("public class WhenOrderMissing", Case.Sensitive);
+        content.ShouldContain("public void Returns_404_When_Not_Found()", Case.Sensitive);
 
         // Nested class must appear inside outer class
         var outerIdx = content.IndexOf("public class OrderTests", StringComparison.Ordinal);
@@ -199,7 +198,7 @@ public class AddTest : IClassFixture<RtServicesFixture>
         }
 
         var afterContent = await proj.ReadSourceAsync("MyTests.cs");
-        Assert.Equal(originalContent, afterContent);
+        afterContent.ShouldBe(originalContent);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -240,8 +239,8 @@ public class AddTest : IClassFixture<RtServicesFixture>
 
         var content = await proj.ReadSourceAsync("MyTests.cs");
 
-        Assert.Contains("using Xunit;", content);
-        Assert.Contains("using System;", content);
-        Assert.Contains("public void Should_DoSomething()", content);
+        content.ShouldContain("using Xunit;", Case.Sensitive);
+        content.ShouldContain("using System;", Case.Sensitive);
+        content.ShouldContain("public void Should_DoSomething()", Case.Sensitive);
     }
 }

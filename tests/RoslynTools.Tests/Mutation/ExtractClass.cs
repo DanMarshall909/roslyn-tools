@@ -1,6 +1,7 @@
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Tests.Infrastructure;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -113,7 +114,7 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("BigService.cs");
-        Assert.DoesNotContain("void LogInfo", content);
+        content.ShouldNotContain("void LogInfo", Case.Sensitive);
     }
 
     [Fact]
@@ -135,7 +136,7 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("BigService.cs");
-        Assert.Contains("private readonly LogHelper _logHelper", content);
+        content.ShouldContain("private readonly LogHelper _logHelper", Case.Sensitive);
     }
 
     [Fact]
@@ -159,8 +160,8 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
         var newClassContent = await project.ReadSourceAsync("LogHelper.cs");
         var sourceContent = await project.ReadSourceAsync("BigService.cs");
 
-        Assert.Contains("static class LogHelper", newClassContent);
-        Assert.DoesNotContain("_logHelper", sourceContent);
+        newClassContent.ShouldContain("static class LogHelper", Case.Sensitive);
+        sourceContent.ShouldNotContain("_logHelper", Case.Sensitive);
     }
 
     [Fact]
@@ -187,9 +188,9 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
         var afterContent = await project.ReadSourceAsync("BigService.cs");
         Assert.False(project.SourceExists("LogHelper.cs"),
             "LogHelper.cs should NOT be written during dry-run");
-        Assert.Equal(originalContent, afterContent);
-        Assert.Contains("LogHelper.cs (new file)", capture.StdOut);
-        Assert.Contains("private readonly LogHelper _logHelper", capture.StdOut);
+        afterContent.ShouldBe(originalContent);
+        capture.StdOut.ShouldContain("LogHelper.cs (new file)", Case.Sensitive);
+        capture.StdOut.ShouldContain("private readonly LogHelper _logHelper", Case.Sensitive);
     }
 
     [Fact]
@@ -230,13 +231,13 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
                 false);
         }
 
-        Assert.Equal(1, capture.ExitCode);
+        capture.ExitCode.ShouldBe(1);
         Assert.Contains("ambiguous", capture.StdErr, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Billing.SharedService", capture.StdErr);
-        Assert.Contains("Shipping.SharedService", capture.StdErr);
-        Assert.False(project.SourceExists("LogHelper.cs"));
-        Assert.Equal(billingBefore, await project.ReadSourceAsync("Billing/SharedService.cs"));
-        Assert.Equal(shippingBefore, await project.ReadSourceAsync("Shipping/SharedService.cs"));
+        capture.StdErr.ShouldContain("Billing.SharedService", Case.Sensitive);
+        capture.StdErr.ShouldContain("Shipping.SharedService", Case.Sensitive);
+        project.SourceExists("LogHelper.cs").ShouldBeFalse();
+        (await project.ReadSourceAsync("Billing/SharedService.cs")).ShouldBe(billingBefore);
+        (await project.ReadSourceAsync("Shipping/SharedService.cs")).ShouldBe(shippingBefore);
     }
 
     [Fact]
@@ -273,11 +274,11 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
                 false);
         }
 
-        Assert.Equal(1, capture.ExitCode);
-        Assert.Contains("_baseUrl", capture.StdErr);
+        capture.ExitCode.ShouldBe(1);
+        capture.StdErr.ShouldContain("_baseUrl", Case.Sensitive);
         Assert.Contains("extract", capture.StdErr, StringComparison.OrdinalIgnoreCase);
-        Assert.False(project.SourceExists("LogHelper.cs"));
-        Assert.Equal(before, await project.ReadSourceAsync("BigService.cs"));
+        project.SourceExists("LogHelper.cs").ShouldBeFalse();
+        (await project.ReadSourceAsync("BigService.cs")).ShouldBe(before);
     }
 
     [Fact]
@@ -309,11 +310,11 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
                 false);
         }
 
-        Assert.Equal(1, capture.ExitCode);
+        capture.ExitCode.ShouldBe(1);
         Assert.Contains("multiple variables", capture.StdErr, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("a", capture.StdErr);
-        Assert.False(project.SourceExists("ValueHolder.cs"));
-        Assert.Equal(before, await project.ReadSourceAsync("BigService.cs"));
+        capture.StdErr.ShouldContain("a", Case.Sensitive);
+        project.SourceExists("ValueHolder.cs").ShouldBeFalse();
+        (await project.ReadSourceAsync("BigService.cs")).ShouldBe(before);
     }
 
     [Fact]
@@ -353,12 +354,12 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
         var extractedContent = await project.ReadSourceAsync("PathFormatter.cs");
         var sourceContent = await project.ReadSourceAsync("BigService.cs");
 
-        Assert.Contains("class PathFormatter", extractedContent);
-        Assert.Contains("private string _prefix = \"https://api\";", extractedContent);
-        Assert.Contains("string FormatPath", extractedContent);
-        Assert.DoesNotContain("_prefix = \"https://api\"", sourceContent);
-        Assert.DoesNotContain("FormatPath", sourceContent);
-        Assert.Contains("private readonly PathFormatter _pathFormatter", sourceContent);
+        extractedContent.ShouldContain("class PathFormatter", Case.Sensitive);
+        extractedContent.ShouldContain("private string _prefix = \"https://api\";", Case.Sensitive);
+        extractedContent.ShouldContain("string FormatPath", Case.Sensitive);
+        sourceContent.ShouldNotContain("_prefix = \"https://api\"", Case.Sensitive);
+        sourceContent.ShouldNotContain("FormatPath", Case.Sensitive);
+        sourceContent.ShouldContain("private readonly PathFormatter _pathFormatter", Case.Sensitive);
     }
 
     [Fact]
@@ -378,9 +379,9 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
             capture = await RunExtractClassAsync("Missing", "Go", "Helper", false, "ignored", null, false);
         }
 
-        Assert.Equal(1, capture.ExitCode);
-        Assert.Contains("Missing", capture.StdErr);
-        Assert.Equal(before, await project.ReadSourceAsync("BigService.cs"));
+        capture.ExitCode.ShouldBe(1);
+        capture.StdErr.ShouldContain("Missing", Case.Sensitive);
+        (await project.ReadSourceAsync("BigService.cs")).ShouldBe(before);
     }
 
     [Fact]
@@ -400,10 +401,10 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
             capture = await RunExtractClassAsync("BigService", "Nonexistent", "Helper", true, "ignored", null, false);
         }
 
-        Assert.Equal(1, capture.ExitCode);
-        Assert.Contains("Nonexistent", capture.StdErr);
-        Assert.False(project.SourceExists("Helper.cs"));
-        Assert.Equal(before, await project.ReadSourceAsync("BigService.cs"));
+        capture.ExitCode.ShouldBe(1);
+        capture.StdErr.ShouldContain("Nonexistent", Case.Sensitive);
+        project.SourceExists("Helper.cs").ShouldBeFalse();
+        (await project.ReadSourceAsync("BigService.cs")).ShouldBe(before);
     }
 
     [Fact]
@@ -423,10 +424,10 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
             capture = await RunExtractClassAsync("BigService", "Go,Missing", "Helper", true, "ignored", null, false);
         }
 
-        Assert.Equal(1, capture.ExitCode);
-        Assert.Contains("Missing", capture.StdErr);
-        Assert.False(project.SourceExists("Helper.cs"));
-        Assert.Equal(before, await project.ReadSourceAsync("BigService.cs"));
+        capture.ExitCode.ShouldBe(1);
+        capture.StdErr.ShouldContain("Missing", Case.Sensitive);
+        project.SourceExists("Helper.cs").ShouldBeFalse();
+        (await project.ReadSourceAsync("BigService.cs")).ShouldBe(before);
     }
 
     [Fact]
@@ -449,10 +450,10 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
             capture = await RunExtractClassAsync("BigService", "Clone", "Helper", false, "ignored", null, false);
         }
 
-        Assert.Equal(1, capture.ExitCode);
-        Assert.Contains("this", capture.StdErr);
-        Assert.False(project.SourceExists("Helper.cs"));
-        Assert.Equal(before, await project.ReadSourceAsync("BigService.cs"));
+        capture.ExitCode.ShouldBe(1);
+        capture.StdErr.ShouldContain("this", Case.Sensitive);
+        project.SourceExists("Helper.cs").ShouldBeFalse();
+        (await project.ReadSourceAsync("BigService.cs")).ShouldBe(before);
     }
 
     [Fact]
@@ -477,8 +478,8 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
 
         var extracted = await project.ReadSourceAsync("VersionInfo.cs");
         var source = await project.ReadSourceAsync("BigService.cs");
-        Assert.Contains("string Version", extracted);
-        Assert.DoesNotContain("string Version", source);
+        extracted.ShouldContain("string Version", Case.Sensitive);
+        source.ShouldNotContain("string Version", Case.Sensitive);
     }
 
     private sealed record CommandCapture(string StdOut, string StdErr, int ExitCode);

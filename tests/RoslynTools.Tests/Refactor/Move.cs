@@ -6,6 +6,7 @@ using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Services;
 using RoslynTools.Tests.Infrastructure;
+using Shouldly;
 
 namespace RoslynTools.Tests.Refactor;
 
@@ -19,7 +20,7 @@ public class Move : IClassFixture<RtServicesFixture>
     public void examples_include_to_project_usage()
     {
         var examples = MoveCommand.Info.Examples;
-        Assert.Contains(examples, e => e.Contains("--to-project"));
+        examples.ShouldContain(e => e.Contains("--to-project"));
     }
 
     [Fact]
@@ -29,10 +30,10 @@ public class Move : IClassFixture<RtServicesFixture>
         var cmd = _services.Resolve<MoveCommand>().Build();
 
         var toProjectOpt = cmd.Options.FirstOrDefault(o => o.Name == "to-project");
-        Assert.NotNull(toProjectOpt);
+        toProjectOpt.ShouldNotBeNull();
 
         var toNsOpt = cmd.Options.FirstOrDefault(o => o.Name == "to-namespace");
-        Assert.NotNull(toNsOpt);
+        toNsOpt.ShouldNotBeNull();
         Assert.Contains("--to-project", toNsOpt.Description, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -71,9 +72,9 @@ public class Move : IClassFixture<RtServicesFixture>
                 true);
         }
 
-        Assert.Contains(stdout, l => l.StartsWith("source:", StringComparison.Ordinal));
-        Assert.Contains(stdout, l => l.StartsWith("destination:", StringComparison.Ordinal));
-        Assert.Contains(stdout, l => l.StartsWith("compile-remove:", StringComparison.Ordinal));
+        stdout.ShouldContain(l => l.StartsWith("source:", StringComparison.Ordinal));
+        stdout.ShouldContain(l => l.StartsWith("destination:", StringComparison.Ordinal));
+        stdout.ShouldContain(l => l.StartsWith("compile-remove:", StringComparison.Ordinal));
 
         // No files moved
         Assert.True(builder.SourceExists("Draft.cs"), "Original file must not be moved in dry-run");
@@ -107,7 +108,7 @@ public class Move : IClassFixture<RtServicesFixture>
             false);
 
         var postMoveXml = await File.ReadAllTextAsync(sourceCsproj);
-        Assert.Equal(sdkCsproj, postMoveXml);
+        postMoveXml.ShouldBe(sdkCsproj);
     }
 
     [Fact]
@@ -143,7 +144,7 @@ public class Move : IClassFixture<RtServicesFixture>
             false);
 
         var updatedXml = await File.ReadAllTextAsync(sourceCsproj);
-        Assert.DoesNotContain("<Compile Include=\"Widget.cs\"", updatedXml);
+        updatedXml.ShouldNotContain("<Compile Include=\"Widget.cs\"", Case.Sensitive);
     }
 
     [Fact]
@@ -184,12 +185,12 @@ public class Move : IClassFixture<RtServicesFixture>
         var movedContent = await File.ReadAllTextAsync(Path.Combine(targetDir, "Models", "Invoice.cs"));
 
         // Namespace rewritten in moved file
-        Assert.Contains("namespace Target.Domain;", movedContent);
-        Assert.DoesNotContain("namespace Source.Models;", movedContent);
+        movedContent.ShouldContain("namespace Target.Domain;", Case.Sensitive);
+        movedContent.ShouldNotContain("namespace Source.Models;", Case.Sensitive);
 
         // Consumer using directive updated
         var consumerContent = await builder.ReadSourceAsync("Consumer.cs");
-        Assert.Contains("using Target.Domain;", consumerContent);
+        consumerContent.ShouldContain("using Target.Domain;", Case.Sensitive);
     }
 
     [Fact]
@@ -229,12 +230,12 @@ public class Move : IClassFixture<RtServicesFixture>
         var movedContent = await File.ReadAllTextAsync(Path.Combine(targetDir, "Models", "Order.cs"));
 
         // Namespace declaration must be byte-identical
-        Assert.Contains("namespace Source.Models;", movedContent);
+        movedContent.ShouldContain("namespace Source.Models;", Case.Sensitive);
 
         // Consumer file must be untouched
         var consumerContent = await builder.ReadSourceAsync("Handler.cs");
-        Assert.Contains("using Source.Models;", consumerContent);
-        Assert.DoesNotContain("using TargetProject", consumerContent);
+        consumerContent.ShouldContain("using Source.Models;", Case.Sensitive);
+        consumerContent.ShouldNotContain("using TargetProject", Case.Sensitive);
     }
 
     [Fact]
@@ -300,9 +301,7 @@ public class Move : IClassFixture<RtServicesFixture>
         var relPath = Path.GetRelativePath(sourceDir, sourceFile);
         var destPath = Path.Combine(targetDir, relPath);
 
-        Assert.Equal(
-            Path.Combine(targetDir, "Domain", "Orders", "Order.cs"),
-            destPath);
+        destPath.ShouldBe(Path.Combine(targetDir, "Domain", "Orders", "Order.cs"));
     }
 
     [Fact]
@@ -330,7 +329,7 @@ public class Move : IClassFixture<RtServicesFixture>
             // that we can verify independently.
             var doc = System.Xml.Linq.XDocument.Load(tempFile);
             var before = doc.Descendants("Compile").Select(e => (string?)e.Attribute("Include")).ToList();
-            Assert.Equal(2, before.Count);
+            before.Count.ShouldBe(2);
 
             // Simulate what RemoveCompileIncludeFromCsproj does
             var toRemove = doc.Descendants("Compile")
@@ -352,9 +351,9 @@ public class Move : IClassFixture<RtServicesFixture>
             var after = System.Xml.Linq.XDocument.Load(tempFile);
             var remaining = after.Descendants("Compile").Select(e => (string?)e.Attribute("Include")).ToList();
             Assert.Single(remaining);
-            Assert.Equal("Keep.cs", remaining[0]);
+            remaining[0].ShouldBe("Keep.cs");
             // ItemGroup still present (has Keep.cs)
-            Assert.NotNull(after.Descendants("ItemGroup").FirstOrDefault());
+            after.Descendants("ItemGroup").FirstOrDefault().ShouldNotBeNull();
         }
         finally
         {
@@ -372,11 +371,11 @@ public class Move : IClassFixture<RtServicesFixture>
         // branch order (to-project path never reads moveFile).
         var cmd = _services.Resolve<MoveCommand>().Build();
         var moveFileOpt = cmd.Options.FirstOrDefault(o => o.Name == "move-file");
-        Assert.NotNull(moveFileOpt);
+        moveFileOpt.ShouldNotBeNull();
 
         // to-project option must exist
         var toProjectOpt = cmd.Options.FirstOrDefault(o => o.Name == "to-project");
-        Assert.NotNull(toProjectOpt);
+        toProjectOpt.ShouldNotBeNull();
 
         // The WhenToUse text must mention --move-file is overridden
         Assert.Contains("--move-file", MoveCommand.Info.WhenToUse, StringComparison.OrdinalIgnoreCase);
@@ -430,9 +429,9 @@ public class Move : IClassFixture<RtServicesFixture>
             false);
 
         // File must still exist unchanged
-        Assert.True(builder.SourceExists("Widget.cs"));
+        builder.SourceExists("Widget.cs").ShouldBeTrue();
         var content = await builder.ReadSourceAsync("Widget.cs");
-        Assert.Contains("namespace Foo;", content);
+        content.ShouldContain("namespace Foo;", Case.Sensitive);
     }
 
     [Fact]
@@ -457,7 +456,7 @@ public class Move : IClassFixture<RtServicesFixture>
                 null,
                 false));
 
-        Assert.Contains("NonExistentProject", ex.Message);
+        ex.Message.ShouldContain("NonExistentProject", Case.Sensitive);
     }
 
     [Fact]
@@ -516,8 +515,8 @@ public class Move : IClassFixture<RtServicesFixture>
                     null,
                     false));
 
-            Assert.Contains("Orphan", ex.Message);
-            Assert.Contains(outsideFile, ex.Message);
+            ex.Message.ShouldContain("Orphan", Case.Sensitive);
+            ex.Message.ShouldContain(outsideFile, Case.Sensitive);
         }
         finally
         {

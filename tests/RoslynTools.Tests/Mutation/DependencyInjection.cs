@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using RoslynTools.Services;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -35,11 +36,11 @@ public sealed class DependencyInjection
 
         var text = await TestSolutionDocuments.GetTextAsync(result.Solution, "Services.cs");
 
-        Assert.True(result.Changed);
-        Assert.Equal("App.Sales.AgentService", result.TargetType);
-        Assert.Contains("public AgentService(IEmailService emailService)", text);
-        Assert.Contains("private readonly IEmailService _emailService;", text);
-        Assert.Contains("namespace App.Support", text);
+        result.Changed.ShouldBeTrue();
+        result.TargetType.ShouldBe("App.Sales.AgentService");
+        text.ShouldContain("public AgentService(IEmailService emailService)", Case.Sensitive);
+        text.ShouldContain("private readonly IEmailService _emailService;", Case.Sensitive);
+        text.ShouldContain("namespace App.Support", Case.Sensitive);
     }
 
     [Fact]
@@ -70,10 +71,10 @@ public sealed class DependencyInjection
                     new CapturingSolutionChangeWriter())
                 .ApplyAsync(solution, "AgentService", "IEmailService", null);
 
-            Assert.False(result.Changed);
-            Assert.Same(solution, result.Solution);
-            Assert.Null(result.TargetType);
-            Assert.Equal(1, Environment.ExitCode);
+            result.Changed.ShouldBeFalse();
+            result.Solution.ShouldBeSameAs(solution);
+            result.TargetType.ShouldBeNull();
+            Environment.ExitCode.ShouldBe(1);
         }
         finally
         {
@@ -107,9 +108,9 @@ public sealed class DependencyInjection
                 new CapturingSolutionChangeWriter())
             .ApplyAsync(solution, "AgentService", "IEmailService", null);
 
-        Assert.False(result.Changed);
-        Assert.Same(solution, result.Solution);
-        Assert.Equal("App.AgentService", result.TargetType);
+        result.Changed.ShouldBeFalse();
+        result.Solution.ShouldBeSameAs(solution);
+        result.TargetType.ShouldBe("App.AgentService");
     }
 
     [Fact]
@@ -141,10 +142,10 @@ public sealed class DependencyInjection
                     new CapturingSolutionChangeWriter())
                 .ApplyAsync(solution, "AgentService", "IEmailService", null);
 
-            Assert.False(result.Changed);
-            Assert.Same(solution, result.Solution);
-            Assert.Equal("App.AgentService", result.TargetType);
-            Assert.Equal(1, Environment.ExitCode);
+            result.Changed.ShouldBeFalse();
+            result.Solution.ShouldBeSameAs(solution);
+            result.TargetType.ShouldBe("App.AgentService");
+            Environment.ExitCode.ShouldBe(1);
         }
         finally
         {
@@ -157,9 +158,9 @@ public sealed class DependencyInjection
     [InlineData(" App.AgentService ", "App.AgentService")]
     public void normalize_type_names_for_symbol_matching(string typeName, string normalizedTypeName)
     {
-        Assert.Equal(normalizedTypeName, new AddDependencyService(
+        new AddDependencyService(
             NullLogger<AddDependencyService>.Instance,
-            new CapturingSolutionChangeWriter()).NormalizeTypeName(typeName));
+            new CapturingSolutionChangeWriter()).NormalizeTypeName(typeName).ShouldBe(normalizedTypeName);
     }
 
     [Theory]
@@ -167,8 +168,8 @@ public sealed class DependencyInjection
     [InlineData("Logger", "_logger")]
     public void derive_field_names_from_dependency_types(string dependencyType, string fieldName)
     {
-        Assert.Equal(fieldName, new AddDependencyService(
+        new AddDependencyService(
             NullLogger<AddDependencyService>.Instance,
-            new CapturingSolutionChangeWriter()).DeriveFieldName(dependencyType));
+            new CapturingSolutionChangeWriter()).DeriveFieldName(dependencyType).ShouldBe(fieldName);
     }
 }

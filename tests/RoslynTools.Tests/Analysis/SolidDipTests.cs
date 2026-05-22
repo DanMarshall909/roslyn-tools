@@ -4,6 +4,7 @@ using RoslynTools.Commands;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
+using Shouldly;
 
 namespace RoslynTools.Tests.Analysis;
 
@@ -37,7 +38,7 @@ public class SolidDipTests
                 public GoodClass(IService svc) { }
             }
             """);
-        Assert.Empty(report.ConcreteConstructorParams);
+        report.ConcreteConstructorParams.ShouldBeEmpty();
     }
 
     [Fact]
@@ -50,7 +51,7 @@ public class SolidDipTests
                 public GoodClass(Base b) { }
             }
             """);
-        Assert.Empty(report.ConcreteConstructorParams);
+        report.ConcreteConstructorParams.ShouldBeEmpty();
     }
 
     [Fact]
@@ -65,9 +66,9 @@ public class SolidDipTests
             """);
         Assert.Single(report.ConcreteConstructorParams);
         var item = report.ConcreteConstructorParams[0];
-        Assert.Equal("BadClass", item.TypeName);
-        Assert.Equal("c", item.ParamName);
-        Assert.Equal("Concrete", item.ConcreteType);
+        item.TypeName.ShouldBe("BadClass");
+        item.ParamName.ShouldBe("c");
+        item.ConcreteType.ShouldBe("Concrete");
     }
 
     [Fact]
@@ -81,7 +82,7 @@ public class SolidDipTests
                 public Cls(int x, System.DateTime when, MyStruct s) { }
             }
             """);
-        Assert.Empty(report.ConcreteConstructorParams);
+        report.ConcreteConstructorParams.ShouldBeEmpty();
     }
 
     [Fact]
@@ -94,7 +95,7 @@ public class SolidDipTests
                 public Cls(string name) { }
             }
             """);
-        Assert.Empty(report.ConcreteConstructorParams);
+        report.ConcreteConstructorParams.ShouldBeEmpty();
     }
 
     [Fact]
@@ -108,7 +109,7 @@ public class SolidDipTests
                 public Cls(MyDto d) { }
             }
             """);
-        Assert.Empty(report.ConcreteConstructorParams);
+        report.ConcreteConstructorParams.ShouldBeEmpty();
     }
 
     [Fact]
@@ -120,7 +121,7 @@ public class SolidDipTests
                 public Cls(System.Action a) { }
             }
             """);
-        Assert.Empty(report.ConcreteConstructorParams);
+        report.ConcreteConstructorParams.ShouldBeEmpty();
     }
 
     [Fact]
@@ -137,12 +138,12 @@ public class SolidDipTests
                 public Alpha(Concrete x) { }
             }
             """);
-        Assert.Equal(3, report.ConcreteConstructorParams.Count);
-        Assert.Equal("Alpha", report.ConcreteConstructorParams[0].TypeName);
-        Assert.Equal("Zeta", report.ConcreteConstructorParams[1].TypeName);
-        Assert.Equal("a", report.ConcreteConstructorParams[1].ParamName);
-        Assert.Equal("Zeta", report.ConcreteConstructorParams[2].TypeName);
-        Assert.Equal("b", report.ConcreteConstructorParams[2].ParamName);
+        report.ConcreteConstructorParams.Count.ShouldBe(3);
+        report.ConcreteConstructorParams[0].TypeName.ShouldBe("Alpha");
+        report.ConcreteConstructorParams[1].TypeName.ShouldBe("Zeta");
+        report.ConcreteConstructorParams[1].ParamName.ShouldBe("a");
+        report.ConcreteConstructorParams[2].TypeName.ShouldBe("Zeta");
+        report.ConcreteConstructorParams[2].ParamName.ShouldBe("b");
     }
 
     // ----- InlineNewCalls -----
@@ -162,9 +163,9 @@ public class SolidDipTests
             """);
         Assert.Single(report.InlineNewCalls);
         var item = report.InlineNewCalls[0];
-        Assert.Equal("BadClass", item.TypeName);
-        Assert.Equal("DoIt", item.MemberName);
-        Assert.Equal("Concrete", item.ConcreteType);
+        item.TypeName.ShouldBe("BadClass");
+        item.MemberName.ShouldBe("DoIt");
+        item.ConcreteType.ShouldBe("Concrete");
     }
 
     [Fact]
@@ -179,7 +180,7 @@ public class SolidDipTests
                 }
             }
             """);
-        Assert.Empty(report.InlineNewCalls);
+        report.InlineNewCalls.ShouldBeEmpty();
     }
 
     [Fact]
@@ -194,7 +195,7 @@ public class SolidDipTests
                 }
             }
             """);
-        Assert.Empty(report.InlineNewCalls);
+        report.InlineNewCalls.ShouldBeEmpty();
     }
 
     [Fact]
@@ -210,7 +211,7 @@ public class SolidDipTests
                 }
             }
             """);
-        Assert.Empty(report.InlineNewCalls);
+        report.InlineNewCalls.ShouldBeEmpty();
     }
 
     [Fact]
@@ -226,7 +227,7 @@ public class SolidDipTests
                 }
             }
             """);
-        Assert.Empty(report.InlineNewCalls);
+        report.InlineNewCalls.ShouldBeEmpty();
     }
 
     [Fact]
@@ -242,7 +243,7 @@ public class SolidDipTests
                 }
             }
             """);
-        Assert.Empty(report.InlineNewCalls);
+        report.InlineNewCalls.ShouldBeEmpty();
     }
 
     [Fact]
@@ -258,7 +259,7 @@ public class SolidDipTests
                 }
             }
             """);
-        Assert.Empty(report.InlineNewCalls);
+        report.InlineNewCalls.ShouldBeEmpty();
     }
 
     [Fact]
@@ -272,7 +273,7 @@ public class SolidDipTests
             }
             """);
         Assert.Single(report.InlineNewCalls);
-        Assert.Equal("Value", report.InlineNewCalls[0].MemberName);
+        report.InlineNewCalls[0].MemberName.ShouldBe("Value");
     }
 
     [Fact]
@@ -288,7 +289,7 @@ public class SolidDipTests
                 }
             }
             """);
-        Assert.Empty(report.InlineNewCalls);
+        report.InlineNewCalls.ShouldBeEmpty();
     }
 
     [Fact]
@@ -306,12 +307,12 @@ public class SolidDipTests
                 public void X() { var c = new Concrete(); }
             }
             """);
-        Assert.Equal(3, report.InlineNewCalls.Count);
-        Assert.Equal("Alpha", report.InlineNewCalls[0].TypeName);
-        Assert.Equal("Zeta", report.InlineNewCalls[1].TypeName);
-        Assert.Equal("A", report.InlineNewCalls[1].MemberName);
-        Assert.Equal("Zeta", report.InlineNewCalls[2].TypeName);
-        Assert.Equal("B", report.InlineNewCalls[2].MemberName);
+        report.InlineNewCalls.Count.ShouldBe(3);
+        report.InlineNewCalls[0].TypeName.ShouldBe("Alpha");
+        report.InlineNewCalls[1].TypeName.ShouldBe("Zeta");
+        report.InlineNewCalls[1].MemberName.ShouldBe("A");
+        report.InlineNewCalls[2].TypeName.ShouldBe("Zeta");
+        report.InlineNewCalls[2].MemberName.ShouldBe("B");
     }
 
     // -----------------------------------------------------------------------
@@ -329,11 +330,11 @@ public class SolidDipTests
             FilePath = "src/BadClass.cs",
             Line = 10
         };
-        Assert.Equal("BadClass", item.TypeName);
-        Assert.Equal("c", item.ParamName);
-        Assert.Equal("Concrete", item.ConcreteType);
-        Assert.Equal("src/BadClass.cs", item.FilePath);
-        Assert.Equal(10, item.Line);
+        item.TypeName.ShouldBe("BadClass");
+        item.ParamName.ShouldBe("c");
+        item.ConcreteType.ShouldBe("Concrete");
+        item.FilePath.ShouldBe("src/BadClass.cs");
+        item.Line.ShouldBe(10);
     }
 
     [Fact]
@@ -347,18 +348,18 @@ public class SolidDipTests
             FilePath = "src/BadClass.cs",
             Line = 20
         };
-        Assert.Equal("BadClass", item.TypeName);
-        Assert.Equal("DoIt", item.MemberName);
-        Assert.Equal("Concrete", item.ConcreteType);
+        item.TypeName.ShouldBe("BadClass");
+        item.MemberName.ShouldBe("DoIt");
+        item.ConcreteType.ShouldBe("Concrete");
     }
 
     [Fact]
     public void solid_result_dip_block_is_empty_by_default()
     {
         var result = new SolidResult();
-        Assert.NotNull(result.DIP);
-        Assert.Empty(result.DIP.ConcreteConstructorParams);
-        Assert.Empty(result.DIP.InlineNewCalls);
+        result.DIP.ShouldNotBeNull();
+        result.DIP.ConcreteConstructorParams.ShouldBeEmpty();
+        result.DIP.InlineNewCalls.ShouldBeEmpty();
     }
 
     [Fact]
@@ -370,7 +371,7 @@ public class SolidDipTests
         RtSerializer.Write(result, output);
 
         using var doc = JsonDocument.Parse(output.ToString());
-        Assert.True(doc.RootElement.TryGetProperty("DIP", out _));
+        doc.RootElement.TryGetProperty("DIP", out _).ShouldBeTrue();
     }
 
     [Fact]
@@ -383,10 +384,10 @@ public class SolidDipTests
 
         using var doc = JsonDocument.Parse(output.ToString());
         var dip = doc.RootElement.GetProperty("DIP");
-        Assert.True(dip.TryGetProperty("ConcreteConstructorParams", out var ccp));
-        Assert.True(dip.TryGetProperty("InlineNewCalls", out var inc));
-        Assert.Equal(JsonValueKind.Array, ccp.ValueKind);
-        Assert.Equal(JsonValueKind.Array, inc.ValueKind);
+        dip.TryGetProperty("ConcreteConstructorParams", out var ccp).ShouldBeTrue();
+        dip.TryGetProperty("InlineNewCalls", out var inc).ShouldBeTrue();
+        ccp.ValueKind.ShouldBe(JsonValueKind.Array);
+        inc.ValueKind.ShouldBe(JsonValueKind.Array);
     }
 
     // -----------------------------------------------------------------------
@@ -397,7 +398,7 @@ public class SolidDipTests
     public async Task execute_async_returns_0_for_valid_dip_principle()
     {
         var exitCode = await SolidCommand.ExecuteAsync(null, "DIP", 10, 5, 7, 2);
-        Assert.Equal(0, exitCode);
+        exitCode.ShouldBe(0);
     }
 
     [Fact]

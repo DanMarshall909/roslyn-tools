@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Shouldly;
 
 namespace RoslynTools.Tests.Navigation;
 
@@ -39,10 +40,10 @@ public class Outline
             var types = await GetTypesInFileAsync(sln, Path.Combine(project.ProjectDir, "Domain.cs"));
 
             var typeNames = types.Select(t => t.Name).ToList();
-            Assert.Contains("Order", typeNames);
-            Assert.Contains("OrderStatus", typeNames);
-            Assert.Contains("IOrderRepository", typeNames);
-            Assert.Equal(3, typeNames.Count);
+            typeNames.ShouldContain("Order");
+            typeNames.ShouldContain("OrderStatus");
+            typeNames.ShouldContain("IOrderRepository");
+            typeNames.Count.ShouldBe(3);
         }
     }
 
@@ -79,11 +80,11 @@ public class Outline
                 .Select(m => m.Name)
                 .ToList();
 
-            Assert.Contains("_connectionString", memberNames);
-            Assert.Contains("GetUser", memberNames);
-            Assert.Contains("DeleteUser", memberNames);
-            Assert.Contains("Count", memberNames);
-            Assert.Contains(".ctor", memberNames); // constructor
+            memberNames.ShouldContain("_connectionString");
+            memberNames.ShouldContain("GetUser");
+            memberNames.ShouldContain("DeleteUser");
+            memberNames.ShouldContain("Count");
+            memberNames.ShouldContain(".ctor"); // constructor
         }
     }
 
@@ -121,10 +122,10 @@ public class Outline
             var types = await GetTypesInNamespaceAsync(sln, "TestApp.Models");
             var typeNames = types.Select(t => t.Name).ToList();
 
-            Assert.Contains("Product", typeNames);
-            Assert.Contains("Category", typeNames);
-            Assert.DoesNotContain("ProductService", typeNames);
-            Assert.Equal(2, typeNames.Count);
+            typeNames.ShouldContain("Product");
+            typeNames.ShouldContain("Category");
+            typeNames.ShouldNotContain("ProductService");
+            typeNames.Count.ShouldBe(2);
         }
     }
 

@@ -1,5 +1,6 @@
 using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
+using Shouldly;
 
 namespace RoslynTools.Tests.Infrastructure;
 
@@ -44,7 +45,7 @@ public class SymbolFormatter : IDisposable
         // Workspace is intentionally not disposed here; caller is responsible via the IDisposable chain.
         // In these tests we rely on GC / test teardown — acceptable for integration tests against throwaway dirs.
         var sym = await Core.SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.Circle", "type");
-        return Assert.IsAssignableFrom<INamedTypeSymbol>(sym);
+        return sym.ShouldBeAssignableTo<INamedTypeSymbol>()!;
     }
 
     [Fact]
@@ -54,11 +55,11 @@ public class SymbolFormatter : IDisposable
 
         var locations = Core.SymbolFormatter.ExtractSourceLocations(type);
 
-        Assert.NotEmpty(locations);
+        locations.ShouldNotBeEmpty();
         var first = locations[0];
         Assert.True(first.ContainsKey("file"), "Expected a 'file' key in the location entry.");
         Assert.True(first.ContainsKey("line"), "Expected a 'line' key in the location entry.");
-        Assert.IsType<int>(first["line"]);
+        first["line"].ShouldBeOfType<int>();
         Assert.True((int)first["line"]! >= 1, "Line number should be 1-based.");
     }
 
@@ -69,13 +70,13 @@ public class SymbolFormatter : IDisposable
 
         var members = Core.SymbolFormatter.ExtractMembers(type, true);
 
-        Assert.NotEmpty(members);
+        members.ShouldNotBeEmpty();
         Assert.All(members,
             m => Assert.True(m.ContainsKey("isStatic"), "Expected 'isStatic' key when includeStaticFlag=true."));
 
         // The static factory method Unit() should be present and marked isStatic=true
         var unit = members.FirstOrDefault(m => m["name"] is "Unit");
-        Assert.NotNull(unit);
+        unit.ShouldNotBeNull();
         Assert.True((bool)unit["isStatic"]!, "Unit() should be flagged as static.");
     }
 
@@ -86,7 +87,7 @@ public class SymbolFormatter : IDisposable
 
         var members = Core.SymbolFormatter.ExtractMembers(type, false);
 
-        Assert.NotEmpty(members);
+        members.ShouldNotBeEmpty();
         Assert.All(members,
             m => Assert.False(m.ContainsKey("isStatic"), "Expected no 'isStatic' key when includeStaticFlag=false."));
     }
@@ -100,12 +101,12 @@ public class SymbolFormatter : IDisposable
         Core.SymbolFormatter.AddTypeHierarchyInfo(result, type);
 
         Assert.True(result.ContainsKey("baseType"), "Expected 'baseType' key for Circle (extends BaseShape).");
-        var baseType = Assert.IsType<string>(result["baseType"]);
-        Assert.Contains("BaseShape", baseType);
+        var baseType = result["baseType"].ShouldBeOfType<string>();
+        baseType.ShouldContain("BaseShape", Case.Sensitive);
 
         Assert.True(result.ContainsKey("interfaces"), "Expected 'interfaces' key for Circle (implements IShape).");
-        var interfaces = Assert.IsAssignableFrom<IEnumerable<string>>(result["interfaces"]);
-        Assert.Contains(interfaces, i => i.Contains("IShape"));
+        var interfaces = result["interfaces"].ShouldBeAssignableTo<IEnumerable<string>>()!;
+        interfaces.ShouldContain(i => i.Contains("IShape"));
     }
 
     [Fact]
@@ -115,7 +116,7 @@ public class SymbolFormatter : IDisposable
         _project.AddSource("Shapes.cs", SharedSource);
         var (workspace, sln) = _project.Build();
         var sym = await Core.SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.BaseShape", "type");
-        var baseShapeType = Assert.IsAssignableFrom<INamedTypeSymbol>(sym);
+        var baseShapeType = sym.ShouldBeAssignableTo<INamedTypeSymbol>()!;
 
         var result = new Dictionary<string, object?>();
         Core.SymbolFormatter.AddTypeHierarchyInfo(result, baseShapeType);
@@ -130,7 +131,7 @@ public class SymbolFormatter : IDisposable
 
         var members = Core.SymbolFormatter.ExtractMembers(type, false);
 
-        Assert.NotEmpty(members);
+        members.ShouldNotBeEmpty();
         Assert.All(members, m => Assert.False(m.ContainsKey("attributes"),
             $"Member '{m["name"]}' has no attributes but got an 'attributes' key."));
     }
@@ -165,19 +166,19 @@ public class SymbolFormatter : IDisposable
                                        """);
         var (workspace, sln) = _project.Build();
         var sym = await Core.SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.MyTests", "type");
-        var type = Assert.IsAssignableFrom<INamedTypeSymbol>(sym);
+        var type = sym.ShouldBeAssignableTo<INamedTypeSymbol>()!;
 
         var members = Core.SymbolFormatter.ExtractMembers(type, false);
 
         var plain = members.Single(m => m["name"] is "plain_fact");
-        var attrs = Assert.IsAssignableFrom<List<string>>(plain["attributes"]);
+        var attrs = plain["attributes"].ShouldBeAssignableTo<List<string>>()!;
         Assert.Single(attrs);
-        Assert.Equal("Fact", attrs[0]);
+        attrs[0].ShouldBe("Fact");
 
         var skipped = members.Single(m => m["name"] is "skipped_fact");
-        var skippedAttrs = Assert.IsAssignableFrom<List<string>>(skipped["attributes"]);
-        Assert.Equal(2, skippedAttrs.Count);
-        Assert.Contains(skippedAttrs, a => a.StartsWith("Fact(Skip = ", StringComparison.Ordinal));
-        Assert.Contains(skippedAttrs, a => a == "Trait(\"Concern\", \"EdgeCase\")");
+        var skippedAttrs = skipped["attributes"].ShouldBeAssignableTo<List<string>>()!;
+        skippedAttrs.Count.ShouldBe(2);
+        skippedAttrs.ShouldContain(a => a.StartsWith("Fact(Skip = ", StringComparison.Ordinal));
+        skippedAttrs.ShouldContain(a => a == "Trait(\"Concern\", \"EdgeCase\")");
     }
 }

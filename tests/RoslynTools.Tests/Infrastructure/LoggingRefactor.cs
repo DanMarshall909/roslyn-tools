@@ -1,5 +1,6 @@
 using RoslynTools.Commands;
 using RoslynTools.Core;
+using Shouldly;
 
 namespace RoslynTools.Tests.Infrastructure;
 
@@ -46,18 +47,15 @@ public class LoggingRefactor : IClassFixture<RtServicesFixture>
             {
                 Environment.ExitCode = 0;
                 await _services.Resolve<MakeStaticCommand>().ExecuteAsync("Service.GetValue", "ignored", false);
-                Assert.Equal(1, Environment.ExitCode);
+                Environment.ExitCode.ShouldBe(1);
                 Environment.ExitCode = 0;
             }
         }
 
-        Assert.Contains(console.LogEntries,
-            e => e.Level == RtLogLevel.Info && e.RenderedMessage.Contains("Converting", StringComparison.Ordinal));
-        Assert.Contains(console.LogEntries,
-            e => e.Level == RtLogLevel.Warning &&
+        console.LogEntries.ShouldContain(e => e.Level == RtLogLevel.Info && e.RenderedMessage.Contains("Converting", StringComparison.Ordinal));
+        console.LogEntries.ShouldContain(e => e.Level == RtLogLevel.Warning &&
                  e.RenderedMessage.Contains("mutable", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(console.LogEntries,
-            e => e.Level == RtLogLevel.Error &&
+        console.LogEntries.ShouldContain(e => e.Level == RtLogLevel.Error &&
                  e.RenderedMessage.Contains("Cannot make static", StringComparison.Ordinal));
     }
 
@@ -91,16 +89,16 @@ public class LoggingRefactor : IClassFixture<RtServicesFixture>
                 "ignored"
             ]);
 
-            Assert.Equal(0, exitCode);
+            exitCode.ShouldBe(0);
         }
 
         var resultOutput = string.Join("", console.WriteEntries
             .Where(e => e.Context.HasFlag(RtOutputContext.Result))
             .Select(e => e.Message));
 
-        Assert.Contains("\"nodes\"", resultOutput);
-        Assert.Contains("OrderService", resultOutput);
-        Assert.DoesNotContain("\"nodes\"", string.Join("", console.LogEntries.Select(e => e.RenderedMessage)));
+        resultOutput.ShouldContain("\"nodes\"", Case.Sensitive);
+        resultOutput.ShouldContain("OrderService", Case.Sensitive);
+        string.Join("", console.LogEntries.Select(e => e.RenderedMessage)).ShouldNotContain("\"nodes\"", Case.Sensitive);
     }
 
     [Fact]
@@ -132,14 +130,13 @@ public class LoggingRefactor : IClassFixture<RtServicesFixture>
             .Where(e => e.Context.HasFlag(RtOutputContext.Diff))
             .Select(e => e.Message));
 
-        Assert.Contains("--- ", diffOutput);
-        Assert.Contains("+++ ", diffOutput);
-        Assert.Contains("[dry-run]", diffOutput);
+        diffOutput.ShouldContain("--- ", Case.Sensitive);
+        diffOutput.ShouldContain("+++ ", Case.Sensitive);
+        diffOutput.ShouldContain("[dry-run]", Case.Sensitive);
 
-        Assert.Contains(console.LogEntries,
-            e => e.Level == RtLogLevel.Info &&
+        console.LogEntries.ShouldContain(e => e.Level == RtLogLevel.Info &&
                  e.RenderedMessage.Contains("Fixing namespace", StringComparison.Ordinal));
-        Assert.DoesNotContain("Fixing namespace", diffOutput);
+        diffOutput.ShouldNotContain("Fixing namespace", Case.Sensitive);
     }
 
     [Fact]
@@ -205,17 +202,14 @@ public class LoggingRefactor : IClassFixture<RtServicesFixture>
         }
 
         var allOutput = string.Join("", console.WriteEntries.Select(e => e.Message));
-        Assert.Contains("Narrowed 1 consumer(s)", allOutput);
-        Assert.Contains("SenderOnlyConsumer", allOutput);
+        allOutput.ShouldContain("Narrowed 1 consumer(s)", Case.Sensitive);
+        allOutput.ShouldContain("SenderOnlyConsumer", Case.Sensitive);
         Assert.Contains("MixedConsumer: skipped", allOutput, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("DI registration", allOutput, StringComparison.OrdinalIgnoreCase);
 
-        Assert.DoesNotContain(console.LogEntries,
-            e => e.RenderedMessage.Contains("Narrowed 1 consumer(s)", StringComparison.Ordinal));
-        Assert.DoesNotContain(console.LogEntries,
-            e => e.RenderedMessage.Contains("DI registration", StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(console.LogEntries,
-            e => e.RenderedMessage.Contains("MixedConsumer", StringComparison.Ordinal));
+        console.LogEntries.ShouldNotContain(e => e.RenderedMessage.Contains("Narrowed 1 consumer(s)", StringComparison.Ordinal));
+        console.LogEntries.ShouldNotContain(e => e.RenderedMessage.Contains("DI registration", StringComparison.OrdinalIgnoreCase));
+        console.LogEntries.ShouldNotContain(e => e.RenderedMessage.Contains("MixedConsumer", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -241,10 +235,10 @@ public class LoggingRefactor : IClassFixture<RtServicesFixture>
             Console.SetError(originalErr);
         }
 
-        Assert.Contains("[WARNING] Test warning x", stderr.ToString());
-        Assert.Contains("[ERROR] Test error", stderr.ToString());
-        Assert.Contains("result line", stdout.ToString());
-        Assert.DoesNotContain("[WARNING]", stdout.ToString());
+        stderr.ToString().ShouldContain("[WARNING] Test warning x", Case.Sensitive);
+        stderr.ToString().ShouldContain("[ERROR] Test error", Case.Sensitive);
+        stdout.ToString().ShouldContain("result line", Case.Sensitive);
+        stdout.ToString().ShouldNotContain("[WARNING]", Case.Sensitive);
     }
 
     [Fact]
@@ -265,11 +259,11 @@ public class LoggingRefactor : IClassFixture<RtServicesFixture>
             Core.RtConsole.Log(RtLogLevel.Info, "outer after");
         }
 
-        Assert.Equal(2, outer.LogEntries.Count);
-        Assert.Contains(outer.LogEntries, e => e.RenderedMessage == "outer before");
-        Assert.Contains(outer.LogEntries, e => e.RenderedMessage == "outer after");
+        outer.LogEntries.Count.ShouldBe(2);
+        outer.LogEntries.ShouldContain(e => e.RenderedMessage == "outer before");
+        outer.LogEntries.ShouldContain(e => e.RenderedMessage == "outer after");
         Assert.Single(inner.LogEntries);
-        Assert.Equal("inner", inner.LogEntries[0].RenderedMessage);
+        inner.LogEntries[0].RenderedMessage.ShouldBe("inner");
     }
 
     [Fact]
@@ -284,10 +278,9 @@ public class LoggingRefactor : IClassFixture<RtServicesFixture>
         }
 
         Assert.Single(console.WriteEntries, e => e.Context.HasFlag(RtOutputContext.Result));
-        Assert.Equal("json payload",
-            console.WriteEntries.First(e => e.Context.HasFlag(RtOutputContext.Result)).Message);
+        console.WriteEntries.First(e => e.Context.HasFlag(RtOutputContext.Result)).Message.ShouldBe("json payload");
         Assert.Single(console.LogEntries);
-        Assert.DoesNotContain(console.WriteEntries, e => e.Context.HasFlag(RtOutputContext.Diagnostic));
+        console.WriteEntries.ShouldNotContain(e => e.Context.HasFlag(RtOutputContext.Diagnostic));
     }
 
     internal sealed class CollectingConsole : IRtConsole

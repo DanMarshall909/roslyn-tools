@@ -1,6 +1,7 @@
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Tests.Infrastructure;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -32,10 +33,10 @@ public sealed class NarrowDependency : IClassFixture<RtServicesFixture>
             "ISender.cs should have been created");
 
         var content = await project.ReadSourceAsync("ISender.cs");
-        Assert.Contains("ISender", content);
-        Assert.Contains("Send", content);
-        Assert.DoesNotContain("Receive", content);
-        Assert.DoesNotContain("Delete", content);
+        content.ShouldContain("ISender", Case.Sensitive);
+        content.ShouldContain("Send", Case.Sensitive);
+        content.ShouldNotContain("Receive", Case.Sensitive);
+        content.ShouldNotContain("Delete", Case.Sensitive);
     }
 
     // -------------------------------------------------------------------------
@@ -59,7 +60,7 @@ public sealed class NarrowDependency : IClassFixture<RtServicesFixture>
 
         // SenderOnlyConsumer only uses Send — its ctor param and field should be narrowed
         var content = await project.ReadSourceAsync("Consumers.cs");
-        Assert.Contains("ISender", content);
+        content.ShouldContain("ISender", Case.Sensitive);
     }
 
     // -------------------------------------------------------------------------
@@ -83,7 +84,7 @@ public sealed class NarrowDependency : IClassFixture<RtServicesFixture>
 
         // MixedConsumer uses Send + Receive — should still have IWideFacade
         var content = await project.ReadSourceAsync("Consumers.cs");
-        Assert.Contains("IWideFacade", content);
+        content.ShouldContain("IWideFacade", Case.Sensitive);
     }
 
     // -------------------------------------------------------------------------
@@ -105,12 +106,12 @@ public sealed class NarrowDependency : IClassFixture<RtServicesFixture>
                     "ignored",
                     false));
 
-            Assert.Contains("NonExistentMethod", ex.Message);
-            Assert.Contains("IWideFacade", ex.Message);
+            ex.Message.ShouldContain("NonExistentMethod", Case.Sensitive);
+            ex.Message.ShouldContain("IWideFacade", Case.Sensitive);
         }
 
         // No files written
-        Assert.False(project.SourceExists("INarrow.cs"));
+        project.SourceExists("INarrow.cs").ShouldBeFalse();
     }
 
     // -------------------------------------------------------------------------
@@ -200,7 +201,7 @@ public sealed class NarrowDependency : IClassFixture<RtServicesFixture>
 
         // MixedConsumer uses Send + Receive, so it should be skipped
         var output = stdout.ToString();
-        Assert.Contains("MixedConsumer", output);
+        output.ShouldContain("MixedConsumer", Case.Sensitive);
         Assert.Contains("skipped", output, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -210,15 +211,15 @@ public sealed class NarrowDependency : IClassFixture<RtServicesFixture>
     [Fact]
     public void registers_command_with_expected_options()
     {
-        Assert.Contains(App.Commands, entry => entry.Info.Name == "narrow-dependency");
+        App.Commands.ShouldContain(entry => entry.Info.Name == "narrow-dependency");
 
         var command = _services.Resolve<NarrowDependencyCommand>().Build();
 
-        Assert.Contains(command.Arguments, arg => arg.Name == "interface");
-        Assert.Contains(command.Options, opt => opt.Name == "members");
-        Assert.Contains(command.Options, opt => opt.Name == "new-name");
-        Assert.Contains(command.Options, opt => opt.Name == "solution");
-        Assert.Contains(command.Options, opt => opt.Name == "dry-run");
+        command.Arguments.ShouldContain(arg => arg.Name == "interface");
+        command.Options.ShouldContain(opt => opt.Name == "members");
+        command.Options.ShouldContain(opt => opt.Name == "new-name");
+        command.Options.ShouldContain(opt => opt.Name == "solution");
+        command.Options.ShouldContain(opt => opt.Name == "dry-run");
     }
 
     // -------------------------------------------------------------------------
@@ -261,8 +262,8 @@ public sealed class NarrowDependency : IClassFixture<RtServicesFixture>
         // No exception thrown — existing ISender was reused.
         // Content should be unchanged (not overwritten with a duplicate)
         var content = await project.ReadSourceAsync("ISender.cs");
-        Assert.Contains("ISender", content);
-        Assert.Contains("Send", content);
+        content.ShouldContain("ISender", Case.Sensitive);
+        content.ShouldContain("Send", Case.Sensitive);
     }
 
     // -------------------------------------------------------------------------

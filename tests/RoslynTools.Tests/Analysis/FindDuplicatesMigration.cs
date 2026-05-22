@@ -3,6 +3,7 @@ using RoslynTools.Commands;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
+using Shouldly;
 
 namespace RoslynTools.Tests.Analysis;
 
@@ -81,7 +82,7 @@ public class FindDuplicatesMigration : IDisposable
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
 
             var result = FindDuplicatesResult.FromGroups(groups, null);
             var sw = new StringWriter();
@@ -91,13 +92,9 @@ public class FindDuplicatesMigration : IDisposable
             var g = groups[0];
             var path = g.Occurrences[0].FilePath.Replace('\\', '/');
 
-            Assert.Contains(
-                $"Group 1  id={g.GroupId}  occurrences={g.Occurrences.Count}  score={g.Score:F2}  extractable={g.Extractability}",
-                actual);
-            Assert.Contains($"preview: {g.Preview}", actual);
-            Assert.Contains(
-                $"  1. {path}:{g.Occurrences[0].StartLine}-{g.Occurrences[0].EndLine} in {g.Occurrences[0].ContainingType}.{g.Occurrences[0].ContainingMember}",
-                actual);
+            actual.ShouldContain($"Group 1  id={g.GroupId}  occurrences={g.Occurrences.Count}  score={g.Score:F2}  extractable={g.Extractability}", Case.Sensitive);
+            actual.ShouldContain($"preview: {g.Preview}", Case.Sensitive);
+            actual.ShouldContain($"  1. {path}:{g.Occurrences[0].StartLine}-{g.Occurrences[0].EndLine} in {g.Occurrences[0].ContainingType}.{g.Occurrences[0].ContainingMember}", Case.Sensitive);
         }
     }
 
@@ -117,7 +114,7 @@ public class FindDuplicatesMigration : IDisposable
             var result = FindDuplicatesResult.FromGroups(groups, null);
             var sw = new StringWriter();
             result.RenderText(sw);
-            Assert.Equal("No duplicate groups found." + Environment.NewLine, sw.ToString());
+            sw.ToString().ShouldBe("No duplicate groups found." + Environment.NewLine);
         }
     }
 
@@ -152,7 +149,7 @@ public class FindDuplicatesMigration : IDisposable
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
 
             var result = FindDuplicatesResult.FromGroups(groups, null);
             var sw = new StringWriter();
@@ -162,20 +159,20 @@ public class FindDuplicatesMigration : IDisposable
             var doc = JsonDocument.Parse(sw.ToString());
             var root = doc.RootElement;
 
-            Assert.Equal("structural", root.GetProperty("mode").GetString());
+            root.GetProperty("mode").GetString().ShouldBe("structural");
 
             var groupsArr = root.GetProperty("groups");
-            Assert.True(groupsArr.GetArrayLength() >= 1);
+            (groupsArr.GetArrayLength() >= 1).ShouldBeTrue();
 
             var g = groupsArr[0];
-            Assert.True(g.TryGetProperty("groupId", out _));
-            Assert.True(g.TryGetProperty("extractability", out _));
-            Assert.True(g.TryGetProperty("preview", out _));
-            Assert.True(g.TryGetProperty("score", out _));
-            Assert.True(g.TryGetProperty("occurrenceCount", out _));
-            Assert.True(g.TryGetProperty("occurrences", out var occs));
-            Assert.True(g.TryGetProperty("checks", out _));
-            Assert.Equal(JsonValueKind.Array, occs.ValueKind);
+            g.TryGetProperty("groupId", out _).ShouldBeTrue();
+            g.TryGetProperty("extractability", out _).ShouldBeTrue();
+            g.TryGetProperty("preview", out _).ShouldBeTrue();
+            g.TryGetProperty("score", out _).ShouldBeTrue();
+            g.TryGetProperty("occurrenceCount", out _).ShouldBeTrue();
+            g.TryGetProperty("occurrences", out var occs).ShouldBeTrue();
+            g.TryGetProperty("checks", out _).ShouldBeTrue();
+            occs.ValueKind.ShouldBe(JsonValueKind.Array);
         }
     }
 
@@ -210,7 +207,7 @@ public class FindDuplicatesMigration : IDisposable
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
 
             var result = FindDuplicatesResult.FromGroups(groups, null);
             var sw = new StringWriter();
@@ -218,9 +215,9 @@ public class FindDuplicatesMigration : IDisposable
             RtSerializer.Write(result, sw);
             var md = sw.ToString();
 
-            Assert.Contains("# Duplicate Groups", md);
-            Assert.Contains("## Group 1:", md);
-            Assert.Contains("| # | Location | Type | Member |", md);
+            md.ShouldContain("# Duplicate Groups", Case.Sensitive);
+            md.ShouldContain("## Group 1:", Case.Sensitive);
+            md.ShouldContain("| # | Location | Type | Member |", Case.Sensitive);
         }
     }
 
@@ -255,7 +252,7 @@ public class FindDuplicatesMigration : IDisposable
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
 
             var result = FindDuplicatesResult.FromGroups(groups, null);
             var sw = new StringWriter();
@@ -264,14 +261,14 @@ public class FindDuplicatesMigration : IDisposable
             var output = sw.ToString();
 
             var g = groups[0];
-            Assert.Contains(g.GroupId, output);
-            Assert.Contains(g.Extractability, output);
-            Assert.Contains(g.Preview, output);
+            output.ShouldContain(g.GroupId, Case.Sensitive);
+            output.ShouldContain(g.Extractability, Case.Sensitive);
+            output.ShouldContain(g.Preview, Case.Sensitive);
             // Location (link) should appear
-            Assert.Contains(g.Occurrences[0].FilePath.Replace('\\', '/'), output);
+            output.ShouldContain(g.Occurrences[0].FilePath.Replace('\\', '/'), Case.Sensitive);
             // Score and checks section should not appear as "score" label
-            Assert.DoesNotContain("score:", output);
-            Assert.DoesNotContain("occurrenceCount:", output);
+            output.ShouldNotContain("score:", Case.Sensitive);
+            output.ShouldNotContain("occurrenceCount:", Case.Sensitive);
         }
     }
 
@@ -306,7 +303,7 @@ public class FindDuplicatesMigration : IDisposable
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
 
             var result = FindDuplicatesResult.FromGroups(groups, null);
             var sw = new StringWriter();
@@ -315,12 +312,12 @@ public class FindDuplicatesMigration : IDisposable
             var output = sw.ToString();
 
             var g = groups[0];
-            Assert.Contains($"id={g.GroupId}", output);
-            Assert.Contains($"occurrences={g.Occurrences.Count}", output);
-            Assert.Contains($"score={g.Score:F2}", output);
-            Assert.Contains($"extractable={g.Extractability}", output);
-            Assert.Contains($"preview: {g.Preview}", output);
-            Assert.Contains("  1.", output);
+            output.ShouldContain($"id={g.GroupId}", Case.Sensitive);
+            output.ShouldContain($"occurrences={g.Occurrences.Count}", Case.Sensitive);
+            output.ShouldContain($"score={g.Score:F2}", Case.Sensitive);
+            output.ShouldContain($"extractable={g.Extractability}", Case.Sensitive);
+            output.ShouldContain($"preview: {g.Preview}", Case.Sensitive);
+            output.ShouldContain("  1.", Case.Sensitive);
         }
     }
 
@@ -331,10 +328,10 @@ public class FindDuplicatesMigration : IDisposable
     {
         var info = FindDuplicatesCommand.Info;
         var formats = info.SupportedFormats;
-        Assert.NotNull(formats);
-        Assert.Contains(OutputFormat.Text, formats);
-        Assert.Contains(OutputFormat.Json, formats);
-        Assert.Contains(OutputFormat.Markdown, formats);
-        Assert.Contains(OutputFormat.Llm, formats);
+        formats.ShouldNotBeNull();
+        formats.ShouldContain(OutputFormat.Text);
+        formats.ShouldContain(OutputFormat.Json);
+        formats.ShouldContain(OutputFormat.Markdown);
+        formats.ShouldContain(OutputFormat.Llm);
     }
 }

@@ -1,4 +1,5 @@
 using RoslynTools.Services;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -31,7 +32,7 @@ public class RenameIntegration
         Assert.True(project.SourceExists("NewType.cs"), "new file should exist");
 
         var renamed = await project.ReadSourceAsync("NewType.cs");
-        Assert.Contains("class NewType", renamed);
+        renamed.ShouldContain("class NewType", Case.Sensitive);
     }
 
     [Fact]
@@ -104,7 +105,7 @@ public class RenameIntegration
         Assert.True(project.SourceExists("NewB.cs"), "pending new file should exist");
 
         var renamed = await project.ReadSourceAsync("NewB.cs");
-        Assert.Contains("class NewB", renamed);
-        Assert.Contains("void pending()", renamed);
+        renamed.ShouldContain("class NewB", Case.Sensitive);
+        renamed.ShouldContain("void pending()", Case.Sensitive);
     }
 }

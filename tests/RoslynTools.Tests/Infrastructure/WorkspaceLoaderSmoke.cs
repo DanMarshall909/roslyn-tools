@@ -1,4 +1,5 @@
 using RoslynTools.Core;
+using Shouldly;
 
 namespace RoslynTools.Tests.Infrastructure;
 
@@ -36,11 +37,11 @@ public class WorkspaceLoaderSmoke
         var (workspace, solution) = await WorkspaceLoader.LoadAsync(sln.SolutionPath);
         using (workspace)
         {
-            Assert.NotEmpty(solution.Projects);
+            solution.Projects.ShouldNotBeEmpty();
 
             var sym = await Core.SymbolLocator.FindSymbolByFqnAsync(
                 solution, "SmokeProject.SmokeType", "type");
-            Assert.NotNull(sym);
+            sym.ShouldNotBeNull();
         }
     }
 
@@ -59,19 +60,19 @@ public class WorkspaceLoaderSmoke
             var (workspace, solution) = await WorkspaceLoader.LoadAsync(sln.SolutionPath);
             using (workspace)
             {
-                Assert.NotEmpty(solution.Projects);
+                solution.Projects.ShouldNotBeEmpty();
             }
 
             var output = sink.ToString();
-            Assert.DoesNotContain("Loading solution", output);
-            Assert.DoesNotContain("Loaded ", output);
+            output.ShouldNotContain("Loading solution", Case.Sensitive);
+            output.ShouldNotContain("Loaded ", Case.Sensitive);
 
             // If any diagnostics surfaced from the real load, they must live under the
             // delimited warnings section, not as raw interleaved lines.
             if (output.Length > 0)
             {
-                Assert.StartsWith("---", output);
-                Assert.Contains("[workspace-warnings]", output);
+                output.ShouldStartWith("---", Case.Sensitive);
+                output.ShouldContain("[workspace-warnings]", Case.Sensitive);
             }
         }
         finally
@@ -91,7 +92,7 @@ public class WorkspaceLoaderSmoke
 
             await Assert.ThrowsAsync<FileNotFoundException>(() => WorkspaceLoader.LoadAsync(missing));
 
-            Assert.Equal(string.Empty, sink.ToString());
+            sink.ToString().ShouldBe(string.Empty);
         }
         finally
         {

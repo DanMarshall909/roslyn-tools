@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools;
 using RoslynTools.Core;
+using Shouldly;
 
 namespace RoslynTools.Tests.Navigation;
 
@@ -43,8 +44,8 @@ public class FindRefsDi
                 ["find-refs", "--symbol", "Widget", "--solution", "ignored"],
                 services);
 
-            Assert.Equal(0, exitCode);
-            Assert.Contains("Widget", stdout);
+            exitCode.ShouldBe(0);
+            stdout.ShouldContain("Widget", Case.Sensitive);
         }
     }
 
@@ -74,8 +75,8 @@ public class FindRefsDi
                 ["find-refs", "--symbol", "Gadget", "--solution", "ignored"],
                 null);
 
-            Assert.Equal(0, exitCode);
-            Assert.Contains("Gadget", stdout);
+            exitCode.ShouldBe(0);
+            stdout.ShouldContain("Gadget", Case.Sensitive);
         }
     }
 

@@ -1,4 +1,5 @@
 using RoslynTools.Core.Output;
+using Shouldly;
 
 namespace RoslynTools.Tests;
 
@@ -25,7 +26,7 @@ public sealed class GlobalFormatFlag : IDisposable
 
         await App.RunAsync(["dump-help"]);
 
-        Assert.Equal(OutputFormat.Text, RtContext.Format);
+        RtContext.Format.ShouldBe(OutputFormat.Text);
     }
 
     // ── AC-6: --json sets Format to Json ──────────────────────────────────────────
@@ -35,7 +36,7 @@ public sealed class GlobalFormatFlag : IDisposable
     {
         await App.RunAsync(["dump-help", "--json"]);
 
-        Assert.Equal(OutputFormat.Json, RtContext.Format);
+        RtContext.Format.ShouldBe(OutputFormat.Json);
     }
 
     // ── --llm sets Format to Llm ──────────────────────────────────────────────────
@@ -45,7 +46,7 @@ public sealed class GlobalFormatFlag : IDisposable
     {
         await App.RunAsync(["dump-help", "--llm"]);
 
-        Assert.Equal(OutputFormat.Llm, RtContext.Format);
+        RtContext.Format.ShouldBe(OutputFormat.Llm);
     }
 
     // ── --markdown sets Format to Markdown ────────────────────────────────────────
@@ -55,7 +56,7 @@ public sealed class GlobalFormatFlag : IDisposable
     {
         await App.RunAsync(["dump-help", "--markdown"]);
 
-        Assert.Equal(OutputFormat.Markdown, RtContext.Format);
+        RtContext.Format.ShouldBe(OutputFormat.Markdown);
     }
 
     // ── --yaml sets Format to Yaml ────────────────────────────────────────────────
@@ -65,7 +66,7 @@ public sealed class GlobalFormatFlag : IDisposable
     {
         await App.RunAsync(["dump-help", "--yaml"]);
 
-        Assert.Equal(OutputFormat.Yaml, RtContext.Format);
+        RtContext.Format.ShouldBe(OutputFormat.Yaml);
     }
 
     [Fact]
@@ -73,7 +74,7 @@ public sealed class GlobalFormatFlag : IDisposable
     {
         await App.RunAsync(["dump-help", "--markdown", "--yaml"]);
 
-        Assert.Equal(OutputFormat.Markdown, RtContext.Format);
+        RtContext.Format.ShouldBe(OutputFormat.Markdown);
     }
 
     [Fact]
@@ -81,7 +82,7 @@ public sealed class GlobalFormatFlag : IDisposable
     {
         await App.RunAsync(["dump-help", "--yaml", "--json"]);
 
-        Assert.Equal(OutputFormat.Yaml, RtContext.Format);
+        RtContext.Format.ShouldBe(OutputFormat.Yaml);
     }
 
     // ── AC-7: --markdown wins over --json (precedence) ────────────────────────────
@@ -91,7 +92,7 @@ public sealed class GlobalFormatFlag : IDisposable
     {
         await App.RunAsync(["dump-help", "--markdown", "--json"]);
 
-        Assert.Equal(OutputFormat.Markdown, RtContext.Format);
+        RtContext.Format.ShouldBe(OutputFormat.Markdown);
     }
 
     // ── markdown wins over llm ────────────────────────────────────────────────────
@@ -101,7 +102,7 @@ public sealed class GlobalFormatFlag : IDisposable
     {
         await App.RunAsync(["dump-help", "--markdown", "--llm"]);
 
-        Assert.Equal(OutputFormat.Markdown, RtContext.Format);
+        RtContext.Format.ShouldBe(OutputFormat.Markdown);
     }
 
     // ── json wins over llm ────────────────────────────────────────────────────────
@@ -111,6 +112,6 @@ public sealed class GlobalFormatFlag : IDisposable
     {
         await App.RunAsync(["dump-help", "--json", "--llm"]);
 
-        Assert.Equal(OutputFormat.Json, RtContext.Format);
+        RtContext.Format.ShouldBe(OutputFormat.Json);
     }
 }

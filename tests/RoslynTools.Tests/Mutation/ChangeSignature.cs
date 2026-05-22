@@ -3,6 +3,7 @@ using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Services;
 using RoslynTools.Tests.Infrastructure;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -50,9 +51,9 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
             var serviceText = await GetDocumentTextAsync(updated, "Service.cs");
             var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
 
-            Assert.Contains("Foo(int total)", serviceText);
-            Assert.Contains("Foo(total: 5)", callerText);
-            Assert.Contains("Foo(5)", callerText);
+            serviceText.ShouldContain("Foo(int total)", Case.Sensitive);
+            callerText.ShouldContain("Foo(total: 5)", Case.Sensitive);
+            callerText.ShouldContain("Foo(5)", Case.Sensitive);
         }
     }
 
@@ -102,9 +103,9 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                 "count",
                 "total");
 
-            Assert.Contains("Foo(int total)", await GetDocumentTextAsync(updated, "Service.cs"));
-            Assert.Contains("Foo(total: 1)", await GetDocumentTextAsync(updated, "Caller1.cs"));
-            Assert.Contains("Foo(total: 2)", await GetDocumentTextAsync(updated, "Caller2.cs"));
+            (await GetDocumentTextAsync(updated, "Service.cs")).ShouldContain("Foo(int total)", Case.Sensitive);
+            (await GetDocumentTextAsync(updated, "Caller1.cs")).ShouldContain("Foo(total: 1)", Case.Sensitive);
+            (await GetDocumentTextAsync(updated, "Caller2.cs")).ShouldContain("Foo(total: 2)", Case.Sensitive);
         }
     }
 
@@ -143,8 +144,8 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                 "count",
                 "total");
 
-            Assert.Contains("Widget(int total)", await GetDocumentTextAsync(updated, "Widget.cs"));
-            Assert.Contains("new Widget(total: 5)", await GetDocumentTextAsync(updated, "Caller.cs"));
+            (await GetDocumentTextAsync(updated, "Widget.cs")).ShouldContain("Widget(int total)", Case.Sensitive);
+            (await GetDocumentTextAsync(updated, "Caller.cs")).ShouldContain("new Widget(total: 5)", Case.Sensitive);
         }
     }
 
@@ -178,8 +179,8 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                 "total");
 
             var text = await GetDocumentTextAsync(updated, "Container.cs");
-            Assert.Contains("Local(int total)", text);
-            Assert.Contains("Local(total: 5)", text);
+            text.ShouldContain("Local(int total)", Case.Sensitive);
+            text.ShouldContain("Local(total: 5)", Case.Sensitive);
         }
     }
 
@@ -204,7 +205,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new ChangeSignatureService().RenameParamAsync(solution, "TestApp.Service.Foo", "missing", "total"));
 
-            Assert.Contains("missing", ex.Message);
+            ex.Message.ShouldContain("missing", Case.Sensitive);
         }
     }
 
@@ -229,7 +230,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new ChangeSignatureService().RenameParamAsync(solution, "TestApp.Service.Foo", "count", "total"));
 
-            Assert.Contains("already has a parameter", ex.Message);
+            ex.Message.ShouldContain("already has a parameter", Case.Sensitive);
         }
     }
 
@@ -270,8 +271,8 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                     "count",
                     "total");
 
-                Assert.Contains("Multiple symbols match 'TestApp.Service.Foo'", output.ToString());
-                Assert.Contains("Foo(int total)", await GetDocumentTextAsync(updated, "Service.cs"));
+                output.ToString().ShouldContain("Multiple symbols match 'TestApp.Service.Foo'", Case.Sensitive);
+                (await GetDocumentTextAsync(updated, "Service.cs")).ShouldContain("Foo(int total)", Case.Sensitive);
             }
             finally
             {
@@ -284,20 +285,17 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
     [Fact]
     public void registers_the_rename_param_subcommand_and_metadata()
     {
-        Assert.Equal("change-signature", ChangeSignatureCommand.Info.Name);
-        Assert.True(ChangeSignatureCommand.Info.Mutates);
-        Assert.False(ChangeSignatureCommand.Info.JsonOutput);
-        Assert.Contains(ChangeSignatureCommand.Info.Examples,
-            example => example.Contains("rename-param", StringComparison.Ordinal));
+        ChangeSignatureCommand.Info.Name.ShouldBe("change-signature");
+        ChangeSignatureCommand.Info.Mutates.ShouldBeTrue();
+        ChangeSignatureCommand.Info.JsonOutput.ShouldBeFalse();
+        ChangeSignatureCommand.Info.Examples.ShouldContain(example => example.Contains("rename-param", StringComparison.Ordinal));
 
         var command = _services.Resolve<ChangeSignatureCommand>().Build();
         var renameParam = command.Subcommands.Single(subcommand => subcommand.Name == "rename-param");
 
-        Assert.Equal("change-signature", command.Name);
-        Assert.Equal(["methodSpec", "oldName", "newName"], renameParam.Arguments.Select(argument => argument.Name));
-        Assert.Equal(
-            ["dry-run", "solution"],
-            renameParam.Options.Select(option => option.Name).OrderBy(name => name, StringComparer.Ordinal));
+        command.Name.ShouldBe("change-signature");
+        renameParam.Arguments.Select(argument => argument.Name).ShouldBe(["methodSpec", "oldName", "newName"]);
+        renameParam.Options.Select(option => option.Name).OrderBy(name => name, StringComparer.Ordinal).ShouldBe(["dry-run", "solution"]);
     }
 
     [Fact]
@@ -351,11 +349,11 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                     "--dry-run"
                 ]);
 
-                Assert.Equal(0, exitCode);
-                Assert.Contains("--- ", output.ToString());
-                Assert.Contains("+++ ", output.ToString());
-                Assert.Contains("@@ ", output.ToString());
-                Assert.Contains("[dry-run]", output.ToString());
+                exitCode.ShouldBe(0);
+                output.ToString().ShouldContain("--- ", Case.Sensitive);
+                output.ToString().ShouldContain("+++ ", Case.Sensitive);
+                output.ToString().ShouldContain("@@ ", Case.Sensitive);
+                output.ToString().ShouldContain("[dry-run]", Case.Sensitive);
             }
             finally
             {
@@ -363,8 +361,8 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
             }
         }
 
-        Assert.Equal(beforeService, await project.ReadSourceAsync("Service.cs"));
-        Assert.Equal(beforeCaller, await project.ReadSourceAsync("Caller.cs"));
+        (await project.ReadSourceAsync("Service.cs")).ShouldBe(beforeService);
+        (await project.ReadSourceAsync("Caller.cs")).ShouldBe(beforeCaller);
     }
 
     [Fact]
@@ -408,11 +406,11 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                 "ignored"
             ]);
 
-            Assert.Equal(0, exitCode);
+            exitCode.ShouldBe(0);
         }
 
-        Assert.Contains("Foo(int total)", await project.ReadSourceAsync("Service.cs"));
-        Assert.Contains("Foo(total: 5)", await project.ReadSourceAsync("Caller.cs"));
+        (await project.ReadSourceAsync("Service.cs")).ShouldContain("Foo(int total)", Case.Sensitive);
+        (await project.ReadSourceAsync("Caller.cs")).ShouldContain("Foo(total: 5)", Case.Sensitive);
     }
 
     [Fact]
@@ -453,8 +451,8 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                     "ignored"
                 ]);
 
-                Assert.Equal(1, exitCode);
-                Assert.Contains("TestApp.Service.Missing", error.ToString());
+                exitCode.ShouldBe(1);
+                error.ToString().ShouldContain("TestApp.Service.Missing", Case.Sensitive);
             }
             finally
             {
@@ -472,10 +470,8 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
         var command = _services.Resolve<ChangeSignatureCommand>().Build();
         var reorder = command.Subcommands.Single(sub => sub.Name == "reorder");
 
-        Assert.Equal(["methodSpec", "order"], reorder.Arguments.Select(a => a.Name));
-        Assert.Equal(
-            ["dry-run", "solution"],
-            reorder.Options.Select(o => o.Name).OrderBy(n => n, StringComparer.Ordinal));
+        reorder.Arguments.Select(a => a.Name).ShouldBe(["methodSpec", "order"]);
+        reorder.Options.Select(o => o.Name).OrderBy(n => n, StringComparer.Ordinal).ShouldBe(["dry-run", "solution"]);
     }
 
     // ---- ReorderParamsAsync: validation ----
@@ -493,7 +489,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new ChangeSignatureService().ReorderParamsAsync(solution, "TestApp.Service.Foo", ["1", "0"]));
-            Assert.Contains("parameter count", ex.Message);
+            ex.Message.ShouldContain("parameter count", Case.Sensitive);
         }
     }
 
@@ -510,7 +506,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new ChangeSignatureService().ReorderParamsAsync(solution, "TestApp.Service.Foo", ["0", "0"]));
-            Assert.Contains("duplicate", ex.Message);
+            ex.Message.ShouldContain("duplicate", Case.Sensitive);
         }
     }
 
@@ -527,7 +523,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new ChangeSignatureService().ReorderParamsAsync(solution, "TestApp.Service.Foo", ["0", "5"]));
-            Assert.Contains("out of range", ex.Message);
+            ex.Message.ShouldContain("out of range", Case.Sensitive);
         }
     }
 
@@ -544,7 +540,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new ChangeSignatureService().ReorderParamsAsync(solution, "TestApp.Service.Foo", ["b", "unknown"]));
-            Assert.Contains("unknown", ex.Message);
+            ex.Message.ShouldContain("unknown", Case.Sensitive);
         }
     }
 
@@ -561,7 +557,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new ChangeSignatureService().ReorderParamsAsync(solution, "TestApp.Service.Foo", ["0", "b"]));
-            Assert.Contains("mixed", ex.Message);
+            ex.Message.ShouldContain("mixed", Case.Sensitive);
         }
     }
 
@@ -578,7 +574,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new ChangeSignatureService().ReorderParamsAsync(solution, "TestApp.Service.Foo", ["1", "0"]));
-            Assert.Contains("params", ex.Message);
+            ex.Message.ShouldContain("params", Case.Sensitive);
         }
     }
 
@@ -608,7 +604,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
             var updated = await new ChangeSignatureService().ReorderParamsAsync(
                 solution, "TestApp.Service.Foo", ["0", "1", "2"]);
             var changes = updated.GetChanges(solution);
-            Assert.Empty(changes.GetProjectChanges().SelectMany(p => p.GetChangedDocuments()));
+            changes.GetProjectChanges().SelectMany(p => p.GetChangedDocuments()).ShouldBeEmpty();
         }
     }
 
@@ -641,8 +637,8 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
             var svc = await GetDocumentTextAsync(updated, "Service.cs");
             var caller = await GetDocumentTextAsync(updated, "Caller.cs");
 
-            Assert.Contains("Foo(int c, int a, int b)", svc);
-            Assert.Contains("Foo(3, 1, 2)", caller);
+            svc.ShouldContain("Foo(int c, int a, int b)", Case.Sensitive);
+            caller.ShouldContain("Foo(3, 1, 2)", Case.Sensitive);
         }
     }
 
@@ -675,8 +671,8 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
             var svc = await GetDocumentTextAsync(updated, "Service.cs");
             var caller = await GetDocumentTextAsync(updated, "Caller.cs");
 
-            Assert.Contains("Foo(int c, int a, int b)", svc);
-            Assert.Contains("Foo(3, 1, 2)", caller);
+            svc.ShouldContain("Foo(int c, int a, int b)", Case.Sensitive);
+            caller.ShouldContain("Foo(3, 1, 2)", Case.Sensitive);
         }
     }
 
@@ -709,8 +705,8 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
             var svc = await GetDocumentTextAsync(updated, "Service.cs");
             var caller = await GetDocumentTextAsync(updated, "Caller.cs");
 
-            Assert.Contains("Foo(int b, int a)", svc);
-            Assert.Contains("Foo(b: 2, a: 1)", caller);
+            svc.ShouldContain("Foo(int b, int a)", Case.Sensitive);
+            caller.ShouldContain("Foo(b: 2, a: 1)", Case.Sensitive);
         }
     }
 
@@ -742,7 +738,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
 
             var caller = await GetDocumentTextAsync(updated, "Caller.cs");
             // new order is c,a,b; call had positional a=1, named b=2, named c=3
-            Assert.Contains("Foo(3, 1, b: 2)", caller);
+            caller.ShouldContain("Foo(3, 1, b: 2)", Case.Sensitive);
         }
     }
 
@@ -777,8 +773,8 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                 solution, "TestApp.Service.Foo", ["1", "0"]);
 
             var caller = await GetDocumentTextAsync(updated, "Caller.cs");
-            Assert.Contains("Foo(2, 1)", caller);
-            Assert.Contains("Foo(4, 3)", caller);
+            caller.ShouldContain("Foo(2, 1)", Case.Sensitive);
+            caller.ShouldContain("Foo(4, 3)", Case.Sensitive);
         }
     }
 
@@ -809,9 +805,9 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
             var updated = await new ChangeSignatureService().ReorderParamsAsync(
                 solution, "TestApp.Service.Foo", ["1", "0"]);
 
-            Assert.Contains("Foo(int b, int a)", await GetDocumentTextAsync(updated, "Service.cs"));
-            Assert.Contains("Foo(20, 10)", await GetDocumentTextAsync(updated, "Caller1.cs"));
-            Assert.Contains("Foo(40, 30)", await GetDocumentTextAsync(updated, "Caller2.cs"));
+            (await GetDocumentTextAsync(updated, "Service.cs")).ShouldContain("Foo(int b, int a)", Case.Sensitive);
+            (await GetDocumentTextAsync(updated, "Caller1.cs")).ShouldContain("Foo(20, 10)", Case.Sensitive);
+            (await GetDocumentTextAsync(updated, "Caller2.cs")).ShouldContain("Foo(40, 30)", Case.Sensitive);
         }
     }
 
@@ -841,8 +837,8 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
             var updated = await new ChangeSignatureService().ReorderParamsAsync(
                 solution, "TestApp.Widget.Widget", ["1", "0"]);
 
-            Assert.Contains("Widget(int b, int a)", await GetDocumentTextAsync(updated, "Widget.cs"));
-            Assert.Contains("new Widget(2, 1)", await GetDocumentTextAsync(updated, "Caller.cs"));
+            (await GetDocumentTextAsync(updated, "Widget.cs")).ShouldContain("Widget(int b, int a)", Case.Sensitive);
+            (await GetDocumentTextAsync(updated, "Caller.cs")).ShouldContain("new Widget(2, 1)", Case.Sensitive);
         }
     }
 
@@ -870,8 +866,8 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                 solution, "TestApp.Container.Run.Local", ["1", "0"]);
 
             var text = await GetDocumentTextAsync(updated, "Container.cs");
-            Assert.Contains("Local(int b, int a)", text);
-            Assert.Contains("Local(2, 1)", text);
+            text.ShouldContain("Local(int b, int a)", Case.Sensitive);
+            text.ShouldContain("Local(2, 1)", Case.Sensitive);
         }
     }
 
@@ -905,8 +901,8 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
             var svc = await GetDocumentTextAsync(updated, "Service.cs");
             var caller = await GetDocumentTextAsync(updated, "Caller.cs");
 
-            Assert.Contains("Foo(int b, int a, int c = 0)", svc);
-            Assert.Contains("s.Foo(1, 2)", caller); // call site left as-is (c still trailing)
+            svc.ShouldContain("Foo(int b, int a, int c = 0)", Case.Sensitive);
+            caller.ShouldContain("s.Foo(1, 2)", Case.Sensitive); // call site left as-is (c still trailing)
         }
     }
 
@@ -935,7 +931,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new ChangeSignatureService().ReorderParamsAsync(solution, "TestApp.Service.Foo", ["1", "0", "2"]));
 
-            Assert.Contains("non-trailing position", ex.Message);
+            ex.Message.ShouldContain("non-trailing position", Case.Sensitive);
         }
     }
 
@@ -975,11 +971,11 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
 
             var serviceText = await GetDocumentTextAsync(updated, "Service.cs");
             // Declaration updated: count appended after b
-            Assert.Contains("Foo(int a, int b, int count = 0)", serviceText);
+            serviceText.ShouldContain("Foo(int a, int b, int count = 0)", Case.Sensitive);
 
             // Call site NOT modified (new param has a default)
             var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
-            Assert.Contains("svc.Foo(1, 2)", callerText);
+            callerText.ShouldContain("svc.Foo(1, 2)", Case.Sensitive);
         }
     }
 
@@ -1008,7 +1004,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                 "b");
 
             var serviceText = await GetDocumentTextAsync(updated, "Service.cs");
-            Assert.Contains("Foo(int a, int b, int x = 0, int c)", serviceText);
+            serviceText.ShouldContain("Foo(int a, int b, int x = 0, int c)", Case.Sensitive);
         }
     }
 
@@ -1033,7 +1029,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new ChangeSignatureService().AddParamAsync(solution, "TestApp.Service.Foo", "int x = 0", "z"));
 
-            Assert.Contains("z", ex.Message);
+            ex.Message.ShouldContain("z", Case.Sensitive);
         }
     }
 
@@ -1058,7 +1054,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new ChangeSignatureService().AddParamAsync(solution, "TestApp.Service.Foo", "int count", null));
 
-            Assert.Contains("default value", ex.Message);
+            ex.Message.ShouldContain("default value", Case.Sensitive);
         }
     }
 
@@ -1083,7 +1079,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new ChangeSignatureService().AddParamAsync(solution, "TestApp.Service.Foo", "int a = 0", null));
 
-            Assert.Contains("parameter named 'a'", ex.Message);
+            ex.Message.ShouldContain("parameter named 'a'", Case.Sensitive);
         }
     }
 
@@ -1112,7 +1108,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                 null);
 
             var text = await GetDocumentTextAsync(updated, "Widget.cs");
-            Assert.Contains("Widget(int x, string label = \"\")", text);
+            text.ShouldContain("Widget(int x, string label = \"\")", Case.Sensitive);
         }
     }
 
@@ -1146,7 +1142,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                 null);
 
             var text = await GetDocumentTextAsync(updated, "Container.cs");
-            Assert.Contains("Local(int a, int b = 0)", text);
+            text.ShouldContain("Local(int a, int b = 0)", Case.Sensitive);
         }
     }
 
@@ -1173,7 +1169,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new ChangeSignatureService().RemoveParamAsync(solution, "TestApp.Service.Foo", "a", false));
 
-            Assert.Contains("default value", ex.Message);
+            ex.Message.ShouldContain("default value", Case.Sensitive);
         }
     }
 
@@ -1207,11 +1203,11 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                 solution, "TestApp.Service.Foo", "a", true);
 
             var serviceText = await GetDocumentTextAsync(updated, "Service.cs");
-            Assert.DoesNotContain("int a", serviceText);
-            Assert.Contains("Foo(int b)", serviceText);
+            serviceText.ShouldNotContain("int a", Case.Sensitive);
+            serviceText.ShouldContain("Foo(int b)", Case.Sensitive);
 
             var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
-            Assert.Contains("Foo(2)", callerText);
+            callerText.ShouldContain("Foo(2)", Case.Sensitive);
         }
     }
 
@@ -1245,7 +1241,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                 solution, "TestApp.Service.Foo", "a", false);
 
             var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
-            Assert.Contains("Foo(2)", callerText);
+            callerText.ShouldContain("Foo(2)", Case.Sensitive);
         }
     }
 
@@ -1283,8 +1279,8 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                 solution, "TestApp.Service.Foo", "a", false);
 
             var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
-            Assert.Contains("Foo(2)", callerText);
-            Assert.Contains("Foo(4)", callerText);
+            callerText.ShouldContain("Foo(2)", Case.Sensitive);
+            callerText.ShouldContain("Foo(4)", Case.Sensitive);
         }
     }
 
@@ -1328,8 +1324,8 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
             var caller1Text = await GetDocumentTextAsync(updated, "Caller1.cs");
             var caller2Text = await GetDocumentTextAsync(updated, "Caller2.cs");
 
-            Assert.Contains("Foo(2)", caller1Text);
-            Assert.Contains("Foo(4)", caller2Text);
+            caller1Text.ShouldContain("Foo(2)", Case.Sensitive);
+            caller2Text.ShouldContain("Foo(4)", Case.Sensitive);
         }
     }
 
@@ -1363,8 +1359,8 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                 solution, "TestApp.Service.Foo", "a", false);
 
             var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
-            Assert.Contains("Foo(b: 2)", callerText);
-            Assert.DoesNotContain("a: 1", callerText);
+            callerText.ShouldContain("Foo(b: 2)", Case.Sensitive);
+            callerText.ShouldNotContain("a: 1", Case.Sensitive);
         }
     }
 
@@ -1402,9 +1398,9 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                 solution, "TestApp.Service.Foo", "a", false);
 
             var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
-            Assert.Contains("Foo(2)", callerText);
-            Assert.Contains("Foo(b: 4)", callerText);
-            Assert.DoesNotContain("a: 3", callerText);
+            callerText.ShouldContain("Foo(2)", Case.Sensitive);
+            callerText.ShouldContain("Foo(b: 4)", Case.Sensitive);
+            callerText.ShouldNotContain("a: 3", Case.Sensitive);
         }
     }
 
@@ -1429,7 +1425,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new ChangeSignatureService().RemoveParamAsync(solution, "TestApp.Service.Foo", "missing", true));
 
-            Assert.Contains("missing", ex.Message);
+            ex.Message.ShouldContain("missing", Case.Sensitive);
         }
     }
 
@@ -1465,9 +1461,9 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
             var widgetText = await GetDocumentTextAsync(updated, "Widget.cs");
             var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
 
-            Assert.Contains("Widget(int y = 0)", widgetText);
-            Assert.DoesNotContain("int x", widgetText);
-            Assert.Contains("new Widget(2)", callerText);
+            widgetText.ShouldContain("Widget(int y = 0)", Case.Sensitive);
+            widgetText.ShouldNotContain("int x", Case.Sensitive);
+            callerText.ShouldContain("new Widget(2)", Case.Sensitive);
         }
     }
 
@@ -1498,8 +1494,8 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                 solution, "TestApp.Container.Run.Local", "a", false);
 
             var text = await GetDocumentTextAsync(updated, "Container.cs");
-            Assert.Contains("Local(int b = 0)", text);
-            Assert.Contains("Local(2)", text);
+            text.ShouldContain("Local(int b = 0)", Case.Sensitive);
+            text.ShouldContain("Local(2)", Case.Sensitive);
         }
     }
 
@@ -1531,7 +1527,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                 null);
 
             var text = await GetDocumentTextAsync(updated, "Service.cs");
-            Assert.Contains("Foo(int count = 0)", text);
+            text.ShouldContain("Foo(int count = 0)", Case.Sensitive);
         }
     }
 
@@ -1562,10 +1558,10 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                 solution, "TestApp.Service.Foo", "a", false);
 
             var text = await GetDocumentTextAsync(updated, "All.cs");
-            Assert.Contains("Foo(int b = 0)", text);
-            Assert.DoesNotContain("int a", text);
-            Assert.Contains("Foo(2)", text);
-            Assert.Contains("Foo(4)", text);
+            text.ShouldContain("Foo(int b = 0)", Case.Sensitive);
+            text.ShouldNotContain("int a", Case.Sensitive);
+            text.ShouldContain("Foo(2)", Case.Sensitive);
+            text.ShouldContain("Foo(4)", Case.Sensitive);
         }
     }
 
@@ -1606,9 +1602,9 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
             var extText = await GetDocumentTextAsync(updated, "Extensions.cs");
             var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
 
-            Assert.Contains("Foo(this Service s, int b = 0)", extText);
-            Assert.DoesNotContain("int a", extText);
-            Assert.Contains("svc.Foo(2)", callerText); // only b=2 remains, not a=1
+            extText.ShouldContain("Foo(this Service s, int b = 0)", Case.Sensitive);
+            extText.ShouldNotContain("int a", Case.Sensitive);
+            callerText.ShouldContain("svc.Foo(2)", Case.Sensitive); // only b=2 remains, not a=1
         }
     }
 
@@ -1651,10 +1647,10 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                     solution, "TestApp.Service.Foo", "a", false);
 
                 var stderr = stderrCapture.ToString();
-                Assert.Contains("[WARNING] Reference at", stderr); // method-group ref warned
+                stderr.ShouldContain("[WARNING] Reference at", Case.Sensitive); // method-group ref warned
 
                 var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
-                Assert.Contains("svc.Foo(2)", callerText); // invocation still rewritten
+                callerText.ShouldContain("svc.Foo(2)", Case.Sensitive); // invocation still rewritten
             }
             finally
             {
@@ -1706,9 +1702,9 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
             var baseText = await GetDocumentTextAsync(updated, "Base.cs");
             var callerText = await GetDocumentTextAsync(updated, "Caller.cs");
 
-            Assert.Contains("Foo(int b = 0)", baseText);
-            Assert.Contains("b.Foo(2)", callerText);
-            Assert.Contains("d.Foo(4)", callerText);
+            baseText.ShouldContain("Foo(int b = 0)", Case.Sensitive);
+            callerText.ShouldContain("b.Foo(2)", Case.Sensitive);
+            callerText.ShouldContain("d.Foo(4)", Case.Sensitive);
         }
     }
 
@@ -1722,19 +1718,18 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
         var addParam = command.Subcommands.Single(subcommand => subcommand.Name == "add-param");
         var removeParam = command.Subcommands.Single(subcommand => subcommand.Name == "remove-param");
 
-        Assert.Equal(["methodSpec", "paramSpec"], addParam.Arguments.Select(a => a.Name));
-        Assert.Contains(addParam.Options, o => o.Name == "after");
-        Assert.Contains(addParam.Options, o => o.Name == "dry-run");
-        Assert.Contains(addParam.Options, o => o.Name == "solution");
+        addParam.Arguments.Select(a => a.Name).ShouldBe(["methodSpec", "paramSpec"]);
+        addParam.Options.ShouldContain(o => o.Name == "after");
+        addParam.Options.ShouldContain(o => o.Name == "dry-run");
+        addParam.Options.ShouldContain(o => o.Name == "solution");
 
-        Assert.Equal(["methodSpec", "paramName"], removeParam.Arguments.Select(a => a.Name));
-        Assert.Contains(removeParam.Options, o => o.Name == "force");
-        Assert.Contains(removeParam.Options, o => o.Name == "dry-run");
-        Assert.Contains(removeParam.Options, o => o.Name == "solution");
+        removeParam.Arguments.Select(a => a.Name).ShouldBe(["methodSpec", "paramName"]);
+        removeParam.Options.ShouldContain(o => o.Name == "force");
+        removeParam.Options.ShouldContain(o => o.Name == "dry-run");
+        removeParam.Options.ShouldContain(o => o.Name == "solution");
 
-        Assert.Contains(ChangeSignatureCommand.Info.Examples, e => e.Contains("add-param", StringComparison.Ordinal));
-        Assert.Contains(ChangeSignatureCommand.Info.Examples,
-            e => e.Contains("remove-param", StringComparison.Ordinal));
+        ChangeSignatureCommand.Info.Examples.ShouldContain(e => e.Contains("add-param", StringComparison.Ordinal));
+        ChangeSignatureCommand.Info.Examples.ShouldContain(e => e.Contains("remove-param", StringComparison.Ordinal));
     }
 
     // ── AC24: unresolved methodSpec on add-param / remove-param ──────────────
@@ -1765,8 +1760,8 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                     "--solution", "ignored"
                 ]);
 
-                Assert.Equal(1, exitCode);
-                Assert.Contains("Missing", error.ToString());
+                exitCode.ShouldBe(1);
+                error.ToString().ShouldContain("Missing", Case.Sensitive);
             }
             finally
             {
@@ -1801,8 +1796,8 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                     "--solution", "ignored"
                 ]);
 
-                Assert.Equal(1, exitCode);
-                Assert.Contains("Missing", error.ToString());
+                exitCode.ShouldBe(1);
+                error.ToString().ShouldContain("Missing", Case.Sensitive);
             }
             finally
             {
@@ -1841,10 +1836,10 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                     "--solution", "ignored", "--dry-run"
                 ]);
 
-                Assert.Equal(0, exitCode);
-                Assert.Contains("--- ", output.ToString());
-                Assert.Contains("+++ ", output.ToString());
-                Assert.Contains("[dry-run]", output.ToString());
+                exitCode.ShouldBe(0);
+                output.ToString().ShouldContain("--- ", Case.Sensitive);
+                output.ToString().ShouldContain("+++ ", Case.Sensitive);
+                output.ToString().ShouldContain("[dry-run]", Case.Sensitive);
             }
             finally
             {
@@ -1852,7 +1847,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
             }
         }
 
-        Assert.Equal(before, await project.ReadSourceAsync("Service.cs"));
+        (await project.ReadSourceAsync("Service.cs")).ShouldBe(before);
     }
 
     [Fact]
@@ -1883,10 +1878,10 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                     "--solution", "ignored", "--dry-run"
                 ]);
 
-                Assert.Equal(0, exitCode);
-                Assert.Contains("--- ", output.ToString());
-                Assert.Contains("+++ ", output.ToString());
-                Assert.Contains("[dry-run]", output.ToString());
+                exitCode.ShouldBe(0);
+                output.ToString().ShouldContain("--- ", Case.Sensitive);
+                output.ToString().ShouldContain("+++ ", Case.Sensitive);
+                output.ToString().ShouldContain("[dry-run]", Case.Sensitive);
             }
             finally
             {
@@ -1894,7 +1889,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
             }
         }
 
-        Assert.Equal(before, await project.ReadSourceAsync("Service.cs"));
+        (await project.ReadSourceAsync("Service.cs")).ShouldBe(before);
     }
 
     // ── AC27: without --dry-run applies changes to disk ───────────────────────
@@ -1919,10 +1914,10 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                 "--solution", "ignored"
             ]);
 
-            Assert.Equal(0, exitCode);
+            exitCode.ShouldBe(0);
         }
 
-        Assert.Contains("Foo(int a, int b = 0)", await project.ReadSourceAsync("Service.cs"));
+        (await project.ReadSourceAsync("Service.cs")).ShouldContain("Foo(int a, int b = 0)", Case.Sensitive);
     }
 
     [Fact]
@@ -1945,10 +1940,10 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                 "--solution", "ignored"
             ]);
 
-            Assert.Equal(0, exitCode);
+            exitCode.ShouldBe(0);
         }
 
-        Assert.Contains("Foo()", await project.ReadSourceAsync("Service.cs"));
+        (await project.ReadSourceAsync("Service.cs")).ShouldContain("Foo()", Case.Sensitive);
     }
 
     private static async Task<string> GetDocumentTextAsync(Solution solution, string documentName)

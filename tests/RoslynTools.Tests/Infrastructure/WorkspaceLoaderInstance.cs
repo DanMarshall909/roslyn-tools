@@ -1,4 +1,5 @@
 using RoslynTools.Core;
+using Shouldly;
 
 namespace RoslynTools.Tests.Infrastructure;
 
@@ -16,7 +17,7 @@ public class WorkspaceLoaderInstance
         {
             using var loader = new WorkspaceLoader();
             var result = await loader.GetSolutionAsync(null);
-            Assert.Same(sln, result);
+            result.ShouldBeSameAs(sln);
         }
     }
 
@@ -33,7 +34,7 @@ public class WorkspaceLoaderInstance
             using var loader = new WorkspaceLoader();
             // Passing a non-existent path — override should prevent any file lookup.
             var result = await loader.GetSolutionAsync("/does/not/exist.sln");
-            Assert.Same(sln, result);
+            result.ShouldBeSameAs(sln);
         }
     }
 
@@ -50,7 +51,7 @@ public class WorkspaceLoaderInstance
             using var loader = new WorkspaceLoader();
             var first = await loader.GetSolutionAsync(null);
             var second = await loader.GetSolutionAsync(null);
-            Assert.Same(first, second);
+            second.ShouldBeSameAs(first);
         }
     }
 

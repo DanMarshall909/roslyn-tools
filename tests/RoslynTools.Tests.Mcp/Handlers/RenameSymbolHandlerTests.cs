@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Mcp.Tools;
 using RoslynTools.Tests.Mcp;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mcp.Handlers;
 
@@ -30,7 +31,7 @@ public class RenameToolTests
 
             var result = await registry.InvokeAsync("rename", args.RootElement);
 
-            Assert.False(result.isError);
+            result.isError.ShouldBeFalse();
             Assert.Contains("Bill", result.content, StringComparison.Ordinal);
         }
     }

@@ -1,6 +1,7 @@
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Tests.Infrastructure;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -43,11 +44,11 @@ public class MakeInstance : IClassFixture<RtServicesFixture>
 
         var content = await proj.ReadSourceAsync("Calc.cs");
         // Static modifier removed
-        Assert.DoesNotContain("public static int Add", content);
-        Assert.Contains("public int Add", content);
+        content.ShouldNotContain("public static int Add", Case.Sensitive);
+        content.ShouldContain("public int Add", Case.Sensitive);
         // Call site rewritten to use local var
-        Assert.Contains("calc.Add(1, 2)", content);
-        Assert.DoesNotContain("Calculator.Add(", content);
+        content.ShouldContain("calc.Add(1, 2)", Case.Sensitive);
+        content.ShouldNotContain("Calculator.Add(", Case.Sensitive);
     }
 
     // ── 2. Call site with reachable field ────────────────────────────────────
@@ -84,10 +85,10 @@ public class MakeInstance : IClassFixture<RtServicesFixture>
         }
 
         var content = await proj.ReadSourceAsync("Fmt.cs");
-        Assert.DoesNotContain("public static string Format", content);
-        Assert.Contains("public string Format", content);
-        Assert.Contains("_formatter.Format(raw)", content);
-        Assert.DoesNotContain("Formatter.Format(", content);
+        content.ShouldNotContain("public static string Format", Case.Sensitive);
+        content.ShouldContain("public string Format", Case.Sensitive);
+        content.ShouldContain("_formatter.Format(raw)", Case.Sensitive);
+        content.ShouldNotContain("Formatter.Format(", Case.Sensitive);
     }
 
     // ── 3. Call site with no reachable instance — warn and skip ─────────────
@@ -126,11 +127,11 @@ public class MakeInstance : IClassFixture<RtServicesFixture>
         var after = await proj.ReadSourceAsync("Parser.cs");
 
         // Declaration must be updated (static removed)
-        Assert.DoesNotContain("public static int Parse", after);
-        Assert.Contains("public int Parse", after);
+        after.ShouldNotContain("public static int Parse", Case.Sensitive);
+        after.ShouldContain("public int Parse", Case.Sensitive);
 
         // Call site must remain unchanged (no instance reachable from a static method)
-        Assert.Contains("Parser.Parse(input)", after);
+        after.ShouldContain("Parser.Parse(input)", Case.Sensitive);
     }
 
     // ── 4. Same-class call site — rewrite to this.Method(...) ────────────────
@@ -162,10 +163,10 @@ public class MakeInstance : IClassFixture<RtServicesFixture>
         }
 
         var content = await proj.ReadSourceAsync("Service.cs");
-        Assert.DoesNotContain("public static string Sanitize", content);
-        Assert.Contains("public string Sanitize", content);
-        Assert.Contains("this.Sanitize(input)", content);
-        Assert.DoesNotContain("Service.Sanitize(", content);
+        content.ShouldNotContain("public static string Sanitize", Case.Sensitive);
+        content.ShouldContain("public string Sanitize", Case.Sensitive);
+        content.ShouldContain("this.Sanitize(input)", Case.Sensitive);
+        content.ShouldNotContain("Service.Sanitize(", Case.Sensitive);
     }
 
     // ── 5. Same-class static call site — no instance context, warn + skip ────
@@ -198,10 +199,10 @@ public class MakeInstance : IClassFixture<RtServicesFixture>
 
         var content = await proj.ReadSourceAsync("Helper.cs");
         // Declaration updated
-        Assert.DoesNotContain("public static int Double", content);
-        Assert.Contains("public int Double", content);
+        content.ShouldNotContain("public static int Double", Case.Sensitive);
+        content.ShouldContain("public int Double", Case.Sensitive);
         // Static call sites left unchanged (no instance reachable)
-        Assert.Contains("Helper.Double(", content);
+        content.ShouldContain("Helper.Double(", Case.Sensitive);
     }
 
     // ── 6. Dry-run — no writes ────────────────────────────────────────────────
@@ -239,7 +240,7 @@ public class MakeInstance : IClassFixture<RtServicesFixture>
         }
 
         var after = await proj.ReadSourceAsync("Greeter.cs");
-        Assert.Equal(before, after);
+        after.ShouldBe(before);
     }
 
     // ── 7. Multi-file: call sites in a different file rewritten ──────────────
@@ -281,12 +282,12 @@ public class MakeInstance : IClassFixture<RtServicesFixture>
         }
 
         var utilContent = await proj.ReadSourceAsync("MathUtil.cs");
-        Assert.DoesNotContain("public static int Square", utilContent);
-        Assert.Contains("public int Square", utilContent);
+        utilContent.ShouldNotContain("public static int Square", Case.Sensitive);
+        utilContent.ShouldContain("public int Square", Case.Sensitive);
 
         var callerContent = await proj.ReadSourceAsync("Processor.cs");
-        Assert.Contains("_util.Square(value)", callerContent);
-        Assert.DoesNotContain("MathUtil.Square(", callerContent);
+        callerContent.ShouldContain("_util.Square(value)", Case.Sensitive);
+        callerContent.ShouldNotContain("MathUtil.Square(", Case.Sensitive);
     }
 
     [Fact]
@@ -335,10 +336,10 @@ public class MakeInstance : IClassFixture<RtServicesFixture>
         }
 
         var content = await proj.ReadSourceAsync("Utility.cs");
-        Assert.Contains("Utility.Ping();", content);
-        Assert.Contains("utility.Ping();", content);
+        content.ShouldContain("Utility.Ping();", Case.Sensitive);
+        content.ShouldContain("utility.Ping();", Case.Sensitive);
 
         var stderr = errorCapture.ToString();
-        Assert.Contains("ambiguous reachable instance", stderr);
+        stderr.ShouldContain("ambiguous reachable instance", Case.Sensitive);
     }
 }

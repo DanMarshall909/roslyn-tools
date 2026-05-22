@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Mcp;
 using RoslynTools.Mcp.Tools;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mcp;
 
@@ -18,10 +19,10 @@ public sealed class McpDependencyInjectionTests
 
         using var provider = services.BuildServiceProvider();
 
-        Assert.NotNull(provider.GetRequiredService<ToolSchemaBuilder>());
-        Assert.NotNull(provider.GetRequiredService<CliCommandBridge>());
-        Assert.NotNull(provider.GetRequiredService<ToolRegistry>());
-        Assert.NotNull(provider.GetRequiredService<Server>());
+        provider.GetRequiredService<ToolSchemaBuilder>().ShouldNotBeNull();
+        provider.GetRequiredService<CliCommandBridge>().ShouldNotBeNull();
+        provider.GetRequiredService<ToolRegistry>().ShouldNotBeNull();
+        provider.GetRequiredService<Server>().ShouldNotBeNull();
     }
 
     [Fact]
@@ -31,13 +32,13 @@ public sealed class McpDependencyInjectionTests
         var tools = builder.Build();
 
         var cliCommandCount = App.Commands.Count;
-        Assert.Equal(cliCommandCount, tools.Count);
+        tools.Count.ShouldBe(cliCommandCount);
         Assert.All(tools, t =>
         {
-            Assert.False(string.IsNullOrWhiteSpace(t.name));
-            Assert.False(string.IsNullOrWhiteSpace(t.description));
-            Assert.NotNull(t.inputSchema);
-            Assert.Equal("object", t.inputSchema["type"]);
+            string.IsNullOrWhiteSpace(t.name).ShouldBeFalse();
+            string.IsNullOrWhiteSpace(t.description).ShouldBeFalse();
+            t.inputSchema.ShouldNotBeNull();
+            t.inputSchema["type"].ShouldBe("object");
         });
     }
 
@@ -47,7 +48,7 @@ public sealed class McpDependencyInjectionTests
         var builder = new ToolSchemaBuilder();
 
         var debug = builder.Build().Single(tool => tool.name == "debug");
-        var properties = Assert.IsType<Dictionary<string, Dictionary<string, object>>>(debug.inputSchema["properties"]);
+        var properties = debug.inputSchema["properties"].ShouldBeOfType<Dictionary<string, Dictionary<string, object>>>();
 
         AssertArrayOfStrings(properties["break"]);
         AssertArrayOfStrings(properties["assert"]);
@@ -78,12 +79,12 @@ public sealed class McpDependencyInjectionTests
 
         var result = await registry.InvokeAsync("debug", args.RootElement);
 
-        Assert.False(result.isError);
+        result.isError.ShouldBeFalse();
         using var output = JsonDocument.Parse(result.content);
         var root = output.RootElement;
-        Assert.Equal(2, root.GetProperty("breakpointHits").GetArrayLength());
+        root.GetProperty("breakpointHits").GetArrayLength().ShouldBe(2);
         Assert.All(root.GetProperty("assertions").EnumerateArray(), assertion =>
-            Assert.True(assertion.GetProperty("passed").GetBoolean()));
+            assertion.GetProperty("passed").GetBoolean().ShouldBeTrue());
     }
 
     [Fact]
@@ -107,7 +108,7 @@ public sealed class McpDependencyInjectionTests
             .OrderBy(path => path, StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Empty(directUsages);
+        directUsages.ShouldBeEmpty();
     }
 
     [Fact]
@@ -130,7 +131,7 @@ public sealed class McpDependencyInjectionTests
 
             var result = await registry.InvokeAsync("find_refs", args.RootElement);
 
-            Assert.False(result.isError);
+            result.isError.ShouldBeFalse();
             Assert.Contains("Invoice", result.content, StringComparison.Ordinal);
         }
     }
@@ -151,9 +152,9 @@ public sealed class McpDependencyInjectionTests
 
     private static void AssertArrayOfStrings(Dictionary<string, object> schema)
     {
-        Assert.Equal("array", schema["type"]);
-        var items = Assert.IsType<Dictionary<string, object>>(schema["items"]);
-        Assert.Equal("string", items["type"]);
+        schema["type"].ShouldBe("array");
+        var items = schema["items"].ShouldBeOfType<Dictionary<string, object>>();
+        items["type"].ShouldBe("string");
     }
 
 }

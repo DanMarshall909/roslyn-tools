@@ -1,4 +1,5 @@
 using RoslynTools.Core;
+using Shouldly;
 
 namespace RoslynTools.Tests.Infrastructure;
 
@@ -36,8 +37,8 @@ public class SolutionWriter : IDisposable
             .ToArray();
 
         Assert.Single(diffLines);
-        Assert.Contains("X", diffLines[0]);
-        Assert.Empty(removedLines);
+        diffLines[0].ShouldContain("X", Case.Sensitive);
+        removedLines.ShouldBeEmpty();
     }
 
     [Fact]
@@ -56,8 +57,8 @@ public class SolutionWriter : IDisposable
             .ToArray();
 
         Assert.Single(removedLines);
-        Assert.Contains("X", removedLines[0]);
-        Assert.Empty(addedLines);
+        removedLines[0].ShouldContain("X", Case.Sensitive);
+        addedLines.ShouldBeEmpty();
     }
 
     [Fact]
@@ -77,8 +78,8 @@ public class SolutionWriter : IDisposable
 
         Assert.Single(removedLines);
         Assert.Single(addedLines);
-        Assert.Contains("old", removedLines[0]);
-        Assert.Contains("new", addedLines[0]);
+        removedLines[0].ShouldContain("old", Case.Sensitive);
+        addedLines[0].ShouldContain("new", Case.Sensitive);
     }
 
     [Fact]
@@ -94,7 +95,7 @@ public class SolutionWriter : IDisposable
             (l.StartsWith('+') && !l.StartsWith("+++", StringComparison.Ordinal)) ||
             (l.StartsWith('-') && !l.StartsWith("---", StringComparison.Ordinal))).ToArray();
 
-        Assert.Empty(diffLines);
+        diffLines.ShouldBeEmpty();
     }
 
     [Fact]

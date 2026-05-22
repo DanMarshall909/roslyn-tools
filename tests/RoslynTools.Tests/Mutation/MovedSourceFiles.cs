@@ -1,4 +1,5 @@
 using RoslynTools.Services;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -28,7 +29,7 @@ public sealed class MovedSourceFiles : IDisposable
     {
         var actualPath = new MoveService().NamespaceToRelativeDir(namespaceName, rootNamespace);
 
-        Assert.Equal(expectedPath.Replace('\\', Path.DirectorySeparatorChar), actualPath);
+        actualPath.ShouldBe(expectedPath.Replace('\\', Path.DirectorySeparatorChar));
     }
 
     [Fact]
@@ -44,8 +45,8 @@ public sealed class MovedSourceFiles : IDisposable
             "Sample.Domain.Orders",
             false);
 
-        Assert.False(File.Exists(oldPath));
-        Assert.True(File.Exists(Path.Combine(_projectDir, "Domain", "Orders", "Order.cs")));
+        File.Exists(oldPath).ShouldBeFalse();
+        File.Exists(Path.Combine(_projectDir, "Domain", "Orders", "Order.cs")).ShouldBeTrue();
     }
 
     [Fact]
@@ -61,8 +62,8 @@ public sealed class MovedSourceFiles : IDisposable
             "Sample.Domain.Orders",
             true);
 
-        Assert.True(File.Exists(oldPath));
-        Assert.False(File.Exists(Path.Combine(_projectDir, "Domain", "Orders", "Order.cs")));
+        File.Exists(oldPath).ShouldBeTrue();
+        File.Exists(Path.Combine(_projectDir, "Domain", "Orders", "Order.cs")).ShouldBeFalse();
     }
 
     [Fact]
@@ -79,8 +80,8 @@ public sealed class MovedSourceFiles : IDisposable
             "Sample.Domain.Orders",
             false);
 
-        Assert.True(File.Exists(oldPath));
-        Assert.True(File.Exists(existingTargetPath));
+        File.Exists(oldPath).ShouldBeTrue();
+        File.Exists(existingTargetPath).ShouldBeTrue();
     }
 
     [Fact]
@@ -96,8 +97,8 @@ public sealed class MovedSourceFiles : IDisposable
             "Sample.Domain.Orders",
             false);
 
-        Assert.True(File.Exists(oldPath));
-        Assert.False(File.Exists(Path.Combine(_projectDir, "Domain", "Orders", "Order.cs")));
+        File.Exists(oldPath).ShouldBeTrue();
+        File.Exists(Path.Combine(_projectDir, "Domain", "Orders", "Order.cs")).ShouldBeFalse();
     }
 
     private string WriteSource(string relativePath)

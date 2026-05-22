@@ -1,4 +1,5 @@
 using RoslynTools.Core;
+using Shouldly;
 
 namespace RoslynTools.Tests.Navigation;
 
@@ -150,7 +151,7 @@ public class FindPattern
                 9,
                 null);
 
-            Assert.Empty(matches);
+            matches.ShouldBeEmpty();
         }
     }
 
@@ -185,7 +186,7 @@ public class FindPattern
                 null);
 
             // The only occurrence is the source itself — should be excluded
-            Assert.Empty(matches);
+            matches.ShouldBeEmpty();
         }
     }
 
@@ -233,7 +234,7 @@ public class FindPattern
                 9,
                 "NonExistentScope.Does.Not.Exist");
 
-            Assert.Empty(matches);
+            matches.ShouldBeEmpty();
         }
     }
 
@@ -282,9 +283,9 @@ public class FindPattern
 
             Assert.Single(matches);
             var m = matches[0];
-            Assert.True(m.Line > 0);
-            Assert.True(m.EndLine >= m.Line);
-            Assert.NotEmpty(m.Preview);
+            (m.Line > 0).ShouldBeTrue();
+            (m.EndLine >= m.Line).ShouldBeTrue();
+            m.Preview.ShouldNotBeEmpty();
         }
     }
 }

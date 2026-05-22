@@ -1,6 +1,7 @@
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Tests.Infrastructure;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -36,8 +37,8 @@ public class ConvertToRecord : IClassFixture<RtServicesFixture>
         }
 
         var content = await proj.ReadSourceAsync("Types.cs");
-        Assert.Contains("record Point", content);
-        Assert.DoesNotContain("class Point", content);
+        content.ShouldContain("record Point", Case.Sensitive);
+        content.ShouldNotContain("class Point", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -58,8 +59,8 @@ public class ConvertToRecord : IClassFixture<RtServicesFixture>
 
         var content = await proj.ReadSourceAsync("Types.cs");
         // Positional record syntax: record Point(int X, int Y)
-        Assert.Contains("int X", content);
-        Assert.Contains("int Y", content);
+        content.ShouldContain("int X", Case.Sensitive);
+        content.ShouldContain("int Y", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -79,8 +80,8 @@ public class ConvertToRecord : IClassFixture<RtServicesFixture>
         }
 
         var content = await proj.ReadSourceAsync("Types.cs");
-        Assert.DoesNotContain("override bool Equals", content);
-        Assert.DoesNotContain("override int GetHashCode", content);
+        content.ShouldNotContain("override bool Equals", Case.Sensitive);
+        content.ShouldNotContain("override int GetHashCode", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -114,7 +115,7 @@ public class ConvertToRecord : IClassFixture<RtServicesFixture>
         Assert.Contains("mutable", stderrOutput, StringComparison.OrdinalIgnoreCase);
 
         var content = await proj.ReadSourceAsync("Types.cs");
-        Assert.Contains("record WithMutableProp", content);
+        content.ShouldContain("record WithMutableProp", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -136,6 +137,6 @@ public class ConvertToRecord : IClassFixture<RtServicesFixture>
         }
 
         var after = await proj.ReadSourceAsync("Types.cs");
-        Assert.Equal(before, after);
+        after.ShouldBe(before);
     }
 }

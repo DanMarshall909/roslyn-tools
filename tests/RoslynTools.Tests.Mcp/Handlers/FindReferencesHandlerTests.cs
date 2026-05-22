@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Mcp.Tools;
 using RoslynTools.Tests.Mcp;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mcp.Handlers;
 
@@ -31,7 +32,7 @@ public class FindRefsToolTests
 
             var result = await registry.InvokeAsync("find_refs", args.RootElement);
 
-            Assert.False(result.isError);
+            result.isError.ShouldBeFalse();
             Assert.Contains("Invoice", result.content, StringComparison.Ordinal);
         }
     }
@@ -58,7 +59,7 @@ public class FindRefsToolTests
 
             var result = await registry.InvokeAsync("find_refs", args.RootElement);
 
-            Assert.False(result.isError);
+            result.isError.ShouldBeFalse();
         }
     }
 

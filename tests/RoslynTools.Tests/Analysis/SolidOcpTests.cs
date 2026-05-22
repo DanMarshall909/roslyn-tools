@@ -4,6 +4,7 @@ using RoslynTools.Commands;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
+using Shouldly;
 
 namespace RoslynTools.Tests.Analysis;
 
@@ -43,10 +44,10 @@ public class SolidOcpTests
             """);
         Assert.Single(report.Violations);
         var item = report.Violations[0];
-        Assert.Equal("Cls", item.TypeName);
-        Assert.Equal("Describe", item.MemberName);
-        Assert.Equal("switch", item.ViolationType);
-        Assert.Equal(2, item.BranchCount);
+        item.TypeName.ShouldBe("Cls");
+        item.MemberName.ShouldBe("Describe");
+        item.ViolationType.ShouldBe("switch");
+        item.BranchCount.ShouldBe(2);
     }
 
     [Fact]
@@ -65,7 +66,7 @@ public class SolidOcpTests
                 };
             }
             """);
-        Assert.Empty(report.Violations);
+        report.Violations.ShouldBeEmpty();
     }
 
     [Fact]
@@ -83,7 +84,7 @@ public class SolidOcpTests
                 };
             }
             """);
-        Assert.Empty(report.Violations);
+        report.Violations.ShouldBeEmpty();
     }
 
     [Fact]
@@ -101,7 +102,7 @@ public class SolidOcpTests
             }
             """, minBranches: 1);
         Assert.Single(report.Violations);
-        Assert.Equal(1, report.Violations[0].BranchCount);
+        report.Violations[0].BranchCount.ShouldBe(1);
     }
 
     [Fact]
@@ -122,8 +123,8 @@ public class SolidOcpTests
             """);
         Assert.Single(report.Violations);
         var item = report.Violations[0];
-        Assert.Equal("if-chain", item.ViolationType);
-        Assert.Equal(2, item.BranchCount);
+        item.ViolationType.ShouldBe("if-chain");
+        item.BranchCount.ShouldBe(2);
     }
 
     [Fact]
@@ -143,8 +144,8 @@ public class SolidOcpTests
             }
             """);
         Assert.Single(report.Violations);
-        Assert.Equal("if-chain", report.Violations[0].ViolationType);
-        Assert.Equal(2, report.Violations[0].BranchCount);
+        report.Violations[0].ViolationType.ShouldBe("if-chain");
+        report.Violations[0].BranchCount.ShouldBe(2);
     }
 
     [Fact]
@@ -161,7 +162,7 @@ public class SolidOcpTests
                 }
             }
             """);
-        Assert.Empty(report.Violations);
+        report.Violations.ShouldBeEmpty();
     }
 
     [Fact]
@@ -179,7 +180,7 @@ public class SolidOcpTests
                 }
             }
             """);
-        Assert.Empty(report.Violations);
+        report.Violations.ShouldBeEmpty();
     }
 
     [Fact]
@@ -199,7 +200,7 @@ public class SolidOcpTests
                 };
             }
             """);
-        Assert.Empty(report.Violations);
+        report.Violations.ShouldBeEmpty();
     }
 
     [Fact]
@@ -218,12 +219,12 @@ public class SolidOcpTests
                 public string X(object o) => o switch { Cat => "c", Dog => "d", _ => "?" };
             }
             """);
-        Assert.Equal(3, report.Violations.Count);
-        Assert.Equal("Alpha", report.Violations[0].TypeName);
-        Assert.Equal("Zeta", report.Violations[1].TypeName);
-        Assert.Equal("A", report.Violations[1].MemberName);
-        Assert.Equal("Zeta", report.Violations[2].TypeName);
-        Assert.Equal("B", report.Violations[2].MemberName);
+        report.Violations.Count.ShouldBe(3);
+        report.Violations[0].TypeName.ShouldBe("Alpha");
+        report.Violations[1].TypeName.ShouldBe("Zeta");
+        report.Violations[1].MemberName.ShouldBe("A");
+        report.Violations[2].TypeName.ShouldBe("Zeta");
+        report.Violations[2].MemberName.ShouldBe("B");
     }
 
     // -----------------------------------------------------------------------
@@ -242,17 +243,17 @@ public class SolidOcpTests
             BranchCount = 2,
             ViolationType = "switch"
         };
-        Assert.Equal("Cls", item.TypeName);
-        Assert.Equal("Describe", item.MemberName);
-        Assert.Equal("switch", item.ViolationType);
-        Assert.Equal(2, item.BranchCount);
+        item.TypeName.ShouldBe("Cls");
+        item.MemberName.ShouldBe("Describe");
+        item.ViolationType.ShouldBe("switch");
+        item.BranchCount.ShouldBe(2);
     }
 
     [Fact]
     public void solid_result_ocp_list_is_empty_by_default()
     {
         var result = new SolidResult();
-        Assert.Empty(result.OCP);
+        result.OCP.ShouldBeEmpty();
     }
 
     [Fact]
@@ -264,8 +265,8 @@ public class SolidOcpTests
         RtSerializer.Write(result, output);
 
         using var doc = JsonDocument.Parse(output.ToString());
-        Assert.True(doc.RootElement.TryGetProperty("OCP", out var ocp));
-        Assert.Equal(JsonValueKind.Array, ocp.ValueKind);
+        doc.RootElement.TryGetProperty("OCP", out var ocp).ShouldBeTrue();
+        ocp.ValueKind.ShouldBe(JsonValueKind.Array);
     }
 
     // -----------------------------------------------------------------------
@@ -276,7 +277,7 @@ public class SolidOcpTests
     public async Task execute_async_returns_0_for_valid_ocp_principle()
     {
         var exitCode = await SolidCommand.ExecuteAsync(null, "OCP", 10, 5, 7, 2);
-        Assert.Equal(0, exitCode);
+        exitCode.ShouldBe(0);
     }
 
     [Fact]
@@ -285,7 +286,7 @@ public class SolidOcpTests
         var cmd = SolidCommand.Build();
         var minBranchesOpt = cmd.Options.OfType<Option<int>>()
             .First(o => o.Name == "min-branches");
-        Assert.Equal(2, minBranchesOpt.Parse("").GetValueForOption(minBranchesOpt));
+        minBranchesOpt.Parse("").GetValueForOption(minBranchesOpt).ShouldBe(2);
     }
 
     [Fact]

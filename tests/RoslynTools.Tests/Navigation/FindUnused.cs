@@ -1,4 +1,5 @@
 using RoslynTools.Services;
+using Shouldly;
 
 namespace RoslynTools.Tests.Navigation;
 
@@ -36,7 +37,7 @@ public class FindUnused
         {
             var results = await new FindUnusedService().AnalyzeAsync(sln);
             var names = results.Select(r => r.Name).ToList();
-            Assert.Contains("UnusedMethod", names);
+            names.ShouldContain("UnusedMethod");
         }
     }
 
@@ -72,7 +73,7 @@ public class FindUnused
         {
             var results = await new FindUnusedService().AnalyzeAsync(sln);
             var names = results.Select(r => r.Name).ToList();
-            Assert.DoesNotContain("UsedMethod", names);
+            names.ShouldNotContain("UsedMethod");
         }
     }
 
@@ -108,7 +109,7 @@ public class FindUnused
         {
             var results = await new FindUnusedService().AnalyzeAsync(sln);
             var names = results.Select(r => r.Name).ToList();
-            Assert.DoesNotContain("SerializableData", names);
+            names.ShouldNotContain("SerializableData");
         }
     }
 
@@ -145,9 +146,9 @@ public class FindUnused
             var results = await new FindUnusedService().AnalyzeAsync(sln, "methods");
             var names = results.Select(r => r.Name).ToList();
             // UnusedClass is a type, not a method — should not appear with scope=methods
-            Assert.DoesNotContain("UnusedClass", names);
+            names.ShouldNotContain("UnusedClass");
             // UnusedMethod is a method and unreferenced — should appear
-            Assert.Contains("UnusedMethod", names);
+            names.ShouldContain("UnusedMethod");
         }
     }
 
@@ -179,9 +180,9 @@ public class FindUnused
             var results = await new FindUnusedService().AnalyzeAsync(sln, "types");
             var names = results.Select(r => r.Name).ToList();
             // UnusedMethod is a method — must not appear when scope is "types"
-            Assert.DoesNotContain("UnusedMethod", names);
+            names.ShouldNotContain("UnusedMethod");
             // OrphanType has no references — should appear
-            Assert.Contains("OrphanType", names);
+            names.ShouldContain("OrphanType");
         }
     }
 
@@ -200,7 +201,7 @@ public class FindUnused
         {
             var results = await new FindUnusedService().AnalyzeAsync(sln);
             var names = results.Select(r => r.Name).ToList();
-            Assert.DoesNotContain("Main", names);
+            names.ShouldNotContain("Main");
         }
     }
 
@@ -227,7 +228,7 @@ public class FindUnused
         {
             var results = await new FindUnusedService().AnalyzeAsync(sln, "methods");
             var names = results.Select(r => r.Name).ToList();
-            Assert.DoesNotContain("Some_test", names);
+            names.ShouldNotContain("Some_test");
         }
     }
 
@@ -246,7 +247,7 @@ public class FindUnused
         {
             var results = await new FindUnusedService().AnalyzeAsync(sln, "methods");
             var names = results.Select(r => r.Name).ToList();
-            Assert.DoesNotContain("Execute", names);
+            names.ShouldNotContain("Execute");
         }
     }
 
@@ -271,7 +272,7 @@ public class FindUnused
         {
             var results = await new FindUnusedService().AnalyzeAsync(sln, "methods");
             var names = results.Select(r => r.Name).ToList();
-            Assert.DoesNotContain("Parameterised_test", names);
+            names.ShouldNotContain("Parameterised_test");
         }
     }
 
@@ -293,7 +294,7 @@ public class FindUnused
         {
             var results = await new FindUnusedService().AnalyzeAsync(sln, "types");
             var names = results.Select(r => r.Name).ToList();
-            Assert.DoesNotContain("OrderDto", names);
+            names.ShouldNotContain("OrderDto");
         }
     }
 }

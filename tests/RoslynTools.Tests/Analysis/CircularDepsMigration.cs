@@ -3,6 +3,7 @@ using RoslynTools.Commands;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core.Output;
 using RoslynTools.Tests.Infrastructure;
+using Shouldly;
 
 namespace RoslynTools.Tests.Analysis;
 
@@ -60,7 +61,7 @@ public class CircularDepsMigration : IClassFixture<RtServicesFixture>, IDisposab
             var rendered = sw.ToString();
 
             // Each cycle line in rendered should match the legacy text
-            Assert.Equal(legacyText + Environment.NewLine, rendered);
+            rendered.ShouldBe(legacyText + Environment.NewLine);
         }
     }
 
@@ -77,7 +78,7 @@ public class CircularDepsMigration : IClassFixture<RtServicesFixture>, IDisposab
             var sw = new StringWriter();
             result.RenderText(sw);
 
-            Assert.Equal("No circular namespace dependencies found." + Environment.NewLine, sw.ToString());
+            sw.ToString().ShouldBe("No circular namespace dependencies found." + Environment.NewLine);
         }
     }
 
@@ -91,7 +92,7 @@ public class CircularDepsMigration : IClassFixture<RtServicesFixture>, IDisposab
         using (workspace)
         {
             var cycles = await _services.Resolve<CircularDepsCommand>().AnalyzeCyclesAsync(sln, null);
-            Assert.NotEmpty(cycles);
+            cycles.ShouldNotBeEmpty();
 
             var result = CircularDepsResult.FromCycles(cycles);
             var sw = new StringWriter();
@@ -101,20 +102,20 @@ public class CircularDepsMigration : IClassFixture<RtServicesFixture>, IDisposab
             var doc = JsonDocument.Parse(sw.ToString());
             var root = doc.RootElement;
 
-            Assert.True(root.TryGetProperty("hasCycles", out var hasCycles));
-            Assert.True(hasCycles.GetBoolean());
+            root.TryGetProperty("hasCycles", out var hasCycles).ShouldBeTrue();
+            hasCycles.GetBoolean().ShouldBeTrue();
 
-            Assert.True(root.TryGetProperty("cycles", out var cyclesArr));
-            Assert.Equal(JsonValueKind.Array, cyclesArr.ValueKind);
-            Assert.True(cyclesArr.GetArrayLength() >= 1);
+            root.TryGetProperty("cycles", out var cyclesArr).ShouldBeTrue();
+            cyclesArr.ValueKind.ShouldBe(JsonValueKind.Array);
+            (cyclesArr.GetArrayLength() >= 1).ShouldBeTrue();
 
             var firstCycle = cyclesArr[0];
-            Assert.True(firstCycle.TryGetProperty("path", out var pathProp));
-            Assert.Contains("->", pathProp.GetString());
+            firstCycle.TryGetProperty("path", out var pathProp).ShouldBeTrue();
+            pathProp.GetString()!.ShouldContain("->", Case.Sensitive);
 
-            Assert.True(firstCycle.TryGetProperty("nodes", out var nodesProp));
-            Assert.Equal(JsonValueKind.Array, nodesProp.ValueKind);
-            Assert.True(nodesProp.GetArrayLength() >= 2);
+            firstCycle.TryGetProperty("nodes", out var nodesProp).ShouldBeTrue();
+            nodesProp.ValueKind.ShouldBe(JsonValueKind.Array);
+            (nodesProp.GetArrayLength() >= 2).ShouldBeTrue();
         }
     }
 
@@ -128,7 +129,7 @@ public class CircularDepsMigration : IClassFixture<RtServicesFixture>, IDisposab
         using (workspace)
         {
             var cycles = await _services.Resolve<CircularDepsCommand>().AnalyzeCyclesAsync(sln, null);
-            Assert.NotEmpty(cycles);
+            cycles.ShouldNotBeEmpty();
 
             var result = CircularDepsResult.FromCycles(cycles);
             var sw = new StringWriter();
@@ -136,10 +137,10 @@ public class CircularDepsMigration : IClassFixture<RtServicesFixture>, IDisposab
             RtSerializer.Write(result, sw);
             var md = sw.ToString();
 
-            Assert.Contains("# Circular Namespace Dependencies", md);
-            Assert.Contains("## Cycle 1", md);
-            Assert.Contains("**Path:**", md);
-            Assert.Contains("->", md);
+            md.ShouldContain("# Circular Namespace Dependencies", Case.Sensitive);
+            md.ShouldContain("## Cycle 1", Case.Sensitive);
+            md.ShouldContain("**Path:**", Case.Sensitive);
+            md.ShouldContain("->", Case.Sensitive);
         }
     }
 
@@ -158,8 +159,8 @@ public class CircularDepsMigration : IClassFixture<RtServicesFixture>, IDisposab
             RtSerializer.Write(result, sw);
             var md = sw.ToString();
 
-            Assert.Contains("# Circular Namespace Dependencies", md);
-            Assert.Contains("No circular namespace dependencies found.", md);
+            md.ShouldContain("# Circular Namespace Dependencies", Case.Sensitive);
+            md.ShouldContain("No circular namespace dependencies found.", Case.Sensitive);
         }
     }
 
@@ -173,7 +174,7 @@ public class CircularDepsMigration : IClassFixture<RtServicesFixture>, IDisposab
         using (workspace)
         {
             var cycles = await _services.Resolve<CircularDepsCommand>().AnalyzeCyclesAsync(sln, null);
-            Assert.NotEmpty(cycles);
+            cycles.ShouldNotBeEmpty();
 
             var result = CircularDepsResult.FromCycles(cycles);
             var sw = new StringWriter();
@@ -181,10 +182,10 @@ public class CircularDepsMigration : IClassFixture<RtServicesFixture>, IDisposab
             RtSerializer.Write(result, sw);
             var output = sw.ToString();
 
-            Assert.Contains("hasCycles:", output);
-            Assert.Contains("True", output);
-            Assert.Contains("path:", output);
-            Assert.Contains("->", output);
+            output.ShouldContain("hasCycles:", Case.Sensitive);
+            output.ShouldContain("True", Case.Sensitive);
+            output.ShouldContain("path:", Case.Sensitive);
+            output.ShouldContain("->", Case.Sensitive);
         }
     }
 
@@ -207,7 +208,7 @@ public class CircularDepsMigration : IClassFixture<RtServicesFixture>, IDisposab
             RtSerializer.Write(result, sw);
             var output = sw.ToString();
 
-            Assert.Equal(legacyText + Environment.NewLine, output);
+            output.ShouldBe(legacyText + Environment.NewLine);
         }
     }
 
@@ -218,10 +219,10 @@ public class CircularDepsMigration : IClassFixture<RtServicesFixture>, IDisposab
     {
         var info = CircularDepsCommand.Info;
         var formats = info.SupportedFormats;
-        Assert.NotNull(formats);
-        Assert.Contains(OutputFormat.Text, formats);
-        Assert.Contains(OutputFormat.Json, formats);
-        Assert.Contains(OutputFormat.Markdown, formats);
-        Assert.Contains(OutputFormat.Llm, formats);
+        formats.ShouldNotBeNull();
+        formats.ShouldContain(OutputFormat.Text);
+        formats.ShouldContain(OutputFormat.Json);
+        formats.ShouldContain(OutputFormat.Markdown);
+        formats.ShouldContain(OutputFormat.Llm);
     }
 }

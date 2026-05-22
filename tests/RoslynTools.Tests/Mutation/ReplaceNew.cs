@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using RoslynTools.Services;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -38,9 +39,9 @@ public sealed class ConstructorReplacement
             await service.RunAsync(solution, "Widget", "WidgetFactory.Create", false);
 
             var updatedText = await TestSolutionDocuments.GetTextAsync(writer.NewSolution!, "Consumer.cs");
-            Assert.Contains("public Widget Build() => WidgetFactory.Create(\"primary\");", updatedText);
-            Assert.Contains("public static Widget Create(string name) => null!;", updatedText);
-            Assert.False(writer.DryRun);
+            updatedText.ShouldContain("public Widget Build() => WidgetFactory.Create(\"primary\");", Case.Sensitive);
+            updatedText.ShouldContain("public static Widget Create(string name) => null!;", Case.Sensitive);
+            writer.DryRun.ShouldBe(false);
         }
     }
 
@@ -84,8 +85,8 @@ public sealed class ConstructorReplacement
                 "primary");
 
             var updatedText = await TestSolutionDocuments.GetTextAsync(writer.NewSolution!, "Consumer.cs");
-            Assert.Contains("public Widget Primary() => WidgetFactory.Create(\"primary\");", updatedText);
-            Assert.Contains("public Widget Secondary() => new Widget(\"secondary\");", updatedText);
+            updatedText.ShouldContain("public Widget Primary() => WidgetFactory.Create(\"primary\");", Case.Sensitive);
+            updatedText.ShouldContain("public Widget Secondary() => new Widget(\"secondary\");", Case.Sensitive);
         }
     }
 
@@ -111,7 +112,7 @@ public sealed class ConstructorReplacement
 
             await service.RunAsync(solution, "Widget", "WidgetFactory.Create", false);
 
-            Assert.Null(writer.NewSolution);
+            writer.NewSolution.ShouldBeNull();
         }
     }
 
@@ -155,8 +156,8 @@ public sealed class ConstructorReplacement
                 dropMatchedArg: true);
 
             var updatedText = await TestSolutionDocuments.GetTextAsync(writer.NewSolution!, "Consumer.cs");
-            Assert.Contains("Factory.Create(\"help text\")", updatedText);
-            Assert.DoesNotContain("new Option(", updatedText);
+            updatedText.ShouldContain("Factory.Create(\"help text\")", Case.Sensitive);
+            updatedText.ShouldNotContain("new Option(", Case.Sensitive);
         }
     }
 
@@ -200,7 +201,7 @@ public sealed class ConstructorReplacement
                 dropMatchedArg: false);
 
             var updatedText = await TestSolutionDocuments.GetTextAsync(writer.NewSolution!, "Consumer.cs");
-            Assert.Contains("Factory.Create(\"--field\", \"help text\")", updatedText);
+            updatedText.ShouldContain("Factory.Create(\"--field\", \"help text\")", Case.Sensitive);
         }
     }
 
@@ -239,7 +240,7 @@ public sealed class ConstructorReplacement
                 argumentIndex,
                 "primary");
 
-            Assert.Null(writer.NewSolution);
+            writer.NewSolution.ShouldBeNull();
         }
     }
 }

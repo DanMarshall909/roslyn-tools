@@ -1,4 +1,5 @@
 using RoslynTools.Services;
+using Shouldly;
 
 namespace RoslynTools.Tests.Navigation;
 
@@ -24,9 +25,9 @@ public class OutlineMultiTarget
             var path = Path.Combine(project.ProjectDir, "Container.cs").Replace('\\', '/');
             var result = await svc.OutlineFileAsync(sln, path);
             var names = result.Select(r => (string)r["name"]!).ToList();
-            Assert.Contains("Container", names);
-            Assert.Contains("NestedHelper", names);
-            Assert.Contains("NestedProcessor", names);
+            names.ShouldContain("Container");
+            names.ShouldContain("NestedHelper");
+            names.ShouldContain("NestedProcessor");
         }
     }
 
@@ -42,7 +43,7 @@ public class OutlineMultiTarget
             var svc = new OutlineService();
             var missingPath = Path.Combine(project.ProjectDir, "DoesNotExist.cs");
             var result = await svc.OutlineFileAsync(sln, missingPath);
-            Assert.Empty(result);
+            result.ShouldBeEmpty();
         }
     }
 
@@ -59,7 +60,7 @@ public class OutlineMultiTarget
         {
             var svc = new OutlineService();
             var result = await svc.OutlineFileAsync(sln, Path.Combine(project.ProjectDir, "Program.cs"));
-            Assert.Empty(result);
+            result.ShouldBeEmpty();
         }
     }
 
@@ -83,8 +84,8 @@ public class OutlineMultiTarget
             var glob = Path.Combine(project.ProjectDir, "**", "*.cs");
             var result = await svc.OutlineGlobAsync(sln, glob);
             var typeNames = result.Select(r => (string)r["name"]!).ToList();
-            Assert.Contains("Product", typeNames);
-            Assert.Contains("OrderService", typeNames);
+            typeNames.ShouldContain("Product");
+            typeNames.ShouldContain("OrderService");
         }
     }
 
@@ -108,8 +109,8 @@ public class OutlineMultiTarget
             var glob = Path.Combine(project.ProjectDir, "Models", "*.cs");
             var result = await svc.OutlineGlobAsync(sln, glob);
             var typeNames = result.Select(r => (string)r["name"]!).ToList();
-            Assert.Contains("Product", typeNames);
-            Assert.DoesNotContain("OrderService", typeNames);
+            typeNames.ShouldContain("Product");
+            typeNames.ShouldNotContain("OrderService");
         }
     }
 
@@ -136,9 +137,9 @@ public class OutlineMultiTarget
             var svc = new OutlineService();
             var result = await svc.OutlineNamespaceAsync(sln, "TestApp.*");
             var typeNames = result.Select(r => (string)r["name"]!).ToList();
-            Assert.Contains("Product", typeNames);
-            Assert.Contains("OrderService", typeNames);
-            Assert.DoesNotContain("Unrelated", typeNames);
+            typeNames.ShouldContain("Product");
+            typeNames.ShouldContain("OrderService");
+            typeNames.ShouldNotContain("Unrelated");
         }
     }
 
@@ -161,8 +162,8 @@ public class OutlineMultiTarget
             var svc = new OutlineService();
             var result = await svc.OutlineRegexAsync(sln, @"Service\.cs$");
             var typeNames = result.Select(r => (string)r["name"]!).ToList();
-            Assert.Contains("OrderService", typeNames);
-            Assert.DoesNotContain("Product", typeNames);
+            typeNames.ShouldContain("OrderService");
+            typeNames.ShouldNotContain("Product");
         }
     }
 }

@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using RoslynTools.Core;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -21,7 +22,7 @@ public sealed class NamespaceMoveRewriter
     {
         var source = "namespace Old.Ns;\nclass Foo { }";
         var (_, _, isDecl) = Rewrite(source, "Old.Ns", "New.Ns");
-        Assert.True(isDecl);
+        isDecl.ShouldBeTrue();
     }
 
     [Fact]
@@ -29,7 +30,7 @@ public sealed class NamespaceMoveRewriter
     {
         var source = "namespace Old.Ns { class Foo { } }";
         var (_, _, isDecl) = Rewrite(source, "Old.Ns", "New.Ns");
-        Assert.True(isDecl);
+        isDecl.ShouldBeTrue();
     }
 
     [Fact]
@@ -37,7 +38,7 @@ public sealed class NamespaceMoveRewriter
     {
         var source = "namespace Other.Ns;\nclass Foo { }";
         var (_, _, isDecl) = Rewrite(source, "Old.Ns", "New.Ns");
-        Assert.False(isDecl);
+        isDecl.ShouldBeFalse();
     }
 
     [Fact]
@@ -45,9 +46,9 @@ public sealed class NamespaceMoveRewriter
     {
         var source = "using Old.Ns;";
         var (result, changed, _) = Rewrite(source, "Old.Ns", "New.Ns");
-        Assert.True(changed);
-        Assert.Contains("New.Ns", result);
-        Assert.DoesNotContain("Old.Ns", result);
+        changed.ShouldBeTrue();
+        result.ShouldContain("New.Ns", Case.Sensitive);
+        result.ShouldNotContain("Old.Ns", Case.Sensitive);
     }
 
     [Fact]
@@ -55,8 +56,8 @@ public sealed class NamespaceMoveRewriter
     {
         var source = "using Old.Ns.Sub;";
         var (result, changed, _) = Rewrite(source, "Old.Ns", "New.Ns");
-        Assert.True(changed);
-        Assert.Contains("New.Ns.Sub", result);
+        changed.ShouldBeTrue();
+        result.ShouldContain("New.Ns.Sub", Case.Sensitive);
     }
 
     [Fact]
@@ -64,7 +65,7 @@ public sealed class NamespaceMoveRewriter
     {
         var source = "using Other.Namespace;";
         var (_, changed, _) = Rewrite(source, "Old.Ns", "New.Ns");
-        Assert.False(changed);
+        changed.ShouldBeFalse();
     }
 
     [Fact]
@@ -72,7 +73,7 @@ public sealed class NamespaceMoveRewriter
     {
         var source = "class Foo { }";
         var (_, changed, _) = Rewrite(source, "Old.Ns", "New.Ns");
-        Assert.False(changed);
+        changed.ShouldBeFalse();
     }
 
     [Fact]
@@ -82,9 +83,9 @@ public sealed class NamespaceMoveRewriter
         // is true and the namespace would be incorrectly rewritten.
         var source = "using Old.Nsp;";
         var (result, changed, _) = Rewrite(source, "Old.Ns", "New.Ns");
-        Assert.False(changed);
-        Assert.Contains("Old.Nsp", result);
-        Assert.DoesNotContain("New.Ns", result);
+        changed.ShouldBeFalse();
+        result.ShouldContain("Old.Nsp", Case.Sensitive);
+        result.ShouldNotContain("New.Ns", Case.Sensitive);
     }
 
     [Fact]
@@ -93,8 +94,8 @@ public sealed class NamespaceMoveRewriter
         // Same test for VisitMemberAccessExpression path.
         var source = "class C { object M() => Old.Nsp.Thing.Value; }";
         var (result, changed, _) = Rewrite(source, "Old.Ns", "New.Ns");
-        Assert.False(changed);
-        Assert.Contains("Old.Nsp", result);
+        changed.ShouldBeFalse();
+        result.ShouldContain("Old.Nsp", Case.Sensitive);
     }
 
     [Fact]
@@ -103,9 +104,9 @@ public sealed class NamespaceMoveRewriter
         // Covers VisitMemberAccessExpression L74 (Changed = true in prefix-match path).
         var source = "class C { object M() { return Old.Ns.Thing.Value; } }";
         var (result, changed, _) = Rewrite(source, "Old.Ns", "New.Ns");
-        Assert.True(changed);
-        Assert.Contains("New.Ns", result);
-        Assert.DoesNotContain("Old.Ns.Thing", result);
+        changed.ShouldBeTrue();
+        result.ShouldContain("New.Ns", Case.Sensitive);
+        result.ShouldNotContain("Old.Ns.Thing", Case.Sensitive);
     }
 
     [Fact]
@@ -114,9 +115,9 @@ public sealed class NamespaceMoveRewriter
         var source = "class C { object M() { return Old.Ns; } }";
         var (result, changed, _) = Rewrite(source, "Old.Ns", "New.Ns");
 
-        Assert.True(changed);
-        Assert.Contains("return New.Ns;", result);
-        Assert.DoesNotContain("return Old.Ns;", result);
+        changed.ShouldBeTrue();
+        result.ShouldContain("return New.Ns;", Case.Sensitive);
+        result.ShouldNotContain("return Old.Ns;", Case.Sensitive);
     }
 
     [Fact]
@@ -127,8 +128,8 @@ public sealed class NamespaceMoveRewriter
 
         var result = rewriter.Visit(name)!.ToFullString();
 
-        Assert.True(rewriter.Changed);
-        Assert.Equal("New.Ns.Sub", result);
+        rewriter.Changed.ShouldBeTrue();
+        result.ShouldBe("New.Ns.Sub");
     }
 
     [Fact]
@@ -139,7 +140,7 @@ public sealed class NamespaceMoveRewriter
 
         var result = rewriter.Visit(expression)!.ToFullString();
 
-        Assert.True(rewriter.Changed);
-        Assert.Equal("New.Ns.Thing", result);
+        rewriter.Changed.ShouldBeTrue();
+        result.ShouldBe("New.Ns.Thing");
     }
 }

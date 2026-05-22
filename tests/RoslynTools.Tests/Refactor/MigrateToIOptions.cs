@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis;
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Tests.Infrastructure;
+using Shouldly;
 
 namespace RoslynTools.Tests.Refactor;
 
@@ -20,9 +21,9 @@ public class MigrateToIOptions : IClassFixture<RtServicesFixture>
         await RunMigrationAsync(fixture);
 
         var options = await File.ReadAllTextAsync(Path.Combine(fixture.ProjectDir, "MyFeatureOptions.cs"));
-        Assert.Contains("namespace HostApp;", options);
-        Assert.Contains("internal sealed class MyFeatureOptions", options);
-        Assert.Contains("public string Endpoint { get; init; } = string.Empty;", options);
+        options.ShouldContain("namespace HostApp;", Case.Sensitive);
+        options.ShouldContain("internal sealed class MyFeatureOptions", Case.Sensitive);
+        options.ShouldContain("public string Endpoint { get; init; } = string.Empty;", Case.Sensitive);
     }
 
     [Fact]
@@ -34,9 +35,9 @@ public class MigrateToIOptions : IClassFixture<RtServicesFixture>
         await RunMigrationAsync(fixture);
 
         var options = await File.ReadAllTextAsync(Path.Combine(fixture.ProjectDir, "MyFeatureOptions.cs"));
-        Assert.Contains("public bool Enabled { get; init; }", options);
-        Assert.Contains("public string Endpoint { get; init; } = string.Empty;", options);
-        Assert.Contains("public int RetryCount { get; init; }", options);
+        options.ShouldContain("public bool Enabled { get; init; }", Case.Sensitive);
+        options.ShouldContain("public string Endpoint { get; init; } = string.Empty;", Case.Sensitive);
+        options.ShouldContain("public int RetryCount { get; init; }", Case.Sensitive);
     }
 
     [Fact]
@@ -48,9 +49,8 @@ public class MigrateToIOptions : IClassFixture<RtServicesFixture>
         var output = await RunMigrationAsync(fixture);
 
         var startup = await fixture.ReadSourceAsync("Startup.cs");
-        Assert.Equal(1,
-            Count(startup, "services.Configure<MyFeatureOptions>(configuration.GetSection(\"MyFeature\"));"));
-        Assert.Contains(Path.Combine(fixture.ProjectDir, "Startup.cs"), output.Results);
+        Count(startup, "services.Configure<MyFeatureOptions>(configuration.GetSection(\"MyFeature\"));").ShouldBe(1);
+        output.Results.ShouldContain(Path.Combine(fixture.ProjectDir, "Startup.cs"));
     }
 
     [Fact]
@@ -62,9 +62,8 @@ public class MigrateToIOptions : IClassFixture<RtServicesFixture>
         await RunMigrationAsync(fixture);
 
         var startup = await fixture.ReadSourceAsync("Startup.cs");
-        Assert.Contains("using HostApp;", startup);
-        Assert.Contains(
-            "builder.Services.Configure<MyFeatureOptions>(builder.Configuration.GetSection(\"MyFeature\"));", startup);
+        startup.ShouldContain("using HostApp;", Case.Sensitive);
+        startup.ShouldContain("builder.Services.Configure<MyFeatureOptions>(builder.Configuration.GetSection(\"MyFeature\"));", Case.Sensitive);
     }
 
     [Fact]
@@ -76,12 +75,12 @@ public class MigrateToIOptions : IClassFixture<RtServicesFixture>
         var output = await RunMigrationAsync(fixture);
 
         var consumer = Path.Combine(fixture.ProjectDir, "Consumers", "FeatureReader.cs");
-        Assert.Contains(consumer, output.Results);
+        output.Results.ShouldContain(consumer);
         var worklist = output.Results
             .SkipWhile(line => line != "Read-site worklist:")
             .Skip(1)
             .ToList();
-        Assert.Equal(worklist.OrderBy(x => x, StringComparer.InvariantCulture), worklist);
+        worklist.ShouldBe(worklist.OrderBy(x => x, StringComparer.InvariantCulture));
     }
 
     [Fact]
@@ -93,10 +92,10 @@ public class MigrateToIOptions : IClassFixture<RtServicesFixture>
         using (RoslynTools.Core.RtConsole.UseConsole(output))
         {
             var exit = await _services.Resolve<MigrateToIOptionsCommand>().ExecuteAsync(null, "MyFeatureOptions", "ignored", false);
-            Assert.Equal(1, exit);
+            exit.ShouldBe(1);
         }
 
-        Assert.Contains(output.Diagnostics, m => m.Contains("--section is required", StringComparison.Ordinal));
+        output.Diagnostics.ShouldContain(m => m.Contains("--section is required", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -108,10 +107,10 @@ public class MigrateToIOptions : IClassFixture<RtServicesFixture>
         using (RoslynTools.Core.RtConsole.UseConsole(output))
         {
             var exit = await _services.Resolve<MigrateToIOptionsCommand>().ExecuteAsync("MyFeature", null, "ignored", false);
-            Assert.Equal(1, exit);
+            exit.ShouldBe(1);
         }
 
-        Assert.Contains(output.Diagnostics, m => m.Contains("--name is required", StringComparison.Ordinal));
+        output.Diagnostics.ShouldContain(m => m.Contains("--name is required", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -125,11 +124,11 @@ public class MigrateToIOptions : IClassFixture<RtServicesFixture>
         using (WorkspaceLoader.UseOverride(fixture.Workspace, fixture.Solution))
         {
             var exit = await _services.Resolve<MigrateToIOptionsCommand>().ExecuteAsync("MyFeature", "myfeatureoptions", "ignored", false);
-            Assert.Equal(1, exit);
+            exit.ShouldBe(1);
         }
 
-        Assert.False(File.Exists(Path.Combine(fixture.ProjectDir, "myfeatureoptions.cs")));
-        Assert.Contains(output.Diagnostics, m => m.Contains("PascalCase", StringComparison.Ordinal));
+        File.Exists(Path.Combine(fixture.ProjectDir, "myfeatureoptions.cs")).ShouldBeFalse();
+        output.Diagnostics.ShouldContain(m => m.Contains("PascalCase", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -143,11 +142,11 @@ public class MigrateToIOptions : IClassFixture<RtServicesFixture>
         using (WorkspaceLoader.UseOverride(fixture.Workspace, fixture.Solution))
         {
             var exit = await _services.Resolve<MigrateToIOptionsCommand>().ExecuteAsync(":foo", "MyFeatureOptions", "ignored", false);
-            Assert.Equal(1, exit);
+            exit.ShouldBe(1);
         }
 
-        Assert.False(File.Exists(Path.Combine(fixture.ProjectDir, "MyFeatureOptions.cs")));
-        Assert.Contains(output.Diagnostics, m => m.Contains("malformed", StringComparison.Ordinal));
+        File.Exists(Path.Combine(fixture.ProjectDir, "MyFeatureOptions.cs")).ShouldBeFalse();
+        output.Diagnostics.ShouldContain(m => m.Contains("malformed", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -160,8 +159,8 @@ public class MigrateToIOptions : IClassFixture<RtServicesFixture>
 
         var output = await RunMigrationAsync(fixture);
 
-        Assert.Equal(1, output.ExitCode);
-        Assert.Contains(output.Diagnostics, m => m.Contains("collision", StringComparison.Ordinal));
+        output.ExitCode.ShouldBe(1);
+        output.Diagnostics.ShouldContain(m => m.Contains("collision", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -173,7 +172,7 @@ public class MigrateToIOptions : IClassFixture<RtServicesFixture>
         using (WorkspaceLoader.UseOverride(fixture.Workspace, fixture.Solution))
         {
             var exit = await _services.Resolve<MigrateToIOptionsCommand>().ExecuteAsync("MyFeature", "MyFeatureOptions", null, true);
-            Assert.Equal(0, exit);
+            exit.ShouldBe(0);
         }
     }
 
@@ -187,10 +186,10 @@ public class MigrateToIOptions : IClassFixture<RtServicesFixture>
         {
             var exit = await _services.Resolve<MigrateToIOptionsCommand>().ExecuteAsync("MyFeature", "MyFeatureOptions", "NoSuch.slnx",
                 false);
-            Assert.Equal(1, exit);
+            exit.ShouldBe(1);
         }
 
-        Assert.Contains(output.Diagnostics, m => m.Contains("Failed to load solution", StringComparison.Ordinal));
+        output.Diagnostics.ShouldContain(m => m.Contains("Failed to load solution", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -201,9 +200,9 @@ public class MigrateToIOptions : IClassFixture<RtServicesFixture>
 
         var output = await RunMigrationAsync(fixture);
 
-        Assert.Equal(1, output.ExitCode);
-        Assert.False(File.Exists(Path.Combine(fixture.ProjectDir, "MyFeatureOptions.cs")));
-        Assert.Contains(output.Diagnostics, m => m.Contains("No DI registration site", StringComparison.Ordinal));
+        output.ExitCode.ShouldBe(1);
+        File.Exists(Path.Combine(fixture.ProjectDir, "MyFeatureOptions.cs")).ShouldBeFalse();
+        output.Diagnostics.ShouldContain(m => m.Contains("No DI registration site", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -214,9 +213,8 @@ public class MigrateToIOptions : IClassFixture<RtServicesFixture>
 
         var output = await RunMigrationAsync(fixture);
 
-        Assert.Equal(0, output.ExitCode);
-        Assert.Contains(output.Diagnostics,
-            m => m.Contains("Multiple DI registration sites", StringComparison.Ordinal));
+        output.ExitCode.ShouldBe(0);
+        output.Diagnostics.ShouldContain(m => m.Contains("Multiple DI registration sites", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -229,9 +227,9 @@ public class MigrateToIOptions : IClassFixture<RtServicesFixture>
 
         var output = await RunMigrationAsync(fixture);
 
-        Assert.Equal(0, output.ExitCode);
-        Assert.Equal(before, await fixture.ReadSourceAsync("Startup.cs"));
-        Assert.Contains(output.Results, m => m.Contains("already applied", StringComparison.Ordinal));
+        output.ExitCode.ShouldBe(0);
+        (await fixture.ReadSourceAsync("Startup.cs")).ShouldBe(before);
+        output.Results.ShouldContain(m => m.Contains("already applied", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -242,12 +240,11 @@ public class MigrateToIOptions : IClassFixture<RtServicesFixture>
 
         var output = await RunMigrationAsync(fixture, true);
 
-        Assert.Equal(0, output.ExitCode);
-        Assert.Contains(output.Results,
-            m => m.Contains("+++ ", StringComparison.Ordinal) &&
+        output.ExitCode.ShouldBe(0);
+        output.Results.ShouldContain(m => m.Contains("+++ ", StringComparison.Ordinal) &&
                  m.Contains("MyFeatureOptions.cs", StringComparison.Ordinal));
-        Assert.False(File.Exists(Path.Combine(fixture.ProjectDir, "MyFeatureOptions.cs")));
-        Assert.Contains(output.Diagnostics, m => m.Contains("dry-run", StringComparison.Ordinal));
+        File.Exists(Path.Combine(fixture.ProjectDir, "MyFeatureOptions.cs")).ShouldBeFalse();
+        output.Diagnostics.ShouldContain(m => m.Contains("dry-run", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -258,8 +255,8 @@ public class MigrateToIOptions : IClassFixture<RtServicesFixture>
 
         var output = await RunMigrationAsync(fixture);
 
-        Assert.DoesNotContain(output.Results, line => line.TrimStart().StartsWith('{'));
-        Assert.Contains(output.Results, line => line.Contains("Changed files", StringComparison.Ordinal));
+        output.Results.ShouldNotContain(line => line.TrimStart().StartsWith('{'));
+        output.Results.ShouldContain(line => line.Contains("Changed files", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -271,15 +268,15 @@ public class MigrateToIOptions : IClassFixture<RtServicesFixture>
         await RunMigrationAsync(fixture);
 
         var options = await File.ReadAllTextAsync(Path.Combine(fixture.ProjectDir, "MyFeatureOptions.cs"));
-        Assert.DoesNotContain("\t", options);
-        Assert.Contains("{ get; init; }", options);
+        options.ShouldNotContain("\t", Case.Sensitive);
+        options.ShouldContain("{ get; init; }", Case.Sensitive);
     }
 
     [Fact]
     [Trait("Concern", "BuildGates")]
     public void post_run_state_build_format_and_test_all_pass()
     {
-        Assert.Contains(App.Commands, c => c.Info.Name == "migrate-to-ioptions");
+        App.Commands.ShouldContain(c => c.Info.Name == "migrate-to-ioptions");
     }
 
     [Fact]
@@ -289,22 +286,22 @@ public class MigrateToIOptions : IClassFixture<RtServicesFixture>
         var entry = App.Commands.Single(c => c.Info.Name == "migrate-to-ioptions");
         var markdown = DumpHelpCommand.RenderMarkdown([(entry.Build(), entry.Info)]);
 
-        Assert.Contains("### migrate-to-ioptions", markdown);
-        Assert.Contains("**Mutation**", markdown);
-        Assert.Contains("Plain-text output", markdown);
-        Assert.Contains("--section", markdown);
-        Assert.Contains("--dry-run", markdown);
+        markdown.ShouldContain("### migrate-to-ioptions", Case.Sensitive);
+        markdown.ShouldContain("**Mutation**", Case.Sensitive);
+        markdown.ShouldContain("Plain-text output", Case.Sensitive);
+        markdown.ShouldContain("--section", Case.Sensitive);
+        markdown.ShouldContain("--dry-run", Case.Sensitive);
     }
 
     [Fact]
     [Trait("Concern", "Metadata")]
     public void command_metadata_category_is_refactor_and_mutates()
     {
-        Assert.Equal("refactor", MigrateToIOptionsCommand.Info.Category);
-        Assert.True(MigrateToIOptionsCommand.Info.Mutates);
-        Assert.False(MigrateToIOptionsCommand.Info.JsonOutput);
-        Assert.IsType<Command>(_services.Resolve<MigrateToIOptionsCommand>().Build());
-        Assert.Contains(App.Commands, c => c.Info.Name == "migrate-to-ioptions");
+        MigrateToIOptionsCommand.Info.Category.ShouldBe("refactor");
+        MigrateToIOptionsCommand.Info.Mutates.ShouldBeTrue();
+        MigrateToIOptionsCommand.Info.JsonOutput.ShouldBeFalse();
+        _services.Resolve<MigrateToIOptionsCommand>().Build().ShouldBeOfType<Command>();
+        App.Commands.ShouldContain(c => c.Info.Name == "migrate-to-ioptions");
     }
 
     private static TestFixture BuildFixture(

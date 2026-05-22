@@ -1,5 +1,6 @@
 using RoslynTools.Core;
 using RoslynTools.Services;
+using Shouldly;
 
 namespace RoslynTools.Tests.Navigation;
 
@@ -29,11 +30,11 @@ public class InspectSource
             var result = await new InspectService().GetSourceAsync(sym);
 
             var entry = Assert.Single(result);
-            Assert.Equal("TestApp.Calc.Add(int, int)", (string)entry["fqn"]!);
-            Assert.NotNull(entry["file"]);
-            Assert.NotNull(entry["lineFrom"]);
-            Assert.NotNull(entry["lineTo"]);
-            Assert.Contains("a + b", (string)entry["source"]!);
+            ((string)entry["fqn"]!).ShouldBe("TestApp.Calc.Add(int, int)");
+            entry["file"].ShouldNotBeNull();
+            entry["lineFrom"].ShouldNotBeNull();
+            entry["lineTo"].ShouldNotBeNull();
+            ((string)entry["source"]!).ShouldContain("a + b", Case.Sensitive);
         }
     }
 
@@ -57,7 +58,7 @@ public class InspectSource
             var result = await new InspectService().GetSourceAsync(sym);
 
             var entry = Assert.Single(result);
-            Assert.Contains("Returns a greeting", (string)entry["source"]!);
+            ((string)entry["source"]!).ShouldContain("Returns a greeting", Case.Sensitive);
         }
     }
 

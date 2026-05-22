@@ -2,6 +2,7 @@ using System.Text.Json;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
+using Shouldly;
 
 namespace RoslynTools.Tests.Analysis;
 
@@ -39,10 +40,10 @@ public class FindDuplicates
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
 
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
             var g = groups[0];
-            Assert.Equal(2, g.Occurrences.Count);
-            Assert.Equal(3, g.StatementCount);
+            g.Occurrences.Count.ShouldBe(2);
+            g.StatementCount.ShouldBe(3);
         }
     }
 
@@ -84,12 +85,12 @@ public class FindDuplicates
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
 
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
             var g = groups.First(g => g.StatementCount == 3);
-            Assert.Equal(2, g.Occurrences.Count);
+            g.Occurrences.Count.ShouldBe(2);
             var files = g.Occurrences.Select(o => Path.GetFileName(o.FilePath)).ToHashSet();
-            Assert.Contains("A.cs", files);
-            Assert.Contains("B.cs", files);
+            files.ShouldContain("A.cs");
+            files.ShouldContain("B.cs");
         }
     }
 
@@ -118,7 +119,7 @@ public class FindDuplicates
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
 
-            Assert.Empty(groups);
+            groups.ShouldBeEmpty();
         }
     }
 
@@ -154,7 +155,7 @@ public class FindDuplicates
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(5));
 
-            Assert.Empty(groups);
+            groups.ShouldBeEmpty();
         }
     }
 
@@ -190,7 +191,7 @@ public class FindDuplicates
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(MinOccurrences: 3));
 
-            Assert.Empty(groups);
+            groups.ShouldBeEmpty();
         }
     }
 
@@ -232,10 +233,10 @@ public class FindDuplicates
 
             // The 5-statement clone is the maximal block; sub-sequences (3-stmt, 4-stmt windows)
             // should not produce separate reported groups since all their occurrences are subsumed.
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
             var maximalGroup = groups.OrderByDescending(g => g.StatementCount).First();
-            Assert.Equal(5, maximalGroup.StatementCount);
-            Assert.Equal(2, maximalGroup.Occurrences.Count);
+            maximalGroup.StatementCount.ShouldBe(5);
+            maximalGroup.Occurrences.Count.ShouldBe(2);
         }
     }
 
@@ -291,13 +292,13 @@ public class FindDuplicates
             // Use 3-occurrence count + PartiallyExpandable as the discriminator since there may be
             // other 3-statement groups (e.g. [s2,s3,s4] from MethodA and MethodC).
             var threeStmtGroup = groups.FirstOrDefault(g => g.StatementCount == 3 && g.Occurrences.Count == 3);
-            Assert.NotNull(threeStmtGroup);
+            threeStmtGroup.ShouldNotBeNull();
             Assert.True(threeStmtGroup.PartiallyExpandable,
                 "3-statement group should be flagged PartiallyExpandable because some occurrences have an identical 4th statement");
 
             var fourStmtGroup = groups.FirstOrDefault(g => g.StatementCount == 4);
-            Assert.NotNull(fourStmtGroup);
-            Assert.Equal(2, fourStmtGroup.Occurrences.Count);
+            fourStmtGroup.ShouldNotBeNull();
+            fourStmtGroup.Occurrences.Count.ShouldBe(2);
             Assert.False(fourStmtGroup.PartiallyExpandable,
                 "4-statement group should not be PartiallyExpandable because no occurrences extend further");
         }
@@ -331,7 +332,7 @@ public class FindDuplicates
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(1));
 
-            Assert.Empty(groups);
+            groups.ShouldBeEmpty();
         }
     }
 
@@ -367,9 +368,9 @@ public class FindDuplicates
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
 
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
             var g = groups.First(g => g.StatementCount == 3);
-            Assert.Equal(2, g.Occurrences.Count);
+            g.Occurrences.Count.ShouldBe(2);
         }
     }
 
@@ -407,9 +408,9 @@ public class FindDuplicates
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(3));
 
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
             var g = groups.First(g => g.StatementCount >= 3);
-            Assert.Equal(2, g.Occurrences.Count);
+            g.Occurrences.Count.ShouldBe(2);
         }
     }
 
@@ -445,9 +446,9 @@ public class FindDuplicates
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
 
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
             var g = groups.First(g => g.StatementCount == 3);
-            Assert.Equal(2, g.Occurrences.Count);
+            g.Occurrences.Count.ShouldBe(2);
         }
     }
 
@@ -483,9 +484,9 @@ public class FindDuplicates
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
 
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
             var g = groups.First(g => g.StatementCount == 3);
-            Assert.Equal(2, g.Occurrences.Count);
+            g.Occurrences.Count.ShouldBe(2);
         }
     }
 
@@ -528,7 +529,7 @@ public class FindDuplicates
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(3));
 
             // if-body and while-body differ in SyntaxKind, so these should not group.
-            Assert.DoesNotContain(groups, g => g.Occurrences.Count >= 2 && g.StatementCount == 3);
+            groups.ShouldNotContain(g => g.Occurrences.Count >= 2 && g.StatementCount == 3);
         }
     }
 
@@ -565,7 +566,7 @@ public class FindDuplicates
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
 
             // WriteLine and Write are different member names — must not group.
-            Assert.Empty(groups);
+            groups.ShouldBeEmpty();
         }
     }
 
@@ -602,9 +603,9 @@ public class FindDuplicates
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
 
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
             var g = groups.First(g => g.StatementCount == 3);
-            Assert.Equal(2, g.Occurrences.Count);
+            g.Occurrences.Count.ShouldBe(2);
         }
     }
 
@@ -648,9 +649,9 @@ public class FindDuplicates
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(3));
 
             // Only the maximal (5-stmt) group should remain; sub-windows should be suppressed.
-            Assert.DoesNotContain(groups, g => g.StatementCount < 5);
+            groups.ShouldNotContain(g => g.StatementCount < 5);
             var maxGroup = groups.Single(g => g.StatementCount == 5);
-            Assert.Equal(2, maxGroup.Occurrences.Count);
+            maxGroup.Occurrences.Count.ShouldBe(2);
         }
     }
 
@@ -702,7 +703,7 @@ public class FindDuplicates
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(3));
 
             // The 3-statement group should still appear because MethodC's occurrence is NOT covered.
-            Assert.Contains(groups, g => g.StatementCount == 3);
+            groups.ShouldContain(g => g.StatementCount == 3);
         }
     }
 
@@ -739,12 +740,12 @@ public class FindDuplicates
             var run1 = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
             var run2 = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
 
-            Assert.Equal(run1.Count, run2.Count);
+            run2.Count.ShouldBe(run1.Count);
             for (var i = 0; i < run1.Count; i++)
             {
-                Assert.Equal(run1[i].Score, run2[i].Score);
-                Assert.Equal(run1[i].StatementCount, run2[i].StatementCount);
-                Assert.Equal(run1[i].Occurrences.Count, run2[i].Occurrences.Count);
+                run2[i].Score.ShouldBe(run1[i].Score);
+                run2[i].StatementCount.ShouldBe(run1[i].StatementCount);
+                run2[i].Occurrences.Count.ShouldBe(run1[i].Occurrences.Count);
             }
         }
     }
@@ -782,10 +783,10 @@ public class FindDuplicates
             var run1 = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
             var run2 = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
 
-            Assert.Equal(run1.Count, run2.Count);
+            run2.Count.ShouldBe(run1.Count);
             var ids1 = run1.Select(g => g.GroupId).OrderBy(id => id).ToList();
             var ids2 = run2.Select(g => g.GroupId).OrderBy(id => id).ToList();
-            Assert.Equal(ids1, ids2);
+            ids2.ShouldBe(ids1);
 
             // GroupId format: GRP-{stmtCount}-{8 hex chars}
             foreach (var id in ids1)
@@ -845,9 +846,9 @@ public class FindDuplicates
             var groups =
                 await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(Scope: "MyApp.Services"));
 
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
             foreach (var g in groups)
-                Assert.All(g.Occurrences, o => Assert.Contains("Services", o.FilePath));
+                Assert.All(g.Occurrences, o => o.FilePath.ShouldContain("Services", Case.Sensitive));
         }
     }
 
@@ -905,9 +906,9 @@ public class FindDuplicates
             var groups =
                 await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(Scope: "ProjectAlpha"));
 
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
             foreach (var g in groups)
-                Assert.All(g.Occurrences, o => Assert.Contains("ProjectAlpha", o.FilePath));
+                Assert.All(g.Occurrences, o => o.FilePath.ShouldContain("ProjectAlpha", Case.Sensitive));
         }
     }
 
@@ -952,7 +953,7 @@ public class FindDuplicates
             var groups =
                 await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(IncludeTests: false));
 
-            Assert.Empty(groups);
+            groups.ShouldBeEmpty();
         }
     }
 
@@ -994,9 +995,9 @@ public class FindDuplicates
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(IncludeTests: true));
 
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
             var g = groups.First(gr => gr.StatementCount == 3);
-            Assert.Equal(2, g.Occurrences.Count);
+            g.Occurrences.Count.ShouldBe(2);
         }
     }
 
@@ -1038,7 +1039,7 @@ public class FindDuplicates
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(MaxStatements: 3));
 
-            Assert.DoesNotContain(groups, g => g.StatementCount > 3);
+            groups.ShouldNotContain(g => g.StatementCount > 3);
         }
     }
 
@@ -1073,39 +1074,39 @@ public class FindDuplicates
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
 
             var json = CaptureJson(groups, null);
             var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 
-            Assert.Equal("structural", root.GetProperty("mode").GetString());
+            root.GetProperty("mode").GetString().ShouldBe("structural");
             var groupsArr = root.GetProperty("groups");
-            Assert.True(groupsArr.GetArrayLength() >= 1);
+            (groupsArr.GetArrayLength() >= 1).ShouldBeTrue();
 
             var g = groupsArr[0];
-            Assert.Equal("structural", g.GetProperty("mode").GetString());
+            g.GetProperty("mode").GetString().ShouldBe("structural");
             // extractability is now analysed and must be a known level, not "unknown"
             var ext = g.GetProperty("extractability").GetString()!;
             Assert.True(ext is "extractable" or "likely_extractable" or "discovery_only",
                 $"Expected a known extractability level, got: {ext}");
-            Assert.True(g.GetProperty("score").GetDouble() > 0);
-            Assert.True(g.GetProperty("occurrenceCount").GetInt32() >= 2);
-            Assert.True(g.GetProperty("preview").GetString()!.Length > 0);
+            (g.GetProperty("score").GetDouble() > 0).ShouldBeTrue();
+            (g.GetProperty("occurrenceCount").GetInt32() >= 2).ShouldBeTrue();
+            (g.GetProperty("preview").GetString()!.Length > 0).ShouldBeTrue();
 
             var occs = g.GetProperty("occurrences");
-            Assert.True(occs.GetArrayLength() >= 2);
+            (occs.GetArrayLength() >= 2).ShouldBeTrue();
 
             var occ = occs[0];
-            Assert.True(occ.GetProperty("file").GetString()!.Length > 0);
-            Assert.True(occ.GetProperty("line").GetInt32() > 0);
-            Assert.True(occ.GetProperty("endLine").GetInt32() > 0);
-            Assert.True(occ.GetProperty("type").GetString()!.Length > 0);
-            Assert.True(occ.GetProperty("member").GetString()!.Length > 0);
+            (occ.GetProperty("file").GetString()!.Length > 0).ShouldBeTrue();
+            (occ.GetProperty("line").GetInt32() > 0).ShouldBeTrue();
+            (occ.GetProperty("endLine").GetInt32() > 0).ShouldBeTrue();
+            (occ.GetProperty("type").GetString()!.Length > 0).ShouldBeTrue();
+            (occ.GetProperty("member").GetString()!.Length > 0).ShouldBeTrue();
 
             var checks = g.GetProperty("checks");
             // checks is now populated with extractability analysis results
-            Assert.Equal(JsonValueKind.Array, checks.ValueKind);
+            checks.ValueKind.ShouldBe(JsonValueKind.Array);
         }
     }
 
@@ -1133,14 +1134,14 @@ public class FindDuplicates
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
-            Assert.Empty(groups);
+            groups.ShouldBeEmpty();
 
             var json = CaptureJson(groups, null);
             var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 
-            Assert.Equal("structural", root.GetProperty("mode").GetString());
-            Assert.Equal(0, root.GetProperty("groups").GetArrayLength());
+            root.GetProperty("mode").GetString().ShouldBe("structural");
+            root.GetProperty("groups").GetArrayLength().ShouldBe(0);
         }
     }
 
@@ -1192,7 +1193,7 @@ public class FindDuplicates
                 .OrderBy(id => id)
                 .ToList();
 
-            Assert.Equal(ids1, ids2);
+            ids2.ShouldBe(ids1);
         }
     }
 
@@ -1227,7 +1228,7 @@ public class FindDuplicates
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
 
             // Use the project directory as the "solution dir" so relative paths are computed.
             var solutionDir = project.Directory;
@@ -1275,7 +1276,7 @@ public class FindDuplicates
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
 
             var json = CaptureJson(groups, null);
             var doc = JsonDocument.Parse(json);
@@ -1285,7 +1286,7 @@ public class FindDuplicates
             {
                 var file = occ.GetProperty("file").GetString()!;
                 // Should be just a filename, not an absolute path
-                Assert.Equal(Path.GetFileName(file), file);
+                file.ShouldBe(Path.GetFileName(file));
             }
         }
     }
@@ -1321,11 +1322,11 @@ public class FindDuplicates
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
 
             var output = CaptureText(groups);
-            Assert.Contains("Group 1", output);
-            Assert.Contains("preview:", output);
+            output.ShouldContain("Group 1", Case.Sensitive);
+            output.ShouldContain("preview:", Case.Sensitive);
         }
     }
 
@@ -1362,12 +1363,12 @@ public class FindDuplicates
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
 
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
             var g = groups.First(g => g.StatementCount == 3);
-            Assert.Equal("extractable", g.Extractability);
-            Assert.NotNull(g.Checks);
-            Assert.True(g.Checks.Count > 0);
-            Assert.All(g.Checks, c => Assert.Equal("pass", c.Status));
+            g.Extractability.ShouldBe("extractable");
+            g.Checks.ShouldNotBeNull();
+            (g.Checks.Count > 0).ShouldBeTrue();
+            Assert.All(g.Checks, c => c.Status.ShouldBe("pass"));
         }
     }
 
@@ -1405,13 +1406,13 @@ public class FindDuplicates
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(3));
 
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
             var g = groups.First(g => g.StatementCount == 3);
-            Assert.Equal("discovery_only", g.Extractability);
-            Assert.NotNull(g.Checks);
+            g.Extractability.ShouldBe("discovery_only");
+            g.Checks.ShouldNotBeNull();
             var failCheck = g.Checks.FirstOrDefault(c => c.Name == "no-control-flow-escape");
-            Assert.NotNull(failCheck);
-            Assert.Equal("fail", failCheck.Status);
+            failCheck.ShouldNotBeNull();
+            failCheck.Status.ShouldBe("fail");
         }
     }
 
@@ -1448,13 +1449,13 @@ public class FindDuplicates
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
 
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
             var g = groups.First(g => g.StatementCount >= 3);
-            Assert.Equal("discovery_only", g.Extractability);
-            Assert.NotNull(g.Checks);
+            g.Extractability.ShouldBe("discovery_only");
+            g.Checks.ShouldNotBeNull();
             var failCheck = g.Checks.FirstOrDefault(c => c.Name == "no-ref-out-params");
-            Assert.NotNull(failCheck);
-            Assert.Equal("fail", failCheck.Status);
+            failCheck.ShouldNotBeNull();
+            failCheck.Status.ShouldBe("fail");
         }
     }
 
@@ -1504,15 +1505,15 @@ public class FindDuplicates
             // use IncludeTests:true so the project is scanned.
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions(IncludeTests: true));
 
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
             var g = groups.First(g => g.StatementCount >= 3);
             // consistent-captured-state should warn (A._count vs B._count are different symbols)
-            Assert.NotNull(g.Checks);
+            g.Checks.ShouldNotBeNull();
             var captureCheck = g.Checks.FirstOrDefault(c => c.Name == "consistent-captured-state");
-            Assert.NotNull(captureCheck);
-            Assert.Equal("warn", captureCheck.Status);
+            captureCheck.ShouldNotBeNull();
+            captureCheck.Status.ShouldBe("warn");
             // Overall: at least likely_extractable (warn present, not extractable)
-            Assert.NotEqual("extractable", g.Extractability);
+            g.Extractability.ShouldNotBe("extractable");
         }
     }
 
@@ -1545,7 +1546,7 @@ public class FindDuplicates
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
 
             var json = CaptureJson(groups, null);
             var doc = JsonDocument.Parse(json);
@@ -1557,14 +1558,14 @@ public class FindDuplicates
 
             // checks must be an array (may be empty for extractable groups but structure must be present)
             var checks = g.GetProperty("checks");
-            Assert.Equal(JsonValueKind.Array, checks.ValueKind);
+            checks.ValueKind.ShouldBe(JsonValueKind.Array);
 
             // Each check entry (if any) must have name, status, and detail fields
             foreach (var check in checks.EnumerateArray())
             {
-                Assert.True(check.TryGetProperty("name", out _));
-                Assert.True(check.TryGetProperty("status", out _));
-                Assert.True(check.TryGetProperty("detail", out _));
+                check.TryGetProperty("name", out _).ShouldBeTrue();
+                check.TryGetProperty("status", out _).ShouldBeTrue();
+                check.TryGetProperty("detail", out _).ShouldBeTrue();
             }
         }
     }
@@ -1598,10 +1599,10 @@ public class FindDuplicates
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
 
             var output = CaptureText(groups);
-            Assert.Contains("extractable=", output);
+            output.ShouldContain("extractable=", Case.Sensitive);
         }
     }
 
@@ -1636,13 +1637,13 @@ public class FindDuplicates
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
 
             var output = CaptureText(groups);
             var occurrenceLines = output.Split('\n').Where(l =>
                 l.TrimStart().StartsWith("1.", StringComparison.Ordinal) ||
                 l.TrimStart().StartsWith("2.", StringComparison.Ordinal));
-            Assert.All(occurrenceLines, line => Assert.DoesNotContain('\\', line));
+            Assert.All(occurrenceLines, line => line.ShouldNotContain('\\'));
         }
     }
 
@@ -1675,7 +1676,7 @@ public class FindDuplicates
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
 
             var output = CaptureText(groups);
             // Each occurrence line should contain a startLine-endLine range like ":7-9"
@@ -1715,9 +1716,9 @@ public class FindDuplicates
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
 
-            Assert.All(groups.SelectMany(g => g.Occurrences), o => Assert.True(o.EndLine >= o.StartLine));
+            Assert.All(groups.SelectMany(g => g.Occurrences), o => (o.EndLine >= o.StartLine).ShouldBeTrue());
         }
     }
 
@@ -1750,14 +1751,14 @@ public class FindDuplicates
         using (workspace)
         {
             var groups = await new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions());
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
 
             var json = JsonDocument.Parse(CaptureJson(groups, null));
             var occurrences = json.RootElement.GetProperty("groups")[0].GetProperty("occurrences");
             foreach (var occ in occurrences.EnumerateArray())
             {
                 var link = occ.GetProperty("link").GetString()!;
-                Assert.DoesNotContain('\\', link);
+                link.ShouldNotContain('\\');
                 Assert.Matches(@":\d+$", link);
             }
         }
@@ -1833,16 +1834,16 @@ public class FindDuplicates
                 g.FullBlock.Contains("IsNullOrWhiteSpace") &&
                 (g.Extractability == "likely_extractable" || g.Extractability == "extractable"));
 
-            Assert.NotNull(guardGroup);
+            guardGroup.ShouldNotBeNull();
 
             // The no-control-flow-escape check must be warn for ExtractAsBoolGuard
             var cfCheck = guardGroup.Checks?.FirstOrDefault(c => c.Name == "no-control-flow-escape");
-            Assert.NotNull(cfCheck);
-            Assert.Equal("warn", cfCheck!.Status);
+            cfCheck.ShouldNotBeNull();
+            cfCheck!.Status.ShouldBe("warn");
             Assert.Contains("guard pattern", cfCheck.Detail, StringComparison.OrdinalIgnoreCase);
 
             // Overall extractability must not be discovery_only
-            Assert.NotEqual("discovery_only", guardGroup.Extractability);
+            guardGroup.Extractability.ShouldNotBe("discovery_only");
         }
     }
 
@@ -1890,19 +1891,19 @@ public class FindDuplicates
             // The 2-statement compute block (var lo / var hi) is the only duplicate;
             // the callers differ so no larger window is a duplicate, so the 2-stmt group
             // survives suppression.
-            Assert.NotEmpty(groups);
+            groups.ShouldNotBeEmpty();
             var multiOutputGroup = groups[0];
 
             // Verify this is indeed the compute block
-            Assert.Equal(2, multiOutputGroup.StatementCount);
+            multiOutputGroup.StatementCount.ShouldBe(2);
 
             // The single-output check must be warn (tuple-extractable), not fail
             var soCheck = multiOutputGroup.Checks?.FirstOrDefault(c => c.Name == "single-output");
-            Assert.NotNull(soCheck);
-            Assert.Equal("warn", soCheck!.Status);
+            soCheck.ShouldNotBeNull();
+            soCheck!.Status.ShouldBe("warn");
 
             // Overall extractability must not be discovery_only
-            Assert.NotEqual("discovery_only", multiOutputGroup.Extractability);
+            multiOutputGroup.Extractability.ShouldNotBe("discovery_only");
         }
     }
 

@@ -3,6 +3,7 @@ using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Services;
 using RoslynTools.Tests.Infrastructure;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -68,9 +69,9 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("IAgentService.cs");
-        Assert.Contains("GetAgent", content);
-        Assert.Contains("DeleteAgent", content);
-        Assert.DoesNotContain("Helper", content);
+        content.ShouldContain("GetAgent", Case.Sensitive);
+        content.ShouldContain("DeleteAgent", Case.Sensitive);
+        content.ShouldNotContain("Helper", Case.Sensitive);
     }
 
     [Fact]
@@ -100,7 +101,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("AgentService.cs");
-        Assert.Contains(": IAgentService", content);
+        content.ShouldContain(": IAgentService", Case.Sensitive);
     }
 
     [Fact]
@@ -149,7 +150,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
                     new CapturingSolutionChangeWriter())
                 .RunAsync(sln, "Point", null, null, false));
 
-        Assert.Contains("must be a class", ex.Message);
+        ex.Message.ShouldContain("must be a class", Case.Sensitive);
     }
 
     [Fact]
@@ -172,8 +173,8 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("Widget.cs");
-        Assert.Contains("IBase", content);
-        Assert.Contains("IWidget", content);
+        content.ShouldContain("IBase", Case.Sensitive);
+        content.ShouldContain("IWidget", Case.Sensitive);
     }
 
     [Fact]
@@ -197,11 +198,11 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("IRepo.cs");
-        Assert.Contains("Name", content);
-        Assert.Contains("get;", content);
-        Assert.Contains("set;", content);
-        Assert.Contains("Count", content);
-        Assert.DoesNotContain("Secret", content);
+        content.ShouldContain("Name", Case.Sensitive);
+        content.ShouldContain("get;", Case.Sensitive);
+        content.ShouldContain("set;", Case.Sensitive);
+        content.ShouldContain("Count", Case.Sensitive);
+        content.ShouldNotContain("Secret", Case.Sensitive);
     }
 
     [Fact]
@@ -223,7 +224,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("IWidget.cs");
-        Assert.Contains("namespace MyApp.Contracts;", content);
+        content.ShouldContain("namespace MyApp.Contracts;", Case.Sensitive);
     }
 
     [Fact]
@@ -245,6 +246,6 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("ICalculator.cs");
-        Assert.Contains("int Add(int a, int b)", content);
+        content.ShouldContain("int Add(int a, int b)", Case.Sensitive);
     }
 }

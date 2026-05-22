@@ -2,6 +2,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using RoslynTools.Services;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -29,10 +30,10 @@ public sealed class MagicString
             var groups = await new MagicStringService().AnalyzeAsync(solution, 5, 2);
 
             var group = Assert.Single(groups);
-            Assert.Equal("checkout-flow", group.Value);
-            Assert.Equal(2, group.Count);
-            Assert.Equal(["First", "Second"], group.Occurrences.Select(o => o.MemberName!).ToArray());
-            Assert.All(group.Occurrences, occurrence => Assert.Equal("Orders", occurrence.TypeName));
+            group.Value.ShouldBe("checkout-flow");
+            group.Count.ShouldBe(2);
+            group.Occurrences.Select(o => o.MemberName!).ToArray().ShouldBe(["First", "Second"]);
+            Assert.All(group.Occurrences, occurrence => occurrence.TypeName.ShouldBe("Orders"));
         }
     }
 
@@ -69,8 +70,8 @@ public sealed class MagicString
             var groups = await new MagicStringService().AnalyzeAsync(solution, 4, 1);
 
             var group = Assert.Single(groups);
-            Assert.Equal("runtime-value", group.Value);
-            Assert.Equal("Value", Assert.Single(group.Occurrences).MemberName);
+            group.Value.ShouldBe("runtime-value");
+            Assert.Single(group.Occurrences).MemberName.ShouldBe("Value");
         }
     }
 
@@ -121,12 +122,12 @@ public sealed class MagicString
                     variable.Identifier.ValueText == "RepeatMe"
                     && variable.Initializer?.Value is LiteralExpressionSyntax literal
                     && literal.Token.ValueText == "repeat-me"));
-            Assert.Contains(messages.Members.OfType<FieldDeclarationSyntax>(), field =>
+            messages.Members.OfType<FieldDeclarationSyntax>().ShouldContain(field =>
                 field.Declaration.Variables.Any(variable => variable.Identifier.ValueText == "Existing"));
-            Assert.Equal("RepeatMe", GetExpressionBodyText(messages, "First"));
-            Assert.Equal("RepeatMe", GetExpressionBodyText(messages, "Second"));
-            Assert.Equal("\"repeat-me\"", GetExpressionBodyText(otherMessages, "Value"));
-            Assert.False(writer.DryRun);
+            GetExpressionBodyText(messages, "First").ShouldBe("RepeatMe");
+            GetExpressionBodyText(messages, "Second").ShouldBe("RepeatMe");
+            GetExpressionBodyText(otherMessages, "Value").ShouldBe("\"repeat-me\"");
+            writer.DryRun.ShouldBe(false);
         }
     }
 
@@ -156,7 +157,7 @@ public sealed class MagicString
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 service.ExtractConstantAsync(solution, filePath, line, "RepeatMe", false));
 
-            Assert.Contains("already contains a member named 'RepeatMe'", ex.Message);
+            ex.Message.ShouldContain("already contains a member named 'RepeatMe'", Case.Sensitive);
         }
     }
 

@@ -1,4 +1,5 @@
 using RoslynTools.Feedback;
+using Shouldly;
 
 namespace RoslynTools.Tests.Infrastructure;
 
@@ -29,8 +30,8 @@ public class FeedbackStoreTests
             FeedbackStore.Append(second);
 
             var all = FeedbackStore.LoadAll();
-            Assert.Equal(["FB-001", "FB-002"], all.Select(e => e.Id).ToArray());
-            Assert.Equal("FB-002", second.Id);
+            all.Select(e => e.Id).ToArray().ShouldBe(["FB-001", "FB-002"]);
+            second.Id.ShouldBe("FB-002");
         }
     }
 

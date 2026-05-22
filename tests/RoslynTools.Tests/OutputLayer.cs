@@ -1,5 +1,6 @@
 using System.Reflection;
 using RoslynTools.Core.Output;
+using Shouldly;
 
 namespace RoslynTools.Tests;
 
@@ -22,8 +23,8 @@ public sealed class OutputLayer : IDisposable
     [Fact]
     public void handles_rt_context_defaults_to_text_format_and_default_level()
     {
-        Assert.Equal(OutputFormat.Text, RtContext.Format);
-        Assert.Equal(OutputLevel.Default, RtContext.Level);
+        RtContext.Format.ShouldBe(OutputFormat.Text);
+        RtContext.Level.ShouldBe(OutputLevel.Default);
     }
 
     // ── AC-9: RtContext properties are settable ────────────────────────────────────
@@ -34,8 +35,8 @@ public sealed class OutputLayer : IDisposable
         RtContext.Format = OutputFormat.Json;
         RtContext.Level = OutputLevel.Detailed;
 
-        Assert.Equal(OutputFormat.Json, RtContext.Format);
-        Assert.Equal(OutputLevel.Detailed, RtContext.Level);
+        RtContext.Format.ShouldBe(OutputFormat.Json);
+        RtContext.Level.ShouldBe(OutputLevel.Detailed);
     }
 
     // ── AC-10: RtSerializer dispatches Text to IRtOutput.RenderText ───────────────
@@ -49,7 +50,7 @@ public sealed class OutputLayer : IDisposable
 
         RtSerializer.Write(output, sw);
 
-        Assert.Equal("HELLO", sw.ToString());
+        sw.ToString().ShouldBe("HELLO");
     }
 
     // ── AC-11: OutputFieldAttribute is readable via reflection ────────────────────
@@ -60,9 +61,9 @@ public sealed class OutputLayer : IDisposable
         var prop = typeof(AnnotatedModel).GetProperty(nameof(AnnotatedModel.Name))!;
         var attr = prop.GetCustomAttribute<OutputFieldAttribute>();
 
-        Assert.NotNull(attr);
-        Assert.Equal(OutputLevel.Detailed, attr!.Level);
-        Assert.Equal("The name field", attr.Description);
+        attr.ShouldNotBeNull();
+        attr!.Level.ShouldBe(OutputLevel.Detailed);
+        attr.Description.ShouldBe("The name field");
     }
 
     // ── AC-2: OutputLevel has explicit integer values ──────────────────────────────
@@ -70,9 +71,9 @@ public sealed class OutputLayer : IDisposable
     [Fact]
     public void has_expected_integer_values_for_output_level()
     {
-        Assert.Equal(0, (int)OutputLevel.Llm);
-        Assert.Equal(1, (int)OutputLevel.Default);
-        Assert.Equal(2, (int)OutputLevel.Detailed);
+        ((int)OutputLevel.Llm).ShouldBe(0);
+        ((int)OutputLevel.Default).ShouldBe(1);
+        ((int)OutputLevel.Detailed).ShouldBe(2);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────────

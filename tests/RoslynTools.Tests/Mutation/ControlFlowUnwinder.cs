@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using RoslynTools.Core;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -26,8 +27,8 @@ public class ControlFlowUnwinder
         var result = Core.ControlFlowUnwinder.Classify(stmts);
 
         // Assert
-        Assert.Equal(ControlFlowPattern.GuardReturn, result.Pattern);
-        Assert.Equal(ControlFlowStrategy.ExtractAsBoolGuard, result.Strategy);
+        result.Pattern.ShouldBe(ControlFlowPattern.GuardReturn);
+        result.Strategy.ShouldBe(ControlFlowStrategy.ExtractAsBoolGuard);
     }
 
     [Fact]
@@ -41,8 +42,8 @@ public class ControlFlowUnwinder
 
         var result = Core.ControlFlowUnwinder.Classify(stmts);
 
-        Assert.Equal(ControlFlowPattern.ValueReturn, result.Pattern);
-        Assert.Equal(ControlFlowStrategy.ExtractWithReturnType, result.Strategy);
+        result.Pattern.ShouldBe(ControlFlowPattern.ValueReturn);
+        result.Strategy.ShouldBe(ControlFlowStrategy.ExtractWithReturnType);
     }
 
     [Fact]
@@ -56,8 +57,8 @@ public class ControlFlowUnwinder
 
         var result = Core.ControlFlowUnwinder.Classify(stmts);
 
-        Assert.Equal(ControlFlowPattern.BreakEscape, result.Pattern);
-        Assert.Equal(ControlFlowStrategy.LogAlternatives, result.Strategy);
+        result.Pattern.ShouldBe(ControlFlowPattern.BreakEscape);
+        result.Strategy.ShouldBe(ControlFlowStrategy.LogAlternatives);
     }
 
     [Fact]
@@ -71,8 +72,8 @@ public class ControlFlowUnwinder
 
         var result = Core.ControlFlowUnwinder.Classify(stmts);
 
-        Assert.Equal(ControlFlowPattern.ContinueEscape, result.Pattern);
-        Assert.Equal(ControlFlowStrategy.LogAlternatives, result.Strategy);
+        result.Pattern.ShouldBe(ControlFlowPattern.ContinueEscape);
+        result.Strategy.ShouldBe(ControlFlowStrategy.LogAlternatives);
     }
 
     [Fact]
@@ -86,8 +87,8 @@ public class ControlFlowUnwinder
 
         var result = Core.ControlFlowUnwinder.Classify(stmts);
 
-        Assert.Equal(ControlFlowPattern.EarlyReturnVoid, result.Pattern);
-        Assert.Equal(ControlFlowStrategy.ExtractAsBoolGuard, result.Strategy);
+        result.Pattern.ShouldBe(ControlFlowPattern.EarlyReturnVoid);
+        result.Strategy.ShouldBe(ControlFlowStrategy.ExtractAsBoolGuard);
     }
 
     [Fact]
@@ -101,8 +102,8 @@ public class ControlFlowUnwinder
 
         var result = Core.ControlFlowUnwinder.Classify(stmts);
 
-        Assert.Equal(ControlFlowPattern.None, result.Pattern);
-        Assert.Equal(ControlFlowStrategy.NotNeeded, result.Strategy);
+        result.Pattern.ShouldBe(ControlFlowPattern.None);
+        result.Strategy.ShouldBe(ControlFlowStrategy.NotNeeded);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -149,13 +150,12 @@ public class ControlFlowUnwinder
         var contentA = await project.ReadSourceAsync("A.cs");
 
         // The extracted method returns bool (guard unwound, not void)
-        Assert.Contains("private bool CheckFilePath(", contentA);
+        contentA.ShouldContain("private bool CheckFilePath(", Case.Sensitive);
 
         // The call site uses the guard pattern
-        Assert.Contains("if (CheckFilePath(", contentA);
+        contentA.ShouldContain("if (CheckFilePath(", Case.Sensitive);
         // The original guard if-statement is gone
-        Assert.DoesNotContain("if (string.IsNullOrWhiteSpace(filePath))",
-            GetMethodBody(contentA, "IsGeneratedOrIntermediate"));
+        GetMethodBody(contentA, "IsGeneratedOrIntermediate").ShouldNotContain("if (string.IsNullOrWhiteSpace(filePath))", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -197,11 +197,11 @@ public class ControlFlowUnwinder
         var content = await project.ReadSourceAsync("Service.cs");
 
         // The extracted method exists and returns bool
-        Assert.Contains("private bool IsInputBlank(string? input)", content);
+        content.ShouldContain("private bool IsInputBlank(string? input)", Case.Sensitive);
 
         // The call site uses the guard pattern: if (IsInputBlank(input)) return false;
-        Assert.Contains("if (IsInputBlank(input))", content);
-        Assert.Contains("return false;", GetMethodBody(content, "Validate"));
+        content.ShouldContain("if (IsInputBlank(input))", Case.Sensitive);
+        GetMethodBody(content, "Validate").ShouldContain("return false;", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -218,9 +218,9 @@ public class ControlFlowUnwinder
 
         var result = Core.ControlFlowUnwinder.Classify(stmts);
 
-        Assert.Equal(ControlFlowPattern.BreakEscape, result.Pattern);
-        Assert.Equal(ControlFlowStrategy.LogAlternatives, result.Strategy);
-        Assert.NotEmpty(result.AlternativeSuggestions);
+        result.Pattern.ShouldBe(ControlFlowPattern.BreakEscape);
+        result.Strategy.ShouldBe(ControlFlowStrategy.LogAlternatives);
+        result.AlternativeSuggestions.ShouldNotBeEmpty();
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -237,9 +237,9 @@ public class ControlFlowUnwinder
 
         var result = Core.ControlFlowUnwinder.Classify(stmts);
 
-        Assert.Equal(ControlFlowPattern.GuardReturn, result.Pattern);
-        Assert.Equal(ControlFlowStrategy.ExtractAsBoolGuard, result.Strategy);
-        Assert.NotEmpty(result.Description);
+        result.Pattern.ShouldBe(ControlFlowPattern.GuardReturn);
+        result.Strategy.ShouldBe(ControlFlowStrategy.ExtractAsBoolGuard);
+        result.Description.ShouldNotBeEmpty();
     }
 
     [Fact]
@@ -253,8 +253,8 @@ public class ControlFlowUnwinder
 
         var result = Core.ControlFlowUnwinder.Classify(stmts);
 
-        Assert.Equal(ControlFlowPattern.ValueReturn, result.Pattern);
-        Assert.Equal(ControlFlowStrategy.ExtractWithReturnType, result.Strategy);
+        result.Pattern.ShouldBe(ControlFlowPattern.ValueReturn);
+        result.Strategy.ShouldBe(ControlFlowStrategy.ExtractWithReturnType);
     }
 
     // ──────────────────────────────────────────────────────────────────────────

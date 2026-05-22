@@ -2,6 +2,7 @@ using Microsoft.CodeAnalysis;
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Tests.Infrastructure;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -39,8 +40,8 @@ public class ReplaceCall : IClassFixture<RtServicesFixture>
 
             var content = await project.ReadSourceAsync("LogApp.cs");
 
-            Assert.DoesNotContain("Logger.Log(", content);
-            Assert.Equal(3, CountOccurrences(content, "Logger.LogInfo("));
+            content.ShouldNotContain("Logger.Log(", Case.Sensitive);
+            CountOccurrences(content, "Logger.LogInfo(").ShouldBe(3);
         }
     }
 
@@ -65,7 +66,7 @@ public class ReplaceCall : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
-        Assert.Contains("Logger.LogInfo(string.Format(\"x={0}\", 1))", content);
+        content.ShouldContain("Logger.LogInfo(string.Format(\"x={0}\", 1))", Case.Sensitive);
     }
 
     [Fact]
@@ -99,7 +100,7 @@ public class ReplaceCall : IClassFixture<RtServicesFixture>
         }
 
         var output = sw.ToString();
-        Assert.Contains("Logger.Log", output);
+        output.ShouldContain("Logger.Log", Case.Sensitive);
     }
 
     [Fact]
@@ -124,10 +125,10 @@ public class ReplaceCall : IClassFixture<RtServicesFixture>
             }
 
             var afterContent = await project.ReadSourceAsync("LogApp.cs");
-            Assert.Equal(originalContent, afterContent);
+            afterContent.ShouldBe(originalContent);
 
             var diffOutput = sw.ToString();
-            Assert.NotEmpty(diffOutput);
+            diffOutput.ShouldNotBeEmpty();
         }
     }
 
@@ -159,9 +160,9 @@ public class ReplaceCall : IClassFixture<RtServicesFixture>
         var content = await project.ReadSourceAsync("FactoryApp.cs");
 
         // Should replace only the --method calls, not --file
-        Assert.Equal(2, CountOccurrences(content, "Factory.CreateMethodOption("));
-        Assert.Equal(1, CountOccurrences(content, "Factory.CreateStringOption(\"--file\""));
-        Assert.DoesNotContain("CreateStringOption(\"--method\"", content);
+        CountOccurrences(content, "Factory.CreateMethodOption(").ShouldBe(2);
+        CountOccurrences(content, "Factory.CreateStringOption(\"--file\"").ShouldBe(1);
+        content.ShouldNotContain("CreateStringOption(\"--method\"", Case.Sensitive);
     }
 
     private static int CountOccurrences(string text, string pattern)

@@ -1,5 +1,6 @@
 using RoslynTools.Core;
 using RoslynTools.Core.Decisions;
+using Shouldly;
 
 namespace RoslynTools.Tests.Decisions;
 
@@ -29,9 +30,9 @@ public class SymbolLocatorDecision
                 await Assert.ThrowsAsync<DecisionsRequiredException>(() =>
                     SymbolLocator.FindMethodBySpecAsync(solution, "TestApp.Service.Foo"));
 
-                Assert.True(store.AnyPending);
-                Assert.Equal(1, store.PendingCount);
-                Assert.False(store.TryGetAnswer("ambig-TestApp.Service.Foo-2", out _));
+                store.AnyPending.ShouldBeTrue();
+                store.PendingCount.ShouldBe(1);
+                store.TryGetAnswer("ambig-TestApp.Service.Foo-2", out _).ShouldBeFalse();
             }
             finally
             {
@@ -72,10 +73,10 @@ public class SymbolLocatorDecision
 
                 var symbol = await SymbolLocator.FindMethodBySpecAsync(solution, "TestApp.Service.Foo");
 
-                Assert.NotNull(symbol);
-                Assert.Equal("Foo", symbol.Name);
+                symbol.ShouldNotBeNull();
+                symbol.Name.ShouldBe("Foo");
                 Assert.Single(symbol.Parameters);
-                Assert.Equal("string", symbol.Parameters[0].Type.ToDisplayString());
+                symbol.Parameters[0].Type.ToDisplayString().ShouldBe("string");
             }
             finally
             {
@@ -117,9 +118,9 @@ public class SymbolLocatorDecision
 
                 var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                     SymbolLocator.FindMethodBySpecAsync(solution, "TestApp.Service.Foo"));
-                Assert.Contains("Invalid choice", ex.Message);
-                Assert.Contains("99", ex.Message);
-                Assert.Contains("0-1", ex.Message);
+                ex.Message.ShouldContain("Invalid choice", Case.Sensitive);
+                ex.Message.ShouldContain("99", Case.Sensitive);
+                ex.Message.ShouldContain("0-1", Case.Sensitive);
             }
             finally
             {
@@ -151,9 +152,9 @@ public class SymbolLocatorDecision
             {
                 var symbol = await SymbolLocator.FindMethodBySpecAsync(solution, "TestApp.Service.OnlyFoo");
 
-                Assert.NotNull(symbol);
-                Assert.Equal("OnlyFoo", symbol.Name);
-                Assert.False(store.AnyPending);
+                symbol.ShouldNotBeNull();
+                symbol.Name.ShouldBe("OnlyFoo");
+                store.AnyPending.ShouldBeFalse();
             }
             finally
             {

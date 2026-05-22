@@ -1,4 +1,5 @@
 using RoslynTools.Services;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -26,12 +27,12 @@ public class ImportDirective
             var globals = await new ImportDirectiveService().AnalyzeAsync(solution, "global");
             var statics = await new ImportDirectiveService().AnalyzeAsync(solution, "static");
 
-            Assert.Contains(all, i => i.Kind == "global" && i.Name == "System");
-            Assert.Contains(all, i => i.Kind == "global-static" && i.Name == "System.Math");
-            Assert.Contains(all, i => i.Kind == "static" && i.Name == "System.Console");
-            Assert.Contains(all, i => i.Kind == "alias" && i.Alias == "Alias");
-            Assert.Equal(2, globals.Count);
-            Assert.Equal(2, statics.Count);
+            all.ShouldContain(i => i.Kind == "global" && i.Name == "System");
+            all.ShouldContain(i => i.Kind == "global-static" && i.Name == "System.Math");
+            all.ShouldContain(i => i.Kind == "static" && i.Name == "System.Console");
+            all.ShouldContain(i => i.Kind == "alias" && i.Alias == "Alias");
+            globals.Count.ShouldBe(2);
+            statics.Count.ShouldBe(2);
         }
     }
 
@@ -52,7 +53,7 @@ public class ImportDirective
             var globals = await new ImportDirectiveService().AnalyzeAsync(solution, "global");
 
             var only = Assert.Single(globals);
-            Assert.Equal("Xunit", only.Name);
+            only.Name.ShouldBe("Xunit");
         }
     }
 
@@ -74,7 +75,7 @@ public class ImportDirective
             var globals = await new ImportDirectiveService().AnalyzeAsync(solution, "global");
 
             var only = Assert.Single(globals);
-            Assert.Equal("Xunit", only.Name);
+            only.Name.ShouldBe("Xunit");
         }
     }
 
@@ -96,7 +97,7 @@ public class ImportDirective
             var globals = await new ImportDirectiveService().AnalyzeAsync(solution, "global");
 
             var only = Assert.Single(globals);
-            Assert.Equal("Xunit", only.Name);
+            only.Name.ShouldBe("Xunit");
         }
     }
 
@@ -122,7 +123,7 @@ public class ImportDirective
         }
 
         var content = await project.ReadSourceAsync("App.cs");
-        Assert.Contains("using static System.Console;", content);
+        content.ShouldContain("using static System.Console;", Case.Sensitive);
     }
 
     [Fact]
@@ -145,7 +146,7 @@ public class ImportDirective
         }
 
         var content = await project.ReadSourceAsync("GlobalUsings.cs");
-        Assert.Contains("global using System.Text;", content);
+        content.ShouldContain("global using System.Text;", Case.Sensitive);
     }
 
     [Fact]
@@ -175,8 +176,8 @@ public class ImportDirective
         }
 
         var content = await project.ReadSourceAsync("GlobalUsings.cs");
-        Assert.Equal(1, CountOccurrences(content, "global using System;"));
-        Assert.Equal(1, CountOccurrences(content, "using static System.Console;"));
+        CountOccurrences(content, "global using System;").ShouldBe(1);
+        CountOccurrences(content, "using static System.Console;").ShouldBe(1);
     }
 
     private static int CountOccurrences(string text, string pattern)

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using RoslynTools.Core;
 using RoslynTools.Services;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -36,8 +37,8 @@ public class ReplaceType
 
         var content = await project.ReadSourceAsync("MyService.cs");
 
-        Assert.Equal(2, CountOccurrences(content, "TimeProvider timeProvider"));
-        Assert.Equal(2, CountOccurrences(content, "_timeProvider = timeProvider;"));
+        CountOccurrences(content, "TimeProvider timeProvider").ShouldBe(2);
+        CountOccurrences(content, "_timeProvider = timeProvider;").ShouldBe(2);
     }
 
     [Fact]
@@ -61,9 +62,9 @@ public class ReplaceType
 
         var content = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "Clock.cs");
 
-        Assert.Contains("_timeProvider.GetLocalNow().DateTime", content);
-        Assert.Contains("private readonly TimeProvider _timeProvider;", content);
-        Assert.Contains("public Clock(TimeProvider timeProvider)", content);
+        content.ShouldContain("_timeProvider.GetLocalNow().DateTime", Case.Sensitive);
+        content.ShouldContain("private readonly TimeProvider _timeProvider;", Case.Sensitive);
+        content.ShouldContain("public Clock(TimeProvider timeProvider)", Case.Sensitive);
     }
 
     [Fact]
@@ -85,7 +86,7 @@ public class ReplaceType
         await new ReplaceTypeService(NullLogger<ReplaceTypeService>.Instance, writer)
             .RunAsync(solution, false);
 
-        Assert.Null(writer.Solution);
+        writer.Solution.ShouldBeNull();
     }
 
     [Fact]
@@ -109,9 +110,9 @@ public class ReplaceType
 
         var content = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "Clock.cs");
 
-        Assert.Contains("_timeProvider.GetUtcNow().UtcDateTime", content);
-        Assert.DoesNotContain("private readonly TimeProvider _timeProvider;", content);
-        Assert.DoesNotContain("Clock(TimeProvider timeProvider)", content);
+        content.ShouldContain("_timeProvider.GetUtcNow().UtcDateTime", Case.Sensitive);
+        content.ShouldNotContain("private readonly TimeProvider _timeProvider;", Case.Sensitive);
+        content.ShouldNotContain("Clock(TimeProvider timeProvider)", Case.Sensitive);
     }
 
     [Fact]
@@ -142,9 +143,9 @@ public class ReplaceType
 
         var content = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "Clock.cs");
 
-        Assert.Contains("_timeProvider.GetUtcNow().UtcDateTime", content);
-        Assert.Equal(1, CountOccurrences(content, "private readonly TimeProvider _timeProvider;"));
-        Assert.Equal(1, CountOccurrences(content, "TimeProvider timeProvider"));
+        content.ShouldContain("_timeProvider.GetUtcNow().UtcDateTime", Case.Sensitive);
+        CountOccurrences(content, "private readonly TimeProvider _timeProvider;").ShouldBe(1);
+        CountOccurrences(content, "TimeProvider timeProvider").ShouldBe(1);
     }
 
     private static int CountOccurrences(string text, string pattern)

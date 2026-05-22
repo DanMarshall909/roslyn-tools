@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Tests.Infrastructure;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -58,9 +59,9 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
         }
 
         var content = await proj.ReadSourceAsync("OrderService.cs");
-        Assert.Contains("ArgumentNullException.ThrowIfNull(name)", content);
-        Assert.DoesNotContain("ThrowIfNull(count)", content); // int is value type
-        Assert.DoesNotContain("ThrowIfNull(tag)", content); // object? is annotated nullable
+        content.ShouldContain("ArgumentNullException.ThrowIfNull(name)", Case.Sensitive);
+        content.ShouldNotContain("ThrowIfNull(count)", Case.Sensitive); // int is value type
+        content.ShouldNotContain("ThrowIfNull(tag)", Case.Sensitive); // object? is annotated nullable
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -117,7 +118,7 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
         var count = Regex
             .Matches(content, @"ThrowIfNull\(name\)")
             .Count;
-        Assert.Equal(1, count);
+        count.ShouldBe(1);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -137,7 +138,7 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
         }
 
         var content = await proj.ReadSourceAsync("OrderService.cs");
-        Assert.DoesNotContain("ThrowIfNull", content);
+        content.ShouldNotContain("ThrowIfNull", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -159,7 +160,7 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
         }
 
         var after = await proj.ReadSourceAsync("OrderService.cs");
-        Assert.Equal(before, after);
+        after.ShouldBe(before);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -187,8 +188,8 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
 
         var after = await proj.ReadSourceAsync("OrderService.cs");
         // No ThrowIfNull inserted into an expression-bodied method
-        Assert.DoesNotContain("ThrowIfNull", after);
-        Assert.Equal(before, after);
+        after.ShouldNotContain("ThrowIfNull", Case.Sensitive);
+        after.ShouldBe(before);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -216,7 +217,7 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
         }
 
         var content = await proj.ReadSourceAsync("OrderService.cs");
-        Assert.DoesNotContain("ThrowIfNull(name)", content);
+        content.ShouldNotContain("ThrowIfNull(name)", Case.Sensitive);
     }
 
     [Fact]
@@ -240,7 +241,7 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
         }
 
         var content = await proj.ReadSourceAsync("OrderService.cs");
-        Assert.DoesNotContain("ThrowIfNull(name)", content);
+        content.ShouldNotContain("ThrowIfNull(name)", Case.Sensitive);
     }
 
     [Fact]
@@ -264,7 +265,7 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
         }
 
         var content = await proj.ReadSourceAsync("OrderService.cs");
-        Assert.DoesNotContain("ThrowIfNull(name)", content);
+        content.ShouldNotContain("ThrowIfNull(name)", Case.Sensitive);
     }
 
     [Fact]
@@ -288,7 +289,7 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
         }
 
         var content = await proj.ReadSourceAsync("OrderService.cs");
-        Assert.DoesNotContain("ThrowIfNull(name)", content);
+        content.ShouldNotContain("ThrowIfNull(name)", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────

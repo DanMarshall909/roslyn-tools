@@ -6,6 +6,7 @@ using RoslynTools.Core.Output;
 using RoslynTools.Models;
 using RoslynTools.Services;
 using RoslynTools.Tests.Infrastructure;
+using Shouldly;
 
 namespace RoslynTools.Tests.Analysis;
 
@@ -38,26 +39,20 @@ public sealed class AnalyzeInterface : IClassFixture<RtServicesFixture>, IDispos
                 new AnalyzeInterfaceOptions());
 
             var runAndNameConsumer = FindConsumer(report, "Demo.App.RunAndNameConsumer");
-            Assert.Equal("members", runAndNameConsumer.UsageKind);
-            Assert.Equal(
-                [
+            runAndNameConsumer.UsageKind.ShouldBe("members");
+            runAndNameConsumer.UsedMembers.Select(m => m.DisplayName).ToArray().ShouldBe([
                     "string Demo.Contracts.IWorker.Name { get; }",
                     "void Demo.Contracts.IWorker.Run()"
-                ],
-                runAndNameConsumer.UsedMembers.Select(m => m.DisplayName).ToArray());
+                ]);
 
             var stopAndEventConsumer = FindConsumer(report, "Demo.App.StopAndEventConsumer");
-            Assert.Equal(
-                [
+            stopAndEventConsumer.UsedMembers.Select(m => m.DisplayName).ToArray().ShouldBe([
                     "event System.EventHandler? Demo.Contracts.IWorker.Changed",
                     "void Demo.Contracts.IWorker.Stop()"
-                ],
-                stopAndEventConsumer.UsedMembers.Select(m => m.DisplayName).ToArray());
+                ]);
 
             var localVariableConsumer = FindConsumer(report, "Demo.App.LocalVariableConsumer");
-            Assert.Equal(
-                ["void Demo.Contracts.IWorker.Stop()"],
-                localVariableConsumer.UsedMembers.Select(m => m.DisplayName).ToArray());
+            localVariableConsumer.UsedMembers.Select(m => m.DisplayName).ToArray().ShouldBe(["void Demo.Contracts.IWorker.Stop()"]);
         }
     }
 
@@ -75,8 +70,8 @@ public sealed class AnalyzeInterface : IClassFixture<RtServicesFixture>, IDispos
                 new AnalyzeInterfaceOptions());
 
             var consumer = FindConsumer(report, "Demo.App.ZeroMemberConsumer");
-            Assert.Equal("type-only", consumer.UsageKind);
-            Assert.Empty(consumer.UsedMembers);
+            consumer.UsageKind.ShouldBe("type-only");
+            consumer.UsedMembers.ShouldBeEmpty();
         }
     }
 
@@ -94,12 +89,12 @@ public sealed class AnalyzeInterface : IClassFixture<RtServicesFixture>, IDispos
                 new AnalyzeInterfaceOptions());
 
             var propertyConsumer = FindConsumer(report, "Demo.App.TypeOnlyPropertyConsumer");
-            Assert.Equal("type-only", propertyConsumer.UsageKind);
-            Assert.Empty(propertyConsumer.UsedMembers);
+            propertyConsumer.UsageKind.ShouldBe("type-only");
+            propertyConsumer.UsedMembers.ShouldBeEmpty();
 
             var localConsumer = FindConsumer(report, "Demo.App.LocalTypeOnlyConsumer");
-            Assert.Equal("type-only", localConsumer.UsageKind);
-            Assert.Empty(localConsumer.UsedMembers);
+            localConsumer.UsageKind.ShouldBe("type-only");
+            localConsumer.UsedMembers.ShouldBeEmpty();
         }
     }
 
@@ -117,11 +112,9 @@ public sealed class AnalyzeInterface : IClassFixture<RtServicesFixture>, IDispos
                 new AnalyzeInterfaceOptions());
 
             var consumer = FindConsumer(report, "Demo.App.CrossFileConsumer");
-            Assert.Equal("members", consumer.UsageKind);
-            Assert.Equal(["CrossFileConsumer.Fields.cs", "CrossFileConsumer.Use.cs"], consumer.Documents);
-            Assert.Equal(
-                ["void Demo.Contracts.IWorker.Run()"],
-                consumer.UsedMembers.Select(m => m.DisplayName).ToArray());
+            consumer.UsageKind.ShouldBe("members");
+            consumer.Documents.ShouldBe(["CrossFileConsumer.Fields.cs", "CrossFileConsumer.Use.cs"]);
+            consumer.UsedMembers.Select(m => m.DisplayName).ToArray().ShouldBe(["void Demo.Contracts.IWorker.Run()"]);
         }
     }
 
@@ -138,10 +131,8 @@ public sealed class AnalyzeInterface : IClassFixture<RtServicesFixture>, IDispos
                 "Demo.Contracts.IWorker",
                 new AnalyzeInterfaceOptions());
 
-            Assert.DoesNotContain(report.Consumers,
-                consumer => consumer.ConsumerDisplayName == "Demo.App.NameofOnlyConsumer");
-            Assert.DoesNotContain(report.Consumers,
-                consumer => consumer.ConsumerDisplayName == "Demo.App.SameNameConcreteConsumer");
+            report.Consumers.ShouldNotContain(consumer => consumer.ConsumerDisplayName == "Demo.App.NameofOnlyConsumer");
+            report.Consumers.ShouldNotContain(consumer => consumer.ConsumerDisplayName == "Demo.App.SameNameConcreteConsumer");
         }
     }
 
@@ -158,10 +149,8 @@ public sealed class AnalyzeInterface : IClassFixture<RtServicesFixture>, IDispos
                 "Demo.Contracts.IWorker",
                 new AnalyzeInterfaceOptions("Demo.App"));
 
-            Assert.DoesNotContain(report.Consumers,
-                consumer => consumer.ConsumerDisplayName == "Demo.Other.ScopedOutConsumer");
-            Assert.Contains(report.Consumers,
-                consumer => consumer.ConsumerDisplayName == "Demo.App.RunAndNameConsumer");
+            report.Consumers.ShouldNotContain(consumer => consumer.ConsumerDisplayName == "Demo.Other.ScopedOutConsumer");
+            report.Consumers.ShouldContain(consumer => consumer.ConsumerDisplayName == "Demo.App.RunAndNameConsumer");
         }
     }
 
@@ -186,21 +175,18 @@ public sealed class AnalyzeInterface : IClassFixture<RtServicesFixture>, IDispos
             using var json = JsonDocument.Parse(output.ToString());
             var root = json.RootElement;
 
-            Assert.Equal("Demo.Contracts.IWorker",
-                root.GetProperty("interface").GetProperty("displayName").GetString());
-            Assert.True(root.GetProperty("consumerCount").GetInt32() >= 1);
+            root.GetProperty("interface").GetProperty("displayName").GetString().ShouldBe("Demo.Contracts.IWorker");
+            (root.GetProperty("consumerCount").GetInt32() >= 1).ShouldBeTrue();
 
             var consumers = root.GetProperty("consumers").EnumerateArray().ToList();
             var runAndName = consumers.Single(c =>
                 c.GetProperty("consumer").GetProperty("displayName").GetString() == "Demo.App.RunAndNameConsumer");
 
-            Assert.Equal("members", runAndName.GetProperty("usageKind").GetString());
-            Assert.Equal(
-                ["string Demo.Contracts.IWorker.Name { get; }", "void Demo.Contracts.IWorker.Run()"],
-                runAndName.GetProperty("usedMembers")
+            runAndName.GetProperty("usageKind").GetString().ShouldBe("members");
+            runAndName.GetProperty("usedMembers")
                     .EnumerateArray()
                     .Select(member => member.GetProperty("displayName").GetString()!)
-                    .ToArray());
+                    .ToArray().ShouldBe(["string Demo.Contracts.IWorker.Name { get; }", "void Demo.Contracts.IWorker.Run()"]);
         }
     }
 
@@ -220,7 +206,7 @@ public sealed class AnalyzeInterface : IClassFixture<RtServicesFixture>, IDispos
                 "ignored"
             ]);
 
-            Assert.NotEqual(0, exitCode);
+            exitCode.ShouldNotBe(0);
             Assert.Contains("is not an interface", stdErr, StringComparison.OrdinalIgnoreCase);
         }
     }
@@ -228,21 +214,21 @@ public sealed class AnalyzeInterface : IClassFixture<RtServicesFixture>, IDispos
     [Fact]
     public void registers_the_command_and_exposes_the_expected_options()
     {
-        Assert.Contains(App.Commands, entry => entry.Info.Name == "analyze-interface");
+        App.Commands.ShouldContain(entry => entry.Info.Name == "analyze-interface");
 
         var command = _services.Resolve<AnalyzeInterfaceCommand>().Build();
 
-        Assert.Contains(command.Arguments, argument => argument.Name == "interface");
-        Assert.Contains(command.Options, option => option.Name == "solution");
-        Assert.Contains(command.Options, option => option.Name == "scope");
-        Assert.Contains(command.Options, option => option.Name == "include-tests");
+        command.Arguments.ShouldContain(argument => argument.Name == "interface");
+        command.Options.ShouldContain(option => option.Name == "solution");
+        command.Options.ShouldContain(option => option.Name == "scope");
+        command.Options.ShouldContain(option => option.Name == "include-tests");
 
         var formats = AnalyzeInterfaceCommand.Info.SupportedFormats;
-        Assert.NotNull(formats);
-        Assert.Contains(OutputFormat.Text, formats);
-        Assert.Contains(OutputFormat.Json, formats);
-        Assert.Contains(OutputFormat.Markdown, formats);
-        Assert.Contains(OutputFormat.Llm, formats);
+        formats.ShouldNotBeNull();
+        formats.ShouldContain(OutputFormat.Text);
+        formats.ShouldContain(OutputFormat.Json);
+        formats.ShouldContain(OutputFormat.Markdown);
+        formats.ShouldContain(OutputFormat.Llm);
     }
 
     // --suggest tests (AC 1–8)
@@ -251,7 +237,7 @@ public sealed class AnalyzeInterface : IClassFixture<RtServicesFixture>, IDispos
     public async Task registers_suggest_flag_on_the_command()
     {
         var command = _services.Resolve<AnalyzeInterfaceCommand>().Build();
-        Assert.Contains(command.Options, option => option.Name == "suggest");
+        command.Options.ShouldContain(option => option.Name == "suggest");
     }
 
     [Fact]
@@ -269,11 +255,9 @@ public sealed class AnalyzeInterface : IClassFixture<RtServicesFixture>, IDispos
 
             // RunAndNameConsumer uses {Name, Run} out of 4 — strict subset
             var consumer = FindConsumer(report, "Demo.App.RunAndNameConsumer");
-            Assert.NotNull(consumer.Suggestion);
-            Assert.True(consumer.Suggestion!.HasNarrowingBenefit);
-            Assert.Equal(
-                ["string Demo.Contracts.IWorker.Name { get; }", "void Demo.Contracts.IWorker.Run()"],
-                consumer.Suggestion.SuggestedMembers.Select(m => m.DisplayName).ToArray());
+            consumer.Suggestion.ShouldNotBeNull();
+            consumer.Suggestion!.HasNarrowingBenefit.ShouldBeTrue();
+            consumer.Suggestion.SuggestedMembers.Select(m => m.DisplayName).ToArray().ShouldBe(["string Demo.Contracts.IWorker.Name { get; }", "void Demo.Contracts.IWorker.Run()"]);
         }
     }
 
@@ -291,10 +275,10 @@ public sealed class AnalyzeInterface : IClassFixture<RtServicesFixture>, IDispos
                 new AnalyzeInterfaceOptions(Suggest: true));
 
             var consumer = FindConsumer(report, "Demo.App.RunAndNameConsumer");
-            Assert.NotNull(consumer.Suggestion);
+            consumer.Suggestion.ShouldNotBeNull();
             var suggestedNames = consumer.Suggestion!.SuggestedMembers.Select(m => m.Name).ToHashSet();
-            Assert.DoesNotContain("Stop", suggestedNames);
-            Assert.DoesNotContain("Changed", suggestedNames);
+            suggestedNames.ShouldNotContain("Stop");
+            suggestedNames.ShouldNotContain("Changed");
         }
     }
 
@@ -314,9 +298,9 @@ public sealed class AnalyzeInterface : IClassFixture<RtServicesFixture>, IDispos
             var a = FindConsumer(report, "Suggest.App.ConsumerA");
             var b = FindConsumer(report, "Suggest.App.ConsumerB");
 
-            Assert.NotNull(a.Suggestion);
-            Assert.NotNull(b.Suggestion);
-            Assert.Equal(a.Suggestion!.SharedGroupId, b.Suggestion!.SharedGroupId);
+            a.Suggestion.ShouldNotBeNull();
+            b.Suggestion.ShouldNotBeNull();
+            b.Suggestion!.SharedGroupId.ShouldBe(a.Suggestion!.SharedGroupId);
         }
     }
 
@@ -334,8 +318,8 @@ public sealed class AnalyzeInterface : IClassFixture<RtServicesFixture>, IDispos
                 new AnalyzeInterfaceOptions(Suggest: true));
 
             var full = FindConsumer(report, "Suggest.App.FullConsumer");
-            Assert.NotNull(full.Suggestion);
-            Assert.False(full.Suggestion!.HasNarrowingBenefit);
+            full.Suggestion.ShouldNotBeNull();
+            full.Suggestion!.HasNarrowingBenefit.ShouldBeFalse();
         }
     }
 
@@ -353,7 +337,7 @@ public sealed class AnalyzeInterface : IClassFixture<RtServicesFixture>, IDispos
                 new AnalyzeInterfaceOptions(Suggest: false));
 
             var consumer = FindConsumer(report, "Demo.App.RunAndNameConsumer");
-            Assert.Null(consumer.Suggestion);
+            consumer.Suggestion.ShouldBeNull();
         }
     }
 
@@ -382,14 +366,14 @@ public sealed class AnalyzeInterface : IClassFixture<RtServicesFixture>, IDispos
                 c.GetProperty("consumer").GetProperty("displayName").GetString() == "Suggest.App.FullConsumer");
 
             var suggestion = fullEntry.GetProperty("suggestion");
-            Assert.False(suggestion.GetProperty("hasNarrowingBenefit").GetBoolean());
+            suggestion.GetProperty("hasNarrowingBenefit").GetBoolean().ShouldBeFalse();
 
             var subsetEntry = consumers.Single(c =>
                 c.GetProperty("consumer").GetProperty("displayName").GetString() == "Suggest.App.ConsumerA");
 
             var subsetSuggestion = subsetEntry.GetProperty("suggestion");
-            Assert.True(subsetSuggestion.GetProperty("hasNarrowingBenefit").GetBoolean());
-            Assert.True(subsetSuggestion.GetProperty("suggestedMembers").GetArrayLength() > 0);
+            subsetSuggestion.GetProperty("hasNarrowingBenefit").GetBoolean().ShouldBeTrue();
+            (subsetSuggestion.GetProperty("suggestedMembers").GetArrayLength() > 0).ShouldBeTrue();
         }
     }
 

@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis.FindSymbols;
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Tests.Infrastructure;
+using Shouldly;
 
 namespace RoslynTools.Tests.Navigation;
 
@@ -44,12 +45,12 @@ public class FindCallers : IClassFixture<RtServicesFixture>
             var methodSymbol = await RoslynTools.Core.SymbolLocator.FindSymbolAsync(sln, "Greet", "method");
             var callers = await FindInvocationCallersAsync(sln, methodSymbol);
 
-            Assert.Equal(2, callers.Count);
+            callers.Count.ShouldBe(2);
             Assert.All(callers, c =>
             {
-                Assert.NotNull(c.FilePath);
-                Assert.True(c.Line > 0);
-                Assert.Equal("Run", c.ContainingMethod);
+                c.FilePath.ShouldNotBeNull();
+                (c.Line > 0).ShouldBeTrue();
+                c.ContainingMethod.ShouldBe("Run");
             });
         }
     }
@@ -71,7 +72,7 @@ public class FindCallers : IClassFixture<RtServicesFixture>
             var methodSymbol = await RoslynTools.Core.SymbolLocator.FindSymbolAsync(sln, "NeverCalled", "method");
             var callers = await FindInvocationCallersAsync(sln, methodSymbol);
 
-            Assert.Empty(callers);
+            callers.ShouldBeEmpty();
         }
     }
 
@@ -101,7 +102,7 @@ public class FindCallers : IClassFixture<RtServicesFixture>
             var methodSymbol = await RoslynTools.Core.SymbolLocator.FindSymbolAsync(sln, "Greet", "method");
             var callers = await FindInvocationCallersAsync(sln, methodSymbol);
 
-            Assert.Empty(callers);
+            callers.ShouldBeEmpty();
         }
     }
 

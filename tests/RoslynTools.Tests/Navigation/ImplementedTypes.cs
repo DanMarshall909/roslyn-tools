@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
 using RoslynTools.Services;
+using Shouldly;
 
 namespace RoslynTools.Tests.Navigation;
 
@@ -33,21 +34,21 @@ public sealed class ImplementedTypes
         {
             var symbol = await SymbolLocator.FindSymbolByFqnAsync(solution, "App.IWorker", "type");
             var results = await new FindImplementationsService()
-                .FindAsync(solution, Assert.IsAssignableFrom<INamedTypeSymbol>(symbol));
+                .FindAsync(solution, symbol.ShouldBeAssignableTo<INamedTypeSymbol>()!);
 
             var worker = Assert.Single(results);
-            var directInterfaces = Assert.IsAssignableFrom<List<string>>(worker["directInterfaces"]);
-            var locations = Assert.IsAssignableFrom<List<Dictionary<string, object?>>>(worker["locations"]);
+            var directInterfaces = worker["directInterfaces"].ShouldBeAssignableTo<List<string>>()!;
+            var locations = worker["locations"].ShouldBeAssignableTo<List<Dictionary<string, object?>>>()!;
 
-            Assert.Equal("ConcreteWorker", worker["name"]);
-            Assert.Equal("App.ConcreteWorker", worker["fqn"]);
-            Assert.Equal("Class", worker["typeKind"]);
-            Assert.Equal("Public", worker["accessibility"]);
-            Assert.Equal(false, worker["isAbstract"]);
-            Assert.Equal("TestProject", worker["project"]);
-            Assert.Contains("App.IWorker", directInterfaces);
-            Assert.Equal("App.WorkerBase", worker["baseType"]);
-            Assert.NotEmpty(locations);
+            worker["name"].ShouldBe("ConcreteWorker");
+            worker["fqn"].ShouldBe("App.ConcreteWorker");
+            worker["typeKind"].ShouldBe("Class");
+            worker["accessibility"].ShouldBe("Public");
+            worker["isAbstract"].ShouldBe(false);
+            worker["project"].ShouldBe("TestProject");
+            directInterfaces.ShouldContain("App.IWorker");
+            worker["baseType"].ShouldBe("App.WorkerBase");
+            locations.ShouldNotBeEmpty();
         }
     }
 
@@ -74,14 +75,14 @@ public sealed class ImplementedTypes
         {
             var symbol = await SymbolLocator.FindSymbolByFqnAsync(solution, "App.Handler", "type");
             var results = await new FindImplementationsService()
-                .FindAsync(solution, Assert.IsAssignableFrom<INamedTypeSymbol>(symbol));
+                .FindAsync(solution, symbol.ShouldBeAssignableTo<INamedTypeSymbol>()!);
 
             var handler = Assert.Single(results);
 
-            Assert.Equal("CreateHandler", handler["name"]);
-            Assert.Equal("App.CreateHandler", handler["fqn"]);
-            Assert.Equal("Class", handler["typeKind"]);
-            Assert.Equal(false, handler["isAbstract"]);
+            handler["name"].ShouldBe("CreateHandler");
+            handler["fqn"].ShouldBe("App.CreateHandler");
+            handler["typeKind"].ShouldBe("Class");
+            handler["isAbstract"].ShouldBe(false);
         }
     }
 
@@ -102,9 +103,9 @@ public sealed class ImplementedTypes
         {
             var symbol = await SymbolLocator.FindSymbolByFqnAsync(solution, "App.Worker", "type");
             var results = await new FindImplementationsService()
-                .FindAsync(solution, Assert.IsAssignableFrom<INamedTypeSymbol>(symbol));
+                .FindAsync(solution, symbol.ShouldBeAssignableTo<INamedTypeSymbol>()!);
 
-            Assert.Empty(results);
+            results.ShouldBeEmpty();
         }
     }
 }

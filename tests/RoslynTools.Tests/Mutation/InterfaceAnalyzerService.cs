@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
 using RoslynTools.Services;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -46,15 +47,15 @@ public sealed class InterfaceAnalyzerService
             consumerSymbol ??= compilation.GetTypeByMetadataName("MyApp.SenderOnly");
         }
 
-        Assert.NotNull(interfaceSymbol);
-        Assert.NotNull(consumerSymbol);
+        interfaceSymbol.ShouldNotBeNull();
+        consumerSymbol.ShouldNotBeNull();
 
         var used = await new Services.InterfaceAnalyzerService().GetUsedMembersAsync(sln, consumerSymbol,
             interfaceSymbol);
 
-        Assert.Contains("Send", used);
-        Assert.DoesNotContain("Receive", used);
-        Assert.DoesNotContain("Delete", used);
+        used.ShouldContain("Send");
+        used.ShouldNotContain("Receive");
+        used.ShouldNotContain("Delete");
     }
 
     // -------------------------------------------------------------------------
@@ -83,14 +84,14 @@ public sealed class InterfaceAnalyzerService
             interfaceSymbol ??= compilation.GetTypeByMetadataName("MyApp.IWideFacade");
         }
 
-        Assert.NotNull(interfaceSymbol);
+        interfaceSymbol.ShouldNotBeNull();
 
         var sendMember = interfaceSymbol.GetMembers("Send").First();
         var text = InterfaceTextBuilder.BuildInterfaceText("MyApp", "ISender", [sendMember]);
 
-        Assert.Contains("ISender", text);
-        Assert.Contains("Send", text);
-        Assert.DoesNotContain("Receive", text);
+        text.ShouldContain("ISender", Case.Sensitive);
+        text.ShouldContain("Send", Case.Sensitive);
+        text.ShouldNotContain("Receive", Case.Sensitive);
     }
 
     [Fact]
@@ -143,9 +144,9 @@ public sealed class InterfaceAnalyzerService
             var used = await new Services.InterfaceAnalyzerService()
                 .GetUsedMembersAsync(sln, consumerSymbol, interfaceSymbol);
 
-            Assert.Contains("Count", used);
-            Assert.Contains("Changed", used);
-            Assert.DoesNotContain("Reset", used);
+            used.ShouldContain("Count");
+            used.ShouldContain("Changed");
+            used.ShouldNotContain("Reset");
         }
     }
 
@@ -171,17 +172,17 @@ public sealed class InterfaceAnalyzerService
             var interfaceSymbol = await GetTypeAsync(sln, "MyApp.IWidgetEvents");
             var text = InterfaceTextBuilder.BuildInterfaceText("", "INarrowWidgetEvents", interfaceSymbol.GetMembers().ToList());
 
-            Assert.DoesNotContain("namespace", text);
-            Assert.Contains("public interface INarrowWidgetEvents", text);
-            Assert.Contains("string Format(int id, string name);", text);
-            Assert.Contains("int Count { get; set; }", text);
-            Assert.Contains("event EventHandler Changed;", text);
+            text.ShouldNotContain("namespace", Case.Sensitive);
+            text.ShouldContain("public interface INarrowWidgetEvents", Case.Sensitive);
+            text.ShouldContain("string Format(int id, string name);", Case.Sensitive);
+            text.ShouldContain("int Count { get; set; }", Case.Sensitive);
+            text.ShouldContain("event EventHandler Changed;", Case.Sensitive);
         }
     }
 
     private static async Task<INamedTypeSymbol> GetTypeAsync(Solution solution, string metadataName)
     {
         var compilation = await solution.Projects.Single().GetCompilationAsync();
-        return Assert.IsAssignableFrom<INamedTypeSymbol>(compilation!.GetTypeByMetadataName(metadataName));
+        return compilation!.GetTypeByMetadataName(metadataName).ShouldBeAssignableTo<INamedTypeSymbol>()!;
     }
 }

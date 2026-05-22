@@ -2,6 +2,7 @@ using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Services;
 using RoslynTools.Tests.Infrastructure;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -48,9 +49,9 @@ public class AddDependency : IClassFixture<RtServicesFixture>
 
         var content = await proj.ReadSourceAsync("AgentService.cs");
 
-        Assert.Contains("private readonly IEmailService _emailService", content);
-        Assert.Contains("IEmailService emailService", content);
-        Assert.Contains("_emailService = emailService;", content);
+        content.ShouldContain("private readonly IEmailService _emailService", Case.Sensitive);
+        content.ShouldContain("IEmailService emailService", Case.Sensitive);
+        content.ShouldContain("_emailService = emailService;", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -91,10 +92,10 @@ public class AddDependency : IClassFixture<RtServicesFixture>
 
         var content = await proj.ReadSourceAsync("AgentService.cs");
 
-        Assert.Contains("private readonly IEmailService _mailer", content);
-        Assert.Contains("IEmailService mailer", content);
-        Assert.Contains("_mailer = mailer;", content);
-        Assert.DoesNotContain("_emailService", content);
+        content.ShouldContain("private readonly IEmailService _mailer", Case.Sensitive);
+        content.ShouldContain("IEmailService mailer", Case.Sensitive);
+        content.ShouldContain("_mailer = mailer;", Case.Sensitive);
+        content.ShouldNotContain("_emailService", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -135,9 +136,9 @@ public class AddDependency : IClassFixture<RtServicesFixture>
 
         var content = await proj.ReadSourceAsync("NoCtor.cs");
 
-        Assert.Contains("private readonly ILogService _logService", content);
-        Assert.Contains("public NoCtor(ILogService logService)", content);
-        Assert.Contains("_logService = logService;", content);
+        content.ShouldContain("private readonly ILogService _logService", Case.Sensitive);
+        content.ShouldContain("public NoCtor(ILogService logService)", Case.Sensitive);
+        content.ShouldContain("_logService = logService;", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -179,6 +180,6 @@ public class AddDependency : IClassFixture<RtServicesFixture>
         }
 
         var afterContent = await proj.ReadSourceAsync("AgentService.cs");
-        Assert.Equal(originalContent, afterContent);
+        afterContent.ShouldBe(originalContent);
     }
 }

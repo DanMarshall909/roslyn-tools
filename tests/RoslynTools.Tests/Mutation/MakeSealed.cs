@@ -2,6 +2,7 @@ using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Services;
 using RoslynTools.Tests.Infrastructure;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -35,7 +36,7 @@ public class MakeSealed : IClassFixture<RtServicesFixture>
         }
 
         var content = await proj.ReadSourceAsync("Types.cs");
-        Assert.Contains("sealed class Standalone", content);
+        content.ShouldContain("sealed class Standalone", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -54,7 +55,7 @@ public class MakeSealed : IClassFixture<RtServicesFixture>
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 _services.Resolve<MakeSealedCommand>().ExecuteAsync("Animal", "ignored", false));
 
-            Assert.Contains("Dog", ex.Message);
+            ex.Message.ShouldContain("Dog", Case.Sensitive);
         }
     }
 
@@ -78,7 +79,7 @@ public class MakeSealed : IClassFixture<RtServicesFixture>
         }
 
         var after = await proj.ReadSourceAsync("Types.cs");
-        Assert.Equal(before, after);
+        after.ShouldBe(before);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -100,7 +101,7 @@ public class MakeSealed : IClassFixture<RtServicesFixture>
         }
 
         var after = await proj.ReadSourceAsync("Types.cs");
-        Assert.Equal(before, after);
+        after.ShouldBe(before);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -122,7 +123,7 @@ public class MakeSealed : IClassFixture<RtServicesFixture>
         }
 
         var after = await proj.ReadSourceAsync("Types.cs");
-        Assert.Equal(before, after);
+        after.ShouldBe(before);
     }
 
     [Fact]
@@ -135,6 +136,6 @@ public class MakeSealed : IClassFixture<RtServicesFixture>
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             _services.Resolve<MakeSealedService>().RunAsync(sln, "Missing", false));
 
-        Assert.Contains("Class 'Missing' not found", exception.Message);
+        exception.Message.ShouldContain("Class 'Missing' not found", Case.Sensitive);
     }
 }

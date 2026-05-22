@@ -1,6 +1,7 @@
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Tests.Infrastructure;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -46,8 +47,8 @@ public class MakeAsync : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("AgentService.cs");
-        Assert.Contains("GetAgentAsync", content);
-        Assert.DoesNotContain("public string GetAgent(", content);
+        content.ShouldContain("GetAgentAsync", Case.Sensitive);
+        content.ShouldNotContain("public string GetAgent(", Case.Sensitive);
     }
 
     [Fact]
@@ -63,8 +64,8 @@ public class MakeAsync : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("AgentService.cs");
-        Assert.Contains("Task<string>", content);
-        Assert.Contains("GetAgentAsync", content);
+        content.ShouldContain("Task<string>", Case.Sensitive);
+        content.ShouldContain("GetAgentAsync", Case.Sensitive);
     }
 
     [Fact]
@@ -96,7 +97,7 @@ public class MakeAsync : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("AgentService.cs");
-        Assert.Contains("await _svc.GetAgentAsync(", content);
+        content.ShouldContain("await _svc.GetAgentAsync(", Case.Sensitive);
     }
 
     [Fact]
@@ -114,7 +115,7 @@ public class MakeAsync : IClassFixture<RtServicesFixture>
         }
 
         var afterContent = await project.ReadSourceAsync("AgentService.cs");
-        Assert.Equal(originalContent, afterContent);
+        afterContent.ShouldBe(originalContent);
     }
 
     [Fact]
@@ -130,10 +131,10 @@ public class MakeAsync : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("AgentService.cs");
-        Assert.Contains("async", content);
-        Assert.DoesNotContain("GetAgentAsync", content);
+        content.ShouldContain("async", Case.Sensitive);
+        content.ShouldNotContain("GetAgentAsync", Case.Sensitive);
         // Call sites keep the original name
-        Assert.Contains("_svc.GetAgent(", content);
+        content.ShouldContain("_svc.GetAgent(", Case.Sensitive);
     }
 
     [Fact]
@@ -154,8 +155,8 @@ public class MakeAsync : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("Svc.cs");
-        Assert.Contains("async Task SendAsync", content);
-        Assert.DoesNotContain("Task<void>", content);
+        content.ShouldContain("async Task SendAsync", Case.Sensitive);
+        content.ShouldNotContain("Task<void>", Case.Sensitive);
     }
 
     [Fact]
@@ -172,7 +173,7 @@ public class MakeAsync : IClassFixture<RtServicesFixture>
 
         var content = await project.ReadSourceAsync("AgentService.cs");
         // UseAgent was void non-async; it must be promoted to async Task
-        Assert.Contains("async Task UseAgent()", content);
+        content.ShouldContain("async Task UseAgent()", Case.Sensitive);
     }
 
     [Fact]
@@ -208,7 +209,7 @@ public class MakeAsync : IClassFixture<RtServicesFixture>
         var content = await project.ReadSourceAsync("Svc.cs");
         // The call inside Task.FromResult is not a direct invocation of Run that returns Task,
         // so there should be no doubled-up await on the Run call itself
-        Assert.DoesNotContain("await await", content);
+        content.ShouldNotContain("await await", Case.Sensitive);
     }
 
     [Fact]
@@ -242,8 +243,8 @@ public class MakeAsync : IClassFixture<RtServicesFixture>
 
         var content = await project.ReadSourceAsync("Svc.cs");
         // Run already returned Task — promotion must not produce Task<Task>
-        Assert.DoesNotContain("Task<Task>", content);
-        Assert.Contains("async Task", content);
+        content.ShouldNotContain("Task<Task>", Case.Sensitive);
+        content.ShouldContain("async Task", Case.Sensitive);
     }
 
     [Fact]

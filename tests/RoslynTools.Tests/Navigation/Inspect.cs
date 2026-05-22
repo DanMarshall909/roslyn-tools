@@ -1,5 +1,6 @@
 using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
+using Shouldly;
 
 namespace RoslynTools.Tests.Navigation;
 
@@ -32,22 +33,22 @@ public class Inspect
         using (workspace)
         {
             var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.Customer", "type");
-            Assert.Equal("Customer", sym.Name);
+            sym.Name.ShouldBe("Customer");
 
             // Verify it's a named type with expected members
-            var namedType = Assert.IsAssignableFrom<INamedTypeSymbol>(sym);
-            Assert.Equal("BaseEntity", namedType.BaseType?.Name);
+            var namedType = sym.ShouldBeAssignableTo<INamedTypeSymbol>()!;
+            (namedType.BaseType?.Name).ShouldBe("BaseEntity");
 
             var memberNames = namedType.GetMembers()
                 .Where(m => !m.IsImplicitlyDeclared)
                 .Select(m => m.Name)
                 .ToList();
 
-            Assert.Contains("Name", memberNames);
-            Assert.Contains("Email", memberNames);
-            Assert.Contains("IsActive", memberNames);
-            Assert.Contains("Activate", memberNames);
-            Assert.Contains("Create", memberNames);
+            memberNames.ShouldContain("Name");
+            memberNames.ShouldContain("Email");
+            memberNames.ShouldContain("IsActive");
+            memberNames.ShouldContain("Activate");
+            memberNames.ShouldContain("Create");
         }
     }
 
@@ -79,11 +80,11 @@ public class Inspect
         using (workspace)
         {
             var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.MyService", "type");
-            var namedType = Assert.IsAssignableFrom<INamedTypeSymbol>(sym);
+            var namedType = sym.ShouldBeAssignableTo<INamedTypeSymbol>()!;
 
             var ifaceNames = namedType.Interfaces.Select(i => i.Name).ToList();
-            Assert.Contains("IService", ifaceNames);
-            Assert.Contains("ILoggable", ifaceNames);
+            ifaceNames.ShouldContain("IService");
+            ifaceNames.ShouldContain("ILoggable");
         }
     }
 
@@ -105,12 +106,12 @@ public class Inspect
         using (workspace)
         {
             var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.Calculator.Add", "method");
-            var method = Assert.IsAssignableFrom<IMethodSymbol>(sym);
+            var method = sym.ShouldBeAssignableTo<IMethodSymbol>()!;
 
-            Assert.Equal("int", method.ReturnType.ToDisplayString());
-            Assert.Equal(2, method.Parameters.Length);
-            Assert.Equal("a", method.Parameters[0].Name);
-            Assert.Equal("b", method.Parameters[1].Name);
+            method.ReturnType.ToDisplayString().ShouldBe("int");
+            method.Parameters.Length.ShouldBe(2);
+            method.Parameters[0].Name.ShouldBe("a");
+            method.Parameters[1].Name.ShouldBe("b");
         }
     }
 
@@ -133,14 +134,14 @@ public class Inspect
         using (workspace)
         {
             var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.Config.Name", "property");
-            var prop = Assert.IsAssignableFrom<IPropertySymbol>(sym);
-            Assert.NotNull(prop.GetMethod);
-            Assert.NotNull(prop.SetMethod);
+            var prop = sym.ShouldBeAssignableTo<IPropertySymbol>()!;
+            prop.GetMethod.ShouldNotBeNull();
+            prop.SetMethod.ShouldNotBeNull();
 
             var readOnly = await SymbolLocator.FindSymbolByFqnAsync(sln, "TestApp.Config.MaxRetries", "property");
-            var readOnlyProp = Assert.IsAssignableFrom<IPropertySymbol>(readOnly);
-            Assert.NotNull(readOnlyProp.GetMethod);
-            Assert.Null(readOnlyProp.SetMethod);
+            var readOnlyProp = readOnly.ShouldBeAssignableTo<IPropertySymbol>()!;
+            readOnlyProp.GetMethod.ShouldNotBeNull();
+            readOnlyProp.SetMethod.ShouldBeNull();
         }
     }
 }

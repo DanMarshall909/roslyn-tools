@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
 using RoslynTools.Services;
+using Shouldly;
 
 namespace RoslynTools.Tests.Navigation;
 
@@ -25,19 +26,17 @@ public sealed class InspectedSymbols
         using (workspace)
         {
             var compilation = await solution.Projects.Single().GetCompilationAsync();
-            var symbol = Assert.IsAssignableFrom<INamedTypeSymbol>(
-                compilation!.GetTypeByMetadataName("TestApp.Repository`1"));
+            var symbol = compilation!.GetTypeByMetadataName("TestApp.Repository`1").ShouldBeAssignableTo<INamedTypeSymbol>()!;
             var result = new InspectService().BuildInspection(symbol, solution);
 
-            var typeParameters = Assert.IsAssignableFrom<List<string>>(result["typeParameters"]);
-            var constructors = Assert.IsAssignableFrom<List<Dictionary<string, object?>>>(result["constructors"]);
+            var typeParameters = result["typeParameters"].ShouldBeAssignableTo<List<string>>()!;
+            var constructors = result["constructors"].ShouldBeAssignableTo<List<Dictionary<string, object?>>>()!;
             var constructor = Assert.Single(constructors);
-            var parameters = Assert.IsAssignableFrom<List<Dictionary<string, object?>>>(constructor["parameters"]);
+            var parameters = constructor["parameters"].ShouldBeAssignableTo<List<Dictionary<string, object?>>>()!;
 
-            Assert.Equal(["TItem"], typeParameters);
-            Assert.Contains("Repository<TItem>.Repository(string name, TItem seed)",
-                constructor["signature"]?.ToString());
-            Assert.Equal(["name", "seed"], parameters.Select(parameter => parameter["name"]).ToArray());
+            typeParameters.ShouldBe(["TItem"]);
+            constructor["signature"]?.ToString()!.ShouldContain("Repository<TItem>.Repository(string name, TItem seed)", Case.Sensitive);
+            parameters.Select(parameter => parameter["name"]).ToArray().ShouldBe(["name", "seed"]);
         }
     }
 }

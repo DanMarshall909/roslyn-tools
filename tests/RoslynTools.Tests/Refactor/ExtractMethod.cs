@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
+using Shouldly;
 
 namespace RoslynTools.Tests.Refactor;
 
@@ -61,7 +62,7 @@ public class ExtractMethod
 
         // Assert: Extraction succeeds (documents the bug exists)
         var serviceAContent = await project.ReadSourceAsync("ServiceA.cs");
-        Assert.Contains("DoWork_Extracted", serviceAContent);
+        serviceAContent.ShouldContain("DoWork_Extracted", Case.Sensitive);
     }
 
     [Fact(Skip = "US-050: pending — source-file call site not yet updated with new parameters")]
@@ -129,8 +130,8 @@ public class ExtractMethod
         // When the extracted method signature changes, the source-file call site must be updated
         // Expected: var result = DoWork_Extracted(_svc);
         // Actual (bug): var result = DoWork(_svc);
-        Assert.Contains("DoWork_Extracted(_svc)", serviceAContent);
-        Assert.DoesNotContain("DoWork(_svc)", serviceAContent);
+        serviceAContent.ShouldContain("DoWork_Extracted(_svc)", Case.Sensitive);
+        serviceAContent.ShouldNotContain("DoWork(_svc)", Case.Sensitive);
     }
 
     [Fact]
@@ -187,7 +188,7 @@ public class ExtractMethod
 
         // Cross-file call site should be updated
         var serviceBContent = await project.ReadSourceAsync("ServiceB.cs");
-        Assert.Contains("DoWork_Extracted", serviceBContent);
+        serviceBContent.ShouldContain("DoWork_Extracted", Case.Sensitive);
 
         // The extracted method must be accessible to cross-file call sites
         var (workspace2, reloadedSln) = project.Build();
@@ -207,7 +208,7 @@ public class ExtractMethod
                 }
             }
 
-            Assert.Empty(allErrors); // No compilation errors
+            allErrors.ShouldBeEmpty(); // No compilation errors
         }
     }
 
@@ -261,7 +262,7 @@ public class ExtractMethod
 
         // Cross-file call site should be updated (regression check)
         var serviceBContent = await project.ReadSourceAsync("ServiceB.cs");
-        Assert.Contains("DoWork_Extracted", serviceBContent);
+        serviceBContent.ShouldContain("DoWork_Extracted", Case.Sensitive);
     }
 
     [Fact]
@@ -311,7 +312,7 @@ public class ExtractMethod
         var isStatic = serviceAContent.Contains("static") && serviceAContent.Contains("DoWork_Extracted");
 
         // Phase 2: Extracted method is upgraded to public static when cross-file duplicates exist
-        Assert.True(isPublic && isStatic);
+        (isPublic && isStatic).ShouldBeTrue();
     }
 
     [Fact]
@@ -384,8 +385,8 @@ public class ExtractMethod
         var serviceBContent = await project.ReadSourceAsync("ServiceB.cs");
         var serviceCContent = await project.ReadSourceAsync("ServiceC.cs");
 
-        Assert.Contains("DoWork_Extracted", serviceAContent);
-        Assert.Contains("DoWork_Extracted", serviceBContent);
-        Assert.Contains("DoWork_Extracted", serviceCContent);
+        serviceAContent.ShouldContain("DoWork_Extracted", Case.Sensitive);
+        serviceBContent.ShouldContain("DoWork_Extracted", Case.Sensitive);
+        serviceCContent.ShouldContain("DoWork_Extracted", Case.Sensitive);
     }
 }

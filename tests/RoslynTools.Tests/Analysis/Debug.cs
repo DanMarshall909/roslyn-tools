@@ -1,4 +1,5 @@
 using RoslynTools.Services;
+using Shouldly;
 
 namespace RoslynTools.Tests.Analysis;
 
@@ -17,10 +18,10 @@ public sealed class Debug
 
         var report = DebugTraceAnalyzerService.Analyze(trace, 1, 100, [], []);
 
-        Assert.Equal(4, report.EventCount);
-        Assert.Equal(["user_message", "model_call", "tool_call", "final_response"], report.Events.Select(e => e.EventType));
-        Assert.Equal("apply_patch", report.Events[2].Tool);
-        Assert.Contains("src/Foo.cs", report.Events[2].Files);
+        report.EventCount.ShouldBe(4);
+        report.Events.Select(e => e.EventType).ShouldBe(["user_message", "model_call", "tool_call", "final_response"]);
+        report.Events[2].Tool.ShouldBe("apply_patch");
+        report.Events[2].Files.ShouldContain("src/Foo.cs");
     }
 
     [Fact]
@@ -35,8 +36,8 @@ public sealed class Debug
         var report = DebugTraceAnalyzerService.Analyze(trace, 1, 100, ["tool:apply_patch"], []);
 
         var hit = Assert.Single(report.BreakpointHits);
-        Assert.Equal(2, hit.EventStep);
-        Assert.True(report.Events[1].BreakpointHit);
+        hit.EventStep.ShouldBe(2);
+        report.Events[1].BreakpointHit.ShouldBeTrue();
     }
 
     [Fact]
@@ -55,7 +56,7 @@ public sealed class Debug
             [],
             ["no-tool:web", "requires-event:model_call", "max-events:1"]);
 
-        Assert.Equal([false, true, false], report.Assertions.Select(a => a.Passed));
+        report.Assertions.Select(a => a.Passed).ShouldBe([false, true, false]);
     }
 
     [Fact]
@@ -72,7 +73,7 @@ public sealed class Debug
         var report = DebugTraceAnalyzerService.Analyze(trace, 2, 100, [], []);
 
         var evt = Assert.Single(report.Events);
-        Assert.Equal("final_response", evt.EventType);
+        evt.EventType.ShouldBe("final_response");
     }
 
     [Fact]
@@ -86,7 +87,7 @@ public sealed class Debug
         var report = DebugTraceAnalyzerService.Analyze(trace, 1, 100, [], []);
 
         var evt = Assert.Single(report.Events);
-        Assert.Equal("final_response", evt.EventType);
+        evt.EventType.ShouldBe("final_response");
     }
 
     [Fact]
@@ -101,9 +102,9 @@ public sealed class Debug
         var report = DebugTraceAnalyzerService.Analyze(trace, 2, 1, [], []);
 
         var evt = Assert.Single(report.Events);
-        Assert.Equal(2, evt.Step);
-        Assert.Equal("200", evt.TraceId);
-        Assert.Equal("tool_call", evt.EventType);
+        evt.Step.ShouldBe(2);
+        evt.TraceId.ShouldBe("200");
+        evt.EventType.ShouldBe("tool_call");
     }
 
     [Fact]
@@ -113,8 +114,8 @@ public sealed class Debug
 
         var report = DebugTraceAnalyzerService.Analyze(trace, 1, 100, [], ["max-events:0"]);
 
-        Assert.Empty(report.Events);
-        Assert.True(Assert.Single(report.Assertions).Passed);
+        report.Events.ShouldBeEmpty();
+        Assert.Single(report.Assertions).Passed.ShouldBeTrue();
     }
 
     [Fact]
@@ -128,14 +129,14 @@ public sealed class Debug
         var report = DebugTraceAnalyzerService.Analyze(trace, 1, 100, [], ["no-tool:"]);
 
         var assertion = Assert.Single(report.Assertions);
-        Assert.False(assertion.Passed);
-        Assert.Contains("unsupported assertion", assertion.Message);
+        assertion.Passed.ShouldBeFalse();
+        assertion.Message.ShouldContain("unsupported assertion", Case.Sensitive);
     }
 
     [Fact]
     public void debug_command_is_registered_for_mcp_bridge()
     {
-        Assert.Contains(App.Commands, command => command.Info.Name == "debug");
+        App.Commands.ShouldContain(command => command.Info.Name == "debug");
     }
 
     [Fact]
@@ -151,8 +152,8 @@ public sealed class Debug
         var report = DebugTraceAnalyzerService.Analyze(trace, 1, 100, ["tool:apply_patch"], [], breakOnly: true);
 
         var evt = Assert.Single(report.Events);
-        Assert.Equal("tool_call", evt.EventType);
-        Assert.True(evt.BreakpointHit);
+        evt.EventType.ShouldBe("tool_call");
+        evt.BreakpointHit.ShouldBeTrue();
     }
 
     [Fact]
@@ -172,8 +173,8 @@ public sealed class Debug
             breakOnly: true);
 
         var evt = Assert.Single(report.Events);
-        Assert.Equal(["src/Foo.cs"], evt.Files);
-        Assert.True(evt.BreakpointHit);
+        evt.Files.ShouldBe(["src/Foo.cs"]);
+        evt.BreakpointHit.ShouldBeTrue();
     }
 
     [Fact]
@@ -193,8 +194,8 @@ public sealed class Debug
             breakOnly: true);
 
         var evt = Assert.Single(report.Events);
-        Assert.Equal(["src/Foo.cs", "tests/FooTests.cs"], evt.Files);
-        Assert.True(evt.BreakpointHit);
+        evt.Files.ShouldBe(["src/Foo.cs", "tests/FooTests.cs"]);
+        evt.BreakpointHit.ShouldBeTrue();
     }
 
     [Fact]
@@ -213,7 +214,7 @@ public sealed class Debug
             "no-tool:web"
         ]);
 
-        Assert.Equal(2, exitCode);
+        exitCode.ShouldBe(2);
     }
 
     // ─── event-level field extraction (tool, event type, trace id) ───────────
@@ -236,7 +237,7 @@ public sealed class Debug
     {
         var trace = WriteTrace(traceJson);
         var report = DebugTraceAnalyzerService.Analyze(trace, 1, 100, [], []);
-        Assert.Equal(expectedTool, Assert.Single(report.Events).Tool);
+        Assert.Single(report.Events).Tool.ShouldBe(expectedTool);
     }
 
     [Theory]
@@ -248,7 +249,7 @@ public sealed class Debug
     {
         var trace = WriteTrace(traceJson);
         var report = DebugTraceAnalyzerService.Analyze(trace, 1, 100, [], []);
-        Assert.Equal(expectedType, Assert.Single(report.Events).EventType);
+        Assert.Single(report.Events).EventType.ShouldBe(expectedType);
     }
 
     [Theory]
@@ -260,7 +261,7 @@ public sealed class Debug
     {
         var trace = WriteTrace(traceJson);
         var report = DebugTraceAnalyzerService.Analyze(trace, 1, 100, [], []);
-        Assert.Equal(expectedTraceId, Assert.Single(report.Events).TraceId);
+        Assert.Single(report.Events).TraceId.ShouldBe(expectedTraceId);
     }
 
     // ─── summary fallback chain + format ─────────────────────────────────────
@@ -274,7 +275,7 @@ public sealed class Debug
     {
         var trace = WriteTrace(traceJson);
         var report = DebugTraceAnalyzerService.Analyze(trace, 1, 100, [], []);
-        Assert.Equal(expectedSummary, Assert.Single(report.Events).Summary);
+        Assert.Single(report.Events).Summary.ShouldBe(expectedSummary);
     }
 
     [Fact]
@@ -282,7 +283,7 @@ public sealed class Debug
     {
         var trace = WriteTrace("""{"event":"weird","extra":"data"}""");
         var report = DebugTraceAnalyzerService.Analyze(trace, 1, 100, [], []);
-        Assert.Contains("\"extra\":\"data\"", Assert.Single(report.Events).Summary);
+        Assert.Single(report.Events).Summary.ShouldContain("\"extra\":\"data\"", Case.Sensitive);
     }
 
     [Theory]
@@ -292,7 +293,7 @@ public sealed class Debug
     {
         var trace = WriteTrace(traceJson);
         var report = DebugTraceAnalyzerService.Analyze(trace, 1, 100, [], []);
-        Assert.Equal(expectedSummary, Assert.Single(report.Events).Summary);
+        Assert.Single(report.Events).Summary.ShouldBe(expectedSummary);
     }
 
     [Fact]
@@ -301,8 +302,8 @@ public sealed class Debug
         var trace = WriteTrace("""{"event":"chat","summary":"line one\nline two"}""");
         var report = DebugTraceAnalyzerService.Analyze(trace, 1, 100, [], []);
         var summary = Assert.Single(report.Events).Summary;
-        Assert.Contains("line one line two", summary);
-        Assert.DoesNotContain('\n', summary);
+        summary.ShouldContain("line one line two", Case.Sensitive);
+        summary.ShouldNotContain('\n');
     }
 
     [Theory]
@@ -318,8 +319,8 @@ public sealed class Debug
         var report = DebugTraceAnalyzerService.Analyze(trace, 1, 100, [], []);
         var summary = Assert.Single(report.Events).Summary;
 
-        Assert.Equal(expectedSummaryLength, summary.Length);
-        Assert.Equal(expectEllipsis, summary.EndsWith("...", StringComparison.Ordinal));
+        summary.Length.ShouldBe(expectedSummaryLength);
+        summary.EndsWith("...", StringComparison.Ordinal).ShouldBe(expectEllipsis);
     }
 
     // ─── breakpoint matching ──────────────────────────────────────────────────
@@ -334,9 +335,9 @@ public sealed class Debug
         var trace = WriteTrace(traceJson);
         var report = DebugTraceAnalyzerService.Analyze(trace, 1, 100, [breakpoint], []);
         var hit = Assert.Single(report.BreakpointHits);
-        Assert.Equal(breakpoint, hit.Expression);
-        Assert.Equal(expectedReason, hit.Reason);
-        Assert.True(report.Events[0].BreakpointHit);
+        hit.Expression.ShouldBe(breakpoint);
+        hit.Reason.ShouldBe(expectedReason);
+        report.Events[0].BreakpointHit.ShouldBeTrue();
     }
 
     [Theory]
@@ -346,8 +347,8 @@ public sealed class Debug
     {
         var trace = WriteTrace(traceJson);
         var report = DebugTraceAnalyzerService.Analyze(trace, 1, 100, [breakpoint], []);
-        Assert.Empty(report.BreakpointHits);
-        Assert.False(report.Events[0].BreakpointHit);
+        report.BreakpointHits.ShouldBeEmpty();
+        report.Events[0].BreakpointHit.ShouldBeFalse();
     }
 
     // ─── assertion messages ───────────────────────────────────────────────────
@@ -369,8 +370,8 @@ public sealed class Debug
         var trace = WriteTrace(traceJson);
         var report = DebugTraceAnalyzerService.Analyze(trace, 1, 100, [], [assertion]);
         var result = Assert.Single(report.Assertions);
-        Assert.Equal(expectedPassed, result.Passed);
-        Assert.Equal(expectedMessage, result.Message);
+        result.Passed.ShouldBe(expectedPassed);
+        result.Message.ShouldBe(expectedMessage);
     }
 
     [Fact]
@@ -384,8 +385,8 @@ public sealed class Debug
             """);
         var report = DebugTraceAnalyzerService.Analyze(trace, 1, 100, [], ["no-tool:web"]);
         var result = Assert.Single(report.Assertions);
-        Assert.False(result.Passed);
-        Assert.Equal("tool 'web' was used 2 time(s)", result.Message);
+        result.Passed.ShouldBeFalse();
+        result.Message.ShouldBe("tool 'web' was used 2 time(s)");
     }
 
     [Fact]
@@ -399,8 +400,8 @@ public sealed class Debug
             """);
         var report = DebugTraceAnalyzerService.Analyze(trace, 1, 100, [], ["max-events:2"]);
         var result = Assert.Single(report.Assertions);
-        Assert.False(result.Passed);
-        Assert.Equal("trace contains 3 event(s); maximum is 2", result.Message);
+        result.Passed.ShouldBeFalse();
+        result.Message.ShouldBe("trace contains 3 event(s); maximum is 2");
     }
 
     [Fact]
@@ -416,7 +417,7 @@ public sealed class Debug
             """);
         var report = DebugTraceAnalyzerService.Analyze(trace, 1, 100, [], ["no-text:TODO"]);
         var result = Assert.Single(report.Assertions);
-        Assert.False(result.Passed);
+        result.Passed.ShouldBeFalse();
     }
 
     // ─── file reference extraction ────────────────────────────────────────────
@@ -429,7 +430,7 @@ public sealed class Debug
     {
         var trace = WriteTrace(traceJson);
         var report = DebugTraceAnalyzerService.Analyze(trace, 1, 100, [], []);
-        Assert.Equal(expectedFiles, Assert.Single(report.Events).Files);
+        Assert.Single(report.Events).Files.ShouldBe(expectedFiles);
     }
 
     // ─── trace loading edge cases ─────────────────────────────────────────────
@@ -439,11 +440,11 @@ public sealed class Debug
     {
         var missing = new FileInfo(Path.Combine(Path.GetTempPath(), $"missing-{Guid.NewGuid():N}.jsonl"));
 
-        var ex = Assert.Throws<FileNotFoundException>(() =>
+        var ex = Should.Throw<FileNotFoundException>(() =>
             DebugTraceAnalyzerService.Analyze(missing, 1, 100, [], []));
 
-        Assert.Equal(missing.FullName, ex.FileName);
-        Assert.Contains("LLM trace file was not found", ex.Message);
+        ex.FileName.ShouldBe(missing.FullName);
+        ex.Message.ShouldContain("LLM trace file was not found", Case.Sensitive);
     }
 
     [Fact]
@@ -451,7 +452,7 @@ public sealed class Debug
     {
         var trace = WriteTrace("{\"event\":\"first\"}\n\n   \n{\"event\":\"second\"}\n");
         var report = DebugTraceAnalyzerService.Analyze(trace, 1, 100, [], []);
-        Assert.Equal(["first", "second"], report.Events.Select(e => e.EventType));
+        report.Events.Select(e => e.EventType).ShouldBe(["first", "second"]);
     }
 
     [Fact]
@@ -459,8 +460,8 @@ public sealed class Debug
     {
         var trace = WriteTrace("   ");
         var report = DebugTraceAnalyzerService.Analyze(trace, 1, 100, [], []);
-        Assert.Empty(report.Events);
-        Assert.Equal(0, report.EventCount);
+        report.Events.ShouldBeEmpty();
+        report.EventCount.ShouldBe(0);
     }
 
     // ─── report metadata + limit / from boundaries ────────────────────────────
@@ -478,8 +479,8 @@ public sealed class Debug
             {"event":"c"}
             """);
         var report = DebugTraceAnalyzerService.Analyze(trace, fromEvent, 100, [], []);
-        Assert.Equal(expectedFromInReport, report.FromEvent);
-        Assert.EndsWith($"--from {expectedFromInReport}", report.ReplayCommand);
+        report.FromEvent.ShouldBe(expectedFromInReport);
+        report.ReplayCommand.ShouldEndWith($"--from {expectedFromInReport}", Case.Sensitive);
     }
 
     [Theory]
@@ -497,7 +498,7 @@ public sealed class Debug
             {"event":"e"}
             """);
         var report = DebugTraceAnalyzerService.Analyze(trace, 1, limit, [], []);
-        Assert.Equal(expectedEventCount, report.Events.Count);
+        report.Events.Count.ShouldBe(expectedEventCount);
     }
 
     [Fact]
@@ -508,7 +509,7 @@ public sealed class Debug
         // verifies the end-to-end observable: no breakpoints → flag is false.
         var trace = WriteTrace("""{"event":"chat","summary":"hi"}""");
         var report = DebugTraceAnalyzerService.Analyze(trace, 1, 100, [], []);
-        Assert.False(Assert.Single(report.Events).BreakpointHit);
+        Assert.Single(report.Events).BreakpointHit.ShouldBeFalse();
     }
 
     private static FileInfo WriteTrace(string contents)

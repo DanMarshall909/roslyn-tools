@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using RoslynTools.Core;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -30,7 +31,7 @@ public class IdentifierVariationDetector
             Core.IdentifierVariationDetector.FindVaryingPositions(patternIdentifiers, matchSubstitutions);
 
         Assert.Single(varyingPositions);
-        Assert.Contains(1, varyingPositions);
+        varyingPositions.ShouldContain(1);
     }
 
     [Fact]
@@ -47,7 +48,7 @@ public class IdentifierVariationDetector
         var varyingPositions =
             Core.IdentifierVariationDetector.FindVaryingPositions(patternIdentifiers, matchSubstitutions);
 
-        Assert.Empty(varyingPositions);
+        varyingPositions.ShouldBeEmpty();
     }
 
     [Fact]
@@ -64,10 +65,10 @@ public class IdentifierVariationDetector
         var varyingPositions =
             Core.IdentifierVariationDetector.FindVaryingPositions(patternIdentifiers, matchSubstitutions);
 
-        Assert.Equal(2, varyingPositions.Count);
-        Assert.Contains(0, varyingPositions); // serviceA vs serviceB
-        Assert.Contains(1, varyingPositions); // repoA vs repoB
-        Assert.DoesNotContain(2, varyingPositions); // loggerA unchanged
+        varyingPositions.Count.ShouldBe(2);
+        varyingPositions.ShouldContain(0); // serviceA vs serviceB
+        varyingPositions.ShouldContain(1); // repoA vs repoB
+        varyingPositions.ShouldNotContain(2); // loggerA unchanged
     }
 
     [Fact]
@@ -82,7 +83,7 @@ public class IdentifierVariationDetector
         var varyingPositions =
             Core.IdentifierVariationDetector.FindVaryingPositions(patternIdentifiers, matchSubstitutions);
 
-        Assert.Empty(varyingPositions);
+        varyingPositions.ShouldBeEmpty();
     }
 
     [Fact]
@@ -94,7 +95,7 @@ public class IdentifierVariationDetector
         var varyingPositions =
             Core.IdentifierVariationDetector.FindVaryingPositions(patternIdentifiers, matchSubstitutions);
 
-        Assert.Empty(varyingPositions);
+        varyingPositions.ShouldBeEmpty();
     }
 
     [Fact]
@@ -112,7 +113,7 @@ public class IdentifierVariationDetector
             Core.IdentifierVariationDetector.FindVaryingPositions(patternIdentifiers, matchSubstitutions);
 
         Assert.Single(varyingPositions);
-        Assert.Contains(0, varyingPositions);
+        varyingPositions.ShouldContain(0);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -143,7 +144,7 @@ public class IdentifierVariationDetector
         var identifiers = Core.IdentifierVariationDetector.ExtractOrderedIdentifiers(statements);
 
         // _svc must NOT appear — it's the expression side of a MemberAccessExpression
-        Assert.DoesNotContain("_svc", identifiers);
+        identifiers.ShouldNotContain("_svc");
     }
 
     [Fact]
@@ -167,7 +168,7 @@ public class IdentifierVariationDetector
         var identifiers = Core.IdentifierVariationDetector.ExtractOrderedIdentifiers(statements);
 
         // DirectCall must NOT appear — it's a direct invocation target
-        Assert.DoesNotContain("DirectCall", identifiers);
+        identifiers.ShouldNotContain("DirectCall");
     }
 
     [Fact]
@@ -191,6 +192,6 @@ public class IdentifierVariationDetector
         var identifiers = Core.IdentifierVariationDetector.ExtractOrderedIdentifiers(statements);
 
         // _fieldA IS a bare argument — it should be included
-        Assert.Contains("_fieldA", identifiers);
+        identifiers.ShouldContain("_fieldA");
     }
 }

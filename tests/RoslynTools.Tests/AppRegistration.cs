@@ -1,6 +1,7 @@
 using System.CommandLine;
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Services;
+using Shouldly;
 
 namespace RoslynTools.Tests;
 
@@ -18,7 +19,7 @@ public sealed class AppRegistration
 
         App.RegisterGlobalOptions(root);
 
-        Assert.Contains(root.Options, o => o.Name == "json");
+        root.Options.ShouldContain(o => o.Name == "json");
     }
 
     [Fact]
@@ -28,7 +29,7 @@ public sealed class AppRegistration
 
         App.RegisterGlobalOptions(root);
 
-        Assert.Contains(root.Options, o => o.Name == "llm");
+        root.Options.ShouldContain(o => o.Name == "llm");
     }
 
     [Fact]
@@ -38,7 +39,7 @@ public sealed class AppRegistration
 
         App.RegisterGlobalOptions(root);
 
-        Assert.Contains(root.Options, o => o.Name == "markdown");
+        root.Options.ShouldContain(o => o.Name == "markdown");
     }
 
     [Fact]
@@ -48,7 +49,7 @@ public sealed class AppRegistration
 
         App.RegisterGlobalOptions(root);
 
-        Assert.Contains(root.Options, o => o.Name == "yaml");
+        root.Options.ShouldContain(o => o.Name == "yaml");
     }
 
     [Fact]
@@ -58,7 +59,7 @@ public sealed class AppRegistration
 
         App.RegisterGlobalOptions(root);
 
-        Assert.Contains(root.Options, o => o.Name == "decisions");
+        root.Options.ShouldContain(o => o.Name == "decisions");
     }
 
     [Fact]
@@ -68,7 +69,7 @@ public sealed class AppRegistration
 
         App.RegisterGlobalOptions(root);
 
-        Assert.Contains(root.Options, o => o.Name == "strict-json");
+        root.Options.ShouldContain(o => o.Name == "strict-json");
     }
 
     [Fact]
@@ -78,7 +79,7 @@ public sealed class AppRegistration
 
         App.RegisterGlobalOptions(root);
 
-        Assert.Contains(root.Options, o => o.Name == "show-workspace-warnings");
+        root.Options.ShouldContain(o => o.Name == "show-workspace-warnings");
     }
 
     [Fact]
@@ -89,8 +90,7 @@ public sealed class AppRegistration
         App.RegisterGlobalOptions(root);
 
         var names = root.Options.Select(o => o.Name).ToHashSet();
-        Assert.Equal(
-            new HashSet<string>
+        names.ShouldBe(new HashSet<string>
             {
                 "json",
                 "llm",
@@ -99,8 +99,7 @@ public sealed class AppRegistration
                 "strict-json",
                 "decisions",
                 "show-workspace-warnings"
-            },
-            names);
+            });
     }
 
     [Fact]
@@ -112,8 +111,8 @@ public sealed class AppRegistration
         RoslynTools.Bootstrap.RegisterServices(services);
 
         using var provider = services.BuildServiceProvider();
-        Assert.NotNull(provider.GetRequiredService<MigrateToIOptionsService>());
-        Assert.Contains(provider.GetServices<IRtService>(), service => service is MigrateToIOptionsService);
+        provider.GetRequiredService<MigrateToIOptionsService>().ShouldNotBeNull();
+        provider.GetServices<IRtService>().ShouldContain(service => service is MigrateToIOptionsService);
     }
 
     [Fact]
@@ -132,7 +131,7 @@ public sealed class AppRegistration
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Empty(unresolved);
+        unresolved.ShouldBeEmpty();
     }
 
     [Fact]
@@ -144,7 +143,7 @@ public sealed class AppRegistration
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Empty(missing);
+        missing.ShouldBeEmpty();
     }
 
     [Fact]
@@ -164,7 +163,7 @@ public sealed class AppRegistration
             .OrderBy(path => path, StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Empty(directUsages);
+        directUsages.ShouldBeEmpty();
     }
 
     [Fact]
@@ -189,7 +188,7 @@ public sealed class AppRegistration
             .OrderBy(path => path, StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Empty(directUsages);
+        directUsages.ShouldBeEmpty();
     }
 
     private static string FindRepoRoot()

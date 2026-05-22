@@ -1,5 +1,6 @@
 using Microsoft.CodeAnalysis;
 using RoslynTools.Services;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -46,21 +47,21 @@ public class MoveMethod
             var result = await new MoveMethodService().RunAsync(
                 sln, "App.Source.Add", "App.Target", false, false);
 
-            Assert.True(result);
+            result.ShouldBeTrue();
         }
 
         // Source no longer has Add
         var src = await project.ReadSourceAsync("Source.cs");
-        Assert.DoesNotContain("Add", src);
+        src.ShouldNotContain("Add", Case.Sensitive);
 
         // Target now has Add
         var tgt = await project.ReadSourceAsync("Target.cs");
-        Assert.Contains("Add", tgt);
+        tgt.ShouldContain("Add", Case.Sensitive);
 
         // Caller uses Target.Add
         var caller = await project.ReadSourceAsync("Caller.cs");
-        Assert.Contains("Target.Add", caller);
-        Assert.DoesNotContain("Source.Add", caller);
+        caller.ShouldContain("Target.Add", Case.Sensitive);
+        caller.ShouldNotContain("Source.Add", Case.Sensitive);
     }
 
     // ─── happy-path: multiple call sites ─────────────────────────────────────
@@ -96,12 +97,12 @@ public class MoveMethod
             var result = await new MoveMethodService().RunAsync(
                 sln, "App.Source.Greet", "App.Target", false, false);
 
-            Assert.True(result);
+            result.ShouldBeTrue();
         }
 
         var caller = await project.ReadSourceAsync("Caller.cs");
-        Assert.Equal(3, CountOccurrences(caller, "Target.Greet"));
-        Assert.DoesNotContain("Source.Greet", caller);
+        CountOccurrences(caller, "Target.Greet").ShouldBe(3);
+        caller.ShouldNotContain("Source.Greet", Case.Sensitive);
     }
 
     // ─── happy-path: internal caller (unqualified) ────────────────────────────
@@ -129,13 +130,13 @@ public class MoveMethod
             var result = await new MoveMethodService().RunAsync(
                 sln, "App.Source.Double", "App.Target", false, false);
 
-            Assert.True(result);
+            result.ShouldBeTrue();
         }
 
         var src = await project.ReadSourceAsync("Source.cs");
-        Assert.DoesNotContain("static int Double", src);
+        src.ShouldNotContain("static int Double", Case.Sensitive);
         // internal callers should now say Target.Double
-        Assert.Contains("Target.Double", src);
+        src.ShouldContain("Target.Double", Case.Sensitive);
     }
 
     // ─── error: non-static method → returns false ─────────────────────────────
@@ -162,7 +163,7 @@ public class MoveMethod
             var result = await new MoveMethodService().RunAsync(
                 sln, "App.Source.Compute", "App.Target", false, false);
 
-            Assert.False(result);
+            result.ShouldBeFalse();
         }
     }
 
@@ -187,7 +188,7 @@ public class MoveMethod
             var result = await new MoveMethodService().RunAsync(
                 sln, "App.Source.Missing", "App.Target", false, false);
 
-            Assert.False(result);
+            result.ShouldBeFalse();
         }
     }
 
@@ -211,7 +212,7 @@ public class MoveMethod
             var result = await new MoveMethodService().RunAsync(
                 sln, "App.Source.Add", "App.NonExistent", false, false);
 
-            Assert.False(result);
+            result.ShouldBeFalse();
         }
     }
 
@@ -239,24 +240,24 @@ public class MoveMethod
             var result = await new MoveMethodService().RunAsync(
                 sln, "App.Source.Add", "App.NewUtils", true, false);
 
-            Assert.True(result);
+            result.ShouldBeTrue();
         }
 
         // Source no longer has Add
         var src = await project.ReadSourceAsync("Source.cs");
-        Assert.DoesNotContain("Add", src);
+        src.ShouldNotContain("Add", Case.Sensitive);
 
         // NewUtils.cs was created alongside Source.cs and contains Add
         var newFilePath = Path.Combine(project.ProjectDir, "NewUtils.cs");
-        Assert.True(File.Exists(newFilePath));
+        File.Exists(newFilePath).ShouldBeTrue();
         var newFile = await File.ReadAllTextAsync(newFilePath);
-        Assert.Contains("class NewUtils", newFile);
-        Assert.Contains("Add", newFile);
+        newFile.ShouldContain("class NewUtils", Case.Sensitive);
+        newFile.ShouldContain("Add", Case.Sensitive);
 
         // Caller was rewritten to use NewUtils.Add
         var caller = await project.ReadSourceAsync("Caller.cs");
-        Assert.Contains("NewUtils.Add", caller);
-        Assert.DoesNotContain("Source.Add", caller);
+        caller.ShouldContain("NewUtils.Add", Case.Sensitive);
+        caller.ShouldNotContain("Source.Add", Case.Sensitive);
     }
 
     // ─── error: name collision → returns false ────────────────────────────────
@@ -286,7 +287,7 @@ public class MoveMethod
             var result = await new MoveMethodService().RunAsync(
                 sln, "App.Source.Add", "App.Target", false, false);
 
-            Assert.False(result);
+            result.ShouldBeFalse();
         }
     }
 
@@ -324,12 +325,12 @@ public class MoveMethod
             var result = await new MoveMethodService().RunAsync(
                 sln, "App.Source.Add", "App.Target", false, true);
 
-            Assert.True(result);
+            result.ShouldBeTrue();
         }
 
-        Assert.Equal(originalSource, await project.ReadSourceAsync("Source.cs"));
-        Assert.Equal(originalTarget, await project.ReadSourceAsync("Target.cs"));
-        Assert.Equal(originalCaller, await project.ReadSourceAsync("Caller.cs"));
+        (await project.ReadSourceAsync("Source.cs")).ShouldBe(originalSource);
+        (await project.ReadSourceAsync("Target.cs")).ShouldBe(originalTarget);
+        (await project.ReadSourceAsync("Caller.cs")).ShouldBe(originalCaller);
     }
 
     // ─── xml doc comments are preserved ──────────────────────────────────────
@@ -357,11 +358,11 @@ public class MoveMethod
             var result = await new MoveMethodService().RunAsync(
                 sln, "App.Source.Add", "App.Target", false, false);
 
-            Assert.True(result);
+            result.ShouldBeTrue();
         }
 
         var tgt = await project.ReadSourceAsync("Target.cs");
-        Assert.Contains("/// <summary>Adds two integers.</summary>", tgt);
+        tgt.ShouldContain("/// <summary>Adds two integers.</summary>", Case.Sensitive);
     }
 
     // ─── utility ─────────────────────────────────────────────────────────────

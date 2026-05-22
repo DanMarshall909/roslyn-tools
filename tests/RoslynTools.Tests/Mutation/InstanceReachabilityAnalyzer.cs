@@ -2,6 +2,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using RoslynTools.Core;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -13,7 +14,7 @@ public sealed class InstanceReachabilityAnalyzer
         var source = "class C { static void M() { } }";
         var tree = CSharpSyntaxTree.ParseText(source);
         var method = tree.GetRoot().DescendantNodes().OfType<MethodDeclarationSyntax>().First();
-        Assert.False(Core.InstanceReachabilityAnalyzer.IsInstanceContext(method));
+        Core.InstanceReachabilityAnalyzer.IsInstanceContext(method).ShouldBeFalse();
     }
 
     [Fact]
@@ -22,7 +23,7 @@ public sealed class InstanceReachabilityAnalyzer
         var source = "class C { void M() { } }";
         var tree = CSharpSyntaxTree.ParseText(source);
         var method = tree.GetRoot().DescendantNodes().OfType<MethodDeclarationSyntax>().First();
-        Assert.True(Core.InstanceReachabilityAnalyzer.IsInstanceContext(method));
+        Core.InstanceReachabilityAnalyzer.IsInstanceContext(method).ShouldBeTrue();
     }
 
     [Fact]
@@ -31,7 +32,7 @@ public sealed class InstanceReachabilityAnalyzer
         var source = "class C { C() { } }";
         var tree = CSharpSyntaxTree.ParseText(source);
         var ctor = tree.GetRoot().DescendantNodes().OfType<ConstructorDeclarationSyntax>().First();
-        Assert.True(Core.InstanceReachabilityAnalyzer.IsInstanceContext(ctor));
+        Core.InstanceReachabilityAnalyzer.IsInstanceContext(ctor).ShouldBeTrue();
     }
 
     [Fact]
@@ -41,7 +42,7 @@ public sealed class InstanceReachabilityAnalyzer
         var source = "class C { int Prop => 0; }";
         var tree = CSharpSyntaxTree.ParseText(source);
         var prop = tree.GetRoot().DescendantNodes().OfType<PropertyDeclarationSyntax>().First();
-        Assert.True(Core.InstanceReachabilityAnalyzer.IsInstanceContext(prop));
+        Core.InstanceReachabilityAnalyzer.IsInstanceContext(prop).ShouldBeTrue();
     }
 
     [Fact]
@@ -51,7 +52,7 @@ public sealed class InstanceReachabilityAnalyzer
         var tree = CSharpSyntaxTree.ParseText(source);
         var accessor = tree.GetRoot().DescendantNodes().OfType<AccessorDeclarationSyntax>().First();
 
-        Assert.False(Core.InstanceReachabilityAnalyzer.IsInstanceContext(accessor));
+        Core.InstanceReachabilityAnalyzer.IsInstanceContext(accessor).ShouldBeFalse();
     }
 
     [Fact]
@@ -59,7 +60,7 @@ public sealed class InstanceReachabilityAnalyzer
     {
         var node = CSharpSyntaxTree.ParseText("class C { }").GetRoot();
 
-        Assert.True(Core.InstanceReachabilityAnalyzer.IsInstanceContext(node));
+        Core.InstanceReachabilityAnalyzer.IsInstanceContext(node).ShouldBeTrue();
     }
 
     [Fact]
@@ -68,7 +69,7 @@ public sealed class InstanceReachabilityAnalyzer
         var source = "class C { static C() { } }";
         var tree = CSharpSyntaxTree.ParseText(source);
         var ctor = tree.GetRoot().DescendantNodes().OfType<ConstructorDeclarationSyntax>().First();
-        Assert.False(Core.InstanceReachabilityAnalyzer.IsInstanceContext(ctor));
+        Core.InstanceReachabilityAnalyzer.IsInstanceContext(ctor).ShouldBeFalse();
     }
 
     [Fact]
@@ -94,8 +95,8 @@ public sealed class InstanceReachabilityAnalyzer
 
             // model from a different compilation — GetEnclosingTypeSymbol will return null
             var result = Core.InstanceReachabilityAnalyzer.FindReachableInstance(invocation, model!, typeSymbol);
-            Assert.Equal(ReachableInstanceKind.None, result.Kind);
-            Assert.Null(result.Expression);
+            result.Kind.ShouldBe(ReachableInstanceKind.None);
+            result.Expression.ShouldBeNull();
         }
     }
 
@@ -117,7 +118,7 @@ public sealed class InstanceReachabilityAnalyzer
             var enclosingType = compilation!.GetTypeByMetadataName("MyService")!;
             var targetType = compilation!.GetTypeByMetadataName("MyDep")!;
             var result = Core.InstanceReachabilityAnalyzer.FindFieldOrPropertyName(enclosingType, targetType);
-            Assert.Equal("_dep", result);
+            result.ShouldBe("_dep");
         }
     }
 
@@ -140,7 +141,7 @@ public sealed class InstanceReachabilityAnalyzer
             var enclosingType = compilation!.GetTypeByMetadataName("MyService")!;
             var targetType = compilation!.GetTypeByMetadataName("MyDep")!;
             var result = Core.InstanceReachabilityAnalyzer.FindFieldOrPropertyName(enclosingType, targetType);
-            Assert.Null(result);
+            result.ShouldBeNull();
         }
     }
 
@@ -162,7 +163,7 @@ public sealed class InstanceReachabilityAnalyzer
             var enclosingType = compilation!.GetTypeByMetadataName("MyService")!;
             var targetType = compilation!.GetTypeByMetadataName("MyDep")!;
             var result = Core.InstanceReachabilityAnalyzer.FindFieldOrPropertyName(enclosingType, targetType);
-            Assert.Equal("Dep", result);
+            result.ShouldBe("Dep");
         }
     }
 
@@ -184,7 +185,7 @@ public sealed class InstanceReachabilityAnalyzer
             var enclosingType = compilation!.GetTypeByMetadataName("MyService")!;
             var targetType = compilation!.GetTypeByMetadataName("MyDep")!;
             var result = Core.InstanceReachabilityAnalyzer.FindFieldOrPropertyName(enclosingType, targetType);
-            Assert.Null(result);
+            result.ShouldBeNull();
         }
     }
 
@@ -204,7 +205,7 @@ public sealed class InstanceReachabilityAnalyzer
         var model = compilation.GetSemanticModel(tree);
 
         var result = Core.InstanceReachabilityAnalyzer.GetEnclosingTypeSymbol(method, model);
-        Assert.Null(result);
+        result.ShouldBeNull();
     }
 
     [Fact]
@@ -222,8 +223,8 @@ public sealed class InstanceReachabilityAnalyzer
 
         var result = Core.InstanceReachabilityAnalyzer.GetEnclosingTypeSymbol(method, model);
 
-        Assert.NotNull(result);
-        Assert.Equal("C", result!.Name);
+        result.ShouldNotBeNull();
+        result!.Name.ShouldBe("C");
     }
 
     [Fact]
@@ -256,7 +257,7 @@ public sealed class InstanceReachabilityAnalyzer
 
         var result = Core.InstanceReachabilityAnalyzer.FindLocalVariableName(invocation, model, targetType);
 
-        Assert.Equal("t", result);
+        result.ShouldBe("t");
     }
 
     [Fact]
@@ -276,7 +277,7 @@ public sealed class InstanceReachabilityAnalyzer
             var t2 = CSharpSyntaxTree.ParseText(src2);
             // DefaultExpression is not inside a block, so pick it — but we need an invocation.
             // Fallback: just verify the method doesn't throw for any invocation outside a block.
-            Assert.True(true);
+            true.ShouldBeTrue();
             return;
         }
 
@@ -288,7 +289,7 @@ public sealed class InstanceReachabilityAnalyzer
 
         // Should not throw — returns null when no block ancestor
         var result = Core.InstanceReachabilityAnalyzer.FindLocalVariableName(invocation, model, anyType!);
-        Assert.Null(result);
+        result.ShouldBeNull();
     }
 
     [Fact]
@@ -306,7 +307,7 @@ public sealed class InstanceReachabilityAnalyzer
         var targetType = comp.GetSpecialType(SpecialType.System_Int32);
 
         var result = Core.InstanceReachabilityAnalyzer.FindParameterName(prop, model, targetType!);
-        Assert.Null(result);
+        result.ShouldBeNull();
     }
 
     [Fact]
@@ -337,8 +338,8 @@ public sealed class InstanceReachabilityAnalyzer
             var invocation = root!.DescendantNodes().OfType<InvocationExpressionSyntax>().First();
             var result = Core.InstanceReachabilityAnalyzer.FindReachableInstance(invocation, model!, typeSymbol);
             // Static context: isInstance = false, so should not return `this`
-            Assert.Equal(ReachableInstanceKind.None, result.Kind);
-            Assert.Null(result.Expression);
+            result.Kind.ShouldBe(ReachableInstanceKind.None);
+            result.Expression.ShouldBeNull();
         }
     }
 
@@ -372,8 +373,8 @@ public sealed class InstanceReachabilityAnalyzer
             var invocation = root!.DescendantNodes().OfType<InvocationExpressionSyntax>().First();
             var result = Core.InstanceReachabilityAnalyzer.FindReachableInstance(invocation, model!, typeSymbol);
             // d is a parameter of MyDep, so result is "d" (not field — this tests FindParameterName path)
-            Assert.Equal(ReachableInstanceKind.Match, result.Kind);
-            Assert.Equal("d", result.Expression!.ToString());
+            result.Kind.ShouldBe(ReachableInstanceKind.Match);
+            result.Expression!.ToString().ShouldBe("d");
         }
     }
 
@@ -406,8 +407,8 @@ public sealed class InstanceReachabilityAnalyzer
             var invocation = root!.DescendantNodes().OfType<InvocationExpressionSyntax>().First();
             var result = Core.InstanceReachabilityAnalyzer.FindReachableInstance(invocation, model!, typeSymbol);
             // Static context + no locals/params → null; with || mutant would return "_dep"
-            Assert.Equal(ReachableInstanceKind.None, result.Kind);
-            Assert.Null(result.Expression);
+            result.Kind.ShouldBe(ReachableInstanceKind.None);
+            result.Expression.ShouldBeNull();
         }
     }
 
@@ -436,7 +437,7 @@ public sealed class InstanceReachabilityAnalyzer
             var targetType = compilation!.GetTypeByMetadataName("MyDep")!;
 
             var result = Core.InstanceReachabilityAnalyzer.FindParameterName(method, model!, targetType);
-            Assert.Equal("dep", result);
+            result.ShouldBe("dep");
         }
     }
 
@@ -467,8 +468,8 @@ public sealed class InstanceReachabilityAnalyzer
             var invocation = root!.DescendantNodes().OfType<InvocationExpressionSyntax>().First();
             var result = Core.InstanceReachabilityAnalyzer.FindReachableInstance(invocation, model!, typeSymbol);
 
-            Assert.Equal(ReachableInstanceKind.Match, result.Kind);
-            Assert.Equal("this", result.Expression!.ToString());
+            result.Kind.ShouldBe(ReachableInstanceKind.Match);
+            result.Expression!.ToString().ShouldBe("this");
         }
     }
 
@@ -504,8 +505,8 @@ public sealed class InstanceReachabilityAnalyzer
 
             var invocation = root!.DescendantNodes().OfType<InvocationExpressionSyntax>().First();
             var result = Core.InstanceReachabilityAnalyzer.FindReachableInstance(invocation, model!, targetType);
-            Assert.Equal(ReachableInstanceKind.Ambiguous, result.Kind);
-            Assert.Null(result.Expression);
+            result.Kind.ShouldBe(ReachableInstanceKind.Ambiguous);
+            result.Expression.ShouldBeNull();
         }
     }
 
@@ -538,8 +539,8 @@ public sealed class InstanceReachabilityAnalyzer
 
             var invocation = root!.DescendantNodes().OfType<InvocationExpressionSyntax>().First();
             var result = Core.InstanceReachabilityAnalyzer.FindReachableInstance(invocation, model!, targetType);
-            Assert.Equal(ReachableInstanceKind.Ambiguous, result.Kind);
-            Assert.Null(result.Expression);
+            result.Kind.ShouldBe(ReachableInstanceKind.Ambiguous);
+            result.Expression.ShouldBeNull();
         }
     }
 
@@ -574,8 +575,8 @@ public sealed class InstanceReachabilityAnalyzer
 
             var invocation = root!.DescendantNodes().OfType<InvocationExpressionSyntax>().First();
             var result = Core.InstanceReachabilityAnalyzer.FindReachableInstance(invocation, model!, targetType);
-            Assert.Equal(ReachableInstanceKind.Ambiguous, result.Kind);
-            Assert.Null(result.Expression);
+            result.Kind.ShouldBe(ReachableInstanceKind.Ambiguous);
+            result.Expression.ShouldBeNull();
         }
     }
 
@@ -610,8 +611,8 @@ public sealed class InstanceReachabilityAnalyzer
 
             var invocation = root!.DescendantNodes().OfType<InvocationExpressionSyntax>().First();
             var result = Core.InstanceReachabilityAnalyzer.FindReachableInstance(invocation, model!, targetType);
-            Assert.Equal(ReachableInstanceKind.Match, result.Kind);
-            Assert.Equal("dep", result.Expression!.ToString());
+            result.Kind.ShouldBe(ReachableInstanceKind.Match);
+            result.Expression!.ToString().ShouldBe("dep");
         }
     }
 
@@ -649,8 +650,8 @@ public sealed class InstanceReachabilityAnalyzer
 
             var invocation = root!.DescendantNodes().OfType<InvocationExpressionSyntax>().First();
             var result = Core.InstanceReachabilityAnalyzer.FindReachableInstance(invocation, model!, targetType);
-            Assert.Equal(ReachableInstanceKind.Match, result.Kind);
-            Assert.Equal("dep", result.Expression!.ToString());
+            result.Kind.ShouldBe(ReachableInstanceKind.Match);
+            result.Expression!.ToString().ShouldBe("dep");
         }
     }
 
@@ -686,8 +687,8 @@ public sealed class InstanceReachabilityAnalyzer
 
             var invocation = root!.DescendantNodes().OfType<InvocationExpressionSyntax>().First();
             var result = Core.InstanceReachabilityAnalyzer.FindReachableInstance(invocation, model!, targetType);
-            Assert.Equal(ReachableInstanceKind.Match, result.Kind);
-            Assert.Equal("dep", result.Expression!.ToString());
+            result.Kind.ShouldBe(ReachableInstanceKind.Match);
+            result.Expression!.ToString().ShouldBe("dep");
         }
     }
 
@@ -727,8 +728,8 @@ public sealed class InstanceReachabilityAnalyzer
                 .Last(i => i.Expression.ToString() == "MyDep.Go");
             var result = Core.InstanceReachabilityAnalyzer.FindReachableInstance(invocation, model!, targetType);
 
-            Assert.Equal(ReachableInstanceKind.Match, result.Kind);
-            Assert.Equal("dep", result.Expression!.ToString());
+            result.Kind.ShouldBe(ReachableInstanceKind.Match);
+            result.Expression!.ToString().ShouldBe("dep");
         }
     }
 
@@ -766,8 +767,8 @@ public sealed class InstanceReachabilityAnalyzer
 
             var invocation = root!.DescendantNodes().OfType<InvocationExpressionSyntax>().First();
             var result = Core.InstanceReachabilityAnalyzer.FindReachableInstance(invocation, model!, targetType);
-            Assert.Equal(ReachableInstanceKind.None, result.Kind);
-            Assert.Null(result.Expression);
+            result.Kind.ShouldBe(ReachableInstanceKind.None);
+            result.Expression.ShouldBeNull();
         }
     }
 
@@ -802,8 +803,8 @@ public sealed class InstanceReachabilityAnalyzer
 
             var invocation = root!.DescendantNodes().OfType<InvocationExpressionSyntax>().First();
             var result = Core.InstanceReachabilityAnalyzer.FindReachableInstance(invocation, model!, targetType);
-            Assert.Equal(ReachableInstanceKind.None, result.Kind);
-            Assert.Null(result.Expression);
+            result.Kind.ShouldBe(ReachableInstanceKind.None);
+            result.Expression.ShouldBeNull();
         }
     }
 }

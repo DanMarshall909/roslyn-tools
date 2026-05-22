@@ -1,4 +1,5 @@
 using RoslynTools.Commands;
+using Shouldly;
 
 namespace RoslynTools.Tests.Refactor;
 
@@ -10,9 +11,9 @@ public class DestaticClass
     {
         var info = DestaticClassCommand.Info;
 
-        Assert.Equal("convert-static-class", info.Name);
-        Assert.Equal("refactor", info.Category);
-        Assert.True(info.Mutates);
-        Assert.False(info.JsonOutput);
+        info.Name.ShouldBe("convert-static-class");
+        info.Category.ShouldBe("refactor");
+        info.Mutates.ShouldBeTrue();
+        info.JsonOutput.ShouldBeFalse();
     }
 }

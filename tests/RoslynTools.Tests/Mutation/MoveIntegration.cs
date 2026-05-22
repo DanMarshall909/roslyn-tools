@@ -1,4 +1,5 @@
 using RoslynTools.Services;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -39,8 +40,8 @@ public class MoveIntegration
 
         var movedSource = await project.ReadSourceAsync("Target.cs");
 
-        Assert.Contains("namespace Bar;", movedSource);
-        Assert.Contains("using Foo;", movedSource);
+        movedSource.ShouldContain("namespace Bar;", Case.Sensitive);
+        movedSource.ShouldContain("using Foo;", Case.Sensitive);
     }
 
     [Fact]
@@ -79,7 +80,7 @@ public class MoveIntegration
 
         var consumerAfter = await project.ReadSourceAsync("Consumer.cs");
 
-        Assert.Contains("using Bar;", consumerAfter);
+        consumerAfter.ShouldContain("using Bar;", Case.Sensitive);
     }
 
     [Fact]
@@ -144,7 +145,7 @@ public class MoveIntegration
 
         var consumerAfter = await project.ReadSourceAsync("Consumer.cs");
 
-        Assert.Contains("using Bar;", consumerAfter);
+        consumerAfter.ShouldContain("using Bar;", Case.Sensitive);
     }
 
     [Fact]
@@ -181,6 +182,6 @@ public class MoveIntegration
 
         var consumerAfter = await project.ReadSourceAsync("Consumer.cs");
 
-        Assert.Contains("public Bar.Target Build() => new Bar.Target();", consumerAfter);
+        consumerAfter.ShouldContain("public Bar.Target Build() => new Bar.Target();", Case.Sensitive);
     }
 }

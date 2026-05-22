@@ -1,5 +1,6 @@
 using System.Text.Json;
 using RoslynTools.Core.Output;
+using Shouldly;
 
 namespace RoslynTools.Tests;
 
@@ -50,9 +51,9 @@ public sealed class Renderer : IDisposable
 
         var md = sw.ToString();
 
-        Assert.Contains("llm-value", md);
-        Assert.Contains("default-value", md);
-        Assert.DoesNotContain("detailed-value", md);
+        md.ShouldContain("llm-value", Case.Sensitive);
+        md.ShouldContain("default-value", Case.Sensitive);
+        md.ShouldNotContain("detailed-value", Case.Sensitive);
     }
 
     // ── AC-7: LLM output contains only Llm-level fields ──────────────────────────
@@ -68,9 +69,9 @@ public sealed class Renderer : IDisposable
 
         var output = sw.ToString();
 
-        Assert.Contains("llm-value", output);
-        Assert.DoesNotContain("default-value", output);
-        Assert.DoesNotContain("detailed-value", output);
+        output.ShouldContain("llm-value", Case.Sensitive);
+        output.ShouldNotContain("default-value", Case.Sensitive);
+        output.ShouldNotContain("detailed-value", Case.Sensitive);
     }
 
     // ── AC-8: IReadOnlyList<FakeChild> renders as JSON array and Markdown table ───
@@ -88,9 +89,9 @@ public sealed class Renderer : IDisposable
         var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
 
-        Assert.True(root.TryGetProperty("children", out var children));
-        Assert.Equal(JsonValueKind.Array, children.ValueKind);
-        Assert.Equal(2, children.GetArrayLength());
+        root.TryGetProperty("children", out var children).ShouldBeTrue();
+        children.ValueKind.ShouldBe(JsonValueKind.Array);
+        children.GetArrayLength().ShouldBe(2);
     }
 
     [Fact]
@@ -104,9 +105,9 @@ public sealed class Renderer : IDisposable
 
         var md = sw.ToString();
 
-        Assert.Contains("| name |", md);
-        Assert.Contains("Alice", md);
-        Assert.Contains("Bob", md);
+        md.ShouldContain("| name |", Case.Sensitive);
+        md.ShouldContain("Alice", Case.Sensitive);
+        md.ShouldContain("Bob", Case.Sensitive);
     }
 
     // ── YAML: includes Llm + Default + Detailed fields ────────────────────────────
@@ -121,12 +122,12 @@ public sealed class Renderer : IDisposable
         RtSerializer.Write(result, sw);
 
         var yaml = sw.ToString();
-        Assert.Contains("llmField:", yaml);
-        Assert.Contains("defaultField:", yaml);
-        Assert.Contains("detailedField:", yaml);
-        Assert.Contains("llm-value", yaml);
-        Assert.Contains("default-value", yaml);
-        Assert.Contains("detailed-value", yaml);
+        yaml.ShouldContain("llmField:", Case.Sensitive);
+        yaml.ShouldContain("defaultField:", Case.Sensitive);
+        yaml.ShouldContain("detailedField:", Case.Sensitive);
+        yaml.ShouldContain("llm-value", Case.Sensitive);
+        yaml.ShouldContain("default-value", Case.Sensitive);
+        yaml.ShouldContain("detailed-value", Case.Sensitive);
     }
 
     [Fact]
@@ -139,9 +140,9 @@ public sealed class Renderer : IDisposable
         RtSerializer.Write(result, sw);
 
         var yaml = sw.ToString();
-        Assert.Contains("children:", yaml);
-        Assert.Contains("Alice", yaml);
-        Assert.Contains("Bob", yaml);
+        yaml.ShouldContain("children:", Case.Sensitive);
+        yaml.ShouldContain("Alice", Case.Sensitive);
+        yaml.ShouldContain("Bob", Case.Sensitive);
     }
 
     [Fact]
@@ -153,7 +154,7 @@ public sealed class Renderer : IDisposable
 
         RtSerializer.Write(result, sw);
 
-        Assert.DoesNotContain("untagged-value", sw.ToString());
+        sw.ToString().ShouldNotContain("untagged-value", Case.Sensitive);
     }
 
     [Fact]
@@ -166,7 +167,7 @@ public sealed class Renderer : IDisposable
         RtSerializer.Write(result, sw);
 
         var yaml = sw.ToString();
-        Assert.Contains("child:", yaml);
+        yaml.ShouldContain("child:", Case.Sensitive);
     }
 
     // ── AC-9: Text rendering delegates to RenderText exactly once ─────────────────
@@ -180,8 +181,8 @@ public sealed class Renderer : IDisposable
 
         RtSerializer.Write(result, sw);
 
-        Assert.Equal(1, result.RenderTextCallCount);
-        Assert.Equal("TRACKED", sw.ToString());
+        result.RenderTextCallCount.ShouldBe(1);
+        sw.ToString().ShouldBe("TRACKED");
     }
 
     // ── AC-10: Property without [OutputField] is omitted from all renderers ───────
@@ -197,7 +198,7 @@ public sealed class Renderer : IDisposable
 
         var json = sw.ToString();
         var doc = JsonDocument.Parse(json);
-        Assert.False(doc.RootElement.TryGetProperty("UntaggedField", out _));
+        doc.RootElement.TryGetProperty("UntaggedField", out _).ShouldBeFalse();
     }
 
     [Fact]
@@ -209,7 +210,7 @@ public sealed class Renderer : IDisposable
 
         RtSerializer.Write(result, sw);
 
-        Assert.DoesNotContain("untagged-value", sw.ToString());
+        sw.ToString().ShouldNotContain("untagged-value", Case.Sensitive);
     }
 
     [Fact]
@@ -221,7 +222,7 @@ public sealed class Renderer : IDisposable
 
         RtSerializer.Write(result, sw);
 
-        Assert.DoesNotContain("untagged-value", sw.ToString());
+        sw.ToString().ShouldNotContain("untagged-value", Case.Sensitive);
     }
 
     // ── AC-11: Null IRtOutput renders as JSON null and omitted Llm line ───────────
@@ -236,8 +237,8 @@ public sealed class Renderer : IDisposable
         RtSerializer.Write(result, sw);
 
         var doc = JsonDocument.Parse(sw.ToString());
-        Assert.True(doc.RootElement.TryGetProperty("child", out var child));
-        Assert.Equal(JsonValueKind.Null, child.ValueKind);
+        doc.RootElement.TryGetProperty("child", out var child).ShouldBeTrue();
+        child.ValueKind.ShouldBe(JsonValueKind.Null);
     }
 
     [Fact]
@@ -249,7 +250,7 @@ public sealed class Renderer : IDisposable
 
         RtSerializer.Write(result, sw);
 
-        Assert.DoesNotContain("Child", sw.ToString());
+        sw.ToString().ShouldNotContain("Child", Case.Sensitive);
     }
 
     // ── Fixture types ─────────────────────────────────────────────────────────────

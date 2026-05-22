@@ -1,5 +1,6 @@
 using System.Text;
 using RoslynTools.Core;
+using Shouldly;
 
 namespace RoslynTools.Tests.Analysis;
 
@@ -26,8 +27,8 @@ public class ListSmells
             var smells = await SmellAnalyzer.AnalyzeAsync(sln, 300, 40, 7, null);
 
             var largeClass = smells.Where(s => s.SmellType == "LargeClass").ToList();
-            Assert.NotEmpty(largeClass);
-            Assert.Contains(largeClass, s => s.TypeName == "BigClass");
+            largeClass.ShouldNotBeEmpty();
+            largeClass.ShouldContain(s => s.TypeName == "BigClass");
         }
     }
 
@@ -54,8 +55,8 @@ public class ListSmells
             var smells = await SmellAnalyzer.AnalyzeAsync(sln, 300, 40, 7, null);
 
             var longMethods = smells.Where(s => s.SmellType == "LongMethod").ToList();
-            Assert.NotEmpty(longMethods);
-            Assert.Contains(longMethods, s => s.MemberName == "DoWork");
+            longMethods.ShouldNotBeEmpty();
+            longMethods.ShouldContain(s => s.MemberName == "DoWork");
         }
     }
 
@@ -83,8 +84,8 @@ public class ListSmells
             var smells = await SmellAnalyzer.AnalyzeAsync(sln, 300, 40, 7, null);
 
             var tooDeps = smells.Where(s => s.SmellType == "TooManyDependencies").ToList();
-            Assert.NotEmpty(tooDeps);
-            Assert.Contains(tooDeps, s => s.TypeName == "FatService");
+            tooDeps.ShouldNotBeEmpty();
+            tooDeps.ShouldContain(s => s.TypeName == "FatService");
         }
     }
 
@@ -116,7 +117,7 @@ public class ListSmells
         {
             var smells = await SmellAnalyzer.AnalyzeAsync(sln, 300, 40, 7, null);
 
-            Assert.Empty(smells);
+            smells.ShouldBeEmpty();
         }
     }
 
@@ -141,11 +142,11 @@ public class ListSmells
         {
             // Default threshold — should NOT flag
             var smellsDefault = await SmellAnalyzer.AnalyzeAsync(sln, 300, 40, 7, null);
-            Assert.DoesNotContain(smellsDefault, s => s.SmellType == "LargeClass" && s.TypeName == "MediumClass");
+            smellsDefault.ShouldNotContain(s => s.SmellType == "LargeClass" && s.TypeName == "MediumClass");
 
             // Custom threshold of 50 — SHOULD flag
             var smellsCustom = await SmellAnalyzer.AnalyzeAsync(sln, 50, 40, 7, null);
-            Assert.Contains(smellsCustom, s => s.SmellType == "LargeClass" && s.TypeName == "MediumClass");
+            smellsCustom.ShouldContain(s => s.SmellType == "LargeClass" && s.TypeName == "MediumClass");
         }
     }
 
@@ -180,8 +181,8 @@ public class ListSmells
                 7,
                 "RoslynTools.Commands");
 
-            Assert.Contains(smells, s => s.TypeName == "FatCommand");
-            Assert.DoesNotContain(smells, s => s.TypeName == "OtherCommand");
+            smells.ShouldContain(s => s.TypeName == "FatCommand");
+            smells.ShouldNotContain(s => s.TypeName == "OtherCommand");
         }
     }
 }

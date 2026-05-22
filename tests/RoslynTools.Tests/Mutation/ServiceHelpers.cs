@@ -2,6 +2,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using RoslynTools.Core;
 using RoslynTools.Services;
 using RoslynTools.Tests.Infrastructure;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -29,7 +30,7 @@ public class ServiceHelpers : IClassFixture<RtServicesFixture>
         projectDir = projectDir.Replace('/', Path.DirectorySeparatorChar);
 
         var result = _services.Resolve<FixNamespaceService>().ComputeExpectedNamespace(filePath, projectDir, assemblyName);
-        Assert.Equal(expected, result);
+        result.ShouldBe(expected);
     }
 
     [Fact]
@@ -37,7 +38,7 @@ public class ServiceHelpers : IClassFixture<RtServicesFixture>
     {
         var tree = CSharpSyntaxTree.ParseText("namespace Foo.Bar;");
         var root = tree.GetRoot();
-        Assert.Equal("Foo.Bar", _services.Resolve<FixNamespaceService>().GetDeclaredNamespace(root));
+        _services.Resolve<FixNamespaceService>().GetDeclaredNamespace(root).ShouldBe("Foo.Bar");
     }
 
     [Fact]
@@ -45,7 +46,7 @@ public class ServiceHelpers : IClassFixture<RtServicesFixture>
     {
         var tree = CSharpSyntaxTree.ParseText("namespace Foo.Bar { }");
         var root = tree.GetRoot();
-        Assert.Equal("Foo.Bar", _services.Resolve<FixNamespaceService>().GetDeclaredNamespace(root));
+        _services.Resolve<FixNamespaceService>().GetDeclaredNamespace(root).ShouldBe("Foo.Bar");
     }
 
     [Fact]
@@ -53,7 +54,7 @@ public class ServiceHelpers : IClassFixture<RtServicesFixture>
     {
         var tree = CSharpSyntaxTree.ParseText("public class Foo { }");
         var root = tree.GetRoot();
-        Assert.Null(_services.Resolve<FixNamespaceService>().GetDeclaredNamespace(root));
+        _services.Resolve<FixNamespaceService>().GetDeclaredNamespace(root).ShouldBeNull();
     }
 
     // ── AddDependencyService ──────────────────────────────────────────────
@@ -65,14 +66,14 @@ public class ServiceHelpers : IClassFixture<RtServicesFixture>
     [InlineData("Abc", "_abc")]
     public void derives_field_name_strips_leading_i_for_interfaces(string depType, string expected)
     {
-        Assert.Equal(expected, new AddDependencyService().DeriveFieldName(depType));
+        new AddDependencyService().DeriveFieldName(depType).ShouldBe(expected);
     }
 
     [Fact]
     public void normalize_type_name_strips_global_prefix()
     {
-        Assert.Equal("Foo.Bar", new AddDependencyService().NormalizeTypeName("global::Foo.Bar"));
-        Assert.Equal("Foo", new AddDependencyService().NormalizeTypeName("  Foo  "));
+        new AddDependencyService().NormalizeTypeName("global::Foo.Bar").ShouldBe("Foo.Bar");
+        new AddDependencyService().NormalizeTypeName("  Foo  ").ShouldBe("Foo");
     }
 
     // ── ExtractClassService ───────────────────────────────────────────────
@@ -80,15 +81,15 @@ public class ServiceHelpers : IClassFixture<RtServicesFixture>
     [Fact]
     public void extracts_class_derive_field_name_returns_camel_case_with_underscore()
     {
-        Assert.Equal("_myHelper", _services.Resolve<ExtractClassService>().DeriveFieldName("MyHelper"));
-        Assert.Equal("_dependency", _services.Resolve<ExtractClassService>().DeriveFieldName(""));
-        Assert.Equal("_a", _services.Resolve<ExtractClassService>().DeriveFieldName("A"));
+        _services.Resolve<ExtractClassService>().DeriveFieldName("MyHelper").ShouldBe("_myHelper");
+        _services.Resolve<ExtractClassService>().DeriveFieldName("").ShouldBe("_dependency");
+        _services.Resolve<ExtractClassService>().DeriveFieldName("A").ShouldBe("_a");
     }
 
     [Fact]
     public void extracts_class_normalize_type_name_strips_global_prefix()
     {
-        Assert.Equal("My.Type", _services.Resolve<ExtractClassService>().NormalizeTypeName("global::My.Type"));
+        _services.Resolve<ExtractClassService>().NormalizeTypeName("global::My.Type").ShouldBe("My.Type");
     }
 
     [Fact]
@@ -100,8 +101,8 @@ public class ServiceHelpers : IClassFixture<RtServicesFixture>
             true,
             []);
 
-        Assert.Contains("namespace MyApp;", text);
-        Assert.Contains("public static class Helper", text);
+        text.ShouldContain("namespace MyApp;", Case.Sensitive);
+        text.ShouldContain("public static class Helper", Case.Sensitive);
     }
 
     [Fact]
@@ -113,9 +114,9 @@ public class ServiceHelpers : IClassFixture<RtServicesFixture>
             false,
             []);
 
-        Assert.DoesNotContain("namespace", text);
-        Assert.Contains("public class Helper", text);
-        Assert.DoesNotContain("static", text);
+        text.ShouldNotContain("namespace", Case.Sensitive);
+        text.ShouldContain("public class Helper", Case.Sensitive);
+        text.ShouldNotContain("static", Case.Sensitive);
     }
 
     // ── ExtractInterfaceService ───────────────────────────────────────────
@@ -125,8 +126,8 @@ public class ServiceHelpers : IClassFixture<RtServicesFixture>
     {
         var text = InterfaceTextBuilder.BuildInterfaceText("MyApp", "IFoo", []);
 
-        Assert.Contains("namespace MyApp;", text);
-        Assert.Contains("public interface IFoo", text);
+        text.ShouldContain("namespace MyApp;", Case.Sensitive);
+        text.ShouldContain("public interface IFoo", Case.Sensitive);
     }
 
     [Fact]
@@ -134,8 +135,8 @@ public class ServiceHelpers : IClassFixture<RtServicesFixture>
     {
         var text = InterfaceTextBuilder.BuildInterfaceText("", "IFoo", []);
 
-        Assert.DoesNotContain("namespace", text);
-        Assert.Contains("public interface IFoo", text);
+        text.ShouldNotContain("namespace", Case.Sensitive);
+        text.ShouldContain("public interface IFoo", Case.Sensitive);
     }
 
     // ── ReplaceTypeService — rewriter unit tests ───────────────────────────
@@ -150,8 +151,8 @@ public class ServiceHelpers : IClassFixture<RtServicesFixture>
         var rewriter = new ReplaceTypeService.DateTimeRewriter();
         var newRoot = rewriter.Visit(root);
 
-        Assert.True(rewriter.Changed);
-        Assert.Contains("_timeProvider.GetUtcNow().UtcDateTime", newRoot.ToFullString());
+        rewriter.Changed.ShouldBeTrue();
+        newRoot.ToFullString().ShouldContain("_timeProvider.GetUtcNow().UtcDateTime", Case.Sensitive);
     }
 
     [Fact]
@@ -164,7 +165,7 @@ public class ServiceHelpers : IClassFixture<RtServicesFixture>
         var rewriter = new ReplaceTypeService.DateTimeRewriter();
         rewriter.Visit(root);
 
-        Assert.True(rewriter.Changed);
+        rewriter.Changed.ShouldBeTrue();
     }
 
     [Fact]
@@ -177,7 +178,7 @@ public class ServiceHelpers : IClassFixture<RtServicesFixture>
         var rewriter = new ReplaceTypeService.DateTimeRewriter();
         rewriter.Visit(root);
 
-        Assert.Contains("OrderService", rewriter.ClassesWithReplacements);
+        rewriter.ClassesWithReplacements.ShouldContain("OrderService");
     }
 
     [Fact]
@@ -190,7 +191,7 @@ public class ServiceHelpers : IClassFixture<RtServicesFixture>
         var rewriter = new ReplaceTypeService.DateTimeRewriter();
         rewriter.Visit(root);
 
-        Assert.Contains("TimeStruct", rewriter.ClassesWithReplacements);
+        rewriter.ClassesWithReplacements.ShouldContain("TimeStruct");
     }
 
     [Fact]
@@ -201,7 +202,7 @@ public class ServiceHelpers : IClassFixture<RtServicesFixture>
         var rewriter = new ReplaceTypeService.DateTimeRewriter();
         rewriter.Visit(root);
 
-        Assert.False(rewriter.Changed);
+        rewriter.Changed.ShouldBeFalse();
     }
 
     // ── RenameService.ReadBatchRows ───────────────────────────────────────
@@ -210,21 +211,21 @@ public class ServiceHelpers : IClassFixture<RtServicesFixture>
     public void reads_batch_rows_throws_for_empty_file()
     {
         var path = WriteTempCsv("");
-        Assert.Throws<InvalidOperationException>(() => new RenameService().ReadBatchRows(path));
+        Should.Throw<InvalidOperationException>(() => new RenameService().ReadBatchRows(path));
     }
 
     [Fact]
     public void reads_batch_rows_throws_when_source_symbol_column_missing()
     {
         var path = WriteTempCsv("target_name\nFoo");
-        Assert.Throws<InvalidOperationException>(() => new RenameService().ReadBatchRows(path));
+        Should.Throw<InvalidOperationException>(() => new RenameService().ReadBatchRows(path));
     }
 
     [Fact]
     public void reads_batch_rows_throws_when_target_name_column_missing()
     {
         var path = WriteTempCsv("source_symbol\nFoo");
-        Assert.Throws<InvalidOperationException>(() => new RenameService().ReadBatchRows(path));
+        Should.Throw<InvalidOperationException>(() => new RenameService().ReadBatchRows(path));
     }
 
     [Fact]
@@ -233,9 +234,9 @@ public class ServiceHelpers : IClassFixture<RtServicesFixture>
         var path = WriteTempCsv("source_symbol,target_name\nOldName,NewName");
         var rows = new RenameService().ReadBatchRows(path);
         Assert.Single(rows);
-        Assert.Equal("OldName", rows[0].OldFqn);
-        Assert.Equal("NewName", rows[0].NewName);
-        Assert.Null(rows[0].Review);
+        rows[0].OldFqn.ShouldBe("OldName");
+        rows[0].NewName.ShouldBe("NewName");
+        rows[0].Review.ShouldBeNull();
     }
 
     [Fact]
@@ -244,7 +245,7 @@ public class ServiceHelpers : IClassFixture<RtServicesFixture>
         var path = WriteTempCsv("source_symbol,target_name,review\nOldName,NewName,check-this");
         var rows = new RenameService().ReadBatchRows(path);
         Assert.Single(rows);
-        Assert.Equal("check-this", rows[0].Review);
+        rows[0].Review.ShouldBe("check-this");
     }
 
     [Fact]
@@ -264,33 +265,33 @@ public class ServiceHelpers : IClassFixture<RtServicesFixture>
             rows,
             row =>
             {
-                Assert.Equal("My.Tests.FooTests.Does_work", row.OldFqn);
-                Assert.Equal("does_work", row.NewName);
-                Assert.Equal("My.Tests.Foo.does_work", row.AppliedFqn);
+                row.OldFqn.ShouldBe("My.Tests.FooTests.Does_work");
+                row.NewName.ShouldBe("does_work");
+                row.AppliedFqn.ShouldBe("My.Tests.Foo.does_work");
             },
             row =>
             {
-                Assert.Equal("My.Tests.FooTests.Reports_failure", row.OldFqn);
-                Assert.Equal("reports_failure", row.NewName);
-                Assert.Equal("My.Tests.Foo.reports_failure", row.AppliedFqn);
+                row.OldFqn.ShouldBe("My.Tests.FooTests.Reports_failure");
+                row.NewName.ShouldBe("reports_failure");
+                row.AppliedFqn.ShouldBe("My.Tests.Foo.reports_failure");
             },
             row =>
             {
-                Assert.Equal("My.Tests.BarTests.With_edge_case", row.OldFqn);
-                Assert.Equal("edge_case", row.NewName);
-                Assert.Equal("My.Tests.Bar.edge_case", row.AppliedFqn);
+                row.OldFqn.ShouldBe("My.Tests.BarTests.With_edge_case");
+                row.NewName.ShouldBe("edge_case");
+                row.AppliedFqn.ShouldBe("My.Tests.Bar.edge_case");
             },
             row =>
             {
-                Assert.Equal("My.Tests.FooTests", row.OldFqn);
-                Assert.Equal("Foo", row.NewName);
-                Assert.Equal("My.Tests.Foo", row.AppliedFqn);
+                row.OldFqn.ShouldBe("My.Tests.FooTests");
+                row.NewName.ShouldBe("Foo");
+                row.AppliedFqn.ShouldBe("My.Tests.Foo");
             },
             row =>
             {
-                Assert.Equal("My.Tests.BarTests", row.OldFqn);
-                Assert.Equal("Bar", row.NewName);
-                Assert.Equal("My.Tests.Bar", row.AppliedFqn);
+                row.OldFqn.ShouldBe("My.Tests.BarTests");
+                row.NewName.ShouldBe("Bar");
+                row.AppliedFqn.ShouldBe("My.Tests.Bar");
             });
     }
 
@@ -298,8 +299,8 @@ public class ServiceHelpers : IClassFixture<RtServicesFixture>
     public void gets_field_returns_null_for_out_of_bounds_index()
     {
         var fields = new[] { "a", "b" };
-        Assert.Null(new RenameService().GetField(fields, 5));
-        Assert.Null(new RenameService().GetField(fields, -1));
+        new RenameService().GetField(fields, 5).ShouldBeNull();
+        new RenameService().GetField(fields, -1).ShouldBeNull();
     }
 
     private static string WriteTempCsv(string content)

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using RoslynTools.Commands;
 using RoslynTools.Tests.Infrastructure;
+using Shouldly;
 
 namespace RoslynTools.Tests.Analysis;
 
@@ -45,9 +46,9 @@ public class DependencyGraph : IClassFixture<RtServicesFixture>
             var nodes = root.GetProperty("nodes");
             var nodeNames = nodes.EnumerateArray().Select(n => n.GetString()).ToList();
 
-            Assert.Contains("A", nodeNames);
-            Assert.Contains("B", nodeNames);
-            Assert.Contains("C", nodeNames);
+            nodeNames.ShouldContain("A");
+            nodeNames.ShouldContain("B");
+            nodeNames.ShouldContain("C");
         }
     }
 
@@ -71,9 +72,9 @@ public class DependencyGraph : IClassFixture<RtServicesFixture>
                 .Select(e => (From: e.GetProperty("from").GetString()!, To: e.GetProperty("to").GetString()!))
                 .ToList();
 
-            Assert.Contains(edges, e => e.From == "A" && e.To == "B");
-            Assert.Contains(edges, e => e.From == "C" && e.To == "A");
-            Assert.Contains(edges, e => e.From == "C" && e.To == "B");
+            edges.ShouldContain(e => e.From == "A" && e.To == "B");
+            edges.ShouldContain(e => e.From == "C" && e.To == "A");
+            edges.ShouldContain(e => e.From == "C" && e.To == "B");
         }
     }
 
@@ -91,7 +92,7 @@ public class DependencyGraph : IClassFixture<RtServicesFixture>
             var dot = await _services.Resolve<DependencyGraphCommand>().BuildGraphAsync(sln, null, null, "dot", null);
 
             Assert.StartsWith("digraph", dot, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("->", dot);
+            dot.ShouldContain("->", Case.Sensitive);
         }
     }
 
@@ -116,11 +117,11 @@ public class DependencyGraph : IClassFixture<RtServicesFixture>
                 .ToList();
 
             // A and its direct dependency B should be present
-            Assert.Contains("A", nodes);
-            Assert.Contains("B", nodes);
+            nodes.ShouldContain("A");
+            nodes.ShouldContain("B");
 
             // C depends on A, but C itself is not reachable from A within depth 1
-            Assert.DoesNotContain("C", nodes);
+            nodes.ShouldNotContain("C");
         }
     }
 
@@ -148,7 +149,7 @@ public class DependencyGraph : IClassFixture<RtServicesFixture>
                     To: e.GetProperty("to").GetString()!))
                 .ToList();
 
-            Assert.Contains(edges, e => e.From == "A" && e.To == "B");
+            edges.ShouldContain(e => e.From == "A" && e.To == "B");
         }
     }
 
@@ -165,8 +166,8 @@ public class DependencyGraph : IClassFixture<RtServicesFixture>
             var nodes = doc.RootElement.GetProperty("nodes").EnumerateArray().ToList();
             var edges = doc.RootElement.GetProperty("edges").EnumerateArray().ToList();
 
-            Assert.Empty(nodes);
-            Assert.Empty(edges);
+            nodes.ShouldBeEmpty();
+            edges.ShouldBeEmpty();
         }
     }
 
@@ -180,7 +181,7 @@ public class DependencyGraph : IClassFixture<RtServicesFixture>
             var dot = await _services.Resolve<DependencyGraphCommand>().BuildGraphAsync(sln, "NoSuchType", null, "dot", null);
 
             Assert.Contains("digraph", dot, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("->", dot);
+            dot.ShouldNotContain("->", Case.Sensitive);
         }
     }
 
@@ -201,9 +202,9 @@ public class DependencyGraph : IClassFixture<RtServicesFixture>
             var nodeNames = doc.RootElement.GetProperty("nodes")
                 .EnumerateArray().Select(n => n.GetString()).ToList();
 
-            Assert.Contains("Alpha", nodeNames);
-            Assert.Contains("Beta", nodeNames);
-            Assert.DoesNotContain("Gamma", nodeNames);
+            nodeNames.ShouldContain("Alpha");
+            nodeNames.ShouldContain("Beta");
+            nodeNames.ShouldNotContain("Gamma");
         }
     }
 }

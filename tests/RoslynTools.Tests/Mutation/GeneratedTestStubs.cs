@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis.Text;
 using Microsoft.Extensions.Logging.Abstractions;
 using RoslynTools.Core;
 using RoslynTools.Services;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -43,13 +44,13 @@ public sealed class GeneratedTestStubs
         var orderText = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "OrderTests.cs");
         var invoiceText = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "InvoiceTests.cs");
 
-        Assert.Contains("using System;", orderText);
-        Assert.Contains("using Xunit;", orderText);
-        Assert.Contains("[Fact]", orderText);
-        Assert.Contains("public void returns_total_for_valid_items()", orderText);
-        Assert.Contains("throw new NotImplementedException();", orderText);
-        Assert.DoesNotContain("returns_total_for_valid_items", invoiceText);
-        Assert.False(writer.DryRun);
+        orderText.ShouldContain("using System;", Case.Sensitive);
+        orderText.ShouldContain("using Xunit;", Case.Sensitive);
+        orderText.ShouldContain("[Fact]", Case.Sensitive);
+        orderText.ShouldContain("public void returns_total_for_valid_items()", Case.Sensitive);
+        orderText.ShouldContain("throw new NotImplementedException();", Case.Sensitive);
+        invoiceText.ShouldNotContain("returns_total_for_valid_items", Case.Sensitive);
+        writer.DryRun.ShouldBe(false);
     }
 
     [Fact]
@@ -80,10 +81,10 @@ public sealed class GeneratedTestStubs
         var outerClassIndex = orderText.IndexOf("public class OrderTests", StringComparison.Ordinal);
         var nestedClassIndex = orderText.IndexOf("public class WhenCheckingOut", StringComparison.Ordinal);
 
-        Assert.True(outerClassIndex >= 0);
-        Assert.True(nestedClassIndex > outerClassIndex);
-        Assert.Contains("public void Returns_Total_For_Valid_Items()", orderText);
-        Assert.Contains("public void Rejects_Missing_Customer()", orderText);
+        (outerClassIndex >= 0).ShouldBeTrue();
+        (nestedClassIndex > outerClassIndex).ShouldBeTrue();
+        orderText.ShouldContain("public void Returns_Total_For_Valid_Items()", Case.Sensitive);
+        orderText.ShouldContain("public void Rejects_Missing_Customer()", Case.Sensitive);
     }
 
     [Fact]
@@ -115,8 +116,8 @@ public sealed class GeneratedTestStubs
                 null,
                 false);
 
-            Assert.Null(writer.Solution);
-            Assert.Equal(1, Environment.ExitCode);
+            writer.Solution.ShouldBeNull();
+            Environment.ExitCode.ShouldBe(1);
         }
         finally
         {
@@ -172,10 +173,10 @@ public sealed class GeneratedTestStubs
 
         var renameText = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "Rename.cs");
 
-        Assert.Contains("using System;", renameText);
-        Assert.Contains("using Xunit;", renameText);
-        Assert.Contains("[Trait(\"Concern\", \"SourceFileCallSite\")]", renameText);
-        Assert.Contains("public async Task with_source_file_owns_the_call_site_updates_the_reference()", renameText);
-        Assert.Contains("throw new NotImplementedException();", renameText);
+        renameText.ShouldContain("using System;", Case.Sensitive);
+        renameText.ShouldContain("using Xunit;", Case.Sensitive);
+        renameText.ShouldContain("[Trait(\"Concern\", \"SourceFileCallSite\")]", Case.Sensitive);
+        renameText.ShouldContain("public async Task with_source_file_owns_the_call_site_updates_the_reference()", Case.Sensitive);
+        renameText.ShouldContain("throw new NotImplementedException();", Case.Sensitive);
     }
 }

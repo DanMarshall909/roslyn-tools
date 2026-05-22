@@ -3,6 +3,7 @@ using System.Text.Json;
 using RoslynTools.Commands;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core.Output;
+using Shouldly;
 
 namespace RoslynTools.Tests.Analysis;
 
@@ -50,7 +51,7 @@ public class ListSmellsMigration : IDisposable
 
         var member = "  DoWork";
         var expected = $"{"LargeClass",-24}{"MyBigClass",-30}{member,-20}/src/MyBigClass.cs:42  310 lines";
-        Assert.Contains(expected, actual);
+        actual.ShouldContain(expected, Case.Sensitive);
     }
 
     [Fact]
@@ -64,7 +65,7 @@ public class ListSmellsMigration : IDisposable
 
         var member = "";
         var expected = $"{"LargeClass",-24}{"MyBigClass",-30}{member,-20}/src/MyBigClass.cs:42  310 lines";
-        Assert.Contains(expected, actual);
+        actual.ShouldContain(expected, Case.Sensitive);
     }
 
     [Fact]
@@ -77,7 +78,7 @@ public class ListSmellsMigration : IDisposable
         var sw = new StringWriter();
         result.RenderText(sw);
         var lines = sw.ToString().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
-        Assert.Equal(2, lines.Length);
+        lines.Length.ShouldBe(2);
     }
 
     // ── AC-4: --json produces valid JSON with all smells and their details ─────────
@@ -96,16 +97,16 @@ public class ListSmellsMigration : IDisposable
         var doc = JsonDocument.Parse(sw.ToString());
         var root = doc.RootElement;
 
-        Assert.True(root.TryGetProperty("smells", out var smells));
-        Assert.Equal(JsonValueKind.Array, smells.ValueKind);
-        Assert.Equal(2, smells.GetArrayLength());
+        root.TryGetProperty("smells", out var smells).ShouldBeTrue();
+        smells.ValueKind.ShouldBe(JsonValueKind.Array);
+        smells.GetArrayLength().ShouldBe(2);
 
         var first = smells[0];
-        Assert.True(first.TryGetProperty("smellType", out _));
-        Assert.True(first.TryGetProperty("typeName", out _));
-        Assert.True(first.TryGetProperty("filePath", out _));
-        Assert.True(first.TryGetProperty("line", out _));
-        Assert.True(first.TryGetProperty("detail", out _));
+        first.TryGetProperty("smellType", out _).ShouldBeTrue();
+        first.TryGetProperty("typeName", out _).ShouldBeTrue();
+        first.TryGetProperty("filePath", out _).ShouldBeTrue();
+        first.TryGetProperty("line", out _).ShouldBeTrue();
+        first.TryGetProperty("detail", out _).ShouldBeTrue();
     }
 
     // ── AC-5: --markdown produces grouped Markdown output ─────────────────────────
@@ -122,11 +123,11 @@ public class ListSmellsMigration : IDisposable
         RtSerializer.Write(result, sw);
         var md = sw.ToString();
 
-        Assert.Contains("# Code Smells", md);
-        Assert.Contains("## LargeClass", md);
-        Assert.Contains("## LongMethod", md);
-        Assert.Contains("BigClass", md);
-        Assert.Contains("SomeService", md);
+        md.ShouldContain("# Code Smells", Case.Sensitive);
+        md.ShouldContain("## LargeClass", Case.Sensitive);
+        md.ShouldContain("## LongMethod", Case.Sensitive);
+        md.ShouldContain("BigClass", Case.Sensitive);
+        md.ShouldContain("SomeService", Case.Sensitive);
     }
 
     [Fact]
@@ -139,7 +140,7 @@ public class ListSmellsMigration : IDisposable
         RtSerializer.Write(result, sw);
         var md = sw.ToString();
 
-        Assert.Contains("No code smells found.", md);
+        md.ShouldContain("No code smells found.", Case.Sensitive);
     }
 
     // ── AC-6: --llm produces compact per-smell lines with only Llm-level fields ───
@@ -155,12 +156,12 @@ public class ListSmellsMigration : IDisposable
         RtSerializer.Write(result, sw);
         var output = sw.ToString();
 
-        Assert.Contains("LargeClass", output);
-        Assert.Contains("BigClass", output);
+        output.ShouldContain("LargeClass", Case.Sensitive);
+        output.ShouldContain("BigClass", Case.Sensitive);
         // Default-level fields should not appear as labelled properties
-        Assert.DoesNotContain("filePath:", output);
-        Assert.DoesNotContain("line:", output);
-        Assert.DoesNotContain("detail:", output);
+        output.ShouldNotContain("filePath:", Case.Sensitive);
+        output.ShouldNotContain("line:", Case.Sensitive);
+        output.ShouldNotContain("detail:", Case.Sensitive);
     }
 
     // ── AC-7: no flag produces unchanged legacy text output ───────────────────────
@@ -177,7 +178,7 @@ public class ListSmellsMigration : IDisposable
 
         var member = "";
         var expected = $"{"TooManyDependencies",-24}{"FatService",-30}{member,-20}/src/Fat.cs:3  8 params";
-        Assert.Contains(expected, output);
+        output.ShouldContain(expected, Case.Sensitive);
     }
 
     // ── AC-8: RtCommandInfo.SupportedFormats includes all four formats ─────────────
@@ -187,11 +188,11 @@ public class ListSmellsMigration : IDisposable
     {
         var info = ListSmellsCommand.Info;
         var formats = info.SupportedFormats;
-        Assert.NotNull(formats);
-        Assert.Contains(OutputFormat.Text, formats);
-        Assert.Contains(OutputFormat.Json, formats);
-        Assert.Contains(OutputFormat.Markdown, formats);
-        Assert.Contains(OutputFormat.Llm, formats);
+        formats.ShouldNotBeNull();
+        formats.ShouldContain(OutputFormat.Text);
+        formats.ShouldContain(OutputFormat.Json);
+        formats.ShouldContain(OutputFormat.Markdown);
+        formats.ShouldContain(OutputFormat.Llm);
     }
 
     [Fact]
@@ -201,6 +202,6 @@ public class ListSmellsMigration : IDisposable
 
         var result = command.Parse("--solution RoslynTools.slnx --top 3");
 
-        Assert.Empty(result.Errors);
+        result.Errors.ShouldBeEmpty();
     }
 }

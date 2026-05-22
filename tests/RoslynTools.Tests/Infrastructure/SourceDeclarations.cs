@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using RoslynTools.Services;
+using Shouldly;
 
 namespace RoslynTools.Tests.Infrastructure;
 
@@ -24,8 +25,8 @@ public sealed class SourceDeclarations
             var symbol = await GetTypeSymbolAsync(solution, "App.Order");
             var documentId = new DocumentLocatorService().FindDocumentId(solution, symbol);
 
-            Assert.NotNull(documentId);
-            Assert.Equal("Order.cs", solution.GetDocument(documentId!)?.Name);
+            documentId.ShouldNotBeNull();
+            (solution.GetDocument(documentId!)?.Name).ShouldBe("Order.cs");
         }
     }
 
@@ -48,7 +49,7 @@ public sealed class SourceDeclarations
             var declaration = await new DocumentLocatorService()
                 .GetDeclarationAsync<ClassDeclarationSyntax>(solution, symbol);
 
-            Assert.Equal("Order", declaration.Identifier.Text);
+            declaration.Identifier.Text.ShouldBe("Order");
         }
     }
 
@@ -72,8 +73,8 @@ public sealed class SourceDeclarations
             var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new DocumentLocatorService().GetDeclarationAsync<ClassDeclarationSyntax>(solution, symbol));
 
-            Assert.Contains("No source declaration found", exception.Message);
-            Assert.Contains("string", exception.Message);
+            exception.Message.ShouldContain("No source declaration found", Case.Sensitive);
+            exception.Message.ShouldContain("string", Case.Sensitive);
         }
     }
 
@@ -98,7 +99,7 @@ public sealed class SourceDeclarations
             var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 new DocumentLocatorService().GetDeclarationAsync<ClassDeclarationSyntax>(solution, methodSymbol));
 
-            Assert.Contains("is not a ClassDeclarationSyntax", exception.Message);
+            exception.Message.ShouldContain("is not a ClassDeclarationSyntax", Case.Sensitive);
         }
     }
 
@@ -120,7 +121,7 @@ public sealed class SourceDeclarations
             var document = solution.Projects.Single().Documents.Single();
             var root = await new DocumentLocatorService().GetSyntaxRootAsync(document);
 
-            Assert.IsAssignableFrom<CompilationUnitSyntax>(root);
+            root.ShouldBeAssignableTo<CompilationUnitSyntax>();
         }
     }
 
@@ -128,6 +129,6 @@ public sealed class SourceDeclarations
     {
         var compilation = await solution.Projects.Single().GetCompilationAsync();
         var symbol = compilation!.GetTypeByMetadataName(metadataName);
-        return Assert.IsAssignableFrom<INamedTypeSymbol>(symbol);
+        return symbol.ShouldBeAssignableTo<INamedTypeSymbol>()!;
     }
 }

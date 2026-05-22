@@ -1,6 +1,7 @@
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Tests.Infrastructure;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -40,8 +41,8 @@ public class InlineMethod : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("MathHelper.cs");
-        Assert.Contains("var a = 5 * 2;", content);
-        Assert.Contains("var b = 10 * 2;", content);
+        content.ShouldContain("var a = 5 * 2;", Case.Sensitive);
+        content.ShouldContain("var b = 10 * 2;", Case.Sensitive);
     }
 
     [Fact]
@@ -72,7 +73,7 @@ public class InlineMethod : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("MathHelper.cs");
-        Assert.Contains("4 * 3", content);
+        content.ShouldContain("4 * 3", Case.Sensitive);
     }
 
     [Fact]
@@ -88,7 +89,7 @@ public class InlineMethod : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("MathHelper.cs");
-        Assert.DoesNotContain("public int Double(", content);
+        content.ShouldNotContain("public int Double(", Case.Sensitive);
     }
 
     [Fact]
@@ -121,10 +122,10 @@ public class InlineMethod : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("MathHelper.cs");
-        Assert.Contains("2 * 2", content);
-        Assert.Contains("3 * 3", content);
-        Assert.Contains("4 * 4", content);
-        Assert.DoesNotContain("public int Square(", content);
+        content.ShouldContain("2 * 2", Case.Sensitive);
+        content.ShouldContain("3 * 3", Case.Sensitive);
+        content.ShouldContain("4 * 4", Case.Sensitive);
+        content.ShouldNotContain("public int Square(", Case.Sensitive);
     }
 
     [Fact]
@@ -142,7 +143,7 @@ public class InlineMethod : IClassFixture<RtServicesFixture>
         }
 
         var afterContent = await project.ReadSourceAsync("MathHelper.cs");
-        Assert.Equal(originalContent, afterContent);
+        afterContent.ShouldBe(originalContent);
     }
 
     [Fact]
@@ -177,7 +178,7 @@ public class InlineMethod : IClassFixture<RtServicesFixture>
 
         var afterContent = await project.ReadSourceAsync("MathHelper.cs");
         // Multi-statement block body is not inlinable — file must be unchanged
-        Assert.Equal(originalContent, afterContent);
+        afterContent.ShouldBe(originalContent);
     }
 
     [Fact]
@@ -195,7 +196,7 @@ public class InlineMethod : IClassFixture<RtServicesFixture>
         }
 
         var afterContent = await project.ReadSourceAsync("MathHelper.cs");
-        Assert.Equal(originalContent, afterContent);
+        afterContent.ShouldBe(originalContent);
     }
 
     // Bug: tasks/dogfood-gaps.md:35 — method removal matches by identifier text only.
@@ -230,8 +231,8 @@ public class InlineMethod : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("MathHelper.cs");
-        Assert.DoesNotContain("public static int Double", content);
-        Assert.Contains("public int Double(int x) => x + x;", content);
+        content.ShouldNotContain("public static int Double", Case.Sensitive);
+        content.ShouldContain("public int Double(int x) => x + x;", Case.Sensitive);
     }
 
     // Bug: tasks/dogfood-gaps.md:36 — substituted compound args not parenthesised.
@@ -261,6 +262,6 @@ public class InlineMethod : IClassFixture<RtServicesFixture>
         }
 
         var content = await project.ReadSourceAsync("MathHelper.cs");
-        Assert.Contains("(3 + 4) * 2", content);
+        content.ShouldContain("(3 + 4) * 2", Case.Sensitive);
     }
 }

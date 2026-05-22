@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using RoslynTools.Core;
 using Xunit.Sdk;
+using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
@@ -47,10 +48,10 @@ public class ExtractMethod
         }
 
         var content = await project.ReadSourceAsync("Calculator.cs");
-        Assert.Contains("private void DoWork()", content);
-        Assert.Contains("DoWork();", content);
+        content.ShouldContain("private void DoWork()", Case.Sensitive);
+        content.ShouldContain("DoWork();", Case.Sensitive);
         // Statements moved to new method — Process() body is now just the call
-        Assert.DoesNotContain("int a = 1;", GetMethodBody(content, "Process"));
+        GetMethodBody(content, "Process").ShouldNotContain("int a = 1;", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -88,8 +89,8 @@ public class ExtractMethod
 
         var content = await project.ReadSourceAsync("Calculator.cs");
         // x appears before y in the extracted code → x is first parameter
-        Assert.Contains("private void Calculate(int x, int y)", content);
-        Assert.Contains("Calculate(x, y);", content);
+        content.ShouldContain("private void Calculate(int x, int y)", Case.Sensitive);
+        content.ShouldContain("Calculate(x, y);", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -128,9 +129,9 @@ public class ExtractMethod
         }
 
         var content = await project.ReadSourceAsync("Calculator.cs");
-        Assert.Contains("private int ComputeSum(int x, int y)", content);
-        Assert.Contains("var sum = ComputeSum(x, y);", content);
-        Assert.Contains("return sum;", GetMethodBody(content, "ComputeSum"));
+        content.ShouldContain("private int ComputeSum(int x, int y)", Case.Sensitive);
+        content.ShouldContain("var sum = ComputeSum(x, y);", Case.Sensitive);
+        GetMethodBody(content, "ComputeSum").ShouldContain("return sum;", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -170,9 +171,9 @@ public class ExtractMethod
 
         var content = await project.ReadSourceAsync("Calculator.cs");
         // temp is not used after the extraction range, so return type is int (not tuple)
-        Assert.Contains("private int ComputeResult(int n)", content);
+        content.ShouldContain("private int ComputeResult(int n)", Case.Sensitive);
         // return should only be result, not a tuple including temp
-        Assert.DoesNotContain("(", GetMethodBody(content, "ComputeResult").Split("return")[1].Split(";")[0]);
+        GetMethodBody(content, "ComputeResult").Split("return")[1].Split(";")[0].ShouldNotContain("(", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -213,10 +214,10 @@ public class ExtractMethod
 
         var content = await project.ReadSourceAsync("Calculator.cs");
         // Tuple return type
-        Assert.Contains("(int", content);
-        Assert.Contains("Compute(x)", content);
+        content.ShouldContain("(int", Case.Sensitive);
+        content.ShouldContain("Compute(x)", Case.Sensitive);
         // Deconstruction call site
-        Assert.Contains("var (a, b) = Compute(x);", content);
+        content.ShouldContain("var (a, b) = Compute(x);", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -253,8 +254,8 @@ public class ExtractMethod
         }
 
         var content = await project.ReadSourceAsync("MathUtil.cs");
-        Assert.Contains("private static int ComputeDoubled(int n)", content);
-        Assert.Contains("var doubled = ComputeDoubled(n);", content);
+        content.ShouldContain("private static int ComputeDoubled(int n)", Case.Sensitive);
+        content.ShouldContain("var doubled = ComputeDoubled(n);", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -295,7 +296,7 @@ public class ExtractMethod
         }
 
         var content = await project.ReadSourceAsync("MyClass.cs");
-        Assert.Contains("private void DoWork()", content);
+        content.ShouldContain("private void DoWork()", Case.Sensitive);
         // DoWork should appear between MethodA and OtherMethod
         var idxMethodA = content.IndexOf("public void MethodA()", StringComparison.Ordinal);
         var idxDoWork = content.IndexOf("private void DoWork()", StringComparison.Ordinal);
@@ -428,7 +429,7 @@ public class ExtractMethod
         }
 
         var afterContent = await project.ReadSourceAsync("Calculator.cs");
-        Assert.Equal(originalContent, afterContent);
+        afterContent.ShouldBe(originalContent);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -535,7 +536,7 @@ public class ExtractMethod
 
         var rawBytes = await File.ReadAllBytesAsync(FilePath(project, "Calculator.cs"));
         var rawContent = Encoding.UTF8.GetString(rawBytes);
-        Assert.DoesNotContain("\r\n", rawContent);
+        rawContent.ShouldNotContain("\r\n", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -652,13 +653,13 @@ public class ExtractMethod
         var contentB = await project.ReadSourceAsync("B.cs");
 
         // A has the extracted method
-        Assert.Contains("private void PrintMessages()", contentA);
-        Assert.Contains("PrintMessages();", contentA);
+        contentA.ShouldContain("private void PrintMessages()", Case.Sensitive);
+        contentA.ShouldContain("PrintMessages();", Case.Sensitive);
 
         // B's duplicate was replaced with a call
-        Assert.Contains("PrintMessages();", contentB);
+        contentB.ShouldContain("PrintMessages();", Case.Sensitive);
         // Original statements removed from B
-        Assert.DoesNotContain("Console.WriteLine(\"hello\")", GetMethodBody(contentB, "Run"));
+        GetMethodBody(contentB, "Run").ShouldNotContain("Console.WriteLine(\"hello\")", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -712,13 +713,13 @@ public class ExtractMethod
         var contentB = await project.ReadSourceAsync("B.cs");
 
         // A has the extracted method
-        Assert.Contains("PrintSum(", contentA);
+        contentA.ShouldContain("PrintSum(", Case.Sensitive);
 
         // B has the call with mapped argument names
-        Assert.Contains("PrintSum(", contentB);
+        contentB.ShouldContain("PrintSum(", Case.Sensitive);
         // B's call should use B's identifiers (a and/or b)
         var bBody = GetMethodBody(contentB, "Compute");
-        Assert.DoesNotContain("var total = a + b;", bBody);
+        bBody.ShouldNotContain("var total = a + b;", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -759,9 +760,9 @@ public class ExtractMethod
 
         var content = await project.ReadSourceAsync("Calculator.cs");
         // Extraction happened correctly
-        Assert.Contains("private void DoWork()", content);
-        Assert.Contains("DoWork();", content);
-        Assert.DoesNotContain("int a = 1;", GetMethodBody(content, "Process"));
+        content.ShouldContain("private void DoWork()", Case.Sensitive);
+        content.ShouldContain("DoWork();", Case.Sensitive);
+        GetMethodBody(content, "Process").ShouldNotContain("int a = 1;", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -815,8 +816,8 @@ public class ExtractMethod
         }
 
         // Files on disk must be unchanged
-        Assert.Equal(originalA, await project.ReadSourceAsync("A.cs"));
-        Assert.Equal(originalB, await project.ReadSourceAsync("B.cs"));
+        (await project.ReadSourceAsync("A.cs")).ShouldBe(originalA);
+        (await project.ReadSourceAsync("B.cs")).ShouldBe(originalB);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -874,13 +875,13 @@ public class ExtractMethod
 
         // A is correctly refactored
         var contentA = await project.ReadSourceAsync("A.cs");
-        Assert.Contains("private void ComputeDoubled(int x)", contentA);
-        Assert.Contains("ComputeDoubled(x);", contentA);
+        contentA.ShouldContain("private void ComputeDoubled(int x)", Case.Sensitive);
+        contentA.ShouldContain("ComputeDoubled(x);", Case.Sensitive);
 
         // B is untouched (literal body didn't match the pattern)
         var contentB = await project.ReadSourceAsync("B.cs");
-        Assert.Contains("var doubled = 42 * 2;", contentB);
-        Assert.DoesNotContain("ComputeDoubled", contentB);
+        contentB.ShouldContain("var doubled = 42 * 2;", Case.Sensitive);
+        contentB.ShouldNotContain("ComputeDoubled", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -937,21 +938,21 @@ public class ExtractMethod
         var content = await project.ReadSourceAsync("A.cs");
 
         // Source method has the extraction call
-        Assert.Contains("PrintMessages();", GetMethodBody(content, "Source"));
+        GetMethodBody(content, "Source").ShouldContain("PrintMessages();", Case.Sensitive);
 
         // BOTH Dupe1 and Dupe2 should have the call — this is the bug: with line-drift,
         // one (or both) duplicates is left with stale or partial content.
-        Assert.Contains("PrintMessages();", GetMethodBody(content, "Dupe1"));
-        Assert.Contains("PrintMessages();", GetMethodBody(content, "Dupe2"));
+        GetMethodBody(content, "Dupe1").ShouldContain("PrintMessages();", Case.Sensitive);
+        GetMethodBody(content, "Dupe2").ShouldContain("PrintMessages();", Case.Sensitive);
 
         // Original statements are gone from both duplicate methods
-        Assert.DoesNotContain("Console.WriteLine(\"hello\")", GetMethodBody(content, "Dupe1"));
-        Assert.DoesNotContain("Console.WriteLine(\"hello\")", GetMethodBody(content, "Dupe2"));
+        GetMethodBody(content, "Dupe1").ShouldNotContain("Console.WriteLine(\"hello\")", Case.Sensitive);
+        GetMethodBody(content, "Dupe2").ShouldNotContain("Console.WriteLine(\"hello\")", Case.Sensitive);
 
         // The extracted method exists exactly once (not duplicated per match).
         var extractedCount = Regex.Matches(
             content, @"private\s+void\s+PrintMessages\s*\(").Count;
-        Assert.Equal(1, extractedCount);
+        extractedCount.ShouldBe(1);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -1001,11 +1002,9 @@ public class ExtractMethod
         var content = await project.ReadSourceAsync("A.cs");
         var duplicateBody = GetMethodBody(content, "Duplicate");
 
-        Assert.Contains("var otpauthUri = BuildOtpAuthUri(name);", duplicateBody);
-        Assert.Contains("Register(otpauthUri);", duplicateBody);
-        Assert.DoesNotContain(
-            "BuildOtpAuthUri(name);",
-            duplicateBody.Replace("var otpauthUri = BuildOtpAuthUri(name);", "", StringComparison.Ordinal));
+        duplicateBody.ShouldContain("var otpauthUri = BuildOtpAuthUri(name);", Case.Sensitive);
+        duplicateBody.ShouldContain("Register(otpauthUri);", Case.Sensitive);
+        duplicateBody.Replace("var otpauthUri = BuildOtpAuthUri(name);", "", StringComparison.Ordinal).ShouldNotContain("BuildOtpAuthUri(name);", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -1062,14 +1061,14 @@ public class ExtractMethod
                 .GetProjectChanges()
                 .SelectMany(p => p.GetChangedDocuments())
                 .ToList();
-            Assert.NotEmpty(changedDocs);
+            changedDocs.ShouldNotBeEmpty();
 
             await SolutionWriter.ApplyChangesAsync(sln, newSln, false);
         }
 
         var content = await project.ReadSourceAsync("Controller.cs");
-        Assert.Contains("BuildImages(", content);
-        Assert.DoesNotContain("x.Length > 0", GetMethodBody(content, "ParseImages"));
+        content.ShouldContain("BuildImages(", Case.Sensitive);
+        GetMethodBody(content, "ParseImages").ShouldNotContain("x.Length > 0", Case.Sensitive);
     }
 
     [Fact]
@@ -1112,7 +1111,7 @@ public class ExtractMethod
                     11,
                     13));
 
-            Assert.Contains("No statements found", ex.Message);
+            ex.Message.ShouldContain("No statements found", Case.Sensitive);
         }
     }
 
@@ -1164,7 +1163,7 @@ public class ExtractMethod
             // The guard: ExtractAsync must never return a no-op solution.
             // A zero-change result would be silently swallowed by SolutionWriter
             // (it prints "No changes." and exits 0) — this assertion catches that.
-            Assert.NotEmpty(changedDocs);
+            changedDocs.ShouldNotBeEmpty();
         }
     }
 
@@ -1220,10 +1219,10 @@ public class ExtractMethod
         }
 
         var content = await project.ReadSourceAsync("A.cs");
-        Assert.Contains("PrintMessages();", GetMethodBody(content, "Source"));
-        Assert.Contains("PrintMessages();", GetMethodBody(content, "Dupe1"));
+        GetMethodBody(content, "Source").ShouldContain("PrintMessages();", Case.Sensitive);
+        GetMethodBody(content, "Dupe1").ShouldContain("PrintMessages();", Case.Sensitive);
         // No overlapping ranges — no warning expected.
-        Assert.Empty(warnings);
+        warnings.ShouldBeEmpty();
     }
 
     [Fact]
@@ -1317,7 +1316,7 @@ public class ExtractMethod
         }
 
         var content = await project.ReadSourceAsync("A.cs");
-        Assert.Contains("PrintMessages();", GetMethodBody(content, "Dupe"));
+        GetMethodBody(content, "Dupe").ShouldContain("PrintMessages();", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -1365,7 +1364,7 @@ public class ExtractMethod
             var matchesInB = matches
                 .Where(m => m.File.EndsWith("B.cs", StringComparison.OrdinalIgnoreCase)).ToList();
 
-            Assert.NotEmpty(matches);
+            matches.ShouldNotBeEmpty();
             Assert.Single(matchesInB);
         }
     }
@@ -1411,7 +1410,7 @@ public class ExtractMethod
 
             // Should find B.cs (PatternMatcher excludes source file)
             Assert.Single(matches);
-            Assert.Contains("B.cs", matches[0].File);
+            matches[0].File.ShouldContain("B.cs", Case.Sensitive);
         }
     }
 
@@ -1467,11 +1466,11 @@ public class ExtractMethod
 
         // Verify parameterization worked
         // Method should have string parameters
-        Assert.Contains("PrintMessages(string", contentA);
+        contentA.ShouldContain("PrintMessages(string", Case.Sensitive);
 
         // Body should use parameter references instead of literals
-        Assert.Contains("param0", contentA);
-        Assert.Contains("param1", contentA);
+        contentA.ShouldContain("param0", Case.Sensitive);
+        contentA.ShouldContain("param1", Case.Sensitive);
 
         // Call site should pass literal arguments (check if it's there, with or without spaces)
         var hasGoodbyeUniverse = contentB.Contains("PrintMessages(\"goodbye\", \"universe\")") ||
@@ -1492,8 +1491,8 @@ public class ExtractMethod
         }
 
         // Original code should be replaced
-        Assert.DoesNotContain("System.Console.WriteLine(\"goodbye\")", contentB);
-        Assert.DoesNotContain("System.Console.WriteLine(\"universe\")", contentB);
+        contentB.ShouldNotContain("System.Console.WriteLine(\"goodbye\")", Case.Sensitive);
+        contentB.ShouldNotContain("System.Console.WriteLine(\"universe\")", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -1536,12 +1535,12 @@ public class ExtractMethod
 
         var content = await project.ReadSourceAsync("Calculator.cs");
         // Three-element tuple return type
-        Assert.Contains("(int", content);
-        Assert.Contains("ComputeAll(x)", content);
+        content.ShouldContain("(int", Case.Sensitive);
+        content.ShouldContain("ComputeAll(x)", Case.Sensitive);
         // Deconstruction at call site
-        Assert.Contains("var (a, b, c) = ComputeAll(x);", content);
+        content.ShouldContain("var (a, b, c) = ComputeAll(x);", Case.Sensitive);
         // Extracted method returns the tuple
-        Assert.Contains("return (a, b, c);", GetMethodBody(content, "ComputeAll"));
+        GetMethodBody(content, "ComputeAll").ShouldContain("return (a, b, c);", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -1586,7 +1585,7 @@ public class ExtractMethod
 
         var content = await project.ReadSourceAsync("Service.cs");
         // Both outputs must flow out as tuple
-        Assert.Contains("var (sum, product) = ComputeParts(x, y);", content);
+        content.ShouldContain("var (sum, product) = ComputeParts(x, y);", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -1627,7 +1626,7 @@ public class ExtractMethod
 
         var content = await project.ReadSourceAsync("Service.cs");
         // Tuple deconstruction at call site
-        Assert.Contains("var (doubled, tripled) = ComputeMultiples(n);", content);
+        content.ShouldContain("var (doubled, tripled) = ComputeMultiples(n);", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -1687,16 +1686,16 @@ public class ExtractMethod
         var contentB = await project.ReadSourceAsync("B.cs");
 
         // A: extracted method with tuple return
-        Assert.Contains("private", contentA);
-        Assert.Contains("ComputeBounds(", contentA);
+        contentA.ShouldContain("private", Case.Sensitive);
+        contentA.ShouldContain("ComputeBounds(", Case.Sensitive);
         // A call site uses deconstruction
-        Assert.Contains("var (lo, hi) = ComputeBounds(", contentA);
+        contentA.ShouldContain("var (lo, hi) = ComputeBounds(", Case.Sensitive);
 
         // B: duplicate replaced with tuple deconstruction
-        Assert.Contains("var (lo, hi) = ComputeBounds(", contentB);
+        contentB.ShouldContain("var (lo, hi) = ComputeBounds(", Case.Sensitive);
         // Original statements removed from B
-        Assert.DoesNotContain("var lo = n - 1;", contentB);
-        Assert.DoesNotContain("var hi = n + 1;", contentB);
+        contentB.ShouldNotContain("var lo = n - 1;", Case.Sensitive);
+        contentB.ShouldNotContain("var hi = n + 1;", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -1740,11 +1739,11 @@ public class ExtractMethod
         var content = await project.ReadSourceAsync("Calculator.cs");
 
         // Extracted method must have an `out` parameter for `result`
-        Assert.Contains("out int result", content);
+        content.ShouldContain("out int result", Case.Sensitive);
         // Call site must pass `out result`
-        Assert.Contains("out result", content);
+        content.ShouldContain("out result", Case.Sensitive);
         // The extracted method body must assign the out param
-        Assert.Contains("result = x * 2;", GetMethodBody(content, "ComputeResult"));
+        GetMethodBody(content, "ComputeResult").ShouldContain("result = x * 2;", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -1792,11 +1791,11 @@ public class ExtractMethod
         var content = await project.ReadSourceAsync("Accumulator.cs");
 
         // Both outer locals must become ref parameters
-        Assert.Contains("ref int total", content);
-        Assert.Contains("ref int count", content);
+        content.ShouldContain("ref int total", Case.Sensitive);
+        content.ShouldContain("ref int count", Case.Sensitive);
         // Call site must pass ref arguments
-        Assert.Contains("ref total", content);
-        Assert.Contains("ref count", content);
+        content.ShouldContain("ref total", Case.Sensitive);
+        content.ShouldContain("ref count", Case.Sensitive);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -1843,14 +1842,14 @@ public class ExtractMethod
         var content = await project.ReadSourceAsync("Processor.cs");
 
         // Normal in-parameter for `x`
-        Assert.Contains("int x", content);
+        content.ShouldContain("int x", Case.Sensitive);
         // ref for `total` (read before written)
-        Assert.Contains("ref int total", content);
+        content.ShouldContain("ref int total", Case.Sensitive);
         // out for `label` (only written, not read first)
-        Assert.Contains("out string label", content);
+        content.ShouldContain("out string label", Case.Sensitive);
         // Call site wiring
-        Assert.Contains("ref total", content);
-        Assert.Contains("out label", content);
+        content.ShouldContain("ref total", Case.Sensitive);
+        content.ShouldContain("out label", Case.Sensitive);
     }
 
     /// <summary>

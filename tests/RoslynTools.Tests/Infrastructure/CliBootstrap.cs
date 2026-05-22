@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Shouldly;
 
 namespace RoslynTools.Tests.Infrastructure;
 
@@ -12,9 +13,9 @@ public class CliBootstrap
 
         var result = await RunAsync("dotnet", $"\"{rtDll}\" --help", repoRoot);
 
-        Assert.Equal(0, result.ExitCode);
-        Assert.Contains("rt Commands", result.Stdout);
-        Assert.Equal(string.Empty, result.Stderr);
+        result.ExitCode.ShouldBe(0);
+        result.Stdout.ShouldContain("rt Commands", Case.Sensitive);
+        result.Stderr.ShouldBe(string.Empty);
     }
 
     [Fact]
@@ -32,7 +33,7 @@ public class CliBootstrap
             $"\"{rtDll}\" inspect describe Foo --solution \"{missingPath}\"",
             repoRoot);
 
-        Assert.Equal(1, result.ExitCode);
+        result.ExitCode.ShouldBe(1);
         Assert.Contains("solution not found", result.Stderr, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(missingPath, result.Stderr, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Unhandled exception", result.Stderr, StringComparison.OrdinalIgnoreCase);
@@ -57,7 +58,7 @@ public class CliBootstrap
             $"\"{rtDll}\" analyze analyze-interface RoslynTools.App --solution \"{slnxPath}\"",
             repoRoot);
 
-        Assert.Equal(1, result.ExitCode);
+        result.ExitCode.ShouldBe(1);
         Assert.Contains("Error:", result.Stderr, StringComparison.Ordinal);
         Assert.Contains("not an interface", result.Stderr, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Unhandled exception", result.Stderr, StringComparison.OrdinalIgnoreCase);
@@ -83,7 +84,7 @@ public class CliBootstrap
                 $"\"{rtDll}\" refactor add-xml-doc --from-json \"{badJsonPath}\" --solution \"{slnxPath}\"",
                 repoRoot);
 
-            Assert.Equal(1, result.ExitCode);
+            result.ExitCode.ShouldBe(1);
             Assert.Contains("Error:", result.Stderr, StringComparison.Ordinal);
             Assert.DoesNotContain("Unhandled exception", result.Stderr, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("at System.Text.Json.", result.Stderr, StringComparison.Ordinal);
@@ -114,7 +115,7 @@ public class CliBootstrap
                 $"\"{rtDll}\" inspect describe Foo --solution \"{slnxPath}\" --decisions \"{badYamlPath}\"",
                 repoRoot);
 
-            Assert.Equal(1, result.ExitCode);
+            result.ExitCode.ShouldBe(1);
             Assert.Contains("Error:", result.Stderr, StringComparison.Ordinal);
             Assert.DoesNotContain("Unhandled exception", result.Stderr, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("at YamlDotNet.", result.Stderr, StringComparison.Ordinal);
@@ -135,7 +136,7 @@ public class CliBootstrap
         // types. Verified by the existence of the `return false` fall-through in App.cs and
         // covered by code review. Marker test — no runtime assertion needed beyond compile.
         await Task.CompletedTask;
-        Assert.True(true);
+        true.ShouldBeTrue();
     }
 
     private static async Task<CommandResult> RunAsync(string fileName, string arguments, string workingDirectory)
