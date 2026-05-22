@@ -1,52 +1,27 @@
 roslyn-tools
-Branch: backlog
+Branch: feat/analyze-complexity
 
-Current Status: 3/36 stories complete (8%)
+Current Status: 19/21 stories complete (90%)
 
-EP-005 — codebase consistency sweep (1/1)
-[x] US-025 fix formatting violations: CRLF and encoding errors in 4 files
-
-EP-006 — SOLID Adherence Analysis (0/1)
-[ ] US-071 rt refactor extract-interface produces malformed output for internal classes
-
-EP-007 — Add structured JSON output to all inspect/analyze commands (0/8)
-[ ] US-045 rt inspect find-refs: structured JSON output
-[ ] US-046 rt inspect find-callers: structured JSON output
-[ ] US-047 rt inspect find-undocumented: structured JSON output
-[ ] US-048 rt inspect find-unused: structured JSON output
-[ ] US-049 rt analyze circular-deps: structured JSON output
-[ ] US-050 rt analyze find-magic-strings: structured JSON output
-[ ] US-051 rt analyze list-imports: structured JSON output
-[ ] US-052 rt analyze list-smells: structured JSON output
-
-EP-008 — Platform abstractions: IWorkspaceSessionFactory + ISolutionApplier (2/3)
-[x] US-053 Introduce IWorkspaceSessionFactory + WorkspaceSession (rt-006)
-[x] US-054 Migrate direct SolutionWriter call sites to ISolutionChangeWriter (rt-007)
-[ ] US-072 Eliminate RtServiceProvider.Get<T> service locator in favour of ctor injection
-
-EP-009 — Consistent command contracts and migration ratchets (0/10)
-[ ] US-057 Introduce a shared read-only command handler wrapper
-[ ] US-058 Standardize common CLI options through option factories
-[ ] US-059 Add machine-readable command capabilities to RtCommandInfo
-[ ] US-060 Normalize command outputs around shared result contracts
-[ ] US-061 Introduce SymbolQuery for consistent symbol resolution
-[ ] US-062 Standardize command vocabulary and aliases
-[ ] US-063 Standardize command file structure
-[ ] US-064 Add migration ratchets for command consistency
-[ ] US-065 Make dump-help metadata-driven and consistency-tested
-[ ] US-066 Create a command migration playbook
-
-Loose stories
-[ ] US-037 rt: convert-static-class — interface generation
-[ ] US-038 rt: convert-static-class — DI registration in Bootstrap.cs
-[ ] US-039 rt: convert-static-class — fix field and ctor formatting in existing-constructor path
-[ ] US-055 Add rt refactor extract-orchestrator command (rt-003)
-[ ] US-056 rt refactor rename: accept symbol FQN from stdin JSON for pipe chains (rt-008)
-[ ] US-067 Revisit nested-branch pattern in execute skill for trunk-based repos
-[ ] RT-001 rt dump-help --json: emit machine-readable command catalog
-[ ] RT-002 Expand command help text with output shape, exit codes, and error modes
-[ ] RT-003 Make --decisions YAML schema self-discoverable from the CLI
-[ ] RT-004 Finish stderr discipline migration: Console.Write to RtLog/RtConsole
-[ ] US-069 Bring src/RoslynTools.Cli/ into Stryker mutation pilot
-[ ] US-070 Bring src/RoslynTools.Mcp/ into Stryker mutation pilot
-[ ] US-073 migrate solution to .NET 10
+Stories
+[x] US-001 Add rt analyze complexity command
+[x] US-002 Add --to-project flag to rt refactor move (cross-project file move, keep namespace)
+[x] US-004 rt refactor add-dependency: mangles fallback constructors and parameter list formatting
+[x] US-026 standardise --solution option construction via CommandOptionFactory across all commands
+[x] US-027 remove duplicate FindDocumentId — use SymbolDocumentLocator.FindDocumentId from both callers
+[x] US-028 extract shared IsGeneratedOrIntermediate helper from ImportDirectiveService and MagicStringService
+[x] US-029 extract shared BuildInterfaceText from ExtractInterfaceService and InterfaceAnalyzerService
+[x] US-030 extract shared BuildPreview helper from PatternMatcher and FindDuplicatesService
+[x] US-031 rt: replace-new argument-reshaping — drop matched arg, keep remaining args
+[x] US-032 rt analyze solid: SRP detector — flag classes with high method/dependency count
+[x] US-041 Convert solution-not-found crash to clean exit-1 error message
+[x] US-042 Catch common exception types in UseExceptionHandler and emit clean exit-1 messages
+[x] US-043 Replace Environment.Exit(1) in OutlineCommand with context.ExitCode = 1
+[x] US-044 Guard .First()/.Last() calls in SymbolLocator and MethodExtractor against empty sequences
+[x] US-040 Suppress MSBuild workspace warnings by default; opt in with --show-workspace-warnings
+[ ] US-068 Introduce Result<T,RtError> for routine user-error flows in core services
+[x] US-033 rt analyze solid: ISP detector — flag fat interfaces and NotImplementedException members
+[x] US-034 rt analyze solid: DIP detector — flag concrete constructor params and inline new calls
+[x] US-035 rt analyze solid: OCP detector — flag switch/if chains branching on concrete types
+[x] US-036 rt analyze solid: LSP detector — flag overrides throwing or narrowing contracts
+[ ] US-077 rt <command> --help: show the same rich content as `rt dump-help` for that command

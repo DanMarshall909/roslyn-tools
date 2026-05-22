@@ -773,25 +773,6 @@
             "priority": 65,
             "passes": false,
             "notes": "P3. Source cluster: FB-280 through FB-299 (feedback.json, 2026-05-22) — 5 repeated runs of 4 identical scenarios from a dogfood/integration harness that exercises bad-input UX paths. All four scenarios are already handled correctly by TryHandleUserErrorAsync (exit 1 + stderr); the only output of those captures was 20 lines of feedback.json noise. Implementation: invert the order in TryHandleUserErrorAsync — only capture when the exception is NOT in the handled set (i.e. capture inside the trailing `return false` branch, not at the top). The 20 FB-280..FB-299 entries themselves are discarded; this story will be the audit trail."
-        },
-        {
-            "id": "US-077",
-            "title": "rt <command> --help: show the same rich content as `rt dump-help` for that command",
-            "description": "As an agent or developer running `rt <cmd> --help` (or `rt <group> <cmd> --help`), I want the same rich content that `rt dump-help` emits for that command — the `WhenToUse` description, the full `Examples` list, the supported output formats — instead of System.CommandLine's default option-listing. The richer help only lives in `RtCommandInfo` today, surfaced via `dump-help`; per-command `--help` shows only the option list. That forces every consumer to run `rt dump-help | grep` (or load the use-rt skill) to learn how to invoke a command.",
-            "acceptanceCriteria": [
-                "Running `rt inspect describe --help` prints (in order): the command description, the `WhenToUse` paragraph, the Examples list (one fenced bash block, same format dump-help uses), the supported output formats, the aliases, the options, and the known-issues block when non-empty",
-                "Running `rt describe --help` (root shortcut) produces the same output — both invocation paths share one help renderer",
-                "Running `rt inspect --help` (group level) lists every command in the group with one-line descriptions plus aliases (same shape dump-help uses for the group section)",
-                "Running `rt --help` (root) lists groups and the unqualified command shortcuts, matching dump-help's contents table",
-                "The rendering uses the same `DumpHelpCommand` helpers wherever possible (RenderColouredCommandHeader, RenderColouredGroup) so the two outputs stay in lockstep — no duplicate format strings to maintain",
-                "ANSI colour is honoured when the destination is a TTY; plain text is emitted when piped (existing rt rule)",
-                "All 52 commands' `--help` output renders without exception; smoke test (`for each command: dotnet run ... -- <cmd> --help` exits 0)",
-                "Snapshot tests under tests/RoslynTools.Tests/Cli/ pin the help output for at least three representative commands (one inspect, one analyze, one refactor) so a future change to RtCommandInfo or the renderer is caught",
-                "Documentation: CLAUDE.md mention that `--help` shows the same content as `rt dump-help <command>` so agents can stop scraping dump-help output"
-            ],
-            "priority": 78,
-            "passes": false,
-            "notes": "P2. Source: 2026-05-22 user request — 'add a task to add detailed help on any command. this should be the same thing we get from dump-help'. The hard work is already done: RtCommandInfo (WhenToUse, Examples, KnownIssues, SupportedFormats) is populated for every command and DumpHelpCommand already renders it. App.GetHelpLayout at App.cs:299 already partially intercepts the help layout for commands (RenderColouredCommandHeader) — extend that path to also inject the examples + known-issues sections, and add a fallback for the root + group cases."
         }
     ]
 }
