@@ -514,8 +514,10 @@
                 "Documentation: CLAUDE.md mention that `--help` shows the same content as `rt dump-help <command>` so agents can stop scraping dump-help output"
             ],
             "priority": 78,
-            "passes": false,
-            "notes": "P2. Source: 2026-05-22 user request — 'add a task to add detailed help on any command. this should be the same thing we get from dump-help'. The hard work is already done: RtCommandInfo (WhenToUse, Examples, KnownIssues, SupportedFormats) is populated for every command and DumpHelpCommand already renders it. App.GetHelpLayout at App.cs:299 already partially intercepts the help layout for commands (RenderColouredCommandHeader) — extend that path to also inject the examples + known-issues sections, and add a fallback for the root + group cases."
+            "passes": true,
+            "notes": "P2. Source: 2026-05-22 user request — 'add a task to add detailed help on any command. this should be the same thing we get from dump-help'. The hard work is already done: RtCommandInfo (WhenToUse, Examples, KnownIssues, SupportedFormats) is populated for every command and DumpHelpCommand already renders it. App.GetHelpLayout at App.cs:299 already partially intercepts the help layout for commands (RenderColouredCommandHeader) — extend that path to also inject the examples + known-issues sections, and add a fallback for the root + group cases.",
+            "resolution": "rt <cmd> --help (and rt <group> <cmd> --help) now renders the same rich content rt dump-help shows for that command: name + aliases + read-only/writes flag, description, when-to-use, examples, supported output formats, and known issues. DumpHelpCommand.RenderColouredCommandHeader gained a (RtCommandInfo, string) overload that the HelpContext shim forwards to; the new overload also emits the previously-missing Output: and Known issues: sections. Coverage: 5 RED/GREEN tests pinning section presence/absence, a smoke fact iterating every entry in App.Commands, and three real-command snapshot tests (describe, circular-deps, replace-xunit-asserts). CLAUDE.md updated. Total: 31 DumpHelp tests passing.",
+            "resolvedAt": "2026-05-22"
         }
     ]
 }
