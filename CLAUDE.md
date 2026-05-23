@@ -8,6 +8,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A CLI refactoring tool (`rt`) that uses Roslyn to perform solution-wide C# refactoring operations (rename, move, find-refs) against the ProjectX solutions at `C:\code\`. Built on .NET 8, System.CommandLine, and Microsoft.CodeAnalysis.
 
+## Architecture pattern: Core service + thin host adapters
+
+Every new feature follows the **Core service + thin host adapters** pattern. Logic lives in a pure service in `src/RoslynTools/Services/` (no `System.CommandLine`, no `Console`, no IO except via injected dependencies). The CLI and MCP each have a *thin adapter*: the CLI command parses args + renders text/JSON; the MCP handler parses JSON + returns structured JSON. Both resolve the same service from DI.
+
+Worked examples:
+
+- **`suggest` (greenfield)** — `SuggestService` in `src/RoslynTools/Services/Suggest/`. `SuggestCommand` in `src/RoslynTools.Cli/Suggest/` (meta-command, registered at root next to `dump-help`). `SuggestHandler` in `src/RoslynTools.Mcp/Handlers/`.
+- **`outline` (existing migration)** — Pre-existing `OutlineService` in `src/RoslynTools/Services/`. Added `OutlineRequest` DTO and `OutlineHandler` so MCP returns native JSON instead of text-captured CLI output.
+
+Full write-up: [docs/pattern-core-service.md](docs/pattern-core-service.md). When adding new commands or migrating existing ones, follow that pattern. When in doubt about whether a piece of code belongs in the service or in a host adapter, ask: "could I unit-test this without any host references in scope?" If no, the code is in the wrong layer.
+
+## Discovering commands
+
+Don't know which command to reach for? `rt suggest "<task in plain English>"` ranks the catalog against a natural-language query and prints the top candidates with examples. Also wired into the unknown-command fallback: `rt rm-method` → suggestions for `inline-method`, `safe-delete`, etc.
+
 ## Eat Your Own Dog Food
 
 When working on any C# refactoring task across the ProjectX codebase (or any codebase), ask: **could `rt` do this?** If you're about to manually rename a symbol, move a namespace, find references, or restructure a class — try the `rt` command first. If `rt` can't do it, or does it badly, that's a feature request or bug report for this project. Log it in `tasks/` or fix it.

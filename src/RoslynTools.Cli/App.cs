@@ -6,11 +6,13 @@ using System.CommandLine.Parsing;
 using System.Reflection;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using RoslynTools.Cli.Suggest;
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Core.Decisions;
 using RoslynTools.Core.Output;
 using RoslynTools.Feedback;
+using RoslynTools.Services.Suggest;
 using YamlDotNet.Core;
 
 namespace RoslynTools;
@@ -177,6 +179,11 @@ internal static class App
         // Hidden meta-command, not part of the public registry (does not implement IRtCommand).
         root.AddCommand(DumpHelpCommand.Build());
 
+        // Meta-command for natural-language command discovery. Reaches into the
+        // catalog (via ICommandCatalog → AppCommandCatalog) rather than any
+        // user solution, so it sits outside the inspect/analyze/refactor groups.
+        root.AddCommand(SuggestCommand.Build(services));
+
         if (additionalCommands is not null)
             foreach (var cmd in additionalCommands)
                 root.AddCommand(cmd);
@@ -199,6 +206,39 @@ internal static class App
                 context.BindingContext.AddService<IServiceProvider>(_ => services);
                 return next(context);
             })
+            .AddMiddleware((context, next) =>
+            {
+                // Unknown-command short-circuit. When the user (or an LLM) types a
+                // token at the root that doesn't resolve to a command, run BM25 over
+                // the token via SuggestService and surface ranked candidates on
+                // stderr with exit 1 — far more useful than the default "Required
+                // command was not provided" + full catalog dump. Below a score floor
+                // we suppress suggestions (gibberish in → nothing out) and fall
+                // through to the standard parse-error path.
+                var pr = context.ParseResult;
+                if (pr.CommandResult.Command is RootCommand
+                    && pr.Errors.Count > 0
+                    && pr.UnmatchedTokens.Count > 0
+                    && !pr.Tokens.Any(t => t.Value is "-h" or "--help" or "--version"))
+                {
+                    var typed = pr.UnmatchedTokens[0];
+                    var suggest = services.GetRequiredService<SuggestService>();
+                    var response = suggest.Suggest(new SuggestRequest(typed, Top: 3));
+                    const double minScore = 1.0;
+                    var hits = response.Results.Where(r => r.Score >= minScore).ToList();
+                    if (hits.Count > 0)
+                    {
+                        RtLog.Error("'{Typed}' is not a recognised command.", typed);
+                        RtLog.Info("Did you mean one of these?");
+                        foreach (var hit in hits)
+                            RtLog.Info("  {Name}  - {WhenToUse}", hit.Name, TruncateOneLine(hit.WhenToUse, 100));
+                        RtLog.Info("Or run: rt suggest \"<task in plain English>\"");
+                        context.ExitCode = 1;
+                        return Task.CompletedTask;
+                    }
+                }
+                return next(context);
+            }, MiddlewareOrder.Configuration)
             .AddMiddleware(async (context, next) =>
             {
                 var md = context.ParseResult.GetValueForOption(markdownOpt);
@@ -286,6 +326,13 @@ internal static class App
             root.AddGlobalOption(option);
 
         return (jsonOpt, llmOpt, markdownOpt, yamlOpt, decisionsOpt, strictJsonOpt, showWorkspaceWarningsOpt);
+    }
+
+    private static string TruncateOneLine(string text, int max)
+    {
+        if (string.IsNullOrEmpty(text)) return text;
+        var firstLine = text.Split('\n', 2)[0].Trim();
+        return firstLine.Length <= max ? firstLine : firstLine[..(max - 1)] + "…";
     }
 
     private static IEnumerable<HelpSectionDelegate> BuildHelpLayout(HelpContext ctx)
