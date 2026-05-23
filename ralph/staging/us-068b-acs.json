@@ -1,0 +1,11 @@
+[
+  "WorkspaceLoader.LoadAsync returns Result<(MSBuildWorkspace workspace, Solution solution), RtError>.",
+  "The 'solution file not found' case produces Result.Err(RtError.NotFound) with the solution path in Context['solution']; the 'solution loaded but contains zero projects' case produces Result.Err(RtError.WorkspaceLoadFailure) with the failure-diagnostic text in Context['diagnostic'].",
+  "MSBuildWorkspace.WorkspaceFailed handler downgrades from throw to Result.Err when the diagnostic is a Failure rather than a Warning; warnings still flow through RtContext.ShowWorkspaceWarnings unchanged.",
+  "Every existing caller of WorkspaceLoader.LoadAsync is updated to consume the Result; commands surface RtError via the shared helper added in US-068a (no new helpers introduced here).",
+  "App.CaptureExceptionAsync no longer needs a FileNotFoundException branch specifically for solution-file-missing — that path is now Result-routed before the catch ladder runs.",
+  "Integration test: rt inspect describe Foo --solution missing.slnx exits 1 with exactly one 'Error: ...' line to stderr referencing the missing path; no stack trace; feedback.json count unchanged.",
+  "Integration test: rt inspect describe Foo --solution malformed.slnx (file exists but isn't a valid solution) exits 1 with RtError.WorkspaceLoadFailure formatting that includes the MSBuild diagnostic.",
+  "dotnet build clean; dotnet format --verify-no-changes clean; existing tests pass.",
+  "rt dogfood smoke: rt inspect describe RoslynTools.Core.WorkspaceLoader --solution RoslynTools.slnx still exits 0 with unchanged stdout JSON shape."
+]

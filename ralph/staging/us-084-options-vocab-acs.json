@@ -1,0 +1,12 @@
+[
+  "CommandOptionFactory in src/RoslynTools/Cli/ defines static factory methods for every option that appears in 2+ commands: CreateSolutionOption(), CreateSymbolOption(), CreateFqnOption(), CreateFileOption(), CreateDryRunOption(), CreateJsonOption(), CreateDecisionsOption(), CreateThresholdOption(), CreateTopOption(), CreateSortOption().",
+  "Each factory method returns a fully-configured System.CommandLine.Option<T> with: consistent name, consistent description text, consistent default, and any required Alias[] (e.g. --solution accepts -s alias everywhere or nowhere — pick one and apply).",
+  "Vocabulary contract: option names are standardised across commands — e.g. --symbol means 'symbol name or FQN to operate on' everywhere it appears; --file means 'a single source file path' everywhere it appears; --top means 'limit output to N entries after sorting' everywhere it appears. Mismatches in existing commands are fixed (with backwards-compatibility aliases for the old names if Dan flags any breaking changes).",
+  "All commands that previously hand-rolled these options are migrated to use the factory. Mechanical change — easy to verify via grep that `new Option<string>(\"--solution\"` returns zero hits in src/RoslynTools.Cli/Commands/ after migration.",
+  "Architecture test enforces: any new Option<T> declared directly inside a Build() method (not via the factory) for one of the factory-owned names fails the build.",
+  "Help text for migrated commands is unchanged in behaviour but the wording is now consistent across the catalog (e.g. --solution help reads the same in every command's --help).",
+  "Aliases: where two commands had different aliases for the same conceptual flag (e.g. --sln vs --solution-path), the factory picks one canonical and reuses; the discarded alias either becomes a deprecation alias or is removed if no usage exists.",
+  "rt dump-help output reflects the unified option vocabulary; docs/COMMANDS.md regenerates with consistent option descriptions across all commands.",
+  "dotnet build clean; dotnet format --verify-no-changes clean; existing tests pass.",
+  "Smoke: 10 sampled commands from inspect/analyze/refactor exercised via dotnet run still parse the same arg strings they accepted before (regression test array of (command, args) tuples)."
+]

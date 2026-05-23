@@ -1,0 +1,14 @@
+[
+  "System.CommandLine middleware registered in App.RunCoreAsync near the existing exception handler runs AFTER parsing and detects 'unknown command' parse errors at the root or group level.",
+  "When an unknown token is detected at a top-level or group context, the middleware: (a) emits a single 'Error: <token> is not a recognised command.' line to stderr; (b) runs Bm25Scorer.Score(App.Commands.Select(c => c.Info).ToList(), unknownToken, top: 3) to get ranked candidates; (c) if any candidate scores above a configurable threshold, prints 'Did you mean one of these?' followed by each candidate's name + first-line WhenToUse; (d) prints 'Or run: rt suggest \"<task in plain English>\"' as a recovery hint; (e) sets context.ExitCode = 1.",
+  "When no candidate scores above the threshold (gibberish input), the 'Did you mean' block is suppressed — only the 'is not a recognised command' line + 'Or run: rt suggest ...' hint appears. Printing low-confidence suggestions for gibberish is worse than printing nothing.",
+  "Threshold lives in Bm25Scorer as a tunable constant (e.g. MinSuggestionScore); tests pin the threshold by exercising the gibberish case.",
+  "The pure-function Bm25Scorer is shared with the rt suggest command (Story 1) — the middleware is just another caller of the same engine; the seeded synonyms apply automatically.",
+  "Output channel: stderr per CLAUDE.md 'diagnostics to stderr' convention. Exit code 1 consistent with other user-error exits.",
+  "JSON mode honour: if --json was parsed cleanly before the parse error, the 'Did you mean' block is JSON; otherwise plain text.",
+  "Theory test tests/RoslynTools.Tests/Cli/UnknownCommandFallbackTests.cs pins (typed-token, expected-top-result) pairs: ('destatic-class','convert-static-class'), ('rm-method','inline-method' or 'safe-delete' depending on tuning), ('rename-symbol','rename'), ('seal','make-sealed'), ('blah',null /*gibberish — no high-scoring suggestion*/).",
+  "Existing System.CommandLine UseTypoCorrections() still works for short-Levenshtein typos; this middleware is the layer above for semantic matches that Levenshtein won't catch.",
+  "Backwards-compat: invocations that already succeed (every existing command) are unchanged; no measurable startup overhead from the middleware on the happy path (BM25 only runs on parse failure).",
+  "dotnet build clean; dotnet format --verify-no-changes clean; existing tests pass; new theory tests green.",
+  "Dogfood smoke: rt destatic-class prints 'Did you mean convert-static-class?' to stderr and exits 1; rt blah-blah-blah prints only the 'not a recognised command' line + 'rt suggest' hint and exits 1; rt rename --help still works (no false positives on known commands)."
+]

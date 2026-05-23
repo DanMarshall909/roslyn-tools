@@ -1,0 +1,19 @@
+[
+  "New top-level meta-command rt suggest <task> wired into App.RunCoreAsync next to DumpHelpCommand.Build() — not registered as IRtCommand, does not appear under inspect/analyze/refactor groups.",
+  "Implementation lives in src/RoslynTools.Cli/Suggest/: SuggestCommand.cs (Build() returns a Command), Bm25Scorer.cs (pure function: IReadOnlyList<RtCommandInfo>, string query, int top → IReadOnlyList<SuggestResult>), Synonyms.cs (static readonly map of command-name → string[] synonyms).",
+  "Bm25Scorer scores each command against the tokenised query across three fields: Name (and its synonyms) at weight 3.0×, WhenToUse at weight 1.0×, Examples (joined) at weight 0.3×.",
+  "Tokenisation: split on whitespace + punctuation, lowercase, drop a small fixed stopword set {a, an, the, is, of, to, in, for, this, that, all}.",
+  "BM25 length normalisation prevents a long WhenToUse with one match from dominating a short WhenToUse with one match; k1 and b parameters use standard defaults (k1=1.2, b=0.75).",
+  "Output flags: --top N (default 3), --json (explicit override).",
+  "Text mode (default at TTY): numbered list, each entry shows name + score + first line of WhenToUse + one example. Colour the name (reuse DumpHelpCommand colour helpers).",
+  "JSON mode (--json or stdout not a TTY): array of { name, score, category, whenToUse, example, allExamples }. Designed for LLM ingestion.",
+  "Default behaviour: when stdout is not a TTY, emit JSON (matches CLAUDE.md 'read-only inspection commands: JSON to stdout' convention). --json flag forces JSON regardless.",
+  "Exit code: 0 always — empty results are a valid answer (a JSON empty array). No exit-1 / exit-2 paths in this command.",
+  "Synonym map seed: ~10 high-traffic mismatches — safe-delete←{delete,remove}, replace-datetime←{datetime,utcnow,timeprovider}, convert-static-class←{destatic,to instance,instance class}, convert-to-record←{record,to record}, make-async←{async,task}, extract-method←{extract block,pull out method}, find-callers←{callers,who calls}, find-refs←{references,uses of,usages}, outline←{list members,type members}, describe←{type shape,interface members}. Per-command lists, not free-form.",
+  "Theory test tests/RoslynTools.Tests/Cli/SuggestCommandTests.cs pins (query, expected-top-result) pairs: ('extract a method from a block','extract-method'), ('remove DateTime.UtcNow','replace-datetime'), ('convert static class to instance','convert-static-class'), ('find callers of a method','find-callers'), ('rename a symbol','rename'). Tests resolve commands from RoslynTools.Bootstrap.RegisterServices per the feedback_test_di_resolution memory.",
+  "BM25 unit tests tests/RoslynTools.Tests/Cli/Bm25ScorerTests.cs cover: single-match-name-wins, WhenToUse-stronger-than-Examples weighting, no-match-returns-empty, length-normalisation-prevents-long-text-dominance.",
+  "Documentation: skills/use-rt/SKILL.md gains a one-paragraph 'If you don't know the command name, run rt suggest \"<task>\" first' pointer; CLAUDE.md → Commands section gains the line 'Don\\'t know the name? rt suggest \"<task>\"'.",
+  "rt dump-help shows suggest under top-level commands; rt --help lists it next to dump-help.",
+  "dotnet build clean; dotnet format --verify-no-changes clean; all tests pass; mutation score on Bm25Scorer.cs at or above 95%.",
+  "Dogfood smoke: rt suggest 'extract a block of statements into a new method' returns extract-method as top result; rt suggest 'remove DateTime.UtcNow' --json parses cleanly; rt suggest 'rename a symbol across the solution' --top 5 returns 5 ranked entries."
+]

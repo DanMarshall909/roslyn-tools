@@ -1,0 +1,14 @@
+[
+  "MethodExtractor's user-input validation paths return Result<MethodExtractionPlan, RtError> (or the existing plan type wrapped in Result) instead of throwing InvalidOperationException.",
+  "The 'no statements found in lines X-Y' check produces RtError.InvalidInput with Context['startLine']/Context['endLine'].",
+  "The 'multiple parent blocks in selection' check produces RtError.InvalidInput with Context['blockCount'].",
+  "The 'return statements present in selection' check produces RtError.InvalidInput with Context['returnLineNumbers'].",
+  "The '--after and --before are mutually exclusive' check produces RtError.InvalidInput with Context['conflictingFlags'].",
+  "AST-rewrite-produced-no-changes and similar internal-invariant violations remain exceptions (they should never be hit from valid user input; if they fire they're bugs).",
+  "ExtractMethodCommand consumes the Result and surfaces RtError via the shared helper from US-068a; no per-validation-path duplication.",
+  "Integration test: rt refactor extract-method src/Foo.cs Bar --start-line 9000 --end-line 9001 --solution X.slnx exits 1 with one 'Error: No statements found in lines 9000-9001' line; no stack trace; feedback.json count unchanged.",
+  "Integration test: rt refactor extract-method ... --start-line A --end-line B where the selection spans multiple parent blocks exits 1 with the multiple-parent-blocks RtError message.",
+  "Integration test: rt refactor extract-method --after Foo --before Bar (mutually-exclusive flags) exits 1 with the conflicting-flags RtError message.",
+  "dotnet build clean; dotnet format --verify-no-changes clean; existing MethodExtractor and ExtractMethodCommand tests pass.",
+  "After this story lands, US-060 (Normalize command outputs around shared result contracts) becomes the next step: it wraps the now-consistent Result<T, RtError> service surface into command-level RtResult<T> envelopes."
+]

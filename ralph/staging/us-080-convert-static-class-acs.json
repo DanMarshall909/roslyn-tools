@@ -1,0 +1,18 @@
+[
+  "Interface generation (formerly US-037): when --no-interface is NOT passed, rt refactor convert-static-class generates an I<TypeName>.cs file in the same folder containing the extracted public/internal instance method and property signatures.",
+  "Interface generation: the generated I<TypeName> interface declares the same accessibility as the source class (public for public, internal for internal) and is added to the workspace as a new document.",
+  "Interface generation: the converted class declares `: I<TypeName>` in its base list with correct whitespace and brace placement (no `IDisposable\\n,IFoo{` style malformations).",
+  "Interface generation: each public/internal instance method on the converted class implements the interface signature 1:1; private methods and fields are excluded.",
+  "Interface generation: --no-interface flag suppresses interface file creation and base list update; only the class itself is destatified.",
+  "DI registration (formerly US-038): when --no-di-registration is NOT passed, the command locates Bootstrap.RegisterServices(IServiceCollection services) in the solution and inserts services.AddSingleton<I<TypeName>, <TypeName>>() (or the configured lifetime).",
+  "DI registration: --lifetime singleton|scoped|transient flag selects the registration shape; default is singleton.",
+  "DI registration: when no Bootstrap.RegisterServices method is found in the solution, the command emits a warning to stderr and skips DI registration without failing the run.",
+  "DI registration: when the registration line already exists, the command is idempotent — no duplicate line added.",
+  "Field and ctor formatting (formerly US-039): the AddConstructorInjection rewrite places the injected field on its own line with the correct trailing newline; it does NOT merge with the existing first member.",
+  "Field and ctor formatting: when the consumer class already has constructors, the new field/parameter pair is inserted with consistent indentation (4 spaces) matching the existing constructor formatting.",
+  "Field and ctor formatting: the constructor parameter list is wrapped to one parameter per line when adding to a class that already uses one-per-line wrapping; otherwise stays single-line.",
+  "Dry-run (--dry-run) emits a unified diff showing: interface file creation, class signature change, DI registration line addition, and any ctor/field rewrites.",
+  "rt refactor convert-static-class src/RoslynTools/Core/SymbolFormatter.cs --solution RoslynTools.slnx --dry-run produces output that, when applied, results in a buildable solution (verified by piping the dry-run apply through dotnet build).",
+  "Integration test fixture covers: (a) static class with no consumers — interface + DI registration only; (b) static class with one consumer using empty ctor — both consumer rewrite paths; (c) static class with one consumer using existing ctor — exercises the field/formatting path from US-039; (d) --no-interface and --no-di-registration flags.",
+  "dotnet build clean; dotnet format --verify-no-changes clean; existing convert-static-class tests pass; mutation score on ConvertStaticClassCommand stays at or above current baseline."
+]

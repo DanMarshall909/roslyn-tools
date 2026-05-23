@@ -1,0 +1,15 @@
+[
+  "src/RoslynTools/Core/Result.cs defines an internal sealed record Result<T, TError> ADT with Ok(T value) and Err(TError error) factory methods plus IsOk/IsErr predicates and Match/Map combinators (no nullable-T trickery; either branch is total).",
+  "src/RoslynTools/Core/RtError.cs defines an internal sealed record RtError(RtErrorKind Kind, string Message, IReadOnlyDictionary<string,string>? Context = null).",
+  "src/RoslynTools/Core/RtErrorKind.cs defines an enum with NotFound, InvalidInput, AmbiguousMatch, and WorkspaceLoadFailure entries (no others in this story; further kinds added only when a real call-site needs them).",
+  "SymbolLocator.FindSymbolAsync, FindSymbolByFqnAsync, FindTypeByFqnAsync, and FindMethodBySpecAsync return Result<ISymbol, RtError>; symbol-not-found and ambiguous-match cases produce RtError.NotFound / RtError.AmbiguousMatch — never throw InvalidOperationException.",
+  "Every existing caller of those four SymbolLocator methods is updated to consume Result<ISymbol, RtError>; commands surface RtError via a single shared RtLog.Error(...) + context.ExitCode = 1 helper (no per-command if/else ladder).",
+  "App.CaptureExceptionAsync gains a typed-only catch ladder for FileNotFoundException, DirectoryNotFoundException, ArgumentException, and JsonException that emits a single 'Error: <message>' line to stderr with exit 1.",
+  "No substring-matching of Exception.Message exists anywhere in App.cs after this change (grep for `ex.Message.Contains` / `ex.Message.StartsWith` / `ex.Message.IndexOf` returns zero matches in the file).",
+  "feedback.json still receives an entry for every exception not in the typed ladder; handled-via-Result paths do NOT add a feedback entry (regression test verifies the count stays unchanged across one symbol-not-found scenario).",
+  "Integration test: rt inspect find-refs --symbol DoesNotExistSymbolFoo exits 1, writes exactly one 'Error: ...' line to stderr, writes nothing to stdout, and does not append to feedback.json.",
+  "Integration test: rt inspect describe Foo.Bar (ambiguous match across two namespaces) exits 1 with an RtError.AmbiguousMatch-formatted message that lists candidate FQNs.",
+  "CLAUDE.md gains a 'Result types' section that explains when to use Result<T, RtError> (routine user-error flows in core services) vs when to throw (invariant violations and genuinely unexpected failures).",
+  "dotnet build RoslynTools.slnx succeeds with zero errors; dotnet format --verify-no-changes exits 0; existing test suite passes; rt dump-help output unchanged.",
+  "rt dogfood smoke: running rt inspect describe RoslynTools.Core.SymbolLocator --solution RoslynTools.slnx exits 0 with the same JSON shape as before; running it with a typo'd symbol exits 1 cleanly without a stack trace."
+]

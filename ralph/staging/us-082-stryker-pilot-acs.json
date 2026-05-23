@@ -1,0 +1,10 @@
+[
+  "stryker-config.json (or sibling configs in stryker-cli.json / stryker-mcp.json) is restructured so Stryker mutates files from src/RoslynTools/, src/RoslynTools.Cli/, and src/RoslynTools.Mcp/ — not just the core library.",
+  "Per-project configuration: either a single multi-project Stryker setup (project array) or three per-project config files invoked in sequence; whichever shape Stryker supports without bypass flags.",
+  "Running `dotnet stryker` mutates and reports survivors for files in all three projects; CLI files (MakeSealedCommand.cs, DebugCommand.cs, DebugResult.cs flagged in US-069 notes) and Mcp files (the array pass-through in commit df9e43a flagged in US-070 notes) are no longer silently skipped.",
+  "The pre-commit gate (`scripts/pre-commit-gates.ps1`) honours the multi-project setup: when a staged file lives in any of the three projects' mutate globs, the gate runs Stryker against the corresponding project config and applies --break-at 95.",
+  "RT_MUTATION_ALLOW_UNSCOPED bypass still works as a documented escape hatch (no semantic change), but no longer needed for routine CLI / MCP edits.",
+  "Integration check: staging a deliberate mutation-killable change to src/RoslynTools.Mcp/<some-file>.cs and running the pre-commit gate produces a Stryker survivor report (or passes if test coverage exists); previously this would have silently passed.",
+  "Document the new shape in CLAUDE.md → 'Mutation Testing' section so contributors know all three projects are now in scope.",
+  "dotnet build clean; existing mutation gates on src/RoslynTools/Commands/ keep their 100% score target unchanged."
+]

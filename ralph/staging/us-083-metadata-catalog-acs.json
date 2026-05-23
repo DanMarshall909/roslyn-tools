@@ -1,0 +1,14 @@
+[
+  "RtCommandInfo schema extended (formerly US-059): adds nullable string[]? Aliases, string[]? SeeAlso, OutputFormat[]? SupportedFormats fields. Existing fields (Name, Category, Mutates, JsonOutput, WhenToUse, Examples, KnownIssues) unchanged. Aliases/SeeAlso/SupportedFormats are additive — default null means 'not specified'.",
+  "Startup validator in App.cs is extended to assert: every SeeAlso entry resolves to a known command name; no self-references; no duplicates; every Alias is unique across the command registry; every SupportedFormat is a valid OutputFormat enum value.",
+  "dump-help --json surface (formerly RT-001): rt dump-help --json emits a JSON document with shape { schemaVersion: '1.0', commands: [{ name, category, mutates, jsonOutput, whenToUse, examples, aliases, seeAlso, supportedFormats, knownIssues }] }; one entry per command in the registry.",
+  "dump-help --json: every field has a deterministic JSON shape (strings for strings, booleans for booleans, arrays for arrays, null for null); no fields are silently omitted.",
+  "dump-help --json: exit code 0 always; stdout is parseable via System.Text.Json.JsonDocument.Parse with no leading or trailing non-JSON text.",
+  "dump-help --json: schemaVersion is a string semver-style field; consumers can rely on it for forward compatibility.",
+  "Metadata-driven regeneration (formerly US-065): docs/COMMANDS.md is regenerated from RtCommandInfo on every build (existing post-build target); the regeneration honours the new Aliases/SeeAlso/SupportedFormats fields and renders them in the per-command markdown sections.",
+  "Consistency test: tests/RoslynTools.Tests/Architecture/CommandMetadataConsistencyTests.cs asserts (a) every command's Info.Name matches the first arg of its new Command(...) call in Build(); (b) every Info.Examples entry parses against the command's options without unknown-flag errors; (c) dump-help --json output round-trips through System.Text.Json without loss; (d) docs/COMMANDS.md generated from the JSON matches the build-time output byte-for-byte.",
+  "Backwards-compatibility: rt dump-help (no --json) plain-text output is unchanged for any command that doesn't set Aliases/SeeAlso/SupportedFormats; commands that do set them gain new See-also/Aliases/Formats sections in their plain-text help.",
+  "Architecture test enforces SchemaVersion only changes via an explicit version bump (a sentinel file in docs/ records the current version; the test fails if dump-help emits a different value without the sentinel updating).",
+  "dotnet build clean; dotnet format --verify-no-changes clean; existing tests pass; new architecture test + consistency test green.",
+  "Smoke: rt dump-help --json | jq '.commands | length' returns the same number as `rt dump-help` lists; rt dump-help --json | jq '.commands[].name' lists every command without duplicates."
+]

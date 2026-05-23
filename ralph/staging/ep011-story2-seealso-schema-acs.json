@@ -1,0 +1,13 @@
+[
+  "RtCommandInfo gains a nullable string[]? SeeAlso field (default null). Entries are bare command names (e.g. 'extract-method', not 'rt refactor extract-method').",
+  "Startup validator in App.cs (existing static-ctor block) is extended to assert every SeeAlso entry resolves to a known command name in the registry; an unknown name throws at the same point the existing category check does, failing the post-build docs/COMMANDS.md generation.",
+  "Validator also asserts no self-references (a command's SeeAlso list does not include its own name) and no duplicates within a single SeeAlso list.",
+  "Architecture test tests/RoslynTools.Tests/Architecture/SeeAlsoValidationTests.cs covers the three invariants (unknown name, self-reference, duplicate) by exercising the validator against the live registry.",
+  "rt <cmd> --help renders a 'See also:' section after Examples when SeeAlso is non-empty. Extend BuildHelpLayout in App.cs and DumpHelpCommand.RenderColouredCommandHeader so the layout is consistent between live --help and dump-help.",
+  "docs/COMMANDS.md per-command section gains a '**See also:**' line with markdown anchor links to each related command's section.",
+  "rt suggest output extension: when returning the top result, also surface the top result's SeeAlso list as a 'related' block (text mode, lower-prominence, no score) or a separate 'related' array (JSON mode). The SeeAlso candidates are NOT scored — they're labelled 'related to top result'.",
+  "Opt-in bidirectionality diagnostic: add --check-bidirectional flag on dump-help (or rt suggest --diagnose-see-alsos) that reports asymmetric pairs (A lists B but B doesn't list A). Exits 0 always — informational lint, not a hard rule.",
+  "No new dependencies; no behaviour changes to existing commands other than the addition of the See-also section when SeeAlso is non-empty.",
+  "dotnet build clean; dotnet format --verify-no-changes clean; existing tests pass; new architecture test green.",
+  "Smoke: adding a deliberate SeeAlso=['nonexistent-cmd'] to one command fails the post-build dump-help generation with a clear error message."
+]

@@ -1,0 +1,27 @@
+roslyn-tools
+Branch: feat/analyze-complexity
+
+Current Status: 20/21 stories complete (95%)
+
+Stories
+[x] US-001 Add rt analyze complexity command
+[x] US-002 Add --to-project flag to rt refactor move (cross-project file move, keep namespace)
+[x] US-004 rt refactor add-dependency: mangles fallback constructors and parameter list formatting
+[x] US-026 standardise --solution option construction via CommandOptionFactory across all commands
+[x] US-027 remove duplicate FindDocumentId — use SymbolDocumentLocator.FindDocumentId from both callers
+[x] US-028 extract shared IsGeneratedOrIntermediate helper from ImportDirectiveService and MagicStringService
+[x] US-029 extract shared BuildInterfaceText from ExtractInterfaceService and InterfaceAnalyzerService
+[x] US-030 extract shared BuildPreview helper from PatternMatcher and FindDuplicatesService
+[x] US-031 rt: replace-new argument-reshaping — drop matched arg, keep remaining args
+[x] US-032 rt analyze solid: SRP detector — flag classes with high method/dependency count
+[x] US-041 Convert solution-not-found crash to clean exit-1 error message
+[x] US-042 Catch common exception types in UseExceptionHandler and emit clean exit-1 messages
+[x] US-043 Replace Environment.Exit(1) in OutlineCommand with context.ExitCode = 1
+[x] US-044 Guard .First()/.Last() calls in SymbolLocator and MethodExtractor against empty sequences
+[x] US-040 Suppress MSBuild workspace warnings by default; opt in with --show-workspace-warnings
+[ ] US-068 Introduce Result<T,RtError> for routine user-error flows in core services
+[x] US-033 rt analyze solid: ISP detector — flag fat interfaces and NotImplementedException members
+[x] US-034 rt analyze solid: DIP detector — flag concrete constructor params and inline new calls
+[x] US-035 rt analyze solid: OCP detector — flag switch/if chains branching on concrete types
+[x] US-036 rt analyze solid: LSP detector — flag overrides throwing or narrowing contracts
+[x] US-077 rt <command> --help: show the same rich content as `rt dump-help` for that command

@@ -1,0 +1,15 @@
+[
+  "Inverse pairs seeded: extract-method ↔ inline-method, make-static ↔ make-instance, convert-static-class ↔ (no inverse; one-way operation). Each pair lists the other in its SeeAlso.",
+  "Find-* sibling family seeded: find-refs, find-callers, find-impl, find-pattern, find-unused, find-undocumented each list the others in their SeeAlso (or a curated subset where the relationship is strong).",
+  "Workflow chains seeded (downstream-direction, not bidirectional): find-unused → safe-delete; find-magic-strings → extract-string-constant; find-duplicates → extract-method; find-undocumented → add-xml-doc; static-class-inventory → convert-static-class; analyze-interface → narrow-dependency. The downstream operation does not necessarily back-link to the find command (these are workflows, not inverses).",
+  "Make-* sibling family seeded: make-async, make-static, make-instance, make-sealed each list the others in their SeeAlso.",
+  "DI-injection family seeded: add-dependency, replace-datetime, migrate-to-ioptions, convert-console-logging each list the others (all are DI-injection patterns the LLM might mix up).",
+  "Analyze/quality family seeded: solid, list-smells, complexity, find-duplicates each list the related ones.",
+  "Deps family seeded: circular-deps, dependency-graph, list-imports each list the related ones.",
+  "Each seed cluster lands as a separate commit (~5–10 command files touched per commit) so the SeeAlso data is reviewable in coherent units.",
+  "After each commit, rt dump-help is run and the See-also sections render in the expected places.",
+  "No story breaks: rt <cmd> --help for unmodified commands still shows no See-also section (since their SeeAlso is null); only seeded commands gain the section.",
+  "Validator from Story 2 (US-088) continues to pass at every commit — no unknown command names, no self-references, no duplicates.",
+  "dotnet build clean; dotnet format --verify-no-changes clean; existing tests pass; the architecture test from Story 2 stays green.",
+  "Final commit removes the marker comment 'EP-011 SeeAlso seed in progress' from docs/COMMANDS.md (added at the start of seeding) once all clusters are landed."
+]
