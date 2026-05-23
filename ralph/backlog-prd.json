@@ -32,6 +32,18 @@
             "title": "Consistent command contracts and migration ratchets",
             "description": "Make rt commands consistent across handler structure, option vocabulary, metadata, output envelopes, and symbol resolution so dogfooding workflows are predictable and architecture tests can ratchet progress.",
             "notes": "From rt dogfooding consistency discussion on 2026-05-15."
+        },
+        {
+            "id": "EP-010",
+            "title": "Error-handling architecture: Result<T,RtError> rollout",
+            "description": "Replace throw-and-catch-substring-match for routine user-error flows with a typed Result<T, RtError> ADT in src/RoslynTools/Core/. Three sub-stories migrate the core services (SymbolLocator + App handler, WorkspaceLoader, MethodExtractor) in sequence; downstream US-060 wraps these into command-level RtResult<T> envelopes once the service surface is consistent.",
+            "notes": "Split from the originally-paused US-068 (archived in 2026-05-22-feat-analyze-complexity). Decision 2026-05-22: sequence incrementally to keep blast radius per /execute run bounded."
+        },
+        {
+            "id": "EP-011",
+            "title": "rt suggest — LLM-friendly command discovery and cross-linking",
+            "description": "Make the rt command catalog queryable by natural-language task. Adds a flat top-level rt suggest <task> meta-command (BM25 + hand-curated synonyms + JSON/text output), a SeeAlso field on RtCommandInfo for inverse/workflow/sibling cross-links, and reuses the same BM25 engine to fix unknown-command parse errors with 'did you mean' suggestions. Purely additive — no command moves or renames.",
+            "notes": "Decision 2026-05-22: command name = rt suggest; JSON default when stdout is not a TTY. Source plan at ~/.claude/plans/how-can-we-further-soft-pie.md. Pre-existing US-080 (rt suggest synonyms thesaurus) is a follow-up to this epic and depends on the core command landing first."
         }
     ],
     "userStories": [
@@ -68,8 +80,10 @@
             "urgency": 170,
             "urgencyReason": "convert-static-class — interface generation. Largest of the trio. Links to project_static_class_migration.",
             "effort": 8,
-            "passes": false,
-            "notes": "P2. Enables mock-friendly DI patterns in roslyn-tools tests. Relates to US-027 df."
+            "passes": true,
+            "notes": "P2. Enables mock-friendly DI patterns in roslyn-tools tests. Relates to US-027 df.",
+            "resolution": "Superseded by US-081: rt refactor convert-static-class consolidated bug-fix story (interface generation + DI registration + ctor formatting). All three convert-static-class follow-ups land together since they share the same code path and dogfood pass.",
+            "resolvedAt": "2026-05-23"
         },
         {
             "id": "US-038",
@@ -86,8 +100,10 @@
             "urgency": 166,
             "urgencyReason": "convert-static-class — DI registration in Bootstrap. Pair with US-037 for usable output.",
             "effort": 5,
-            "passes": false,
-            "notes": "P2. Pairs with US-037 (interface gen). Relates to US-027 df."
+            "passes": true,
+            "notes": "P2. Pairs with US-037 (interface gen). Relates to US-027 df.",
+            "resolution": "Superseded by US-081 (see US-037).",
+            "resolvedAt": "2026-05-23"
         },
         {
             "id": "US-039",
@@ -104,8 +120,10 @@
             "urgency": 162,
             "urgencyReason": "convert-static-class — field/ctor formatting. Smallest of the trio so floats above US-037/038 inside the band.",
             "effort": 2,
-            "passes": false,
-            "notes": "P2. df dogfood bug. Sibling of the no-constructor formatting bug fixed in the df/convert-static-class-interface-and-di branch commit 1fcf269."
+            "passes": true,
+            "notes": "P2. df dogfood bug. Sibling of the no-constructor formatting bug fixed in the df/convert-static-class-interface-and-di branch commit 1fcf269.",
+            "resolution": "Superseded by US-081 (see US-037).",
+            "resolvedAt": "2026-05-23"
         },
         {
             "id": "US-045",
@@ -123,9 +141,11 @@
             "urgency": 244,
             "urgencyReason": "EP-007: find-refs JSON output. Most-used inspect command — highest payoff among M-sized JSON outputs.",
             "effort": 5,
-            "passes": false,
+            "passes": true,
             "epicId": "EP-007",
-            "notes": "P2. Command: src/RoslynTools.Cli/Commands/FindRefsCommand.cs. Set RtCommandInfo.JsonOutput=true and branch on RtContext.Format==OutputFormat.Json."
+            "notes": "P2. Command: src/RoslynTools.Cli/Commands/FindRefsCommand.cs. Set RtCommandInfo.JsonOutput=true and branch on RtContext.Format==OutputFormat.Json.",
+            "resolution": "Superseded by US-082 (EP-007 JSON-output umbrella). All 8 inspect/analyze JSON-output stories collapsed into one umbrella with per-command sub-AC matrix since the template is identical across commands.",
+            "resolvedAt": "2026-05-23"
         },
         {
             "id": "US-046",
@@ -142,9 +162,11 @@
             "urgency": 248,
             "urgencyReason": "EP-007: find-callers JSON output. High-traffic.",
             "effort": 5,
-            "passes": false,
+            "passes": true,
             "epicId": "EP-007",
-            "notes": "P2. Command: src/RoslynTools.Cli/Commands/FindCallersCommand.cs. Set RtCommandInfo.JsonOutput=true."
+            "notes": "P2. Command: src/RoslynTools.Cli/Commands/FindCallersCommand.cs. Set RtCommandInfo.JsonOutput=true.",
+            "resolution": "Superseded by US-082 (see US-045).",
+            "resolvedAt": "2026-05-23"
         },
         {
             "id": "US-047",
@@ -162,9 +184,11 @@
             "urgency": 272,
             "urgencyReason": "EP-007: find-undocumented JSON output. Lowest-traffic of the eight.",
             "effort": 5,
-            "passes": false,
+            "passes": true,
             "epicId": "EP-007",
-            "notes": "P2. Command: src/RoslynTools.Cli/Commands/FindUndocumentedCommand.cs. Set RtCommandInfo.JsonOutput=true."
+            "notes": "P2. Command: src/RoslynTools.Cli/Commands/FindUndocumentedCommand.cs. Set RtCommandInfo.JsonOutput=true.",
+            "resolution": "Superseded by US-082 (see US-045).",
+            "resolvedAt": "2026-05-23"
         },
         {
             "id": "US-048",
@@ -181,9 +205,11 @@
             "urgency": 252,
             "urgencyReason": "EP-007: find-unused JSON output. Common in cleanup workflows.",
             "effort": 5,
-            "passes": false,
+            "passes": true,
             "epicId": "EP-007",
-            "notes": "P2. Command: src/RoslynTools.Cli/Commands/FindUnusedCommand.cs. Set RtCommandInfo.JsonOutput=true."
+            "notes": "P2. Command: src/RoslynTools.Cli/Commands/FindUnusedCommand.cs. Set RtCommandInfo.JsonOutput=true.",
+            "resolution": "Superseded by US-082 (see US-045).",
+            "resolvedAt": "2026-05-23"
         },
         {
             "id": "US-049",
@@ -200,9 +226,11 @@
             "urgency": 256,
             "urgencyReason": "EP-007: circular-deps JSON output. Common in architecture sweeps.",
             "effort": 5,
-            "passes": false,
+            "passes": true,
             "epicId": "EP-007",
-            "notes": "P2. Command: src/RoslynTools.Cli/Commands/CircularDepsCommand.cs. Set RtCommandInfo.JsonOutput=true."
+            "notes": "P2. Command: src/RoslynTools.Cli/Commands/CircularDepsCommand.cs. Set RtCommandInfo.JsonOutput=true.",
+            "resolution": "Superseded by US-082 (see US-045).",
+            "resolvedAt": "2026-05-23"
         },
         {
             "id": "US-050",
@@ -220,9 +248,11 @@
             "urgency": 268,
             "urgencyReason": "EP-007: find-magic-strings JSON output.",
             "effort": 5,
-            "passes": false,
+            "passes": true,
             "epicId": "EP-007",
-            "notes": "P2. Command: src/RoslynTools.Cli/Commands/FindMagicStringsCommand.cs. Set RtCommandInfo.JsonOutput=true."
+            "notes": "P2. Command: src/RoslynTools.Cli/Commands/FindMagicStringsCommand.cs. Set RtCommandInfo.JsonOutput=true.",
+            "resolution": "Superseded by US-082 (see US-045).",
+            "resolvedAt": "2026-05-23"
         },
         {
             "id": "US-051",
@@ -239,9 +269,11 @@
             "urgency": 264,
             "urgencyReason": "EP-007: list-imports JSON output.",
             "effort": 5,
-            "passes": false,
+            "passes": true,
             "epicId": "EP-007",
-            "notes": "P2. Command: src/RoslynTools.Cli/Commands/ListImportsCommand.cs. Set RtCommandInfo.JsonOutput=true."
+            "notes": "P2. Command: src/RoslynTools.Cli/Commands/ListImportsCommand.cs. Set RtCommandInfo.JsonOutput=true.",
+            "resolution": "Superseded by US-082 (see US-045).",
+            "resolvedAt": "2026-05-23"
         },
         {
             "id": "US-052",
@@ -259,9 +291,11 @@
             "urgency": 260,
             "urgencyReason": "EP-007: list-smells JSON output. Agent-driven refactor consumes this.",
             "effort": 5,
-            "passes": false,
+            "passes": true,
             "epicId": "EP-007",
-            "notes": "P2. Command: src/RoslynTools.Cli/Commands/ListSmellsCommand.cs. Set RtCommandInfo.JsonOutput=true."
+            "notes": "P2. Command: src/RoslynTools.Cli/Commands/ListSmellsCommand.cs. Set RtCommandInfo.JsonOutput=true.",
+            "resolution": "Superseded by US-082 (see US-045).",
+            "resolvedAt": "2026-05-23"
         },
         {
             "id": "US-053",
@@ -327,8 +361,8 @@
                 "Test suite passes after apply (no broken imports)"
             ],
             "priority": 55,
-            "urgency": 310,
-            "urgencyReason": "extract-orchestrator command. Significant new feature; deferred until refactor infra stable.",
+            "urgency": 24,
+            "urgencyReason": "rt refactor extract-orchestrator command (rt-003)",
             "effort": 8,
             "passes": false,
             "notes": "P2. Reference diff: ralph/sessions/2026-04-21-change-signature-2.md step 5. Linked to rt-004 (introduce-record) now shipped as transform-parameters. From issue rt-003."
@@ -346,8 +380,8 @@
                 "Works with --dry-run and --solution flags as normal"
             ],
             "priority": 56,
-            "urgency": 230,
-            "urgencyReason": "rename: accept FQN from stdin JSON. Automation feature, single command.",
+            "urgency": 25,
+            "urgencyReason": "rt refactor rename: accept symbol FQN from stdin JSON for pipe chains (rt-008)",
             "effort": 2,
             "passes": false,
             "notes": "P2. First of the pipe-protocol tasks. Discovered in ralph/sessions/2026-05-04-daemon-protocol.md Step 4. Command: src/RoslynTools.Cli/Commands/RenameCommand.cs. From issue rt-008."
@@ -358,15 +392,20 @@
             "title": "Introduce a shared read-only command handler wrapper",
             "description": "As an rt maintainer, I want read-only commands to execute through a shared wrapper so solution loading, timing, cancellation, error mapping, and result rendering are consistent.",
             "acceptanceCriteria": [
-                "A shared wrapper exists for read-only handlers with one entry point used by migrated commands",
-                "The wrapper owns solution loading, cancellation token flow, exception-to-exit-code mapping, and output rendering",
-                "At least one representative inspect command and one analyze command are migrated to the wrapper",
-                "Migrated command tests cover success, not found, and invalid input paths",
-                "An architecture test detects migrated commands that bypass the wrapper"
+                "A new class src/RoslynTools/Cli/Handlers/ReadOnlyCommandHandler.cs (or similar) provides a single async entry point: HandleAsync<TInput, TOutput>(RtContext context, TInput input, Func<Solution, TInput, CancellationToken, Task<Result<TOutput, RtError>>> body) where: solution is loaded once from RtContext.Solution, the body callback receives the loaded solution + input + cancellation token, the Result is mapped to (stdout=JSON of TOutput on Ok, stderr=Error: {message} + exit 1 on Err).",
+                "The wrapper owns: solution load (via the existing IWorkspaceSessionFactory from US-053), cancellation token propagation from Console.CancelKeyPress, timing/diagnostic logging via RtLog.Debug, exception-to-exit-code mapping for the typed catch ladder from US-077.",
+                "At least one representative inspect command (e.g. OutlineCommand or DescribeCommand) is migrated to call the wrapper instead of hand-rolling solution-load + try/catch.",
+                "At least one representative analyze command (e.g. CircularDepsCommand or ListSmellsCommand) is migrated to call the wrapper.",
+                "Migrated commands shrink in line count by at least 20% each (verified by diff stats in the PR description).",
+                "Tests for migrated commands cover: happy path (returns Ok, exit 0, JSON stdout); not-found path (returns RtError.NotFound, exit 1, single stderr line); cancellation (Ctrl+C mid-load, exit 130 or similar); invalid input (returns RtError.InvalidInput, exit 1).",
+                "Architecture test tests/RoslynTools.Tests/Architecture/ReadOnlyHandlerRatchetTests.cs lists migrated commands in a marker file (docs/readonly-handler-migrated.txt) and asserts each migrated command does NOT directly call WorkspaceLoader.LoadAsync or hand-roll its own try/catch for solution-load errors.",
+                "Marker file only grows — never shrinks (matches the US-086 ratchet pattern).",
+                "dotnet build clean; dotnet format --verify-no-changes clean; existing tests pass; new architecture test green.",
+                "Smoke: rt inspect outline src/RoslynTools/Core/SymbolLocator.cs --solution RoslynTools.slnx and rt analyze list-smells --solution RoslynTools.slnx both exit 0 with unchanged JSON output after migration."
             ],
             "priority": 57,
-            "urgency": 360,
-            "urgencyReason": "EP-009 opener: shared read-only command handler wrapper.",
+            "urgency": 23,
+            "urgencyReason": "Shared read-only command handler wrapper; landed alongside US-085 migration",
             "effort": 8,
             "passes": false,
             "notes": "P2. Start with a low-risk read-only command already using RtResult<T>."
@@ -387,8 +426,10 @@
             "urgency": 364,
             "urgencyReason": "EP-009: standardize common CLI options via factory.",
             "effort": 8,
-            "passes": false,
-            "notes": "P2. This should precede broad command migration to reduce repeated churn."
+            "passes": true,
+            "notes": "P2. This should precede broad command migration to reduce repeated churn.",
+            "resolution": "Superseded by US-085 (options factory + vocabulary consolidation: factory naming and vocabulary are inseparable).",
+            "resolvedAt": "2026-05-23"
         },
         {
             "id": "US-059",
@@ -406,14 +447,19 @@
             "urgency": 368,
             "urgencyReason": "EP-009: machine-readable command capabilities in RtCommandInfo.",
             "effort": 8,
-            "passes": false,
-            "notes": "P2. Capability names should stay stable for external automation."
+            "passes": true,
+            "notes": "P2. Capability names should stay stable for external automation.",
+            "resolution": "Superseded by US-084 (metadata catalog consolidation: schema + dump-help --json + consistency test land together).",
+            "resolvedAt": "2026-05-23"
         },
         {
             "id": "US-060",
             "epicId": "EP-009",
+            "dependsOn": [
+                "US-079"
+            ],
             "title": "Normalize command outputs around shared result contracts",
-            "description": "As an automation consumer, I want rt commands to return shared result envelopes so success, empty, diagnostic, and change-plan outputs are predictable.",
+            "description": "As an automation consumer, I want rt commands to return shared result envelopes so success, empty, diagnostic, and change-plan outputs are predictable. Once the EP-010 Result<T,RtError> rollout (US-077/078/079) lands the typed-error ADT across SymbolLocator + WorkspaceLoader + MethodExtractor, this story wraps the now-consistent service surface into command-level RtResult<T> / RtChangeResult<T> / RtDiagnosticResult envelopes. Avoid duplicating the ADT design conversation — extend, don't re-litigate.",
             "acceptanceCriteria": [
                 "Read-only commands use RtResult<TOutput> or an approved equivalent",
                 "Mutation commands use a shared change result contract such as RtChangeResult<TPlan>",
@@ -422,8 +468,8 @@
                 "Architecture tests ratchet migrated commands away from ad hoc Console.WriteLine rendering"
             ],
             "priority": 60,
-            "urgency": 372,
-            "urgencyReason": "EP-009: normalize command outputs via shared result contract.",
+            "urgency": 21,
+            "urgencyReason": "EP-009 shared result contracts; depends on US-079 to have the typed ADT ready",
             "effort": 8,
             "passes": false,
             "notes": "P2. Builds on the existing RtResult<T> migration."
@@ -434,15 +480,21 @@
             "title": "Introduce SymbolQuery for consistent symbol resolution",
             "description": "As an rt user, I want commands that accept symbols to resolve names, fully qualified names, and ambiguity in the same way across inspect and refactor workflows.",
             "acceptanceCriteria": [
-                "SymbolQuery represents raw input, expected symbol kind, optional scope, and ambiguity policy",
-                "A shared resolver handles exact, fully qualified, and partial symbol matches",
-                "Ambiguous matches produce a consistent diagnostic payload with candidate symbols",
-                "At least two symbol-consuming commands are migrated to SymbolQuery",
-                "Tests cover exact match, no match, ambiguous match, and kind mismatch"
+                "SymbolQuery is a record in src/RoslynTools/Core/Symbols/SymbolQuery.cs with fields: RawInput (string), ExpectedKind (SymbolKindFilter? — Class/Method/Property/Field/Namespace/Any), Scope (ScopeFilter? — Solution/Project/Namespace path), AmbiguityPolicy (FailOnAmbiguous | PickFirst | PromptViaDecisions).",
+                "SymbolResolver (a new service or extension to SymbolLocator) consumes SymbolQuery and returns Result<ISymbol, RtError>: matches exact short names, fully qualified names, and partial dotted paths against the loaded solution.",
+                "Exact match: input \"WorkspaceLoader\" finds the single type named WorkspaceLoader; FQN match: input \"RoslynTools.Core.WorkspaceLoader\" finds the same; partial match: input \"Core.WorkspaceLoader\" finds it if no ambiguity in the loaded solution.",
+                "Ambiguous matches: when N matches exist and AmbiguityPolicy is FailOnAmbiguous, return RtError.AmbiguousMatch with Context[\"candidates\"] listing each candidate FQN.",
+                "No match: return RtError.NotFound with the query input in Context[\"query\"].",
+                "Kind mismatch: input matches a symbol whose kind doesn't satisfy ExpectedKind — return RtError.NotFound with Context[\"foundKind\"] set so the caller can produce a precise error message.",
+                "At least two existing commands are migrated to consume SymbolQuery: one read-only (e.g. DescribeCommand or FindRefsCommand) and one refactor (e.g. RenameCommand). The migrated commands stop hand-rolling FQN parsing.",
+                "AmbiguityPolicy.PromptViaDecisions integrates with the existing DecisionStore: when set, an ambiguous match writes pending entries to the decisions YAML and returns RtError.AmbiguousMatch (caller maps to exit code 2).",
+                "Tests cover: exact match, FQN match, partial match success, partial match ambiguous (returns AmbiguousMatch), no match (returns NotFound), kind mismatch (returns NotFound with foundKind), each AmbiguityPolicy branch.",
+                "dotnet build clean; dotnet format --verify-no-changes clean; existing tests pass; new SymbolResolver tests green.",
+                "Pipe-chain smoke: rt inspect find-refs --symbol WorkspaceLoader --json | rt refactor rename --new-name SolutionLoader --dry-run works end-to-end (the FQN-via-stdin from US-056 + SymbolQuery resolution from this story compose cleanly)."
             ],
             "priority": 61,
-            "urgency": 376,
-            "urgencyReason": "EP-009: SymbolQuery for consistent symbol resolution.",
+            "urgency": 22,
+            "urgencyReason": "SymbolQuery for consistent symbol resolution; prerequisite for pipe chains",
             "effort": 8,
             "passes": false,
             "notes": "P2. This is a prerequisite for reliable pipe chains between inspect and refactor commands."
@@ -463,8 +515,10 @@
             "urgency": 380,
             "urgencyReason": "EP-009: standardize command vocabulary and aliases.",
             "effort": 8,
-            "passes": false,
-            "notes": "P2. Pair with option factory work when practical."
+            "passes": true,
+            "notes": "P2. Pair with option factory work when practical.",
+            "resolution": "Superseded by US-085 (see US-058).",
+            "resolvedAt": "2026-05-23"
         },
         {
             "id": "US-063",
@@ -482,8 +536,10 @@
             "urgency": 384,
             "urgencyReason": "EP-009: standardize command file structure.",
             "effort": 8,
-            "passes": false,
-            "notes": "P3. Keep this incremental so it supports, rather than blocks, feature work."
+            "passes": true,
+            "notes": "P3. Keep this incremental so it supports, rather than blocks, feature work.",
+            "resolution": "Superseded by US-086 (structure + ratchets + playbook: one doc + one architecture test instead of three meta-process stories).",
+            "resolvedAt": "2026-05-23"
         },
         {
             "id": "US-064",
@@ -501,8 +557,10 @@
             "urgency": 388,
             "urgencyReason": "EP-009: migration ratchets for command consistency.",
             "effort": 8,
-            "passes": false,
-            "notes": "P2. This formalizes the dogfooding approach used during the command output migration."
+            "passes": true,
+            "notes": "P2. This formalizes the dogfooding approach used during the command output migration.",
+            "resolution": "Superseded by US-086 (see US-063).",
+            "resolvedAt": "2026-05-23"
         },
         {
             "id": "US-065",
@@ -520,8 +578,10 @@
             "urgency": 392,
             "urgencyReason": "EP-009: make dump-help metadata-driven and consistency-tested.",
             "effort": 8,
-            "passes": false,
-            "notes": "P2. This turns command metadata into a visible contract for agents."
+            "passes": true,
+            "notes": "P2. This turns command metadata into a visible contract for agents.",
+            "resolution": "Superseded by US-084 (see US-059).",
+            "resolvedAt": "2026-05-23"
         },
         {
             "id": "US-066",
@@ -539,22 +599,29 @@
             "urgency": 396,
             "urgencyReason": "EP-009: command migration playbook. Closes EP-009.",
             "effort": 8,
-            "passes": false,
-            "notes": "P3. Keep this short and operational; it should support ongoing dogfooding rather than becoming a design document."
+            "passes": true,
+            "notes": "P3. Keep this short and operational; it should support ongoing dogfooding rather than becoming a design document.",
+            "resolution": "Superseded by US-086 (see US-063).",
+            "resolvedAt": "2026-05-23"
         },
         {
             "id": "US-067",
             "title": "Revisit nested-branch pattern in execute skill for trunk-based repos",
             "description": "As a developer running /execute on a trunk repo, I want a clear consistent policy on RT gap handling, so the skill matches the actual workflow.",
             "acceptanceCriteria": [
-                "The skill documents a clear policy: nested branches OR fix-on-main for trunk repos — not both",
-                "The Opus review section and regression handler are consistent with the chosen policy",
-                "The branch cleanup gate is present or removed to match",
-                "Risks of fix-on-main are documented (no revert path) if that approach is chosen"
+                "docs/skills/execute.md (or wherever the /execute skill body lives) documents ONE policy for handling rt gaps discovered mid-batch: either (a) park-the-story-fix-the-gap-on-main or (b) abandon-the-batch-and-create-a-blocker-story. The two are mutually exclusive — pick one and remove the other from the skill prose.",
+                "The Opus review section of the skill references the chosen policy by name and includes a one-line decision tree (gap found → branch-X path or branch-Y path).",
+                "The regression handler section uses the same vocabulary as the Opus review section (no \"if branch... if main...\" forks that contradict the chosen policy).",
+                "If the chosen policy is fix-on-main: the skill documents that there is no revert path, and instructs the agent to commit each fix in isolation so individual commits can be reverted with git revert.",
+                "If the chosen policy is park-and-blocker: the skill documents how the blocker story is logged (which file, which template, what status field) and how the original work resumes once the blocker lands.",
+                "The branch-cleanup gate in /execute matches the chosen policy: present if branches are used, removed if main-only.",
+                "After the skill is updated, run /execute against one trivial open story to confirm the new policy works end-to-end (no contradictions surface mid-run).",
+                "ai-rules commit 8c1a08a (aggressive nested-branch version) and dae9046 (conservative rollback) are referenced in the commit message landing this change so the history is traceable.",
+                "The 2026-05-15 retro Proposal 4 (which deferred this work) is marked resolved in ralph/sessions/ or wherever the retro lives."
             ],
             "priority": 67,
-            "urgency": 322,
-            "urgencyReason": "Revisit nested-branch pattern in execute skill. Process improvement, no production impact. Smallest H-band item → top of band.",
+            "urgency": 16,
+            "urgencyReason": "Trunk-based /execute skill decision; defers nicely but unblocks workflow consistency",
             "effort": 5,
             "passes": false,
             "notes": "P3. Deferred from 2026-05-15 retro (Proposal 4). Aggressive version in ai-rules commit 8c1a08a; conservative rollback in dae9046. Three places still inconsistent: RT gap section, Opus review section, regression handler. Must be decided and applied consistently."
@@ -575,13 +642,15 @@
             "urgency": 240,
             "urgencyReason": "rt dump-help --json — unlocks agent automation; touches one command. Opens the EP-007 wave.",
             "effort": 5,
-            "passes": false,
-            "notes": "P2. Deferred from LLM-ergonomics quick-wins plan. The RtCommandInfo record and reflection-discovered registry in App.cs already expose every field — wiring it through JsonRenderer should be near-free. Affected files: src/RoslynTools.Cli/Commands/DumpHelpCommand.cs, src/RoslynTools/Core/RtCommandInfo.cs."
+            "passes": true,
+            "notes": "P2. Deferred from LLM-ergonomics quick-wins plan. The RtCommandInfo record and reflection-discovered registry in App.cs already expose every field — wiring it through JsonRenderer should be near-free. Affected files: src/RoslynTools.Cli/Commands/DumpHelpCommand.cs, src/RoslynTools/Core/RtCommandInfo.cs.",
+            "resolution": "Superseded by US-084 (see US-059).",
+            "resolvedAt": "2026-05-23"
         },
         {
             "id": "RT-002",
             "title": "Expand command help text with output shape, exit codes, and error modes",
-            "description": "As an LLM agent, I want every rt command's --help to describe its output shape, exit codes, and common error modes so I can predict behaviour without source-diving or trial-and-error.",
+            "description": "As an LLM agent, I want every rt command's --help to describe its output shape, exit codes, and common error modes so I can predict behaviour without source-diving or trial-and-error. Depends on US-084 (metadata catalog) landing first — the expanded help text reads from RtCommandInfo.SeeAlso / SupportedFormats / Aliases fields that US-084 introduces.",
             "acceptanceCriteria": [
                 "Every command's `--help` output includes a section stating the output format (text vs JSON vs both, mutating vs read-only).",
                 "Every command's `--help` lists the exit codes it can return (0, 1, 2) and the trigger for each (success / error / decisions required).",
@@ -591,11 +660,14 @@
                 "An LLM reading only `rt <cmd> --help` can predict the shape of stdout, stderr, and exit code for both success and the most common failure."
             ],
             "priority": 70,
-            "urgency": 222,
-            "urgencyReason": "Expand command help text with output shape + exit codes. Smallest of the discoverability wave — floats first.",
+            "urgency": 26,
+            "urgencyReason": "Expand command help text with output shape and exit codes; depends on US-084",
             "effort": 2,
             "passes": false,
-            "notes": "P2. Deferred from LLM-ergonomics quick-wins plan. Sampled commands (DescribeCommand, FindCallersCommand, ExtractMethodCommand) currently have one-line descriptions only — no failure mode docs, no output schema. Drive from RtCommandInfo so docs/COMMANDS.md stays in sync."
+            "notes": "P2. Deferred from LLM-ergonomics quick-wins plan. Sampled commands (DescribeCommand, FindCallersCommand, ExtractMethodCommand) currently have one-line descriptions only — no failure mode docs, no output schema. Drive from RtCommandInfo so docs/COMMANDS.md stays in sync.",
+            "dependsOn": [
+                "US-084"
+            ]
         },
         {
             "id": "RT-003",
@@ -610,8 +682,8 @@
                 "Existing --decisions behaviour (exit 2, write pending entries) is unchanged."
             ],
             "priority": 71,
-            "urgency": 226,
-            "urgencyReason": "Self-describing --decisions YAML schema.",
+            "urgency": 27,
+            "urgencyReason": "Make --decisions YAML schema self-discoverable from CLI",
             "effort": 2,
             "passes": false,
             "notes": "P3. Deferred from LLM-ergonomics quick-wins plan. The mechanism is mentioned in --help but the file structure (fields, indices, how to fill the choose field) requires source inspection today. Affected files: src/RoslynTools/Core/Decisions/DecisionStore.cs, src/RoslynTools/Core/Decisions/DecisionEntry.cs, src/RoslynTools.Cli/App.cs."
@@ -629,8 +701,8 @@
                 "An LLM piping stdout to a JSON parser and stderr to logs gets clean separation across every command."
             ],
             "priority": 72,
-            "urgency": 180,
-            "urgencyReason": "Finish stderr discipline migration: stray Console.Write to stdout in error paths. Completes a longstanding push.",
+            "urgency": 28,
+            "urgencyReason": "Finish stderr discipline migration; tail of LLM-ergonomics work",
             "effort": 5,
             "passes": false,
             "notes": "P2. Deferred from LLM-ergonomics quick-wins plan. docs/logging-standards.md acknowledges the migration is in progress; several commands still call Console.Write directly. Maintenance work — does not change LLM behaviour at runtime today, but eliminates a future regression vector."
@@ -649,8 +721,10 @@
             "urgency": 152,
             "urgencyReason": "Mutation pilot rollout: memory project_mutation_pilot_project_boundary explicitly flags Cli files are silently skipped today. Stryker config + gate currently does not defend src/RoslynTools.Cli/.",
             "effort": 2,
-            "passes": false,
-            "notes": "Discovered 2026-05-20 while landing the Debug 100% mutation work. Existing Cli files in mutate globs were authored under the assumption that Stryker would cover them."
+            "passes": true,
+            "notes": "Discovered 2026-05-20 while landing the Debug 100% mutation work. Existing Cli files in mutate globs were authored under the assumption that Stryker would cover them.",
+            "resolution": "Superseded by US-083 (Stryker pilot consolidation: Cli + Mcp together via per-project Stryker setup).",
+            "resolvedAt": "2026-05-23"
         },
         {
             "id": "US-070",
@@ -666,24 +740,10 @@
             "urgency": 156,
             "urgencyReason": "Same scope as US-069 for src/RoslynTools.Mcp/. Finishes the Stryker rollout.",
             "effort": 2,
-            "passes": false,
-            "notes": "Discovered 2026-05-20: committed df9e43a (MCP array pass-through) used the bypass for this reason. Likely solved together with the Cli pilot story (US-069) by switching to a multi-project or per-project Stryker setup."
-        },
-        {
-            "id": "US-071",
-            "title": "rt refactor extract-interface produces malformed output for internal classes",
-            "description": "As a roslyn-tools developer, I want extract-interface to honor source class accessibility, include internal members when the source is internal, and emit syntactically valid C# so that I can dogfood it during DI migrations on internal types.",
-            "acceptanceCriteria": [
-                "rt refactor extract-interface --type WorkspaceLoader --solution RoslynTools.slnx --dry-run emits a syntactically valid diff: the new interface name is inserted into the existing base list with proper formatting (space after comma, brace placement matching the file's brace style), and the resulting file would compile",
-                "Extracting from an internal sealed class produces an internal interface (not public). Accessibility of the generated interface matches the source class accessibility",
-                "Extracting from an internal class includes the class's internal members in the generated interface (today only public members are picked up). Public-only behaviour remains the default for public source classes",
-                "Regression test added covering an internal class with internal members and an existing IDisposable base list, asserting both the file compiles and the interface accessibility/membership matches expectation",
-                "rt refactor extract-interface --type WorkspaceLoader --solution RoslynTools.slnx (no dry-run) succeeds without producing files that fail dotnet build"
-            ],
-            "priority": 75,
-            "passes": false,
-            "epicId": "EP-006",
-            "notes": "P2. Surfaced during EP-008/US-053 dogfood at branch ep-008-isessionfactory. Three bundled defects: (1) base-list insertion is malformed -- 'IDisposable\\n,IWorkspaceLoader{' (no space, brace adjacent); (2) generated interface is hardcoded public regardless of source class accessibility (internal sealed class WorkspaceLoader yielded public interface IWorkspaceLoader); (3) only public members are extracted, missing internal GetSolutionAsync/LoadWorkspaceAsync from WorkspaceLoader. Repro: rt refactor extract-interface --type WorkspaceLoader --solution RoslynTools.slnx --dry-run. Forced fallback to hand-authoring IWorkspaceSessionFactory."
+            "passes": true,
+            "notes": "Discovered 2026-05-20: committed df9e43a (MCP array pass-through) used the bypass for this reason. Likely solved together with the Cli pilot story (US-069) by switching to a multi-project or per-project Stryker setup.",
+            "resolution": "Superseded by US-083 (see US-069).",
+            "resolvedAt": "2026-05-23"
         },
         {
             "id": "US-072",
@@ -724,55 +784,353 @@
             ],
             "priority": 77,
             "passes": false,
-            "notes": "P2. Currently net8.0 across all projects. Migration touches: TFM in every csproj + Directory.Build.props, Microsoft.CodeAnalysis.* package bump (currently 4.9.2), DiffPlex/YamlDotNet/Scrutor checks for net10 support, CI image bump if any, smoke tests on roslyn-tools.slnx then a Hero solution. Watch for breakage in Roslyn syntax APIs and MSBuildLocator behavior — net10 SDK discovery may diverge."
+            "notes": "P2. Currently net8.0 across all projects. Migration touches: TFM in every csproj + Directory.Build.props, Microsoft.CodeAnalysis.* package bump (currently 4.9.2), DiffPlex/YamlDotNet/Scrutor checks for net10 support, CI image bump if any, smoke tests on roslyn-tools.slnx then a Hero solution. Watch for breakage in Roslyn syntax APIs and MSBuildLocator behavior — net10 SDK discovery may diverge.",
+            "urgency": 15,
+            "urgencyReason": ".NET 10 migration; planning ahead of net8.0 going out of mainstream support"
         },
         {
-            "id": "US-074",
-            "title": "rt analyze list-smells: add --top N limiter",
-            "description": "As an agent driving rt, I want `rt analyze list-smells --top N` to cap the output to the N highest-priority smells so that I can run concise smell scans without paging through thousands of lines of JSON.",
+            "id": "US-078",
+            "title": "Result<T,RtError> migration: WorkspaceLoader.LoadAsync",
+            "description": "As a developer, I want WorkspaceLoader.LoadAsync to return Result<(MSBuildWorkspace, Solution), RtError> for missing-solution and zero-projects cases, so solution-load failures surface as clean exit-1 messages routed through the same typed handler introduced in US-077 (formerly US-068a) — no separate FileNotFoundException special-case needed.",
             "acceptanceCriteria": [
-                "rt analyze list-smells --solution <sln> --top 30 exits 0 and emits at most 30 smell entries to stdout",
-                "Ordering is deterministic and matches the existing default ordering (highest severity/score first; tie-break by file path then line)",
-                "Omitting --top preserves current behaviour (no limit)",
-                "--top 0 emits an empty smells array (still valid JSON with metadata intact)",
-                "--top with a negative integer exits 1 with stderr 'Invalid --top value: must be >= 0' (no stack trace)",
-                "rt dump-help shows --top in the list-smells command help",
-                "ListSmellsCommand.Info.Examples includes a --top example"
+                "WorkspaceLoader.LoadAsync returns Result<(MSBuildWorkspace workspace, Solution solution), RtError>.",
+                "The 'solution file not found' case produces Result.Err(RtError.NotFound) with the solution path in Context['solution']; the 'solution loaded but contains zero projects' case produces Result.Err(RtError.WorkspaceLoadFailure) with the failure-diagnostic text in Context['diagnostic'].",
+                "MSBuildWorkspace.WorkspaceFailed handler downgrades from throw to Result.Err when the diagnostic is a Failure rather than a Warning; warnings still flow through RtContext.ShowWorkspaceWarnings unchanged.",
+                "Every existing caller of WorkspaceLoader.LoadAsync is updated to consume the Result; commands surface RtError via the shared helper added in US-068a (no new helpers introduced here).",
+                "App.CaptureExceptionAsync no longer needs a FileNotFoundException branch specifically for solution-file-missing — that path is now Result-routed before the catch ladder runs.",
+                "Integration test: rt inspect describe Foo --solution missing.slnx exits 1 with exactly one 'Error: ...' line to stderr referencing the missing path; no stack trace; feedback.json count unchanged.",
+                "Integration test: rt inspect describe Foo --solution malformed.slnx (file exists but isn't a valid solution) exits 1 with RtError.WorkspaceLoadFailure formatting that includes the MSBuild diagnostic.",
+                "dotnet build clean; dotnet format --verify-no-changes clean; existing tests pass.",
+                "rt dogfood smoke: rt inspect describe RoslynTools.Core.WorkspaceLoader --solution RoslynTools.slnx still exits 0 with unchanged stdout JSON shape."
             ],
-            "priority": 60,
+            "priority": 79,
             "passes": false,
-            "notes": "P2. Source: FB-006 (feedback.json, 2026-05-15). Pure CLI surface — slice the result list after ranking, before JSON serialisation. No behavioural change to the analyser itself."
+            "epicId": "EP-010",
+            "notes": "Second of three sub-stories from the US-068 split. Depends on the ADT and shared command helper landed in US-077. Smaller migration than US-077 — single API surface, well-defined two failure modes.",
+            "urgency": 6,
+            "urgencyReason": "EP-010 follow-up: WorkspaceLoader migration; lands after US-077 proves the pattern",
+            "effort": 3
         },
         {
-            "id": "US-075",
-            "title": "make rt parallel-safe for agent dogfooding (feedback file, wrapper rebuild, deploy-skill, MSBuild obj)",
-            "description": "As an agent running /execute-style parallel rt invocations across worktrees, I want rt and its build/deploy plumbing to be safe under concurrency so that parallel dogfooding does not corrupt feedback.json, race the rt.cmd rebuild, fight deploy-skill Copy-Item, or trip MSBuild obj/Debug file locks.",
+            "id": "US-079",
+            "title": "Result<T,RtError> migration: MethodExtractor user-input validations",
+            "description": "As a developer, I want MethodExtractor's user-input rejections (no statements in range, multiple parent blocks, return statements in selection, --after/--before conflict) to return Result.Err(RtError.InvalidInput) instead of throwing, so extract-method failures surface as clean exit-1 messages while AST-rewrite invariant violations remain genuine exceptions.",
             "acceptanceCriteria": [
-                "rt feedback add is safe under concurrent invocation: parallel calls each get a unique FB-id and every entry is persisted (regression test runs N parallel `rt feedback add` and asserts N distinct ids + N items on disk)",
-                "Concurrent ./rt.cmd / rt.ps1 invocations after a source edit serialise on a build mutex so only one rebuild runs at a time; subsequent invocations wait then execute against the freshly built binary (no CS2012 / rt.exe copy-lock warnings)",
-                "deploy-skill Copy-Item retries on file-lock with bounded backoff, or skips with a clear stderr message when the destination is locked by a concurrent build (no unhandled IOException)",
-                "Read-only `rt analyze …` commands accept a flag (e.g. --isolated-obj) or unconditionally redirect BaseIntermediateOutputPath to a per-process temp dir so parallel analyses do not race on shared obj/Debug files",
-                "Integration test exercises FB-007/FB-008/FB-013 reproduction scenarios in parallel and confirms no exceptions and no MSBuild lock warnings on stderr",
-                "Documentation update in AGENTS.md and CLAUDE.md noting that rt is now parallel-safe for agent use"
+                "MethodExtractor's user-input validation paths return Result<MethodExtractionPlan, RtError> (or the existing plan type wrapped in Result) instead of throwing InvalidOperationException.",
+                "The 'no statements found in lines X-Y' check produces RtError.InvalidInput with Context['startLine']/Context['endLine'].",
+                "The 'multiple parent blocks in selection' check produces RtError.InvalidInput with Context['blockCount'].",
+                "The 'return statements present in selection' check produces RtError.InvalidInput with Context['returnLineNumbers'].",
+                "The '--after and --before are mutually exclusive' check produces RtError.InvalidInput with Context['conflictingFlags'].",
+                "AST-rewrite-produced-no-changes and similar internal-invariant violations remain exceptions (they should never be hit from valid user input; if they fire they're bugs).",
+                "ExtractMethodCommand consumes the Result and surfaces RtError via the shared helper from US-068a; no per-validation-path duplication.",
+                "Integration test: rt refactor extract-method src/Foo.cs Bar --start-line 9000 --end-line 9001 --solution X.slnx exits 1 with one 'Error: No statements found in lines 9000-9001' line; no stack trace; feedback.json count unchanged.",
+                "Integration test: rt refactor extract-method ... --start-line A --end-line B where the selection spans multiple parent blocks exits 1 with the multiple-parent-blocks RtError message.",
+                "Integration test: rt refactor extract-method --after Foo --before Bar (mutually-exclusive flags) exits 1 with the conflicting-flags RtError message.",
+                "dotnet build clean; dotnet format --verify-no-changes clean; existing MethodExtractor and ExtractMethodCommand tests pass.",
+                "After this story lands, US-060 (Normalize command outputs around shared result contracts) becomes the next step: it wraps the now-consistent Result<T, RtError> service surface into command-level RtResult<T> envelopes."
             ],
-            "priority": 70,
+            "priority": 80,
             "passes": false,
-            "notes": "P2. Source cluster: FB-007, FB-008, FB-012, FB-013 (feedback.json, 2026-05-15). Four distinct race sites but one story — each is a small fix and they share the same trigger (parallel agent invocation). Implementation order: (1) feedback file mutex (FileStream with FileShare.None + retry loop on id allocation), (2) rt.cmd build mutex via named mutex around dotnet build, (3) deploy-skill retry, (4) MSBuildWorkspace BaseIntermediateOutputPath isolation for read-only commands."
+            "epicId": "EP-010",
+            "notes": "Third of three sub-stories from the US-068 split. Depends on US-077 (ADT, shared helper) and US-078 (proven pattern). After this lands, US-060 (Normalize command outputs around shared result contracts) becomes the next step in EP-009 — wrapping the now-consistent service surface into command-level RtResult<T> envelopes.",
+            "urgency": 7,
+            "urgencyReason": "EP-010 closer: MethodExtractor migration; unblocks US-060 (shared result contracts)",
+            "effort": 3
         },
         {
-            "id": "US-076",
-            "title": "stop capturing handled user-error exceptions to feedback.json",
-            "description": "As a roslyn-tools maintainer, I want App.CaptureExceptionAsync to skip exception types that App.TryHandleUserErrorAsync already maps to a clean exit-1 + stderr UX, so feedback.json only collects genuinely unexpected failures that need human triage — not the expected bad-input UX paths that the dogfood/integration harness exercises on every run.",
+            "id": "US-080",
+            "title": "Replace hand-curated synonyms with real thesaurus in rt suggest",
+            "description": "As an LLM/user invoking rt suggest, I want the ranker to leverage a broad English thesaurus (not just ~50 hand-curated synonyms) so that natural-language variants like 'rechristen' or 'expunge' still find the right command without anyone hand-maintaining a map.",
             "acceptanceCriteria": [
-                "App.TryHandleUserErrorAsync (src/RoslynTools.Cli/App.cs:342) no longer calls CaptureExceptionAsync for exception types it already translates (FileNotFoundException, IOException, InvalidOperationException, JsonException, YamlException) — those are documented, expected user errors with a clean stderr message and exit 1; capturing them adds noise without adding signal",
-                "Exceptions that fall through TryHandleUserErrorAsync (return false → rethrow) ARE still captured to feedback.json — the unmapped path is the one that needs human triage",
-                "Running the bad-input integration scenarios (`refactor add-xml-doc --from-json <invalid.json>`, `inspect describe Foo --decisions <invalid.yaml>`, `inspect describe Foo --solution <missing.slnx>`, `analyze analyze-interface <non-interface>`) leaves feedback.json untouched — exit code is still 1, stderr is still the friendly message, but no FB-NNN entry is appended",
-                "Regression test added under tests/RoslynTools.Tests/Cli/ that runs one of the four scenarios end-to-end and asserts feedback.json count is unchanged",
-                "Existing tests pass; dotnet format --verify-no-changes clean"
+                "`rt suggest \"remove dead code\"` still ranks `safe-delete` and `find-unused` within the top 3 results.",
+                "`rt suggest \"rechristen this method\"` (uncommon English synonym) returns `rename` within the top 3 results, proving broad thesaurus coverage.",
+                "`rt suggest \"utcnow\"` still ranks `replace-datetime` first via the tech-specific overlay (thesaurus has no entry for this term).",
+                "Thesaurus parse on first use completes in <=2s on a typical developer machine; subsequent calls are sub-100ms.",
+                "Total rt binary size growth from embedding the thesaurus is <=10MB compressed.",
+                "All existing Bm25Scorer and SuggestService tests continue to pass without modification.",
+                "Hand-curated `src/RoslynTools/Services/Suggest/Synonyms.cs` is removed (or repurposed as `TechSynonyms.cs` containing only the small tech-term overlay).",
+                "Query expansion is query-time only - catalog tokens are NOT pre-expanded (so thesaurus updates don't require a rebuild)."
             ],
-            "priority": 65,
+            "priority": 81,
             "passes": false,
-            "notes": "P3. Source cluster: FB-280 through FB-299 (feedback.json, 2026-05-22) — 5 repeated runs of 4 identical scenarios from a dogfood/integration harness that exercises bad-input UX paths. All four scenarios are already handled correctly by TryHandleUserErrorAsync (exit 1 + stderr); the only output of those captures was 20 lines of feedback.json noise. Implementation: invert the order in TryHandleUserErrorAsync — only capture when the exception is NOT in the handled set (i.e. capture inside the trailing `return false` branch, not at the top). The 20 FB-280..FB-299 entries themselves are discarded; this story will be the audit trail."
+            "notes": "P2. Source = Moby Thesaurus (~24MB embedded, public domain, parsed lazily). Tech-term overlay (TechSynonyms.cs, ~20 entries) for terms general thesauruses don't cover (utcnow->replace-datetime, ioptions->migrate-to-ioptions, destatic->convert-static-class). Query-time expansion (not index-time): tokenize query, expand each non-stopword token via thesaurus, weight expansions lower than original token. Replaces existing src/RoslynTools/Services/Suggest/Synonyms.cs (~50 entries) shipped in the rt suggest POC. Follow-up to EP-011 Story 1 (US-087): triggered only if hand-curated synonyms prove insufficient in dogfood. Defer until US-087 ships and we have measurement data.",
+            "epicId": "EP-011",
+            "dependsOn": [
+                "US-087"
+            ],
+            "urgency": 20,
+            "urgencyReason": "rt suggest synonym thesaurus; defer until US-087 proves whether hand-curated map is insufficient"
+        },
+        {
+            "id": "US-081",
+            "title": "rt refactor convert-static-class: finish interface generation, DI registration, and ctor/field formatting",
+            "description": "As a roslyn-tools developer, I want rt refactor convert-static-class to produce a complete, buildable destatification: it should generate an I<TypeName> interface (when --no-interface is not passed), register the new instance class in Bootstrap.RegisterServices (when --no-di-registration is not passed), and emit correctly-formatted field and constructor code (no merged-line bugs). All three gaps were discovered during one dogfood pass on the same command and share the same code paths.",
+            "acceptanceCriteria": [
+                "Interface generation (formerly US-037): when --no-interface is NOT passed, rt refactor convert-static-class generates an I<TypeName>.cs file in the same folder containing the extracted public/internal instance method and property signatures.",
+                "Interface generation: the generated I<TypeName> interface declares the same accessibility as the source class (public for public, internal for internal) and is added to the workspace as a new document.",
+                "Interface generation: the converted class declares `: I<TypeName>` in its base list with correct whitespace and brace placement (no `IDisposable\\n,IFoo{` style malformations).",
+                "Interface generation: each public/internal instance method on the converted class implements the interface signature 1:1; private methods and fields are excluded.",
+                "Interface generation: --no-interface flag suppresses interface file creation and base list update; only the class itself is destatified.",
+                "DI registration (formerly US-038): when --no-di-registration is NOT passed, the command locates Bootstrap.RegisterServices(IServiceCollection services) in the solution and inserts services.AddSingleton<I<TypeName>, <TypeName>>() (or the configured lifetime).",
+                "DI registration: --lifetime singleton|scoped|transient flag selects the registration shape; default is singleton.",
+                "DI registration: when no Bootstrap.RegisterServices method is found in the solution, the command emits a warning to stderr and skips DI registration without failing the run.",
+                "DI registration: when the registration line already exists, the command is idempotent — no duplicate line added.",
+                "Field and ctor formatting (formerly US-039): the AddConstructorInjection rewrite places the injected field on its own line with the correct trailing newline; it does NOT merge with the existing first member.",
+                "Field and ctor formatting: when the consumer class already has constructors, the new field/parameter pair is inserted with consistent indentation (4 spaces) matching the existing constructor formatting.",
+                "Field and ctor formatting: the constructor parameter list is wrapped to one parameter per line when adding to a class that already uses one-per-line wrapping; otherwise stays single-line.",
+                "Dry-run (--dry-run) emits a unified diff showing: interface file creation, class signature change, DI registration line addition, and any ctor/field rewrites.",
+                "rt refactor convert-static-class src/RoslynTools/Core/SymbolFormatter.cs --solution RoslynTools.slnx --dry-run produces output that, when applied, results in a buildable solution (verified by piping the dry-run apply through dotnet build).",
+                "Integration test fixture covers: (a) static class with no consumers — interface + DI registration only; (b) static class with one consumer using empty ctor — both consumer rewrite paths; (c) static class with one consumer using existing ctor — exercises the field/formatting path from US-039; (d) --no-interface and --no-di-registration flags.",
+                "dotnet build clean; dotnet format --verify-no-changes clean; existing convert-static-class tests pass; mutation score on ConvertStaticClassCommand stays at or above current baseline."
+            ],
+            "priority": 82,
+            "passes": false,
+            "notes": "Consolidates US-037 + US-038 + US-039 (all marked superseded 2026-05-23). Each was a focused bug-fix in convert-static-class; they ship together because they exercise the same rewrite pipeline. Anchored to the existing df/convert-static-class-interface-and-di branch's commit 1fcf269 for the no-constructor formatting fix that preceded this work.",
+            "urgency": 8,
+            "urgencyReason": "P2 bug-fix on convert-static-class; three gaps from one dogfood pass",
+            "effort": 8
+        },
+        {
+            "id": "US-082",
+            "title": "EP-007 umbrella: structured JSON output across all 8 inspect/analyze read commands",
+            "description": "As an automation consumer, I want every read-only rt inspect/analyze command to emit structured JSON when --json is passed (or when stdout is piped) so I can pipe rt output into parsers, agents, or CI tools without text-scraping. Covers find-refs, find-callers, find-undocumented, find-unused, circular-deps, find-magic-strings, list-imports, list-smells. Sub-AC matrix per command — /execute may parallelise within this umbrella.",
+            "acceptanceCriteria": [
+                "find-refs (formerly US-045): rt inspect find-refs --json emits a JSON array of { symbol, kind, file, line, column, snippet } objects; one entry per reference site; sorted by (file, line).",
+                "find-refs: RtCommandInfo.JsonOutput = true; help text describes the schema; --help shows the JSON shape under an 'Output' section.",
+                "find-callers (formerly US-046): rt inspect find-callers --json emits a JSON array of { caller, file, line, column, callerSignature } objects.",
+                "find-callers: RtCommandInfo.JsonOutput = true; integration test covers a method with two callers in two files.",
+                "find-undocumented (formerly US-047): rt inspect find-undocumented --json emits a JSON array of { symbol, kind, file, line, accessibility } objects; one entry per public/internal API lacking xml doc.",
+                "find-undocumented: respects existing --include-internal flag; integration test covers a class with mixed documented/undocumented members.",
+                "find-unused (formerly US-048): rt inspect find-unused --json emits a JSON array of { symbol, kind, file, line, accessibility, reason } objects.",
+                "find-unused: reason is one of 'no-references' | 'only-self-references' | 'only-test-references'; matches the existing plain-text categories.",
+                "circular-deps (formerly US-049): rt analyze circular-deps --json emits a JSON array of cycle objects, each with { cycleId, projects: [...] } where projects is an ordered list forming the cycle (last project depends on first).",
+                "circular-deps: when no cycles exist, emits an empty array '[]' to stdout (not '{}' or null); exit code 0.",
+                "find-magic-strings (formerly US-050): rt analyze find-magic-strings --json emits a JSON array of { literal, occurrenceCount, sites: [{ file, line, column, contextSnippet }] } objects.",
+                "find-magic-strings: respects existing --min-occurrences flag; sorted by occurrenceCount descending.",
+                "list-imports (formerly US-051): rt analyze list-imports --json emits a JSON array of { file, imports: [{ namespace, alias, isStatic, isGlobal }] } objects; one entry per source file.",
+                "list-imports: --top N (if it exists today) flag still works in JSON mode.",
+                "list-smells (formerly US-052): rt analyze list-smells --json emits a JSON array of { smell, severity, file, line, message, suggestion } objects sorted by severity descending then file.",
+                "list-smells: severity is one of 'low' | 'medium' | 'high' | 'critical'; matches the plain-text output classification.",
+                "All eight commands honour the existing --json global flag plumbing (no per-command --json reinvention); RtContext.Format == OutputFormat.Json triggers the JSON branch.",
+                "All eight commands route diagnostics/progress to stderr; only the JSON document goes to stdout in JSON mode; stdout JSON parses cleanly via System.Text.Json.JsonDocument.Parse with zero leading/trailing non-JSON text.",
+                "rt dump-help output reflects JsonOutput=true for all eight commands after the change; docs/COMMANDS.md regenerates locally with updated metadata.",
+                "Architecture test enforces the JSON-shape contract: a per-command snapshot test runs each command against a fixture solution and asserts the JSON output matches an approved snapshot (e.g. tests/RoslynTools.Tests/Cli/JsonOutputSnapshotTests.cs).",
+                "dotnet build clean; dotnet format --verify-no-changes clean; existing tests pass; new snapshot tests added under tests/RoslynTools.Tests/Cli/.",
+                "Smoke: each of the eight commands invoked against RoslynTools.slnx with --json exits 0 and produces parseable JSON in under 60 seconds.",
+                "Stories can be parallelised inside this umbrella: each command is independently shippable as a sub-batch under EP-007. /execute may pick any subset of the eight ACs to land per run."
+            ],
+            "priority": 83,
+            "passes": false,
+            "epicId": "EP-007",
+            "notes": "Consolidates US-045 + US-046 + US-047 + US-048 + US-049 + US-050 + US-051 + US-052 (all marked superseded 2026-05-23). Template is identical: RtCommandInfo.JsonOutput=true + branch on RtContext.Format==OutputFormat.Json. Eight focused PRs collapsed to one umbrella with snapshot tests pinning the shape per command.",
+            "urgency": 9,
+            "urgencyReason": "EP-007 JSON-output rollout across 8 commands; foundational for automation consumers",
+            "effort": 13
+        },
+        {
+            "id": "US-083",
+            "title": "Bring src/RoslynTools.Cli/ and src/RoslynTools.Mcp/ into the Stryker mutation pilot",
+            "description": "As a roslyn-tools maintainer, I want Stryker.NET to mutate files in src/RoslynTools.Cli/ and src/RoslynTools.Mcp/ (not just the core library) so the mutation-score gate covers the full production surface. Today the configured Stryker project field points at the core library and files in the other two projects are silently skipped even when they appear in the mutate globs.",
+            "acceptanceCriteria": [
+                "stryker-config.json (or sibling configs in stryker-cli.json / stryker-mcp.json) is restructured so Stryker mutates files from src/RoslynTools/, src/RoslynTools.Cli/, and src/RoslynTools.Mcp/ — not just the core library.",
+                "Per-project configuration: either a single multi-project Stryker setup (project array) or three per-project config files invoked in sequence; whichever shape Stryker supports without bypass flags.",
+                "Running `dotnet stryker` mutates and reports survivors for files in all three projects; CLI files (MakeSealedCommand.cs, DebugCommand.cs, DebugResult.cs flagged in US-069 notes) and Mcp files (the array pass-through in commit df9e43a flagged in US-070 notes) are no longer silently skipped.",
+                "The pre-commit gate (`scripts/pre-commit-gates.ps1`) honours the multi-project setup: when a staged file lives in any of the three projects' mutate globs, the gate runs Stryker against the corresponding project config and applies --break-at 95.",
+                "RT_MUTATION_ALLOW_UNSCOPED bypass still works as a documented escape hatch (no semantic change), but no longer needed for routine CLI / MCP edits.",
+                "Integration check: staging a deliberate mutation-killable change to src/RoslynTools.Mcp/<some-file>.cs and running the pre-commit gate produces a Stryker survivor report (or passes if test coverage exists); previously this would have silently passed.",
+                "Document the new shape in CLAUDE.md → 'Mutation Testing' section so contributors know all three projects are now in scope.",
+                "dotnet build clean; existing mutation gates on src/RoslynTools/Commands/ keep their 100% score target unchanged."
+            ],
+            "priority": 84,
+            "passes": false,
+            "notes": "Consolidates US-069 + US-070 (both marked superseded 2026-05-23). The US-070 notes flagged 'likely solved together' — confirmed: per-project Stryker config is the only sensible shape. Switch to either a multi-project Stryker setup or three per-project configs invoked by the pre-commit gate.",
+            "urgency": 14,
+            "urgencyReason": "Stryker pilot expansion to Cli + Mcp; closes mutation-gate blind spots",
+            "effort": 5
+        },
+        {
+            "id": "US-084",
+            "title": "Metadata catalog: RtCommandInfo schema + dump-help --json + consistency test",
+            "description": "As an LLM agent and as a tooling maintainer, I want one coherent source of truth for the rt command catalog: an extended RtCommandInfo schema (Aliases/SeeAlso/SupportedFormats), a rt dump-help --json surface that emits the full schema, and an architecture test that asserts the docs and the in-process catalog never drift. The three concerns are not independently shippable — the schema needs the surface to prove it, the surface needs the test to stay honest.",
+            "acceptanceCriteria": [
+                "RtCommandInfo schema extended (formerly US-059): adds nullable string[]? Aliases, string[]? SeeAlso, OutputFormat[]? SupportedFormats fields. Existing fields (Name, Category, Mutates, JsonOutput, WhenToUse, Examples, KnownIssues) unchanged. Aliases/SeeAlso/SupportedFormats are additive — default null means 'not specified'.",
+                "Startup validator in App.cs is extended to assert: every SeeAlso entry resolves to a known command name; no self-references; no duplicates; every Alias is unique across the command registry; every SupportedFormat is a valid OutputFormat enum value.",
+                "dump-help --json surface (formerly RT-001): rt dump-help --json emits a JSON document with shape { schemaVersion: '1.0', commands: [{ name, category, mutates, jsonOutput, whenToUse, examples, aliases, seeAlso, supportedFormats, knownIssues }] }; one entry per command in the registry.",
+                "dump-help --json: every field has a deterministic JSON shape (strings for strings, booleans for booleans, arrays for arrays, null for null); no fields are silently omitted.",
+                "dump-help --json: exit code 0 always; stdout is parseable via System.Text.Json.JsonDocument.Parse with no leading or trailing non-JSON text.",
+                "dump-help --json: schemaVersion is a string semver-style field; consumers can rely on it for forward compatibility.",
+                "Metadata-driven regeneration (formerly US-065): docs/COMMANDS.md is regenerated from RtCommandInfo on every build (existing post-build target); the regeneration honours the new Aliases/SeeAlso/SupportedFormats fields and renders them in the per-command markdown sections.",
+                "Consistency test: tests/RoslynTools.Tests/Architecture/CommandMetadataConsistencyTests.cs asserts (a) every command's Info.Name matches the first arg of its new Command(...) call in Build(); (b) every Info.Examples entry parses against the command's options without unknown-flag errors; (c) dump-help --json output round-trips through System.Text.Json without loss; (d) docs/COMMANDS.md generated from the JSON matches the build-time output byte-for-byte.",
+                "Backwards-compatibility: rt dump-help (no --json) plain-text output is unchanged for any command that doesn't set Aliases/SeeAlso/SupportedFormats; commands that do set them gain new See-also/Aliases/Formats sections in their plain-text help.",
+                "Architecture test enforces SchemaVersion only changes via an explicit version bump (a sentinel file in docs/ records the current version; the test fails if dump-help emits a different value without the sentinel updating).",
+                "dotnet build clean; dotnet format --verify-no-changes clean; existing tests pass; new architecture test + consistency test green.",
+                "Smoke: rt dump-help --json | jq '.commands | length' returns the same number as `rt dump-help` lists; rt dump-help --json | jq '.commands[].name' lists every command without duplicates."
+            ],
+            "priority": 85,
+            "passes": false,
+            "epicId": "EP-009",
+            "notes": "Consolidates US-059 (schema) + RT-001 (dump-help --json) + US-065 (consistency test) (all marked superseded 2026-05-23). They were three angles on the same metadata layer. Single coherent story makes the contract reviewable as one PR.",
+            "urgency": 10,
+            "urgencyReason": "Metadata catalog (schema + dump-help --json + consistency test); blocks RT-002 and EP-011 SeeAlso",
+            "effort": 8
+        },
+        {
+            "id": "US-085",
+            "title": "Standardize CLI options through CommandOptionFactory with consistent vocabulary and aliases",
+            "description": "As an rt user, I want common CLI options (--solution, --symbol, --file, --dry-run, --json, --decisions, --threshold, --top, --sort) to be constructed by shared factories so option names, descriptions, defaults, and aliases stay consistent across commands. The factory naming and the vocabulary decision are inseparable: every factory method commits to one canonical option name, so the vocabulary standardisation IS the factory work.",
+            "acceptanceCriteria": [
+                "CommandOptionFactory in src/RoslynTools/Cli/ defines static factory methods for every option that appears in 2+ commands: CreateSolutionOption(), CreateSymbolOption(), CreateFqnOption(), CreateFileOption(), CreateDryRunOption(), CreateJsonOption(), CreateDecisionsOption(), CreateThresholdOption(), CreateTopOption(), CreateSortOption().",
+                "Each factory method returns a fully-configured System.CommandLine.Option<T> with: consistent name, consistent description text, consistent default, and any required Alias[] (e.g. --solution accepts -s alias everywhere or nowhere — pick one and apply).",
+                "Vocabulary contract: option names are standardised across commands — e.g. --symbol means 'symbol name or FQN to operate on' everywhere it appears; --file means 'a single source file path' everywhere it appears; --top means 'limit output to N entries after sorting' everywhere it appears. Mismatches in existing commands are fixed (with backwards-compatibility aliases for the old names if Dan flags any breaking changes).",
+                "All commands that previously hand-rolled these options are migrated to use the factory. Mechanical change — easy to verify via grep that `new Option<string>(\"--solution\"` returns zero hits in src/RoslynTools.Cli/Commands/ after migration.",
+                "Architecture test enforces: any new Option<T> declared directly inside a Build() method (not via the factory) for one of the factory-owned names fails the build.",
+                "Help text for migrated commands is unchanged in behaviour but the wording is now consistent across the catalog (e.g. --solution help reads the same in every command's --help).",
+                "Aliases: where two commands had different aliases for the same conceptual flag (e.g. --sln vs --solution-path), the factory picks one canonical and reuses; the discarded alias either becomes a deprecation alias or is removed if no usage exists.",
+                "rt dump-help output reflects the unified option vocabulary; docs/COMMANDS.md regenerates with consistent option descriptions across all commands.",
+                "dotnet build clean; dotnet format --verify-no-changes clean; existing tests pass.",
+                "Smoke: 10 sampled commands from inspect/analyze/refactor exercised via dotnet run still parse the same arg strings they accepted before (regression test array of (command, args) tuples)."
+            ],
+            "priority": 86,
+            "passes": false,
+            "epicId": "EP-009",
+            "notes": "Consolidates US-058 (option factories) + US-062 (vocabulary standardisation) (both marked superseded 2026-05-23). Anchors to the existing CommandOptionFactory.CreateSolutionOption helper that already exists (per the closed US-026). Extends it to cover the full set of shared options.",
+            "urgency": 13,
+            "urgencyReason": "EP-009 option factories + vocabulary consolidation; reduces churn for all future command migrations",
+            "effort": 8
+        },
+        {
+            "id": "US-086",
+            "title": "Command file structure convention + architecture ratchet + migration playbook",
+            "description": "As an rt contributor, I want a canonical command file structure (Info → Build → handlers), an architecture test that ratchets migrated commands toward it, and a concise playbook that walks contributors through the migration. The three pieces are one body of work: the playbook references the structure, the ratchet enforces it, and the structure is meaningless without both. One CONTRIBUTING-style doc + one architecture test, not three meta-process stories.",
+            "acceptanceCriteria": [
+                "Command file structure convention (formerly US-063) is documented in docs/command-structure.md: every src/RoslynTools.Cli/Commands/*Command.cs file follows the order — using directives, namespace, class declaration with IRtCommand, public static readonly Info field, public static Command Build() method, private static handler method(s), no other top-level declarations.",
+                "Convention: handler methods live inside the Command class as private static methods; no separate service classes; service logic stays in src/RoslynTools/Services/ and src/RoslynTools/Core/.",
+                "Convention: Build() is at most 60 lines; if a Build() exceeds that, split option construction into private static methods.",
+                "Architecture ratchet (formerly US-064) in tests/RoslynTools.Tests/Architecture/CommandFileStructureTests.cs: a marker file docs/structure-migrated-commands.txt lists commands that have been migrated to the canonical structure; the test asserts every listed command passes the structure invariants (Info first, Build second, no other public members, no top-level statements).",
+                "Architecture ratchet: a separate test enforces the marker file only grows — never shrinks. Removing a command from the marker file requires deleting the corresponding Command class.",
+                "Architecture ratchet: when all commands in src/RoslynTools.Cli/Commands/ are in the marker file, the test transitions from ratchet mode to enforcement mode (asserts ALL commands pass without consulting the marker).",
+                "Migration playbook (formerly US-066) in docs/command-migration-playbook.md: a concise (under 200 lines) document with sections: (1) when to use the playbook, (2) the 8-step migration sequence — read existing command, identify hand-rolled options to replace, migrate to CommandOptionFactory, restructure Build() to canonical order, add Info metadata fields (Aliases/SeeAlso/SupportedFormats), add structure-migrated-commands.txt entry, run rt dump-help to verify, ship; (3) what NOT to do during migration (no behaviour changes, no AC changes, no test refactoring beyond what the structure ratchet requires); (4) how to back out if a migration breaks.",
+                "Playbook references the option factory contract from US-084 (formerly US-058+US-062) and the metadata contract from US-083 (formerly US-059+RT-001+US-065).",
+                "First command migration demonstrates the playbook end-to-end: pick one simple read-only command (e.g. OutlineCommand or DescribeCommand), apply all 8 steps, land as a separate commit that the playbook references as the canonical example.",
+                "dotnet build clean; dotnet format --verify-no-changes clean; existing tests pass; new architecture tests green.",
+                "Architecture test exposes a `ListUnmigratedCommands` helper that prints the remaining commands when run — useful for future migration sweeps."
+            ],
+            "priority": 87,
+            "passes": false,
+            "epicId": "EP-009",
+            "notes": "Consolidates US-063 (file structure) + US-064 (architecture ratchets) + US-066 (migration playbook) (all marked superseded 2026-05-23). Depends on US-084 (option factory) and US-083 (metadata catalog) landing first so the playbook can reference both as authoritative contracts.",
+            "urgency": 19,
+            "urgencyReason": "EP-009 closer: file structure + ratchets + playbook; depends on US-084 and US-085",
+            "effort": 8
+        },
+        {
+            "id": "US-087",
+            "title": "rt suggest <task>: BM25 scorer + synonym map + JSON/text output",
+            "description": "As an LLM agent, I want a flat top-level rt suggest <task> command that returns the most likely rt commands for a natural-language task description, so I can map intent to command name without scanning the full help page. BM25 + hand-curated synonyms over Name/WhenToUse/Examples — no embeddings, no LLM-at-runtime, no external deps. JSON-by-default when piped (per CLAUDE.md convention).",
+            "acceptanceCriteria": [
+                "New top-level meta-command rt suggest <task> wired into App.RunCoreAsync next to DumpHelpCommand.Build() — not registered as IRtCommand, does not appear under inspect/analyze/refactor groups.",
+                "Implementation lives in src/RoslynTools.Cli/Suggest/: SuggestCommand.cs (Build() returns a Command), Bm25Scorer.cs (pure function: IReadOnlyList<RtCommandInfo>, string query, int top → IReadOnlyList<SuggestResult>), Synonyms.cs (static readonly map of command-name → string[] synonyms).",
+                "Bm25Scorer scores each command against the tokenised query across three fields: Name (and its synonyms) at weight 3.0×, WhenToUse at weight 1.0×, Examples (joined) at weight 0.3×.",
+                "Tokenisation: split on whitespace + punctuation, lowercase, drop a small fixed stopword set {a, an, the, is, of, to, in, for, this, that, all}.",
+                "BM25 length normalisation prevents a long WhenToUse with one match from dominating a short WhenToUse with one match; k1 and b parameters use standard defaults (k1=1.2, b=0.75).",
+                "Output flags: --top N (default 3), --json (explicit override).",
+                "Text mode (default at TTY): numbered list, each entry shows name + score + first line of WhenToUse + one example. Colour the name (reuse DumpHelpCommand colour helpers).",
+                "JSON mode (--json or stdout not a TTY): array of { name, score, category, whenToUse, example, allExamples }. Designed for LLM ingestion.",
+                "Default behaviour: when stdout is not a TTY, emit JSON (matches CLAUDE.md 'read-only inspection commands: JSON to stdout' convention). --json flag forces JSON regardless.",
+                "Exit code: 0 always — empty results are a valid answer (a JSON empty array). No exit-1 / exit-2 paths in this command.",
+                "Synonym map seed: ~10 high-traffic mismatches — safe-delete←{delete,remove}, replace-datetime←{datetime,utcnow,timeprovider}, convert-static-class←{destatic,to instance,instance class}, convert-to-record←{record,to record}, make-async←{async,task}, extract-method←{extract block,pull out method}, find-callers←{callers,who calls}, find-refs←{references,uses of,usages}, outline←{list members,type members}, describe←{type shape,interface members}. Per-command lists, not free-form.",
+                "Theory test tests/RoslynTools.Tests/Cli/SuggestCommandTests.cs pins (query, expected-top-result) pairs: ('extract a method from a block','extract-method'), ('remove DateTime.UtcNow','replace-datetime'), ('convert static class to instance','convert-static-class'), ('find callers of a method','find-callers'), ('rename a symbol','rename'). Tests resolve commands from RoslynTools.Bootstrap.RegisterServices per the feedback_test_di_resolution memory.",
+                "BM25 unit tests tests/RoslynTools.Tests/Cli/Bm25ScorerTests.cs cover: single-match-name-wins, WhenToUse-stronger-than-Examples weighting, no-match-returns-empty, length-normalisation-prevents-long-text-dominance.",
+                "Documentation: skills/use-rt/SKILL.md gains a one-paragraph 'If you don't know the command name, run rt suggest \"<task>\" first' pointer; CLAUDE.md → Commands section gains the line 'Don\\'t know the name? rt suggest \"<task>\"'.",
+                "rt dump-help shows suggest under top-level commands; rt --help lists it next to dump-help.",
+                "dotnet build clean; dotnet format --verify-no-changes clean; all tests pass; mutation score on Bm25Scorer.cs at or above 95%.",
+                "Dogfood smoke: rt suggest 'extract a block of statements into a new method' returns extract-method as top result; rt suggest 'remove DateTime.UtcNow' --json parses cleanly; rt suggest 'rename a symbol across the solution' --top 5 returns 5 ranked entries."
+            ],
+            "priority": 88,
+            "passes": false,
+            "epicId": "EP-011",
+            "notes": "First of 4 stories under EP-011 (rt suggest discovery epic). Source plan ~/.claude/plans/how-can-we-further-soft-pie.md steps 1-6 + step 12. Pre-existing US-080 (synonym thesaurus) is the follow-up if BM25+hand-curated proves insufficient.",
+            "urgency": 11,
+            "urgencyReason": "EP-011 rt suggest core: BM25 + synonyms + JSON/text output",
+            "effort": 8
+        },
+        {
+            "id": "US-088",
+            "title": "RtCommandInfo.SeeAlso: schema + startup validator + help/markdown rendering",
+            "description": "As an LLM agent landing on a command via any route (suggest, --help, dump-help, use-rt skill), I want to see related commands — inverse pairs, workflow chains, sibling operations — so I can pivot to a better-fitting command without re-querying. Add SeeAlso to RtCommandInfo, validate at startup, render in --help and docs/COMMANDS.md, surface in rt suggest output.",
+            "acceptanceCriteria": [
+                "RtCommandInfo gains a nullable string[]? SeeAlso field (default null). Entries are bare command names (e.g. 'extract-method', not 'rt refactor extract-method').",
+                "Startup validator in App.cs (existing static-ctor block) is extended to assert every SeeAlso entry resolves to a known command name in the registry; an unknown name throws at the same point the existing category check does, failing the post-build docs/COMMANDS.md generation.",
+                "Validator also asserts no self-references (a command's SeeAlso list does not include its own name) and no duplicates within a single SeeAlso list.",
+                "Architecture test tests/RoslynTools.Tests/Architecture/SeeAlsoValidationTests.cs covers the three invariants (unknown name, self-reference, duplicate) by exercising the validator against the live registry.",
+                "rt <cmd> --help renders a 'See also:' section after Examples when SeeAlso is non-empty. Extend BuildHelpLayout in App.cs and DumpHelpCommand.RenderColouredCommandHeader so the layout is consistent between live --help and dump-help.",
+                "docs/COMMANDS.md per-command section gains a '**See also:**' line with markdown anchor links to each related command's section.",
+                "rt suggest output extension: when returning the top result, also surface the top result's SeeAlso list as a 'related' block (text mode, lower-prominence, no score) or a separate 'related' array (JSON mode). The SeeAlso candidates are NOT scored — they're labelled 'related to top result'.",
+                "Opt-in bidirectionality diagnostic: add --check-bidirectional flag on dump-help (or rt suggest --diagnose-see-alsos) that reports asymmetric pairs (A lists B but B doesn't list A). Exits 0 always — informational lint, not a hard rule.",
+                "No new dependencies; no behaviour changes to existing commands other than the addition of the See-also section when SeeAlso is non-empty.",
+                "dotnet build clean; dotnet format --verify-no-changes clean; existing tests pass; new architecture test green.",
+                "Smoke: adding a deliberate SeeAlso=['nonexistent-cmd'] to one command fails the post-build dump-help generation with a clear error message."
+            ],
+            "priority": 89,
+            "passes": false,
+            "epicId": "EP-011",
+            "notes": "Second of 4 stories under EP-011. Source plan steps 7-9. Touches RtCommandInfo schema (same area US-084 modifies — sequence US-084 before this if both ship in the same window, or land this independently if US-084 is deferred).",
+            "urgency": 12,
+            "urgencyReason": "EP-011 SeeAlso schema; depends on US-084 metadata catalog landing first",
+            "effort": 5
+        },
+        {
+            "id": "US-089",
+            "title": "Seed SeeAlso data across the command catalog",
+            "description": "As a roslyn-tools maintainer, I want every command's SeeAlso field populated with the right inverse pairs, workflow chains, and sibling operations so that LLM agents using --help, dump-help, or rt suggest can pivot between related commands without re-querying. Touches ~20-30 command files; additive only.",
+            "acceptanceCriteria": [
+                "Inverse pairs seeded: extract-method ↔ inline-method, make-static ↔ make-instance, convert-static-class ↔ (no inverse; one-way operation). Each pair lists the other in its SeeAlso.",
+                "Find-* sibling family seeded: find-refs, find-callers, find-impl, find-pattern, find-unused, find-undocumented each list the others in their SeeAlso (or a curated subset where the relationship is strong).",
+                "Workflow chains seeded (downstream-direction, not bidirectional): find-unused → safe-delete; find-magic-strings → extract-string-constant; find-duplicates → extract-method; find-undocumented → add-xml-doc; static-class-inventory → convert-static-class; analyze-interface → narrow-dependency. The downstream operation does not necessarily back-link to the find command (these are workflows, not inverses).",
+                "Make-* sibling family seeded: make-async, make-static, make-instance, make-sealed each list the others in their SeeAlso.",
+                "DI-injection family seeded: add-dependency, replace-datetime, migrate-to-ioptions, convert-console-logging each list the others (all are DI-injection patterns the LLM might mix up).",
+                "Analyze/quality family seeded: solid, list-smells, complexity, find-duplicates each list the related ones.",
+                "Deps family seeded: circular-deps, dependency-graph, list-imports each list the related ones.",
+                "Each seed cluster lands as a separate commit (~5–10 command files touched per commit) so the SeeAlso data is reviewable in coherent units.",
+                "After each commit, rt dump-help is run and the See-also sections render in the expected places.",
+                "No story breaks: rt <cmd> --help for unmodified commands still shows no See-also section (since their SeeAlso is null); only seeded commands gain the section.",
+                "Validator from Story 2 (US-088) continues to pass at every commit — no unknown command names, no self-references, no duplicates.",
+                "dotnet build clean; dotnet format --verify-no-changes clean; existing tests pass; the architecture test from Story 2 stays green.",
+                "Final commit removes the marker comment 'EP-011 SeeAlso seed in progress' from docs/COMMANDS.md (added at the start of seeding) once all clusters are landed."
+            ],
+            "priority": 90,
+            "passes": false,
+            "epicId": "EP-011",
+            "notes": "Third of 4 stories under EP-011. Source plan step 10. Depends on the SeeAlso schema (previous story) landing first. Each cluster (inverse pairs / find-* / make-* / DI-injection / analyze-quality / deps) lands as a separate commit.",
+            "urgency": 17,
+            "urgencyReason": "EP-011 SeeAlso seed data; depends on US-088 schema",
+            "effort": 5
+        },
+        {
+            "id": "US-090",
+            "title": "Unknown-command fallback: reuse Bm25Scorer to suggest matches on parse errors",
+            "description": "As an LLM agent typing a hallucinated or semantically-correct-but-wrong command name (rt destatic-class, rt rm-method, rt rename-symbol), I want rt to suggest the closest real command via the same BM25 engine that powers rt suggest, so I can recover without reading the full help page. System.CommandLine middleware that runs after parse-error detection.",
+            "acceptanceCriteria": [
+                "System.CommandLine middleware registered in App.RunCoreAsync near the existing exception handler runs AFTER parsing and detects 'unknown command' parse errors at the root or group level.",
+                "When an unknown token is detected at a top-level or group context, the middleware: (a) emits a single 'Error: <token> is not a recognised command.' line to stderr; (b) runs Bm25Scorer.Score(App.Commands.Select(c => c.Info).ToList(), unknownToken, top: 3) to get ranked candidates; (c) if any candidate scores above a configurable threshold, prints 'Did you mean one of these?' followed by each candidate's name + first-line WhenToUse; (d) prints 'Or run: rt suggest \"<task in plain English>\"' as a recovery hint; (e) sets context.ExitCode = 1.",
+                "When no candidate scores above the threshold (gibberish input), the 'Did you mean' block is suppressed — only the 'is not a recognised command' line + 'Or run: rt suggest ...' hint appears. Printing low-confidence suggestions for gibberish is worse than printing nothing.",
+                "Threshold lives in Bm25Scorer as a tunable constant (e.g. MinSuggestionScore); tests pin the threshold by exercising the gibberish case.",
+                "The pure-function Bm25Scorer is shared with the rt suggest command (Story 1) — the middleware is just another caller of the same engine; the seeded synonyms apply automatically.",
+                "Output channel: stderr per CLAUDE.md 'diagnostics to stderr' convention. Exit code 1 consistent with other user-error exits.",
+                "JSON mode honour: if --json was parsed cleanly before the parse error, the 'Did you mean' block is JSON; otherwise plain text.",
+                "Theory test tests/RoslynTools.Tests/Cli/UnknownCommandFallbackTests.cs pins (typed-token, expected-top-result) pairs: ('destatic-class','convert-static-class'), ('rm-method','inline-method' or 'safe-delete' depending on tuning), ('rename-symbol','rename'), ('seal','make-sealed'), ('blah',null /*gibberish — no high-scoring suggestion*/).",
+                "Existing System.CommandLine UseTypoCorrections() still works for short-Levenshtein typos; this middleware is the layer above for semantic matches that Levenshtein won't catch.",
+                "Backwards-compat: invocations that already succeed (every existing command) are unchanged; no measurable startup overhead from the middleware on the happy path (BM25 only runs on parse failure).",
+                "dotnet build clean; dotnet format --verify-no-changes clean; existing tests pass; new theory tests green.",
+                "Dogfood smoke: rt destatic-class prints 'Did you mean convert-static-class?' to stderr and exits 1; rt blah-blah-blah prints only the 'not a recognised command' line + 'rt suggest' hint and exits 1; rt rename --help still works (no false positives on known commands)."
+            ],
+            "priority": 91,
+            "passes": false,
+            "epicId": "EP-011",
+            "notes": "Fourth of 4 stories under EP-011. Source plan step 11. Highest-leverage piece of the epic — most invalid invocations happen because the LLM guessed a name, and the right answer is usually one BM25 score away. Depends on Story 1 (BM25 engine + synonyms) landing first.",
+            "urgency": 18,
+            "urgencyReason": "EP-011 unknown-cmd fallback; highest-leverage piece of the epic, depends on US-087 engine",
+            "effort": 3
         }
     ]
 }
