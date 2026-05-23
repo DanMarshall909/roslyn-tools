@@ -1,8 +1,10 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using RoslynTools.Cli.Suggest;
 using RoslynTools.Core;
 using RoslynTools.Daemon;
 using RoslynTools.Services;
+using RoslynTools.Services.Suggest;
 
 namespace RoslynTools;
 
@@ -25,6 +27,7 @@ internal static class Bootstrap
         services.AddSingleton<ISymbolResolutionService, SymbolResolutionService>();
         services.AddSingleton<IDocumentLocatorService, DocumentLocatorService>();
         services.AddSingleton<ISolutionChangeWriter, SolutionChangeWriter>();
+        services.AddSingleton<ICommandCatalog, AppCommandCatalog>();
         services.Scan(scan => scan
             .FromAssemblyOf<IRtService>()
             .AddClasses(classes => classes.AssignableTo<IRtService>(), false)
