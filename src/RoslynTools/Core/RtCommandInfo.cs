@@ -15,5 +15,6 @@ internal sealed record RtCommandInfo(
     string[] Examples,
     string[]? KnownIssues = null,
     string[]? Aliases = null,
+    string[]? SeeAlso = null,
     OutputFormat[]? SupportedFormats = null
 );
