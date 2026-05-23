@@ -1,11 +1,11 @@
 roslyn-tools
 Branch: result-type-and-cleanup
 
-Current Status: 0/5 stories complete (0%)
+Current Status: 2/5 stories complete (40%)
 
 Stories
 [ ] US-077 Result<T,RtError> ADT + SymbolLocator migration + App exception ladder
-[ ] US-076 stop capturing handled user-error exceptions to feedback.json
-[ ] US-074 rt analyze list-smells: add --top N limiter
+[x] US-076 stop capturing handled user-error exceptions to feedback.json
+[x] US-074 rt analyze list-smells: add --top N limiter
 [ ] US-075 make rt parallel-safe for agent dogfooding (feedback file, wrapper rebuild, deploy-skill, MSBuild obj)
 [ ] US-071 rt refactor extract-interface produces malformed output for internal classes

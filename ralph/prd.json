@@ -43,10 +43,12 @@
                 "Existing tests pass; dotnet format --verify-no-changes clean"
             ],
             "priority": 65,
-            "passes": false,
+            "passes": true,
             "notes": "P3. Source cluster: FB-280 through FB-299 (feedback.json, 2026-05-22) — 5 repeated runs of 4 identical scenarios from a dogfood/integration harness that exercises bad-input UX paths. All four scenarios are already handled correctly by TryHandleUserErrorAsync (exit 1 + stderr); the only output of those captures was 20 lines of feedback.json noise. Implementation: invert the order in TryHandleUserErrorAsync — only capture when the exception is NOT in the handled set (i.e. capture inside the trailing `return false` branch, not at the top). The 20 FB-280..FB-299 entries themselves are discarded; this story will be the audit trail.",
             "urgency": 2,
-            "urgencyReason": "P3 trivial cleanup; clears 20-line feedback.json noise from bad-input integration scenarios"
+            "urgencyReason": "P3 trivial cleanup; clears 20-line feedback.json noise from bad-input integration scenarios",
+            "resolution": "Shipped on commit b81642a. TryHandleUserErrorAsync inverted: known user-error exception types (FileNotFoundException, IOException, InvalidOperationException, JsonException, YamlException) now skip CaptureExceptionAsync; only unmapped exceptions land in feedback.json. Regression test HandledUserErrorsDoNotPolluteFeedbackTests.missing_solution_file_exits_1_without_appending_feedback exercises the missing-solution path end-to-end. Full suite green, format clean, mutation score 100%.",
+            "resolvedAt": "2026-05-23"
         },
         {
             "id": "US-074",
@@ -62,10 +64,12 @@
                 "ListSmellsCommand.Info.Examples includes a --top example"
             ],
             "priority": 60,
-            "passes": false,
+            "passes": true,
             "notes": "P2. Source: FB-006 (feedback.json, 2026-05-15). Pure CLI surface — slice the result list after ranking, before JSON serialisation. No behavioural change to the analyser itself.",
             "urgency": 3,
-            "urgencyReason": "Pure CLI surface (slice list before JSON serialise); FB-006 driver; no analyser logic change"
+            "urgencyReason": "Pure CLI surface (slice list before JSON serialise); FB-006 driver; no analyser logic change",
+            "resolution": "Shipped. ListSmellsCommand.cs lines 43-76 implement --top: default 0 (no limit), int <0 emits 'must be >= 0' to stderr and exits 1, top>0 slices via Take(top). Example with --top in Info.Examples (line 31). Test in tests/RoslynTools.Tests/Analysis/ListSmellsMigration.cs:199 (list_smells_command_accepts_top_option). dump-help shows --top. AC satisfied — closing.",
+            "resolvedAt": "2026-05-23"
         },
         {
             "id": "US-075",
