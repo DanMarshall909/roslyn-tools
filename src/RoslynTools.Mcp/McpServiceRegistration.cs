@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using RoslynTools.Mcp.Handlers;
 using RoslynTools.Mcp.Tools;
 
 namespace RoslynTools.Mcp;
@@ -19,6 +20,12 @@ internal static class McpServiceRegistration
         services.AddSingleton<CliCommandBridge>();
         services.AddSingleton<ToolRegistry>();
         services.AddSingleton<Server>();
+
+        // Native MCP handlers — return structured JSON instead of routing through
+        // CliCommandBridge's text-capture path. Each implements IMcpHandler.
+        services.AddSingleton<IMcpHandler, SuggestHandler>();
+        services.AddSingleton<IMcpHandler, OutlineHandler>();
+
         return services;
     }
 }

@@ -3,17 +3,34 @@ using System.Text.Json;
 namespace RoslynTools.Mcp.Tools;
 
 /// <summary>
-/// Class for managing the tool registry in the Roslyn MCP system.
+///     Routes MCP tool invocations. Native handlers (those implementing
+///     <see cref="IMcpHandler" />) take precedence over the auto-bridge —
+///     commands without a dedicated handler fall through to
+///     <see cref="CliCommandBridge" />, which executes the CLI and captures
+///     stdout as text.
 /// </summary>
+/// <remarks>
+///     Migration pattern: as commands gain native handlers (and richer JSON
+///     returns), they shift from the bridge to <see cref="_handlers" />. The
+///     bridge stays for the long tail.
+/// </remarks>
 internal sealed class ToolRegistry
 {
     private readonly CliCommandBridge _bridge;
+    private readonly Dictionary<string, IMcpHandler> _handlers;
     private readonly ToolDefinition[] _tools;
 
-    public ToolRegistry(ToolSchemaBuilder schemaBuilder, CliCommandBridge bridge)
+    public ToolRegistry(ToolSchemaBuilder schemaBuilder, CliCommandBridge bridge, IEnumerable<IMcpHandler> handlers)
     {
         _bridge = bridge;
-        _tools = schemaBuilder.Build().ToArray();
+        _handlers = handlers.ToDictionary(h => h.ToolName, StringComparer.Ordinal);
+
+        // Native handler tool definitions override or extend the auto-bridged ones.
+        var bridged = schemaBuilder.Build()
+            .Where(t => !_handlers.ContainsKey(t.name))
+            .ToList();
+        var native = _handlers.Values.Select(h => h.Definition);
+        _tools = bridged.Concat(native).ToArray();
     }
 
     public ToolDefinition[] GetTools()
@@ -26,6 +43,8 @@ internal sealed class ToolRegistry
         JsonElement arguments,
         CancellationToken cancellationToken = default)
     {
+        if (_handlers.TryGetValue(toolName, out var handler))
+            return handler.HandleAsync(arguments, cancellationToken);
         return _bridge.InvokeAsync(toolName, arguments, cancellationToken);
     }
 }
