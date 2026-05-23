@@ -33,6 +33,7 @@ internal sealed class FindUnusedCommand : IRtCommand
             "rt inspect unused --scope ProjectX.Core --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt inspect find-unused --scope types --solution RoslynTools.slnx"
         ],
+        SeeAlso: ["safe-delete", "find-refs"],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );
 

@@ -34,6 +34,7 @@ internal sealed class FindCallersCommand : IRtCommand
             "rt inspect callers --symbol ProcessPayment --include-tests --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt inspect find-callers --symbol BuildGraphAsync --solution RoslynTools.slnx"
         ],
+        SeeAlso: ["find-refs", "find-impl", "change-signature"],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );
 

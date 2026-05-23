@@ -43,7 +43,8 @@ internal sealed class ExtractMethodCommand : IRtCommand
             "--replace-duplicates generic type parameterization: only user-defined type arguments (IdentifierNameSyntax) " +
             "are detected as varying. Predefined keyword types (int, string, bool, etc.) produce a PatternMatcher " +
             "structural mismatch so duplicates differing only in keyword types are not detected as generic candidates."
-        ]
+        ],
+        SeeAlso: ["inline-method", "find-duplicates", "find-pattern", "transform-parameters"]
     );
 
     public Command Build()

@@ -30,7 +30,8 @@ internal sealed class SafeDeleteCommand : IRtCommand
             "rt refactor safe-delete --symbol OrphanedHelper --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt refactor sd --symbol BookingService.LegacyMethod --kind method --dry-run --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt refactor safe-delete --symbol OldDtoType --kind type --solution RoslynTools.slnx"
-        ]
+        ],
+        SeeAlso: ["find-unused", "find-refs"]
     );
 
     public Command Build()

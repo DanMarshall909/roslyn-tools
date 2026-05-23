@@ -33,6 +33,7 @@ internal sealed class FindImplementationsCommand : IRtCommand, IStructuredOutput
             "rt inspect impls ProjectX.Core.Services.IBookingRepository --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt inspect find-impl IRtCommand --solution RoslynTools.slnx"
         ],
+        SeeAlso: ["find-refs", "find-callers", "implement-interface", "extract-interface"],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json]
     );
 

@@ -33,6 +33,7 @@ internal sealed class FindRefsCommand : IRtCommand
             "rt inspect find-refs --symbol CreateBooking --kind method --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt inspect find-refs --symbol IEmailService --kind type --solution RoslynTools.slnx"
         ],
+        SeeAlso: ["find-callers", "find-impl", "rename"],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
     );
 

@@ -29,7 +29,8 @@ internal sealed class InlineMethodCommand : IRtCommand
         [
             "rt refactor inline-method --type MathHelper --method Double --solution RoslynTools.slnx",
             "rt refactor im --type OrderService --method GetTotal --dry-run --solution C:\\code\\libraries\\ProjectX.Libraries.sln"
-        ]
+        ],
+        SeeAlso: ["extract-method", "find-callers"]
     );
 
     public Command Build()
