@@ -382,14 +382,14 @@ internal static class App
     /// (FileNotFoundException), file I/O issues (IOException), invalid-input checks inside
     /// services (InvalidOperationException — e.g. analyze-interface on a non-interface),
     /// malformed JSON (JsonException — e.g. add-xml-doc --from-json), and malformed YAML
-    /// (YamlException — e.g. --decisions file). Telemetry is still recorded via
-    /// <see cref="CaptureExceptionAsync"/>. Unmapped exception types return false so the
-    /// caller rethrows and the developer sees the full stack — that path is intentional.
+    /// (YamlException — e.g. --decisions file). These mapped paths intentionally skip
+    /// <see cref="CaptureExceptionAsync"/> — they are documented, expected user-error UX
+    /// flows; capturing them to feedback.json adds noise without adding signal (US-076).
+    /// Unmapped exception types ARE captured, then return false so the caller rethrows and
+    /// the developer sees the full stack alongside a triageable feedback entry.
     /// </summary>
     private static async Task<bool> TryHandleUserErrorAsync(InvocationContext context, Exception ex)
     {
-        await CaptureExceptionAsync(context, ex);
-
         if (ex is FileNotFoundException fnf)
         {
             RtLog.Error("solution not found: {Path}", fnf.FileName ?? "(unknown)");
@@ -404,6 +404,7 @@ internal static class App
             return true;
         }
 
+        await CaptureExceptionAsync(context, ex);
         return false;
     }
 
