@@ -84,7 +84,8 @@ internal sealed class ListSmellsCommand : IRtCommand
                     MemberName = s.MemberName,
                     FilePath = s.FilePath ?? string.Empty,
                     Line = s.Line,
-                    Detail = s.Detail
+                    Detail = s.Detail,
+                    SuggestedFixes = FixCatalog.ForSmell(s.SmellType, s.TypeName, s.FilePath, s.Line, sln.FilePath)
                 }).ToList()
             };
 

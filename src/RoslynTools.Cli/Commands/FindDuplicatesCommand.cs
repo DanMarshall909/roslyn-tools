@@ -74,7 +74,7 @@ internal sealed class FindDuplicatesCommand : IRtCommand, IStructuredOutputComma
                     ? Path.GetDirectoryName(sln.FilePath)
                     : null;
 
-                var result = FindDuplicatesResult.FromGroups(groups, solutionDir);
+                var result = FindDuplicatesResult.FromGroups(groups, solutionDir, sln.FilePath);
                 RtResultRenderer.WriteOutput(RtResult<FindDuplicatesResult>.Ok(result));
             }
         }, solutionOpt, minStatementsOpt, minOccurrencesOpt, scopeOpt, includeTestsOpt, maxStatementsOpt);

@@ -53,7 +53,7 @@ internal sealed class FindMagicStringsCommand : IRtCommand
             {
                 var groups = await _magicString
                     .AnalyzeAsync(sln, minLength, minOccurrences);
-                RtResultRenderer.WriteOutput(RtResult<MagicStringResult>.Ok(MagicStringResult.FromGroups(groups)));
+                RtResultRenderer.WriteOutput(RtResult<MagicStringResult>.Ok(MagicStringResult.FromGroups(groups, sln.FilePath)));
             }
         }, solutionOpt, minLengthOpt, minOccurrencesOpt);
 
