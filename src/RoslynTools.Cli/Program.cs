@@ -5,6 +5,7 @@ using RoslynTools;
 using RoslynTools.Core;
 using RoslynTools.Daemon;
 using RoslynTools.Feedback;
+using RoslynTools.Rendering;
 
 /// <summary>
 /// Main entry point for the Roslyn Daemon application.
@@ -16,6 +17,18 @@ internal static class Program
 
     private static async Task<int> Main(string[] args)
     {
+        // Internal mode: spawned by `rt daemon start`, runs as the background pipe server.
+        // The daemon installs DaemonPipeConsole per request, so do not pre-register Spectre.
+        if (args.Length > 0 && args[0] == "--daemon-serve")
+            return await DaemonServer.RunAsync();
+
+        // Install the CLI-side Spectre.Console adapter so every RtConsole call from
+        // here on renders with colour + syntax highlighting. The override propagates
+        // through the async tree via AsyncLocal for the lifetime of this process.
+        // MCP-side callers (CliCommandBridge) install their own CapturingConsole *after*
+        // entering App.RunAsync directly, bypassing this entry point.
+        using var consoleScope = RtConsole.UseConsole(new SpectreRtConsole());
+
         // Fast path: `rt dump-help` only enumerates the command registry in-process and emits
         // Markdown — it doesn't load an MSBuild workspace. Skip MSBuild registration and host
         // construction so the post-build target that regenerates docs/COMMANDS.md stays fast.
@@ -26,10 +39,6 @@ internal static class Program
             RtConsole.SetOutputEncoding(Encoding.UTF8);
             return await App.RunAsync(args);
         }
-
-        // Internal mode: spawned by `rt daemon start`, runs as the background pipe server.
-        if (args.Length > 0 && args[0] == "--daemon-serve")
-            return await DaemonServer.RunAsync();
 
         MsBuildBootstrap.Register();
 

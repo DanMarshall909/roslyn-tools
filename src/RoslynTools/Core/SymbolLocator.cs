@@ -375,7 +375,7 @@ internal static class SymbolLocator
 
             var candidateSegments = candidate.Split('.', StringSplitOptions.RemoveEmptyEntries);
             if (candidateSegments.Length >= specSegments.Length
-                && candidateSegments[^specSegments.Length..].SequenceEqual(specSegments, StringComparer.Ordinal))
+                && candidateSegments.AsSpan(candidateSegments.Length - specSegments.Length).SequenceEqual(specSegments))
                 return true;
         }
 

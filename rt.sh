@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-OUT_DIR="$SCRIPT_DIR/src/RoslynTools.Cli/bin/Release/net8.0"
+OUT_DIR="$SCRIPT_DIR/src/RoslynTools.Cli/bin/Release/net10.0"
 EXE="$OUT_DIR/rt"
 WIN_EXE="$OUT_DIR/rt.exe"
 DLL="$OUT_DIR/rt.dll"

@@ -12,7 +12,18 @@ public class ConsoleGate
         new(StringComparer.OrdinalIgnoreCase)
         {
             "RtConsole.cs",
-            "IRtConsole.cs" // default Out implementation uses Console.Out as the base case
+            "IRtConsole.cs", // default Out implementation uses Console.Out as the base case
+            "SpectreRtConsole.cs", // CLI-side IRtConsole adapter delegating to Spectre.Console
+            "CapturingConsole.cs", // MCP IRtConsole adapter (Spectre NoColors profile)
+            "DaemonPipeConsole.cs" // Daemon IRtConsole adapter (Spectre NoColors profile)
+        };
+
+    private static readonly HashSet<string> AnsiAllowed =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            "SpectreRtConsole.cs",
+            "CapturingConsole.cs",
+            "DaemonPipeConsole.cs"
         };
 
     [Fact]
@@ -40,6 +51,37 @@ public class ConsoleGate
             $"""
              {violations.Count} file(s) reference Console.* directly outside the allowlist.
              Route all console I/O through RtConsole — see docs/logging-standards.md.
+
+             Violations:
+             {string.Join(Environment.NewLine, violations.Select(v => "  " + v))}
+             """);
+    }
+
+    [Fact]
+    public void only_console_adapters_may_reference_ansi_console_directly()
+    {
+        var srcRoot = FindSrcRoot();
+        var files = Directory.GetFiles(srcRoot, "*.cs", SearchOption.AllDirectories)
+            .Where(f => !IsGeneratedOrObj(f));
+
+        var violations = new List<string>();
+
+        foreach (var file in files)
+        {
+            if (AnsiAllowed.Contains(Path.GetFileName(file)))
+                continue;
+
+            var source = File.ReadAllText(file);
+            var stripped = StripStringLiterals(source);
+
+            if (ContainsAnsiConsoleReference(stripped))
+                violations.Add(Path.GetRelativePath(srcRoot, file));
+        }
+
+        Assert.True(violations.Count == 0,
+            $"""
+             {violations.Count} file(s) reference Spectre's AnsiConsole/IAnsiConsole directly outside the allowlist.
+             Route Spectre.Console rendering through one of the IRtConsole adapters.
 
              Violations:
              {string.Join(Environment.NewLine, violations.Select(v => "  " + v))}
@@ -75,6 +117,14 @@ public class ConsoleGate
     private static bool ContainsConsoleMember(string source)
     {
         return Regex.IsMatch(source, @"\bConsole\s*\.");
+    }
+
+    private static bool ContainsAnsiConsoleReference(string source)
+    {
+        // Matches `AnsiConsole.X` (member access on the static), `IAnsiConsole`
+        // (interface declaration / parameter / field type), and `AnsiConsoleSettings`-style
+        // related types that come from the same rendering surface.
+        return Regex.IsMatch(source, @"\b(?:I?AnsiConsole|AnsiConsoleSettings|AnsiConsoleOutput|AnsiSupport|ColorSystemSupport)\b");
     }
 
     private static bool IsGeneratedOrObj(string path)

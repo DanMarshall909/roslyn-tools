@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Services.Suggest;
+using Spectre.Console;
 
 namespace RoslynTools.Cli.Suggest;
 
@@ -67,20 +68,25 @@ internal static class SuggestCommand
         for (var i = 0; i < response.Results.Count; i++)
         {
             var hit = response.Results[i];
-            RtConsole.WriteLine(RtOutputContext.Result,
-                $"# {i + 1}  {hit.Name}  (score {hit.Score:F2})  [{hit.Category}]");
+            var name = Markup.Escape(hit.Name);
+            var category = Markup.Escape(hit.Category);
+            RtConsole.WriteLine(RtOutputContext.Ui,
+                $"[darkcyan]#{i + 1}[/]  [white]{name}[/]  [grey](score {hit.Score:F2})  [[{category}]][/]");
             if (!string.IsNullOrWhiteSpace(hit.WhenToUse))
-                RtConsole.WriteLine(RtOutputContext.Result, $"   {Truncate(hit.WhenToUse, 200)}");
+                RtConsole.WriteLine(RtOutputContext.Ui,
+                    $"   [grey]{Markup.Escape(Truncate(hit.WhenToUse, 200))}[/]");
             if (!string.IsNullOrWhiteSpace(hit.PrimaryExample))
-                RtConsole.WriteLine(RtOutputContext.Result, $"   {hit.PrimaryExample}");
+                RtConsole.WriteLine(RtOutputContext.Ui,
+                    $"   {Markup.Escape(hit.PrimaryExample)}");
             RtConsole.WriteLine(RtOutputContext.Result, "");
         }
 
         if (response.Related.Count > 0)
         {
-            RtConsole.WriteLine(RtOutputContext.Result, "Related:");
+            RtConsole.WriteLine(RtOutputContext.Ui, "[silver]Related:[/]");
             foreach (var rel in response.Related)
-                RtConsole.WriteLine(RtOutputContext.Result, $"  {rel.Name}  — {Truncate(rel.WhenToUse, 120)}");
+                RtConsole.WriteLine(RtOutputContext.Ui,
+                    $"  [cyan]{Markup.Escape(rel.Name)}[/]  — [grey]{Markup.Escape(Truncate(rel.WhenToUse, 120))}[/]");
         }
     }
 

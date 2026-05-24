@@ -13,6 +13,7 @@ using RoslynTools.Core.Decisions;
 using RoslynTools.Core.Output;
 using RoslynTools.Feedback;
 using RoslynTools.Services.Suggest;
+using Spectre.Console;
 using YamlDotNet.Core;
 
 namespace RoslynTools;
@@ -231,7 +232,13 @@ internal static class App
                         RtLog.Error("'{Typed}' is not a recognised command.", typed);
                         RtLog.Info("Did you mean one of these?");
                         foreach (var hit in hits)
-                            RtLog.Info("  {Name}  - {WhenToUse}", hit.Name, TruncateOneLine(hit.WhenToUse, 100));
+                        {
+                            var name = Markup.Escape(hit.Name);
+                            var desc = Markup.Escape(TruncateOneLine(hit.WhenToUse, 100));
+                            RtConsole.WriteLine(
+                                RtOutputContext.Diagnostic | RtOutputContext.Ui,
+                                $"  [cyan]{name}[/]  - [grey]{desc}[/]");
+                        }
                         RtLog.Info("Or run: rt suggest \"<task in plain English>\"");
                         context.ExitCode = 1;
                         return Task.CompletedTask;

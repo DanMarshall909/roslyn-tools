@@ -1,13 +1,12 @@
 # Logging and Output Standards
 
-This is the target standard for the logging migration. The `RtConsole` and `RtLog`
-infrastructure exists now; most command and service call sites still use direct
-`Console.*` calls and should be migrated in a focused pass.
-
-Use `rt` itself where practical for the migration. Commands such as `replace-call`,
-`find-refs`, `find-pattern`, and `inspect` can handle much of the discovery and
-mechanical rewriting, with manual review reserved for stream/context choices and
-message-template quality.
+Production code under `src/` does not call `System.Console.*` directly. Every
+write goes through `RtConsole` or `RtLog`, both of which are intercepted in
+daemon mode and route to the appropriate stream (stdout vs stderr) based on
+the context flag. The architectural lock lives in
+`tests/RoslynTools.Tests/Architecture/NoDirectConsoleUse.cs` — a single
+allowed-list (`RtConsole.cs`, `IRtConsole.cs`) covers the bridge layer; any
+other production file that references `Console.<member>` fails the build.
 
 ## Rules
 

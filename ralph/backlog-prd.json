@@ -1131,6 +1131,21 @@
             "urgency": 18,
             "urgencyReason": "EP-011 unknown-cmd fallback; highest-leverage piece of the epic, depends on US-087 engine",
             "effort": 3
+        },
+        {
+            "id": "US-091",
+            "title": "Enrich C# diff syntax highlighting with type-name and method-call heuristics",
+            "description": "As a developer reviewing rt's --dry-run diffs in the terminal, I want type names and method calls visually distinguished from regular identifiers so that identifier-heavy lines (e.g. property assignments inside object initialisers) aren't a wall of white text.",
+            "acceptanceCriteria": [
+                "Diff content for .cs files renders type-name identifiers (PascalCase after new/:/<<>>/class/interface/struct/record/enum/namespace) in a distinct colour from regular identifiers",
+                "Identifiers immediately followed by `(` (method-call syntax) render in a colour distinct from both keywords and type names",
+                "Existing keyword / string-literal / numeric-literal / comment colouring is preserved unchanged",
+                "Non-.cs diffs remain unaffected — no false-positive colouring on JSON, props, markdown, etc.",
+                "Unit tests in tests/RoslynTools.Tests/Cli/CSharpHighlighter.cs cover each new heuristic with positive cases (correct colour applied) and negative cases (no colour where the heuristic should not fire)"
+            ],
+            "priority": 92,
+            "passes": false,
+            "notes": "P3. Deferred from the colour-rendering feature (Spectre.Console adapter). Current CSharpHighlighter at src/RoslynTools.Cli/Rendering/CSharpHighlighter.cs is purely lexical — only keywords/strings/numbers/comments are coloured. Next step is two lexical heuristics: PascalCase identifier preceded by new/:/</class/etc → type colour (suggest aquamarine3); identifier immediately followed by ( → method colour (suggest gold3). Further-future: full Roslyn semantic classification via Microsoft.CodeAnalysis.Classification.Classifier.GetClassifiedSpansAsync for IDE-quality output."
         }
     ]
 }

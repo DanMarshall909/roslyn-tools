@@ -4,7 +4,7 @@ param(
     [string[]] $Args
 )
 
-$exe  = "$PSScriptRoot\src\RoslynTools.Cli\bin\Release\net8.0\rt.exe"
+$exe  = "$PSScriptRoot\src\RoslynTools.Cli\bin\Release\net10.0\rt.exe"
 $proj = "$PSScriptRoot\src\RoslynTools.Cli\RoslynTools.Cli.csproj"
 
 function Test-RebuildNeeded {
@@ -49,14 +49,24 @@ finally {
     $mutex.Dispose()
 }
 
-if ($Raw) {
+# Pass-through path. Used when:
+#   - the caller explicitly asks for it (-Raw), or
+#   - stdout is an interactive terminal (so the child's ANSI markup from
+#     Spectre reaches the terminal directly and is not stripped by the
+#     PowerShell capture path below).
+# Both cases let the child process inherit stdio so colour + syntax
+# highlighting render correctly.
+if ($Raw -or -not [Console]::IsOutputRedirected) {
     & $exe @Args
     # LASTEXITCODE from native exe call propagates to caller naturally
     return
 }
 
+# Capture path. Only reached when stdout is redirected (e.g. `rt foo > out.txt`
+# or `rt foo | something`). Spectre sees IsOutputRedirected=true and emits
+# plain text — no ANSI to lose. If the output parses as JSON, surface it as
+# PowerShell objects so downstream pipeline stages can consume it.
 $lines = & $exe @Args
-$exitCode = $LASTEXITCODE
 
 $text = if ($lines) { ($lines -join "`n").TrimStart() } else { '' }
 if ($text.StartsWith('[') -or $text.StartsWith('{')) {

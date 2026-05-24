@@ -6,7 +6,7 @@
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build",
-      "program": "${workspaceFolder}/src/RoslynTools/bin/Debug/net8.0/win-x64/rt.dll",
+      "program": "${workspaceFolder}/src/RoslynTools/bin/Debug/net10.0/win-x64/rt.dll",
       "args": ["${input:rtArgs}"],
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal",

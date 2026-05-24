@@ -115,9 +115,7 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
         var content = await proj.ReadSourceAsync("OrderService.cs");
 
         // Should not have duplicated guards
-        var count = Regex
-            .Matches(content, @"ThrowIfNull\(name\)")
-            .Count;
+        var count = Regex.Count(content, @"ThrowIfNull\(name\)");
         count.ShouldBe(1);
     }
 

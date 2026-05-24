@@ -950,8 +950,7 @@ public class ExtractMethod
         GetMethodBody(content, "Dupe2").ShouldNotContain("Console.WriteLine(\"hello\")", Case.Sensitive);
 
         // The extracted method exists exactly once (not duplicated per match).
-        var extractedCount = Regex.Matches(
-            content, @"private\s+void\s+PrintMessages\s*\(").Count;
+        var extractedCount = Regex.Count(content, @"private\s+void\s+PrintMessages\s*\(");
         extractedCount.ShouldBe(1);
     }
 
