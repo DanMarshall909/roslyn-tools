@@ -1,7 +1,7 @@
 roslyn-tools
 Branch: backlog
 
-Current Status: 25/49 stories complete (51%)
+Current Status: 26/61 stories complete (43%)
 
 EP-005 — codebase consistency sweep (1/1)
 [x] US-025 fix formatting violations: CRLF and encoding errors in 4 files
@@ -19,10 +19,11 @@ EP-007 — Add structured JSON output to all inspect/analyze commands (8/9)
 [x] US-052 rt analyze list-smells: structured JSON output
 [ ] US-082 EP-007 umbrella: structured JSON output across all 8 inspect/analyze read commands
 
-EP-008 — Platform abstractions: IWorkspaceSessionFactory + ISolutionApplier (3/3)
+EP-008 — Platform abstractions: IWorkspaceSessionFactory + ISolutionApplier (3/4)
 [x] US-053 Introduce IWorkspaceSessionFactory + WorkspaceSession (rt-006)
 [x] US-054 Migrate direct SolutionWriter call sites to ISolutionChangeWriter (rt-007)
 [x] US-072 Eliminate RtServiceProvider.Get<T> service locator in favour of ctor injection
+[ ] US-102 Complete the IWorkspaceSessionFactory migration — remove LoadWorkspaceAsync compat surface
 
 EP-009 — Consistent command contracts and migration ratchets (7/13)
 [ ] US-057 Introduce a shared read-only command handler wrapper
@@ -50,6 +51,14 @@ EP-011 — rt suggest — LLM-friendly command discovery and cross-linking (0/5)
 [ ] US-089 Seed SeeAlso data across the command catalog
 [ ] US-090 Unknown-command fallback: reuse Bm25Scorer to suggest matches on parse errors
 
+EP-012 — Complete thin-host-adapter migration (0/6)
+[ ] US-094 Architectural ratchet test for native MCP handler coverage
+[ ] US-095 Migrate read-only inspect commands to native MCP handlers
+[ ] US-096 Migrate analyze commands to native MCP handlers
+[ ] US-097 Decide MCP shape for mutating refactor commands
+[ ] US-098 Drop the RoslynTools.Mcp -> RoslynTools.Cli project reference
+[ ] US-099 Extract IRtCommand registry into a new RoslynTools.Commands project so MCP stops depending on the Cli host
+
 Loose stories
 [x] US-037 rt: convert-static-class — interface generation
 [x] US-038 rt: convert-static-class — DI registration in Bootstrap.cs
@@ -60,10 +69,15 @@ Loose stories
 [x] RT-001 rt dump-help --json: emit machine-readable command catalog
 [ ] RT-002 Expand command help text with output shape, exit codes, and error modes
 [ ] RT-003 Make --decisions YAML schema self-discoverable from the CLI
-[ ] RT-004 Finish stderr discipline migration: Console.Write to RtLog/RtConsole
+[x] RT-004 Finish stderr discipline migration: Console.Write to RtLog/RtConsole
 [x] US-069 Bring src/RoslynTools.Cli/ into Stryker mutation pilot
 [x] US-070 Bring src/RoslynTools.Mcp/ into Stryker mutation pilot
 [ ] US-073 migrate solution to .NET 10
 [ ] US-081 rt refactor convert-static-class: finish interface generation, DI registration, and ctor/field formatting
 [ ] US-083 Bring src/RoslynTools.Cli/ and src/RoslynTools.Mcp/ into the Stryker mutation pilot
 [ ] US-091 Enrich C# diff syntax highlighting with type-name and method-call heuristics
+[ ] US-092 Stable fix IDs in dry-run + --apply / --skip filters for batch mutation commands
+[ ] US-093 Route command exit codes through System.CommandLine middleware (replace Environment.ExitCode)
+[ ] US-100 Unify RtResultRenderer call shape and enforce IStructuredOutputCommand for every JSON-output command
+[ ] US-101 Decompose SolidAnalyzer into per-principle analyzers behind a thin orchestrator
+[ ] US-103 Eliminate parameterless service ctors that hand-roll concrete dependencies

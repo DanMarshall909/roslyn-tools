@@ -1291,6 +1291,94 @@
             "passes": false,
             "epicId": "EP-012",
             "notes": "P2. Should land AFTER the inspect + analyze migrations — once enough commands have native handlers, CliCommandBridge shrinks to a tail of commands (mutations + edge cases) and the move is mechanical. Trying this before the migration means moving a fat bridge plus all 50 commands; doing it after means moving a thin bridge plus a slim catalog. Verifies the architectural goal of EP-012: hosts are peers, not master-slave."
+        },
+        {
+            "id": "US-099",
+            "title": "Extract IRtCommand registry into a new RoslynTools.Commands project so MCP stops depending on the Cli host",
+            "description": "As an rt maintainer, I want the command registry, App.Discover, the ICommandCatalog implementation, and the auto-bridge (CliCommandBridge) extracted into a new project (RoslynTools.Commands or RoslynTools.Hosting) so both RoslynTools.Cli and RoslynTools.Mcp can reference it without MCP transitively depending on the Cli exe.",
+            "acceptanceCriteria": [
+                "New project src/RoslynTools.Commands/ (or RoslynTools.Hosting/) contains: the IRtCommand registry (formerly App.Commands), App.Discover, the auto-bridge / CliCommandBridge (or whatever remains after the inspect + analyze migrations), and the ICommandCatalog implementation.",
+                "RoslynTools.Mcp.csproj no longer ProjectReferences RoslynTools.Cli.csproj — it references RoslynTools.Commands and RoslynTools (Core) only.",
+                "RoslynTools.Cli.csproj also references RoslynTools.Commands instead of holding the registry itself.",
+                "MsBuildBootstrap stays in RoslynTools.Cli (it's an entry-point concern, only used by Cli's Program.Main).",
+                "Bootstrap.RegisterServices remains shared (called by both hosts) — moves to RoslynTools.Commands or stays as-is depending on what makes the boundary cleanest.",
+                "All existing tests pass; dotnet format clean; dotnet stryker scope expanded to include the new project.",
+                "The EP-012 ratchet test still passes (no regression in MCP handler coverage)."
+            ],
+            "priority": 100,
+            "passes": false,
+            "epicId": "EP-012",
+            "notes": "P2. Source: 2026-05-24 design note. Relates to EP-012 (thin-host-adapter migration) — the epic description flags the unusual RoslynTools.Mcp → RoslynTools.Cli exe-to-exe project reference. This story removes that coupling by promoting the registry / discovery / bridge to a shared library project. Naming: RoslynTools.Commands vs RoslynTools.Hosting decision happens at planning time based on which scopes cleaner."
+        },
+        {
+            "id": "US-100",
+            "title": "Unify RtResultRenderer call shape and enforce IStructuredOutputCommand for every JSON-output command",
+            "description": "As an rt maintainer, I want every structured-output command to call RtResultRenderer through one consistent entry point and to declare its JSON output by implementing IStructuredOutputCommand, so renderer behaviour cannot drift between commands and RtCommandInfo.JsonOutput=true is reliably synchronised with the interface implementation.",
+            "acceptanceCriteria": [
+                "RtResultRenderer exposes one canonical method that structured-output commands call (the default JSON options are encapsulated inside the renderer; callers do not pass options).",
+                "The previously-divergent overload (Write with explicit JsonOptions) is removed, or restricted to a clearly-scoped use case that no command currently needs.",
+                "Every command with RtCommandInfo.JsonOutput=true implements IStructuredOutputCommand; every command that implements IStructuredOutputCommand has JsonOutput=true.",
+                "App.cs startup validator enforces this biconditional and fails at startup (and therefore fails post-build docs/COMMANDS.md generation) if a new command violates it.",
+                "rt inspect find-refs --json, rt inspect find-callers --json, and rt inspect find-impl --json produce byte-identical output before and after the change.",
+                "Architecture test under tests/RoslynTools.Tests/Architecture/ covers the biconditional invariant by exercising the validator against the live command registry.",
+                "dotnet build clean, dotnet format --verify-no-changes clean, full test suite passes."
+            ],
+            "priority": 101,
+            "passes": false,
+            "notes": "P2. Source: architectural audit on 2026-05-24. RtResultRenderer exposes three methods: Write(RtResult<T>, JsonOptions), WriteOutput<T>(RtResult<T>), WriteText(RtResult<string>). Today FindRefsCommand:58 and FindCallersCommand:61 call WriteOutput, while FindImplementationsCommand:79-81 calls Write(..., SymbolFormatter.DefaultJsonOptions). IStructuredOutputCommand marker exists but only FindImplementationsCommand implements it; the other two do not. App.cs has a static-ctor check that the category enum stays in sync — extend it to enforce the JsonOutput=true ⇔ IStructuredOutputCommand biconditional."
+        },
+        {
+            "id": "US-101",
+            "title": "Decompose SolidAnalyzer into per-principle analyzers behind a thin orchestrator",
+            "description": "As an rt maintainer, I want each SOLID principle's analysis logic to live in its own class so the 700-line static SolidAnalyzer shrinks to a thin orchestrator, mutation coverage can be measured per principle, and adding a new principle becomes a new file rather than an edit to a single megaclass.",
+            "acceptanceCriteria": [
+                "Five new classes under src/RoslynTools/Core/Solid/ (or similar): SrpAnalyzer, IspAnalyzer, DipAnalyzer, OcpAnalyzer, LspAnalyzer. Each owns the logic that lived in the corresponding AnalyzeXxxAsync method.",
+                "Each per-principle analyzer implements a uniform interface (ISolidPrincipleAnalyzer or similar) with one method that returns a list of violations for a given solution + scope.",
+                "SolidAnalyzer becomes a thin orchestrator: it accepts IReadOnlyList<ISolidPrincipleAnalyzer> via DI and fans out to them based on the user's --principle selection.",
+                "Bootstrap.cs registers all five analyzers with the DI container.",
+                "rt analyze solid --principle SRP|ISP|DIP|OCP|LSP|all produces byte-identical output (text and JSON) on the roslyn-tools solution before and after the change.",
+                "Architecture test asserts every type ending in 'Analyzer' under src/RoslynTools/Core/Solid/ implements ISolidPrincipleAnalyzer.",
+                "Stryker mutate config extended to cover each new per-principle analyzer file; mutation score targets per file are documented (baseline set in the PR).",
+                "dotnet build clean, dotnet format --verify-no-changes clean, existing tests pass."
+            ],
+            "priority": 102,
+            "passes": false,
+            "notes": "P2. Source: architectural audit on 2026-05-24. Today SolidAnalyzer.cs is a single internal static class containing five AnalyzeXxxAsync methods (SRP at line 56, ISP at line 118, DIP at line 279, OCP at line 470, LSP at line 666). Genuine SRP violation. ComplexityAnalyzer was originally flagged in the audit but on inspection it computes only 2 metrics (Cyclomatic + Cognitive) — out of scope. Naturally pairs with the ISmellRule work (US-095) since both lean on a shared rule/analyzer abstraction."
+        },
+        {
+            "id": "US-102",
+            "title": "Complete the IWorkspaceSessionFactory migration — remove LoadWorkspaceAsync compat surface",
+            "description": "As an rt maintainer, I want every command to consume the workspace via GetSolutionAsync and LoadWorkspaceAsync removed from the interface, so the factory owns workspace lifetime end-to-end and the `using (workspace) { ... }` pattern (which suggests caller-owned disposal) disappears from the codebase.",
+            "acceptanceCriteria": [
+                "Every production caller of LoadWorkspaceAsync is migrated to GetSolutionAsync; the `using (workspace) { ... }` wrappers around the returned solution are removed (the factory singleton owns disposal via its own lifecycle).",
+                "LoadWorkspaceAsync is removed from IWorkspaceSessionFactory and from the WorkspaceLoader implementation.",
+                "The MCP handlers (OutlineHandler, ChangeSignatureCommandHandlers) also migrate; the only remaining LoadWorkspaceAsync-shaped surface is internal helper code or test fixtures.",
+                "Grep for `LoadWorkspaceAsync` in src/ returns zero hits.",
+                "Architecture test asserts no production code references LoadWorkspaceAsync and no command wraps IWorkspaceSessionFactory results in `using`.",
+                "rt dump-help smoke matrix from CLAUDE.md exits 0 across the listed commands.",
+                "dotnet build clean, dotnet format --verify-no-changes clean, full test suite passes."
+            ],
+            "priority": 103,
+            "passes": false,
+            "epicId": "EP-008",
+            "notes": "P2. Source: architectural audit on 2026-05-24. US-053 introduced IWorkspaceSessionFactory and US-072 finished ctor-injection — both shipped. Compat surface LoadWorkspaceAsync still has 39 callers (37 production commands/services + 2 MCP handlers) per grep on 2026-05-24. The `using (workspace) { ... }` pattern in every refactor command suggests caller-owned disposal, which contradicts the factory-owned-singleton design. Mechanical migration per command."
+        },
+        {
+            "id": "US-103",
+            "title": "Eliminate parameterless service ctors that hand-roll concrete dependencies",
+            "description": "As an rt maintainer, I want every service under src/RoslynTools/Services/ to be constructed exclusively via DI, with no parameterless ctor that hand-rolls new SolutionChangeWriter() / new RtConsoleLogger / sibling services, so test code is forced through RoslynTools.Bootstrap.RegisterServices (per feedback_test_di_resolution) and there is no second construction path that masks missing wiring.",
+            "acceptanceCriteria": [
+                "No service under src/RoslynTools/Services/ exposes a parameterless ctor that constructs its dependencies; the only public ctor accepts the dependencies as parameters.",
+                "Production services that compose other services (ChangeSignatureService, AnalyzeInterfaceService, NarrowDependencyService) take their composed services via constructor injection rather than `new`.",
+                "Every test file in tests/ that currently uses `new <Service>()` is migrated to resolve via _services.Resolve<TService>() from the existing RtServicesFixture.",
+                "Grep for `new \\w+Service\\(\\)` in tests/ returns zero hits (allowing only test-double types defined under tests/ namespaces).",
+                "The architecture test from US-098 is extended to enforce: no test under tests/ may construct a class deriving from IRtService via `new`.",
+                "dotnet build clean, dotnet format --verify-no-changes clean, full test suite passes.",
+                "rt dump-help smoke matrix from CLAUDE.md exits 0."
+            ],
+            "priority": 104,
+            "passes": false,
+            "notes": "P2. Source: architectural audit on 2026-05-24. 34 services have legacy parameterless ctors that chain to a parameterised ctor via : this(new ...) — e.g. ImportDirectiveService.cs:33-35. Used by 14 test files (tests/RoslynTools.Tests/Mutation/RenameIntegration.cs, etc.) and 3 production services that compose siblings via new (ChangeSignatureService, AnalyzeInterfaceService, NarrowDependencyService). Follows the spirit of US-072 (RtServiceProvider removal, shipped 2026-05-21) — completes the DI story at the service tier. US-098 overlaps at the test-level no-new rule; the architecture test introduced there is extended here to cover the full service inventory."
         }
     ]
 }
