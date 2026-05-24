@@ -1,3 +1,5 @@
+using System.Text.Json;
+using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
 
@@ -19,17 +21,40 @@ internal sealed record UnusedSymbolResult : IRtOutput
     [OutputField(OutputLevel.Default, "line")]
     public required int Line { get; init; }
 
+    public IReadOnlyList<SuggestedFix> SuggestedFixes { get; init; } = [];
+
     public void RenderText(TextWriter writer)
     {
         writer.Write($"{Kind,-10} {Name,-40} {FilePath}:{Line}");
+        foreach (var fix in SuggestedFixes)
+        {
+            writer.WriteLine();
+            fix.RenderText(writer);
+        }
     }
 }
 
 /// <summary>Top-level result returned by find-unused.</summary>
-internal sealed record FindUnusedResult : IRtOutput
+internal sealed record FindUnusedResult : IRtOutput, IRtJsonOutput
 {
     [OutputField(OutputLevel.Llm, "symbols")]
     public required IReadOnlyList<UnusedSymbolResult> Symbols { get; init; }
+
+    public void RenderJson(TextWriter writer)
+    {
+        var doc = new
+        {
+            symbols = Symbols.Select(s => new
+            {
+                kind = s.Kind,
+                name = s.Name,
+                filePath = s.FilePath,
+                line = s.Line,
+                suggestedFixes = s.SuggestedFixes.Select(f => f.AsJsonObject()).ToArray()
+            }).ToArray()
+        };
+        writer.Write(JsonSerializer.Serialize(doc, SymbolFormatter.DefaultJsonOptions));
+    }
 
     public void RenderText(TextWriter writer)
     {
@@ -41,7 +66,7 @@ internal sealed record FindUnusedResult : IRtOutput
         }
     }
 
-    internal static FindUnusedResult FromSymbols(IEnumerable<UnusedSymbol> symbols)
+    internal static FindUnusedResult FromSymbols(IEnumerable<UnusedSymbol> symbols, string? solutionPath = null)
     {
         return new FindUnusedResult
         {
@@ -50,7 +75,8 @@ internal sealed record FindUnusedResult : IRtOutput
                 Kind = s.Kind,
                 Name = s.Name,
                 FilePath = s.FilePath ?? string.Empty,
-                Line = s.Line
+                Line = s.Line,
+                SuggestedFixes = FixCatalog.ForUnusedSymbol(s.Kind, s.Name, solutionPath)
             }).ToList()
         };
     }

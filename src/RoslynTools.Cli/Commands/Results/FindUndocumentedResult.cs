@@ -1,3 +1,5 @@
+using System.Text.Json;
+using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
 
@@ -30,10 +32,29 @@ internal sealed record UndocumentedSymbolResult : IRtOutput
 /// <summary>
 /// Searches for undocumented symbols in the project and provides their details.
 /// </summary>
-internal sealed record FindUndocumentedResult : IRtOutput
+internal sealed record FindUndocumentedResult : IRtOutput, IRtJsonOutput
 {
     [OutputField(OutputLevel.Llm, "symbols")]
     public required IReadOnlyList<UndocumentedSymbolResult> Symbols { get; init; }
+
+    public IReadOnlyList<SuggestedFix> SuggestedFixes { get; init; } = [];
+
+    public void RenderJson(TextWriter writer)
+    {
+        var doc = new
+        {
+            symbols = Symbols.Select(s => new
+            {
+                fqn = s.Fqn,
+                signature = s.Signature,
+                kind = s.Kind,
+                filePath = s.FilePath,
+                line = s.Line
+            }).ToArray(),
+            suggestedFixes = SuggestedFixes.Select(f => f.AsJsonObject()).ToArray()
+        };
+        writer.Write(JsonSerializer.Serialize(doc, SymbolFormatter.DefaultJsonOptions));
+    }
 
     public void RenderText(TextWriter writer)
     {
@@ -42,9 +63,20 @@ internal sealed record FindUndocumentedResult : IRtOutput
             Symbols[i].RenderText(writer);
             if (i < Symbols.Count - 1) writer.WriteLine();
         }
+
+        if (SuggestedFixes.Count > 0)
+        {
+            writer.WriteLine();
+            writer.WriteLine();
+            foreach (var fix in SuggestedFixes)
+            {
+                fix.RenderText(writer);
+                writer.WriteLine();
+            }
+        }
     }
 
-    internal static FindUndocumentedResult From(IEnumerable<UndocumentedSymbol> symbols)
+    internal static FindUndocumentedResult From(IEnumerable<UndocumentedSymbol> symbols, string? solutionPath = null)
     {
         return new FindUndocumentedResult
         {
@@ -55,7 +87,8 @@ internal sealed record FindUndocumentedResult : IRtOutput
                 Kind = s.Kind,
                 FilePath = s.FilePath,
                 Line = s.Line
-            }).ToList()
+            }).ToList(),
+            SuggestedFixes = FixCatalog.ForUndocumented(solutionPath)
         };
     }
 }

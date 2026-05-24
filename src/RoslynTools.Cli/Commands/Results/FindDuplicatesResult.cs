@@ -91,6 +91,8 @@ internal sealed record DuplicateGroupResult : IRtOutput
     [OutputField(OutputLevel.Default, "checks")]
     public required IReadOnlyList<CheckResult> Checks { get; init; }
 
+    public IReadOnlyList<SuggestedFix> SuggestedFixes { get; init; } = [];
+
     public void RenderText(TextWriter writer)
     {
         throw new NotSupportedException("Use FindDuplicatesResult.RenderText");
@@ -135,7 +137,8 @@ internal sealed record FindDuplicatesResult : IRtOutput, IRtMarkdownOutput, IRtJ
                     name = c.Name,
                     status = c.Status,
                     detail = c.Detail
-                }).ToArray()
+                }).ToArray(),
+                suggestedFixes = g.SuggestedFixes.Select(f => f.AsJsonObject()).ToArray()
             }).ToArray()
         };
 
@@ -193,6 +196,20 @@ internal sealed record FindDuplicatesResult : IRtOutput, IRtMarkdownOutput, IRtJ
                 foreach (var c in g.Checks) writer.WriteLine($"| {c.Name} | {c.Status} | {c.Detail ?? string.Empty} |");
                 writer.WriteLine();
             }
+
+            if (g.SuggestedFixes is { Count: > 0 })
+            {
+                writer.WriteLine("**Suggested fixes:**");
+                writer.WriteLine();
+                foreach (var fix in g.SuggestedFixes)
+                {
+                    if (fix.CommandLine is not null)
+                        writer.WriteLine($"- `{fix.Tool}`: `{fix.CommandLine}`");
+                    else
+                        writer.WriteLine($"- `{fix.Tool}`: {fix.Ref} — {fix.Description}");
+                }
+                writer.WriteLine();
+            }
         }
     }
 
@@ -225,11 +242,18 @@ internal sealed record FindDuplicatesResult : IRtOutput, IRtMarkdownOutput, IRtJ
                     $"  {j + 1}. {o.AbsoluteForwardSlashPath}:{o.Line}-{o.EndLine} in {o.Type}.{o.Member}");
             }
 
+            foreach (var fix in g.SuggestedFixes)
+            {
+                fix.RenderText(writer);
+                writer.WriteLine();
+            }
+
             writer.WriteLine();
         }
     }
 
-    internal static FindDuplicatesResult FromGroups(IReadOnlyList<DuplicateGroup> groups, string? solutionDir)
+    internal static FindDuplicatesResult FromGroups(
+        IReadOnlyList<DuplicateGroup> groups, string? solutionDir, string? solutionPath = null)
     {
         return new FindDuplicatesResult
         {
@@ -262,7 +286,13 @@ internal sealed record FindDuplicatesResult : IRtOutput, IRtMarkdownOutput, IRtJ
                     Name = c.Name,
                     Status = c.Status,
                     Detail = c.Detail
-                }).ToList()
+                }).ToList(),
+                SuggestedFixes = FixCatalog.ForDuplicateGroup(
+                    g.Extractability,
+                    g.Occurrences.FirstOrDefault()?.FilePath,
+                    g.Occurrences.FirstOrDefault()?.StartLine ?? 0,
+                    g.Occurrences.FirstOrDefault()?.EndLine ?? 0,
+                    solutionPath)
             }).ToList()
         };
     }

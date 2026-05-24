@@ -1,3 +1,5 @@
+using System.Text.Json;
+using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
 
@@ -41,6 +43,8 @@ internal sealed record MagicStringGroupResult : IRtOutput
     [OutputField(OutputLevel.Default, "occurrences")]
     public required IReadOnlyList<MagicStringOccurrenceResult> Occurrences { get; init; }
 
+    public IReadOnlyList<SuggestedFix> SuggestedFixes { get; init; } = [];
+
     public void RenderText(TextWriter writer)
     {
         writer.WriteLine($"{Count,3}  \"{Value}\"");
@@ -50,16 +54,43 @@ internal sealed record MagicStringGroupResult : IRtOutput
             occurrence.RenderText(writer);
             writer.WriteLine();
         }
+
+        foreach (var fix in SuggestedFixes)
+        {
+            fix.RenderText(writer);
+            writer.WriteLine();
+        }
     }
 }
 
 /// <summary>
 /// A class representing the result of a magic string command.
 /// </summary>
-internal sealed record MagicStringResult : IRtOutput
+internal sealed record MagicStringResult : IRtOutput, IRtJsonOutput
 {
     [OutputField(OutputLevel.Llm, "groups")]
     public required IReadOnlyList<MagicStringGroupResult> Groups { get; init; }
+
+    public void RenderJson(TextWriter writer)
+    {
+        var doc = new
+        {
+            groups = Groups.Select(g => new
+            {
+                value = g.Value,
+                count = g.Count,
+                occurrences = g.Occurrences.Select(o => new
+                {
+                    filePath = o.FilePath,
+                    line = o.Line,
+                    typeName = o.TypeName,
+                    memberName = o.MemberName
+                }).ToArray(),
+                suggestedFixes = g.SuggestedFixes.Select(f => f.AsJsonObject()).ToArray()
+            }).ToArray()
+        };
+        writer.Write(JsonSerializer.Serialize(doc, SymbolFormatter.DefaultJsonOptions));
+    }
 
     public void RenderText(TextWriter writer)
     {
@@ -71,7 +102,7 @@ internal sealed record MagicStringResult : IRtOutput
         }
     }
 
-    internal static MagicStringResult FromGroups(IEnumerable<MagicStringGroup> groups)
+    internal static MagicStringResult FromGroups(IEnumerable<MagicStringGroup> groups, string? solutionPath = null)
     {
         return new MagicStringResult
         {
@@ -85,7 +116,11 @@ internal sealed record MagicStringResult : IRtOutput
                     Line = o.Line,
                     TypeName = o.TypeName,
                     MemberName = o.MemberName
-                }).ToList()
+                }).ToList(),
+                SuggestedFixes = FixCatalog.ForMagicString(
+                    g.Occurrences.FirstOrDefault()?.FilePath,
+                    g.Occurrences.FirstOrDefault()?.Line ?? 0,
+                    solutionPath)
             }).ToList()
         };
     }

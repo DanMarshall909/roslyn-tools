@@ -54,7 +54,7 @@ internal sealed class FindUnusedCommand : IRtCommand
 
             var sln = await _sessionFactory.GetSolutionAsync(solution);
             var symbols = await _findUnused.AnalyzeAsync(sln, scope ?? "all");
-            var result = FindUnusedResult.FromSymbols(symbols);
+            var result = FindUnusedResult.FromSymbols(symbols, sln.FilePath);
             RtResultRenderer.WriteOutput(RtResult<FindUnusedResult>.Ok(result));
         });
 
