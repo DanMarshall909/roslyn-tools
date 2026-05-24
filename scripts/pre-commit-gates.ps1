@@ -74,18 +74,22 @@ if (-not $mutate) {
 }
 
 $covered = @()
+$coveredGlobs = @()
 $uncovered = @()
 foreach ($file in $productionCs) {
-    $isCovered = $false
+    $matchedGlob = $null
     foreach ($glob in $mutate) {
         if (Test-GlobMatch $file $glob) {
-            $isCovered = $true
+            $matchedGlob = $glob
             break
         }
     }
 
-    if ($isCovered) {
+    if ($matchedGlob) {
         $covered += $file
+        if ($coveredGlobs -notcontains $matchedGlob) {
+            $coveredGlobs += $matchedGlob
+        }
     } else {
         $uncovered += $file
     }
@@ -116,13 +120,30 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-dotnet stryker `
-    --config-file $StrykerConfig `
-    --break-at $MutationBreakAt `
-    --threshold-low $MutationBreakAt `
-    --threshold-high 100 `
-    --reporter progress `
-    --reporter cleartext `
-    --concurrency 4
+$scopedConfig = $config.'stryker-config'.PSObject.Copy()
+$scopedConfig.mutate = $coveredGlobs
+$scopedWrapper = [pscustomobject]@{ 'stryker-config' = $scopedConfig }
+$tempConfig = Join-Path ([System.IO.Path]::GetTempPath()) "stryker-pre-commit-$([guid]::NewGuid()).json"
+$scopedWrapper | ConvertTo-Json -Depth 10 | Set-Content -Path $tempConfig -Encoding UTF8
 
-exit $LASTEXITCODE
+Write-Host "mutation-gate: scoped mutate globs:" -ForegroundColor DarkGray
+foreach ($glob in $coveredGlobs) {
+    Write-Host "  $glob" -ForegroundColor DarkGray
+}
+
+try {
+    dotnet stryker `
+        --config-file $tempConfig `
+        --break-at $MutationBreakAt `
+        --threshold-low $MutationBreakAt `
+        --threshold-high 100 `
+        --reporter progress `
+        --reporter cleartext `
+        --concurrency 20
+    $strykerExit = $LASTEXITCODE
+}
+finally {
+    Remove-Item -Path $tempConfig -Force -ErrorAction SilentlyContinue
+}
+
+exit $strykerExit
