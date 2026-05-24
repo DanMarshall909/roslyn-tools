@@ -704,8 +704,10 @@
             "urgency": 28,
             "urgencyReason": "Finish stderr discipline migration; tail of LLM-ergonomics work",
             "effort": 5,
-            "passes": false,
-            "notes": "P2. Deferred from LLM-ergonomics quick-wins plan. docs/logging-standards.md acknowledges the migration is in progress; several commands still call Console.Write directly. Maintenance work — does not change LLM behaviour at runtime today, but eliminates a future regression vector."
+            "passes": true,
+            "notes": "P2. Deferred from LLM-ergonomics quick-wins plan. docs/logging-standards.md acknowledges the migration is in progress; several commands still call Console.Write directly. Maintenance work — does not change LLM behaviour at runtime today, but eliminates a future regression vector.",
+            "resolution": "Shipped. The Console.Write* migration is enforced across all of src/ by tests/RoslynTools.Tests/Architecture/NoDirectConsoleUse.cs (asserts no IdentifierNameSyntax 'Console' in any production file outside an allowed-list of RtConsole.cs + IRtConsole.cs). Verified the arch test passes; verified no Console.Write* calls remain in src/RoslynTools.Cli/Commands/ (the 3 grep hits there are all string literals in docstrings/examples, not actual calls). docs/logging-standards.md updated in commit 94b4909 to drop the 'migration incomplete' notice and document the now-enforced invariant. AC #1-#5 all satisfied. AC #6 (LLM stream separation) follows by construction from the arch lock.",
+            "resolvedAt": "2026-05-24"
         },
         {
             "id": "US-069",
@@ -1146,6 +1148,45 @@
             "priority": 92,
             "passes": false,
             "notes": "P3. Deferred from the colour-rendering feature (Spectre.Console adapter). Current CSharpHighlighter at src/RoslynTools.Cli/Rendering/CSharpHighlighter.cs is purely lexical — only keywords/strings/numbers/comments are coloured. Next step is two lexical heuristics: PascalCase identifier preceded by new/:/</class/etc → type colour (suggest aquamarine3); identifier immediately followed by ( → method colour (suggest gold3). Further-future: full Roslyn semantic classification via Microsoft.CodeAnalysis.Classification.Classifier.GetClassifiedSpansAsync for IDE-quality output."
+        },
+        {
+            "id": "US-092",
+            "title": "Stable fix IDs in dry-run + --apply / --skip filters for batch mutation commands",
+            "description": "As an LLM agent or interactive user reviewing a batch rt refactor --dry-run, I want each proposed fix labelled with a stable deterministic ID, and I want to re-invoke the command with --apply <ids,...> or --skip <ids,...> to land exactly the subset I've decided is safe. Without this, accepting 5 of 8 proposed make-sealed changes requires hand-editing or splitting the batch by symbol name.",
+            "acceptanceCriteria": [
+                "Every fix proposed by a batch mutation command (make-sealed, add-null-checks, add-global-import, convert-console-logging, replace-xunit-asserts, replace-datetime, add-xml-doc) is tagged with an 8-char hex fix ID derived from SHA-256 over (commandName + targetSymbolFqnOrRepoRelativePath + mutationKind); the ID is deterministic across runs as long as the inputs haven't changed.",
+                "When the target has no FQN (file-scoped operations), the hash falls back to repo-relative path + mutation kind — stable across runs as long as the file isn't moved/renamed.",
+                "Dry-run text output prefixes each diff section with `[fix <id>]` on its own line above the `--- path` header so the ID is grep-pable.",
+                "Dry-run JSON output (for commands that already emit JSON, or as a follow-up for those that don't) wraps each fix in `{ id, command, target, files: [{ path, diff }] }`.",
+                "A `--apply <id,id,...>` option, when present, narrows the applied set to fixes whose ID is in the list; unknown IDs are reported to stderr and exit 1.",
+                "A `--skip <id,id,...>` option, when present, applies all fixes except those listed; unknown IDs are reported to stderr and exit 1.",
+                "Passing both --apply and --skip in the same invocation is a usage error: exit 1 with a clear stderr message.",
+                "Neither --apply nor --skip require --dry-run to have been run first; IDs are deterministic so the user can compute them once and pass them later.",
+                "When --apply selects zero fixes (empty list or all IDs unknown), the command exits 0 with `No changes.` (existing no-op message) rather than failing.",
+                "Single-target commands (rename, move, extract-method, inline-method, safe-delete) emit a single fix ID in their dry-run header for consistency, but --apply/--skip are *not* registered on them (no benefit and adds parse-time noise).",
+                "Integration tests under tests/RoslynTools.Tests/Mutation/ cover: (a) determinism — same input twice produces same ID; (b) --apply picks subset; (c) --skip drops subset; (d) both flags error; (e) unknown ID errors; (f) ID stability across an unrelated edit elsewhere in the project.",
+                "dotnet build clean; dotnet format --verify-no-changes clean; existing tests pass."
+            ],
+            "priority": 93,
+            "passes": false,
+            "notes": "P2. Centralise ID generation in a new FixId helper in src/RoslynTools/Core/. Each batch command's service exposes the candidate fix list (already does internally — just needs to lift it before SolutionWriter.ApplyChangesAsync) so the command host can apply --apply/--skip filtering before workspace changes are computed. Option registration: extend CommandOptionFactory with CreateApplyOption()/CreateSkipOption() and a shared parser. Scope: batch commands only (single-target commands gain nothing from --apply/--skip). Out of scope for MVP: backporting --apply/--skip to single-target commands; JSON envelope for commands that today emit only text diffs (track as a follow-up under EP-007 if useful)."
+        },
+        {
+            "id": "US-093",
+            "title": "Route command exit codes through System.CommandLine middleware (replace Environment.ExitCode)",
+            "description": "As an rt maintainer, I want CLI commands to set exit codes via the InvocationContext (ctx.ExitCode) rather than Environment.ExitCode so that the documented middleware contract in App.cs is honoured, test parallelism is safe, and exit-code routing composes with CommandLineBuilder.",
+            "acceptanceCriteria": [
+                "No command under src/RoslynTools.Cli/Commands/ references Environment.ExitCode — grep returns zero hits.",
+                "DaemonServer.cs is the only file in src/ permitted to read/write Environment.ExitCode (it propagates exit codes across the sub-pipe scope).",
+                "ExtractMethodCommand no longer wraps its handler in try/catch for InvalidOperationException or ArgumentOutOfRangeException; the middleware translates these to exit 1 + a single 'Error: <message>' line on stderr.",
+                "Bad-input behaviour of every touched command is observably unchanged: exit 1, single 'Error: ...' line on stderr, no stack trace.",
+                "New architecture test bans Environment.ExitCode references in src/ outside DaemonServer.cs.",
+                "dotnet build clean, dotnet format --verify-no-changes clean, full test suite passes.",
+                "Integration test exercises one previously-affected command (e.g. make-static on bad input) end-to-end and asserts exit 1 + single stderr line."
+            ],
+            "priority": 94,
+            "passes": false,
+            "notes": "P1. Source: architectural audit on 2026-05-24. 8 commands bypass App.cs:407 TryHandleUserErrorAsync — AddTestCommand (6 sites), FindPatternCommand, ListSmellsCommand, MakeStaticCommand, MoveMethodCommand, SafeDeleteCommand, TransformParametersCommand. ExtractMethodCommand has redundant try/catch for the exact types the middleware handles. Anchors to feedback_no_exceptions_for_results memory. Independent of US-077 (which is about Result types in core services)."
         }
     ]
 }
