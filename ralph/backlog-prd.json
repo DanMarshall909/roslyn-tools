@@ -44,6 +44,12 @@
             "title": "rt suggest — LLM-friendly command discovery and cross-linking",
             "description": "Make the rt command catalog queryable by natural-language task. Adds a flat top-level rt suggest <task> meta-command (BM25 + hand-curated synonyms + JSON/text output), a SeeAlso field on RtCommandInfo for inverse/workflow/sibling cross-links, and reuses the same BM25 engine to fix unknown-command parse errors with 'did you mean' suggestions. Purely additive — no command moves or renames.",
             "notes": "Decision 2026-05-22: command name = rt suggest; JSON default when stdout is not a TTY. Source plan at ~/.claude/plans/how-can-we-further-soft-pie.md. Pre-existing US-080 (rt suggest synonyms thesaurus) is a follow-up to this epic and depends on the core command landing first."
+        },
+        {
+            "id": "EP-012",
+            "title": "Complete thin-host-adapter migration",
+            "description": "Apply the Core-service + thin-host-adapter pattern (established in the suggest + outline POC, docs/pattern-core-service.md) to every command. Today most commands route through CliCommandBridge text-capture for MCP, losing structure and forcing dry-run-always for mutations. The POC proved the pattern works; this epic finishes the rollout, drops the unusual RoslynTools.Mcp → RoslynTools.Cli exec-to-exec project reference, and locks the pattern with an architectural ratchet test.",
+            "notes": "POC learnings to carry into each migration: (1) For commands already ctor-injected post-US-072 (e.g. OutlineCommand), the CLI side needs minimal change - consolidate parameters into a Request DTO. (2) Native MCP handlers return ToolResult{content=JSON} directly; do not route through CapturingConsole. (3) ICommandCatalog abstraction (Core) lets the service stay host-agnostic. (4) Asymmetries are acceptable: CLI has --json/--yaml/--markdown formatting; MCP always returns native JSON; CLI shows progress on stderr, MCP doesn't. Document any new asymmetry in pattern-core-service.md. (5) Mutating commands (refactor/*) raise a design question: MCP currently force-dry-runs them via CliCommandBridge; native handlers need an explicit decision (carve-out or design). US-098 in this epic owns that decision."
         }
     ],
     "userStories": [
@@ -1187,6 +1193,104 @@
             "priority": 94,
             "passes": false,
             "notes": "P1. Source: architectural audit on 2026-05-24. 8 commands bypass App.cs:407 TryHandleUserErrorAsync — AddTestCommand (6 sites), FindPatternCommand, ListSmellsCommand, MakeStaticCommand, MoveMethodCommand, SafeDeleteCommand, TransformParametersCommand. ExtractMethodCommand has redundant try/catch for the exact types the middleware handles. Anchors to feedback_no_exceptions_for_results memory. Independent of US-077 (which is about Result types in core services)."
+        },
+        {
+            "id": "US-094",
+            "title": "Architectural ratchet test for native MCP handler coverage",
+            "description": "As an rt maintainer, I want a failing architectural test that names every command without a native IMcpHandler, so the test itself drives the migration tickets — each command-migration commit shrinks the allow-list until the test passes with zero exemptions.",
+            "acceptanceCriteria": [
+                "Test file under tests/RoslynTools.Tests.Mcp/Architecture/ (e.g. EveryCommandHasNativeMcpHandler.cs) enumerates every IRtCommand in App.Commands and asserts each has a registered IMcpHandler whose ToolName matches the command's RtCommandInfo.Name (after the `-`→`_` substitution the bridge already applies).",
+                "An explicit allow-list inside the test enumerates every command that does NOT yet have a native handler. The list starts populated with all ~50 commands currently routed through CliCommandBridge — only `suggest_command` and `outline` are exempt-by-handler (they already have native impls).",
+                "Test failure message names the violating command(s) + points at docs/pattern-core-service.md + lists the migration steps (extract service, add Request/Result DTOs, write *Handler : IMcpHandler, register in McpServiceRegistration).",
+                "If a command has BOTH an allow-list entry AND a native handler, the test fails with a 'remove allow-list entry; handler is in place' message — keeps the allow-list shrinking honestly.",
+                "Test is wired into the default dotnet test run; no skip attributes, no opt-in.",
+                "RoslynTools.Cli.csproj (or RoslynTools.csproj) has InternalsVisibleTo for RoslynTools.Tests.Mcp added if it's not already in place so the test can read App.Commands.",
+                "Test passes today (with the full ~50-command allow-list intact). After each EP-012 migration commit removes one entry, the test continues to pass."
+            ],
+            "priority": 95,
+            "passes": false,
+            "epicId": "EP-012",
+            "notes": "P1. Drives the rest of EP-012. Implementation ~50 lines: reflection over IMcpHandler implementers in the Mcp assembly, intersect with App.Commands names, diff against allow-list. Bonus: also assert no allow-list entries that DON'T correspond to a real command (keeps the list honest as commands are renamed/added/removed)."
+        },
+        {
+            "id": "US-095",
+            "title": "Migrate read-only inspect commands to native MCP handlers",
+            "description": "As an LLM agent invoking rt via MCP, I want read-only inspect commands to return structured JSON (not CLI-formatted JSON wrapped in a text string), so I can parse and pipe results without a string-to-JSON round-trip.",
+            "acceptanceCriteria": [
+                "describe — native IMcpHandler wrapping the existing service; returns DescribeResult JSON directly.",
+                "find-refs — native handler returning the structured reference list.",
+                "find-callers — native handler returning the structured caller list.",
+                "find-impl — native handler returning the structured implementations list.",
+                "find-unused — native handler returning structured dead-code list.",
+                "find-undocumented — native handler returning structured undocumented-symbol list.",
+                "find-pattern — native handler returning structured pattern-match list.",
+                "source — native handler returning structured source-text payload.",
+                "Each handler is registered in McpServiceRegistration; the corresponding name is REMOVED from the EP-012 ratchet test's allow-list as that command's handler lands.",
+                "For each command, if the CLI side does not already use a Request DTO (post-US-072 commands like OutlineCommand do), introduce one in the Core service so the handler does not duplicate parsing logic.",
+                "ToolRegistry routes each migrated command to its native handler instead of falling through to CliCommandBridge.",
+                "MCP integration test (or extending tests/RoslynTools.Tests.Mcp/) confirms each migrated tool returns JSON in ToolResult.content (parseable as JSON, not just a string of JSON wrapped in quotes)."
+            ],
+            "priority": 96,
+            "passes": false,
+            "epicId": "EP-012",
+            "notes": "P2. Eight commands; each one's a small commit. Sequence by dependency: describe and find-refs first (most-used by agents), then the find-* family, then source. The CLI side for most of these is already ctor-injected post-US-072 — the work is consolidating ad-hoc parameters into a Request DTO + writing the native handler."
+        },
+        {
+            "id": "US-096",
+            "title": "Migrate analyze commands to native MCP handlers",
+            "description": "As an LLM agent running cross-cutting analysis via MCP, I want analyze commands to return structured JSON directly so I can ingest the results without the text-capture round-trip.",
+            "acceptanceCriteria": [
+                "circular-deps — native handler.",
+                "dependency-graph — native handler.",
+                "complexity — native handler.",
+                "solid — native handler.",
+                "list-smells — native handler.",
+                "list-imports — native handler.",
+                "analyze-interface — native handler.",
+                "find-duplicates — native handler.",
+                "find-magic-strings — native handler.",
+                "static-class-inventory — native handler.",
+                "Each removes its name from the ratchet test's allow-list.",
+                "Each handler registered in McpServiceRegistration; ToolRegistry routes accordingly.",
+                "Per-command MCP integration test confirms native-JSON shape."
+            ],
+            "priority": 97,
+            "passes": false,
+            "epicId": "EP-012",
+            "notes": "P2. Ten analyze commands. Same shape as the inspect migration — many are already ctor-injected so the work is mostly DTO consolidation + handler wiring. 'debug' is intentionally excluded (it's an LLM-trace debugger meta-command, not a Roslyn analyser)."
+        },
+        {
+            "id": "US-097",
+            "title": "Decide MCP shape for mutating refactor commands",
+            "description": "As an rt maintainer, I want a documented decision about how mutating refactor commands (rename, extract-method, safe-delete, etc.) surface through MCP — today they all force --dry-run via CliCommandBridge, which means MCP users never actually apply changes; native handlers raise the question of whether MCP should permit mutations and, if so, with what approval UX.",
+            "acceptanceCriteria": [
+                "Decision recorded in docs/pattern-core-service.md (new section: 'Mutating commands and MCP') covering options: (a) Native handlers that always run dry-run and return a diff JSON, with a separate confirm-and-apply tool; (b) Native handlers that take an apply: bool input and trust the MCP client to gate it; (c) Refuse mutating commands at the MCP layer entirely and document that mutations are CLI-only.",
+                "Decision applied to one tracer refactor command (recommend rename, since it already has a RenameSymbolHandler scaffolded in src/RoslynTools.Mcp/Handlers/) so the pattern is concrete before scaling.",
+                "If option (a) is chosen, an additional Decision section documents the diff-JSON contract (DiffPlex-style hunks vs file-text-pairs vs Solution-changes-tree).",
+                "Update the EP-012 ratchet test to either: (a) include refactor commands in the migration list (if a path is chosen); (b) exempt them with an explicit reason (carve-out commented in the allow-list)."
+            ],
+            "priority": 98,
+            "passes": false,
+            "epicId": "EP-012",
+            "notes": "P2. Owner decision needed — the options trade UX/safety differently. Recommend (b) with the MCP client's tool-approval flow as the gate, since that matches how every other MCP server works in practice. RenameSymbolHandler already exists as dead code (zero refs) — repurposing it as the tracer turns scaffolding into shipping work."
+        },
+        {
+            "id": "US-098",
+            "title": "Drop the RoslynTools.Mcp -> RoslynTools.Cli project reference",
+            "description": "As an rt maintainer, I want the unusual exec-to-exec project dependency (Mcp references the Cli executable) removed, so each host depends only on shared library code. The bridge moves to a shared assembly; the catalog moves with it; CLI and MCP become equal-status consumers of the same lower layer.",
+            "acceptanceCriteria": [
+                "New project src/RoslynTools.Commands/ (or RoslynTools.Hosting/) contains: the IRtCommand registry (formerly App.Commands), App.Discover, the auto-bridge / CliCommandBridge (or whatever remains after the inspect + analyze migrations), and the ICommandCatalog implementation.",
+                "RoslynTools.Mcp.csproj no longer ProjectReferences RoslynTools.Cli.csproj — it references RoslynTools.Commands and RoslynTools (Core) only.",
+                "RoslynTools.Cli.csproj also references RoslynTools.Commands instead of holding the registry itself.",
+                "MsBuildBootstrap stays in RoslynTools.Cli (it's an entry-point concern, only used by Cli's Program.Main).",
+                "Bootstrap.RegisterServices remains shared (called by both hosts) — moves to RoslynTools.Commands or stays as-is depending on what makes the boundary cleanest.",
+                "All existing tests pass; dotnet format clean; dotnet stryker scope expanded to include the new project.",
+                "The EP-012 ratchet test still passes (no regression in MCP handler coverage)."
+            ],
+            "priority": 99,
+            "passes": false,
+            "epicId": "EP-012",
+            "notes": "P2. Should land AFTER the inspect + analyze migrations — once enough commands have native handlers, CliCommandBridge shrinks to a tail of commands (mutations + edge cases) and the move is mechanical. Trying this before the migration means moving a fat bridge plus all 50 commands; doing it after means moving a thin bridge plus a slim catalog. Verifies the architectural goal of EP-012: hosts are peers, not master-slave."
         }
     ]
 }
