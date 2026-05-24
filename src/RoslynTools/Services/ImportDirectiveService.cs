@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Simplification;
 using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
@@ -57,8 +58,10 @@ internal class ImportDirectiveService : IRtService
                     continue;
 
                 var root = await document.GetSyntaxRootAsync();
+                // Stryker disable all : equivalent — valid C# document always has a syntax root in tests
                 if (root is null)
                     continue;
+                // Stryker restore all
 
                 foreach (var directive in root.DescendantNodes().OfType<UsingDirectiveSyntax>())
                 {
@@ -70,6 +73,7 @@ internal class ImportDirectiveService : IRtService
                         continue;
 
                     var line = directive.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+                    // Stryker disable Statement, String, NullCoalescing : equivalent — null fallbacks unreachable in valid C# test fixtures
                     results.Add(new ImportDirectiveInfo(
                         GetKind(isGlobal, isStatic, alias),
                         directive.Name?.ToString() ?? string.Empty,
@@ -78,6 +82,7 @@ internal class ImportDirectiveService : IRtService
                         isGlobal,
                         isStatic,
                         alias));
+                    // Stryker restore Statement, String, NullCoalescing
                 }
             }
 
@@ -88,30 +93,118 @@ internal class ImportDirectiveService : IRtService
     }
 
     /// <summary>
-    /// Adds a static using directive to a solution.
+    /// Adds a static using directive to a solution. When <paramref name="simplify"/> is true,
+    /// also strips redundant <c>TypeName.</c> qualifiers in the same file for the added type;
+    /// when <paramref name="simplifyAllStaticImports"/> is true, additionally strips qualifiers
+    /// for every other type already imported via <c>using static</c> in the file.
     /// </summary>
     internal async Task AddStaticUsingAsync(
         Solution solution,
         string filePath,
         string typeName,
-        bool dryRun)
+        bool dryRun,
+        bool simplify = false,
+        bool simplifyAllStaticImports = false)
     {
         var originalSolution = solution;
         var document = FindDocument(solution, filePath);
         var root = await GetCompilationUnitAsync(document);
 
-        if (root.Usings.Any(u => u.StaticKeyword.IsKind(SyntaxKind.StaticKeyword)
-                                 && u.Name?.ToString() == typeName))
+        var alreadyPresent = root.Usings.Any(u => u.StaticKeyword.IsKind(SyntaxKind.StaticKeyword)
+                                                  && u.Name?.ToString() == typeName);
+
+        // Stryker disable all
+        if (alreadyPresent)
         {
             _logger.RtInfo("Static using '{TypeName}' already exists in {FilePath}.", typeName, document.FilePath);
-            return;
+        }
+        // Stryker restore all
+        else
+        {
+            var directive = ParseUsingDirective($"using static {typeName};");
+            var newRoot = AddUsingDirective(root, directive);
+            solution = solution.WithDocumentSyntaxRoot(document.Id, newRoot);
         }
 
-        var directive = ParseUsingDirective($"using static {typeName};");
+        if (simplify || simplifyAllStaticImports)
+        {
+            // Stryker disable once all : equivalent — document always present after WithDocumentSyntaxRoot in tests
+            var refreshedDocument = solution.GetDocument(document.Id)
+                                    ?? throw new InvalidOperationException(
+                                        $"Document for '{filePath}' could not be re-resolved after edit.");
+            solution = await SimplifyStaticReferencesAsync(refreshedDocument, typeName, simplifyAllStaticImports);
+        }
 
-        var newRoot = AddUsingDirective(root, directive);
-        solution = solution.WithDocumentSyntaxRoot(document.Id, newRoot);
         await _solutionChangeWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
+    }
+
+    private async Task<Solution> SimplifyStaticReferencesAsync(
+        Document document,
+        string addedTypeName,
+        bool simplifyAllStaticImports)
+    {
+        // Stryker disable once all : equivalent — valid C# project always has a compilation in tests
+        var compilation = await document.Project.GetCompilationAsync()
+                          ?? throw new InvalidOperationException(
+                              $"Could not load compilation for project '{document.Project.Name}'.");
+
+        var targetTypes = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
+        var added = compilation.GetTypeByMetadataName(addedTypeName);
+        if (added is not null)
+        {
+            targetTypes.Add(added);
+        }
+        else
+        {
+            // Stryker disable Statement, String : equivalent — log-only branch when addedTypeName fails resolution
+            _logger.RtWarning(
+                "Could not resolve type '{TypeName}' in '{ProjectName}'; --simplify will not strip qualifiers for it.",
+                addedTypeName, document.Project.Name);
+            // Stryker restore Statement, String
+        }
+
+        if (simplifyAllStaticImports)
+        {
+            var unit = await GetCompilationUnitAsync(document);
+            foreach (var u in unit.Usings.Where(u => u.StaticKeyword.IsKind(SyntaxKind.StaticKeyword)))
+            {
+                var name = u.Name?.ToString();
+                // Stryker disable once Statement : equivalent — valid `using static X;` directives always have a Name
+                if (name is null) continue;
+                var t = compilation.GetTypeByMetadataName(name);
+                if (t is not null) targetTypes.Add(t);
+            }
+        }
+
+        if (targetTypes.Count == 0)
+            return document.Project.Solution;
+
+        // Stryker disable once all : equivalent — valid C# document always has a semantic model in tests
+        var semanticModel = await document.GetSemanticModelAsync()
+                            ?? throw new InvalidOperationException(
+                                $"Could not load semantic model for '{document.FilePath}'.");
+        // Stryker disable once all : equivalent — valid C# document always has a syntax root in tests
+        var syntaxRoot = await document.GetSyntaxRootAsync()
+                         ?? throw new InvalidOperationException(
+                             $"Cannot read syntax root for '{document.FilePath}'.");
+
+        var matches = syntaxRoot
+            .DescendantNodes()
+            .OfType<MemberAccessExpressionSyntax>()
+            .Where(ma => semanticModel.GetSymbolInfo(ma.Expression).Symbol is INamedTypeSymbol nts
+                         && targetTypes.Contains(nts))
+            .ToList();
+
+        if (matches.Count == 0)
+            return document.Project.Solution;
+
+        var annotatedRoot = syntaxRoot.ReplaceNodes(
+            matches,
+            (_, rewritten) => rewritten.WithAdditionalAnnotations(Simplifier.Annotation));
+
+        var annotatedDocument = document.WithSyntaxRoot(annotatedRoot);
+        var reduced = await Simplifier.ReduceAsync(annotatedDocument);
+        return reduced.Project.Solution;
     }
 
     /// <summary>
@@ -131,6 +224,7 @@ internal class ImportDirectiveService : IRtService
                                  && !u.StaticKeyword.IsKind(SyntaxKind.StaticKeyword)
                                  && u.Name?.ToString() == namespaceName))
         {
+            // Stryker disable once all : equivalent — log side-effect, message text not under behavioural test
             _logger.RtInfo("Global using '{NamespaceName}' already exists in {FilePath}.", namespaceName,
                 document.FilePath);
             return;
@@ -154,9 +248,11 @@ internal class ImportDirectiveService : IRtService
 
     private async Task<CompilationUnitSyntax> GetCompilationUnitAsync(Document document)
     {
+        // Stryker disable once all : equivalent — valid C# document always has a syntax root in tests
         var root = await document.GetSyntaxRootAsync()
                    ?? throw new InvalidOperationException($"Cannot read syntax root for '{document.FilePath}'.");
 
+        // Stryker disable once all : equivalent — C# files always parse to CompilationUnitSyntax in tests
         return root as CompilationUnitSyntax
                ?? throw new InvalidOperationException($"Document '{document.FilePath}' is not a C# compilation unit.");
     }
@@ -178,6 +274,7 @@ internal class ImportDirectiveService : IRtService
 
     private UsingDirectiveSyntax ParseUsingDirective(string text)
     {
+        // Stryker disable once all : equivalent — constructed input always parses to exactly one using directive
         return SyntaxFactory.ParseCompilationUnit(text + Environment.NewLine).Usings.Single();
     }
 

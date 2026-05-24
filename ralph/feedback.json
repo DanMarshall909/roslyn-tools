@@ -5436,6 +5436,111 @@
         "limit": "100",
         "assert": "System.String[]"
       }
+    },
+    {
+      "id": "FB-288",
+      "type": "exception",
+      "timestamp": "2026-05-24T03:47:56.5017144\u002B00:00",
+      "commandLine": "debug --json C:\\Users\\DanMarshall\\AppData\\Local\\Temp\\b8ed273c81d5445fb5dff4556ae97ea4.jsonl --break tool:apply_patch --break file:src/Foo.cs --assert requires-event:final_response --assert no-tool:web --break-only",
+      "description": "Value cannot be null. (Parameter \u0027source\u0027)",
+      "actualResult": "ArgumentNullException: Value cannot be null. (Parameter \u0027source\u0027)",
+      "stackTrace": "System.ArgumentNullException: Value cannot be null. (Parameter \u0027source\u0027)\r\n   at System.Linq.ThrowHelper.ThrowArgumentNullException(ExceptionArgument argument)\r\n   at System.Linq.Enumerable.Select[TSource,TResult](IEnumerable\u00601 source, Func\u00603 selector)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.Analyze(FileInfo traceFile, Int32 fromEvent, Int32 limit, IReadOnlyList\u00601 breakpoints, IReadOnlyList\u00601 assertions, Boolean breakOnly)\r\n   at RoslynTools.Commands.DebugCommand.\u003C\u003Ec__DisplayClass4_0.\u003CBuild\u003Eb__2(InvocationContext ctx) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\DebugCommand.cs:line 62\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.Invoke(InvocationContext context)\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests.Mcp\\bin\\Debug\\net10.0",
+      "rtVersion": "1.0.0\u002B5538adf12f05fe05a808000619996155951b34dc",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "parsedOptions": {
+        "from": "1",
+        "limit": "100",
+        "break-only": "True",
+        "break": "System.String[]",
+        "assert": "System.String[]"
+      }
+    },
+    {
+      "id": "FB-289",
+      "type": "exception",
+      "timestamp": "2026-05-24T03:48:09.5525098\u002B00:00",
+      "commandLine": "debug --json C:\\Users\\DanMarshall\\AppData\\Local\\Temp\\864d82acb31f4c6c8727f0d0d35ef3bb.jsonl --break tool:apply_patch --break file:src/Foo.cs --assert requires-event:final_response --assert no-tool:web --break-only",
+      "description": "startIndex cannot be larger than length of string. (Parameter \u0027startIndex\u0027)",
+      "actualResult": "ArgumentOutOfRangeException: startIndex cannot be larger than length of string. (Parameter \u0027startIndex\u0027)",
+      "stackTrace": "System.ArgumentOutOfRangeException: startIndex cannot be larger than length of string. (Parameter \u0027startIndex\u0027)\r\n   at System.String.ThrowSubstringArgumentOutOfRange(Int32 startIndex, Int32 length)\r\n   at System.String.Substring(Int32 startIndex, Int32 length)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.TrySplitExpression(String expression, String key, String\u0026 value)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.EvaluateAssertion(List\u00601 events, String expression)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.\u003C\u003Ec__DisplayClass1_1.\u003CAnalyze\u003Eb__5(String assertion)\r\n   at System.Linq.Enumerable.ArraySelectIterator\u00602.Fill(ReadOnlySpan\u00601 source, Span\u00601 destination, Func\u00602 func)\r\n   at System.Linq.Enumerable.ArraySelectIterator\u00602.ToList()\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.Analyze(FileInfo traceFile, Int32 fromEvent, Int32 limit, IReadOnlyList\u00601 breakpoints, IReadOnlyList\u00601 assertions, Boolean breakOnly)\r\n   at RoslynTools.Commands.DebugCommand.\u003C\u003Ec__DisplayClass4_0.\u003CBuild\u003Eb__2(InvocationContext ctx) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\DebugCommand.cs:line 62\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.Invoke(InvocationContext context)\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests.Mcp\\bin\\Debug\\net10.0",
+      "rtVersion": "1.0.0\u002B5538adf12f05fe05a808000619996155951b34dc",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "parsedOptions": {
+        "from": "1",
+        "limit": "100",
+        "break-only": "True",
+        "break": "System.String[]",
+        "assert": "System.String[]"
+      }
+    },
+    {
+      "id": "FB-290",
+      "type": "exception",
+      "timestamp": "2026-05-24T03:48:53.1085955\u002B00:00",
+      "commandLine": "debug --json C:\\Users\\DanMarshall\\AppData\\Local\\Temp\\ead4a285a33847d8972c5242d4ec222c.jsonl --break tool:apply_patch --break file:src/Foo.cs --assert requires-event:final_response --assert no-tool:web --break-only",
+      "description": "Index and length must refer to a location within the string. (Parameter \u0027length\u0027)",
+      "actualResult": "ArgumentOutOfRangeException: Index and length must refer to a location within the string. (Parameter \u0027length\u0027)",
+      "stackTrace": "System.ArgumentOutOfRangeException: Index and length must refer to a location within the string. (Parameter \u0027length\u0027)\r\n   at System.String.ThrowSubstringArgumentOutOfRange(Int32 startIndex, Int32 length)\r\n   at System.String.Substring(Int32 startIndex, Int32 length)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.Truncate(String value, Int32 limit)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.BuildSummary(JsonElement element, String eventType, String tool)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.BuildEvent(JsonElement element, Int32 fallbackIndex)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.\u003C\u003Ec.\u003CAnalyze\u003Eb__1_0(JsonElement element, Int32 index)\r\n   at System.Linq.Enumerable.SelectIterator[TSource,TResult](IEnumerable\u00601 source, Func\u00603 selector)\u002BMoveNext()\r\n   at System.Collections.Generic.List\u00601..ctor(IEnumerable\u00601 collection)\r\n   at System.Linq.Enumerable.ToList[TSource](IEnumerable\u00601 source)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.Analyze(FileInfo traceFile, Int32 fromEvent, Int32 limit, IReadOnlyList\u00601 breakpoints, IReadOnlyList\u00601 assertions, Boolean breakOnly)\r\n   at RoslynTools.Commands.DebugCommand.\u003C\u003Ec__DisplayClass4_0.\u003CBuild\u003Eb__2(InvocationContext ctx) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\DebugCommand.cs:line 62\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.Invoke(InvocationContext context)\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests.Mcp\\bin\\Debug\\net10.0",
+      "rtVersion": "1.0.0\u002B5538adf12f05fe05a808000619996155951b34dc",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "parsedOptions": {
+        "from": "1",
+        "limit": "100",
+        "break-only": "True",
+        "break": "System.String[]",
+        "assert": "System.String[]"
+      }
+    },
+    {
+      "id": "FB-291",
+      "type": "exception",
+      "timestamp": "2026-05-24T03:48:54.0658065\u002B00:00",
+      "commandLine": "debug --json C:\\Users\\DanMarshall\\AppData\\Local\\Temp\\a39e262d9b15487dacfa1916758800ac.jsonl --break tool:apply_patch --break file:src/Foo.cs --assert requires-event:final_response --assert no-tool:web --break-only",
+      "description": "Index and length must refer to a location within the string. (Parameter \u0027length\u0027)",
+      "actualResult": "ArgumentOutOfRangeException: Index and length must refer to a location within the string. (Parameter \u0027length\u0027)",
+      "stackTrace": "System.ArgumentOutOfRangeException: Index and length must refer to a location within the string. (Parameter \u0027length\u0027)\r\n   at System.String.ThrowSubstringArgumentOutOfRange(Int32 startIndex, Int32 length)\r\n   at System.String.Substring(Int32 startIndex, Int32 length)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.Truncate(String value, Int32 limit)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.BuildSummary(JsonElement element, String eventType, String tool)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.BuildEvent(JsonElement element, Int32 fallbackIndex)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.\u003C\u003Ec.\u003CAnalyze\u003Eb__1_0(JsonElement element, Int32 index)\r\n   at System.Linq.Enumerable.SelectIterator[TSource,TResult](IEnumerable\u00601 source, Func\u00603 selector)\u002BMoveNext()\r\n   at System.Collections.Generic.List\u00601..ctor(IEnumerable\u00601 collection)\r\n   at System.Linq.Enumerable.ToList[TSource](IEnumerable\u00601 source)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.Analyze(FileInfo traceFile, Int32 fromEvent, Int32 limit, IReadOnlyList\u00601 breakpoints, IReadOnlyList\u00601 assertions, Boolean breakOnly)\r\n   at RoslynTools.Commands.DebugCommand.\u003C\u003Ec__DisplayClass4_0.\u003CBuild\u003Eb__2(InvocationContext ctx) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\DebugCommand.cs:line 62\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.Invoke(InvocationContext context)\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests.Mcp\\bin\\Debug\\net10.0",
+      "rtVersion": "1.0.0\u002B5538adf12f05fe05a808000619996155951b34dc",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "parsedOptions": {
+        "from": "1",
+        "limit": "100",
+        "break-only": "True",
+        "break": "System.String[]",
+        "assert": "System.String[]"
+      }
+    },
+    {
+      "id": "FB-292",
+      "type": "exception",
+      "timestamp": "2026-05-24T03:48:54.1235981\u002B00:00",
+      "commandLine": "debug --json C:\\Users\\DanMarshall\\AppData\\Local\\Temp\\e1733e65027947dd874d2ad2556d8775.jsonl --break tool:apply_patch --break file:src/Foo.cs --assert requires-event:final_response --assert no-tool:web --break-only",
+      "description": "Value cannot be null. (Parameter \u0027source\u0027)",
+      "actualResult": "ArgumentNullException: Value cannot be null. (Parameter \u0027source\u0027)",
+      "stackTrace": "System.ArgumentNullException: Value cannot be null. (Parameter \u0027source\u0027)\r\n   at System.Linq.ThrowHelper.ThrowArgumentNullException(ExceptionArgument argument)\r\n   at System.Linq.Enumerable.Select[TSource,TResult](IEnumerable\u00601 source, Func\u00603 selector)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.Analyze(FileInfo traceFile, Int32 fromEvent, Int32 limit, IReadOnlyList\u00601 breakpoints, IReadOnlyList\u00601 assertions, Boolean breakOnly)\r\n   at RoslynTools.Commands.DebugCommand.\u003C\u003Ec__DisplayClass4_0.\u003CBuild\u003Eb__2(InvocationContext ctx) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\DebugCommand.cs:line 62\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.Invoke(InvocationContext context)\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests.Mcp\\bin\\Debug\\net10.0",
+      "rtVersion": "1.0.0\u002B5538adf12f05fe05a808000619996155951b34dc",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "parsedOptions": {
+        "from": "1",
+        "limit": "100",
+        "break-only": "True",
+        "break": "System.String[]",
+        "assert": "System.String[]"
+      }
     }
   ]
 }
