@@ -8,6 +8,8 @@
       "**/Commands/MakeSealedCommand.cs",
       "**/Commands/DebugCommand.cs",
       "**/Commands/Results/DebugResult.cs",
+      "**/Commands/Results/FindDuplicatesResult.cs",
+      "**/Commands/Results/MagicStringResult.cs",
       "**/Core/DependencyInjector.cs",
       "**/Core/NamespaceMoveRewriter.cs",
       "**/Core/InstanceReachabilityAnalyzer.cs",

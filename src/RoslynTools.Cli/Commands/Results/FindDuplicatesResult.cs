@@ -257,42 +257,46 @@ internal sealed record FindDuplicatesResult : IRtOutput, IRtMarkdownOutput, IRtJ
     {
         return new FindDuplicatesResult
         {
-            Groups = groups.Select(g => new DuplicateGroupResult
+            Groups = groups.Select(g =>
             {
-                GroupId = g.GroupId,
-                Extractability = g.Extractability,
-                Preview = g.Preview,
-                FullBlock = g.FullBlock,
-                Score = g.Score,
-                OccurrenceCount = g.Occurrences.Count,
-                PartiallyExpandable = g.PartiallyExpandable,
-                Occurrences = g.Occurrences.Select(o =>
+                var firstOccurrence = g.Occurrences.Count > 0 ? g.Occurrences[0] : null;
+                return new DuplicateGroupResult
                 {
-                    var absoluteForwardSlash = o.FilePath.Replace('\\', '/');
-                    var relativePath = MakeRelativePath(o.FilePath, solutionDir);
-                    return new OccurrenceResult
+                    GroupId = g.GroupId,
+                    Extractability = g.Extractability,
+                    Preview = g.Preview,
+                    FullBlock = g.FullBlock,
+                    Score = g.Score,
+                    OccurrenceCount = g.Occurrences.Count,
+                    PartiallyExpandable = g.PartiallyExpandable,
+                    Occurrences = g.Occurrences.Select(o =>
                     {
-                        AbsoluteForwardSlashPath = absoluteForwardSlash,
-                        Link = $"{absoluteForwardSlash}:{o.StartLine}",
-                        File = relativePath,
-                        Line = o.StartLine,
-                        EndLine = o.EndLine,
-                        Type = o.ContainingType,
-                        Member = o.ContainingMember
-                    };
-                }).ToList(),
-                Checks = (g.Checks ?? []).Select(c => new CheckResult
-                {
-                    Name = c.Name,
-                    Status = c.Status,
-                    Detail = c.Detail
-                }).ToList(),
-                SuggestedFixes = FixCatalog.ForDuplicateGroup(
-                    g.Extractability,
-                    g.Occurrences.FirstOrDefault()?.FilePath,
-                    g.Occurrences.FirstOrDefault()?.StartLine ?? 0,
-                    g.Occurrences.FirstOrDefault()?.EndLine ?? 0,
-                    solutionPath)
+                        var absoluteForwardSlash = o.FilePath.Replace('\\', '/');
+                        var relativePath = MakeRelativePath(o.FilePath, solutionDir);
+                        return new OccurrenceResult
+                        {
+                            AbsoluteForwardSlashPath = absoluteForwardSlash,
+                            Link = $"{absoluteForwardSlash}:{o.StartLine}",
+                            File = relativePath,
+                            Line = o.StartLine,
+                            EndLine = o.EndLine,
+                            Type = o.ContainingType,
+                            Member = o.ContainingMember
+                        };
+                    }).ToList(),
+                    Checks = (g.Checks ?? []).Select(c => new CheckResult
+                    {
+                        Name = c.Name,
+                        Status = c.Status,
+                        Detail = c.Detail
+                    }).ToList(),
+                    SuggestedFixes = FixCatalog.ForDuplicateGroup(
+                        g.Extractability,
+                        firstOccurrence?.FilePath,
+                        firstOccurrence?.StartLine ?? 0,
+                        firstOccurrence?.EndLine ?? 0,
+                        solutionPath)
+                };
             }).ToList()
         };
     }

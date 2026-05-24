@@ -5,6 +5,12 @@ EXE="$OUT_DIR/rt"
 WIN_EXE="$OUT_DIR/rt.exe"
 DLL="$OUT_DIR/rt.dll"
 PROJ="$SCRIPT_DIR/src/RoslynTools.Cli/RoslynTools.Cli.csproj"
+BUILD_STATUS_MARKER="/c/temp/rt-build-status"
+
+write_build_status() {
+    mkdir -p "$(dirname "$BUILD_STATUS_MARKER")" 2>/dev/null || true
+    printf '%s' "$1" > "$BUILD_STATUS_MARKER" 2>/dev/null || true
+}
 
 runner_path() {
     [ -x "$EXE" ] && printf '%s' "$EXE" && return 0
@@ -24,9 +30,14 @@ needs_build() {
 
 if needs_build; then
     echo 'rt: rebuilding...' >&2
-    dotnet build "$PROJ" -c Release --nologo -v quiet || { echo 'rt: build failed' >&2; exit 1; }
+    if ! dotnet build "$PROJ" -c Release --nologo -v quiet; then
+        echo 'rt: build failed' >&2
+        write_build_status broken
+        exit 1
+    fi
     command -v dotnet-suggest &>/dev/null && [ -x "$EXE" ] && dotnet-suggest register --command-path "$EXE" 2>/dev/null || true
 fi
+write_build_status ok
 
 RUNNER="$(runner_path || true)"
 if [ -z "$RUNNER" ]; then

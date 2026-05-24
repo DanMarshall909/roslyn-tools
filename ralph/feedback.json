@@ -5417,6 +5417,25 @@
         "break": "System.String[]",
         "assert": "System.String[]"
       }
+    },
+    {
+      "id": "FB-287",
+      "type": "exception",
+      "timestamp": "2026-05-24T02:22:27.8305337\u002B00:00",
+      "commandLine": "analyze debug C:\\Users\\DanMarshall\\AppData\\Local\\Temp\\5f06a0df49bc4ae6b92951035315729f.jsonl --assert no-tool:web",
+      "description": "startIndex cannot be larger than length of string. (Parameter \u0027startIndex\u0027)",
+      "actualResult": "ArgumentOutOfRangeException: startIndex cannot be larger than length of string. (Parameter \u0027startIndex\u0027)",
+      "stackTrace": "System.ArgumentOutOfRangeException: startIndex cannot be larger than length of string. (Parameter \u0027startIndex\u0027)\r\n   at System.String.ThrowSubstringArgumentOutOfRange(Int32 startIndex, Int32 length)\r\n   at System.String.Substring(Int32 startIndex, Int32 length)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.TrySplitExpression(String expression, String key, String\u0026 value)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.EvaluateAssertion(List\u00601 events, String expression)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.\u003C\u003Ec__DisplayClass1_1.\u003CAnalyze\u003Eb__5(String assertion)\r\n   at System.Linq.Enumerable.ArraySelectIterator\u00602.Fill(ReadOnlySpan\u00601 source, Span\u00601 destination, Func\u00602 func)\r\n   at System.Linq.Enumerable.ArraySelectIterator\u00602.ToList()\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.Analyze(FileInfo traceFile, Int32 fromEvent, Int32 limit, IReadOnlyList\u00601 breakpoints, IReadOnlyList\u00601 assertions, Boolean breakOnly)\r\n   at RoslynTools.Commands.DebugCommand.\u003C\u003Ec__DisplayClass4_0.\u003CBuild\u003Eb__2(InvocationContext ctx) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\DebugCommand.cs:line 62\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.Invoke(InvocationContext context)\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002B1d089652d9fec0129ceb77357eed9bc3c370fe5a",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "parsedOptions": {
+        "from": "1",
+        "limit": "100",
+        "assert": "System.String[]"
+      }
     }
   ]
 }

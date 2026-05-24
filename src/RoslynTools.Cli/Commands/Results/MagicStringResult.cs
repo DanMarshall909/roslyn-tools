@@ -106,21 +106,25 @@ internal sealed record MagicStringResult : IRtOutput, IRtJsonOutput
     {
         return new MagicStringResult
         {
-            Groups = groups.Select(g => new MagicStringGroupResult
+            Groups = groups.Select(g =>
             {
-                Value = g.Value,
-                Count = g.Count,
-                Occurrences = g.Occurrences.Select(o => new MagicStringOccurrenceResult
+                var firstOccurrence = g.Occurrences.Count > 0 ? g.Occurrences[0] : null;
+                return new MagicStringGroupResult
                 {
-                    FilePath = o.FilePath,
-                    Line = o.Line,
-                    TypeName = o.TypeName,
-                    MemberName = o.MemberName
-                }).ToList(),
-                SuggestedFixes = FixCatalog.ForMagicString(
-                    g.Occurrences.FirstOrDefault()?.FilePath,
-                    g.Occurrences.FirstOrDefault()?.Line ?? 0,
-                    solutionPath)
+                    Value = g.Value,
+                    Count = g.Count,
+                    Occurrences = g.Occurrences.Select(o => new MagicStringOccurrenceResult
+                    {
+                        FilePath = o.FilePath,
+                        Line = o.Line,
+                        TypeName = o.TypeName,
+                        MemberName = o.MemberName
+                    }).ToList(),
+                    SuggestedFixes = FixCatalog.ForMagicString(
+                        firstOccurrence?.FilePath,
+                        firstOccurrence?.Line ?? 0,
+                        solutionPath)
+                };
             }).ToList()
         };
     }

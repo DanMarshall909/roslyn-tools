@@ -17,6 +17,17 @@ fi
 basename=$(basename "$fp" .cs)
 log=/c/temp/rt-inspected.log
 
+# Bypass if rt build is known broken. rt.ps1 writes /c/temp/rt-build-status
+# on every invocation: 'ok' on success, 'broken' on rebuild failure. Without
+# this bypass, a broken build would lock the agent out of the very files it
+# needs to read to fix the build.
+status_marker=/c/temp/rt-build-status
+if [[ -f "$status_marker" ]] && [[ "$(cat "$status_marker" 2>/dev/null)" == "broken" ]]; then
+  jq -nc --arg msg "rt-first gate bypassed: rt build is broken (per $status_marker). Fix the build, then run any rt command to clear the marker." \
+    '{hookSpecificOutput: {hookEventName: "PreToolUse", additionalContext: $msg}}'
+  exit 0
+fi
+
 # Write: always allow, and log the basename so subsequent Edits pass the gate.
 if [[ "$tool_name" == "Write" ]]; then
   mkdir -p /c/temp

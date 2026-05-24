@@ -6,6 +6,18 @@ param(
 
 $exe  = "$PSScriptRoot\src\RoslynTools.Cli\bin\Release\net10.0\rt.exe"
 $proj = "$PSScriptRoot\src\RoslynTools.Cli\RoslynTools.Cli.csproj"
+$buildStatusMarker = 'C:\temp\rt-build-status'
+
+function Write-BuildStatusMarker {
+    param([string] $Status)
+    try {
+        $dir = Split-Path $buildStatusMarker
+        if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+        Set-Content -Path $buildStatusMarker -Value $Status -Encoding ascii -NoNewline
+    } catch {
+        # Marker is advisory; never let it block rt.
+    }
+}
 
 function Test-RebuildNeeded {
     if (-not (Test-Path $exe)) { return $true }
@@ -36,11 +48,16 @@ try {
     if (Test-RebuildNeeded) {
         [Console]::Error.WriteLine('rt: rebuilding...')
         & cmd /c "dotnet build `"$proj`" -c Release --nologo -v quiet 1>&2"
-        if ($LASTEXITCODE -ne 0) { [Console]::Error.WriteLine('rt: build failed'); exit 1 }
+        if ($LASTEXITCODE -ne 0) {
+            [Console]::Error.WriteLine('rt: build failed')
+            Write-BuildStatusMarker 'broken'
+            exit 1
+        }
         if (Get-Command dotnet-suggest -ErrorAction SilentlyContinue) {
             dotnet-suggest register --command-path $exe 2>$null
         }
     }
+    Write-BuildStatusMarker 'ok'
 }
 finally {
     if ($hasMutex) {
