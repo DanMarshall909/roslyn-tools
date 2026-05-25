@@ -1,6 +1,6 @@
 # EP-013 — Command Consistency Roadmap
 
-This is the execution plan for [EP-013](../ralph/backlog-prd.json). The epic owns no stories directly; it sequences existing work under EP-007, EP-009, EP-011, and EP-012 into a coherent landing.
+This is the execution plan for [EP-013](../ralph/backlog-prd.json). The epic owns no stories directly; it sequences existing work under EP-007, EP-009, EP-011, and EP-012 into a coherent landing. The target architecture behind this roadmap is [target-command-surface-architecture.md](target-command-surface-architecture.md).
 
 ## Strategic outcome
 
@@ -67,7 +67,8 @@ These are all "every command must have X" rules. They land alongside each comman
 | Story | Owner epic | What it lands |
 |---|---|---|
 | **US-084** | EP-009 | Metadata catalog: `RtCommandInfo` schema + machine-readable `dump-help`. |
-| **US-085** | EP-009 | `CommandOptionFactory` used by every command. |
+| **US-085** | EP-009 | Original `CommandOptionFactory` standardization story; should be reshaped by US-114 rather than pursued as a factory-only migration. |
+| **US-114** | EP-009 | Reusable flag capability interfaces + central option registry/binders; supersedes the factory-only direction where possible. |
 | **US-086** | EP-009 | Command file structure convention + architecture ratchet. |
 | **US-088** | EP-011 | `RtCommandInfo.SeeAlso` schema + startup validator. |
 | **US-089** | EP-011 | Seed `SeeAlso` data across the command catalog. |
@@ -88,7 +89,7 @@ Phase 4:    US-095   US-096   US-104   US-105   US-106
                           (all parallel)
 
 Phase 5:  US-099 → US-098     (independent)
-Phase 6:  US-084, US-085, US-086, US-088, US-089, US-093, US-103
+Phase 6:  US-084, US-085, US-114, US-086, US-088, US-089, US-093, US-103
           (parallel, ratcheted alongside Phase 4 commands)
 ```
 

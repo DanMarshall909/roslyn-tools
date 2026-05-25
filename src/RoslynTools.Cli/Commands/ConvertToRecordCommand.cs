@@ -36,17 +36,34 @@ internal sealed class ConvertToRecordCommand : IRtCommand, IRefactorCommand
     public Command Build()
     {
         var typeOpt = CommandOptionFactory.CreateTypeOption();
-        var solutionOpt = CommandOptionFactory.CreateSolutionOption();
-        var dryRunOpt = CommandOptionFactory.CreateDryRunOption();
+        var flags = RtCommandFlagBinder.Create()
+            .WithSolution()
+            .WithDryRun();
 
         var cmd = new Command("convert-to-record", "Convert a class to a record type with positional parameters");
         cmd.AddAlias("ctr");
-        cmd.AddAll(typeOpt, solutionOpt, dryRunOpt);
+        cmd.Add(typeOpt);
+        flags.AddTo(cmd);
 
-        cmd.SetHandler(async (type, solution, dryRun) => { await ExecuteAsync(type, solution, dryRun); }, typeOpt,
-            solutionOpt, dryRunOpt);
+        cmd.SetHandler(async ctx =>
+        {
+            var type = ctx.ParseResult.GetValueForOption(typeOpt)!;
+            var request = flags.Bind(ctx.ParseResult, f => ConvertToRecordCliRequest.FromFlags(f, type));
+            await ExecuteAsync(request.TypeName, request.SolutionPath, request.DryRun);
+        });
 
         return cmd;
+    }
+
+    private sealed record ConvertToRecordCliRequest(
+        string TypeName,
+        string? SolutionPath,
+        bool DryRun) : ISupportsSolutionOption, ISupportsDryRunOption
+    {
+        public static ConvertToRecordCliRequest FromFlags(RtFlagValues flags, string typeName)
+        {
+            return new ConvertToRecordCliRequest(typeName, flags.SolutionPath, flags.DryRun);
+        }
     }
 
     /// <summary>

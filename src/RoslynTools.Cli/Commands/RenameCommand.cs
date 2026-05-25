@@ -45,35 +45,45 @@ internal sealed class RenameCommand : IRtCommand, IRefactorCommand
         {
             Arity = ArgumentArity.ZeroOrOne
         };
-        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln/.slnx file. Defaults to the single solution in current directory.");
-        var kindOpt = new Option<string?>("--kind", "Symbol kind: type, method, property, field, namespace");
+        var flags = RtCommandFlagBinder.Create()
+            .WithSolution("Path to the .sln/.slnx file. Defaults to the single solution in current directory.")
+            .WithDryRun("Preview changes without writing to disk")
+            .WithKind("Symbol kind: type, method, property, field, namespace");
         var csvOpt = new Option<string?>("--csv",
             "Path to a CSV file with source_symbol/target_name, or prefixed *_fqn plus *_name_new columns.");
-        var dryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk");
 
         var cmd = new Command("rename", "Rename a symbol and all its references across the solution")
         {
-            symbolArg, newNameArg, solutionOpt, kindOpt, csvOpt, dryRunOpt
+            symbolArg, newNameArg, csvOpt
         };
+        flags.AddTo(cmd);
 
-        cmd.SetHandler(async (symbol, newName, solution, kind, csv, dryRun) =>
+        cmd.SetHandler(async ctx =>
             {
-                var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
+                var symbol = ctx.ParseResult.GetValueForArgument(symbolArg);
+                var newName = ctx.ParseResult.GetValueForArgument(newNameArg);
+                var csv = ctx.ParseResult.GetValueForOption(csvOpt);
+                var request = flags.Bind(ctx.ParseResult, f => RenameCliRequest.FromFlags(f, symbol, newName, csv));
+                var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(request.SolutionPath);
                 using (workspace)
                 {
-                    if (!string.IsNullOrWhiteSpace(csv))
+                    if (!string.IsNullOrWhiteSpace(request.CsvPath))
                     {
-                        await _rename.ExecuteBatchAsync(sln, csv, dryRun);
+                        await _rename.ExecuteBatchAsync(sln, request.CsvPath, request.DryRun);
                         return;
                     }
 
-                    if (string.IsNullOrWhiteSpace(symbol) || string.IsNullOrWhiteSpace(newName))
+                    if (string.IsNullOrWhiteSpace(request.Symbol) || string.IsNullOrWhiteSpace(request.NewName))
                         throw new InvalidOperationException("Provide either <symbol> <new-name> or --csv <path>.");
 
-                    await _rename.ExecuteSingleAsync(sln, symbol, newName, kind, dryRun);
+                    await _rename.ExecuteSingleAsync(
+                        sln,
+                        request.Symbol,
+                        request.NewName,
+                        request.Kind,
+                        request.DryRun);
                 }
-            },
-            symbolArg, newNameArg, solutionOpt, kindOpt, csvOpt, dryRunOpt);
+            });
 
         cmd.AddAlias("ren");
 
@@ -87,5 +97,29 @@ internal sealed class RenameCommand : IRtCommand, IRefactorCommand
         Solution sln, string csvPath, bool dryRun)
     {
         return _rename.ExecuteBatchAsync(sln, csvPath, dryRun);
+    }
+
+    private sealed record RenameCliRequest(
+        string? Symbol,
+        string? NewName,
+        string? CsvPath,
+        string? SolutionPath,
+        string? Kind,
+        bool DryRun) : ISupportsSolutionOption, ISupportsKindOption, ISupportsDryRunOption
+    {
+        public static RenameCliRequest FromFlags(
+            RtFlagValues flags,
+            string? symbol,
+            string? newName,
+            string? csvPath)
+        {
+            return new RenameCliRequest(
+                symbol,
+                newName,
+                csvPath,
+                flags.SolutionPath,
+                flags.Kind,
+                flags.DryRun);
+        }
     }
 }

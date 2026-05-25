@@ -39,25 +39,33 @@ internal sealed class FindRefsCommand : IRtCommand, IInspectCommand
 
     public Command Build()
     {
-        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln/.slnx file");
-        var symbolOpt = new Option<string>("--symbol", "Simple name of the symbol") { IsRequired = true };
-        var kindOpt = new Option<string?>("--kind", "Symbol kind: type, method, property, field, namespace");
+        var flags = RtCommandFlagBinder.Create()
+            .WithSolution("Path to the .sln/.slnx file")
+            .WithSymbol("Simple name of the symbol")
+            .WithKind("Symbol kind: type, method, property, field, namespace");
 
-        var cmd = new Command("find-refs", "Find all references to a symbol across the solution")
-        {
-            solutionOpt, symbolOpt, kindOpt
-        };
+        var cmd = new Command("find-refs", "Find all references to a symbol across the solution");
+        flags.AddTo(cmd);
 
         cmd.SetHandler(async ctx =>
         {
-            var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
-            var symbol = ctx.ParseResult.GetValueForOption(symbolOpt)!;
-            var kind = ctx.ParseResult.GetValueForOption(kindOpt);
-            var sln = await _sessionFactory.GetSolutionAsync(solution);
-            var result = await _findRefs.FindAsync(sln, symbol, kind);
+            var request = flags.Bind(ctx.ParseResult, FindRefsCliRequest.FromFlags);
+            var sln = await _sessionFactory.GetSolutionAsync(request.SolutionPath);
+            var result = await _findRefs.FindAsync(sln, request.Symbol!, request.Kind);
             RtResultRenderer.WriteOutput(RtResult<FindRefsResult>.Ok(result));
         });
 
         return cmd;
+    }
+
+    private sealed record FindRefsCliRequest(
+        string? SolutionPath,
+        string? Symbol,
+        string? Kind) : ISupportsSolutionOption, ISupportsSymbolOption, ISupportsKindOption
+    {
+        public static FindRefsCliRequest FromFlags(RtFlagValues flags)
+        {
+            return new FindRefsCliRequest(flags.SolutionPath, flags.Symbol, flags.Kind);
+        }
     }
 }

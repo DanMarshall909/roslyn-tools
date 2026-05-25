@@ -25,7 +25,7 @@ If an item doesn't apply (e.g. `Info.Mutates` for a read-only command), tick it 
 - [x] `Info.Category` matches the category interface (`"inspect"`/`"analyze"`/`"refactor"`) *(enforced — US-107, `CategoryInterfaceContracts`; field slated for removal — US-108)*
 - [x] `Info.Mutates` matches the category interface (refactor = true, inspect/analyze = false) *(enforced — US-107, `CategoryInterfaceContracts`; field slated for removal — US-108)*
 - [x] `IRefactorCommand.Build()` registers a `--dry-run` option *(enforced — US-107, `CategoryInterfaceContracts`; known exception `change-signature` tracked by US-112)*
-- [ ] Options constructed via `CommandOptionFactory` where applicable (US-085)
+- [ ] Reusable flags come from the central flag catalog/binder where migrated; do not hand-roll catalog-owned options or parsing (US-114 supersedes the factory-only US-085 direction)
 - [ ] `Info.Examples` reflect actual current invocations (not stale syntax)
 - [ ] `Info.JsonOutput` accurate for inspect/analyze (currently soft-ratcheted via skipped test in `CategoryInterfaceContracts.with_every_inspect_or_analyze_command_jsonoutput_is_true` — owned by US-082 / EP-007 umbrella; unskip once 8 outliers gain JSON output)
 - [ ] `Info.SeeAlso` lists related commands (US-088, US-089)

@@ -36,33 +36,43 @@ internal sealed class SafeDeleteCommand : IRtCommand, IRefactorCommand
 
     public Command Build()
     {
-        var symbolOpt = new Option<string>("--symbol", "Type or member FQN or simple name to delete")
-        { IsRequired = true };
-        var kindOpt = new Option<string?>("--kind", "Kind of symbol: type, method, or property");
-        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
-        var dryRunOpt = new Option<bool>("--dry-run", "Preview without writing");
+        var flags = RtCommandFlagBinder.Create()
+            .WithSolution("Path to .sln/.slnx")
+            .WithDryRun("Preview without writing")
+            .WithSymbol("Type or member FQN or simple name to delete")
+            .WithKind("Kind of symbol: type, method, or property");
 
         var cmd = new Command("safe-delete", "Delete a type or member only if it has no references");
         cmd.AddAlias("sd");
-        cmd.Add(symbolOpt);
-        cmd.Add(kindOpt);
-        cmd.Add(solutionOpt);
-        cmd.Add(dryRunOpt);
+        flags.AddTo(cmd);
 
-        cmd.SetHandler(async (symbol, kind, solution, dryRun) =>
+        cmd.SetHandler(async ctx =>
         {
+            var request = flags.Bind(ctx.ParseResult, SafeDeleteCliRequest.FromFlags);
             try
             {
-                await ExecuteAsync(symbol, kind, solution, dryRun);
+                await ExecuteAsync(request.Symbol!, request.Kind, request.SolutionPath, request.DryRun);
             }
             catch (InvalidOperationException ex)
             {
                 RtLog.Error("Error: {Message}", ex.Message);
                 Environment.ExitCode = 1;
             }
-        }, symbolOpt, kindOpt, solutionOpt, dryRunOpt);
+        });
 
         return cmd;
+    }
+
+    private sealed record SafeDeleteCliRequest(
+        string? Symbol,
+        string? Kind,
+        string? SolutionPath,
+        bool DryRun) : ISupportsSymbolOption, ISupportsKindOption, ISupportsSolutionOption, ISupportsDryRunOption
+    {
+        public static SafeDeleteCliRequest FromFlags(RtFlagValues flags)
+        {
+            return new SafeDeleteCliRequest(flags.Symbol, flags.Kind, flags.SolutionPath, flags.DryRun);
+        }
     }
 
     internal async Task ExecuteAsync(string symbol, string? kind, string? solutionPath, bool dryRun)

@@ -38,21 +38,22 @@ internal sealed class SourceCommand : IRtCommand, IStructuredOutputCommand, IIns
     public Command Build()
     {
         var symbolArg = new Argument<string>("symbol", "Fully-qualified member or type name");
-        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln/.slnx file");
-        var kindOpt = new Option<string?>("--kind", "Symbol kind hint: type, method, property, field");
+        var flags = RtCommandFlagBinder.Create()
+            .WithSolution("Path to the .sln/.slnx file")
+            .WithKind("Symbol kind hint: type, method, property, field");
 
         var cmd = new Command("source", "Print the source code of a member or type by FQN (JSON)")
         {
-            symbolArg, solutionOpt, kindOpt
+            symbolArg
         };
+        flags.AddTo(cmd);
 
         cmd.SetHandler(async ctx =>
             {
                 var symbol = ctx.ParseResult.GetValueForArgument(symbolArg);
-                var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
-                var kind = ctx.ParseResult.GetValueForOption(kindOpt);
-                var sln = await _sessionFactory.GetSolutionAsync(solution);
-                var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, symbol, kind);
+                var request = flags.Bind(ctx.ParseResult, f => SourceCliRequest.FromFlags(f, symbol));
+                var sln = await _sessionFactory.GetSolutionAsync(request.SolutionPath);
+                var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, request.Symbol, request.Kind);
                 var source = await _inspect.GetSourceAsync(sym);
 
                 RtResultRenderer.Write(
@@ -61,5 +62,16 @@ internal sealed class SourceCommand : IRtCommand, IStructuredOutputCommand, IIns
             });
 
         return cmd;
+    }
+
+    private sealed record SourceCliRequest(
+        string Symbol,
+        string? SolutionPath,
+        string? Kind) : ISupportsSolutionOption, ISupportsKindOption
+    {
+        public static SourceCliRequest FromFlags(RtFlagValues flags, string symbol)
+        {
+            return new SourceCliRequest(symbol, flags.SolutionPath, flags.Kind);
+        }
     }
 }

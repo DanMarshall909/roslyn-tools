@@ -40,24 +40,23 @@ internal sealed class FindCallersCommand : IRtCommand, IInspectCommand
 
     public Command Build()
     {
-        var symbolOpt = new Option<string>("--symbol", "Method name to find callers of") { IsRequired = true };
-        var solutionOpt = CommandOptionFactory.CreateSolutionOption();
+        var flags = RtCommandFlagBinder.Create()
+            .WithSolution()
+            .WithSymbol("Method name to find callers of");
         var includeTestsOpt = CommandOptionFactory.CreateIncludeTestsOption();
 
         var cmd = new Command("find-callers", "Find all invocation sites for a method");
         cmd.AddAlias("callers");
-        cmd.Add(symbolOpt);
-        cmd.Add(solutionOpt);
+        flags.AddTo(cmd);
         cmd.Add(includeTestsOpt);
 
         cmd.SetHandler(async ctx =>
         {
-            var symbol = ctx.ParseResult.GetValueForOption(symbolOpt)!;
-            var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
+            var request = flags.Bind(ctx.ParseResult, FindCallersCliRequest.FromFlags);
             var includeTests = ctx.ParseResult.GetValueForOption(includeTestsOpt);
 
-            var sln = await _sessionFactory.GetSolutionAsync(solution);
-            var result = await _findCallers.FindAsync(sln, symbol, includeTests);
+            var sln = await _sessionFactory.GetSolutionAsync(request.SolutionPath);
+            var result = await _findCallers.FindAsync(sln, request.Symbol!, includeTests);
             RtResultRenderer.WriteOutput(RtResult<FindCallersResult>.Ok(result));
         });
 
@@ -67,5 +66,15 @@ internal sealed class FindCallersCommand : IRtCommand, IInspectCommand
     internal bool IsNameofExpression(InvocationExpressionSyntax invocation)
     {
         return _findCallers.IsNameofExpression(invocation);
+    }
+
+    private sealed record FindCallersCliRequest(
+        string? SolutionPath,
+        string? Symbol) : ISupportsSolutionOption, ISupportsSymbolOption
+    {
+        public static FindCallersCliRequest FromFlags(RtFlagValues flags)
+        {
+            return new FindCallersCliRequest(flags.SolutionPath, flags.Symbol);
+        }
     }
 }

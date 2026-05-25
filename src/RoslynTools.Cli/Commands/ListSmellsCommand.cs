@@ -35,44 +35,44 @@ internal sealed class ListSmellsCommand : IRtCommand, IAnalyzeCommand
 
     public static Command Build()
     {
-        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
+        var flags = RtCommandFlagBinder.Create()
+            .WithSolution("Path to .sln/.slnx")
+            .WithScope("Namespace/project prefix filter")
+            .WithTop("Return only top N smell results (0 = all)");
         var maxClassOpt = new Option<int>("--max-class-lines", () => 300, "Max lines per class");
         var maxMethodOpt = new Option<int>("--max-method-lines", () => 40, "Max lines per method");
         var maxParamsOpt = new Option<int>("--max-params", () => 7, "Max constructor params");
-        var scopeOpt = new Option<string?>("--scope", "Namespace/project prefix filter");
-        var topOpt = new Option<int>("--top", () => 0, "Return only top N smell results (0 = all)");
 
         var cmd = new Command("list-smells",
             "Report code smells: large classes, long methods, over-injected constructors");
         cmd.AddAlias("smells");
-        cmd.AddAll(solutionOpt, maxClassOpt, maxMethodOpt, maxParamsOpt, scopeOpt, topOpt);
+        flags.AddTo(cmd);
+        cmd.AddAll(maxClassOpt, maxMethodOpt, maxParamsOpt);
 
         cmd.SetHandler(async ctx =>
         {
-            var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
             var maxClass = ctx.ParseResult.GetValueForOption(maxClassOpt);
             var maxMethod = ctx.ParseResult.GetValueForOption(maxMethodOpt);
             var maxParams = ctx.ParseResult.GetValueForOption(maxParamsOpt);
-            var scope = ctx.ParseResult.GetValueForOption(scopeOpt);
-            var top = ctx.ParseResult.GetValueForOption(topOpt);
-
-            if (top < 0)
-            {
-                RtLog.Error("--top must be >= 0.");
-                Environment.ExitCode = 1;
-                return;
-            }
+            var request = flags.Bind(
+                ctx.ParseResult,
+                f => ListSmellsCliRequest.FromFlags(f, maxClass, maxMethod, maxParams));
 
             var sp = ctx.BindingContext.GetService<IServiceProvider>();
             var loader = sp?.GetService<IWorkspaceSessionFactory>() ?? IWorkspaceSessionFactory.CreateDefault();
-            var sln = await loader.GetSolutionAsync(solution);
+            var sln = await loader.GetSolutionAsync(request.SolutionPath);
 
             RtLog.Info("Analyzing solution for code smells...");
 
-            var smells = await SmellAnalyzer.AnalyzeAsync(sln, maxClass, maxMethod, maxParams, scope);
+            var smells = await SmellAnalyzer.AnalyzeAsync(
+                sln,
+                request.MaxClassLines,
+                request.MaxMethodLines,
+                request.MaxParams,
+                request.Scope);
 
-            var resultSmells = top > 0
-                ? smells.Take(top).ToList()
+            var resultSmells = request.Top > 0
+                ? smells.Take(request.Top).ToList()
                 : smells;
 
             var result = new ListSmellsResult
@@ -95,5 +95,29 @@ internal sealed class ListSmellsCommand : IRtCommand, IAnalyzeCommand
         });
 
         return cmd;
+    }
+
+    private sealed record ListSmellsCliRequest(
+        string? SolutionPath,
+        string? Scope,
+        int Top,
+        int MaxClassLines,
+        int MaxMethodLines,
+        int MaxParams) : ISupportsSolutionOption, ISupportsScopeOption, ISupportsTopOption
+    {
+        public static ListSmellsCliRequest FromFlags(
+            RtFlagValues flags,
+            int maxClassLines,
+            int maxMethodLines,
+            int maxParams)
+        {
+            return new ListSmellsCliRequest(
+                flags.SolutionPath,
+                flags.Scope,
+                flags.Top,
+                maxClassLines,
+                maxMethodLines,
+                maxParams);
+        }
     }
 }

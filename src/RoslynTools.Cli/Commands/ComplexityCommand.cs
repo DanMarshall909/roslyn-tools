@@ -37,25 +37,30 @@ internal sealed class ComplexityCommand : IRtCommand, IStructuredOutputCommand, 
 
     public Command Build()
     {
-        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
+        var flags = RtCommandFlagBinder.Create()
+            .WithSolution("Path to .sln/.slnx")
+            .WithTop("Return only top N results (0 = all)");
         var thresholdOpt = new Option<int>("--threshold", () => 0,
             "Minimum metric value to include a method (0 = include all)");
         var sortOpt =
             new Option<string>("--sort", () => "cyclomatic", "Sort metric: cyclomatic, cognitive, loc, params");
-        var topOpt = new Option<int>("--top", () => 0, "Return only top N results (0 = all)");
 
         var cmd = new Command("complexity",
             "Measure cyclomatic/cognitive complexity, LOC, and param counts per method");
         cmd.AddAlias("cx");
-        cmd.AddAll(solutionOpt, thresholdOpt, sortOpt, topOpt);
+        flags.AddTo(cmd);
+        cmd.AddAll(thresholdOpt, sortOpt);
 
         cmd.SetHandler(async context =>
         {
+            var threshold = context.ParseResult.GetValueForOption(thresholdOpt);
+            var sort = context.ParseResult.GetValueForOption(sortOpt)!;
+            var request = flags.Bind(context.ParseResult, f => ComplexityCliRequest.FromFlags(f, threshold, sort));
             context.ExitCode = await ExecuteAsync(
-                context.ParseResult.GetValueForOption(solutionOpt),
-                context.ParseResult.GetValueForOption(thresholdOpt),
-                context.ParseResult.GetValueForOption(sortOpt)!,
-                context.ParseResult.GetValueForOption(topOpt));
+                request.SolutionPath,
+                request.Threshold,
+                request.Sort,
+                request.Top);
         });
 
         return cmd;
@@ -130,6 +135,18 @@ internal sealed class ComplexityCommand : IRtCommand, IStructuredOutputCommand, 
 
             RtLog.Info("Analyzed {Count} method(s).", report.Methods.Count);
             return 0;
+        }
+    }
+
+    private sealed record ComplexityCliRequest(
+        string? SolutionPath,
+        int Threshold,
+        string Sort,
+        int Top) : ISupportsSolutionOption, ISupportsTopOption
+    {
+        public static ComplexityCliRequest FromFlags(RtFlagValues flags, int threshold, string sort)
+        {
+            return new ComplexityCliRequest(flags.SolutionPath, threshold, sort, flags.Top);
         }
     }
 }

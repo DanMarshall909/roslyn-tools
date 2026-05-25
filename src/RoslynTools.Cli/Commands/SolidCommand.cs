@@ -33,7 +33,8 @@ internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand, IAnal
 
     public static Command Build()
     {
-        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
+        var flags = RtCommandFlagBinder.Create()
+            .WithSolution("Path to .sln/.slnx");
         var principleOpt = new Option<string>("--principle", () => "SRP",
             "SOLID principle to check: SRP, ISP, DIP, OCP, LSP, or all");
         var minMethodsOpt = new Option<int>("--min-methods", () => 10,
@@ -46,19 +47,28 @@ internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand, IAnal
             "Minimum concrete-type branches to flag a switch or if-chain for OCP (default 2)");
 
         var cmd = new Command("solid", "Detect SOLID principle violations using heuristic analysis");
-        cmd.AddAll(solutionOpt, principleOpt, minMethodsOpt, minDepsOpt, minMembersOpt, minBranchesOpt);
+        flags.AddTo(cmd);
+        cmd.AddAll(principleOpt, minMethodsOpt, minDepsOpt, minMembersOpt, minBranchesOpt);
 
         cmd.SetHandler(async context =>
         {
+            var principle = context.ParseResult.GetValueForOption(principleOpt)!;
+            var minMethods = context.ParseResult.GetValueForOption(minMethodsOpt);
+            var minDeps = context.ParseResult.GetValueForOption(minDepsOpt);
+            var minMembers = context.ParseResult.GetValueForOption(minMembersOpt);
+            var minBranches = context.ParseResult.GetValueForOption(minBranchesOpt);
+            var request = flags.Bind(
+                context.ParseResult,
+                f => SolidCliRequest.FromFlags(f, principle, minMethods, minDeps, minMembers, minBranches));
             var sp = context.BindingContext.GetService<IServiceProvider>();
             var loader = sp?.GetService<IWorkspaceSessionFactory>() ?? IWorkspaceSessionFactory.CreateDefault();
             context.ExitCode = await ExecuteAsync(
-                context.ParseResult.GetValueForOption(solutionOpt),
-                context.ParseResult.GetValueForOption(principleOpt)!,
-                context.ParseResult.GetValueForOption(minMethodsOpt),
-                context.ParseResult.GetValueForOption(minDepsOpt),
-                context.ParseResult.GetValueForOption(minMembersOpt),
-                context.ParseResult.GetValueForOption(minBranchesOpt),
+                request.SolutionPath,
+                request.Principle,
+                request.MinMethods,
+                request.MinDeps,
+                request.MinMembers,
+                request.MinBranches,
                 loader);
         });
 
@@ -240,5 +250,31 @@ internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand, IAnal
             RtLog.Info("Found {Throw} throwing override(s) and {Narrow} contract narrowing(s).",
                 result.LSP.ThrowingOverrides.Count, result.LSP.ContractNarrowings.Count);
         return 0;
+    }
+
+    private sealed record SolidCliRequest(
+        string? SolutionPath,
+        string Principle,
+        int MinMethods,
+        int MinDeps,
+        int MinMembers,
+        int MinBranches) : ISupportsSolutionOption
+    {
+        public static SolidCliRequest FromFlags(
+            RtFlagValues flags,
+            string principle,
+            int minMethods,
+            int minDeps,
+            int minMembers,
+            int minBranches)
+        {
+            return new SolidCliRequest(
+                flags.SolutionPath,
+                principle,
+                minMethods,
+                minDeps,
+                minMembers,
+                minBranches);
+        }
     }
 }
