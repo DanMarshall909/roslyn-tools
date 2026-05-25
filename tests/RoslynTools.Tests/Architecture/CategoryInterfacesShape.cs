@@ -23,6 +23,7 @@ public sealed class CategoryInterfacesShape
         AssertInterfaceExists("RoslynTools.Core.IRefactorCommand");
         AssertInterfaceExists("RoslynTools.Core.IMutatingCommand");
         AssertInterfaceExists("RoslynTools.Core.IBatchMutationCommand");
+        AssertInterfaceExists("RoslynTools.Core.ITraceAnalyzeCommand");
     }
 
     [Fact]
@@ -33,6 +34,7 @@ public sealed class CategoryInterfacesShape
         AssertInterfaceIsInternal("RoslynTools.Core.IRefactorCommand");
         AssertInterfaceIsInternal("RoslynTools.Core.IMutatingCommand");
         AssertInterfaceIsInternal("RoslynTools.Core.IBatchMutationCommand");
+        AssertInterfaceIsInternal("RoslynTools.Core.ITraceAnalyzeCommand");
     }
 
     [Fact]
@@ -43,6 +45,7 @@ public sealed class CategoryInterfacesShape
         AssertInterfaceIsEmpty("RoslynTools.Core.IRefactorCommand");
         AssertInterfaceIsEmpty("RoslynTools.Core.IMutatingCommand");
         AssertInterfaceIsEmpty("RoslynTools.Core.IBatchMutationCommand");
+        AssertInterfaceIsEmpty("RoslynTools.Core.ITraceAnalyzeCommand");
     }
 
     [Fact]
@@ -66,6 +69,16 @@ public sealed class CategoryInterfacesShape
         // --dry-run / change-summary semantics transitively.
         AssertDirectParents("RoslynTools.Core.IRefactorCommand", "RoslynTools.Core.IMutatingCommand");
         AssertDirectParents("RoslynTools.Core.IBatchMutationCommand", "RoslynTools.Core.IMutatingCommand");
+    }
+
+    [Fact]
+    public void with_itraceanalyzecommand_the_direct_parent_is_ianalyzecommand()
+    {
+        // ITraceAnalyzeCommand is an outlier marker for analyze commands that operate on a
+        // trace or external artifact rather than a Roslyn solution (today: DebugCommand).
+        // It inherits IAnalyzeCommand transitively so the read-only / JSON-output contract
+        // is preserved without re-declaring it on every implementer.
+        AssertDirectParents("RoslynTools.Core.ITraceAnalyzeCommand", "RoslynTools.Core.IAnalyzeCommand");
     }
 
     [Fact]
