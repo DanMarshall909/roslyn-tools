@@ -8,7 +8,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Computes code complexity metrics for a solution.
 /// </summary>
-internal sealed class ComplexityCommand : IRtCommand, IStructuredOutputCommand
+internal sealed class ComplexityCommand : IRtCommand, IStructuredOutputCommand, IAnalyzeCommand
 {
     internal static readonly string[] ValidSortValues = ["cyclomatic", "cognitive", "loc", "params"];
     private readonly IWorkspaceSessionFactory _sessionFactory;

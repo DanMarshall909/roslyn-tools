@@ -8,7 +8,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// A command for source-related operations.
 /// </summary>
-internal sealed class SourceCommand : IRtCommand, IStructuredOutputCommand
+internal sealed class SourceCommand : IRtCommand, IStructuredOutputCommand, IInspectCommand
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly InspectService _inspect;

@@ -6,7 +6,7 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
-internal sealed class DebugCommand : IRtCommand, IStructuredOutputCommand
+internal sealed class DebugCommand : IRtCommand, IStructuredOutputCommand, IAnalyzeCommand
 {
     private DebugCommand()
     {

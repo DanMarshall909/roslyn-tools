@@ -9,7 +9,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Generates a dependency graph for a solution.
 /// </summary>
-internal sealed class DependencyGraphCommand : IRtCommand, IStructuredOutputCommand
+internal sealed class DependencyGraphCommand : IRtCommand, IStructuredOutputCommand, IAnalyzeCommand
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly DependencyGraphService _dependencyGraph;

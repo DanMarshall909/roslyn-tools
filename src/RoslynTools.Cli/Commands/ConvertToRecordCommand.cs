@@ -7,7 +7,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Converts a type to a record format.
 /// </summary>
-internal sealed class ConvertToRecordCommand : IRtCommand
+internal sealed class ConvertToRecordCommand : IRtCommand, IRefactorCommand
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly ConvertToRecordService _convertToRecord;

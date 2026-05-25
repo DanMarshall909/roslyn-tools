@@ -9,7 +9,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Finds all implementations of a given symbol in the current file
 /// </summary>
-internal sealed class FindImplementationsCommand : IRtCommand, IStructuredOutputCommand
+internal sealed class FindImplementationsCommand : IRtCommand, IStructuredOutputCommand, IInspectCommand
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly FindImplementationsService _findImplementations;

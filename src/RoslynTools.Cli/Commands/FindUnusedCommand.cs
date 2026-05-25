@@ -9,7 +9,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Identifies unused commands in the current file
 /// </summary>
-internal sealed class FindUnusedCommand : IRtCommand
+internal sealed class FindUnusedCommand : IRtCommand, IInspectCommand
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly FindUnusedService _findUnused;

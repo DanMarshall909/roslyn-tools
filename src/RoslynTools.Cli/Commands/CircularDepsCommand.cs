@@ -10,7 +10,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Command for detecting and handling circular dependencies.
 /// </summary>
-internal sealed class CircularDepsCommand : IRtCommand
+internal sealed class CircularDepsCommand : IRtCommand, IAnalyzeCommand
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly CircularDepsService _circularDeps;

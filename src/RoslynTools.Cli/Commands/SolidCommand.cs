@@ -6,7 +6,7 @@ using RoslynTools.Core.Output;
 
 namespace RoslynTools.Commands;
 
-internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand
+internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand, IAnalyzeCommand
 {
     private SolidCommand()
     {

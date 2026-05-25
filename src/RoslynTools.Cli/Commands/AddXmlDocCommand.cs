@@ -8,7 +8,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Command for adding XML documentation to the project.
 /// </summary>
-internal sealed class AddXmlDocCommand : IRtCommand
+internal sealed class AddXmlDocCommand : IRtCommand, IRefactorCommand
 {
     private static readonly JsonSerializerOptions JsonOptions =
         new() { PropertyNameCaseInsensitive = true };

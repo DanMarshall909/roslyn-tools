@@ -8,7 +8,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Provides a description of a command or its usage.
 /// </summary>
-internal sealed class DescribeCommand : IRtCommand, IStructuredOutputCommand
+internal sealed class DescribeCommand : IRtCommand, IStructuredOutputCommand, IInspectCommand
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly InspectService _inspect;

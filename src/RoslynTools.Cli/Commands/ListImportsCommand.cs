@@ -9,7 +9,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Lists all imported namespaces in the current file
 /// </summary>
-internal sealed class ListImportsCommand : IRtCommand
+internal sealed class ListImportsCommand : IRtCommand, IAnalyzeCommand
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly ImportDirectiveService _importDirective;

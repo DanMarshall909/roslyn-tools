@@ -88,6 +88,41 @@ internal static class App
                 "These inspect/analyze commands have inconsistent structured-output state "
                 + "(RtCommandInfo.JsonOutput and IStructuredOutputCommand must be set together): "
                 + string.Join(", ", inconsistentOutput));
+
+        // Category-marker biconditional: every concrete command in RoslynTools.Commands
+        // (excluding the DumpHelp meta-command) must implement EXACTLY ONE of
+        // IInspectCommand / IAnalyzeCommand / IRefactorCommand. The category marker
+        // and RtCommandInfo.Category together describe the same fact in two places;
+        // this ratchet keeps them in sync at startup so new commands can't forget to
+        // declare a category — the post-build docs/COMMANDS.md regeneration will fail.
+        var categoryOffenders = typeof(App).Assembly.GetTypes()
+            .Where(t => t.Namespace == "RoslynTools.Commands"
+                        && !t.IsInterface
+                        && t.Name.EndsWith("Command", StringComparison.Ordinal)
+                        && t.Name != nameof(DumpHelpCommand)
+                        && typeof(IRtCommand).IsAssignableFrom(t))
+            .Select(t => new
+            {
+                t.Name,
+                Markers = new[]
+                {
+                    typeof(IInspectCommand).IsAssignableFrom(t) ? "IInspectCommand" : null,
+                    typeof(IAnalyzeCommand).IsAssignableFrom(t) ? "IAnalyzeCommand" : null,
+                    typeof(IRefactorCommand).IsAssignableFrom(t) ? "IRefactorCommand" : null
+                }.Where(m => m is not null).ToArray()
+            })
+            .Where(x => x.Markers.Length != 1)
+            .Select(x => x.Markers.Length == 0
+                ? $"{x.Name} (no category marker)"
+                : $"{x.Name} (multiple: {string.Join(", ", x.Markers)})")
+            .ToList();
+
+        if (categoryOffenders.Count > 0)
+            throw new InvalidOperationException(
+                "These commands must implement exactly one category marker "
+                + "(IInspectCommand, IAnalyzeCommand, or IRefactorCommand): "
+                + string.Join(", ", categoryOffenders)
+                + ". Add the appropriate marker to the class declaration.");
     }
 
     /// <summary>

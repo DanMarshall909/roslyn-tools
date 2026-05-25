@@ -9,7 +9,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Lists all smells detected in the current file
 /// </summary>
-internal sealed class ListSmellsCommand : IRtCommand
+internal sealed class ListSmellsCommand : IRtCommand, IAnalyzeCommand
 {
     private ListSmellsCommand()
     {

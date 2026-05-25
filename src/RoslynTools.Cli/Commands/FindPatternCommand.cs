@@ -9,7 +9,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Finds all occurrences of a given pattern in the current file
 /// </summary>
-internal sealed class FindPatternCommand : IRtCommand, IStructuredOutputCommand
+internal sealed class FindPatternCommand : IRtCommand, IStructuredOutputCommand, IInspectCommand
 {
     private FindPatternCommand()
     {

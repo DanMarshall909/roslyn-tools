@@ -9,7 +9,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Identifies magic string literals in the current file
 /// </summary>
-internal sealed class FindMagicStringsCommand : IRtCommand
+internal sealed class FindMagicStringsCommand : IRtCommand, IAnalyzeCommand
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly MagicStringService _magicString;

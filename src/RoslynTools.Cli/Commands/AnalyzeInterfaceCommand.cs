@@ -10,7 +10,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Command for analyzing an interface for issues.
 /// </summary>
-internal sealed class AnalyzeInterfaceCommand : IRtCommand, IStructuredOutputCommand
+internal sealed class AnalyzeInterfaceCommand : IRtCommand, IStructuredOutputCommand, IAnalyzeCommand
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly AnalyzeInterfaceService _analyzeInterface;

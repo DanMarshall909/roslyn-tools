@@ -10,7 +10,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Finds all callers of a given symbol in the current file
 /// </summary>
-internal sealed class FindCallersCommand : IRtCommand
+internal sealed class FindCallersCommand : IRtCommand, IInspectCommand
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly FindCallersService _findCallers;
