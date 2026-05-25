@@ -1508,6 +1508,24 @@
             "priority": 112,
             "passes": false,
             "notes": "P3. Surfaced during US-107 planning. Composes with US-107 (would have made Batches 2+3 fully mechanical instead of manual)."
+        },
+        {
+            "id": "US-112",
+            "title": "rt refactor change-signature: add missing --dry-run option",
+            "description": "As an rt user, I want change-signature to honour the universal refactor-category --dry-run contract so I can preview a signature change before applying it. Today ChangeSignatureCommand.Build() registers zero options at all (verified via the CategoryInterfaceContracts test added in US-107 batch 4).",
+            "acceptanceCriteria": [
+                "ChangeSignatureCommand.Build() registers a --dry-run Option<bool> in its System.CommandLine.Command surface, in line with every other IRefactorCommand",
+                "When --dry-run is passed, the command emits the planned diff (or signature-change preview) to stdout and writes nothing to disk; exit code 0",
+                "When --dry-run is absent, the command writes the changes through ISolutionChangeWriter as today (no behaviour regression for the apply path)",
+                "Tests under tests/RoslynTools.Tests/Refactor/ assert both code paths: dry-run prints + doesn't write; apply writes through the solution writer",
+                "tests/RoslynTools.Tests/Architecture/CategoryInterfaceContracts.with_every_irefactorcommand_the_built_command_registers_a_dry_run_option no longer needs change-signature in its KnownDryRunExceptions set — remove the entry from the test as part of the same change",
+                "dotnet build clean; dotnet format --verify-no-changes clean; existing tests pass; new dry-run tests added",
+                "Pattern reference: any other IRefactorCommand's Build() (e.g. RenameCommand, MoveCommand) shows the canonical --dry-run option construction via CommandOptionFactory"
+            ],
+            "priority": 113,
+            "passes": false,
+            "epicId": "EP-009",
+            "notes": "P2. Surfaced during US-107 batch 4. Currently the only refactor command exempted from the IRefactorCommand → --dry-run architecture ratchet (KnownDryRunExceptions set in CategoryInterfaceContracts.cs). Resolving this story closes the exemption."
         }
     ]
 }
