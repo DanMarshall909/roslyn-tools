@@ -143,9 +143,11 @@
                 "Pattern reference: commit 6d767b1 (feat(mcp): wire find_refs and rename as native MCP handlers) for the native-handler conventions the INativeMcpExposable rule encodes"
             ],
             "priority": 108,
-            "passes": false,
+            "passes": true,
             "epicId": "EP-009",
-            "notes": "P2. EP-009 consistency enabler. Shrinks docs/per-command-checklist.md to the genuinely-human items. Composes with: US-094 (MCP ratchet — INativeMcpExposable encodes this), US-100 (IStructuredOutputCommand — consolidate), US-092 (BatchMutationRunner — IBatchMutationCommand marks adopters), US-097 (refactor MCP shape — IRefactorCommand + IMutatingCommand contract owns this). Awkward commands (debug, outline) get explicit carve-out subinterfaces or markers — do NOT relax the universal rules to fit them."
+            "notes": "P2. EP-009 consistency enabler. Shrinks docs/per-command-checklist.md to the genuinely-human items. Composes with: US-094 (MCP ratchet — INativeMcpExposable encodes this), US-100 (IStructuredOutputCommand — consolidate), US-092 (BatchMutationRunner — IBatchMutationCommand marks adopters), US-097 (refactor MCP shape — IRefactorCommand + IMutatingCommand contract owns this). Awkward commands (debug, outline) get explicit carve-out subinterfaces or markers — do NOT relax the universal rules to fit them.",
+            "resolution": "Shipped across 6 batches (deb8d12, 94fdb1a, 9ba586d, 609f36a/cce9c12, 308881f, c69f64f, dc6e2e4). Added 6 marker interfaces (IInspectCommand, IAnalyzeCommand, IRefactorCommand, IMutatingCommand, IBatchMutationCommand, ITraceAnalyzeCommand) under src/RoslynTools/Core/ with IRefactorCommand : IMutatingCommand and IBatchMutationCommand : IMutatingCommand hierarchy. Tagged 52 commands with their category marker. Extended App.cs static ctor with the category-coverage ratchet. Added architecture tests CategoryInterfacesShape, CategoryInterfaceCoverage, MutatingCommandCoverage, CategoryInterfaceContracts (Tests project) and McpHandlerNameContract (Tests.Mcp project). 34 architecture/handler tests pass; 2 skipped (US-082 soft ratchet on JsonOutput axis; pre-existing language-tool skip). Surfaced and logged US-111 (rt add-base-type gap) and US-112 (change-signature missing --dry-run). docs/per-command-checklist.md annotated with (enforced) rows. Composes with US-094/US-095/US-096 (still open) for the eventual every-inspect-analyze-has-native-handler ratchet.",
+            "resolvedAt": "2026-05-25"
         }
     ]
 }
