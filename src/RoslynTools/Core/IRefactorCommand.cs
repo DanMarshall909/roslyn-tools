@@ -8,4 +8,4 @@ namespace RoslynTools.Core;
 ///     <see cref="RtCommandInfo.Mutates" /> == <c>true</c>, and <c>Build()</c> must
 ///     register a <c>--dry-run</c> option (Batch 4 architecture test).
 /// </summary>
-internal interface IRefactorCommand : IMutatingCommand { }
+internal interface IRefactorCommand : IMutatingCommand;

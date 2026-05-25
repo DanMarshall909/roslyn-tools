@@ -8,4 +8,4 @@ namespace RoslynTools.Core;
 ///     <see cref="IAnalyzeCommand"/> so it picks up the read-only / JSON-output
 ///     contract transitively.
 /// </summary>
-internal interface ITraceAnalyzeCommand : IAnalyzeCommand { }
+internal interface ITraceAnalyzeCommand : IAnalyzeCommand;

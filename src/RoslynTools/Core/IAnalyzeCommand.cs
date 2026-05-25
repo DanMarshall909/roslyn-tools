@@ -6,4 +6,4 @@ namespace RoslynTools.Core;
 ///     <see cref="RtCommandInfo.Mutates" /> == <c>false</c>,
 ///     <see cref="RtCommandInfo.JsonOutput" /> == <c>true</c>.
 /// </summary>
-internal interface IAnalyzeCommand : IRtCommand { }
+internal interface IAnalyzeCommand : IRtCommand;

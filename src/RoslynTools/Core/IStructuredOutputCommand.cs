@@ -6,4 +6,4 @@ namespace RoslynTools.Core;
 ///     <see cref="RtCommandInfo.JsonOutput" /> = <c>true</c> — <see cref="RoslynTools.App" />'s
 ///     static constructor asserts both are set together, catching mismatches at startup.
 /// </summary>
-internal interface IStructuredOutputCommand { }
+internal interface IStructuredOutputCommand;

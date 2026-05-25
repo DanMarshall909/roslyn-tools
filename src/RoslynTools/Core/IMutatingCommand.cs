@@ -5,4 +5,4 @@ namespace RoslynTools.Core;
 ///     a diff or change summary. Architecture test (Batch 4) asserts every
 ///     <see cref="IRefactorCommand" /> is also <see cref="IMutatingCommand" />.
 /// </summary>
-internal interface IMutatingCommand : IRtCommand { }
+internal interface IMutatingCommand : IRtCommand;
