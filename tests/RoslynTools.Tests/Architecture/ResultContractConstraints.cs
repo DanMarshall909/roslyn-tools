@@ -126,7 +126,9 @@ public sealed class ResultContractConstraints
             Path.Combine(srcDir, "RoslynTools", "Core", "RtConsole.cs"),
             Path.Combine(srcDir, "RoslynTools", "Core", "RtConsoleLogger.cs"),
             Path.Combine(srcDir, "RoslynTools", "Core", "RtLoggerExtensions.cs"),
-            Path.Combine(srcDir, "RoslynTools", "Core", "SolutionWriter.cs")
+            Path.Combine(srcDir, "RoslynTools", "Core", "SolutionWriter.cs"),
+            // SolutionChangeWriter is the DI-injected wrapper over SolutionWriter; same output-infrastructure role.
+            Path.Combine(srcDir, "RoslynTools", "Core", "SolutionChangeWriter.cs")
         };
 
         var violations = serviceDirs

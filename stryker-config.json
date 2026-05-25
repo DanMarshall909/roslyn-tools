@@ -18,7 +18,13 @@
       "**/Services/ImportDirectiveService.cs",
       "**/Commands/AddStaticImportCommand.cs",
       "**/Models/DebugReport.cs",
-      "**/RoslynTools.Cli/App.cs"
+      "**/RoslynTools.Cli/App.cs",
+      "**/Core/FixId.cs",
+      "**/Core/Fix.cs",
+      "**/Core/BatchMutationRunner.cs",
+      "**/Core/ISolutionChangeWriter.cs",
+      "**/Core/SolutionChangeWriter.cs",
+      "**/RoslynTools.Cli/CommandOptionFactory.cs"
     ],
     "reporters": [
       "html",

@@ -98,4 +98,16 @@ internal static class CommandOptionFactory
             throw new ArgumentException($"Expected '--type' but got '{optionName}'", nameof(optionName));
         return CreateTypeOption(helpText);
     }
+
+    /// <summary>Creates an --apply option for batch mutation commands: a CSV of fix IDs to narrow the applied set to.</summary>
+    public static Option<string?> CreateApplyOption()
+    {
+        return new Option<string?>("--apply", "Comma-separated fix IDs to apply (default: all). Mutually exclusive with --skip.");
+    }
+
+    /// <summary>Creates a --skip option for batch mutation commands: a CSV of fix IDs to drop from the applied set.</summary>
+    public static Option<string?> CreateSkipOption()
+    {
+        return new Option<string?>("--skip", "Comma-separated fix IDs to skip. Mutually exclusive with --apply.");
+    }
 }

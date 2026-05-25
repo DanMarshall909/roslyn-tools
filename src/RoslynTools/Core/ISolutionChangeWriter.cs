@@ -20,4 +20,12 @@ internal interface ISolutionChangeWriter
     static ISolutionChangeWriter CreateDefault() => new SolutionChangeWriter();
 
     Task ApplyChangesAsync(Solution originalSolution, Solution newSolution, bool dryRun);
+
+    /// <summary>
+    ///     Writes a batch of <see cref="Fix" /> candidates against <paramref name="originalSolution" />.
+    ///     Dry-run emits one <c>[fix &lt;id&gt;]</c> header per fix above its file diffs; apply writes
+    ///     the composed new solution to disk. An empty fix list emits the existing <c>No changes.</c>
+    ///     no-op message and writes nothing.
+    /// </summary>
+    Task WriteFixesAsync(Solution originalSolution, IReadOnlyList<Fix> fixes, bool dryRun);
 }

@@ -31,3 +31,40 @@ public class CommandOptionFactory_solution_overload
         opt.Description.ShouldBe("Path to .sln/.slnx");
     }
 }
+
+public class CommandOptionFactory_apply_skip
+{
+    [Fact]
+    public void apply_option_is_named_apply_and_nullable_string()
+    {
+        var opt = CommandOptionFactory.CreateApplyOption();
+
+        opt.Name.ShouldBe("apply");
+        opt.ShouldBeOfType<Option<string?>>();
+    }
+
+    [Fact]
+    public void apply_option_description_mentions_fix_ids()
+    {
+        var opt = CommandOptionFactory.CreateApplyOption();
+
+        opt.Description.ShouldNotBeNull().ShouldContain("fix");
+    }
+
+    [Fact]
+    public void skip_option_is_named_skip_and_nullable_string()
+    {
+        var opt = CommandOptionFactory.CreateSkipOption();
+
+        opt.Name.ShouldBe("skip");
+        opt.ShouldBeOfType<Option<string?>>();
+    }
+
+    [Fact]
+    public void skip_option_description_mentions_fix_ids()
+    {
+        var opt = CommandOptionFactory.CreateSkipOption();
+
+        opt.Description.ShouldNotBeNull().ShouldContain("fix");
+    }
+}
