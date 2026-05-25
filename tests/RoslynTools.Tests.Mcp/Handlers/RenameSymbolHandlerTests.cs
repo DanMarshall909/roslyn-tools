@@ -2,7 +2,6 @@ using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Mcp.Tools;
-using RoslynTools.Tests.Mcp;
 using Shouldly;
 
 namespace RoslynTools.Tests.Mcp.Handlers;
@@ -32,8 +31,36 @@ public class RenameToolTests
             var result = await registry.InvokeAsync("rename", args.RootElement);
 
             result.isError.ShouldBeFalse();
-            Assert.Contains("Bill", result.content, StringComparison.Ordinal);
+            using var payload = JsonDocument.Parse(result.content);
+            payload.RootElement.GetProperty("newName").GetString().ShouldBe("Bill");
+            payload.RootElement.GetProperty("applied").GetBoolean().ShouldBeFalse();
+            payload.RootElement.GetProperty("changedFiles").GetInt32().ShouldBeGreaterThan(0);
         }
     }
 
+    [Fact]
+    public async Task rename_returns_error_when_new_name_missing()
+    {
+        using var provider = McpTestHost.CreateProvider();
+        var registry = provider.GetRequiredService<ToolRegistry>();
+        using var args = JsonDocument.Parse("""{"symbol":"TestApp.Invoice","solution":"ignored.slnx"}""");
+
+        var result = await registry.InvokeAsync("rename", args.RootElement);
+
+        result.isError.ShouldBeTrue();
+        result.content.ShouldContain("new-name");
+    }
+
+    [Fact]
+    public async Task rename_returns_error_when_symbol_missing()
+    {
+        using var provider = McpTestHost.CreateProvider();
+        var registry = provider.GetRequiredService<ToolRegistry>();
+        using var args = JsonDocument.Parse("""{"new-name":"Bill","solution":"ignored.slnx"}""");
+
+        var result = await registry.InvokeAsync("rename", args.RootElement);
+
+        result.isError.ShouldBeTrue();
+        result.content.ShouldContain("symbol");
+    }
 }

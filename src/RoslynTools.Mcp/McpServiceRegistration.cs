@@ -25,6 +25,8 @@ internal static class McpServiceRegistration
         // CliCommandBridge's text-capture path. Each implements IMcpHandler.
         services.AddSingleton<IMcpHandler, SuggestHandler>();
         services.AddSingleton<IMcpHandler, OutlineHandler>();
+        services.AddSingleton<IMcpHandler, FindReferencesHandler>();
+        services.AddSingleton<IMcpHandler, RenameSymbolHandler>();
 
         return services;
     }
