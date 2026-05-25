@@ -46,11 +46,10 @@ public sealed class CategoryInterfacesShape
     }
 
     [Fact]
-    public void with_category_markers_the_direct_parent_is_irtcommand()
+    public void with_read_only_category_markers_the_direct_parent_is_irtcommand()
     {
         AssertDirectParents("RoslynTools.Core.IInspectCommand", "RoslynTools.Core.IRtCommand");
         AssertDirectParents("RoslynTools.Core.IAnalyzeCommand", "RoslynTools.Core.IRtCommand");
-        AssertDirectParents("RoslynTools.Core.IRefactorCommand", "RoslynTools.Core.IRtCommand");
     }
 
     [Fact]
@@ -60,8 +59,12 @@ public sealed class CategoryInterfacesShape
     }
 
     [Fact]
-    public void with_ibatchmutationcommand_the_direct_parent_is_imutatingcommand()
+    public void with_mutating_subtypes_the_direct_parent_is_imutatingcommand()
     {
+        // Every refactor IS a mutation; every batch-mutation IS a mutation. Both inherit
+        // IMutatingCommand so commands declare only the more specific marker and pick up
+        // --dry-run / change-summary semantics transitively.
+        AssertDirectParents("RoslynTools.Core.IRefactorCommand", "RoslynTools.Core.IMutatingCommand");
         AssertDirectParents("RoslynTools.Core.IBatchMutationCommand", "RoslynTools.Core.IMutatingCommand");
     }
 
