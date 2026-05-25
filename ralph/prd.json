@@ -92,7 +92,7 @@
         {
             "id": "US-071",
             "title": "rt refactor extract-interface produces malformed output for internal classes",
-            "description": "As a roslyn-tools developer, I want extract-interface to honor source class accessibility, include internal members when the source is internal, and emit syntactically valid C# so that I can dogfood it during DI migrations on internal types.",
+            "description": "[DISPOSITION: DEFERRED] extract-interface dogfood bug — schedule after the sweep; touches one command.\n\nAs a roslyn-tools developer, I want extract-interface to honor source class accessibility, include internal members when the source is internal, and emit syntactically valid C# so that I can dogfood it during DI migrations on internal types.",
             "acceptanceCriteria": [
                 "rt refactor extract-interface --type WorkspaceLoader --solution RoslynTools.slnx --dry-run emits a syntactically valid diff: the new interface name is inserted into the existing base list with proper formatting (space after comma, brace placement matching the file's brace style), and the resulting file would compile",
                 "Extracting from an internal sealed class produces an internal interface (not public). Accessibility of the generated interface matches the source class accessibility",
