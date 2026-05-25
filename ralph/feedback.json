@@ -5541,6 +5541,940 @@
         "break": "System.String[]",
         "assert": "System.String[]"
       }
+    },
+    {
+      "id": "FB-293",
+      "type": "exception",
+      "timestamp": "2026-05-24T04:34:16.2042171\u002B00:00",
+      "commandLine": "debug --json C:\\Users\\DanMarshall\\AppData\\Local\\Temp\\01b9328d51de45b6b71fa9072094b096.jsonl --break tool:apply_patch --break file:src/Foo.cs --assert requires-event:final_response --assert no-tool:web --break-only",
+      "description": "Value cannot be null. (Parameter \u0027source\u0027)",
+      "actualResult": "ArgumentNullException: Value cannot be null. (Parameter \u0027source\u0027)",
+      "stackTrace": "System.ArgumentNullException: Value cannot be null. (Parameter \u0027source\u0027)\r\n   at System.Linq.ThrowHelper.ThrowArgumentNullException(ExceptionArgument argument)\r\n   at System.Linq.Enumerable.Select[TSource,TResult](IEnumerable\u00601 source, Func\u00603 selector)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.Analyze(FileInfo traceFile, Int32 fromEvent, Int32 limit, IReadOnlyList\u00601 breakpoints, IReadOnlyList\u00601 assertions, Boolean breakOnly)\r\n   at RoslynTools.Commands.DebugCommand.\u003C\u003Ec__DisplayClass4_0.\u003CBuild\u003Eb__2(InvocationContext ctx) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\DebugCommand.cs:line 62\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.Invoke(InvocationContext context)\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests.Mcp\\bin\\Debug\\net10.0",
+      "rtVersion": "1.0.0\u002B28822f61964463aed4df23d7900d2765b2b7c86a",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "parsedOptions": {
+        "from": "1",
+        "limit": "100",
+        "break-only": "True",
+        "break": "System.String[]",
+        "assert": "System.String[]"
+      }
+    },
+    {
+      "id": "FB-294",
+      "type": "exception",
+      "timestamp": "2026-05-24T04:34:29.0772606\u002B00:00",
+      "commandLine": "debug --json C:\\Users\\DanMarshall\\AppData\\Local\\Temp\\c68bc3392954437a91b60cdf2622d54b.jsonl --break tool:apply_patch --break file:src/Foo.cs --assert requires-event:final_response --assert no-tool:web --break-only",
+      "description": "startIndex cannot be larger than length of string. (Parameter \u0027startIndex\u0027)",
+      "actualResult": "ArgumentOutOfRangeException: startIndex cannot be larger than length of string. (Parameter \u0027startIndex\u0027)",
+      "stackTrace": "System.ArgumentOutOfRangeException: startIndex cannot be larger than length of string. (Parameter \u0027startIndex\u0027)\r\n   at System.String.ThrowSubstringArgumentOutOfRange(Int32 startIndex, Int32 length)\r\n   at System.String.Substring(Int32 startIndex, Int32 length)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.TrySplitExpression(String expression, String key, String\u0026 value)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.EvaluateAssertion(List\u00601 events, String expression)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.\u003C\u003Ec__DisplayClass1_1.\u003CAnalyze\u003Eb__5(String assertion)\r\n   at System.Linq.Enumerable.ArraySelectIterator\u00602.Fill(ReadOnlySpan\u00601 source, Span\u00601 destination, Func\u00602 func)\r\n   at System.Linq.Enumerable.ArraySelectIterator\u00602.ToList()\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.Analyze(FileInfo traceFile, Int32 fromEvent, Int32 limit, IReadOnlyList\u00601 breakpoints, IReadOnlyList\u00601 assertions, Boolean breakOnly)\r\n   at RoslynTools.Commands.DebugCommand.\u003C\u003Ec__DisplayClass4_0.\u003CBuild\u003Eb__2(InvocationContext ctx) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\DebugCommand.cs:line 62\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.Invoke(InvocationContext context)\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests.Mcp\\bin\\Debug\\net10.0",
+      "rtVersion": "1.0.0\u002B28822f61964463aed4df23d7900d2765b2b7c86a",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "parsedOptions": {
+        "from": "1",
+        "limit": "100",
+        "break-only": "True",
+        "break": "System.String[]",
+        "assert": "System.String[]"
+      }
+    },
+    {
+      "id": "FB-295",
+      "type": "exception",
+      "timestamp": "2026-05-24T04:35:14.9031586\u002B00:00",
+      "commandLine": "debug --json C:\\Users\\DanMarshall\\AppData\\Local\\Temp\\a94f56a03bdb4975862f7a16d1011978.jsonl --break tool:apply_patch --break file:src/Foo.cs --assert requires-event:final_response --assert no-tool:web --break-only",
+      "description": "Index and length must refer to a location within the string. (Parameter \u0027length\u0027)",
+      "actualResult": "ArgumentOutOfRangeException: Index and length must refer to a location within the string. (Parameter \u0027length\u0027)",
+      "stackTrace": "System.ArgumentOutOfRangeException: Index and length must refer to a location within the string. (Parameter \u0027length\u0027)\r\n   at System.String.ThrowSubstringArgumentOutOfRange(Int32 startIndex, Int32 length)\r\n   at System.String.Substring(Int32 startIndex, Int32 length)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.Truncate(String value, Int32 limit)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.BuildSummary(JsonElement element, String eventType, String tool)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.BuildEvent(JsonElement element, Int32 fallbackIndex)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.\u003C\u003Ec.\u003CAnalyze\u003Eb__1_0(JsonElement element, Int32 index)\r\n   at System.Linq.Enumerable.SelectIterator[TSource,TResult](IEnumerable\u00601 source, Func\u00603 selector)\u002BMoveNext()\r\n   at System.Collections.Generic.List\u00601..ctor(IEnumerable\u00601 collection)\r\n   at System.Linq.Enumerable.ToList[TSource](IEnumerable\u00601 source)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.Analyze(FileInfo traceFile, Int32 fromEvent, Int32 limit, IReadOnlyList\u00601 breakpoints, IReadOnlyList\u00601 assertions, Boolean breakOnly)\r\n   at RoslynTools.Commands.DebugCommand.\u003C\u003Ec__DisplayClass4_0.\u003CBuild\u003Eb__2(InvocationContext ctx) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\DebugCommand.cs:line 62\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.Invoke(InvocationContext context)\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests.Mcp\\bin\\Debug\\net10.0",
+      "rtVersion": "1.0.0\u002B28822f61964463aed4df23d7900d2765b2b7c86a",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "parsedOptions": {
+        "from": "1",
+        "limit": "100",
+        "break-only": "True",
+        "break": "System.String[]",
+        "assert": "System.String[]"
+      }
+    },
+    {
+      "id": "FB-296",
+      "type": "exception",
+      "timestamp": "2026-05-24T04:35:15.7598748\u002B00:00",
+      "commandLine": "debug --json C:\\Users\\DanMarshall\\AppData\\Local\\Temp\\8b5c77eaed5d41cdb42e38ac9be9bda0.jsonl --break tool:apply_patch --break file:src/Foo.cs --assert requires-event:final_response --assert no-tool:web --break-only",
+      "description": "Index and length must refer to a location within the string. (Parameter \u0027length\u0027)",
+      "actualResult": "ArgumentOutOfRangeException: Index and length must refer to a location within the string. (Parameter \u0027length\u0027)",
+      "stackTrace": "System.ArgumentOutOfRangeException: Index and length must refer to a location within the string. (Parameter \u0027length\u0027)\r\n   at System.String.ThrowSubstringArgumentOutOfRange(Int32 startIndex, Int32 length)\r\n   at System.String.Substring(Int32 startIndex, Int32 length)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.Truncate(String value, Int32 limit)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.BuildSummary(JsonElement element, String eventType, String tool)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.BuildEvent(JsonElement element, Int32 fallbackIndex)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.\u003C\u003Ec.\u003CAnalyze\u003Eb__1_0(JsonElement element, Int32 index)\r\n   at System.Linq.Enumerable.SelectIterator[TSource,TResult](IEnumerable\u00601 source, Func\u00603 selector)\u002BMoveNext()\r\n   at System.Collections.Generic.List\u00601..ctor(IEnumerable\u00601 collection)\r\n   at System.Linq.Enumerable.ToList[TSource](IEnumerable\u00601 source)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.Analyze(FileInfo traceFile, Int32 fromEvent, Int32 limit, IReadOnlyList\u00601 breakpoints, IReadOnlyList\u00601 assertions, Boolean breakOnly)\r\n   at RoslynTools.Commands.DebugCommand.\u003C\u003Ec__DisplayClass4_0.\u003CBuild\u003Eb__2(InvocationContext ctx) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\DebugCommand.cs:line 62\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.Invoke(InvocationContext context)\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests.Mcp\\bin\\Debug\\net10.0",
+      "rtVersion": "1.0.0\u002B28822f61964463aed4df23d7900d2765b2b7c86a",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "parsedOptions": {
+        "from": "1",
+        "limit": "100",
+        "break-only": "True",
+        "break": "System.String[]",
+        "assert": "System.String[]"
+      }
+    },
+    {
+      "id": "FB-297",
+      "type": "exception",
+      "timestamp": "2026-05-24T04:35:15.8172836\u002B00:00",
+      "commandLine": "debug --json C:\\Users\\DanMarshall\\AppData\\Local\\Temp\\a0edf58684c74330841f16f0ad0e0242.jsonl --break tool:apply_patch --break file:src/Foo.cs --assert requires-event:final_response --assert no-tool:web --break-only",
+      "description": "Value cannot be null. (Parameter \u0027source\u0027)",
+      "actualResult": "ArgumentNullException: Value cannot be null. (Parameter \u0027source\u0027)",
+      "stackTrace": "System.ArgumentNullException: Value cannot be null. (Parameter \u0027source\u0027)\r\n   at System.Linq.ThrowHelper.ThrowArgumentNullException(ExceptionArgument argument)\r\n   at System.Linq.Enumerable.Select[TSource,TResult](IEnumerable\u00601 source, Func\u00603 selector)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.Analyze(FileInfo traceFile, Int32 fromEvent, Int32 limit, IReadOnlyList\u00601 breakpoints, IReadOnlyList\u00601 assertions, Boolean breakOnly)\r\n   at RoslynTools.Commands.DebugCommand.\u003C\u003Ec__DisplayClass4_0.\u003CBuild\u003Eb__2(InvocationContext ctx) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\DebugCommand.cs:line 62\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.Invoke(InvocationContext context)\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests.Mcp\\bin\\Debug\\net10.0",
+      "rtVersion": "1.0.0\u002B28822f61964463aed4df23d7900d2765b2b7c86a",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "parsedOptions": {
+        "from": "1",
+        "limit": "100",
+        "break-only": "True",
+        "break": "System.String[]",
+        "assert": "System.String[]"
+      }
+    },
+    {
+      "id": "FB-298",
+      "type": "exception",
+      "timestamp": "2026-05-24T04:41:53.9865658\u002B00:00",
+      "commandLine": "debug --json C:\\Users\\DanMarshall\\AppData\\Local\\Temp\\f0fafbf481ea4ffb948ccf50f1496eb3.jsonl --break tool:apply_patch --break file:src/Foo.cs --assert requires-event:final_response --assert no-tool:web --break-only",
+      "description": "Value cannot be null. (Parameter \u0027source\u0027)",
+      "actualResult": "ArgumentNullException: Value cannot be null. (Parameter \u0027source\u0027)",
+      "stackTrace": "System.ArgumentNullException: Value cannot be null. (Parameter \u0027source\u0027)\r\n   at System.Linq.ThrowHelper.ThrowArgumentNullException(ExceptionArgument argument)\r\n   at System.Linq.Enumerable.Select[TSource,TResult](IEnumerable\u00601 source, Func\u00603 selector)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.Analyze(FileInfo traceFile, Int32 fromEvent, Int32 limit, IReadOnlyList\u00601 breakpoints, IReadOnlyList\u00601 assertions, Boolean breakOnly)\r\n   at RoslynTools.Commands.DebugCommand.\u003C\u003Ec__DisplayClass4_0.\u003CBuild\u003Eb__2(InvocationContext ctx) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\DebugCommand.cs:line 62\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.Invoke(InvocationContext context)\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests.Mcp\\bin\\Debug\\net10.0",
+      "rtVersion": "1.0.0\u002B28822f61964463aed4df23d7900d2765b2b7c86a",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "parsedOptions": {
+        "from": "1",
+        "limit": "100",
+        "break-only": "True",
+        "break": "System.String[]",
+        "assert": "System.String[]"
+      }
+    },
+    {
+      "id": "FB-299",
+      "type": "exception",
+      "timestamp": "2026-05-24T04:42:05.2080805\u002B00:00",
+      "commandLine": "debug --json C:\\Users\\DanMarshall\\AppData\\Local\\Temp\\41a057ca26874466b3c41455859c0b5b.jsonl --break tool:apply_patch --break file:src/Foo.cs --assert requires-event:final_response --assert no-tool:web --break-only",
+      "description": "startIndex cannot be larger than length of string. (Parameter \u0027startIndex\u0027)",
+      "actualResult": "ArgumentOutOfRangeException: startIndex cannot be larger than length of string. (Parameter \u0027startIndex\u0027)",
+      "stackTrace": "System.ArgumentOutOfRangeException: startIndex cannot be larger than length of string. (Parameter \u0027startIndex\u0027)\r\n   at System.String.ThrowSubstringArgumentOutOfRange(Int32 startIndex, Int32 length)\r\n   at System.String.Substring(Int32 startIndex, Int32 length)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.TrySplitExpression(String expression, String key, String\u0026 value)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.EvaluateAssertion(List\u00601 events, String expression)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.\u003C\u003Ec__DisplayClass1_1.\u003CAnalyze\u003Eb__5(String assertion)\r\n   at System.Linq.Enumerable.ArraySelectIterator\u00602.Fill(ReadOnlySpan\u00601 source, Span\u00601 destination, Func\u00602 func)\r\n   at System.Linq.Enumerable.ArraySelectIterator\u00602.ToList()\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.Analyze(FileInfo traceFile, Int32 fromEvent, Int32 limit, IReadOnlyList\u00601 breakpoints, IReadOnlyList\u00601 assertions, Boolean breakOnly)\r\n   at RoslynTools.Commands.DebugCommand.\u003C\u003Ec__DisplayClass4_0.\u003CBuild\u003Eb__2(InvocationContext ctx) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\DebugCommand.cs:line 62\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.Invoke(InvocationContext context)\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests.Mcp\\bin\\Debug\\net10.0",
+      "rtVersion": "1.0.0\u002B28822f61964463aed4df23d7900d2765b2b7c86a",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "parsedOptions": {
+        "from": "1",
+        "limit": "100",
+        "break-only": "True",
+        "break": "System.String[]",
+        "assert": "System.String[]"
+      }
+    },
+    {
+      "id": "FB-300",
+      "type": "exception",
+      "timestamp": "2026-05-24T04:42:51.5467755\u002B00:00",
+      "commandLine": "debug --json C:\\Users\\DanMarshall\\AppData\\Local\\Temp\\14893d122e7a4ff5b7dee964941fdad4.jsonl --break tool:apply_patch --break file:src/Foo.cs --assert requires-event:final_response --assert no-tool:web --break-only",
+      "description": "Index and length must refer to a location within the string. (Parameter \u0027length\u0027)",
+      "actualResult": "ArgumentOutOfRangeException: Index and length must refer to a location within the string. (Parameter \u0027length\u0027)",
+      "stackTrace": "System.ArgumentOutOfRangeException: Index and length must refer to a location within the string. (Parameter \u0027length\u0027)\r\n   at System.String.ThrowSubstringArgumentOutOfRange(Int32 startIndex, Int32 length)\r\n   at System.String.Substring(Int32 startIndex, Int32 length)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.Truncate(String value, Int32 limit)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.BuildSummary(JsonElement element, String eventType, String tool)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.BuildEvent(JsonElement element, Int32 fallbackIndex)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.\u003C\u003Ec.\u003CAnalyze\u003Eb__1_0(JsonElement element, Int32 index)\r\n   at System.Linq.Enumerable.SelectIterator[TSource,TResult](IEnumerable\u00601 source, Func\u00603 selector)\u002BMoveNext()\r\n   at System.Collections.Generic.List\u00601..ctor(IEnumerable\u00601 collection)\r\n   at System.Linq.Enumerable.ToList[TSource](IEnumerable\u00601 source)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.Analyze(FileInfo traceFile, Int32 fromEvent, Int32 limit, IReadOnlyList\u00601 breakpoints, IReadOnlyList\u00601 assertions, Boolean breakOnly)\r\n   at RoslynTools.Commands.DebugCommand.\u003C\u003Ec__DisplayClass4_0.\u003CBuild\u003Eb__2(InvocationContext ctx) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\DebugCommand.cs:line 62\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.Invoke(InvocationContext context)\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests.Mcp\\bin\\Debug\\net10.0",
+      "rtVersion": "1.0.0\u002B28822f61964463aed4df23d7900d2765b2b7c86a",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "parsedOptions": {
+        "from": "1",
+        "limit": "100",
+        "break-only": "True",
+        "break": "System.String[]",
+        "assert": "System.String[]"
+      }
+    },
+    {
+      "id": "FB-301",
+      "type": "exception",
+      "timestamp": "2026-05-24T04:42:52.5300740\u002B00:00",
+      "commandLine": "debug --json C:\\Users\\DanMarshall\\AppData\\Local\\Temp\\7279d46cf64e4d70bb0e68fc3e2b4748.jsonl --break tool:apply_patch --break file:src/Foo.cs --assert requires-event:final_response --assert no-tool:web --break-only",
+      "description": "Index and length must refer to a location within the string. (Parameter \u0027length\u0027)",
+      "actualResult": "ArgumentOutOfRangeException: Index and length must refer to a location within the string. (Parameter \u0027length\u0027)",
+      "stackTrace": "System.ArgumentOutOfRangeException: Index and length must refer to a location within the string. (Parameter \u0027length\u0027)\r\n   at System.String.ThrowSubstringArgumentOutOfRange(Int32 startIndex, Int32 length)\r\n   at System.String.Substring(Int32 startIndex, Int32 length)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.Truncate(String value, Int32 limit)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.BuildSummary(JsonElement element, String eventType, String tool)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.BuildEvent(JsonElement element, Int32 fallbackIndex)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.\u003C\u003Ec.\u003CAnalyze\u003Eb__1_0(JsonElement element, Int32 index)\r\n   at System.Linq.Enumerable.SelectIterator[TSource,TResult](IEnumerable\u00601 source, Func\u00603 selector)\u002BMoveNext()\r\n   at System.Collections.Generic.List\u00601..ctor(IEnumerable\u00601 collection)\r\n   at System.Linq.Enumerable.ToList[TSource](IEnumerable\u00601 source)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.Analyze(FileInfo traceFile, Int32 fromEvent, Int32 limit, IReadOnlyList\u00601 breakpoints, IReadOnlyList\u00601 assertions, Boolean breakOnly)\r\n   at RoslynTools.Commands.DebugCommand.\u003C\u003Ec__DisplayClass4_0.\u003CBuild\u003Eb__2(InvocationContext ctx) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\DebugCommand.cs:line 62\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.Invoke(InvocationContext context)\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests.Mcp\\bin\\Debug\\net10.0",
+      "rtVersion": "1.0.0\u002B28822f61964463aed4df23d7900d2765b2b7c86a",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "parsedOptions": {
+        "from": "1",
+        "limit": "100",
+        "break-only": "True",
+        "break": "System.String[]",
+        "assert": "System.String[]"
+      }
+    },
+    {
+      "id": "FB-302",
+      "type": "exception",
+      "timestamp": "2026-05-24T04:42:52.5863594\u002B00:00",
+      "commandLine": "debug --json C:\\Users\\DanMarshall\\AppData\\Local\\Temp\\5bf93f8e96ff404daea33082454bed03.jsonl --break tool:apply_patch --break file:src/Foo.cs --assert requires-event:final_response --assert no-tool:web --break-only",
+      "description": "Value cannot be null. (Parameter \u0027source\u0027)",
+      "actualResult": "ArgumentNullException: Value cannot be null. (Parameter \u0027source\u0027)",
+      "stackTrace": "System.ArgumentNullException: Value cannot be null. (Parameter \u0027source\u0027)\r\n   at System.Linq.ThrowHelper.ThrowArgumentNullException(ExceptionArgument argument)\r\n   at System.Linq.Enumerable.Select[TSource,TResult](IEnumerable\u00601 source, Func\u00603 selector)\r\n   at RoslynTools.Services.DebugTraceAnalyzerService.Analyze(FileInfo traceFile, Int32 fromEvent, Int32 limit, IReadOnlyList\u00601 breakpoints, IReadOnlyList\u00601 assertions, Boolean breakOnly)\r\n   at RoslynTools.Commands.DebugCommand.\u003C\u003Ec__DisplayClass4_0.\u003CBuild\u003Eb__2(InvocationContext ctx) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\DebugCommand.cs:line 62\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.Invoke(InvocationContext context)\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests.Mcp\\bin\\Debug\\net10.0",
+      "rtVersion": "1.0.0\u002B28822f61964463aed4df23d7900d2765b2b7c86a",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "parsedOptions": {
+        "from": "1",
+        "limit": "100",
+        "break-only": "True",
+        "break": "System.String[]",
+        "assert": "System.String[]"
+      }
+    },
+    {
+      "id": "FB-303",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:28:16.2599857\u002B00:00",
+      "commandLine": "replace-xunit-asserts --solution ignored --apply",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Services.ReplaceXunitAssertsService.RunAsync(Solution solution, Boolean dryRun)\r\n   at RoslynTools.Commands.ReplaceXunitAssertsCommand.ExecuteCoreAsync(Solution solution, Boolean dryRun, Boolean apply, Boolean review) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ReplaceXunitAssertsCommand.cs:line 92\r\n   at RoslynTools.Commands.ReplaceXunitAssertsCommand.ExecuteAsync(String solutionPath, Boolean dryRun, Boolean apply, Boolean review) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ReplaceXunitAssertsCommand.cs:line 73\r\n   at RoslynTools.Commands.ReplaceXunitAssertsCommand.\u003CBuild\u003Eb__6_0(String solution, Boolean dryRun, Boolean apply, Boolean review) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ReplaceXunitAssertsCommand.cs:line 59\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored",
+        "apply": "True"
+      }
+    },
+    {
+      "id": "FB-304",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:28:16.9291146\u002B00:00",
+      "commandLine": "replace-datetime --solution ignored",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Services.ReplaceTypeService.RunAsync(Solution solution, Boolean dryRun)\r\n   at RoslynTools.Commands.ReplaceTypeCommand.\u003CBuild\u003Eb__6_0(String solution, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ReplaceTypeCommand.cs:line 52\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored"
+      }
+    },
+    {
+      "id": "FB-305",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:28:35.7561739\u002B00:00",
+      "commandLine": "replace-xunit-asserts --solution ignored --apply",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Services.ReplaceXunitAssertsService.RunAsync(Solution solution, Boolean dryRun)\r\n   at RoslynTools.Commands.ReplaceXunitAssertsCommand.ExecuteCoreAsync(Solution solution, Boolean dryRun, Boolean apply, Boolean review) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ReplaceXunitAssertsCommand.cs:line 92\r\n   at RoslynTools.Commands.ReplaceXunitAssertsCommand.ExecuteAsync(String solutionPath, Boolean dryRun, Boolean apply, Boolean review) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ReplaceXunitAssertsCommand.cs:line 73\r\n   at RoslynTools.Commands.ReplaceXunitAssertsCommand.\u003CBuild\u003Eb__6_0(String solution, Boolean dryRun, Boolean apply, Boolean review) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ReplaceXunitAssertsCommand.cs:line 59\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored",
+        "apply": "True"
+      }
+    },
+    {
+      "id": "FB-306",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:28:36.4749116\u002B00:00",
+      "commandLine": "replace-datetime --solution ignored",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Services.ReplaceTypeService.RunAsync(Solution solution, Boolean dryRun)\r\n   at RoslynTools.Commands.ReplaceTypeCommand.\u003CBuild\u003Eb__6_0(String solution, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ReplaceTypeCommand.cs:line 52\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored"
+      }
+    },
+    {
+      "id": "FB-307",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:28:37.9658769\u002B00:00",
+      "commandLine": "rename --csv C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64\\TestOutput\\38c6d07c8b824295891a1eab6600efd2\\TestProject\\renames.csv --solution ignored",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Services.RenameService.RenameOneAsync(Solution sln, String symbol, String newName, String kind, Boolean dryRun)\r\n   at RoslynTools.Services.RenameService.RenameOneOrSkipAlreadyAppliedAsync(Solution sln, RenameCsvRow row, Boolean dryRun)\r\n   at RoslynTools.Services.RenameService.ExecuteBatchAsync(Solution sln, String csvPath, Boolean dryRun)\r\n   at RoslynTools.Commands.RenameCommand.\u003CBuild\u003Eb__6_0(String symbol, String newName, String solution, String kind, String csv, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\RenameCommand.cs:line 66\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored",
+        "csv": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64\\TestOutput\\38c6d07c8b824295891a1eab6600efd2\\TestProject\\renames.csv"
+      }
+    },
+    {
+      "id": "FB-308",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:28:38.1009818\u002B00:00",
+      "commandLine": "change-signature rename-param TestApp.Service.Foo count total --solution ignored --dry-run",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Commands.CommandHandlers.ChangeSignatureCommandHandlers.RenameParamAsync(IWorkspaceSessionFactory sessionFactory, ChangeSignatureService changeSignature, ISolutionChangeWriter solutionChangeWriter, String methodSpec, String oldName, String newName, String solution, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\CommandHandlers\\ChangeSignatureCommandHandlers.cs:line 35\r\n   at RoslynTools.Commands.ChangeSignatureCommand.\u003C\u003Ec__DisplayClass7_0.\u003C\u003CBuild\u003Eb__0\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ChangeSignatureCommand.cs:line 63\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored",
+        "dry-run": "True"
+      }
+    },
+    {
+      "id": "FB-309",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:28:38.1328172\u002B00:00",
+      "commandLine": "change-signature rename-param TestApp.Service.Foo count total --solution ignored",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Commands.CommandHandlers.ChangeSignatureCommandHandlers.RenameParamAsync(IWorkspaceSessionFactory sessionFactory, ChangeSignatureService changeSignature, ISolutionChangeWriter solutionChangeWriter, String methodSpec, String oldName, String newName, String solution, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\CommandHandlers\\ChangeSignatureCommandHandlers.cs:line 35\r\n   at RoslynTools.Commands.ChangeSignatureCommand.\u003C\u003Ec__DisplayClass7_0.\u003C\u003CBuild\u003Eb__0\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ChangeSignatureCommand.cs:line 63\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored"
+      }
+    },
+    {
+      "id": "FB-310",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:28:38.1686248\u002B00:00",
+      "commandLine": "change-signature add-param TestApp.Service.Foo int b = 0 --solution ignored",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Commands.CommandHandlers.ChangeSignatureCommandHandlers.AddParamAsync(IWorkspaceSessionFactory sessionFactory, ChangeSignatureService changeSignature, ISolutionChangeWriter solutionChangeWriter, String methodSpec, String paramSpec, String after, String solution, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\CommandHandlers\\ChangeSignatureCommandHandlers.cs:line 103\r\n   at RoslynTools.Commands.ChangeSignatureCommand.\u003C\u003Ec__DisplayClass7_0.\u003C\u003CBuild\u003Eb__2\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ChangeSignatureCommand.cs:line 121\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored"
+      }
+    },
+    {
+      "id": "FB-311",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:28:38.2087832\u002B00:00",
+      "commandLine": "change-signature remove-param TestApp.Service.Foo a --solution ignored --dry-run",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Commands.CommandHandlers.ChangeSignatureCommandHandlers.RemoveParamAsync(IWorkspaceSessionFactory sessionFactory, ChangeSignatureService changeSignature, ISolutionChangeWriter solutionChangeWriter, String methodSpec, String paramName, Boolean force, String solution, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\CommandHandlers\\ChangeSignatureCommandHandlers.cs:line 138\r\n   at RoslynTools.Commands.ChangeSignatureCommand.\u003C\u003Ec__DisplayClass7_0.\u003C\u003CBuild\u003Eb__3\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ChangeSignatureCommand.cs:line 151\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored",
+        "dry-run": "True"
+      }
+    },
+    {
+      "id": "FB-312",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:28:38.2373724\u002B00:00",
+      "commandLine": "change-signature remove-param TestApp.Service.Foo a --solution ignored",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Commands.CommandHandlers.ChangeSignatureCommandHandlers.RemoveParamAsync(IWorkspaceSessionFactory sessionFactory, ChangeSignatureService changeSignature, ISolutionChangeWriter solutionChangeWriter, String methodSpec, String paramName, Boolean force, String solution, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\CommandHandlers\\ChangeSignatureCommandHandlers.cs:line 138\r\n   at RoslynTools.Commands.ChangeSignatureCommand.\u003C\u003Ec__DisplayClass7_0.\u003C\u003CBuild\u003Eb__3\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ChangeSignatureCommand.cs:line 151\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored"
+      }
+    },
+    {
+      "id": "FB-313",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:28:38.2660186\u002B00:00",
+      "commandLine": "change-signature add-param TestApp.Service.Foo int b = 0 --solution ignored --dry-run",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Commands.CommandHandlers.ChangeSignatureCommandHandlers.AddParamAsync(IWorkspaceSessionFactory sessionFactory, ChangeSignatureService changeSignature, ISolutionChangeWriter solutionChangeWriter, String methodSpec, String paramSpec, String after, String solution, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\CommandHandlers\\ChangeSignatureCommandHandlers.cs:line 103\r\n   at RoslynTools.Commands.ChangeSignatureCommand.\u003C\u003Ec__DisplayClass7_0.\u003C\u003CBuild\u003Eb__2\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ChangeSignatureCommand.cs:line 121\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored",
+        "dry-run": "True"
+      }
+    },
+    {
+      "id": "FB-314",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:28:40.8767427\u002B00:00",
+      "commandLine": "rename TestApp.Invoice Bill --solution ignored.slnx --dry-run",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Services.RenameService.RenameOneAsync(Solution sln, String symbol, String newName, String kind, Boolean dryRun)\r\n   at RoslynTools.Services.RenameService.ExecuteSingleAsync(Solution sln, String symbol, String newName, String kind, Boolean dryRun)\r\n   at RoslynTools.Commands.RenameCommand.\u003CBuild\u003Eb__6_0(String symbol, String newName, String solution, String kind, String csv, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\RenameCommand.cs:line 73\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests.Mcp\\bin\\Debug\\net10.0",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored.slnx",
+      "parsedOptions": {
+        "solution": "ignored.slnx",
+        "dry-run": "True"
+      }
+    },
+    {
+      "id": "FB-315",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:35:58.2201704\u002B00:00",
+      "commandLine": "rename --csv C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64\\TestOutput\\63d5982c46b844f59633b29ae3f1f751\\TestProject\\renames.csv --solution ignored",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Services.RenameService.RenameOneAsync(Solution sln, String symbol, String newName, String kind, Boolean dryRun)\r\n   at RoslynTools.Services.RenameService.RenameOneOrSkipAlreadyAppliedAsync(Solution sln, RenameCsvRow row, Boolean dryRun)\r\n   at RoslynTools.Services.RenameService.ExecuteBatchAsync(Solution sln, String csvPath, Boolean dryRun)\r\n   at RoslynTools.Commands.RenameCommand.\u003CBuild\u003Eb__6_0(String symbol, String newName, String solution, String kind, String csv, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\RenameCommand.cs:line 66\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored",
+        "csv": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64\\TestOutput\\63d5982c46b844f59633b29ae3f1f751\\TestProject\\renames.csv"
+      }
+    },
+    {
+      "id": "FB-316",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:35:58.4632743\u002B00:00",
+      "commandLine": "change-signature rename-param TestApp.Service.Foo count total --solution ignored --dry-run",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Commands.CommandHandlers.ChangeSignatureCommandHandlers.RenameParamAsync(IWorkspaceSessionFactory sessionFactory, ChangeSignatureService changeSignature, ISolutionChangeWriter solutionChangeWriter, String methodSpec, String oldName, String newName, String solution, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\CommandHandlers\\ChangeSignatureCommandHandlers.cs:line 35\r\n   at RoslynTools.Commands.ChangeSignatureCommand.\u003C\u003Ec__DisplayClass7_0.\u003C\u003CBuild\u003Eb__0\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ChangeSignatureCommand.cs:line 63\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored",
+        "dry-run": "True"
+      }
+    },
+    {
+      "id": "FB-317",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:36:05.6849213\u002B00:00",
+      "commandLine": "change-signature rename-param TestApp.Service.Foo count total --solution ignored",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Commands.CommandHandlers.ChangeSignatureCommandHandlers.RenameParamAsync(IWorkspaceSessionFactory sessionFactory, ChangeSignatureService changeSignature, ISolutionChangeWriter solutionChangeWriter, String methodSpec, String oldName, String newName, String solution, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\CommandHandlers\\ChangeSignatureCommandHandlers.cs:line 35\r\n   at RoslynTools.Commands.ChangeSignatureCommand.\u003C\u003Ec__DisplayClass7_0.\u003C\u003CBuild\u003Eb__0\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ChangeSignatureCommand.cs:line 63\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored"
+      }
+    },
+    {
+      "id": "FB-318",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:36:05.7290306\u002B00:00",
+      "commandLine": "change-signature add-param TestApp.Service.Foo int b = 0 --solution ignored",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Commands.CommandHandlers.ChangeSignatureCommandHandlers.AddParamAsync(IWorkspaceSessionFactory sessionFactory, ChangeSignatureService changeSignature, ISolutionChangeWriter solutionChangeWriter, String methodSpec, String paramSpec, String after, String solution, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\CommandHandlers\\ChangeSignatureCommandHandlers.cs:line 103\r\n   at RoslynTools.Commands.ChangeSignatureCommand.\u003C\u003Ec__DisplayClass7_0.\u003C\u003CBuild\u003Eb__2\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ChangeSignatureCommand.cs:line 121\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored"
+      }
+    },
+    {
+      "id": "FB-319",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:36:05.7884928\u002B00:00",
+      "commandLine": "change-signature remove-param TestApp.Service.Foo a --solution ignored --dry-run",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Commands.CommandHandlers.ChangeSignatureCommandHandlers.RemoveParamAsync(IWorkspaceSessionFactory sessionFactory, ChangeSignatureService changeSignature, ISolutionChangeWriter solutionChangeWriter, String methodSpec, String paramName, Boolean force, String solution, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\CommandHandlers\\ChangeSignatureCommandHandlers.cs:line 138\r\n   at RoslynTools.Commands.ChangeSignatureCommand.\u003C\u003Ec__DisplayClass7_0.\u003C\u003CBuild\u003Eb__3\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ChangeSignatureCommand.cs:line 151\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored",
+        "dry-run": "True"
+      }
+    },
+    {
+      "id": "FB-320",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:36:05.8201424\u002B00:00",
+      "commandLine": "change-signature remove-param TestApp.Service.Foo a --solution ignored",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Commands.CommandHandlers.ChangeSignatureCommandHandlers.RemoveParamAsync(IWorkspaceSessionFactory sessionFactory, ChangeSignatureService changeSignature, ISolutionChangeWriter solutionChangeWriter, String methodSpec, String paramName, Boolean force, String solution, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\CommandHandlers\\ChangeSignatureCommandHandlers.cs:line 138\r\n   at RoslynTools.Commands.ChangeSignatureCommand.\u003C\u003Ec__DisplayClass7_0.\u003C\u003CBuild\u003Eb__3\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ChangeSignatureCommand.cs:line 151\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored"
+      }
+    },
+    {
+      "id": "FB-321",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:36:05.8557081\u002B00:00",
+      "commandLine": "change-signature add-param TestApp.Service.Foo int b = 0 --solution ignored --dry-run",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Commands.CommandHandlers.ChangeSignatureCommandHandlers.AddParamAsync(IWorkspaceSessionFactory sessionFactory, ChangeSignatureService changeSignature, ISolutionChangeWriter solutionChangeWriter, String methodSpec, String paramSpec, String after, String solution, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\CommandHandlers\\ChangeSignatureCommandHandlers.cs:line 103\r\n   at RoslynTools.Commands.ChangeSignatureCommand.\u003C\u003Ec__DisplayClass7_0.\u003C\u003CBuild\u003Eb__2\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ChangeSignatureCommand.cs:line 121\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored",
+        "dry-run": "True"
+      }
+    },
+    {
+      "id": "FB-322",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:39:01.5335517\u002B00:00",
+      "commandLine": "replace-datetime --solution ignored",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Services.ReplaceTypeService.RunAsync(Solution solution, Boolean dryRun)\r\n   at RoslynTools.Commands.ReplaceTypeCommand.\u003CBuild\u003Eb__6_0(String solution, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ReplaceTypeCommand.cs:line 52\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored"
+      }
+    },
+    {
+      "id": "FB-323",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:39:01.8869443\u002B00:00",
+      "commandLine": "change-signature rename-param TestApp.Service.Foo count total --solution ignored --dry-run",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Commands.CommandHandlers.ChangeSignatureCommandHandlers.RenameParamAsync(IWorkspaceSessionFactory sessionFactory, ChangeSignatureService changeSignature, ISolutionChangeWriter solutionChangeWriter, String methodSpec, String oldName, String newName, String solution, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\CommandHandlers\\ChangeSignatureCommandHandlers.cs:line 35\r\n   at RoslynTools.Commands.ChangeSignatureCommand.\u003C\u003Ec__DisplayClass7_0.\u003C\u003CBuild\u003Eb__0\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ChangeSignatureCommand.cs:line 63\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored",
+        "dry-run": "True"
+      }
+    },
+    {
+      "id": "FB-324",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:39:03.5697609\u002B00:00",
+      "commandLine": "change-signature rename-param TestApp.Service.Foo count total --solution ignored",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Commands.CommandHandlers.ChangeSignatureCommandHandlers.RenameParamAsync(IWorkspaceSessionFactory sessionFactory, ChangeSignatureService changeSignature, ISolutionChangeWriter solutionChangeWriter, String methodSpec, String oldName, String newName, String solution, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\CommandHandlers\\ChangeSignatureCommandHandlers.cs:line 35\r\n   at RoslynTools.Commands.ChangeSignatureCommand.\u003C\u003Ec__DisplayClass7_0.\u003C\u003CBuild\u003Eb__0\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ChangeSignatureCommand.cs:line 63\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored"
+      }
+    },
+    {
+      "id": "FB-325",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:39:03.6186942\u002B00:00",
+      "commandLine": "change-signature add-param TestApp.Service.Foo int b = 0 --solution ignored",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Commands.CommandHandlers.ChangeSignatureCommandHandlers.AddParamAsync(IWorkspaceSessionFactory sessionFactory, ChangeSignatureService changeSignature, ISolutionChangeWriter solutionChangeWriter, String methodSpec, String paramSpec, String after, String solution, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\CommandHandlers\\ChangeSignatureCommandHandlers.cs:line 103\r\n   at RoslynTools.Commands.ChangeSignatureCommand.\u003C\u003Ec__DisplayClass7_0.\u003C\u003CBuild\u003Eb__2\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ChangeSignatureCommand.cs:line 121\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored"
+      }
+    },
+    {
+      "id": "FB-326",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:39:03.6666576\u002B00:00",
+      "commandLine": "change-signature remove-param TestApp.Service.Foo a --solution ignored --dry-run",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Commands.CommandHandlers.ChangeSignatureCommandHandlers.RemoveParamAsync(IWorkspaceSessionFactory sessionFactory, ChangeSignatureService changeSignature, ISolutionChangeWriter solutionChangeWriter, String methodSpec, String paramName, Boolean force, String solution, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\CommandHandlers\\ChangeSignatureCommandHandlers.cs:line 138\r\n   at RoslynTools.Commands.ChangeSignatureCommand.\u003C\u003Ec__DisplayClass7_0.\u003C\u003CBuild\u003Eb__3\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ChangeSignatureCommand.cs:line 151\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored",
+        "dry-run": "True"
+      }
+    },
+    {
+      "id": "FB-327",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:39:03.6958259\u002B00:00",
+      "commandLine": "change-signature remove-param TestApp.Service.Foo a --solution ignored",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Commands.CommandHandlers.ChangeSignatureCommandHandlers.RemoveParamAsync(IWorkspaceSessionFactory sessionFactory, ChangeSignatureService changeSignature, ISolutionChangeWriter solutionChangeWriter, String methodSpec, String paramName, Boolean force, String solution, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\CommandHandlers\\ChangeSignatureCommandHandlers.cs:line 138\r\n   at RoslynTools.Commands.ChangeSignatureCommand.\u003C\u003Ec__DisplayClass7_0.\u003C\u003CBuild\u003Eb__3\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ChangeSignatureCommand.cs:line 151\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored"
+      }
+    },
+    {
+      "id": "FB-328",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:39:03.7296787\u002B00:00",
+      "commandLine": "change-signature add-param TestApp.Service.Foo int b = 0 --solution ignored --dry-run",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Commands.CommandHandlers.ChangeSignatureCommandHandlers.AddParamAsync(IWorkspaceSessionFactory sessionFactory, ChangeSignatureService changeSignature, ISolutionChangeWriter solutionChangeWriter, String methodSpec, String paramSpec, String after, String solution, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\CommandHandlers\\ChangeSignatureCommandHandlers.cs:line 103\r\n   at RoslynTools.Commands.ChangeSignatureCommand.\u003C\u003Ec__DisplayClass7_0.\u003C\u003CBuild\u003Eb__2\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ChangeSignatureCommand.cs:line 121\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored",
+        "dry-run": "True"
+      }
+    },
+    {
+      "id": "FB-329",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:39:04.1125376\u002B00:00",
+      "commandLine": "replace-xunit-asserts --solution ignored --apply",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Services.ReplaceXunitAssertsService.RunAsync(Solution solution, Boolean dryRun)\r\n   at RoslynTools.Commands.ReplaceXunitAssertsCommand.ExecuteCoreAsync(Solution solution, Boolean dryRun, Boolean apply, Boolean review) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ReplaceXunitAssertsCommand.cs:line 92\r\n   at RoslynTools.Commands.ReplaceXunitAssertsCommand.ExecuteAsync(String solutionPath, Boolean dryRun, Boolean apply, Boolean review) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ReplaceXunitAssertsCommand.cs:line 73\r\n   at RoslynTools.Commands.ReplaceXunitAssertsCommand.\u003CBuild\u003Eb__6_0(String solution, Boolean dryRun, Boolean apply, Boolean review) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ReplaceXunitAssertsCommand.cs:line 59\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored",
+        "apply": "True"
+      }
+    },
+    {
+      "id": "FB-330",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:39:05.3023842\u002B00:00",
+      "commandLine": "rename --csv C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64\\TestOutput\\fee892df0637471da78eff5b936339bb\\TestProject\\renames.csv --solution ignored",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Services.RenameService.RenameOneAsync(Solution sln, String symbol, String newName, String kind, Boolean dryRun)\r\n   at RoslynTools.Services.RenameService.RenameOneOrSkipAlreadyAppliedAsync(Solution sln, RenameCsvRow row, Boolean dryRun)\r\n   at RoslynTools.Services.RenameService.ExecuteBatchAsync(Solution sln, String csvPath, Boolean dryRun)\r\n   at RoslynTools.Commands.RenameCommand.\u003CBuild\u003Eb__6_0(String symbol, String newName, String solution, String kind, String csv, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\RenameCommand.cs:line 66\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored",
+        "csv": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64\\TestOutput\\fee892df0637471da78eff5b936339bb\\TestProject\\renames.csv"
+      }
+    },
+    {
+      "id": "FB-331",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:42:33.1320556\u002B00:00",
+      "commandLine": "rename --csv C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64\\TestOutput\\ae3e6a5ed31446979ca7df0359be5fbe\\TestProject\\renames.csv --solution ignored",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Services.RenameService.RenameOneAsync(Solution sln, String symbol, String newName, String kind, Boolean dryRun)\r\n   at RoslynTools.Services.RenameService.RenameOneOrSkipAlreadyAppliedAsync(Solution sln, RenameCsvRow row, Boolean dryRun)\r\n   at RoslynTools.Services.RenameService.ExecuteBatchAsync(Solution sln, String csvPath, Boolean dryRun)\r\n   at RoslynTools.Commands.RenameCommand.\u003CBuild\u003Eb__6_0(String symbol, String newName, String solution, String kind, String csv, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\RenameCommand.cs:line 66\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored",
+        "csv": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64\\TestOutput\\ae3e6a5ed31446979ca7df0359be5fbe\\TestProject\\renames.csv"
+      }
+    },
+    {
+      "id": "FB-332",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:42:33.5492438\u002B00:00",
+      "commandLine": "change-signature rename-param TestApp.Service.Foo count total --solution ignored --dry-run",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Commands.CommandHandlers.ChangeSignatureCommandHandlers.RenameParamAsync(IWorkspaceSessionFactory sessionFactory, ChangeSignatureService changeSignature, ISolutionChangeWriter solutionChangeWriter, String methodSpec, String oldName, String newName, String solution, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\CommandHandlers\\ChangeSignatureCommandHandlers.cs:line 35\r\n   at RoslynTools.Commands.ChangeSignatureCommand.\u003C\u003Ec__DisplayClass7_0.\u003C\u003CBuild\u003Eb__0\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ChangeSignatureCommand.cs:line 63\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored",
+        "dry-run": "True"
+      }
+    },
+    {
+      "id": "FB-333",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:42:33.5833061\u002B00:00",
+      "commandLine": "change-signature rename-param TestApp.Service.Foo count total --solution ignored",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Commands.CommandHandlers.ChangeSignatureCommandHandlers.RenameParamAsync(IWorkspaceSessionFactory sessionFactory, ChangeSignatureService changeSignature, ISolutionChangeWriter solutionChangeWriter, String methodSpec, String oldName, String newName, String solution, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\CommandHandlers\\ChangeSignatureCommandHandlers.cs:line 35\r\n   at RoslynTools.Commands.ChangeSignatureCommand.\u003C\u003Ec__DisplayClass7_0.\u003C\u003CBuild\u003Eb__0\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ChangeSignatureCommand.cs:line 63\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored"
+      }
+    },
+    {
+      "id": "FB-334",
+      "type": "exception",
+      "timestamp": "2026-05-25T01:42:33.6249440\u002B00:00",
+      "commandLine": "change-signature add-param TestApp.Service.Foo int b = 0 --solution ignored",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Commands.CommandHandlers.ChangeSignatureCommandHandlers.AddParamAsync(IWorkspaceSessionFactory sessionFactory, ChangeSignatureService changeSignature, ISolutionChangeWriter solutionChangeWriter, String methodSpec, String paramSpec, String after, String solution, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\CommandHandlers\\ChangeSignatureCommandHandlers.cs:line 103\r\n   at RoslynTools.Commands.ChangeSignatureCommand.\u003C\u003Ec__DisplayClass7_0.\u003C\u003CBuild\u003Eb__2\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ChangeSignatureCommand.cs:line 121\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002Bd8ae95212f1a1fc2694c68692d32086732db1650",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored"
+      }
+    },
+    {
+      "id": "FB-335",
+      "type": "exception",
+      "timestamp": "2026-05-25T02:06:28.0020449\u002B00:00",
+      "commandLine": "change-signature rename-param TestApp.Service.Foo count total --solution ignored --dry-run",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Commands.CommandHandlers.ChangeSignatureCommandHandlers.RenameParamAsync(IWorkspaceSessionFactory sessionFactory, ChangeSignatureService changeSignature, ISolutionChangeWriter solutionChangeWriter, String methodSpec, String oldName, String newName, String solution, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\CommandHandlers\\ChangeSignatureCommandHandlers.cs:line 35\r\n   at RoslynTools.Commands.ChangeSignatureCommand.\u003C\u003Ec__DisplayClass7_0.\u003C\u003CBuild\u003Eb__0\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ChangeSignatureCommand.cs:line 63\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002B6d767b15eea55b56d4e7974a5f88d5fdb947909a",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored",
+        "dry-run": "True"
+      }
+    },
+    {
+      "id": "FB-336",
+      "type": "exception",
+      "timestamp": "2026-05-25T02:06:32.3007950\u002B00:00",
+      "commandLine": "change-signature rename-param TestApp.Service.Foo count total --solution ignored",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Commands.CommandHandlers.ChangeSignatureCommandHandlers.RenameParamAsync(IWorkspaceSessionFactory sessionFactory, ChangeSignatureService changeSignature, ISolutionChangeWriter solutionChangeWriter, String methodSpec, String oldName, String newName, String solution, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\CommandHandlers\\ChangeSignatureCommandHandlers.cs:line 35\r\n   at RoslynTools.Commands.ChangeSignatureCommand.\u003C\u003Ec__DisplayClass7_0.\u003C\u003CBuild\u003Eb__0\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ChangeSignatureCommand.cs:line 63\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002B6d767b15eea55b56d4e7974a5f88d5fdb947909a",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored"
+      }
+    },
+    {
+      "id": "FB-337",
+      "type": "exception",
+      "timestamp": "2026-05-25T02:06:32.3393507\u002B00:00",
+      "commandLine": "change-signature add-param TestApp.Service.Foo int b = 0 --solution ignored",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Commands.CommandHandlers.ChangeSignatureCommandHandlers.AddParamAsync(IWorkspaceSessionFactory sessionFactory, ChangeSignatureService changeSignature, ISolutionChangeWriter solutionChangeWriter, String methodSpec, String paramSpec, String after, String solution, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\CommandHandlers\\ChangeSignatureCommandHandlers.cs:line 103\r\n   at RoslynTools.Commands.ChangeSignatureCommand.\u003C\u003Ec__DisplayClass7_0.\u003C\u003CBuild\u003Eb__2\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ChangeSignatureCommand.cs:line 121\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002B6d767b15eea55b56d4e7974a5f88d5fdb947909a",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored"
+      }
+    },
+    {
+      "id": "FB-338",
+      "type": "exception",
+      "timestamp": "2026-05-25T02:06:32.3754095\u002B00:00",
+      "commandLine": "change-signature remove-param TestApp.Service.Foo a --solution ignored --dry-run",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Commands.CommandHandlers.ChangeSignatureCommandHandlers.RemoveParamAsync(IWorkspaceSessionFactory sessionFactory, ChangeSignatureService changeSignature, ISolutionChangeWriter solutionChangeWriter, String methodSpec, String paramName, Boolean force, String solution, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\CommandHandlers\\ChangeSignatureCommandHandlers.cs:line 138\r\n   at RoslynTools.Commands.ChangeSignatureCommand.\u003C\u003Ec__DisplayClass7_0.\u003C\u003CBuild\u003Eb__3\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ChangeSignatureCommand.cs:line 151\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002B6d767b15eea55b56d4e7974a5f88d5fdb947909a",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored",
+        "dry-run": "True"
+      }
+    },
+    {
+      "id": "FB-339",
+      "type": "exception",
+      "timestamp": "2026-05-25T02:06:32.4088476\u002B00:00",
+      "commandLine": "change-signature remove-param TestApp.Service.Foo a --solution ignored",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Commands.CommandHandlers.ChangeSignatureCommandHandlers.RemoveParamAsync(IWorkspaceSessionFactory sessionFactory, ChangeSignatureService changeSignature, ISolutionChangeWriter solutionChangeWriter, String methodSpec, String paramName, Boolean force, String solution, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\CommandHandlers\\ChangeSignatureCommandHandlers.cs:line 138\r\n   at RoslynTools.Commands.ChangeSignatureCommand.\u003C\u003Ec__DisplayClass7_0.\u003C\u003CBuild\u003Eb__3\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ChangeSignatureCommand.cs:line 151\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002B6d767b15eea55b56d4e7974a5f88d5fdb947909a",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored"
+      }
+    },
+    {
+      "id": "FB-340",
+      "type": "exception",
+      "timestamp": "2026-05-25T02:06:32.4389868\u002B00:00",
+      "commandLine": "change-signature add-param TestApp.Service.Foo int b = 0 --solution ignored --dry-run",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Commands.CommandHandlers.ChangeSignatureCommandHandlers.AddParamAsync(IWorkspaceSessionFactory sessionFactory, ChangeSignatureService changeSignature, ISolutionChangeWriter solutionChangeWriter, String methodSpec, String paramSpec, String after, String solution, Boolean dryRun) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\CommandHandlers\\ChangeSignatureCommandHandlers.cs:line 103\r\n   at RoslynTools.Commands.ChangeSignatureCommand.\u003C\u003Ec__DisplayClass7_0.\u003C\u003CBuild\u003Eb__2\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ChangeSignatureCommand.cs:line 121\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002B6d767b15eea55b56d4e7974a5f88d5fdb947909a",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored",
+        "dry-run": "True"
+      }
+    },
+    {
+      "id": "FB-341",
+      "type": "exception",
+      "timestamp": "2026-05-25T02:06:32.9137751\u002B00:00",
+      "commandLine": "replace-xunit-asserts --solution ignored --apply",
+      "description": "Object reference not set to an instance of an object.",
+      "actualResult": "NullReferenceException: Object reference not set to an instance of an object.",
+      "stackTrace": "System.NullReferenceException: Object reference not set to an instance of an object.\r\n   at RoslynTools.Services.ReplaceXunitAssertsService.RunAsync(Solution solution, Boolean dryRun)\r\n   at RoslynTools.Commands.ReplaceXunitAssertsCommand.ExecuteCoreAsync(Solution solution, Boolean dryRun, Boolean apply, Boolean review) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ReplaceXunitAssertsCommand.cs:line 92\r\n   at RoslynTools.Commands.ReplaceXunitAssertsCommand.ExecuteAsync(String solutionPath, Boolean dryRun, Boolean apply, Boolean review) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ReplaceXunitAssertsCommand.cs:line 73\r\n   at RoslynTools.Commands.ReplaceXunitAssertsCommand.\u003CBuild\u003Eb__6_0(String solution, Boolean dryRun, Boolean apply, Boolean review) in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\Commands\\ReplaceXunitAssertsCommand.cs:line 59\r\n   at System.CommandLine.Invocation.AnonymousCommandHandler.InvokeAsync(InvocationContext context)\r\n   at System.CommandLine.Invocation.InvocationPipeline.\u003C\u003Ec__DisplayClass4_0.\u003C\u003CBuildInvocationChain\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at System.CommandLine.Builder.CommandLineBuilderExtensions.\u003C\u003Ec__DisplayClass17_0.\u003C\u003CUseParseErrorReporting\u003Eb__0\u003Ed.MoveNext()\r\n--- End of stack trace from previous location ---\r\n   at RoslynTools.App.\u003C\u003Ec__DisplayClass10_0.\u003C\u003CRunCoreAsync\u003Eb__5\u003Ed.MoveNext() in C:\\code\\roslyn-tools\\src\\RoslynTools.Cli\\App.cs:line 298",
+      "status": "pending",
+      "cwd": "C:\\code\\roslyn-tools\\tests\\RoslynTools.Tests\\bin\\Debug\\net10.0\\win-x64",
+      "rtVersion": "1.0.0\u002B6d767b15eea55b56d4e7974a5f88d5fdb947909a",
+      "dotnetVersion": "10.0.5",
+      "osPlatform": "Microsoft Windows 10.0.26200",
+      "solutionPath": "ignored",
+      "parsedOptions": {
+        "solution": "ignored",
+        "apply": "True"
+      }
     }
   ]
 }

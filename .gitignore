@@ -42,3 +42,8 @@ Desktop.ini
 ## Scratch/tmp files (never commit these)
 /tmp-*.json
 /acs-*.json
+/rt-help-temp.txt
+/rt-mcp-smoke.jsonl
+
+## Local MCP config (user-scope install is preferred; project-scope opt-in only)
+/.mcp.json
