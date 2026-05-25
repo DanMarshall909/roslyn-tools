@@ -48,3 +48,7 @@ Desktop.ini
 
 ## Local MCP config (user-scope install is preferred; project-scope opt-in only)
 /.mcp.json
+
+## Local-only reference docs and orphaned migration marker
+/.external-docs/
+/docs/flag-capability-migrated-commands.txt
