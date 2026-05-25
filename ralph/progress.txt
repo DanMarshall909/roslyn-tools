@@ -1,7 +1,7 @@
 roslyn-tools
 Branch: result-type-and-cleanup
 
-Current Status: 3/7 stories complete (43%)
+Current Status: 3/8 stories complete (38%)
 
 Stories
 [ ] US-077 Result<T,RtError> ADT + SymbolLocator migration + App exception ladder
@@ -11,3 +11,4 @@ Stories
 [ ] US-071 rt refactor extract-interface produces malformed output for internal classes
 [ ] US-100 Unify RtResultRenderer call shape and enforce IStructuredOutputCommand for every JSON-output command
 [x] US-107 Category + capability interfaces to enforce command consistency at the type system
+[ ] US-114 Represent shared CLI flags as reusable capability interfaces backed by a central option registry
