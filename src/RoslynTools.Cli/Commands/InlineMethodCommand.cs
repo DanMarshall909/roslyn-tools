@@ -7,7 +7,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Inlines a method into its calling context
 /// </summary>
-internal sealed class InlineMethodCommand : IRtCommand, IRefactorCommand
+internal sealed class InlineMethodCommand : IRtCommand, IRefactorCommand, IMutatingCommand
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly InlineMethodService _inlineMethod;

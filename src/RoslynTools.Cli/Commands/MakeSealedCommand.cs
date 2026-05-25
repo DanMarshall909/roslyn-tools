@@ -7,7 +7,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Converts a class to be sealed
 /// </summary>
-internal sealed class MakeSealedCommand : IRtCommand, IRefactorCommand
+internal sealed class MakeSealedCommand : IRtCommand, IRefactorCommand, IMutatingCommand
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly MakeSealedService _makeSealed;

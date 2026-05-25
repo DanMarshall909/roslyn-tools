@@ -7,7 +7,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// A command for transforming parameters.
 /// </summary>
-internal sealed class TransformParametersCommand : IRtCommand, IRefactorCommand
+internal sealed class TransformParametersCommand : IRtCommand, IRefactorCommand, IMutatingCommand
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly TransformParametersService _transform;
