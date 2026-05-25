@@ -1568,6 +1568,29 @@
             "passes": false,
             "epicId": "EP-014",
             "notes": "P2 exploratory C# feature. Seeded by 2026-05-25 discussion: use Tome-style local embeddings for codebase exploration, especially pattern/deviation discovery, but keep Roslyn as the authority. Related prior art: tasks/prd-find-duplicates.md US-206 semantic duplicate discovery; EP-011 rt suggest natural-language discovery; EP-012 native MCP handler pattern. This story is intentionally read-only and advisory."
+        },
+        {
+            "id": "US-115",
+            "title": "Target-architecture ratchet suite: SkippableFact arch tests for every testable rule",
+            "description": "As a maintainer, I want every rule in docs/target-command-surface-architecture.md backed by an architectural test that ratchets toward 100% conformance, so the arch-test suite IS the canonical 'are we done?' checklist for the target command surface. Each rule landing in flight is a Skipped test with a dynamic count message reporting remaining offenders; once a rule is fully satisfied the Skip is removed and the test becomes a permanent hard ratchet.",
+            "acceptanceCriteria": [
+                "tests/RoslynTools.Tests/Architecture/LayerBoundaryContracts.cs exists with the following SkippableFact tests (skipped while in flight, dynamic count message): services_do_not_reference_System_CommandLine; services_do_not_reference_ParseResult; services_do_not_reference_System_Text_Json_JsonElement; services_do_not_reference_RoslynTools_Cli_or_Mcp_types; services_do_not_reference_RtFlagCatalog_or_flag_capability_interfaces; services_do_not_call_Console_directly_for_results",
+                "tests/RoslynTools.Tests/Architecture/CliAdapterContracts.cs exists with: every_command_has_a_CliRequest_record (Skip'd, references US-114); every_CliRequest_implements_ISupports_for_every_catalog_flag_it_exposes (move existing US-114 forward biconditional here); every_command_uses_RtCommandFlagBinder_for_catalog_flags (Skip'd, references US-114)",
+                "tests/RoslynTools.Tests/Architecture/CommandCatalogContracts.cs exists with: dump_help_metadata_derives_from_RtCommandInfo_only (hard ratchet); rt_suggest_reads_from_RtCommandInfo (Skip'd until US-087); RtCommandInfo_Examples_use_current_invocation_syntax (Skip'd until verified); every_command_has_SeeAlso_populated (Skip'd until US-088/US-089)",
+                "tests/RoslynTools.Tests.Mcp/Architecture/McpAdapterContracts.cs exists with: every_native_McpHandler_inputSchema_derives_from_RtFlagCatalog (Skip'd until US-095/US-096); no_handler_constructs_JsonSchemaBuilder_directly_for_catalog_flag_inputs (Skip'd until same); every_native_McpHandler_response_uses_camelCase_JsonNamingPolicy (hard ratchet — convention is already in place)",
+                "tests/RoslynTools.Tests/Architecture/NonGoalContracts.cs exists with: no_mediator_framework_referenced (assertion over Directory.Packages.props — no MediatR/MassTransit/etc); no_command_metadata_source_generator (assertion over *.csproj — no analyzers/generators producing RtCommandInfo); services_do_not_implement_flag_capability_interfaces (ISupports* belong to adapters only)",
+                "Every Skip.If guard cites its tracking story id (US-NNN) and uses the standard message shape: 'US-NNN WIP — <N> offender(s): ...\\nRemove Skip.If permanently when US-NNN closes.'",
+                "When a tracking story closes, the corresponding Skip.If guard is removed in the same PR — the test becomes a permanent hard ratchet. docs/per-command-checklist.md row for that rule is updated to '(enforced — US-NNN)'.",
+                "docs/target-command-surface-architecture.md gains a 'Ratchet Coverage' section that lists each architectural rule, which test enforces it, and the tracking story. The doc IS the index from rule → arch-test → story.",
+                "Each new test file is its own PR-able batch — US-115 ships incrementally, one file per batch. The story closes when every Skip.If in the entire arch-test suite is removed (modulo unrelated soft ratchets like US-082).",
+                "Tests use Xunit.SkippableFact (already added in commit 7ef1da7) so the dynamic count message is visible in every dotnet test run.",
+                "dotnet build RoslynTools.slnx clean; dotnet format RoslynTools.slnx --verify-no-changes clean; full architecture suite passes (skipped tests show their dynamic count messages without failing the build)",
+                "Pattern reference: commit 7ef1da7 (feat(US-114): flag capability interfaces + central catalog + Skip'd biconditional ratchet) and US-107's CategoryInterfaceContracts.cs / McpHandlerNameContract.cs. The SkippableFact biconditional with dynamic count is the canonical shape."
+            ],
+            "priority": 115,
+            "passes": false,
+            "epicId": "EP-009",
+            "notes": "P2. EP-009 extension. Lands after US-114 (which establishes the SkippableFact pattern in commit 7ef1da7) and complements US-107's CategoryInterfaceContracts / McpHandlerNameContract. Each new test file is its own PR-able batch; story closes when every Skip.If guard in the architecture suite is removed (modulo external soft ratchets like US-082)."
         }
     ]
 }
