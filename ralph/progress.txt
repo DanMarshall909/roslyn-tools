@@ -1,7 +1,7 @@
 roslyn-tools
 Branch: backlog
 
-Current Status: 26/68 stories complete (38%)
+Current Status: 26/67 stories complete (39%)
 
 EP-005 — codebase consistency sweep (1/1)
 [x] US-025 fix formatting violations: CRLF and encoding errors in 4 files
@@ -25,7 +25,7 @@ EP-008 — Platform abstractions: IWorkspaceSessionFactory + ISolutionApplier (3
 [x] US-072 Eliminate RtServiceProvider.Get<T> service locator in favour of ctor injection
 [ ] US-102 Complete the IWorkspaceSessionFactory migration — remove LoadWorkspaceAsync compat surface
 
-EP-009 — Consistent command contracts and migration ratchets (7/16)
+EP-009 — Consistent command contracts and migration ratchets (7/15)
 [ ] US-057 Introduce a shared read-only command handler wrapper
 [x] US-058 Standardize common CLI options through option factories
 [x] US-059 Add machine-readable command capabilities to RtCommandInfo
@@ -39,7 +39,6 @@ EP-009 — Consistent command contracts and migration ratchets (7/16)
 [ ] US-084 Metadata catalog: RtCommandInfo schema + dump-help --json + consistency test
 [ ] US-085 Standardize CLI options through CommandOptionFactory with consistent vocabulary and aliases
 [ ] US-086 Command file structure convention + architecture ratchet + migration playbook
-[ ] US-107 Category + capability interfaces to enforce command consistency at the type system
 [ ] US-108 Delete redundant RtCommandInfo.Category and Info.Mutates after category interfaces land
 [ ] US-109 Extend shared output-format pipeline to every command (JSON/YAML/text for mutating commands too)
 
@@ -87,6 +86,6 @@ Loose stories
 [ ] US-091 Enrich C# diff syntax highlighting with type-name and method-call heuristics
 [ ] US-092 Stable fix IDs in dry-run + --apply / --skip filters for batch mutation commands
 [ ] US-093 Route command exit codes through System.CommandLine middleware (replace Environment.ExitCode)
-[ ] US-100 Unify RtResultRenderer call shape and enforce IStructuredOutputCommand for every JSON-output command
 [ ] US-101 Decompose SolidAnalyzer into per-principle analyzers behind a thin orchestrator
 [ ] US-103 Eliminate parameterless service ctors that hand-roll concrete dependencies
+[ ] US-111 rt refactor add-base-type: add interface or base class to a class declaration without generating stubs
