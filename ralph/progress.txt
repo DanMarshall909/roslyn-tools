@@ -1,7 +1,7 @@
 roslyn-tools
 Branch: backlog
 
-Current Status: 26/64 stories complete (41%)
+Current Status: 26/65 stories complete (40%)
 
 EP-005 — codebase consistency sweep (1/1)
 [x] US-025 fix formatting violations: CRLF and encoding errors in 4 files
@@ -25,7 +25,7 @@ EP-008 — Platform abstractions: IWorkspaceSessionFactory + ISolutionApplier (3
 [x] US-072 Eliminate RtServiceProvider.Get<T> service locator in favour of ctor injection
 [ ] US-102 Complete the IWorkspaceSessionFactory migration — remove LoadWorkspaceAsync compat surface
 
-EP-009 — Consistent command contracts and migration ratchets (7/13)
+EP-009 — Consistent command contracts and migration ratchets (7/14)
 [ ] US-057 Introduce a shared read-only command handler wrapper
 [x] US-058 Standardize common CLI options through option factories
 [x] US-059 Add machine-readable command capabilities to RtCommandInfo
@@ -39,6 +39,7 @@ EP-009 — Consistent command contracts and migration ratchets (7/13)
 [ ] US-084 Metadata catalog: RtCommandInfo schema + dump-help --json + consistency test
 [ ] US-085 Standardize CLI options through CommandOptionFactory with consistent vocabulary and aliases
 [ ] US-086 Command file structure convention + architecture ratchet + migration playbook
+[ ] US-107 Category + capability interfaces to enforce command consistency at the type system
 
 EP-010 — Error-handling architecture: Result<T,RtError> rollout (0/2)
 [ ] US-078 Result<T,RtError> migration: WorkspaceLoader.LoadAsync

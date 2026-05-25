@@ -1438,6 +1438,29 @@
             "passes": false,
             "epicId": "EP-012",
             "notes": "P3. EP-012 naming consistency. Preferred resolution: rename native ToolName to 'suggest'. Acceptable: dual-name with a deprecation note. Sequencing: best landed alongside US-087 (rt suggest BM25 command) so the CLI and MCP names settle together."
+        },
+        {
+            "id": "US-107",
+            "title": "Category + capability interfaces to enforce command consistency at the type system",
+            "description": "As a maintainer, I want IInspectCommand/IAnalyzeCommand/IRefactorCommand marker interfaces plus capability interfaces (IMutatingCommand, IStructuredOutputCommand, IBatchMutationCommand, INativeMcpExposable) so the compiler and architecture tests enforce category-specific contracts (mutates, JSON output, dry-run, MCP exposure), replacing several rows of the per-command checklist with mechanical checks.",
+            "acceptanceCriteria": [
+                "src/RoslynTools/Core/ defines three marker category interfaces inheriting from IRtCommand: IInspectCommand, IAnalyzeCommand, IRefactorCommand. They are empty subinterfaces — no member additions — so existing commands implement them by declaration only.",
+                "Every concrete *Command class in src/RoslynTools/Commands/ implements exactly one of the three category interfaces. Picking zero or more than one is a compile error or an architecture-test failure.",
+                "Capability interfaces also defined in src/RoslynTools/Core/: IMutatingCommand (commands that produce file changes; must expose a dry-run option and emit a diff or change summary), IStructuredOutputCommand (commands that emit JSON; consolidates with the US-100 IStructuredOutputCommand if that lands first), IBatchMutationCommand (commands that use the BatchMutationRunner/FixId pipeline; ties into US-092), INativeMcpExposable (commands that should have a corresponding native IMcpHandler; ties into US-094).",
+                "Architecture test (under tests/RoslynTools.Tests/Architecture/) asserts: every IInspectCommand has Info.Category == \"inspect\", Info.Mutates == false, Info.JsonOutput == true",
+                "Architecture test asserts: every IAnalyzeCommand has Info.Category == \"analyze\", Info.Mutates == false, Info.JsonOutput == true",
+                "Architecture test asserts: every IRefactorCommand has Info.Category == \"refactor\", Info.Mutates == true, implements IMutatingCommand, and its Build() registers a --dry-run option (detected by inspecting the System.CommandLine surface)",
+                "Architecture test asserts: every IInspectCommand and IAnalyzeCommand also implements INativeMcpExposable AND has a registered IMcpHandler with matching ToolName (replaces the bespoke ratchet from US-094 if US-094 hasn't landed yet, or extends it if it has)",
+                "Awkward outliers are handled explicitly, not by relaxing the rules: debug (analyze category but operates on a JSONL trace, not the solution) gets an explicit ITraceAnalyzeCommand subinterface OR a documented [DoesNotRequireSolution] marker so the solution-scoped checks skip it",
+                "docs/per-command-checklist.md updated: every checklist row that is now compiler- or test-enforced is annotated with \"(enforced)\" and dropped from the manual checklist. The remaining manual items are the genuinely-human ones (Examples freshness, SeeAlso correctness, behaviour-vs-Mutates accuracy).",
+                "All 52 existing commands compile and pass after the interfaces are introduced (no behaviour change; pure type-system + ratchet)",
+                "dotnet build RoslynTools.slnx clean; dotnet format --verify-no-changes clean; existing tests pass; new architecture tests green",
+                "Pattern reference: commit 6d767b1 (feat(mcp): wire find_refs and rename as native MCP handlers) for the native-handler conventions the INativeMcpExposable rule encodes"
+            ],
+            "priority": 108,
+            "passes": false,
+            "epicId": "EP-009",
+            "notes": "P2. EP-009 consistency enabler. Shrinks docs/per-command-checklist.md to the genuinely-human items. Composes with: US-094 (MCP ratchet — INativeMcpExposable encodes this), US-100 (IStructuredOutputCommand — consolidate), US-092 (BatchMutationRunner — IBatchMutationCommand marks adopters), US-097 (refactor MCP shape — IRefactorCommand + IMutatingCommand contract owns this). Awkward commands (debug, outline) get explicit carve-out subinterfaces or markers — do NOT relax the universal rules to fit them."
         }
     ]
 }
