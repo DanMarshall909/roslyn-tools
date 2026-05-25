@@ -18,14 +18,16 @@ If an item doesn't apply (e.g. `Info.Mutates` for a read-only command), tick it 
 
 ## 1. Universal checklist (every command)
 
-> **Heads-up — US-107** is adding category interfaces (`IInspectCommand`, `IAnalyzeCommand`, `IRefactorCommand`) and capability interfaces (`IMutatingCommand`, `IStructuredOutputCommand`, `IBatchMutationCommand`, `INativeMcpExposable`). Once that lands, several rows below become compiler- and architecture-test-enforced and will be marked **(enforced)** here. Items that remain on the manual list are the genuinely-human ones (`Examples` freshness, `SeeAlso` correctness, behaviour-vs-`Mutates` accuracy).
+> **US-107 has landed.** The category interfaces (`IInspectCommand`, `IAnalyzeCommand`, `IRefactorCommand`) and capability interfaces (`IMutatingCommand`, `IBatchMutationCommand`, `ITraceAnalyzeCommand`) now drive architecture-test ratchets in `tests/RoslynTools.Tests/Architecture/CategoryInterface*.cs` and `tests/RoslynTools.Tests.Mcp/Architecture/McpHandlerNameContract.cs`. Rows marked **(enforced — US-NNN)** below fail the architecture-test suite if violated. Future work removes them from this manual list once the corresponding tracking story lands.
 
-- [ ] `IRtCommand` contract satisfied — static `RtCommandInfo Info` + `Command Build()`
-- [ ] `Info.Category` is one of `inspect`, `analyze`, `refactor` *(to become enforced via category interface — US-107; field itself slated for removal — US-108)*
+- [x] `IRtCommand` contract satisfied — static `RtCommandInfo Info` + `Command Build()` *(enforced — App.cs static ctor)*
+- [x] Command implements exactly one category interface — `IInspectCommand` / `IAnalyzeCommand` / `IRefactorCommand` (or `ITraceAnalyzeCommand` for trace-scoped analyze) *(enforced — US-107, App.cs static ctor + `CategoryInterfaceCoverage`)*
+- [x] `Info.Category` matches the category interface (`"inspect"`/`"analyze"`/`"refactor"`) *(enforced — US-107, `CategoryInterfaceContracts`; field slated for removal — US-108)*
+- [x] `Info.Mutates` matches the category interface (refactor = true, inspect/analyze = false) *(enforced — US-107, `CategoryInterfaceContracts`; field slated for removal — US-108)*
+- [x] `IRefactorCommand.Build()` registers a `--dry-run` option *(enforced — US-107, `CategoryInterfaceContracts`; known exception `change-signature` tracked by US-112)*
 - [ ] Options constructed via `CommandOptionFactory` where applicable (US-085)
 - [ ] `Info.Examples` reflect actual current invocations (not stale syntax)
-- [ ] `Info.Mutates` accurate (refactor = true, inspect/analyze = false) *(field slated for removal — US-108; behaviour will come from `IMutatingCommand`)*
-- [ ] `Info.JsonOutput` accurate (matches the actual stdout shape) *(US-100/US-109 — biconditional with `IStructuredOutputCommand` and shared renderer)*
+- [ ] `Info.JsonOutput` accurate for inspect/analyze (currently soft-ratcheted via skipped test in `CategoryInterfaceContracts.with_every_inspect_or_analyze_command_jsonoutput_is_true` — owned by US-082 / EP-007 umbrella; unskip once 8 outliers gain JSON output)
 - [ ] `Info.SeeAlso` lists related commands (US-088, US-089)
 - [ ] `RtCommandInfo` metadata in canonical shape (US-084)
 - [ ] File structure follows the playbook (US-086)
@@ -43,7 +45,8 @@ If an item doesn't apply (e.g. `Info.Mutates` for a read-only command), tick it 
 - [ ] If native: schema declares all *required* fields explicitly
 - [ ] If native: response is camelCase JSON via `JsonNamingPolicy.CamelCase`
 - [ ] If native and mutating: `dry-run` defaults to true (or follows the explicit decision in US-097)
-- [ ] Native `ToolName` matches the command name with hyphens replaced by underscores (so it overrides the auto-bridge by name)
+- [x] Native `ToolName` matches the command name with hyphens replaced by underscores (so it overrides the auto-bridge by name) *(enforced — US-107, `McpHandlerNameContract.with_every_imcphandler_the_toolname_matches_a_known_cli_command_name`; documented meta-handler exceptions live in `KnownMetaHandlerNames`)*
+- [x] No two native handlers share a `ToolName` *(enforced — US-107, `McpHandlerNameContract.with_every_imcphandler_the_toolname_is_unique`)*
 - [ ] Registered in `McpServiceRegistration.AddMcpServices`
 - [ ] `tools/list` snapshot test still passes (US-094)
 - [ ] If the CLI command has a hidden-from-auto-bridge alias (meta-commands), the native handler covers the visible name
