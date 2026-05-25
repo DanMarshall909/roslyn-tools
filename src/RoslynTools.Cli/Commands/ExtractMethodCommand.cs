@@ -8,7 +8,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Extracts methods from the current file
 /// </summary>
-internal sealed class ExtractMethodCommand : IRtCommand, IRefactorCommand, IMutatingCommand
+internal sealed class ExtractMethodCommand : IRtCommand, IRefactorCommand
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly ISolutionChangeWriter _solutionChangeWriter;

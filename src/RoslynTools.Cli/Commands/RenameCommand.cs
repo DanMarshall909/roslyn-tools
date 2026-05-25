@@ -8,7 +8,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Renames symbols within the solution.
 /// </summary>
-internal sealed class RenameCommand : IRtCommand, IRefactorCommand, IMutatingCommand
+internal sealed class RenameCommand : IRtCommand, IRefactorCommand
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly RenameService _rename;

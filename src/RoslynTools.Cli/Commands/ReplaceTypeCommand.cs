@@ -7,7 +7,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Replaces a type reference with another type.
 /// </summary>
-internal sealed class ReplaceTypeCommand : IRtCommand, IRefactorCommand, IMutatingCommand
+internal sealed class ReplaceTypeCommand : IRtCommand, IRefactorCommand
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly ReplaceTypeService _replace;

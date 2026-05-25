@@ -7,7 +7,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Extracts string literals from the current file
 /// </summary>
-internal sealed class ExtractStringConstantCommand : IRtCommand, IRefactorCommand, IMutatingCommand
+internal sealed class ExtractStringConstantCommand : IRtCommand, IRefactorCommand
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly MagicStringService _magicString;

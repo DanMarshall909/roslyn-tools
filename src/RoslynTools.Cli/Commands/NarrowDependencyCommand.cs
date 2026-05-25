@@ -7,7 +7,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Narrow dependencies in the solution to reduce complexity.
 /// </summary>
-internal sealed class NarrowDependencyCommand : IRtCommand, IRefactorCommand, IMutatingCommand
+internal sealed class NarrowDependencyCommand : IRtCommand, IRefactorCommand
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly NarrowDependencyService _narrow;

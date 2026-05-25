@@ -7,7 +7,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Extracts an interface from the solution.
 /// </summary>
-internal sealed class ExtractInterfaceCommand : IRtCommand, IRefactorCommand, IMutatingCommand
+internal sealed class ExtractInterfaceCommand : IRtCommand, IRefactorCommand
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly ExtractInterfaceService _extractInterface;

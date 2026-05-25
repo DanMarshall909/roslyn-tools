@@ -7,7 +7,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Migrates code to use IOptions interface for configuration.
 /// </summary>
-internal sealed class MigrateToIOptionsCommand : IRtCommand, IRefactorCommand, IMutatingCommand
+internal sealed class MigrateToIOptionsCommand : IRtCommand, IRefactorCommand
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly MigrateToIOptionsService _migrate;

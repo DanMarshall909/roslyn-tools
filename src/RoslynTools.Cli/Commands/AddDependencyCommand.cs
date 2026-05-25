@@ -8,7 +8,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Command for adding dependencies to a solution.
 /// </summary>
-internal sealed class AddDependencyCommand : IRtCommand, IRefactorCommand, IMutatingCommand
+internal sealed class AddDependencyCommand : IRtCommand, IRefactorCommand
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly AddDependencyService _addDependency;

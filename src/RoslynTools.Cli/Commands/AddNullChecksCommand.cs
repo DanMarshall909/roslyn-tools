@@ -7,7 +7,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Command for adding null checks to the project.
 /// </summary>
-internal sealed class AddNullChecksCommand : IRtCommand, IRefactorCommand, IMutatingCommand
+internal sealed class AddNullChecksCommand : IRtCommand, IRefactorCommand
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly AddNullChecksService _addNullChecks;

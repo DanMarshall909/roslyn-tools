@@ -7,7 +7,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Command for adding test commands to the project.
 /// </summary>
-internal sealed class AddTestCommand : IRtCommand, IRefactorCommand, IMutatingCommand
+internal sealed class AddTestCommand : IRtCommand, IRefactorCommand
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly AddTestService _addTest;

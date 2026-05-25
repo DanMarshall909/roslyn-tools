@@ -10,7 +10,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Converts console logging to a more structured format.
 /// </summary>
-internal sealed class ConvertConsoleLoggingCommand : IRtCommand, IRefactorCommand, IMutatingCommand
+internal sealed class ConvertConsoleLoggingCommand : IRtCommand, IRefactorCommand
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly AddDependencyService _addDependency;

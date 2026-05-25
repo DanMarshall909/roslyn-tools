@@ -7,7 +7,7 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Creates a static command for executing code changes.
 /// </summary>
-internal sealed class MakeStaticCommand : IRtCommand, IRefactorCommand, IMutatingCommand
+internal sealed class MakeStaticCommand : IRtCommand, IRefactorCommand
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly MakeStaticService _makeStatic;
