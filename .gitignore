@@ -41,6 +41,7 @@ Desktop.ini
 
 ## Scratch/tmp files (never commit these)
 /tmp-*.json
+/tmp-*.txt
 /acs-*.json
 /rt-help-temp.txt
 /rt-mcp-smoke.jsonl
