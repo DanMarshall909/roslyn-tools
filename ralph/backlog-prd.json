@@ -1379,6 +1379,65 @@
             "priority": 104,
             "passes": false,
             "notes": "P2. Source: architectural audit on 2026-05-24. 34 services have legacy parameterless ctors that chain to a parameterised ctor via : this(new ...) — e.g. ImportDirectiveService.cs:33-35. Used by 14 test files (tests/RoslynTools.Tests/Mutation/RenameIntegration.cs, etc.) and 3 production services that compose siblings via new (ChangeSignatureService, AnalyzeInterfaceService, NarrowDependencyService). Follows the spirit of US-072 (RtServiceProvider removal, shipped 2026-05-21) — completes the DI story at the service tier. US-098 overlaps at the test-level no-new rule; the architecture test introduced there is extended here to cover the full service inventory."
+        },
+        {
+            "id": "US-104",
+            "title": "rt change-signature: native MCP handler with explicit input schema",
+            "description": "As an MCP caller, I want change_signature to expose a real input schema with required fields so the LLM knows what to pass. Today the auto-bridge produces an empty {\"type\":\"object\"} inputSchema, leaving the tool effectively unusable through the MCP.",
+            "acceptanceCriteria": [
+                "src/RoslynTools.Mcp/Handlers/ChangeSignatureHandler.cs exists, implements IMcpHandler, ToolName = \"change_signature\"",
+                "Definition.inputSchema declares required fields explicitly (no empty {\"type\":\"object\"} like the current auto-bridge produces) and covers every flag the CLI exposes (e.g. symbol, new-signature, kind, solution)",
+                "HandleAsync calls the existing Core ChangeSignatureService (or equivalent) directly and returns structured JSON; if it mutates, dry-run defaults to true per US-097",
+                "Registered in src/RoslynTools.Mcp/McpServiceRegistration.AddMcpServices as services.AddSingleton<IMcpHandler, ChangeSignatureHandler>()",
+                "tests/RoslynTools.Tests.Mcp/Handlers/ChangeSignatureHandlerTests.cs parses returned JSON (no string.Contains) and asserts at least: happy path field shape, missing-required-field error path",
+                "tools/list snapshot test (US-094) refreshed to include the new schema once US-094 lands",
+                "Run the Per-Command Consistency Checklist (docs/per-command-checklist.md) for change-signature before merge",
+                "Pattern reference: commit 6d767b1 (feat(mcp): wire find_refs and rename as native MCP handlers). Canonical files: FindReferencesHandler.cs, RenameSymbolHandler.cs, OutlineHandler.cs.",
+                "dotnet build RoslynTools.slnx clean; dotnet format --verify-no-changes clean; existing tests pass; new handler tests added"
+            ],
+            "priority": 105,
+            "passes": false,
+            "epicId": "EP-012",
+            "notes": "P2. EP-012 schema bug. Native handler is the preferred fix (eliminates bridge ambiguity), per the same pattern as 6d767b1."
+        },
+        {
+            "id": "US-105",
+            "title": "rt move: declare required MCP input fields (native handler preferred)",
+            "description": "As an MCP caller, I want `move` to fail at the schema layer when neither --type nor --namespace is provided, instead of dispatching into the command and erroring there. Today the MCP schema has properties but an empty required array.",
+            "acceptanceCriteria": [
+                "MCP `move` tool no longer reports zero required fields; the schema declares the actually-required inputs the CLI enforces (either type + to-namespace OR namespace + to-namespace) so invoking the tool with neither fails at the schema layer, not inside the command body",
+                "Preferred: src/RoslynTools.Mcp/Handlers/MoveHandler.cs exists and implements IMcpHandler with ToolName = \"move\". Acceptable alternative: fix the auto-bridge so it derives the right `required` array from the System.CommandLine option metadata (must apply to all bridged commands, not just move)",
+                "If native: HandleAsync calls the existing MoveService Core service and returns structured JSON {moved: [{from, to}], changedFiles: int, changedFilePaths: [string], applied: bool}",
+                "If native: dry-run defaults to true per US-097",
+                "tests/RoslynTools.Tests.Mcp/Handlers/MoveHandlerTests.cs (or the bridge equivalent test) covers: happy path single-type move, happy path namespace move, missing-both-type-and-namespace error, --solution auto-detect path",
+                "tools/list snapshot test (US-094) refreshed to include the new schema once US-094 lands",
+                "Run the Per-Command Consistency Checklist (docs/per-command-checklist.md) for move before merge",
+                "Pattern reference: commit 6d767b1 (feat(mcp): wire find_refs and rename as native MCP handlers). Canonical files: FindReferencesHandler.cs, RenameSymbolHandler.cs, OutlineHandler.cs.",
+                "dotnet build RoslynTools.slnx clean; dotnet format --verify-no-changes clean; existing tests pass; new handler tests added"
+            ],
+            "priority": 106,
+            "passes": false,
+            "epicId": "EP-012",
+            "notes": "P2. EP-012 schema bug. Native handler preferred; bridge fix is acceptable only if it generalises to all auto-bridged commands. dry-run defaults to true per US-097."
+        },
+        {
+            "id": "US-106",
+            "title": "Align native MCP suggest naming with CLI rt suggest",
+            "description": "As an MCP caller, I expect `mcp__rt-mcp__suggest` to mirror `rt suggest` from the CLI. Today the native handler is registered as `suggest_command` because the CLI meta-command `rt suggest` is filtered out of the auto-bridge — the two name systems diverged and force users to learn both vocabularies.",
+            "acceptanceCriteria": [
+                "Native MCP tool is reachable under the same name as the CLI command: `mcp__rt-mcp__suggest` exists in tools/list and returns the SuggestService response",
+                "SuggestHandler.ToolName changed from \"suggest_command\" to \"suggest\" (preferred), OR both names route to the same handler and one is marked deprecated in the description",
+                "Existing tests under tests/RoslynTools.Tests.Mcp/Handlers/SuggestHandler*.cs reference the new ToolName and continue to pass",
+                "tools/list snapshot test (US-094) refreshed to reflect the new tool name once US-094 lands",
+                "docs/pattern-core-service.md or docs/per-command-checklist.md notes the convention: native MCP ToolName mirrors the CLI command name (hyphens → underscores) so callers don't have to learn a second vocabulary",
+                "Manual handshake check: piping initialize + tools/list to the rebuilt RoslynTools.Mcp.exe shows a `suggest` entry with the SuggestRequest schema (query required, top optional)",
+                "Pattern reference: commit 6d767b1 (feat(mcp): wire find_refs and rename as native MCP handlers). Canonical files: FindReferencesHandler.cs, RenameSymbolHandler.cs, OutlineHandler.cs.",
+                "dotnet build RoslynTools.slnx clean; dotnet format --verify-no-changes clean"
+            ],
+            "priority": 107,
+            "passes": false,
+            "epicId": "EP-012",
+            "notes": "P3. EP-012 naming consistency. Preferred resolution: rename native ToolName to 'suggest'. Acceptable: dual-name with a deprecation note. Sequencing: best landed alongside US-087 (rt suggest BM25 command) so the CLI and MCP names settle together."
         }
     ]
 }
