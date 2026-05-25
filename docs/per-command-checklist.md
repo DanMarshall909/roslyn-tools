@@ -1,5 +1,7 @@
 # Per-Command Consistency Checklist
 
+> See [consistency-roadmap.md](consistency-roadmap.md) for **EP-013**, the umbrella plan that sequences the stories making most of this checklist compiler- or architecture-test-enforced. The rows annotated *(enforced — US-NNN)* below will be deleted as that work lands.
+
 When you touch an `rt` command for *any* reason — feature, bug fix, refactor, MCP handler — scan this checklist before opening a PR. The point is to knock several pending stories out in one pass while the file is already open and the test harness already warm.
 
 The list is divided into:

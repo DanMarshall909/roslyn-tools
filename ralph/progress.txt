@@ -66,6 +66,8 @@ EP-012 — Complete thin-host-adapter migration (0/10)
 [ ] US-106 Align native MCP suggest naming with CLI rt suggest
 [ ] US-110 Modernise MCP result shape: structuredContent, outputSchema, typed content array
 
+EP-013 — Command consistency consolidation — checklist becomes compiler-enforced (0/0)
+
 Loose stories
 [x] US-037 rt: convert-static-class — interface generation
 [x] US-038 rt: convert-static-class — DI registration in Bootstrap.cs
