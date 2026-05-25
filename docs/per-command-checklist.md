@@ -19,11 +19,11 @@ If an item doesn't apply (e.g. `Info.Mutates` for a read-only command), tick it 
 > **Heads-up — US-107** is adding category interfaces (`IInspectCommand`, `IAnalyzeCommand`, `IRefactorCommand`) and capability interfaces (`IMutatingCommand`, `IStructuredOutputCommand`, `IBatchMutationCommand`, `INativeMcpExposable`). Once that lands, several rows below become compiler- and architecture-test-enforced and will be marked **(enforced)** here. Items that remain on the manual list are the genuinely-human ones (`Examples` freshness, `SeeAlso` correctness, behaviour-vs-`Mutates` accuracy).
 
 - [ ] `IRtCommand` contract satisfied — static `RtCommandInfo Info` + `Command Build()`
-- [ ] `Info.Category` is one of `inspect`, `analyze`, `refactor` *(to become enforced via category interface — US-107)*
+- [ ] `Info.Category` is one of `inspect`, `analyze`, `refactor` *(to become enforced via category interface — US-107; field itself slated for removal — US-108)*
 - [ ] Options constructed via `CommandOptionFactory` where applicable (US-085)
 - [ ] `Info.Examples` reflect actual current invocations (not stale syntax)
-- [ ] `Info.Mutates` accurate (refactor = true, inspect/analyze = false)
-- [ ] `Info.JsonOutput` accurate (matches the actual stdout shape)
+- [ ] `Info.Mutates` accurate (refactor = true, inspect/analyze = false) *(field slated for removal — US-108; behaviour will come from `IMutatingCommand`)*
+- [ ] `Info.JsonOutput` accurate (matches the actual stdout shape) *(US-100/US-109 — biconditional with `IStructuredOutputCommand` and shared renderer)*
 - [ ] `Info.SeeAlso` lists related commands (US-088, US-089)
 - [ ] `RtCommandInfo` metadata in canonical shape (US-084)
 - [ ] File structure follows the playbook (US-086)

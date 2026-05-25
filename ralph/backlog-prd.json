@@ -1461,6 +1461,70 @@
             "passes": false,
             "epicId": "EP-009",
             "notes": "P2. EP-009 consistency enabler. Shrinks docs/per-command-checklist.md to the genuinely-human items. Composes with: US-094 (MCP ratchet — INativeMcpExposable encodes this), US-100 (IStructuredOutputCommand — consolidate), US-092 (BatchMutationRunner — IBatchMutationCommand marks adopters), US-097 (refactor MCP shape — IRefactorCommand + IMutatingCommand contract owns this). Awkward commands (debug, outline) get explicit carve-out subinterfaces or markers — do NOT relax the universal rules to fit them."
+        },
+        {
+            "id": "US-108",
+            "title": "Delete redundant RtCommandInfo.Category and Info.Mutates after category interfaces land",
+            "description": "As a maintainer, I want a single source of truth for a command's category and mutation behaviour: the interface it implements. Today Info.Category and Info.Mutates duplicate that signal and will drift after US-107 introduces category and capability interfaces.",
+            "acceptanceCriteria": [
+                "RtCommandInfo no longer carries a string Category field. The category is determined exclusively by which marker interface (IInspectCommand/IAnalyzeCommand/IRefactorCommand) the command implements.",
+                "RtCommandInfo no longer carries a bool Mutates field. Whether a command mutates is determined exclusively by whether it implements IMutatingCommand (or by being an IRefactorCommand — pick one canonical rule and document it).",
+                "All callers that previously read Info.Category — including DumpHelpCommand, App.RunAsync startup check, ToolSchemaBuilder, and rt suggest scoring — now read the category from the interface via a single helper (e.g. CategoryOf(IRtCommand) returning a `Category` enum)",
+                "All callers that previously read Info.Mutates — including ToolSchemaBuilder, DumpHelpCommand, the MCP auto-bridge — now read it from the interface check",
+                "If Info.Category / Info.Mutates can not be cleanly deleted in one pass (e.g. external scripts depend on the dump-help JSON shape), they are kept as read-only computed properties derived from the interface and the derivation is the single source of truth — no setter, no constructor parameter",
+                "Architecture test asserts no command supplies a Category or Mutates value in its RtCommandInfo constructor (compile-time enforcement preferred via property removal)",
+                "docs/COMMANDS.md regenerates with the same category labels and Mutates indicators as before this change (no consumer-visible regression)",
+                "docs/per-command-checklist.md updated: the rows for Info.Category and Info.Mutates accuracy are dropped (now mechanical)",
+                "Depends on US-107. Cannot land before US-107 because the interfaces it references must exist first.",
+                "dotnet build RoslynTools.slnx clean; dotnet format --verify-no-changes clean; existing tests pass"
+            ],
+            "priority": 109,
+            "passes": false,
+            "epicId": "EP-009",
+            "notes": "P2. EP-009 follow-up. Depends on US-107 (interfaces must exist first). Strict deletion preferred; derived read-only property is the acceptable fallback if external consumers rely on the dump-help JSON shape."
+        },
+        {
+            "id": "US-109",
+            "title": "Extend shared output-format pipeline to every command (JSON/YAML/text for mutating commands too)",
+            "description": "As an automation consumer, I want every rt command — including refactor/mutating commands — to support a consistent --format flag (json, yaml, text) routed through the same RtResultRenderer, so I can pipe any command's result through the same parser. Today refactor commands print free-form plain text; only inspect/analyze commands flow through the structured renderer.",
+            "acceptanceCriteria": [
+                "Every command — including refactor/mutating commands — supports a consistent --format flag with values json, yaml, text (and any other formats the renderer already supports such as markdown). The flag lives at the global level, not per-command.",
+                "Mutating commands (IRefactorCommand / IMutatingCommand) now expose a structured result type implementing IRtOutput, so their output flows through the same RtResultRenderer that inspect/analyze commands use",
+                "Examples of mutating-command JSON output that now exists: rt refactor rename in JSON mode returns { symbol, newName, changedFiles, changedFilePaths[], applied, dryRun } — the same shape the native MCP RenameHandler returns today (see commit 6d767b1)",
+                "IStructuredOutputCommand is no longer restricted to JSON-output read commands. Every IRtCommand whose result has a meaningful structured shape implements it. The biconditional with Info.JsonOutput from US-100 either becomes a biconditional with the interface alone, or is deleted once Info.JsonOutput is removed",
+                "Default format per category stays as today: inspect/analyze defaults to json (read-only commands are JSON-by-default); refactor defaults to text (mutating commands print diffs / 'wrote N files'); --format json overrides per the user's request",
+                "MCP host always serves the JSON form regardless of CLI --format (MCP is a structured protocol); the CLI --format flag is purely a terminal-rendering choice",
+                "Architecture test asserts: every command produces output via RtResultRenderer (no direct Console.WriteLine for results — diagnostics to stderr is fine); every IStructuredOutputCommand has a non-null result type",
+                "docs/per-command-checklist.md universal-checklist row 'Diagnostics → stderr; results → stdout' tightens to 'Results flow through RtResultRenderer'",
+                "Depends on US-100 (renderer consolidation), US-107 (interfaces). Composes with US-097 (mutating-MCP shape) — mutating commands' JSON shape becomes the native MCP handler's response shape",
+                "dotnet build RoslynTools.slnx clean; dotnet format --verify-no-changes clean; existing tests pass; mutating commands now have JSON-mode tests"
+            ],
+            "priority": 110,
+            "passes": false,
+            "epicId": "EP-009",
+            "notes": "P2. EP-009 extension of US-100. Composes with US-097 (mutating-MCP shape) and EP-012: the mutating-command JSON shape becomes the native MCP handler response shape. Depends on US-100 (renderer consolidation) and US-107 (interfaces)."
+        },
+        {
+            "id": "US-110",
+            "title": "Modernise MCP result shape: structuredContent, outputSchema, typed content array",
+            "description": "As an MCP client (LLM agent), I want native handler responses to follow current MCP best practices — typed content[] array, structuredContent for typed responses, outputSchema declared in tools/list — so I can validate response shape, avoid double-JSON-parsing, and rely on the protocol's typed result contract. Today ToolResult flattens the entire JSON response into a single content string.",
+            "acceptanceCriteria": [
+                "Audit the current MCP wire format produced by Server.HandleCallToolAsync against the MCP CallToolResult schema. Document any divergence (e.g. content returned as a single string vs. as a content[] array of typed items).",
+                "Server returns CallToolResult with a typed content array: {content: [{type: \"text\", text: \"...\"}], isError: bool}. Today our ToolResult(bool isError, string content) flattens the structured result into a single text item — if that is already happening server-side, document it; if not, fix it",
+                "Evaluate upgrading the MCP protocolVersion declared in HandleInitialize (currently \"2024-11-05\") to a revision that supports structuredContent and outputSchema (e.g. \"2025-06-18\" or later). Decision recorded in docs/pattern-core-service.md.",
+                "If upgrading: tools/list entries declare outputSchema alongside inputSchema for every native IMcpHandler. The outputSchema describes the response shape so callers can validate and type-check.",
+                "If upgrading: tools/call responses include structuredContent (the typed object) alongside a text fallback in content[] for legacy clients. The native handler stops serialising to JSON-string and instead returns the typed object directly through a new ToolResult shape (e.g. ToolResult.Structured(object) / ToolResult.Error(string)).",
+                "If NOT upgrading (decision documented): at minimum verify the existing 2024-11-05 wire format is correct — content[] array of typed items, isError flag, error responses use isError=true not JSON-RPC error.",
+                "Every native handler (Outline, Suggest, FindRefs, Rename, plus the EP-012 backlog) emits the modernised result shape. Tests under tests/RoslynTools.Tests.Mcp/ assert the wire format against the schema.",
+                "MCP best-practice checklist added as a section of docs/pattern-core-service.md or docs/per-command-checklist.md: ToolName naming convention, required-field declaration, structuredContent + outputSchema usage, error vs success conventions, content[] vs structuredContent guidance, when to set isError=true",
+                "Pattern reference: commit 6d767b1 (feat(mcp): wire find_refs and rename as native MCP handlers). The new ToolResult shape and any protocol-version uplift propagates to those handlers and to OutlineHandler / SuggestHandler.",
+                "Composes with US-094 (the MCP-handler ratchet test should also assert outputSchema is declared for every native handler if the protocol-version uplift lands)",
+                "dotnet build RoslynTools.slnx clean; dotnet format --verify-no-changes clean; existing MCP tests pass with the new wire format; manual handshake against the rebuilt RoslynTools.Mcp.exe shows the upgraded schema"
+            ],
+            "priority": 111,
+            "passes": false,
+            "epicId": "EP-012",
+            "notes": "P2. EP-012 protocol modernisation. Audit current wire format first, then decide whether to upgrade protocolVersion from 2024-11-05 to a revision that supports structuredContent/outputSchema (2025-06-18 or later). Pattern reference: commit 6d767b1."
         }
     ]
 }
