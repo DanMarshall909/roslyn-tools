@@ -21,6 +21,7 @@
       "**/RoslynTools.Cli/App.cs",
       "**/Core/FixId.cs",
       "**/Core/Fix.cs",
+      "**/Core/RtCommandInfo.cs",
       "**/Core/BatchMutationRunner.cs",
       "**/Core/ISolutionChangeWriter.cs",
       "**/Core/SolutionChangeWriter.cs",
