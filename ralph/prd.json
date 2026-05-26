@@ -26,7 +26,7 @@
             "priority": 78,
             "passes": false,
             "epicId": "EP-010",
-            "notes": "First of three sub-stories split from the originally-paused US-068. Lands the ADT, the first migration target (SymbolLocator), and the typed catch ladder that replaces App.TryHandleUserErrorAsync's substring-matching. US-068b (WorkspaceLoader) and US-068c (MethodExtractor) follow with smaller migrations once the pattern is proven here.",
+            "notes": "First of three sub-stories split from the originally-paused US-068. Lands the ADT, the first migration target (SymbolLocator), and the typed catch ladder that replaces App.TryHandleUserErrorAsync's substring-matching. US-068b (WorkspaceLoader) and US-068c (MethodExtractor) follow with smaller migrations once the pattern is proven here. Audit 2026-05-26: re-spec SymbolLocator↔DaemonServer error contract before coding (does DaemonServer translate Result<T, RtError> to wire envelope or vice versa?). See EP-015.",
             "urgency": 1,
             "urgencyReason": "EP-010 lead: Result ADT + SymbolLocator + App handler ladder; unblocks US-078/079 and US-060",
             "effort": 5
@@ -85,7 +85,7 @@
             ],
             "priority": 70,
             "passes": false,
-            "notes": "P2. Source cluster: FB-007, FB-008, FB-012, FB-013 (feedback.json, 2026-05-15). Four distinct race sites but one story — each is a small fix and they share the same trigger (parallel agent invocation). Implementation order: (1) feedback file mutex (FileStream with FileShare.None + retry loop on id allocation), (2) rt.cmd build mutex via named mutex around dotnet build, (3) deploy-skill retry, (4) MSBuildWorkspace BaseIntermediateOutputPath isolation for read-only commands.",
+            "notes": "P2. Source cluster: FB-007, FB-008, FB-012, FB-013 (feedback.json, 2026-05-15). Four distinct race sites but one story — each is a small fix and they share the same trigger (parallel agent invocation). Implementation order: (1) feedback file mutex (FileStream with FileShare.None + retry loop on id allocation), (2) rt.cmd build mutex via named mutex around dotnet build, (3) deploy-skill retry, (4) MSBuildWorkspace BaseIntermediateOutputPath isolation for read-only commands. Audit 2026-05-26: no design changes; start with feedback-file mutex. See EP-015.",
             "urgency": 4,
             "urgencyReason": "Blocks parallel /execute worktrees; FB-007/008/012/013 race-site cluster"
         },
@@ -122,7 +122,7 @@
             ],
             "priority": 101,
             "passes": false,
-            "notes": "P2. Source: architectural audit on 2026-05-24. RtResultRenderer exposes three methods: Write(RtResult<T>, JsonOptions), WriteOutput<T>(RtResult<T>), WriteText(RtResult<string>). Today FindRefsCommand:58 and FindCallersCommand:61 call WriteOutput, while FindImplementationsCommand:79-81 calls Write(..., SymbolFormatter.DefaultJsonOptions). IStructuredOutputCommand marker exists but only FindImplementationsCommand implements it; the other two do not. App.cs has a static-ctor check that the category enum stays in sync — extend it to enforce the JsonOutput=true ⇔ IStructuredOutputCommand biconditional."
+            "notes": "P2. Source: architectural audit on 2026-05-24. RtResultRenderer exposes three methods: Write(RtResult<T>, JsonOptions), WriteOutput<T>(RtResult<T>), WriteText(RtResult<string>). Today FindRefsCommand:58 and FindCallersCommand:61 call WriteOutput, while FindImplementationsCommand:79-81 calls Write(..., SymbolFormatter.DefaultJsonOptions). IStructuredOutputCommand marker exists but only FindImplementationsCommand implements it; the other two do not. App.cs has a static-ctor check that the category enum stays in sync — extend it to enforce the JsonOutput=true ⇔ IStructuredOutputCommand biconditional. Audit 2026-05-26: pick (a) collapse RtResultRenderer to one overload, or (b) keep three and add IStructuredOutputCommand to FindRefs/FindCallers. See EP-015."
         },
         {
             "id": "US-107",

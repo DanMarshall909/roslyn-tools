@@ -62,6 +62,12 @@
             "title": "Semantic codebase exploration",
             "description": "Add read-only codebase exploration commands that combine Roslyn-derived structure with optional local embeddings. Embeddings retrieve likely families and neighbors; Roslyn remains the source of truth for symbols, facts, references, and any reported convention deviation.",
             "notes": "Spawned from 2026-05-25 design discussion after evaluating Tome-style local embeddings. Scope is advisory/exploratory only: no automated edits, no embedding-only findings. Composes with EP-011 suggest and EP-012 MCP native handlers so agents can ask natural-language questions about unfamiliar C# solutions and receive structured, verifiable results."
+        },
+        {
+            "id": "EP-015",
+            "title": "Resume in-flight half-completed work (2026-05-26 audit)",
+            "description": "Sequence and finish the in-flight stories surfaced by the 2026-05-26 half-done audit, applying the design revisions identified there. Bridges EP-009 (renderer unification via US-100) and EP-010 (Result ADT via US-077), and finishes the daemon protocol started in ralph/sessions/2026-05-04-daemon-protocol.md.",
+            "notes": "Audit at ~/.claude/plans/which-claude-sessions-have-crystalline-simon.md. US-114 was confirmed complete (7ef1da7) and removed from the resume list. Suggested order: US-056 → US-100 → US-092 Phase-2 pilot → US-077 (re-spec the SymbolLocator↔DaemonServer error contract first) → US-075 → US-116 (new). Each story above carries a design-revision note pointing back to the audit."
         }
     ],
     "userStories": [
@@ -402,7 +408,7 @@
             "urgencyReason": "rt refactor rename: accept symbol FQN from stdin JSON for pipe chains (rt-008)",
             "effort": 2,
             "passes": false,
-            "notes": "P2. First of the pipe-protocol tasks. Discovered in ralph/sessions/2026-05-04-daemon-protocol.md Step 4. Command: src/RoslynTools.Cli/Commands/RenameCommand.cs. From issue rt-008."
+            "notes": "P2. First of the pipe-protocol tasks. Discovered in ralph/sessions/2026-05-04-daemon-protocol.md Step 4. Command: src/RoslynTools.Cli/Commands/RenameCommand.cs. From issue rt-008. Audit 2026-05-26: decide a/b — stdin unpacking in DaemonClient vs. RenameCommand directly. See EP-015."
         },
         {
             "id": "US-057",
@@ -1187,7 +1193,7 @@
             ],
             "priority": 93,
             "passes": false,
-            "notes": "P2. Centralise ID generation in a new FixId helper in src/RoslynTools/Core/. Each batch command's service exposes the candidate fix list (already does internally — just needs to lift it before SolutionWriter.ApplyChangesAsync) so the command host can apply --apply/--skip filtering before workspace changes are computed. Option registration: extend CommandOptionFactory with CreateApplyOption()/CreateSkipOption() and a shared parser. Scope: batch commands only (single-target commands gain nothing from --apply/--skip). Out of scope for MVP: backporting --apply/--skip to single-target commands; JSON envelope for commands that today emit only text diffs (track as a follow-up under EP-007 if useful)."
+            "notes": "P2. Centralise ID generation in a new FixId helper in src/RoslynTools/Core/. Each batch command's service exposes the candidate fix list (already does internally — just needs to lift it before SolutionWriter.ApplyChangesAsync) so the command host can apply --apply/--skip filtering before workspace changes are computed. Option registration: extend CommandOptionFactory with CreateApplyOption()/CreateSkipOption() and a shared parser. Scope: batch commands only (single-target commands gain nothing from --apply/--skip). Out of scope for MVP: backporting --apply/--skip to single-target commands; JSON envelope for commands that today emit only text diffs (track as a follow-up under EP-007 if useful). Audit 2026-05-26: Phase-2 per-command migration should hook BatchMutationRunner via IBatchMutationCommand marker (US-107) and decide select-before-vs-after-dry-run ordering. See EP-015."
         },
         {
             "id": "US-093",
@@ -1591,6 +1597,21 @@
             "passes": false,
             "epicId": "EP-009",
             "notes": "P2. EP-009 extension. Lands after US-114 (which establishes the SkippableFact pattern in commit 7ef1da7) and complements US-107's CategoryInterfaceContracts / McpHandlerNameContract. Each new test file is its own PR-able batch; story closes when every Skip.If guard in the architecture suite is removed (modulo external soft ratchets like US-082)."
+        },
+        {
+            "id": "US-116",
+            "title": "Daemon Stage 3 — workspace cache with git-HEAD invalidation",
+            "description": "As an agent dogfooding rt, I want the daemon to cache the loaded MSBuildWorkspace between commands and invalidate it on git-HEAD change, so a tight rt loop avoids ~3s of MSBuild startup per call.",
+            "acceptanceCriteria": [
+                "DaemonServer holds at most one MSBuildWorkspace per (solutionPath, gitHead) key.",
+                "On each request, DaemonServer compares current git HEAD of the solution dir against the cached key; mismatch triggers Dispose + reload.",
+                "Concurrent requests for the same key share one workspace (single-flight) without double-loading.",
+                "Cache eviction also fires when any .csproj under the solution dir has an mtime newer than the cached workspace load time.",
+                "rt daemon status (or equivalent) reports cached workspaces with key + age + last-used.",
+                "Stage 3 design re-check against as-built Stage 2 code (DaemonServer.cs, DaemonClient.cs, DaemonProtocol.cs) is documented in the story description before implementation starts.",
+                "Integration test: two back-to-back inspect calls against the same solution show the second is at least 5x faster than the first."
+            ],
+            "notes": "Stage 3 of ralph/sessions/2026-05-04-daemon-protocol.md. Stages 0/1/2 already shipped (0c8f5cb, 6e10bac, 6eaccdb). Tracked under EP-015."
         }
     ]
 }
