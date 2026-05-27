@@ -12,6 +12,14 @@ public class Rename : IClassFixture<RtServicesFixture>
     public Rename(RtServicesFixture services) => _services = services;
 
     [Fact]
+    public void build_exposes_new_name_option_for_piped_symbol_usage()
+    {
+        var command = _services.Resolve<RenameCommand>().Build();
+
+        command.Options.ShouldContain(opt => opt.Name == "new-name");
+    }
+
+    [Fact]
     public async Task updates_the_declaration_and_references()
     {
         using var project = new AdhocProjectBuilder();

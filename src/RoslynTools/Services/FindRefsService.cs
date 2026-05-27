@@ -65,6 +65,7 @@ internal class FindRefsService : IRtService
         return new FindRefsResult
         {
             SymbolName = sym.Name,
+            FullyQualifiedName = sym.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
             References = references
         };
     }

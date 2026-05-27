@@ -1612,6 +1612,36 @@
                 "Integration test: two back-to-back inspect calls against the same solution show the second is at least 5x faster than the first."
             ],
             "notes": "Stage 3 of ralph/sessions/2026-05-04-daemon-protocol.md. Stages 0/1/2 already shipped (0c8f5cb, 6e10bac, 6eaccdb). Tracked under EP-015."
+        },
+        {
+            "id": "US-117",
+            "title": "Daemon forwards piped stdin to routed commands",
+            "description": "As an agent piping into rt, I want a running daemon to forward piped stdin to the routed command, so that rt inspect find-refs --json | rt refactor rename works whether or not a daemon is alive (today it only works with RT_NO_DAEMON=1).",
+            "acceptanceCriteria": [
+                "DaemonClient reads stdin when Console.IsInputRedirected is true and populates DaemonRequest.Stdin (base64-encoded) in the request envelope.",
+                "DaemonServer, when request.Stdin is present, redirects Console.In (Console.SetIn over a decoded reader) around the App.RunAsync call and restores it afterward.",
+                "A size guard caps forwarded stdin (documented limit) so the named-pipe envelope cannot be overrun; oversize input fails with a clear error rather than truncating silently.",
+                "Integration test: rt inspect find-refs --symbol X --json | rt refactor rename --new-name Y --dry-run produces the correct diff WITH a daemon running (no RT_NO_DAEMON).",
+                "RenameCommand.Info.KnownIssues entry about RT_NO_DAEMON is removed once this lands."
+            ],
+            "priority": 117,
+            "passes": false,
+            "epicId": "EP-015",
+            "notes": "Discovered during US-056. DaemonRequest.Stdin field already exists (DaemonProtocol.cs) but is never populated; DaemonServer never wires Console.In. Out-of-scope split from US-056 per the 2026-05-26 audit."
+        },
+        {
+            "id": "US-118",
+            "title": "rt dev wrapper leaks dotnet build output to stdout, corrupting pipes",
+            "description": "As a developer piping rt into rt, I want the rt wrapper rebuild banner and dotnet build output to go to stderr only, so that rt ... | rt ... does not get corrupted on the first run after a source edit (the build stdout currently prepends to the piped JSON and breaks downstream parsing).",
+            "acceptanceCriteria": [
+                "rt.sh routes all rebuild output (dotnet build stdout) to stderr; stdout carries only the command result.",
+                "rt.cmd and rt.ps1 do the same.",
+                "Repro test/manual check: edit a .cs file, then run rt inspect find-refs --json | rt refactor rename --new-name X --dry-run in one shot — the pipe succeeds despite the triggered rebuild."
+            ],
+            "priority": 118,
+            "passes": false,
+            "epicId": "EP-015",
+            "notes": "Discovered during US-056 dogfooding: rt.sh line 33 runs dotnet build with -v quiet but its stdout is not redirected to stderr, so build output lands on the command stdout and corrupts pipe chains on the first post-edit run."
         }
     ]
 }

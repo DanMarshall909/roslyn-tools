@@ -30,6 +30,9 @@ internal sealed record FindRefsResult : IRtOutput
     [OutputField(OutputLevel.Llm, "symbolName")]
     public required string SymbolName { get; init; }
 
+    [OutputField(OutputLevel.Llm, "fullyQualifiedName")]
+    public required string FullyQualifiedName { get; init; }
+
     [OutputField(OutputLevel.Llm, "references")]
     public required IReadOnlyList<ReferenceResult> References { get; init; }
 

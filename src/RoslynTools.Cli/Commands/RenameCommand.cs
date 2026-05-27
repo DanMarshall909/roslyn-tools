@@ -31,7 +31,12 @@ internal sealed class RenameCommand : IRtCommand, IRefactorCommand
             "rt refactor rename OldTypeName NewTypeName --solution MySolution.sln",
             "rt refactor rename MyNs.MyType.OldProp NewProp --kind property --dry-run",
             "rt refactor rename --csv scripts/renames.csv --solution MySolution.sln --dry-run",
-            "rt refactor ren FooService BarService              # short alias, auto-detect solution"
+            "rt refactor ren FooService BarService              # short alias, auto-detect solution",
+            "rt inspect find-refs --symbol Foo --json | rt refactor rename --new-name Bar --dry-run   # symbol piped from stdin"
+        ],
+        KnownIssues:
+        [
+            "Piped symbol input (stdin JSON) requires RT_NO_DAEMON=1 until daemon stdin forwarding lands (US-117); a live daemon does not forward stdin to routed commands."
         ]
     );
 
@@ -51,18 +56,23 @@ internal sealed class RenameCommand : IRtCommand, IRefactorCommand
             .WithKind("Symbol kind: type, method, property, field, namespace");
         var csvOpt = new Option<string?>("--csv",
             "Path to a CSV file with source_symbol/target_name, or prefixed *_fqn plus *_name_new columns.");
+        var newNameOpt = new Option<string?>("--new-name",
+            "New name for the symbol. Use this when the symbol is supplied via piped stdin JSON.");
 
         var cmd = new Command("rename", "Rename a symbol and all its references across the solution")
         {
-            symbolArg, newNameArg, csvOpt
+            symbolArg, newNameArg, csvOpt, newNameOpt
         };
         flags.AddTo(cmd);
 
         cmd.SetHandler(async ctx =>
             {
                 var symbol = ctx.ParseResult.GetValueForArgument(symbolArg);
-                var newName = ctx.ParseResult.GetValueForArgument(newNameArg);
+                var newName = ctx.ParseResult.GetValueForOption(newNameOpt)
+                              ?? ctx.ParseResult.GetValueForArgument(newNameArg);
                 var csv = ctx.ParseResult.GetValueForOption(csvOpt);
+                if (string.IsNullOrWhiteSpace(csv))
+                    symbol = await PipedSymbolReader.ResolveAsync(symbol, RtConsole.IsInputRedirected, RtConsole.In);
                 var request = flags.Bind(ctx.ParseResult, f => RenameCliRequest.FromFlags(f, symbol, newName, csv));
                 var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(request.SolutionPath);
                 using (workspace)

@@ -19,7 +19,12 @@ internal static class RtConsole
     /// <summary>
     /// Reads input from the console.
     /// </summary>
-    internal static TextReader In => Console.In;
+    internal static TextReader In => Current.In;
+
+    /// <summary>
+    /// Checks if the console input is redirected (piped) rather than a TTY.
+    /// </summary>
+    internal static bool IsInputRedirected => Current.IsInputRedirected;
 
     /// <summary>
     /// Writes output to the console.

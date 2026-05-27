@@ -22,6 +22,8 @@
       "**/Core/FixId.cs",
       "**/Core/Fix.cs",
       "**/Core/RtCommandInfo.cs",
+      "**/Core/PipedSymbolReader.cs",
+      "**/Commands/RenameCommand.cs",
       "**/Core/BatchMutationRunner.cs",
       "**/Core/ISolutionChangeWriter.cs",
       "**/Core/SolutionChangeWriter.cs",

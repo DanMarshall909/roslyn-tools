@@ -7,6 +7,10 @@ internal interface IRtConsole
 {
     bool IsOutputRedirected { get; }
 
+    bool IsInputRedirected => Console.IsInputRedirected;
+
+    TextReader In => Console.In;
+
     TextWriter Out => Console.Out;
     void Log(RtLogLevel level, string template, params object?[] args);
 

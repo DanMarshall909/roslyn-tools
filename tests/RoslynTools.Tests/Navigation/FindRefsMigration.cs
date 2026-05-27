@@ -115,6 +115,20 @@ public sealed class FindRefsMigration : IDisposable
     }
 
     [Fact]
+    public void emits_json_output_contains_fully_qualified_name()
+    {
+        RtContext.Format = OutputFormat.Json;
+        var result = MakeFindRefsResult();
+        using var sw = new StringWriter();
+
+        RtSerializer.Write(result, sw);
+
+        var doc = JsonDocument.Parse(sw.ToString());
+        doc.RootElement.TryGetProperty("fullyQualifiedName", out var fqn).ShouldBeTrue();
+        fqn.GetString().ShouldBe("TestApp.MyService");
+    }
+
+    [Fact]
     public void emits_json_reference_entries_contain_expected_fields()
     {
         RtContext.Format = OutputFormat.Json;
@@ -196,6 +210,7 @@ public sealed class FindRefsMigration : IDisposable
         return new FindRefsResult
         {
             SymbolName = "MyService",
+            FullyQualifiedName = "TestApp.MyService",
             References =
             [
                 new ReferenceResult

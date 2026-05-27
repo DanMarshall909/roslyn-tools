@@ -85,6 +85,29 @@ public class RtConsole
         entry.Message.ShouldBe("Skipped Widget");
     }
 
+    [Fact]
+    public void routes_input_reader_and_redirect_flag_through_overridden_console()
+    {
+        var fake = new PipedInputConsole("piped payload");
+
+        using (Core.RtConsole.UseConsole(fake))
+        {
+            Core.RtConsole.IsInputRedirected.ShouldBeTrue();
+            Core.RtConsole.In.ReadToEnd().ShouldBe("piped payload");
+        }
+    }
+
+    private sealed class PipedInputConsole(string stdin) : IRtConsole
+    {
+        public TextReader In { get; } = new StringReader(stdin);
+        public bool IsInputRedirected => true;
+        public bool IsOutputRedirected => false;
+        public void Log(RtLogLevel level, string template, object?[] args) { }
+        public void WriteLine(RtOutputContext context, string message = "", ConsoleColor? color = null) { }
+        public void Write(RtOutputContext context, string message, ConsoleColor? color = null) { }
+        public string? ReadLine() => null;
+    }
+
     private sealed class CollectingConsole : IRtConsole
     {
         public List<LogEntry> LogEntries { get; } = [];
