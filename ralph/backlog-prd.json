@@ -1600,18 +1600,21 @@
         },
         {
             "id": "US-116",
-            "title": "Daemon Stage 3 — workspace cache with git-HEAD invalidation",
-            "description": "As an agent dogfooding rt, I want the daemon to cache the loaded MSBuildWorkspace between commands and invalidate it on git-HEAD change, so a tight rt loop avoids ~3s of MSBuild startup per call.",
+            "title": "Daemon Stage 3 — workspace cache with git-HEAD invalidation + operational hardening",
+            "description": "As an agent dogfooding rt, I want the daemon to cache the loaded MSBuild solution between commands (keyed by solution path + git HEAD) and invalidate it on change, so a tight rt loop avoids the ~3-5s solution reload per call. Today the daemon caches nothing (DaemonServer.cs has no cache) — every routed command reloads the solution, so the daemon only saves process-startup cost, not the slow MSBuild solution-load cost. This story also folds in the operational rough edges found while shipping US-117 (2026-05-27), since they make the daemon painful to run and were blocking dogfooding.\n\nDESIGN RE-CHECK (as-built, 2026-05-27): The cache key is already available — every DaemonRequest carries GitState(Head, Dirty, IndexMtime) from GitService.GetState (reads .git/HEAD + .git/index mtime directly). The integration seam is IWorkspaceSessionFactory (src/RoslynTools/Core/IWorkspaceSessionFactory.cs), registered as a singleton in Bootstrap.cs:23-24, today implemented by WorkspaceLoader which reloads on every GetSolutionAsync/LoadWorkspaceAsync call. CENTRAL HAZARD: commands that call LoadWorkspaceAsync wrap it in using (workspace) (e.g. RenameCommand.cs:73-75) which DISPOSES the workspace after each command. A cached workspace must NOT be disposed per-command — either the caching factory hands out a non-owning Workspace handle, or those commands move to the solution-only GetSolutionAsync API (the interface contract already says callers must not dispose). Resolve this before writing the cache.",
             "acceptanceCriteria": [
-                "DaemonServer holds at most one MSBuildWorkspace per (solutionPath, gitHead) key.",
-                "On each request, DaemonServer compares current git HEAD of the solution dir against the cached key; mismatch triggers Dispose + reload.",
-                "Concurrent requests for the same key share one workspace (single-flight) without double-loading.",
-                "Cache eviction also fires when any .csproj under the solution dir has an mtime newer than the cached workspace load time.",
-                "rt daemon status (or equivalent) reports cached workspaces with key + age + last-used.",
-                "Stage 3 design re-check against as-built Stage 2 code (DaemonServer.cs, DaemonClient.cs, DaemonProtocol.cs) is documented in the story description before implementation starts.",
-                "Integration test: two back-to-back inspect calls against the same solution show the second is at least 5x faster than the first."
+                "CACHE: the daemon holds at most one loaded solution per (solutionPath, gitHead) key; a second request with the same key reuses it without reloading.",
+                "CACHE: a request whose git HEAD differs from the cached key triggers eviction (dispose old workspace) + reload.",
+                "CACHE: eviction also fires when any .csproj/.props/.slnx under the solution dir has an mtime newer than the cached load time (covers uncommitted edits where HEAD is unchanged).",
+                "CACHE: per-command using (workspace) disposal must not dispose a cached workspace — migrate LoadWorkspaceAsync callers (RenameCommand.cs:73-75 etc.) to the non-owning GetSolutionAsync seam, or make the caching factory return a non-owning handle. Document the choice.",
+                "CACHE: cache logic lives behind IWorkspaceSessionFactory (a daemon-scoped caching implementation), so in-process runs are unchanged and the NoDirectConsoleUse + DI singleton ownership rules still hold.",
+                "OBS: rt daemon status reports cached solutions with key (path + short HEAD), age, and last-used.",
+                "PERF (integration test): two back-to-back inspect calls against the same solution through the daemon — the second is at least 5x faster than the first.",
+                "ROUGH EDGE — stop --force: rt daemon stop --force skips the graceful pipe round-trip (which today blocks up to ~15s on a wedged daemon, DaemonCommand.cs:77-134) and instead kills the PID from the state file and removes ~/.rt/daemon.json immediately.",
+                "ROUGH EDGE — build interference: the GenerateCommandsMd post-build target (RoslynTools.Cli.csproj:81-88) runs rt dump-help against the Release/Debug rt.dll; a running daemon holding that assembly locked on Windows must not block or corrupt the build. Fix so a build never hangs/fails because a daemon is alive (e.g. dump-help fast-path that never routes to the daemon + does not lock the output, or build stops/ignores the daemon).",
+                "ROUGH EDGE — start readiness: rt daemon start gives a clear, bounded failure if the spawned --daemon-serve process never writes daemon.json within the poll window (DaemonCommand.cs:28-75, 10s poll) — surface the daemon.log tail on timeout instead of a silent give-up, and ensure a failed-init spawn cannot leave a half-state."
             ],
-            "notes": "Stage 3 of ralph/sessions/2026-05-04-daemon-protocol.md. Stages 0/1/2 already shipped (0c8f5cb, 6e10bac, 6eaccdb). Tracked under EP-015."
+            "notes": "Stage 3 of ralph/sessions/2026-05-04-daemon-protocol.md. Stages 0/1/2 shipped (0c8f5cb, 6e10bac, 6eaccdb); US-117 added stdin forwarding + output capture (5228b2f). Rough edges folded in 2026-05-27 from the US-117 dogfooding session (daemon repeatedly wedged builds and needed force-kills). Tracked under EP-015. US-120 (gate client stdin read to consumers) is a related but separate refinement. Key files: DaemonServer.cs (cache lives here or in a caching IWorkspaceSessionFactory), WorkspaceLoader.cs, IWorkspaceSessionFactory.cs, Bootstrap.cs:23-24, GitService.cs, DaemonCommand.cs (stop/start), RoslynTools.Cli.csproj:81-88 (GenerateCommandsMd)."
         },
         {
             "id": "US-117",
