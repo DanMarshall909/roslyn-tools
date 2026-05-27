@@ -407,8 +407,8 @@
             "urgency": 25,
             "urgencyReason": "rt refactor rename: accept symbol FQN from stdin JSON for pipe chains (rt-008)",
             "effort": 2,
-            "passes": false,
-            "notes": "P2. First of the pipe-protocol tasks. Discovered in ralph/sessions/2026-05-04-daemon-protocol.md Step 4. Command: src/RoslynTools.Cli/Commands/RenameCommand.cs. From issue rt-008. Audit 2026-05-26: decide a/b — stdin unpacking in DaemonClient vs. RenameCommand directly. See EP-015."
+            "passes": true,
+            "notes": "P2. First of the pipe-protocol tasks. Discovered in ralph/sessions/2026-05-04-daemon-protocol.md Step 4. Command: src/RoslynTools.Cli/Commands/RenameCommand.cs. From issue rt-008. Audit 2026-05-26: decide a/b — stdin unpacking in DaemonClient vs. RenameCommand directly. See EP-015. DONE 2026-05-27 (commit 199ee0f): bundled fullyQualifiedName into find-refs, added PipedSymbolReader + RtConsole input seam + --new-name option. Daemon-stdin forwarding split to US-117; wrapper stdout leak to US-118."
         },
         {
             "id": "US-057",
