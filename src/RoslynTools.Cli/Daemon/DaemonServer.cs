@@ -195,7 +195,20 @@ internal static class DaemonServer
         await log.WriteLineAsync($"[{Now()}] → {argsDisplay}");
         var sw = Stopwatch.StartNew();
 
-        var pipeConsole = new DaemonPipeConsole(writer, request.RequestId);
+        string? forwardedStdin = null;
+        if (request.Stdin is not null)
+        {
+            try
+            {
+                forwardedStdin = Encoding.UTF8.GetString(Convert.FromBase64String(request.Stdin));
+            }
+            catch (FormatException ex)
+            {
+                await log.WriteLineAsync($"[{Now()}] ignoring malformed base64 stdin: {ex.Message}");
+            }
+        }
+
+        var pipeConsole = new DaemonPipeConsole(writer, request.RequestId, forwardedStdin);
         int exitCode;
         try
         {

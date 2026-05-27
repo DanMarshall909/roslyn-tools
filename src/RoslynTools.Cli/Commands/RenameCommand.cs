@@ -33,10 +33,6 @@ internal sealed class RenameCommand : IRtCommand, IRefactorCommand
             "rt refactor rename --csv scripts/renames.csv --solution MySolution.sln --dry-run",
             "rt refactor ren FooService BarService              # short alias, auto-detect solution",
             "rt inspect find-refs --symbol Foo --json | rt refactor rename --new-name Bar --dry-run   # symbol piped from stdin"
-        ],
-        KnownIssues:
-        [
-            "Piped symbol input (stdin JSON) requires RT_NO_DAEMON=1 until daemon stdin forwarding lands (US-117); a live daemon does not forward stdin to routed commands."
         ]
     );
 

@@ -30,7 +30,7 @@ needs_build() {
 
 if needs_build; then
     echo 'rt: rebuilding...' >&2
-    if ! dotnet build "$PROJ" -c Release --nologo -v quiet; then
+    if ! dotnet build "$PROJ" -c Release --nologo -v quiet 1>&2; then
         echo 'rt: build failed' >&2
         write_build_status broken
         exit 1

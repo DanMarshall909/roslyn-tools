@@ -34,6 +34,11 @@ internal static class DaemonEncoding
 /// </summary>
 internal sealed class DaemonClient(GitService git)
 {
+    // Ceiling on piped stdin forwarded over the pipe envelope. The realistic payload is a
+    // find-refs/describe JSON blob (tens of KB); this cap only exists to reject a pathological
+    // multi-megabyte pipe rather than buffer it whole into one JSON line on the server.
+    private const int MaxForwardedStdinChars = 8 * 1024 * 1024;
+
     /// <summary>
     /// A method to send asynchronous data to the daemon.
     /// </summary>
@@ -133,11 +138,33 @@ internal sealed class DaemonClient(GitService git)
         try
         {
             var workDir = Directory.GetCurrentDirectory();
+
+            // Forward piped stdin so chained commands (e.g. `rt inspect find-refs --json |
+            // rt refactor rename --new-name X`) work through the daemon, not just in-process.
+            // Read only after a successful connect so the connect-failure fallback above does
+            // not consume stdin that the in-process retry would need.
+            string? stdin = null;
+            if (RtConsole.IsInputRedirected)
+            {
+                var raw = await RtConsole.In.ReadToEndAsync(deadline.Token);
+                if (raw.Length > MaxForwardedStdinChars)
+                {
+                    RtConsole.Log(RtLogLevel.Error,
+                        "Piped input is too large to forward to the daemon ({Length} chars > {Max}).",
+                        raw.Length, MaxForwardedStdinChars);
+                    return 1;
+                }
+
+                if (raw.Length > 0)
+                    stdin = Convert.ToBase64String(Encoding.UTF8.GetBytes(raw));
+            }
+
             var request = new DaemonRequest(
                 Guid.NewGuid().ToString("N")[..8],
                 args,
                 git.GetState(workDir),
-                workDir);
+                workDir,
+                stdin);
 
             var writer = new StreamWriter(pipe, DaemonEncoding.NoBom, 1024, true) { AutoFlush = true };
             await writer.WriteLineAsync(JsonSerializer.Serialize(request, DaemonProtocol.JsonOpts).AsMemory(),

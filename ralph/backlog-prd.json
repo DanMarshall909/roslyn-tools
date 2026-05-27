@@ -1642,6 +1642,20 @@
             "passes": false,
             "epicId": "EP-015",
             "notes": "Discovered during US-056 dogfooding: rt.sh line 33 runs dotnet build with -v quiet but its stdout is not redirected to stderr, so build output lands on the command stdout and corrupts pipe chains on the first post-edit run."
+        },
+        {
+            "id": "US-120",
+            "title": "Daemon client reads stdin only for commands that consume it",
+            "description": "As an rt user, I want the daemon client to forward stdin only for commands that actually read it, so a non-stdin command (e.g. inspect describe) never risks blocking on an open-but-not-EOF stdin and never pays an unnecessary read.",
+            "acceptanceCriteria": [
+                "DaemonClient does not call RtConsole.In.ReadToEndAsync for commands that do not consume stdin (gate via a capability/marker or an explicit per-command opt-in).",
+                "rt inspect/analyze commands routed through the daemon never block on stdin regardless of whether stdin is a TTY, /dev/null, or an open pipe.",
+                "rt refactor rename (and any future stdin consumer) still receives forwarded stdin through the daemon."
+            ],
+            "priority": 120,
+            "passes": false,
+            "epicId": "EP-015",
+            "notes": "Deferred verification from US-117 (2026-05-27): the unconditional client-side stdin read was dogfood-verified NOT to hang in a non-TTY context (inherited stdin EOFs; describe completed in ~5s). Logged as a refinement because the read is unnecessary for non-consumers and has a latent hang risk if a context ever provides a never-EOF stdin. Gate it on a stdin-consuming capability."
         }
     ]
 }
