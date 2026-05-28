@@ -30,7 +30,10 @@
       "**/Core/BatchMutationRunner.cs",
       "**/Core/ISolutionChangeWriter.cs",
       "**/Core/SolutionChangeWriter.cs",
-      "**/RoslynTools.Cli/CommandOptionFactory.cs"
+      "**/RoslynTools.Cli/CommandOptionFactory.cs",
+      "**/Core/CommandSurface/CommandSurfaceBuilder.cs",
+      "**/Core/CommandSurface/CommandSurfaceModel.cs",
+      "**/Commands/DumpHelpCommand.cs"
     ],
     "reporters": [
       "html",

@@ -2,6 +2,7 @@ using System.CommandLine;
 using System.CommandLine.Help;
 using System.Text;
 using RoslynTools.Core;
+using RoslynTools.Core.CommandSurface;
 using RoslynTools.Core.Output;
 
 namespace RoslynTools.Commands;
@@ -30,13 +31,53 @@ internal static class DumpHelpCommand
             var snapshot = App.Commands
                 .Select(e => (Cmd: e.Build(), e.Info))
                 .ToList();
-            if (RtConsole.IsOutputRedirected)
-                RtResultRenderer.WriteText(RtResult<string>.Ok(RenderMarkdown(snapshot)));
-            else
-                RenderColoured(snapshot);
+
+            switch (RtContext.Format)
+            {
+                case OutputFormat.Json:
+                case OutputFormat.Yaml:
+                    WriteStructured(snapshot);
+                    break;
+                case OutputFormat.Markdown:
+                    // Explicit --markdown is honoured even in a terminal (previously ignored).
+                    RtResultRenderer.WriteText(RtResult<string>.Ok(RenderMarkdown(snapshot)));
+                    break;
+                default:
+                    // Text: Markdown when piped (the post-build docs/COMMANDS.md target), coloured in a terminal.
+                    if (RtConsole.IsOutputRedirected)
+                        RtResultRenderer.WriteText(RtResult<string>.Ok(RenderMarkdown(snapshot)));
+                    else
+                        RenderColoured(snapshot);
+                    break;
+            }
         });
 
         return cmd;
+    }
+
+    /// <summary>
+    ///     Emits the full command surface — each command's metadata plus its options and
+    ///     positional arguments, and the host's global options — as JSON or YAML, dispatching
+    ///     on <see cref="RtContext.Format" />. Backs <c>rt dump-help --json</c> / <c>--yaml</c>;
+    ///     the JSON output is described by <c>docs/command-surface.schema.json</c>.
+    /// </summary>
+    private static void WriteStructured(IReadOnlyList<(Command Cmd, RtCommandInfo Info)> snapshot)
+    {
+        // Global options live on the root, not on individual commands, so reconstruct them
+        // from the canonical definition rather than walking any single command.
+        var (jsonOpt, llmOpt, markdownOpt, yamlOpt, decisionsOpt, strictJsonOpt, showWorkspaceWarningsOpt)
+            = App.RegisterGlobalOptions(new RootCommand());
+        var globalOptions = new Option[]
+        {
+            jsonOpt, llmOpt, markdownOpt, yamlOpt, strictJsonOpt, decisionsOpt, showWorkspaceWarningsOpt
+        };
+
+        var model = CommandSurfaceBuilder.Build(snapshot, App.GroupDescriptions, globalOptions);
+
+        if (RtContext.Format == OutputFormat.Yaml)
+            RtConsole.Write(RtOutputContext.Result, CommandSurfaceBuilder.ToYaml(model));
+        else
+            RtConsole.WriteLine(RtOutputContext.Result, CommandSurfaceBuilder.ToJson(model));
     }
 
     /// <summary>

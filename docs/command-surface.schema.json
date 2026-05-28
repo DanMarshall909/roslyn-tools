@@ -1,0 +1,212 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/DanMarshall909/roslyn-tools/main/docs/command-surface.schema.json",
+  "title": "rt command surface",
+  "description": "Machine-readable description of the entire rt command-line surface, as emitted by `rt dump-help --json`. Every command's metadata plus its options and positional arguments, the host's global options, and the command-group descriptions.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "commandCount",
+    "commands",
+    "globalOptions",
+    "groups"
+  ],
+  "properties": {
+    "commandCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of commands in `commands` (a convenience mirror of its length)."
+    },
+    "commands": {
+      "type": "array",
+      "description": "Every rt command, sorted by name.",
+      "items": {
+        "$ref": "#/$defs/command"
+      }
+    },
+    "globalOptions": {
+      "type": "array",
+      "description": "Options registered on the root command and therefore accepted by every command (e.g. --json, --decisions).",
+      "items": {
+        "$ref": "#/$defs/option"
+      }
+    },
+    "groups": {
+      "type": "object",
+      "description": "Command-group key to one-line description. Keys are the values used by `command.category`.",
+      "additionalProperties": {
+        "type": "string"
+      }
+    }
+  },
+  "$defs": {
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "category",
+        "mutates",
+        "jsonOutput",
+        "whenToUse",
+        "description",
+        "examples",
+        "options",
+        "arguments"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Canonical command name (the leaf verb, e.g. \"rename\")."
+        },
+        "category": {
+          "type": "string",
+          "description": "Top-level group the command is filed under.",
+          "enum": [
+            "inspect",
+            "analyze",
+            "refactor"
+          ]
+        },
+        "mutates": {
+          "type": "boolean",
+          "description": "True if the command writes files; false if it is read-only."
+        },
+        "jsonOutput": {
+          "type": "boolean",
+          "description": "True if the command's primary stdout is JSON."
+        },
+        "whenToUse": {
+          "type": "string",
+          "description": "Guidance on when to reach for this command."
+        },
+        "description": {
+          "type": "string",
+          "description": "Short one-line description (the System.CommandLine command description)."
+        },
+        "examples": {
+          "type": "array",
+          "description": "Real invocation examples.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "options": {
+          "type": "array",
+          "description": "Options (flags) declared by this command. Does not include global options.",
+          "items": {
+            "$ref": "#/$defs/option"
+          }
+        },
+        "arguments": {
+          "type": "array",
+          "description": "Positional arguments declared by this command.",
+          "items": {
+            "$ref": "#/$defs/argument"
+          }
+        },
+        "group": {
+          "type": "string",
+          "description": "Optional group override; usually mirrors `category`."
+        },
+        "aliases": {
+          "type": "array",
+          "description": "Alternative command names.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "seeAlso": {
+          "type": "array",
+          "description": "Related command names.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "knownIssues": {
+          "type": "array",
+          "description": "Documented limitations or caveats.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "supportedFormats": {
+          "type": "array",
+          "description": "Output formats the command supports.",
+          "items": {
+            "type": "string",
+            "enum": [
+              "Text",
+              "Json",
+              "Markdown",
+              "Llm",
+              "Yaml"
+            ]
+          }
+        }
+      }
+    },
+    "option": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "aliases",
+        "required",
+        "valueType"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Option name without prefix (e.g. \"solution\" for --solution)."
+        },
+        "aliases": {
+          "type": "array",
+          "description": "All aliases including prefixes (e.g. [\"--solution\", \"-s\"]).",
+          "items": {
+            "type": "string"
+          }
+        },
+        "required": {
+          "type": "boolean",
+          "description": "True if the option must be supplied."
+        },
+        "valueType": {
+          "type": "string",
+          "description": "Short value-type name (e.g. \"string\", \"bool\", \"int\", \"file\", \"directory\", \"string[]\")."
+        },
+        "description": {
+          "type": "string",
+          "description": "Help text for the option."
+        }
+      }
+    },
+    "argument": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "required",
+        "valueType"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Positional argument name."
+        },
+        "required": {
+          "type": "boolean",
+          "description": "True if the argument must be supplied (arity minimum > 0)."
+        },
+        "valueType": {
+          "type": "string",
+          "description": "Short value-type name (e.g. \"string\")."
+        },
+        "description": {
+          "type": "string",
+          "description": "Help text for the argument."
+        }
+      }
+    }
+  }
+}
