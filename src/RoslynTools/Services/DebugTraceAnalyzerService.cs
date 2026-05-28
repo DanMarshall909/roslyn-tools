@@ -15,8 +15,13 @@ internal sealed class DebugTraceAnalyzerService : IRtService
         IReadOnlyList<string> assertions,
         bool breakOnly = false)
     {
+        ArgumentNullException.ThrowIfNull(traceFile);
+
         if (!traceFile.Exists)
             throw new FileNotFoundException("LLM trace file was not found.", traceFile.FullName);
+
+        breakpoints ??= [];
+        assertions ??= [];
 
         var allEvents = LoadEvents(traceFile)
             .Select((element, index) => BuildEvent(element, index + 1))
@@ -304,10 +309,14 @@ internal sealed class DebugTraceAnalyzerService : IRtService
 
     private static string Truncate(string value, int limit)
     {
-        // limit is always SummaryLimit (160) at the only call site, so the limit <= 0 and
-        // limit <= 3 defensive branches are unreachable in practice.
+        if (limit <= 0)
+            return string.Empty;
+
         if (value.Length <= limit)
             return value;
+
+        if (limit <= 3)
+            return new string('.', limit);
 
         return value[..(limit - 3)] + "...";
     }

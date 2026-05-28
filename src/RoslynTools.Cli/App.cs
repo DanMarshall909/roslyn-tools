@@ -423,8 +423,9 @@ internal static class App
     /// CLI never surfaces a raw stack trace for predictable failures: missing solution paths
     /// (FileNotFoundException), file I/O issues (IOException), invalid-input checks inside
     /// services (InvalidOperationException — e.g. analyze-interface on a non-interface),
-    /// malformed JSON (JsonException — e.g. add-xml-doc --from-json), and malformed YAML
-    /// (YamlException — e.g. --decisions file). These mapped paths intentionally skip
+    /// argument validation failures (ArgumentException), malformed JSON (JsonException —
+    /// e.g. add-xml-doc --from-json), and malformed YAML (YamlException — e.g. --decisions file).
+    /// These mapped paths intentionally skip
     /// <see cref="CaptureExceptionAsync"/> — they are documented, expected user-error UX
     /// flows; capturing them to feedback.json adds noise without adding signal (US-076).
     /// Unmapped exception types ARE captured, then return false so the caller rethrows and
@@ -439,7 +440,7 @@ internal static class App
             return true;
         }
 
-        if (ex is IOException or InvalidOperationException or JsonException or YamlException)
+        if (ex is IOException or InvalidOperationException or ArgumentException or JsonException or YamlException)
         {
             RtLog.Error("Error: {Message}", ex.Message);
             context.ExitCode = 1;

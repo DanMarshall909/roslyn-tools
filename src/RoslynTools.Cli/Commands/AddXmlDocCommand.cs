@@ -50,14 +50,14 @@ internal sealed class AddXmlDocCommand : IRtCommand, IRefactorCommand
 
         cmd.SetHandler(async (fromJson, solution, dryRun) =>
         {
+            if (!fromJson.Exists)
+                throw new InvalidOperationException($"JSON file not found: {fromJson.FullName}");
+
             var json = await File.ReadAllTextAsync(fromJson.FullName);
             var docs = JsonSerializer.Deserialize<Dictionary<string, string>>(json, JsonOptions);
 
             if (docs is null || docs.Count == 0)
-            {
-                RtLog.Error("No entries found in the JSON file.");
-                return;
-            }
+                throw new InvalidOperationException("No entries found in the JSON file.");
 
             var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
             using (workspace)
