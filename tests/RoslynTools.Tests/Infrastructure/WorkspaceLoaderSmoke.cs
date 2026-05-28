@@ -46,6 +46,53 @@ public class WorkspaceLoaderSmoke
     }
 
     [Fact]
+    public async Task concurrent_solution_loads_are_serialized_and_complete_cleanly()
+    {
+        using var project = new WorkspaceLoaderTestProject();
+        var sln = project.AddSolution("", "Concurrent", "ConcurrentProject");
+        var activeLoads = 0;
+        var maxActiveLoads = 0;
+
+        WorkspaceLoader.OpenSolutionOverride.Value = async (workspace, path) =>
+        {
+            path.ShouldBe(sln.SolutionPath);
+            var active = Interlocked.Increment(ref activeLoads);
+            try
+            {
+                maxActiveLoads = Math.Max(maxActiveLoads, active);
+                await Task.Delay(25);
+                return workspace.CurrentSolution;
+            }
+            finally
+            {
+                Interlocked.Decrement(ref activeLoads);
+            }
+        };
+
+        try
+        {
+            var loads = Enumerable.Range(0, 4)
+                .Select(_ => WorkspaceLoader.LoadAsync(sln.SolutionPath))
+                .ToArray();
+
+            var results = await Task.WhenAll(loads);
+
+            maxActiveLoads.ShouldBe(1);
+            foreach (var (workspace, solution) in results)
+            {
+                using (workspace)
+                {
+                    solution.ShouldNotBeNull();
+                }
+            }
+        }
+        finally
+        {
+            WorkspaceLoader.OpenSolutionOverride.Value = null;
+        }
+    }
+
+    [Fact]
     public async Task successful_load_does_not_emit_progress_banner_to_diagnostic_sink()
     {
         using var project = new WorkspaceLoaderTestProject();

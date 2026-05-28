@@ -10,6 +10,7 @@ namespace RoslynTools.Core;
 /// </summary>
 internal sealed class WorkspaceLoader : IWorkspaceSessionFactory, IDisposable
 {
+    private static readonly SemaphoreSlim SolutionLoadGate = new(1, 1);
     private MSBuildWorkspace? _workspace;
 
     // ── Test hooks ──────────────────────────────────────────────────────────
@@ -25,6 +26,8 @@ internal sealed class WorkspaceLoader : IWorkspaceSessionFactory, IDisposable
     /// Overrides the diagnostic sink for the workspace loader.
     /// </summary>
     internal static AsyncLocal<TextWriter?> DiagnosticSinkOverride { get; } = new();
+
+    internal static AsyncLocal<Func<MSBuildWorkspace, string, Task<Solution>>?> OpenSolutionOverride { get; } = new();
 
     public void Dispose()
     {
@@ -120,7 +123,17 @@ internal sealed class WorkspaceLoader : IWorkspaceSessionFactory, IDisposable
         Solution solution;
         try
         {
-            solution = await workspace.OpenSolutionAsync(solutionPath);
+            await SolutionLoadGate.WaitAsync();
+            try
+            {
+                solution = OpenSolutionOverride.Value is { } openSolution
+                    ? await openSolution(workspace, solutionPath)
+                    : await workspace.OpenSolutionAsync(solutionPath);
+            }
+            finally
+            {
+                SolutionLoadGate.Release();
+            }
         }
         catch
         {

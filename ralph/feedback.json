@@ -119,7 +119,9 @@
       "commandLine": "parallel: rt analyze find-duplicates; rt analyze complexity; rt analyze list-smells; rt analyze static-class-inventory --solution RoslynTools.slnx",
       "description": "Parallel read-only rt analyses can emit MSBuild obj file lock warnings because workspace loading writes shared obj/Debug files; an agent-friendly mode should avoid or isolate generated state for concurrent analysis runs.",
       "expectedResult": "Read-only commands such as analyze find-duplicates, complexity, list-smells, and static-class-inventory can run concurrently without MSBuild cache write conflicts, or rt documents/enforces serialization when workspace state cannot be isolated.",
-      "status": "pending"
+      "status": "processed",
+      "processedAt": "2026-05-28T18:35:00+10:00",
+      "resolution": "WorkspaceLoader now serializes MSBuildWorkspace.OpenSolutionAsync through a process-wide async gate so concurrent read-only rt analyses do not race shared MSBuild obj/bin state during solution load."
     },
     {
       "id": "FB-014",
