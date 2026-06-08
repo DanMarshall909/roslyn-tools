@@ -16,6 +16,7 @@
       "**/Core/MethodExtractorBuilder.cs",
       "**/Services/DebugTraceAnalyzerService.cs",
       "**/Services/ImportDirectiveService.cs",
+      "**/Services/SemanticDiff/SemanticDiffService.cs",
       "**/Commands/AddStaticImportCommand.cs",
       "**/Models/DebugReport.cs",
       "**/RoslynTools.Cli/App.cs",

@@ -1067,7 +1067,14 @@ public sealed class SemanticDiffServiceTests
             before: [Source("f.cs", before)],
             after: [Source("f.cs", after)]));
 
-        result.Deltas.Single(d => d.Fqn == "Acme.Foo").Status.ShouldBe(DeclarationStatus.Changed);
+        // The carrier supplies the delta's Kind from the AFTER side (line 53:
+        // `newDecl ?? oldDecl`), so a category flip is reported with the surviving
+        // declaration's kind, not the before-side kind. class Foo -> enum Foo must
+        // report Kind=Enum; swapping the carrier to prefer the before side would
+        // report Class here.
+        var flipped = result.Deltas.Single(d => d.Fqn == "Acme.Foo");
+        flipped.Status.ShouldBe(DeclarationStatus.Changed);
+        flipped.Kind.ShouldBe(DeclarationKind.Enum);
     }
 
     [Fact]
@@ -2191,5 +2198,91 @@ public sealed class SemanticDiffServiceTests
         result.Deltas.Single(d => d.Fqn == "Acme.Box`1").Status.ShouldBe(DeclarationStatus.Removed);
         result.Deltas.Single(d => d.Fqn == "Acme.Box`2").Status.ShouldBe(DeclarationStatus.Added);
         result.Deltas.ShouldNotContain(d => d.Status == DeclarationStatus.Renamed);
+    }
+
+    // ----- US-121 mutation hardening: null guard, rename-drop scope, output order -----
+
+    [Fact]
+    public void comparing_a_null_request_throws_argument_null()
+    {
+        // The Compare entry point guards its argument (ArgumentNullException.ThrowIfNull).
+        // Removing that guard would let `request.Before` throw NullReferenceException
+        // instead, so asserting the specific ArgumentNullException kills the dropped guard.
+        var service = new SemanticDiffService();
+
+        Should.Throw<ArgumentNullException>(() => service.Compare(null!));
+    }
+
+    [Fact]
+    public void a_genuinely_new_declaration_survives_as_added_alongside_a_collapsed_rename()
+    {
+        // Two effects in one diff: Gone -> Fresh is a pure rename (equivalent bodies)
+        // that collapses to one Renamed delta, while Brand is a genuinely-new Added
+        // declaration that is part of no rename pair. The rebuild only drops the Added
+        // HALF OF A PAIR (Status == Added AND Fqn is in pairedAddedFqns). If the guard's
+        // `&&` were weakened to `||`, EVERY Added delta would be dropped and Brand would
+        // wrongly vanish. Brand's header differs (sealed) so it is not
+        // equivalent-modulo-name to Gone and greedy pairing can never consume it —
+        // type comparison is on the header shell, not the member bodies.
+        const string before = """
+            namespace Acme;
+
+            public class Gone { public int Go() => 1; }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class Fresh { public int Go() => 1; }
+            public sealed class Brand { public int Go() => 1; }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("before.cs", before)],
+            after: [Source("after.cs", after)]));
+
+        // The rename collapses to a single Renamed type delta.
+        var renamed = result.Deltas.Single(d =>
+            d.Kind == DeclarationKind.Class && d.Status == DeclarationStatus.Renamed);
+        renamed.OldFqn.ShouldBe("Acme.Gone");
+        renamed.NewFqn.ShouldBe("Acme.Fresh");
+
+        // The unpaired, genuinely-new type must still be reported as Added.
+        result.Deltas.Single(d => d.Fqn == "Acme.Brand").Status.ShouldBe(DeclarationStatus.Added);
+    }
+
+    [Fact]
+    public void deltas_are_re_sorted_by_ordinal_fqn_after_a_rename_reassigns_a_key()
+    {
+        // The rename post-pass rebuilds the delta list out of FQN order: the Removed
+        // half (keyed Acme.Zebra) is re-emitted as Renamed keyed on the AFTER FQN
+        // (Acme.Apple), which now sorts before the untouched Acme.Mango. Without the
+        // final Sort, the rebuilt order is [Mango, Apple]; with it, [Apple, Mango].
+        // This is the only path that reaches the Sort — the no-rename path returns a
+        // list already ordered by the SortedSet keying, so dropping the Sort is only
+        // observable once a rename reassigns a key.
+        const string before = """
+            namespace Acme;
+
+            public class Zebra { public int Go() => 1; }
+            public class Mango { public int Go() => 2; }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class Apple { public int Go() => 1; }
+            public class Mango { public int Go() => 2; }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("before.cs", before)],
+            after: [Source("after.cs", after)]));
+
+        var typeFqns = result.Deltas
+            .Where(d => d.Kind == DeclarationKind.Class)
+            .Select(d => d.Fqn)
+            .ToList();
+        typeFqns.ShouldBe(["Acme.Apple", "Acme.Mango"]);
     }
 }

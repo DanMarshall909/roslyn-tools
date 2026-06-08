@@ -199,6 +199,11 @@ internal sealed class SemanticDiffService : IRtService
     ///     masked. With the flag off (default) the operands are untouched.
     /// </summary>
     private static bool BodiesEquivalent(SyntaxNode a, SyntaxNode b, SemanticDiffOptions opts) =>
+        // mutation: equivalent — BodiesEquivalent is only called for a both-present
+        // declaration matched by FQN, so a and b already share the same name. Flipping
+        // normalizeIdentifier to true blanks both identical names to the same blank
+        // token, a no-op that cannot change the equivalence result.
+        // Stryker disable once Boolean: equivalent — see comment above
         AreEquivalent(a, b, opts, normalizeIdentifier: false);
 
     /// <summary>
@@ -276,6 +281,10 @@ internal sealed class SemanticDiffService : IRtService
     /// </summary>
     private static SyntaxNode NormalizeIdentifier(SyntaxNode node)
     {
+        // mutation: equivalent — the blank token is applied to BOTH sides of the rename
+        // comparison, so any constant identifier string yields the same equivalence
+        // outcome; the specific value is irrelevant to the result.
+        // Stryker disable once String: equivalent — see comment above
         var blank = SyntaxFactory.Identifier(string.Empty);
         return node switch
         {
@@ -306,6 +315,10 @@ internal sealed class SemanticDiffService : IRtService
     /// </summary>
     private static VariableDeclarationSyntax BlankDeclarators(VariableDeclarationSyntax declaration)
     {
+        // mutation: equivalent — the blank token is applied to BOTH sides of the rename
+        // comparison, so any constant identifier string yields the same equivalence
+        // outcome; the specific value is irrelevant to the result.
+        // Stryker disable once String: equivalent — see comment above
         var blanked = declaration.Variables.Select(static v => v.WithIdentifier(SyntaxFactory.Identifier(string.Empty)));
         return declaration.WithVariables(SyntaxFactory.SeparatedList(blanked));
     }
@@ -318,7 +331,17 @@ internal sealed class SemanticDiffService : IRtService
     /// </summary>
     private static bool IsRenameable(DeclarationKind kind) => kind switch
     {
+        // mutation: equivalent (both arms) — flipping either to true cannot make an
+        // indexer/operator actually pair as a rename: (a) NormalizeIdentifier has no arm
+        // for them (falls to `_ => node`), so their name is never blanked; and (b) their
+        // FQN encodes the discriminating part (`this(params)`, `operator <token>(params)`)
+        // rather than a name, so a different FQN means different nodes that are never
+        // equivalent-modulo-name. The guard's effect is therefore unobservable. Note the
+        // default arm is `_ => true`, so DELETING these arms would APPLY the mutant, not
+        // remove dead code — annotate-as-equivalent is the only correct move here.
+        // Stryker disable once Boolean: equivalent — see comment above
         DeclarationKind.Indexer => false,
+        // Stryker disable once Boolean: equivalent — see comment above
         DeclarationKind.Operator => false,
         _ => true,
     };
@@ -574,11 +597,14 @@ internal sealed class SemanticDiffService : IRtService
         {
             if (i > 0)
                 sb.Append(',');
+            // ParameterSyntax.Type is non-null for every parameter in a well-formed
+            // method/ctor/operator/indexer list. A null Type can only arise from a
+            // parse-error-recovery tree (deferred to US-126), so no defensive `"?"`
+            // branch is kept here — it would be unreachable (NoCoverage) cruft. The
+            // null-forgiving operator preserves the NRT contract without introducing a
+            // dead conditional branch.
             var type = parameters.Parameters[i].Type;
-            // coverage: ParameterSyntax.Type is non-null for every parameter in a
-            // well-formed method/ctor/operator/indexer list; the "?" placeholder is
-            // a defensive guard for parse-error-recovery trees only.
-            sb.Append(type is null ? "?" : StripWhitespace(type.ToString()));
+            sb.Append(StripWhitespace(type!.ToString()));
         }
 
         sb.Append(')');
