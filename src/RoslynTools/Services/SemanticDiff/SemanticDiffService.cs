@@ -90,26 +90,75 @@ internal sealed class SemanticDiffService : IRtService
     ///         falls through to the final whole-node comparison, which reports it as not
     ///         equivalent (Changed) without an <see cref="InvalidCastException" />.
     ///     </para>
-    ///     The <paramref name="opts" /> parameter is unused this cycle; a later cycle
-    ///     consults it (e.g. <see cref="SemanticDiffOptions.IgnoreAccessibility" />)
-    ///     without changing this signature.
+    ///     When <see cref="SemanticDiffOptions.IgnoreAccessibility" /> is set, every
+    ///     comparison operand is first passed through <see cref="StripAccessibility" />,
+    ///     which removes accessibility modifiers (<c>public</c>, <c>private</c>, …) from
+    ///     the node's own top-level modifier list before comparison. All other modifiers
+    ///     (<c>static</c>, <c>sealed</c>, <c>abstract</c>, …) survive, so a non-accessibility
+    ///     modifier change still reports Changed, and a genuine body difference is never
+    ///     masked. With the flag off (default) the operands are untouched.
     /// </summary>
     private static bool BodiesEquivalent(SyntaxNode a, SyntaxNode b, SemanticDiffOptions opts)
     {
         // Class / struct / record / interface: compare the header shell only, with the
         // member list removed so member edits/adds/removals do not mark the type Changed.
+        // Accessibility is stripped after WithMembers so the strip targets the type's
+        // own header modifiers only (the members it would otherwise reach are gone).
         if (a is TypeDeclarationSyntax typeA && b is TypeDeclarationSyntax typeB)
-            return typeA.WithMembers(default).IsEquivalentTo(typeB.WithMembers(default), topLevel: false);
+            return StripAccessibility(typeA.WithMembers(default), opts)
+                .IsEquivalentTo(StripAccessibility(typeB.WithMembers(default), opts), topLevel: false);
 
         // Enum: same shell-only comparison — enum-member changes are out of scope, but
         // the enum's own header (e.g. underlying type, attributes) is in scope.
         if (a is EnumDeclarationSyntax enumA && b is EnumDeclarationSyntax enumB)
-            return enumA.WithMembers(default).IsEquivalentTo(enumB.WithMembers(default), topLevel: false);
+            return StripAccessibility(enumA.WithMembers(default), opts)
+                .IsEquivalentTo(StripAccessibility(enumB.WithMembers(default), opts), topLevel: false);
 
         // Members and delegates: trivia-insensitive whole-node comparison. A delegate
         // is a signature with no member list, so the whole node IS its header.
-        return a.IsEquivalentTo(b, topLevel: false);
+        return StripAccessibility(a, opts).IsEquivalentTo(StripAccessibility(b, opts), topLevel: false);
     }
+
+    /// <summary>
+    ///     When <see cref="SemanticDiffOptions.IgnoreAccessibility" /> is set, return a
+    ///     copy of <paramref name="node" /> with accessibility modifiers removed from its
+    ///     own top-level modifier list, leaving every other modifier intact; otherwise
+    ///     return the node unchanged. Modifiers live on <see cref="MemberDeclarationSyntax.Modifiers" />,
+    ///     which is the common base of every node compared here (types, enums, delegates,
+    ///     and members), so a single helper covers all three comparison paths.
+    /// </summary>
+    private static SyntaxNode StripAccessibility(SyntaxNode node, SemanticDiffOptions opts)
+    {
+        // Flag off: never rebuild the node — the default path stays byte-for-byte the
+        // pre-Cycle-4 behaviour, so accessibility differences still register as Changed.
+        if (!opts.IgnoreAccessibility)
+            return node;
+
+        // coverage: every node reaching here originates from Walk, which only stores
+        // MemberDeclarationSyntax subtypes; the guard is a defensive no-op for any
+        // future non-member caller and is not exercised through the public API.
+        if (node is not MemberDeclarationSyntax member)
+            return node;
+
+        var kept = member.Modifiers.Where(static t => !IsAccessibilityModifier(t));
+        return member.WithModifiers(SyntaxFactory.TokenList(kept));
+    }
+
+    /// <summary>
+    ///     True for the accessibility-modifier keywords <c>public</c>, <c>private</c>,
+    ///     <c>protected</c>, <c>internal</c>, and <c>file</c>. Combined forms
+    ///     (<c>protected internal</c>, <c>private protected</c>) are two separate tokens,
+    ///     each matched independently, so both are stripped.
+    /// </summary>
+    private static bool IsAccessibilityModifier(SyntaxToken token) => token.Kind() switch
+    {
+        SyntaxKind.PublicKeyword => true,
+        SyntaxKind.PrivateKeyword => true,
+        SyntaxKind.ProtectedKeyword => true,
+        SyntaxKind.InternalKeyword => true,
+        SyntaxKind.FileKeyword => true,
+        _ => false,
+    };
 
     /// <summary>
     ///     Parse every source document and index its declarations by syntactic FQN.
