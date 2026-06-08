@@ -1014,6 +1014,79 @@ public sealed class SemanticDiffServiceTests
     }
 
     [Fact]
+    public void an_enum_with_identical_text_on_both_sides_is_unchanged()
+    {
+        // Locks branch-2's true-return: a same-text enum compares header-shell-equal.
+        const string text = """
+            namespace Acme;
+
+            public enum Color { Red, Green }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("e.cs", text)],
+            after: [Source("e.cs", text)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.Color").Status.ShouldBe(DeclarationStatus.Unchanged);
+    }
+
+    [Fact]
+    public void a_type_replaced_by_an_enum_at_the_same_fqn_is_changed_without_throwing()
+    {
+        // class Foo -> enum Foo keeps the key Acme.Foo but flips the node category.
+        // Exercises the false-branch of branch-1's both-sided guard (b is not a
+        // TypeDeclarationSyntax): the comparison falls through to the whole-node
+        // path and reports Changed instead of throwing InvalidCastException.
+        const string before = """
+            namespace Acme;
+
+            public class Foo
+            {
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public enum Foo { One }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("f.cs", before)],
+            after: [Source("f.cs", after)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.Foo").Status.ShouldBe(DeclarationStatus.Changed);
+    }
+
+    [Fact]
+    public void an_enum_replaced_by_a_class_at_the_same_fqn_is_changed_without_throwing()
+    {
+        // The mirror of the previous test: exercises the false-branch of branch-2's
+        // both-sided guard (b is not an EnumDeclarationSyntax). Fully condition-covers
+        // the shell-strip guards across both declaration-with-members categories.
+        const string before = """
+            namespace Acme;
+
+            public enum Foo { One }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class Foo
+            {
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("f.cs", before)],
+            after: [Source("f.cs", after)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.Foo").Status.ShouldBe(DeclarationStatus.Changed);
+    }
+
+    [Fact]
     public void changing_a_delegate_signature_is_changed()
     {
         const string before = """
