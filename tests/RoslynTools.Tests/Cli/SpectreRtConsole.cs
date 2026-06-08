@@ -132,6 +132,25 @@ public class SpectreRtConsole
     }
 
     [Fact]
+    public void interactive_disambiguation_candidate_with_bracketed_signature_does_not_crash()
+    {
+        var (rt, stdout, _) = NewConsole();
+
+        // Repro for FB-363: the symbol-disambiguation prompt writes candidate
+        // signatures (SymbolMatch.DisplayName) via the Interactive context. A
+        // candidate containing markup metacharacters — e.g. a generic type arg or
+        // array — must not be parsed as Spectre markup. Pre-fix this threw
+        // "Unbalanced markup stack. Did you forget to close a tag?".
+        Should.NotThrow(() =>
+            rt.WriteLine(RtOutputContext.Interactive, "  [0]  Method  List<SymbolMatch> Collect()"));
+
+        // The brackets must survive verbatim (escaped, not stripped) so the prompt
+        // reads identically to its pre-Spectre plain-text form.
+        StripAnsi(stdout.Output).ShouldContain("[0]");
+        StripAnsi(stdout.Output).ShouldContain("List<SymbolMatch> Collect()");
+    }
+
+    [Fact]
     public void diagnostic_and_ui_flag_combination_writes_markup_to_stderr()
     {
         var (rt, stdout, stderr) = NewConsole();
