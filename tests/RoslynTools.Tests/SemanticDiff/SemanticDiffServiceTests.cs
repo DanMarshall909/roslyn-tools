@@ -195,4 +195,249 @@ public sealed class SemanticDiffServiceTests
         result.Deltas.ShouldContain(d => d.Fqn == "Acme.A.Run(int)");
         result.Deltas.ShouldContain(d => d.Fqn == "Acme.A.Run(string)");
     }
+
+    [Fact]
+    public void each_top_level_type_kind_is_classified_with_its_own_kind()
+    {
+        const string text = """
+            namespace Acme;
+
+            public class C { }
+            public struct S { }
+            public record R { }
+            public interface I { }
+            public enum E { One }
+            public delegate void D(int x);
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("t.cs", text)],
+            after: [Source("t.cs", text)]));
+
+        result.Deltas.ShouldContain(d => d.Fqn == "Acme.C" && d.Kind == DeclarationKind.Class);
+        result.Deltas.ShouldContain(d => d.Fqn == "Acme.S" && d.Kind == DeclarationKind.Struct);
+        result.Deltas.ShouldContain(d => d.Fqn == "Acme.R" && d.Kind == DeclarationKind.Record);
+        result.Deltas.ShouldContain(d => d.Fqn == "Acme.I" && d.Kind == DeclarationKind.Interface);
+        result.Deltas.ShouldContain(d => d.Fqn == "Acme.E" && d.Kind == DeclarationKind.Enum);
+        result.Deltas.ShouldContain(d => d.Fqn == "Acme.D" && d.Kind == DeclarationKind.Delegate);
+    }
+
+    [Fact]
+    public void enum_members_are_not_reported_as_declarations()
+    {
+        const string text = """
+            namespace Acme;
+
+            public enum Color { Red, Green, Blue }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("e.cs", text)],
+            after: [Source("e.cs", text)]));
+
+        result.Deltas.Count.ShouldBe(1);
+        result.Deltas[0].Fqn.ShouldBe("Acme.Color");
+    }
+
+    [Fact]
+    public void each_member_kind_is_classified_with_its_own_kind()
+    {
+        const string text = """
+            namespace Acme;
+
+            public class A
+            {
+                public A() { }
+                public int Field;
+                public int Prop { get; set; }
+                public event System.Action Tick;
+                public event System.Action Boom { add { } remove { } }
+                public int this[int i] => i;
+                public static A operator +(A x, A y) => x;
+                public static explicit operator int(A a) => 0;
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("a.cs", text)],
+            after: [Source("a.cs", text)]));
+
+        result.Deltas.ShouldContain(d => d.Fqn == "Acme.A.A()" && d.Kind == DeclarationKind.Constructor);
+        result.Deltas.ShouldContain(d => d.Fqn == "Acme.A.Field" && d.Kind == DeclarationKind.Field);
+        result.Deltas.ShouldContain(d => d.Fqn == "Acme.A.Prop" && d.Kind == DeclarationKind.Property);
+        result.Deltas.ShouldContain(d => d.Fqn == "Acme.A.Tick" && d.Kind == DeclarationKind.Event);
+        result.Deltas.ShouldContain(d => d.Fqn == "Acme.A.Boom" && d.Kind == DeclarationKind.Event);
+        result.Deltas.ShouldContain(d => d.Fqn == "Acme.A.this(int)" && d.Kind == DeclarationKind.Indexer);
+        result.Deltas.ShouldContain(d =>
+            d.Fqn == "Acme.A.operator +(A,A)" && d.Kind == DeclarationKind.Operator);
+        result.Deltas.ShouldContain(d =>
+            d.Fqn == "Acme.A.operator int(A)" && d.Kind == DeclarationKind.Operator);
+    }
+
+    [Fact]
+    public void a_comma_separated_field_declarator_yields_one_delta_per_variable()
+    {
+        const string text = """
+            namespace Acme;
+
+            public class A
+            {
+                public int x, y;
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("a.cs", text)],
+            after: [Source("a.cs", text)]));
+
+        result.Deltas.ShouldContain(d => d.Fqn == "Acme.A.x" && d.Kind == DeclarationKind.Field);
+        result.Deltas.ShouldContain(d => d.Fqn == "Acme.A.y" && d.Kind == DeclarationKind.Field);
+    }
+
+    [Fact]
+    public void generic_arity_is_part_of_the_type_and_method_key()
+    {
+        const string text = """
+            namespace Acme;
+
+            public class Box<T>
+            {
+                public void Map<U>(T input) { }
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("b.cs", text)],
+            after: [Source("b.cs", text)]));
+
+        result.Deltas.ShouldContain(d => d.Fqn == "Acme.Box`1" && d.Kind == DeclarationKind.Class);
+        result.Deltas.ShouldContain(d => d.Fqn == "Acme.Box`1.Map`1(T)" && d.Kind == DeclarationKind.Method);
+    }
+
+    [Fact]
+    public void nested_types_are_keyed_by_their_containing_type_path()
+    {
+        const string text = """
+            namespace Acme;
+
+            public class Outer
+            {
+                public class Inner
+                {
+                    public void Go() { }
+                }
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("n.cs", text)],
+            after: [Source("n.cs", text)]));
+
+        result.Deltas.ShouldContain(d => d.Fqn == "Acme.Outer.Inner" && d.Kind == DeclarationKind.Class);
+        result.Deltas.ShouldContain(d => d.Fqn == "Acme.Outer.Inner.Go()" && d.Kind == DeclarationKind.Method);
+    }
+
+    [Fact]
+    public void block_scoped_and_dotted_namespaces_contribute_to_the_key()
+    {
+        const string text = """
+            namespace Acme.Deep.Space
+            {
+                public class Ship { }
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("s.cs", text)],
+            after: [Source("s.cs", text)]));
+
+        result.Deltas.ShouldContain(d => d.Fqn == "Acme.Deep.Space.Ship");
+    }
+
+    [Fact]
+    public void parameter_type_whitespace_is_normalized_so_overloads_do_not_split_spuriously()
+    {
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                public void Run(System.Collections.Generic.Dictionary<int, string> m) { }
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class A
+            {
+                public void Run(System.Collections.Generic.Dictionary<int,string> m) { }
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("a.cs", before)],
+            after: [Source("a.cs", after)]));
+
+        var method = result.Deltas.Single(d => d.Kind == DeclarationKind.Method);
+        method.Fqn.ShouldBe("Acme.A.Run(System.Collections.Generic.Dictionary<int,string>)");
+        method.Status.ShouldBe(DeclarationStatus.Unchanged);
+    }
+
+    [Fact]
+    public void a_partial_class_split_across_two_documents_does_not_throw_on_duplicate_keys()
+    {
+        const string part1 = """
+            namespace Acme;
+
+            public partial class A
+            {
+                public void First() { }
+            }
+            """;
+        const string part2 = """
+            namespace Acme;
+
+            public partial class A
+            {
+                public void Second() { }
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("a1.cs", part1), Source("a2.cs", part2)],
+            after: [Source("a1.cs", part1), Source("a2.cs", part2)]));
+
+        result.Deltas.ShouldContain(d => d.Fqn == "Acme.A");
+        result.Deltas.ShouldContain(d => d.Fqn == "Acme.A.First()");
+        result.Deltas.ShouldContain(d => d.Fqn == "Acme.A.Second()");
+    }
+
+    [Fact]
+    public void deltas_are_ordered_deterministically_by_fqn()
+    {
+        const string text = """
+            namespace Acme;
+
+            public class Zebra { }
+            public class Apple { }
+            public class Mango { }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("z.cs", text)],
+            after: [Source("z.cs", text)]));
+
+        var fqns = result.Deltas.Select(d => d.Fqn).ToList();
+        fqns.ShouldBe(fqns.OrderBy(f => f, StringComparer.Ordinal).ToList());
+    }
 }

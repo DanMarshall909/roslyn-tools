@@ -38,6 +38,9 @@ internal sealed class SemanticDiffService : IRtService
 
             DeclarationStatus status;
             if (inBefore && inAfter)
+                // coverage: the Changed arm is unreachable this cycle because the
+                // BodiesEquivalent seam is hard-wired to true; a later story that
+                // implements real body comparison will exercise it.
                 status = BodiesEquivalent(oldDecl!.Node, newDecl!.Node)
                     ? DeclarationStatus.Unchanged
                     : DeclarationStatus.Changed;
@@ -248,33 +251,28 @@ internal sealed class SemanticDiffService : IRtService
             if (i > 0)
                 sb.Append(',');
             var type = parameters.Parameters[i].Type;
-            sb.Append(type is null ? "?" : NormalizeWhitespace(type.ToString()));
+            // coverage: ParameterSyntax.Type is non-null for every parameter in a
+            // well-formed method/ctor/operator/indexer list; the "?" placeholder is
+            // a defensive guard for parse-error-recovery trees only.
+            sb.Append(type is null ? "?" : StripWhitespace(type.ToString()));
         }
 
         sb.Append(')');
         return sb.ToString();
     }
 
-    /// <summary>Collapse all runs of whitespace in a type string to single spaces and trim.</summary>
-    private static string NormalizeWhitespace(string text)
+    /// <summary>
+    ///     Remove all whitespace from a written type so parameter lists key
+    ///     identically regardless of spacing — e.g. <c>Dictionary&lt;int, string&gt;</c>
+    ///     and <c>Dictionary&lt;int,string&gt;</c> both become <c>Dictionary&lt;int,string&gt;</c>.
+    /// </summary>
+    private static string StripWhitespace(string text)
     {
         var sb = new StringBuilder(text.Length);
-        var pendingSpace = false;
         foreach (var ch in text)
         {
-            if (char.IsWhiteSpace(ch))
-            {
-                pendingSpace = sb.Length > 0;
-                continue;
-            }
-
-            if (pendingSpace)
-            {
-                sb.Append(' ');
-                pendingSpace = false;
-            }
-
-            sb.Append(ch);
+            if (!char.IsWhiteSpace(ch))
+                sb.Append(ch);
         }
 
         return sb.ToString();
