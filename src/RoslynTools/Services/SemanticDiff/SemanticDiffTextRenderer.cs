@@ -105,15 +105,14 @@ internal sealed class SemanticDiffTextRenderer
 
             case DeclarationStatus.Renamed:
                 {
-                    var oldText = NodeText(beforeDecls[delta.OldFqn!]);
-                    var newText = NodeText(afterDecls[delta.NewFqn!]);
+                    // The engine only ever emits Renamed for a PURE rename — its rename pass
+                    // pairs solely on equivalent-modulo-name bodies, so a name+body change
+                    // stays Added+Removed and never reaches here. The two node texts therefore
+                    // differ only in the identifier, which makes a body hunk pure noise; the
+                    // rename line alone is the whole story.
                     sb.Append(
                         CultureInfo.InvariantCulture,
-                        $"R Renamed  {kind} {delta.OldFqn} -> {delta.NewFqn}   ({delta.NewPath})\n");
-                    // A pure rename has equivalent bodies; only show a hunk when they differ.
-                    if (oldText != newText)
-                        AppendHunk(sb, oldText, newText);
-                    sb.Append('\n');
+                        $"R Renamed  {kind} {delta.OldFqn} -> {delta.NewFqn}   ({delta.NewPath})\n\n");
                     break;
                 }
 

@@ -110,6 +110,8 @@ public sealed class SemanticDiffTextRendererTests
         output.ShouldContain("Acme.C.Alpha(int) -> Acme.C.Beta(int)");
         output.ShouldNotContain("+ Added");
         output.ShouldNotContain("- Removed");
+        // A pure rename is the rename line alone — no body hunk noise.
+        output.ShouldNotContain("@@");
     }
 
     [Fact]
