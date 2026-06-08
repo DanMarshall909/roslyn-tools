@@ -1192,4 +1192,245 @@ public sealed class SemanticDiffServiceTests
         var fqns = result.Deltas.Select(d => d.Fqn).ToList();
         fqns.ShouldBe(fqns.OrderBy(f => f, StringComparer.Ordinal).ToList());
     }
+
+    // ----- Cycle 4: IgnoreAccessibility option -----
+
+    private static SemanticDiffRequest IgnoringAccessibility(
+        SemanticDiffSource[] before,
+        SemanticDiffSource[] after) =>
+        new(before, after, new SemanticDiffOptions(IgnoreAccessibility: true));
+
+    [Fact]
+    public void a_method_differing_only_in_accessibility_is_unchanged_when_accessibility_is_ignored()
+    {
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                private void M() { }
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class A
+            {
+                public void M() { }
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(IgnoringAccessibility(
+            before: [Source("a.cs", before)],
+            after: [Source("a.cs", after)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.A.M()").Status.ShouldBe(DeclarationStatus.Unchanged);
+    }
+
+    [Fact]
+    public void a_method_differing_only_in_accessibility_is_changed_under_default_options()
+    {
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                private void M() { }
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class A
+            {
+                public void M() { }
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("a.cs", before)],
+            after: [Source("a.cs", after)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.A.M()").Status.ShouldBe(DeclarationStatus.Changed);
+    }
+
+    [Fact]
+    public void a_type_header_differing_only_in_accessibility_is_unchanged_when_accessibility_is_ignored()
+    {
+        const string before = """
+            namespace Acme;
+
+            internal class C
+            {
+                public void Run() { }
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class C
+            {
+                public void Run() { }
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(IgnoringAccessibility(
+            before: [Source("c.cs", before)],
+            after: [Source("c.cs", after)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.C").Status.ShouldBe(DeclarationStatus.Unchanged);
+    }
+
+    [Fact]
+    public void a_type_header_differing_only_in_accessibility_is_changed_under_default_options()
+    {
+        const string before = """
+            namespace Acme;
+
+            internal class C
+            {
+                public void Run() { }
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class C
+            {
+                public void Run() { }
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("c.cs", before)],
+            after: [Source("c.cs", after)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.C").Status.ShouldBe(DeclarationStatus.Changed);
+    }
+
+    [Fact]
+    public void a_non_accessibility_modifier_change_is_still_changed_when_accessibility_is_ignored()
+    {
+        // Critical: stripping must touch ONLY accessibility. An instance->static
+        // change is a real modifier difference and must remain Changed even with
+        // the flag on.
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                public void M() { }
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class A
+            {
+                public static void M() { }
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(IgnoringAccessibility(
+            before: [Source("a.cs", before)],
+            after: [Source("a.cs", after)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.A.M()").Status.ShouldBe(DeclarationStatus.Changed);
+    }
+
+    [Fact]
+    public void a_non_accessibility_type_modifier_change_is_still_changed_when_accessibility_is_ignored()
+    {
+        // The type-header mirror of the member case: non-sealed -> sealed is a real
+        // header modifier change and must remain Changed even with the flag on.
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public sealed class A
+            {
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(IgnoringAccessibility(
+            before: [Source("a.cs", before)],
+            after: [Source("a.cs", after)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.A").Status.ShouldBe(DeclarationStatus.Changed);
+    }
+
+    [Fact]
+    public void an_accessibility_change_alongside_a_real_body_change_is_still_changed_when_accessibility_is_ignored()
+    {
+        // Stripping accessibility must not mask a genuine body difference: the body
+        // change dominates and the member is Changed.
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                private int Compute(int x) => x + 1;
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class A
+            {
+                public int Compute(int x) => x * 2;
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(IgnoringAccessibility(
+            before: [Source("a.cs", before)],
+            after: [Source("a.cs", after)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.A.Compute(int)").Status.ShouldBe(DeclarationStatus.Changed);
+    }
+
+    [Fact]
+    public void combined_accessibility_forms_are_treated_as_equivalent_when_accessibility_is_ignored()
+    {
+        // protected internal -> public and private protected -> internal: both are
+        // pure accessibility-form changes and must report Unchanged with the flag on.
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                protected internal void M() { }
+                private protected void N() { }
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class A
+            {
+                public void M() { }
+                internal void N() { }
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(IgnoringAccessibility(
+            before: [Source("a.cs", before)],
+            after: [Source("a.cs", after)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.A.M()").Status.ShouldBe(DeclarationStatus.Unchanged);
+        result.Deltas.Single(d => d.Fqn == "Acme.A.N()").Status.ShouldBe(DeclarationStatus.Unchanged);
+    }
 }
