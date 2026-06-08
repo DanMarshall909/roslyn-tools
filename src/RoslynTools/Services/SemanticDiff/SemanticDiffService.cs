@@ -489,22 +489,40 @@ internal sealed class SemanticDiffService : IRtService
                     break;
 
                 case EventFieldDeclarationSyntax eventField:
+                    // One delta per declarator, each carrying a single-variable copy
+                    // of the event field (modifiers + type + this one declarator) so
+                    // every entry compares only its own declarator — `event H X, Y;`
+                    // must not let an edit to Y bleed into X's classification.
                     foreach (var variable in eventField.Declaration.Variables)
+                    {
                         yield return new DeclEntry(
                             Join(containingTypeFqn, variable.Identifier.Text),
                             DeclarationKind.Event,
                             path,
-                            eventField);
+                            eventField.WithDeclaration(
+                                eventField.Declaration.WithVariables(
+                                    SyntaxFactory.SingletonSeparatedList(variable))));
+                    }
+
                     break;
 
                 case FieldDeclarationSyntax field:
-                    // One delta per declarator: `int a, b;` is two fields.
+                    // One delta per declarator: `int a, b;` is two fields. Each entry
+                    // carries a single-variable copy of the field (modifiers + type +
+                    // this one declarator) so it compares only its own declarator; the
+                    // whole multi-variable node would falsely mark a byte-identical
+                    // declarator Changed when a sibling changes.
                     foreach (var variable in field.Declaration.Variables)
+                    {
                         yield return new DeclEntry(
                             Join(containingTypeFqn, variable.Identifier.Text),
                             DeclarationKind.Field,
                             path,
-                            field);
+                            field.WithDeclaration(
+                                field.Declaration.WithVariables(
+                                    SyntaxFactory.SingletonSeparatedList(variable))));
+                    }
+
                     break;
             }
         }
@@ -522,7 +540,20 @@ internal sealed class SemanticDiffService : IRtService
     private static string Join(string? prefix, string name) =>
         string.IsNullOrEmpty(prefix) ? name : prefix + "." + name;
 
-    /// <summary>Render a type/method name with generic arity as a <c>`N</c> suffix.</summary>
+    /// <summary>
+    ///     Render a type/method name with generic arity as a <c>`N</c> suffix.
+    ///     <para>
+    ///         <b>Arity is part of the key, so a generic-arity change is reported as
+    ///         remove + add, never Changed or Renamed.</b> <c>Box&lt;T&gt;</c> keys as
+    ///         <c>Box`1</c> and <c>Box&lt;T, U&gt;</c> as <c>Box`2</c>: the two keys
+    ///         never coincide, so the type appears Removed on the before side and Added
+    ///         on the after side. Rename pairing cannot rescue it either —
+    ///         <see cref="NormalizeIdentifier" /> blanks only the identifier token, not
+    ///         the type-parameter list, so the canonical forms still differ by arity and
+    ///         are not equivalent-modulo-name. This is a deliberate consequence of arity
+    ///         living in the key, not a defect.
+    ///     </para>
+    /// </summary>
     private static string NameWithArity(SyntaxToken identifier, TypeParameterListSyntax? typeParams)
     {
         var arity = typeParams?.Parameters.Count ?? 0;
