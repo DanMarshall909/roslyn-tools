@@ -231,9 +231,11 @@
                 "Invalid inputs return a structured error rather than throwing."
             ],
             "priority": 125,
-            "passes": false,
+            "passes": true,
             "epicId": "EP-016",
-            "notes": "P1. Part of EP-016 semantic diff. Native JSON handler (not text-captured), registered in MCP service registration, resolves the same engine the CLI uses. Accepts git working-vs-HEAD, from/to refs, and two file paths."
+            "notes": "P1. Part of EP-016 semantic diff. Native JSON handler (not text-captured), registered in MCP service registration, resolves the same engine the CLI uses. Accepts git working-vs-HEAD, from/to refs, and two file paths.",
+            "resolution": "Shipped first-class MCP semantic_diff handler: native structured JSON (not text-capture), resolving the same GitSemanticDiffSourceProvider + SemanticDiffService the CLI uses. Args: from/to refs, ignoreAccessibility, detectRenames, optional directory (target repo). Byte-identical JSON to CLI --json by construction - extracted shared SemanticDiffJson.Serialize (surfaced deltas, camelCase, SymbolFormatter.DefaultJsonOptions) consumed by both adapters. Registered in McpServiceRegistration; e2e ToolRegistry dispatch test. 25 MCP tests. rt gaps FB-364/365 (rt-first gate drive-letter case bug).",
+            "resolvedAt": "2026-06-08"
         }
     ]
 }
