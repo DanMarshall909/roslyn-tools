@@ -1433,4 +1433,33 @@ public sealed class SemanticDiffServiceTests
         result.Deltas.Single(d => d.Fqn == "Acme.A.M()").Status.ShouldBe(DeclarationStatus.Unchanged);
         result.Deltas.Single(d => d.Fqn == "Acme.A.N()").Status.ShouldBe(DeclarationStatus.Unchanged);
     }
+
+    [Fact]
+    public void a_file_local_type_changed_to_a_named_accessibility_is_unchanged_when_accessibility_is_ignored()
+    {
+        // `file` is an accessibility modifier (a contextual keyword valid only on a
+        // top-level type). file -> internal is a pure accessibility change and must
+        // report Unchanged with the flag on.
+        const string before = """
+            namespace Acme;
+
+            file class C
+            {
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            internal class C
+            {
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(IgnoringAccessibility(
+            before: [Source("c.cs", before)],
+            after: [Source("c.cs", after)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.C").Status.ShouldBe(DeclarationStatus.Unchanged);
+    }
 }
