@@ -181,6 +181,23 @@
             "passes": false,
             "epicId": "EP-009",
             "notes": "P2 consistency and reuse feature. Seeded by 2026-05-25 design note: flags should be declared as interfaces so reusable option support is visible in the type system, centrally registered, mechanically enforced, and backed by shared binders/validation instead of empty marker tags. Keep the boundary clean: flag capabilities belong to adapters/binders; services should only do or answer the domain thing. This likely supersedes or sharpens US-085/US-062's CommandOptionFactory-only approach; preserve compatibility aliases while migrating."
+        },
+        {
+            "id": "US-121",
+            "title": "Semantic comparison engine for C# (FQN-keyed, trivia-insensitive)",
+            "description": "As a developer, I want a pure comparison engine that takes two sets of C# sources and reports the semantic delta, so the CLI and MCP can share one source of truth.",
+            "acceptanceCriteria": [
+                "Given a \"before\" and \"after\" set of C# sources, produces a structured result listing each declaration (type, method, property, field, etc.) as added, removed, changed, or unchanged.",
+                "Declarations are matched by fully-qualified name, independent of which file they live in — a declaration present in both sides counts as the same declaration even if it moved files.",
+                "Comment-only and whitespace-only differences in a declaration's body produce unchanged, not changed.",
+                "A declaration that exists on both sides with an equivalent normalized body is unchanged even when its containing file path differs (the \"moved file\" case); the result records the old and new file location.",
+                "The engine takes its inputs as in-memory source text (no git/CLI/Console dependency) and is unit-testable in isolation.",
+                "Member reordering and using-directive reordering within a file do not, by themselves, mark a declaration as changed."
+            ],
+            "priority": 121,
+            "passes": false,
+            "epicId": "EP-016",
+            "notes": "P1. Part of EP-016 semantic diff. Foundational engine; pure service, no host deps. Matches by fully-qualified name so a moved-file declaration is unchanged. Candidate reuse: BlockNormalizer, FindDuplicatesService normalized-block walk."
         }
     ]
 }
