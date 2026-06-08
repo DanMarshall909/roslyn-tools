@@ -6774,7 +6774,7 @@
       "commandLine": "rt inspect find-refs --symbol Collect --solution RoslynTools.slnx",
       "description": "find-refs --symbol Collect crashes with \u0027Unbalanced markup stack. Did you forget to close a tag?\u0027 when multiple symbols match and the disambiguation prompt renders candidate signatures containing Spectre.Console markup metacharacters (e.g. generic type args with brackets). The candidate text must be markup-escaped before being written to the prompt.",
       "expectedResult": "Disambiguation prompt lists all matching Collect overloads without a Spectre markup parse error.",
-      "status": "pending"
+      "status": "resolved"
     },
     {
       "id": "FB-364",

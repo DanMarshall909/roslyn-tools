@@ -52,11 +52,14 @@ internal sealed class DaemonPipeConsole(StreamWriter writer, string requestId, s
 
     private string RenderToPlainText(RtOutputContext context, string message, bool newline)
     {
-        var trustsMarkup = context.HasFlag(RtOutputContext.Ui) || context.HasFlag(RtOutputContext.Interactive);
+        // Only `Ui` carries trusted host-authored markup. `Interactive` (the symbol
+        // disambiguation prompt) emits untrusted candidate text whose brackets would
+        // crash Spectre's markup parser, so it is treated as plain text (FB-363).
+        var trustsMarkup = context.HasFlag(RtOutputContext.Ui);
         if (!trustsMarkup)
             return newline ? message + "\n" : message;
 
-        // For Ui/Interactive payloads we need Spectre to PARSE the markup tags
+        // For Ui payloads we need Spectre to PARSE the markup tags
         // (`[cyan]name[/]` becomes `name`). Configure the console with an unconstrained
         // width so JSON or long lines are not wrapped at 80 cols.
         _scratch.Clear();

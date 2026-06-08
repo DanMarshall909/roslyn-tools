@@ -62,8 +62,11 @@ internal sealed class CapturingConsole : IRtConsole, IDisposable
             _out.Write(message);
     }
 
+    // Only `Ui` carries trusted host-authored markup. `Interactive` (the symbol
+    // disambiguation prompt) emits untrusted candidate text whose brackets would crash
+    // Spectre's markup parser, so it is captured as plain text (FB-363).
     private static bool CarriesMarkup(RtOutputContext context)
-        => context.HasFlag(RtOutputContext.Ui) || context.HasFlag(RtOutputContext.Interactive);
+        => context.HasFlag(RtOutputContext.Ui);
 
     public string? ReadLine()
     {

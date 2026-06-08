@@ -84,7 +84,13 @@ internal sealed class SpectreRtConsole : IRtConsole
             return;
         }
 
-        if (context.HasFlag(RtOutputContext.Ui) || context.HasFlag(RtOutputContext.Interactive))
+        // Only `Ui` carries trusted, host-authored markup. `Interactive` (the symbol
+        // disambiguation prompt) emits untrusted candidate text — signatures may contain
+        // `[`/`]` from generics, arrays, or attributes — so it must fall through to the
+        // escaped `EmitPlain` path (FB-363). It was previously lumped in with `Ui`,
+        // which fed those brackets straight to Spectre's markup parser and crashed with
+        // "Unbalanced markup stack".
+        if (context.HasFlag(RtOutputContext.Ui))
         {
             EmitMarkupTrusted(target, message, newline);
             return;
