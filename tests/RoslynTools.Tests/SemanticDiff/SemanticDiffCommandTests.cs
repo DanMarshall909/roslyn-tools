@@ -211,6 +211,34 @@ public sealed class SemanticDiffCommandTests
     }
 
     [Fact]
+    public async Task json_output_surfaces_a_relocated_declaration_with_both_paths()
+    {
+        // Same type, different file between the two refs: the engine reports Unchanged with a
+        // path change (the text renderer prints "> Moved"). JSON must surface it too — the only
+        // Unchanged delta that is not silent — so consumers can detect relocations.
+        var git = new RecordingGitClient
+        {
+            ChangedPathsBetween = { [("v1", "v2")] = ["Old.cs", "New.cs"] },
+            FilesAtRef =
+            {
+                ["v1:Old.cs"] = "namespace Acme; class A { }",
+                ["v2:New.cs"] = "namespace Acme; class A { }",
+            },
+        };
+
+        var (exit, stdout, _) = await InvokeAsync(
+            ["analyze", "semantic-diff", "--from", "v1", "--to", "v2", "--json"], git);
+
+        exit.ShouldBe(0);
+        using var doc = JsonDocument.Parse(stdout);
+        var moved = doc.RootElement.EnumerateArray()
+            .Single(e => e.GetProperty("fqn").GetString() == "Acme.A");
+        moved.GetProperty("status").GetString().ShouldBe("Unchanged");
+        moved.GetProperty("oldPath").GetString().ShouldBe("Old.cs");
+        moved.GetProperty("newPath").GetString().ShouldBe("New.cs");
+    }
+
+    [Fact]
     public async Task not_a_git_repository_exits_one_with_a_clean_stderr_message()
     {
         var git = new RecordingGitClient { ThrowNotARepository = true };

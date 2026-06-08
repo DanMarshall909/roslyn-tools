@@ -1,4 +1,5 @@
 using System.CommandLine;
+using RoslynTools.Commands.Results;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Services.SemanticDiff;
@@ -8,17 +9,18 @@ namespace RoslynTools.Commands;
 /// <summary>
 ///     Thin host adapter for <c>rt analyze semantic-diff</c>: loads two source snapshots
 ///     from git via <see cref="GitSemanticDiffSourceProvider" />, runs the host-agnostic
-///     <see cref="SemanticDiffService" /> engine, and renders the per-declaration deltas as
-///     a git-diff-style text report with <see cref="SemanticDiffTextRenderer" />. All three
-///     collaborators are constructor-injected from DI; the command owns no comparison logic.
+///     <see cref="SemanticDiffService" /> engine, and projects the per-declaration deltas as
+///     a <see cref="SemanticDiffOutput" />. All three collaborators are constructor-injected
+///     from DI; the command owns no comparison logic.
 ///     <para>
-///         TEXT output only in US-122 (<see cref="RtCommandInfo.JsonOutput" /> is
-///         <c>false</c> and the command deliberately does <i>not</i> implement
-///         <c>IStructuredOutputCommand</c>); a native-JSON shape arrives in US-124, which
-///         flips both together.
+///         Output shape follows the global <c>--json</c> flag via the shared renderer: the
+///         default is the git-diff-style text report built by <see cref="SemanticDiffTextRenderer" />,
+///         and <c>--json</c> emits a JSON array of deltas (<see cref="RtCommandInfo.JsonOutput" />
+///         is <c>true</c> and the command implements <see cref="IStructuredOutputCommand" /> — the
+///         two move together to satisfy the <c>App</c> startup biconditional).
 ///     </para>
 /// </summary>
-internal sealed class SemanticDiffCommand : IRtCommand, IAnalyzeCommand
+internal sealed class SemanticDiffCommand : IRtCommand, IStructuredOutputCommand, IAnalyzeCommand
 {
     private readonly GitSemanticDiffSourceProvider _source;
     private readonly SemanticDiffService _engine;
@@ -37,7 +39,7 @@ internal sealed class SemanticDiffCommand : IRtCommand, IAnalyzeCommand
     public static RtCommandInfo Info { get; } = new(
         "semantic-diff",
         false,
-        false,
+        true,
         "analyze",
         Aliases: ["sdiff"],
         WhenToUse:
@@ -52,18 +54,17 @@ internal sealed class SemanticDiffCommand : IRtCommand, IAnalyzeCommand
             "rt analyze semantic-diff --from HEAD~1 --to HEAD",
             "rt analyze sdiff --from main",
             "rt analyze semantic-diff --from v1.0 --to v1.1 --ignore-accessibility",
-            "rt analyze semantic-diff --no-detect-renames"
+            "rt analyze semantic-diff --no-detect-renames",
+            "rt analyze semantic-diff --from HEAD~1 --to HEAD --json"
         ],
         KnownIssues:
         [
             "Rename pairing is per-container and greedy: two trivially identical bodies can mis-pair, "
             + "and a rename combined with a body change stays Added + Removed (tracked in US-126)."
         ],
-        // Text is the only shape in US-122. A native structured JSON delta — and the matching
-        // JsonOutput=true + IStructuredOutputCommand pair the App.cs biconditional requires —
-        // arrives in US-124. Declaring Json here would advertise a format the handler does not
-        // actually emit (the handler always renders text via WriteText).
-        SupportedFormats: [OutputFormat.Text]);
+        // Text (the git-diff report) and Json (the delta array). The shared renderer selects
+        // between them from the global --json flag; both projections live on SemanticDiffOutput.
+        SupportedFormats: [OutputFormat.Text, OutputFormat.Json]);
 
     public Command Build()
     {
@@ -100,11 +101,15 @@ internal sealed class SemanticDiffCommand : IRtCommand, IAnalyzeCommand
                 DetectRenames: !noDetectRenames);
 
             var result = _engine.Compare(new SemanticDiffRequest(before, after, options));
-            var text = _renderer.Render(result, before, after);
 
-            // Route through the shared renderer (not RtConsole directly) so the result
-            // contract stays uniform across CLI/MCP/daemon; WriteText emits the raw string.
-            RtResultRenderer.WriteText(RtResult<string>.Ok(text));
+            // Pre-render the git-diff text here (the handler owns the before/after snapshots the
+            // renderer needs) and hand both projections to the shared renderer, which picks text
+            // vs. the JSON delta array from the global --json flag. The text is computed even in
+            // JSON mode and discarded — cheap, and it keeps SemanticDiffOutput a pure data carrier.
+            var text = _renderer.Render(result, before, after);
+            var output = new SemanticDiffOutput(result.Deltas, text);
+
+            RtResultRenderer.WriteOutput(RtResult<SemanticDiffOutput>.Ok(output));
         }, fromOpt, toOpt, ignoreAccessibilityOpt, noDetectRenamesOpt);
 
         return cmd;
