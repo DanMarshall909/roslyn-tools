@@ -1,7 +1,7 @@
 roslyn-tools
 Branch: backlog
 
-Current Status: 26/70 stories complete (37%)
+Current Status: 31/79 stories complete (39%)
 
 EP-005 — codebase consistency sweep (1/1)
 [x] US-025 fix formatting violations: CRLF and encoding errors in 4 files
@@ -25,7 +25,7 @@ EP-008 — Platform abstractions: IWorkspaceSessionFactory + ISolutionApplier (3
 [x] US-072 Eliminate RtServiceProvider.Get<T> service locator in favour of ctor injection
 [ ] US-102 Complete the IWorkspaceSessionFactory migration — remove LoadWorkspaceAsync compat surface
 
-EP-009 — Consistent command contracts and migration ratchets (7/17)
+EP-009 — Consistent command contracts and migration ratchets (8/17)
 [ ] US-057 Introduce a shared read-only command handler wrapper
 [x] US-058 Standardize common CLI options through option factories
 [x] US-059 Add machine-readable command capabilities to RtCommandInfo
@@ -37,12 +37,12 @@ EP-009 — Consistent command contracts and migration ratchets (7/17)
 [x] US-065 Make dump-help metadata-driven and consistency-tested
 [x] US-066 Create a command migration playbook
 [ ] US-084 Metadata catalog: RtCommandInfo schema + dump-help --json + consistency test
-[ ] US-085 Standardize CLI options through CommandOptionFactory with consistent vocabulary and aliases
+[x] US-085 Standardize CLI options through CommandOptionFactory with consistent vocabulary and aliases
 [ ] US-086 Command file structure convention + architecture ratchet + migration playbook
 [ ] US-108 Delete redundant RtCommandInfo.Category and Info.Mutates after category interfaces land
 [ ] US-109 Extend shared output-format pipeline to every command (JSON/YAML/text for mutating commands too)
 [ ] US-112 rt refactor change-signature: add missing --dry-run option
-[ ] US-114 Target-architecture ratchet suite: SkippableFact arch tests for every testable rule
+[ ] US-115 Target-architecture ratchet suite: SkippableFact arch tests for every testable rule
 
 EP-010 — Error-handling architecture: Result<T,RtError> rollout (0/2)
 [ ] US-078 Result<T,RtError> migration: WorkspaceLoader.LoadAsync
@@ -55,8 +55,8 @@ EP-011 — rt suggest — LLM-friendly command discovery and cross-linking (0/5)
 [ ] US-089 Seed SeeAlso data across the command catalog
 [ ] US-090 Unknown-command fallback: reuse Bm25Scorer to suggest matches on parse errors
 
-EP-012 — Complete thin-host-adapter migration (0/10)
-[ ] US-094 Architectural ratchet test for native MCP handler coverage
+EP-012 — Complete thin-host-adapter migration (1/10)
+[x] US-094 Architectural ratchet test for native MCP handler coverage
 [ ] US-095 Migrate read-only inspect commands to native MCP handlers
 [ ] US-096 Migrate analyze commands to native MCP handlers
 [ ] US-097 Decide MCP shape for mutating refactor commands
@@ -72,12 +72,24 @@ EP-013 — Command consistency consolidation — checklist becomes compiler-enfo
 EP-014 — Semantic codebase exploration (0/1)
 [ ] US-113 rt analyze conventions: embedding-assisted C# pattern and deviation discovery
 
+EP-015 — Resume in-flight half-completed work (2026-05-26 audit) (2/3)
+[x] US-117 Daemon forwards piped stdin to routed commands
+[x] US-118 rt dev wrapper leaks dotnet build output to stdout, corrupting pipes
+[ ] US-120 Daemon client reads stdin only for commands that consume it
+
+EP-016 — Semantic diff for C# (0/5)
+[ ] US-121 Semantic comparison engine for C# (FQN-keyed, trivia-insensitive)
+[ ] US-122 Git version source + rt analyze semantic-diff command
+[ ] US-123 Compare two files on disc
+[ ] US-124 Structured JSON output + --format selection
+[ ] US-125 First-class MCP handler for semantic-diff
+
 Loose stories
 [x] US-037 rt: convert-static-class — interface generation
 [x] US-038 rt: convert-static-class — DI registration in Bootstrap.cs
 [x] US-039 rt: convert-static-class — fix field and ctor formatting in existing-constructor path
 [ ] US-055 Add rt refactor extract-orchestrator command (rt-003)
-[ ] US-056 rt refactor rename: accept symbol FQN from stdin JSON for pipe chains (rt-008)
+[x] US-056 rt refactor rename: accept symbol FQN from stdin JSON for pipe chains (rt-008)
 [ ] US-067 Revisit nested-branch pattern in execute skill for trunk-based repos
 [x] RT-001 rt dump-help --json: emit machine-readable command catalog
 [ ] RT-002 Expand command help text with output shape, exit codes, and error modes
@@ -94,3 +106,4 @@ Loose stories
 [ ] US-101 Decompose SolidAnalyzer into per-principle analyzers behind a thin orchestrator
 [ ] US-103 Eliminate parameterless service ctors that hand-roll concrete dependencies
 [ ] US-111 rt refactor add-base-type: add interface or base class to a class declaration without generating stubs
+[ ] US-116 Daemon Stage 3 — workspace cache with git-HEAD invalidation + operational hardening

@@ -68,6 +68,12 @@
             "title": "Resume in-flight half-completed work (2026-05-26 audit)",
             "description": "Sequence and finish the in-flight stories surfaced by the 2026-05-26 half-done audit, applying the design revisions identified there. Bridges EP-009 (renderer unification via US-100) and EP-010 (Result ADT via US-077), and finishes the daemon protocol started in ralph/sessions/2026-05-04-daemon-protocol.md.",
             "notes": "Audit at ~/.claude/plans/which-claude-sessions-have-crystalline-simon.md. US-114 was confirmed complete (7ef1da7) and removed from the resume list. Suggested order: US-056 → US-100 → US-092 Phase-2 pilot → US-077 (re-spec the SymbolLocator↔DaemonServer error contract first) → US-075 → US-116 (new). Each story above carries a design-revision note pointing back to the audit."
+        },
+        {
+            "id": "EP-016",
+            "title": "Semantic diff for C#",
+            "description": "Compare two versions of C# semantically: ignore comments/whitespace, treat declarations moved to another file as unchanged, read versions from git (working-vs-HEAD default + arbitrary refs) or two files on disc, render git-diff-style text and structured JSON, with a first-class MCP handler.",
+            "notes": "rt analyze semantic-diff. Category=analyze (read-only). Core service + thin host adapters; MCP first-class. FQN-keyed symbol-set comparison so moved-file = unchanged. Candidate reuse: BlockNormalizer (trivia stripping), FindDuplicatesService (normalized-block walk), WorkspaceLoader (needs two-version loading - not present today)."
         }
     ],
     "userStories": [
@@ -1659,6 +1665,85 @@
             "passes": false,
             "epicId": "EP-015",
             "notes": "Deferred verification from US-117 (2026-05-27): the unconditional client-side stdin read was dogfood-verified NOT to hang in a non-TTY context (inherited stdin EOFs; describe completed in ~5s). Logged as a refinement because the read is unnecessary for non-consumers and has a latent hang risk if a context ever provides a never-EOF stdin. Gate it on a stdin-consuming capability."
+        },
+        {
+            "id": "US-121",
+            "title": "Semantic comparison engine for C# (FQN-keyed, trivia-insensitive)",
+            "description": "As a developer, I want a pure comparison engine that takes two sets of C# sources and reports the semantic delta, so the CLI and MCP can share one source of truth.",
+            "acceptanceCriteria": [
+                "Given a \"before\" and \"after\" set of C# sources, produces a structured result listing each declaration (type, method, property, field, etc.) as added, removed, changed, or unchanged.",
+                "Declarations are matched by fully-qualified name, independent of which file they live in — a declaration present in both sides counts as the same declaration even if it moved files.",
+                "Comment-only and whitespace-only differences in a declaration's body produce unchanged, not changed.",
+                "A declaration that exists on both sides with an equivalent normalized body is unchanged even when its containing file path differs (the \"moved file\" case); the result records the old and new file location.",
+                "The engine takes its inputs as in-memory source text (no git/CLI/Console dependency) and is unit-testable in isolation.",
+                "Member reordering and using-directive reordering within a file do not, by themselves, mark a declaration as changed."
+            ],
+            "priority": 121,
+            "passes": false,
+            "epicId": "EP-016",
+            "notes": "P1. Part of EP-016 semantic diff. Foundational engine; pure service, no host deps. Matches by fully-qualified name so a moved-file declaration is unchanged. Candidate reuse: BlockNormalizer, FindDuplicatesService normalized-block walk."
+        },
+        {
+            "id": "US-122",
+            "title": "Git version source + rt analyze semantic-diff command",
+            "description": "As a developer, I want to run the semantic diff against git so I can review what I have actually changed.",
+            "acceptanceCriteria": [
+                "`rt analyze semantic-diff` with no version flags compares the working tree against HEAD.",
+                "`--from <ref> --to <ref>` compares two arbitrary git refs (e.g. --from HEAD~3 --to HEAD).",
+                "Only C# (.cs) files in the changed set are parsed and fed to the engine; non-C# changes are ignored.",
+                "Runs from inside any git repo; a clear error (exit 1, stderr) when not in a git repo or a ref is invalid.",
+                "Default output is text rendered to look very similar to a standard git diff (per-declaration hunks, +/- lines, file headers), with moved-but-unchanged declarations suppressed or shown as a relocation note rather than delete+add.",
+                "Diagnostics/progress to stderr, results to stdout; exits 0 on success."
+            ],
+            "priority": 122,
+            "passes": false,
+            "epicId": "EP-016",
+            "notes": "P1. Part of EP-016 semantic diff. Default working-tree-vs-HEAD; --from/--to arbitrary refs. git-diff-style text output, moved-but-unchanged suppressed. Two-version loading is new (WorkspaceLoader opens one solution today)."
+        },
+        {
+            "id": "US-123",
+            "title": "Compare two files on disc",
+            "description": "As a developer, I want to point the diff at any two files so I can compare versions outside git.",
+            "acceptanceCriteria": [
+                "`rt analyze semantic-diff <leftFile> <rightFile>` compares two .cs files on disc through the same engine.",
+                "The same trivia-insensitive and FQN-keyed semantics apply (a type renamed-in-place vs genuinely changed is reported correctly).",
+                "Missing or unreadable file paths produce a clear error (exit 1, stderr), not an unhandled exception.",
+                "Output matches the git-mode rendering and the JSON shape."
+            ],
+            "priority": 123,
+            "passes": false,
+            "epicId": "EP-016",
+            "notes": "P2. Part of EP-016 semantic diff. rt analyze semantic-diff <leftFile> <rightFile> through the same engine; same trivia-insensitive FQN-keyed semantics."
+        },
+        {
+            "id": "US-124",
+            "title": "Structured JSON output + --format selection",
+            "description": "As a tool/agent, I want machine-readable diff output so I can consume it programmatically.",
+            "acceptanceCriteria": [
+                "`--format json` emits the engine's structured result as JSON to stdout (added/removed/changed/unchanged with FQN, kind, old/new file location, and a per-declaration change summary).",
+                "`--format text` (default) emits the git-diff-style view.",
+                "The JSON shape is stable and documented in the command's Info metadata/examples.",
+                "Both formats work identically across git mode and two-files-on-disc mode."
+            ],
+            "priority": 124,
+            "passes": false,
+            "epicId": "EP-016",
+            "notes": "P1. Part of EP-016 semantic diff. --format json|text; stable documented JSON shape; identical across git and two-files modes."
+        },
+        {
+            "id": "US-125",
+            "title": "First-class MCP handler for semantic-diff",
+            "description": "As an MCP client, I want a native semantic-diff tool that returns the structured result directly.",
+            "acceptanceCriteria": [
+                "An MCP handler exposes semantic-diff and returns the engine's structured result as native JSON (not text-captured CLI output).",
+                "The handler accepts the same inputs the CLI supports: git working-vs-HEAD, from/to refs, and two file paths.",
+                "The handler is registered in MCP service registration and resolves the same engine/service the CLI uses (no logic duplicated between adapters).",
+                "Invalid inputs return a structured error rather than throwing."
+            ],
+            "priority": 125,
+            "passes": false,
+            "epicId": "EP-016",
+            "notes": "P1. Part of EP-016 semantic diff. Native JSON handler (not text-captured), registered in MCP service registration, resolves the same engine the CLI uses. Accepts git working-vs-HEAD, from/to refs, and two file paths."
         }
     ]
 }
