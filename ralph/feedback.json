@@ -6775,6 +6775,24 @@
       "description": "find-refs --symbol Collect crashes with \u0027Unbalanced markup stack. Did you forget to close a tag?\u0027 when multiple symbols match and the disambiguation prompt renders candidate signatures containing Spectre.Console markup metacharacters (e.g. generic type args with brackets). The candidate text must be markup-escaped before being written to the prompt.",
       "expectedResult": "Disambiguation prompt lists all matching Collect overloads without a Spectre markup parse error.",
       "status": "pending"
+    },
+    {
+      "id": "FB-364",
+      "type": "user-feedback",
+      "timestamp": "2026-06-08T22:52:00.3691408\u002B00:00",
+      "commandLine": "rt inspect outline c:\\code\\roslyn-tools\\src\\RoslynTools.Mcp\\McpServiceRegistration.cs --solution RoslynTools.slnx",
+      "description": "PreToolUse rt-first Read gate did not record several \u0027rt inspect outline\u0027 invocations as satisfying the gate: outline succeeded with visible JSON stdout (McpServiceRegistration.cs, IMcpHandler.cs, ToolRegistry.cs, FindReferencesHandlerTests.cs) but the subsequent Read of the same absolute path was still blocked as \u0027not inspected this session\u0027. Other files (SuggestHandler.cs, SemanticDiffCommand.cs) outlined\u002BRead fine in the same session. Mechanism undetermined; fell back to Grep.",
+      "expectedResult": "Gate records the successful outline so a subsequent Read of that exact absolute path is permitted.",
+      "status": "pending"
+    },
+    {
+      "id": "FB-365",
+      "type": "user-feedback",
+      "timestamp": "2026-06-08T22:56:33.1946828\u002B00:00",
+      "commandLine": "rt inspect outline c:\\code\\roslyn-tools\\src\\RoslynTools.Mcp\\McpServiceRegistration.cs --solution RoslynTools.slnx  (lowercase c: fails to satisfy gate; uppercase C: works)",
+      "description": "ROOT CAUSE of FB-364: the rt-first Read/Edit gate\u0027s session path-tracker is case-sensitive on the Windows drive letter. Outlining \u0027c:\\code\\...\u0027 (lowercase c) did NOT satisfy a later Read of the same file; re-running outline with \u0027C:\\code\\...\u0027 (uppercase C) immediately allowed the Read\u002BEdit. The gate should normalise drive-letter case (and ideally full-path case on Windows) before comparing inspected-paths to the Read target.",
+      "expectedResult": "Drive-letter case should not matter; outline with any casing satisfies a subsequent Read of the same file.",
+      "status": "pending"
     }
   ]
 }
