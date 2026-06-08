@@ -15,6 +15,9 @@ nupkg/
 .idea/
 *.swp
 
+## Codex CLI local state (per-user tool dir, like .claude)
+.codex/
+
 ## Test output
 **/TestOutput/
 **/TestResults/
