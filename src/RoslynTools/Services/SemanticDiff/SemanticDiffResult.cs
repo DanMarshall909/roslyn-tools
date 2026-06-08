@@ -21,6 +21,14 @@ internal enum DeclarationStatus
 
     /// <summary>The declaration's FQN exists in both snapshots with no observed change.</summary>
     Unchanged,
+
+    /// <summary>
+    ///     The declaration was renamed: an otherwise-Removed declaration in the
+    ///     "before" snapshot pairs with an otherwise-Added one in the "after" snapshot.
+    ///     Not produced by the foundational cycle (rename pairing is a later story); the
+    ///     value exists so the contract is stable for serializers.
+    /// </summary>
+    Renamed,
 }
 
 /// <summary>
@@ -66,12 +74,25 @@ internal enum DeclarationKind
 ///     Logical path of the document containing the declaration in the "after"
 ///     snapshot, or <c>null</c> when the declaration is <see cref="DeclarationStatus.Removed" />.
 /// </param>
+/// <param name="OldFqn">
+///     The declaration's prior FQN. Reserved for the rename pairing that lands in a
+///     later cycle: a <see cref="DeclarationStatus.Renamed" /> delta will set this to
+///     the "before" name and <see cref="NewFqn" /> to the "after" name. The
+///     foundational cycle never produces a Renamed delta, so this is always
+///     <c>null</c> here.
+/// </param>
+/// <param name="NewFqn">
+///     The declaration's new FQN. See <see cref="OldFqn" /> — always <c>null</c> in
+///     the foundational cycle.
+/// </param>
 internal sealed record DeclarationDelta(
     string Fqn,
     DeclarationKind Kind,
     DeclarationStatus Status,
     string? OldPath,
-    string? NewPath);
+    string? NewPath,
+    string? OldFqn = null,
+    string? NewFqn = null);
 
 /// <summary>
 ///     Result of <see cref="SemanticDiffService.Compare" />: the per-declaration

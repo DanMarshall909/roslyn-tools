@@ -14,6 +14,29 @@ namespace RoslynTools.Services.SemanticDiff;
 internal sealed record SemanticDiffSource(string Path, string Text);
 
 /// <summary>
+///     Tuning knobs for <see cref="SemanticDiffService.Compare" />. Both options are
+///     part of the contract from the foundational cycle so serializers and host
+///     adapters are stable, but neither changes behaviour yet — they are acted on by
+///     later cycles (accessibility-aware equality; rename detection).
+/// </summary>
+/// <param name="IgnoreAccessibility">
+///     When <c>true</c>, a later cycle treats two declarations that differ only in
+///     accessibility modifiers as equivalent. No effect in the foundational cycle.
+/// </param>
+/// <param name="DetectRenames">
+///     When <c>true</c>, a later cycle pairs an otherwise-Removed declaration with an
+///     otherwise-Added one as a single <see cref="DeclarationStatus.Renamed" /> delta.
+///     No effect in the foundational cycle.
+/// </param>
+internal sealed record SemanticDiffOptions(
+    bool IgnoreAccessibility = false,
+    bool DetectRenames = true)
+{
+    /// <summary>Sensible defaults: accessibility differences matter, rename detection on.</summary>
+    public static SemanticDiffOptions Default { get; } = new();
+}
+
+/// <summary>
 ///     Invocation-agnostic input to <see cref="SemanticDiffService.Compare" />: a
 ///     "before" snapshot and an "after" snapshot, each an ordered set of in-memory
 ///     <see cref="SemanticDiffSource" /> documents. The service keys declarations by
@@ -21,6 +44,19 @@ internal sealed record SemanticDiffSource(string Path, string Text);
 /// </summary>
 /// <param name="Before">Source documents representing the prior state.</param>
 /// <param name="After">Source documents representing the new state.</param>
+/// <param name="Options">
+///     Comparison options; defaults to <see cref="SemanticDiffOptions.Default" /> so
+///     callers never have to supply one.
+/// </param>
 internal sealed record SemanticDiffRequest(
     IReadOnlyList<SemanticDiffSource> Before,
-    IReadOnlyList<SemanticDiffSource> After);
+    IReadOnlyList<SemanticDiffSource> After,
+    SemanticDiffOptions Options)
+{
+    public SemanticDiffRequest(
+        IReadOnlyList<SemanticDiffSource> before,
+        IReadOnlyList<SemanticDiffSource> after)
+        : this(before, after, SemanticDiffOptions.Default)
+    {
+    }
+}
