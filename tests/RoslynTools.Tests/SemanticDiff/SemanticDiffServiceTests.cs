@@ -449,12 +449,14 @@ public sealed class SemanticDiffServiceTests
     }
 
     [Fact]
-    public void delta_exposes_old_and_new_fqn_identity_left_null_until_rename_pairing_lands()
+    public void renamed_delta_carries_old_and_new_fqn_while_unpaired_deltas_keep_null_identity()
     {
-        // The delta carries OldFqn/NewFqn so a later cycle's rename post-pass can
-        // record old->new identity on a single Renamed delta. This foundational
-        // cycle never produces a Renamed delta, so the fields stay null for every
-        // added / removed / unchanged delta — the contract exists, the value does not.
+        // Cycle 5 update (was: delta_exposes_old_and_new_fqn_identity_left_null_...).
+        // Two empty same-kind type headers — Gone removed, Fresh added — are equivalent
+        // modulo their own name, so rename detection (on by default) pairs them into a
+        // single Renamed delta carrying old->new identity. Stable is untouched on both
+        // sides and stays Unchanged with null OldFqn/NewFqn, proving the fqn fields are
+        // populated only on the Renamed delta.
         const string before = """
             namespace Acme;
 
@@ -473,11 +475,20 @@ public sealed class SemanticDiffServiceTests
             before: [Source("before.cs", before)],
             after: [Source("after.cs", after)]));
 
-        foreach (var delta in result.Deltas)
-        {
-            delta.OldFqn.ShouldBeNull();
-            delta.NewFqn.ShouldBeNull();
-        }
+        var renamed = result.Deltas.Single(d => d.Status == DeclarationStatus.Renamed);
+        renamed.Fqn.ShouldBe("Acme.Fresh");
+        renamed.OldFqn.ShouldBe("Acme.Gone");
+        renamed.NewFqn.ShouldBe("Acme.Fresh");
+
+        var stable = result.Deltas.Single(d => d.Fqn == "Acme.Stable");
+        stable.Status.ShouldBe(DeclarationStatus.Unchanged);
+        stable.OldFqn.ShouldBeNull();
+        stable.NewFqn.ShouldBeNull();
+
+        // No separate Added/Removed survives for the paired declarations.
+        result.Deltas.ShouldNotContain(d => d.Fqn == "Acme.Gone");
+        result.Deltas.ShouldNotContain(d => d.Status == DeclarationStatus.Added);
+        result.Deltas.ShouldNotContain(d => d.Status == DeclarationStatus.Removed);
     }
 
     [Fact]
@@ -1461,5 +1472,249 @@ public sealed class SemanticDiffServiceTests
             after: [Source("c.cs", after)]));
 
         result.Deltas.Single(d => d.Fqn == "Acme.C").Status.ShouldBe(DeclarationStatus.Unchanged);
+    }
+
+    // ----- Cycle 5: rename detection (Renamed status, pure-rename pairing) -----
+
+    [Fact]
+    public void a_method_renamed_with_an_identical_body_is_one_renamed_delta_carrying_old_and_new_fqn()
+    {
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                public int Foo(int x) => x + 1;
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class A
+            {
+                public int Bar(int x) => x + 1;
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("before.cs", before)],
+            after: [Source("after.cs", after)]));
+
+        var renamed = result.Deltas.Single(d => d.Kind == DeclarationKind.Method);
+        renamed.Status.ShouldBe(DeclarationStatus.Renamed);
+        renamed.Fqn.ShouldBe("Acme.A.Bar(int)");
+        renamed.OldFqn.ShouldBe("Acme.A.Foo(int)");
+        renamed.NewFqn.ShouldBe("Acme.A.Bar(int)");
+        renamed.OldPath.ShouldBe("before.cs");
+        renamed.NewPath.ShouldBe("after.cs");
+
+        result.Deltas.ShouldNotContain(d => d.Fqn == "Acme.A.Foo(int)");
+    }
+
+    [Fact]
+    public void a_method_rename_is_left_as_added_and_removed_when_rename_detection_is_off()
+    {
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                public int Foo(int x) => x + 1;
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class A
+            {
+                public int Bar(int x) => x + 1;
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(new SemanticDiffRequest(
+            [Source("before.cs", before)],
+            [Source("after.cs", after)],
+            new SemanticDiffOptions(DetectRenames: false)));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.A.Foo(int)").Status.ShouldBe(DeclarationStatus.Removed);
+        result.Deltas.Single(d => d.Fqn == "Acme.A.Bar(int)").Status.ShouldBe(DeclarationStatus.Added);
+        result.Deltas.ShouldNotContain(d => d.Status == DeclarationStatus.Renamed);
+    }
+
+    [Fact]
+    public void a_type_renamed_with_an_equivalent_header_and_members_is_reported_renamed()
+    {
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                public int Go() => 1;
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class B
+            {
+                public int Go() => 1;
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("before.cs", before)],
+            after: [Source("after.cs", after)]));
+
+        var renamedType = result.Deltas.Single(d =>
+            d.Kind == DeclarationKind.Class && d.Status == DeclarationStatus.Renamed);
+        renamedType.Fqn.ShouldBe("Acme.B");
+        renamedType.OldFqn.ShouldBe("Acme.A");
+        renamedType.NewFqn.ShouldBe("Acme.B");
+
+        result.Deltas.ShouldNotContain(d => d.Fqn == "Acme.A");
+    }
+
+    [Fact]
+    public void a_rename_combined_with_a_genuine_body_change_stays_added_and_removed()
+    {
+        // v1 limitation: only PURE renames pair. A name change plus a body change is
+        // not equivalent-modulo-name, so the pair does not collapse.
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                public int Foo(int x) => x + 1;
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class A
+            {
+                public int Bar(int x) => x * 99;
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("before.cs", before)],
+            after: [Source("after.cs", after)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.A.Foo(int)").Status.ShouldBe(DeclarationStatus.Removed);
+        result.Deltas.Single(d => d.Fqn == "Acme.A.Bar(int)").Status.ShouldBe(DeclarationStatus.Added);
+        result.Deltas.ShouldNotContain(d => d.Status == DeclarationStatus.Renamed);
+    }
+
+    [Fact]
+    public void a_removed_method_and_an_added_property_with_equivalent_text_do_not_pair_across_kinds()
+    {
+        // Different DeclarationKind must never pair, even if the canonical text aligns.
+        // The removed one is a method, the added one a property, so kinds differ.
+        const string beforeMethod = """
+            namespace Acme;
+
+            public class A
+            {
+                public int Foo() => 0;
+            }
+            """;
+        const string afterProp = """
+            namespace Acme;
+
+            public class A
+            {
+                public int Bar => 0;
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("before.cs", beforeMethod)],
+            after: [Source("after.cs", afterProp)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.A.Foo()").Status.ShouldBe(DeclarationStatus.Removed);
+        result.Deltas.Single(d => d.Fqn == "Acme.A.Bar").Status.ShouldBe(DeclarationStatus.Added);
+        result.Deltas.ShouldNotContain(d => d.Status == DeclarationStatus.Renamed);
+    }
+
+    [Fact]
+    public void a_rename_that_also_changes_accessibility_is_renamed_when_accessibility_is_ignored()
+    {
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                private int Foo(int x) => x + 1;
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class A
+            {
+                public int Bar(int x) => x + 1;
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(new SemanticDiffRequest(
+            [Source("before.cs", before)],
+            [Source("after.cs", after)],
+            new SemanticDiffOptions(IgnoreAccessibility: true)));
+
+        var renamed = result.Deltas.Single(d => d.Kind == DeclarationKind.Method);
+        renamed.Status.ShouldBe(DeclarationStatus.Renamed);
+        renamed.OldFqn.ShouldBe("Acme.A.Foo(int)");
+        renamed.NewFqn.ShouldBe("Acme.A.Bar(int)");
+    }
+
+    [Fact]
+    public void ambiguous_same_kind_renames_pair_deterministically_by_ordinal_fqn()
+    {
+        // Two removed (A, B), two added (C, D), all methods with identical-modulo-name
+        // bodies. Greedy Ordinal pairing: removed sorted [A, B], added candidates in
+        // Ordinal order [C, D]. A takes the first match C; B takes the next D.
+        const string before = """
+            namespace Acme;
+
+            public class T
+            {
+                public int A() => 0;
+                public int B() => 0;
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class T
+            {
+                public int C() => 0;
+                public int D() => 0;
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("before.cs", before)],
+            after: [Source("after.cs", after)]));
+
+        var renames = result.Deltas
+            .Where(d => d.Status == DeclarationStatus.Renamed)
+            .ToList();
+        renames.Count.ShouldBe(2);
+
+        var ac = renames.Single(d => d.NewFqn == "Acme.T.C()");
+        ac.OldFqn.ShouldBe("Acme.T.A()");
+
+        var bd = renames.Single(d => d.NewFqn == "Acme.T.D()");
+        bd.OldFqn.ShouldBe("Acme.T.B()");
+
+        result.Deltas.ShouldNotContain(d => d.Status == DeclarationStatus.Added);
+        result.Deltas.ShouldNotContain(d => d.Status == DeclarationStatus.Removed);
     }
 }
