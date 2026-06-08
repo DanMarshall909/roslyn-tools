@@ -1727,6 +1727,22 @@
             "passes": false,
             "epicId": "EP-016",
             "notes": "P1. Part of EP-016 semantic diff. Native JSON handler (not text-captured), registered in MCP service registration, resolves the same engine the CLI uses. Accepts git working-vs-HEAD, from/to refs, and two file paths."
+        },
+        {
+            "id": "US-126",
+            "title": "Semantic diff engine hardening: container-scoped rename pairing + edge guards",
+            "description": "As a developer, I want the semantic diff engine to avoid cross-container rename false-positives and handle edge inputs, so the diff stays trustworthy as the host adapters surface it.",
+            "acceptanceCriteria": [
+                "Rename detection is scoped so a Removed and Added of the same kind only pair when they share a container (members: same containing type FQN; types: same namespace), so two identical-bodied declarations in unrelated namespaces/types no longer mis-pair as a single Renamed.",
+                "Engine guards against null Before/After source lists in the request (clear behaviour, not an NRE).",
+                "A parse-error / malformed-source tree is handled gracefully (no crash; declarations that do parse are still reported).",
+                "SemanticDiffService LongMethod/LargeClass smells (Walk, DetectRenames, Compare) are reviewed and either split where it genuinely improves readability or explicitly accepted with rationale.",
+                "Weak tautological tests (e.g. Enum.IsDefined on the Renamed status) are replaced with or backed by behavioural assertions."
+            ],
+            "priority": 126,
+            "passes": false,
+            "epicId": "EP-016",
+            "notes": "P2. Follow-up from US-121 close (Opus review + rt list-smells). Cross-container rename mis-pairing (One.A<->Two.B) is the chief footgun; v1 pairs by equivalent-body-modulo-name across all containers. Also: null list guards, parse-error trees, LongMethod smells on Walk(139)/DetectRenames(67)/Compare(44), tautological Renamed-status test."
         }
     ]
 }

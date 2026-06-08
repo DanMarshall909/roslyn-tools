@@ -1,7 +1,7 @@
 roslyn-tools
 Branch: result-type-and-cleanup
 
-Current Status: 3/9 stories complete (33%)
+Current Status: 4/9 stories complete (44%)
 
 Stories
 [ ] US-077 Result<T,RtError> ADT + SymbolLocator migration + App exception ladder
@@ -12,4 +12,4 @@ Stories
 [ ] US-100 Unify RtResultRenderer call shape and enforce IStructuredOutputCommand for every JSON-output command
 [x] US-107 Category + capability interfaces to enforce command consistency at the type system
 [ ] US-114 Represent shared CLI flags as reusable capability interfaces backed by a central option registry
-[ ] US-121 Semantic comparison engine for C# (FQN-keyed, trivia-insensitive)
+[x] US-121 Semantic comparison engine for C# (FQN-keyed, trivia-insensitive)
