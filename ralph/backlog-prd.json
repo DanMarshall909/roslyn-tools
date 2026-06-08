@@ -1697,21 +1697,6 @@
             "notes": "P1. Part of EP-016 semantic diff. --format json|text; stable documented JSON shape; identical across git and two-files modes."
         },
         {
-            "id": "US-125",
-            "title": "First-class MCP handler for semantic-diff",
-            "description": "As an MCP client, I want a native semantic-diff tool that returns the structured result directly.",
-            "acceptanceCriteria": [
-                "An MCP handler exposes semantic-diff and returns the engine's structured result as native JSON (not text-captured CLI output).",
-                "The handler accepts the same inputs the CLI supports: git working-vs-HEAD, from/to refs, and two file paths.",
-                "The handler is registered in MCP service registration and resolves the same engine/service the CLI uses (no logic duplicated between adapters).",
-                "Invalid inputs return a structured error rather than throwing."
-            ],
-            "priority": 125,
-            "passes": false,
-            "epicId": "EP-016",
-            "notes": "P1. Part of EP-016 semantic diff. Native JSON handler (not text-captured), registered in MCP service registration, resolves the same engine the CLI uses. Accepts git working-vs-HEAD, from/to refs, and two file paths."
-        },
-        {
             "id": "US-126",
             "title": "Semantic diff engine hardening: container-scoped rename pairing + edge guards",
             "description": "As a developer, I want the semantic diff engine to avoid cross-container rename false-positives and handle edge inputs, so the diff stays trustworthy as the host adapters surface it.",

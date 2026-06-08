@@ -1,7 +1,7 @@
 roslyn-tools
 Branch: result-type-and-cleanup
 
-Current Status: 5/10 stories complete (50%)
+Current Status: 5/11 stories complete (45%)
 
 Stories
 [ ] US-077 Result<T,RtError> ADT + SymbolLocator migration + App exception ladder
@@ -14,3 +14,4 @@ Stories
 [ ] US-114 Represent shared CLI flags as reusable capability interfaces backed by a central option registry
 [x] US-121 Semantic comparison engine for C# (FQN-keyed, trivia-insensitive)
 [x] US-122 Git version source + rt analyze semantic-diff command
+[ ] US-125 First-class MCP handler for semantic-diff
