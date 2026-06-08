@@ -9,7 +9,9 @@ namespace RoslynTools.Services.SemanticDiff;
 /// <summary>
 ///     Host-agnostic semantic comparison engine. Parses two in-memory snapshots of
 ///     C# source, keys every declaration by a syntactic fully-qualified name, and
-///     reports per-declaration deltas (added / removed / unchanged for this cycle).
+///     reports per-declaration deltas (added / removed / changed / unchanged).
+///     Member change detection is trivia-insensitive; type-header comparison and
+///     rename pairing are deferred to later cycles.
 /// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class registered in DI per the static-to-instance migration (EP-006). CA1822 enforces the old static-when-stateless rule that conflicts with this direction; suppress per class until the migration completes and the rule is reviewed project-wide.")]
@@ -38,9 +40,6 @@ internal sealed class SemanticDiffService : IRtService
 
             DeclarationStatus status;
             if (inBefore && inAfter)
-                // coverage: the Changed arm is unreachable this cycle because the
-                // BodiesEquivalent seam is hard-wired to true; a later story that
-                // implements real body comparison will exercise it.
                 status = BodiesEquivalent(oldDecl!.Node, newDecl!.Node, request.Options)
                     ? DeclarationStatus.Unchanged
                     : DeclarationStatus.Changed;
@@ -65,15 +64,40 @@ internal sealed class SemanticDiffService : IRtService
     }
 
     /// <summary>
-    ///     Seam for body-equality. The foundational cycle treats any declaration
-    ///     present on both sides as unchanged; a later story replaces this with a
-    ///     real comparison (e.g. <c>a.IsEquivalentTo(b, topLevel: false)</c>) and
-    ///     consults <paramref name="opts" /> (e.g. <see cref="SemanticDiffOptions.IgnoreAccessibility" />).
-    ///     The <paramref name="opts" /> parameter is part of the seam now — even
-    ///     though it is unused this cycle — so the later story can act on it without
-    ///     changing this signature.
+    ///     Body-equality for a declaration present on both sides.
+    ///     <para>
+    ///         For <b>members</b> (method / constructor / property / field / event /
+    ///         indexer / operator) this is a trivia-insensitive structural comparison:
+    ///         <c>IsEquivalentTo(other, topLevel: false)</c> ignores all trivia
+    ///         (comments and whitespace) but preserves identifiers and literals, so a
+    ///         genuinely different body — including one that differs only in
+    ///         identifiers or literals — is reported as not equivalent.
+    ///     </para>
+    ///     <para>
+    ///         For <b>type declarations</b> (class / struct / record / interface / enum
+    ///         via <see cref="BaseTypeDeclarationSyntax" />, plus
+    ///         <see cref="DelegateDeclarationSyntax" />) this returns <c>true</c>:
+    ///         comparing the full type subtree with <c>topLevel: false</c> would bubble
+    ///         a member edit up into the containing type. Type-header-only comparison is
+    ///         deferred to a later cycle, which fills in this branch; until then a type
+    ///         present on both sides stays unchanged.
+    ///     </para>
+    ///     The <paramref name="opts" /> parameter is unused this cycle; a later cycle
+    ///     consults it (e.g. <see cref="SemanticDiffOptions.IgnoreAccessibility" />)
+    ///     without changing this signature.
     /// </summary>
-    private bool BodiesEquivalent(SyntaxNode a, SyntaxNode b, SemanticDiffOptions opts) => true;
+    private static bool BodiesEquivalent(SyntaxNode a, SyntaxNode b, SemanticDiffOptions opts)
+    {
+        // Type declarations: defer to a later cycle's type-header comparison so a
+        // member edit does not bubble up and mark the containing type Changed.
+        // FQN keying guarantees a and b are the same syntactic category.
+        if (a is BaseTypeDeclarationSyntax or DelegateDeclarationSyntax)
+            return true;
+
+        // Members: trivia-insensitive structural comparison. topLevel:false compares
+        // bodies; it ignores comments/whitespace but keeps identifiers and literals.
+        return a.IsEquivalentTo(b, topLevel: false);
+    }
 
     /// <summary>
     ///     Parse every source document and index its declarations by syntactic FQN.
