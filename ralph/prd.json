@@ -200,6 +200,23 @@
             "notes": "P1. Part of EP-016 semantic diff. Foundational engine; pure service, no host deps. Matches by fully-qualified name so a moved-file declaration is unchanged. Candidate reuse: BlockNormalizer, FindDuplicatesService normalized-block walk.",
             "resolution": "Built the host-agnostic semantic comparison engine (SemanticDiffService : IRtService): parses two in-memory C# source sets (no MSBuild workspace), keys declarations by syntactic FQN (namespace + nesting + generic arity; members add as-written parameter types), and reports Added/Removed/Changed/Unchanged/Renamed deltas. Body comparison is trivia-insensitive via IsEquivalentTo(topLevel:false) over a canonicalized node (type/enum member-lists stripped so member edits don't bubble to the type header); a moved declaration is matched across files (records old/new path). IgnoreAccessibility option strips only accessibility modifiers; default-on DetectRenames pairs equivalent-modulo-name Removed/Added into a single Renamed delta (deterministic by Ordinal FQN). 76 tests across 6 TDD cycles. An Opus review found+fixed a multi-declarator-field false-positive. Hardening (container-scoped rename pairing, edge guards) deferred to US-126. CLI/MCP adapters are US-122..125.",
             "resolvedAt": "2026-06-08"
+        },
+        {
+            "id": "US-122",
+            "title": "Git version source + rt analyze semantic-diff command",
+            "description": "As a developer, I want to run the semantic diff against git so I can review what I have actually changed.",
+            "acceptanceCriteria": [
+                "`rt analyze semantic-diff` with no version flags compares the working tree against HEAD.",
+                "`--from <ref> --to <ref>` compares two arbitrary git refs (e.g. --from HEAD~3 --to HEAD).",
+                "Only C# (.cs) files in the changed set are parsed and fed to the engine; non-C# changes are ignored.",
+                "Runs from inside any git repo; a clear error (exit 1, stderr) when not in a git repo or a ref is invalid.",
+                "Default output is text rendered to look very similar to a standard git diff (per-declaration hunks, +/- lines, file headers), with moved-but-unchanged declarations suppressed or shown as a relocation note rather than delete+add.",
+                "Diagnostics/progress to stderr, results to stdout; exits 0 on success."
+            ],
+            "priority": 122,
+            "passes": false,
+            "epicId": "EP-016",
+            "notes": "P1. Part of EP-016 semantic diff. Default working-tree-vs-HEAD; --from/--to arbitrary refs. git-diff-style text output, moved-but-unchanged suppressed. Two-version loading is new (WorkspaceLoader opens one solution today)."
         }
     ]
 }
