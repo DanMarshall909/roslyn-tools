@@ -64,23 +64,31 @@ internal sealed class SemanticDiffService : IRtService
     }
 
     /// <summary>
-    ///     Body-equality for a declaration present on both sides.
+    ///     Equality for a declaration present on both sides, trivia-insensitive
+    ///     throughout (<c>topLevel: false</c> ignores comments and whitespace but
+    ///     preserves identifiers and literals).
     ///     <para>
-    ///         For <b>members</b> (method / constructor / property / field / event /
-    ///         indexer / operator) this is a trivia-insensitive structural comparison:
-    ///         <c>IsEquivalentTo(other, topLevel: false)</c> ignores all trivia
-    ///         (comments and whitespace) but preserves identifiers and literals, so a
-    ///         genuinely different body — including one that differs only in
-    ///         identifiers or literals — is reported as not equivalent.
+    ///         For <b>type declarations</b> (class / struct / record / interface) the
+    ///         member list is stripped (<c>WithMembers(default)</c>) before comparison,
+    ///         so only the type's <i>own header</i> is compared — modifiers, identifier,
+    ///         type-parameter list, base list, constraint clauses, attributes, and (for
+    ///         records) the positional parameter list, which lives on the declaration
+    ///         node rather than in <c>Members</c>. A member edit therefore does not
+    ///         bubble up into the containing type; it is reported at member granularity.
     ///     </para>
     ///     <para>
-    ///         For <b>type declarations</b> (class / struct / record / interface / enum
-    ///         via <see cref="BaseTypeDeclarationSyntax" />, plus
-    ///         <see cref="DelegateDeclarationSyntax" />) this returns <c>true</c>:
-    ///         comparing the full type subtree with <c>topLevel: false</c> would bubble
-    ///         a member edit up into the containing type. Type-header-only comparison is
-    ///         deferred to a later cycle, which fills in this branch; until then a type
-    ///         present on both sides stays unchanged.
+    ///         <b>Enums</b> are handled the same way: their members are stripped, so an
+    ///         enum-member change is not reported (a Cycle 1 decision) while a change to
+    ///         the enum's own header (underlying type, attributes) is. A
+    ///         <b>delegate</b> has no member list — it <i>is</i> a signature — so it
+    ///         falls through to the whole-node comparison alongside members.
+    ///     </para>
+    ///     <para>
+    ///         Each branch gates on <i>both</i> operands: FQN keying does not guarantee
+    ///         the same syntactic category across sides (e.g. <c>class Foo</c> becoming
+    ///         <c>enum Foo</c> keeps the key but flips the node type). A category flip
+    ///         falls through to the final whole-node comparison, which reports it as not
+    ///         equivalent (Changed) without an <see cref="InvalidCastException" />.
     ///     </para>
     ///     The <paramref name="opts" /> parameter is unused this cycle; a later cycle
     ///     consults it (e.g. <see cref="SemanticDiffOptions.IgnoreAccessibility" />)
@@ -88,14 +96,18 @@ internal sealed class SemanticDiffService : IRtService
     /// </summary>
     private static bool BodiesEquivalent(SyntaxNode a, SyntaxNode b, SemanticDiffOptions opts)
     {
-        // Type declarations: defer to a later cycle's type-header comparison so a
-        // member edit does not bubble up and mark the containing type Changed.
-        // FQN keying guarantees a and b are the same syntactic category.
-        if (a is BaseTypeDeclarationSyntax or DelegateDeclarationSyntax)
-            return true;
+        // Class / struct / record / interface: compare the header shell only, with the
+        // member list removed so member edits/adds/removals do not mark the type Changed.
+        if (a is TypeDeclarationSyntax typeA && b is TypeDeclarationSyntax typeB)
+            return typeA.WithMembers(default).IsEquivalentTo(typeB.WithMembers(default), topLevel: false);
 
-        // Members: trivia-insensitive structural comparison. topLevel:false compares
-        // bodies; it ignores comments/whitespace but keeps identifiers and literals.
+        // Enum: same shell-only comparison — enum-member changes are out of scope, but
+        // the enum's own header (e.g. underlying type, attributes) is in scope.
+        if (a is EnumDeclarationSyntax enumA && b is EnumDeclarationSyntax enumB)
+            return enumA.WithMembers(default).IsEquivalentTo(enumB.WithMembers(default), topLevel: false);
+
+        // Members and delegates: trivia-insensitive whole-node comparison. A delegate
+        // is a signature with no member list, so the whole node IS its header.
         return a.IsEquivalentTo(b, topLevel: false);
     }
 
