@@ -665,6 +665,441 @@ public sealed class SemanticDiffServiceTests
         method.OldPath.ShouldNotBe(method.NewPath);
     }
 
+    // ----- Cycle 3: type-header-only comparison (no member bubble-up) -----
+
+    [Fact]
+    public void a_type_that_gains_a_modifier_in_its_own_header_is_changed()
+    {
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                public void Run() { }
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public sealed class A
+            {
+                public void Run() { }
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("a.cs", before)],
+            after: [Source("a.cs", after)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.A").Status.ShouldBe(DeclarationStatus.Changed);
+    }
+
+    [Fact]
+    public void a_type_that_gains_a_base_interface_is_changed()
+    {
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                public void Run() { }
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class A : System.IDisposable
+            {
+                public void Run() { }
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("a.cs", before)],
+            after: [Source("a.cs", after)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.A").Status.ShouldBe(DeclarationStatus.Changed);
+    }
+
+    [Fact]
+    public void a_type_whose_type_parameter_is_renamed_at_the_same_arity_is_changed()
+    {
+        // Same arity keeps the key (Acme.Box`1) so the type pairs across sides;
+        // the identifier T -> U is a header change and must register as Changed.
+        const string before = """
+            namespace Acme;
+
+            public class Box<T>
+            {
+                public void Set(T value) { }
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class Box<U>
+            {
+                public void Set(U value) { }
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("b.cs", before)],
+            after: [Source("b.cs", after)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.Box`1").Status.ShouldBe(DeclarationStatus.Changed);
+    }
+
+    [Fact]
+    public void a_type_whose_constraint_clause_changes_is_changed()
+    {
+        const string before = """
+            namespace Acme;
+
+            public class Box<T> where T : class
+            {
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class Box<T> where T : struct
+            {
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("b.cs", before)],
+            after: [Source("b.cs", after)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.Box`1").Status.ShouldBe(DeclarationStatus.Changed);
+    }
+
+    [Fact]
+    public void a_type_that_gains_an_attribute_on_its_own_header_is_changed()
+    {
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            [System.Obsolete]
+            public class A
+            {
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("a.cs", before)],
+            after: [Source("a.cs", after)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.A").Status.ShouldBe(DeclarationStatus.Changed);
+    }
+
+    [Fact]
+    public void adding_a_member_leaves_the_containing_type_unchanged_and_reports_the_member_added()
+    {
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                public void Run() { }
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class A
+            {
+                public void Run() { }
+                public void Extra() { }
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("a.cs", before)],
+            after: [Source("a.cs", after)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.A").Status.ShouldBe(DeclarationStatus.Unchanged);
+        result.Deltas.Single(d => d.Fqn == "Acme.A.Extra()").Status.ShouldBe(DeclarationStatus.Added);
+    }
+
+    [Fact]
+    public void removing_a_member_leaves_the_containing_type_unchanged_and_reports_the_member_removed()
+    {
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                public void Run() { }
+                public void Gone() { }
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class A
+            {
+                public void Run() { }
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("a.cs", before)],
+            after: [Source("a.cs", after)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.A").Status.ShouldBe(DeclarationStatus.Unchanged);
+        result.Deltas.Single(d => d.Fqn == "Acme.A.Gone()").Status.ShouldBe(DeclarationStatus.Removed);
+    }
+
+    [Fact]
+    public void editing_a_nested_member_body_leaves_both_the_nested_type_and_the_outer_type_unchanged()
+    {
+        const string before = """
+            namespace Acme;
+
+            public class Outer
+            {
+                public class Inner
+                {
+                    public int Go() => 1;
+                }
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class Outer
+            {
+                public class Inner
+                {
+                    public int Go() => 2;
+                }
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("n.cs", before)],
+            after: [Source("n.cs", after)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.Outer.Inner.Go()").Status.ShouldBe(DeclarationStatus.Changed);
+        result.Deltas.Single(d => d.Fqn == "Acme.Outer.Inner").Status.ShouldBe(DeclarationStatus.Unchanged);
+        result.Deltas.Single(d => d.Fqn == "Acme.Outer").Status.ShouldBe(DeclarationStatus.Unchanged);
+    }
+
+    [Fact]
+    public void a_header_change_on_a_deeply_nested_type_is_reported_only_on_that_type()
+    {
+        const string before = """
+            namespace Acme;
+
+            public class Outer
+            {
+                public class Inner
+                {
+                    public class Deepest
+                    {
+                    }
+                }
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class Outer
+            {
+                public class Inner
+                {
+                    public sealed class Deepest
+                    {
+                    }
+                }
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("n.cs", before)],
+            after: [Source("n.cs", after)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.Outer.Inner.Deepest").Status.ShouldBe(DeclarationStatus.Changed);
+        result.Deltas.Single(d => d.Fqn == "Acme.Outer.Inner").Status.ShouldBe(DeclarationStatus.Unchanged);
+        result.Deltas.Single(d => d.Fqn == "Acme.Outer").Status.ShouldBe(DeclarationStatus.Unchanged);
+    }
+
+    [Fact]
+    public void a_nested_type_with_identical_text_moved_to_a_different_path_is_unchanged_with_both_paths()
+    {
+        const string text = """
+            namespace Acme;
+
+            public class Outer
+            {
+                public class Inner
+                {
+                    public int Go() => 1;
+                }
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("old/Outer.cs", text)],
+            after: [Source("new/Outer.cs", text)]));
+
+        var inner = result.Deltas.Single(d => d.Fqn == "Acme.Outer.Inner");
+        inner.Status.ShouldBe(DeclarationStatus.Unchanged);
+        inner.OldPath.ShouldBe("old/Outer.cs");
+        inner.NewPath.ShouldBe("new/Outer.cs");
+        inner.OldPath.ShouldNotBe(inner.NewPath);
+    }
+
+    [Fact]
+    public void changing_a_record_positional_parameter_marks_the_record_changed()
+    {
+        const string before = """
+            namespace Acme;
+
+            public record R(int X);
+            """;
+        const string after = """
+            namespace Acme;
+
+            public record R(int Y);
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("r.cs", before)],
+            after: [Source("r.cs", after)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.R").Status.ShouldBe(DeclarationStatus.Changed);
+    }
+
+    [Fact]
+    public void changing_an_enum_underlying_type_in_its_header_is_changed()
+    {
+        const string before = """
+            namespace Acme;
+
+            public enum Color { Red, Green }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public enum Color : byte { Red, Green }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("e.cs", before)],
+            after: [Source("e.cs", after)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.Color").Status.ShouldBe(DeclarationStatus.Changed);
+    }
+
+    [Fact]
+    public void changing_a_delegate_signature_is_changed()
+    {
+        const string before = """
+            namespace Acme;
+
+            public delegate void D(int x);
+            """;
+        const string after = """
+            namespace Acme;
+
+            public delegate void D(string x);
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("d.cs", before)],
+            after: [Source("d.cs", after)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.D").Status.ShouldBe(DeclarationStatus.Changed);
+    }
+
+    [Fact]
+    public void reordering_members_within_a_type_leaves_the_type_and_every_member_unchanged()
+    {
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                public void First() { }
+                public void Second() { }
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class A
+            {
+                public void Second() { }
+                public void First() { }
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("a.cs", before)],
+            after: [Source("a.cs", after)]));
+
+        result.Deltas.ShouldAllBe(d => d.Status == DeclarationStatus.Unchanged);
+    }
+
+    [Fact]
+    public void reordering_using_directives_leaves_all_declarations_unchanged()
+    {
+        const string before = """
+            using System;
+            using System.Collections.Generic;
+
+            namespace Acme;
+
+            public class A
+            {
+                public void Run() { }
+            }
+            """;
+        const string after = """
+            using System.Collections.Generic;
+            using System;
+
+            namespace Acme;
+
+            public class A
+            {
+                public void Run() { }
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("a.cs", before)],
+            after: [Source("a.cs", after)]));
+
+        result.Deltas.ShouldNotBeEmpty();
+        result.Deltas.ShouldAllBe(d => d.Status == DeclarationStatus.Unchanged);
+    }
+
     [Fact]
     public void deltas_are_ordered_deterministically_by_fqn()
     {
