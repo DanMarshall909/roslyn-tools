@@ -1,5 +1,3 @@
-using System.Text.Json;
-using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Services.SemanticDiff;
 
@@ -27,17 +25,8 @@ internal sealed record SemanticDiffOutput(IReadOnlyList<DeclarationDelta> Deltas
 
     public void RenderJson(TextWriter writer)
     {
-        var array = Deltas.Where(SemanticDiffDelta.IsSurfaced).Select(d => new
-        {
-            fqn = d.Fqn,
-            kind = d.Kind.ToString(),
-            status = d.Status.ToString(),
-            oldPath = d.OldPath,
-            newPath = d.NewPath,
-            oldFqn = d.OldFqn,
-            newFqn = d.NewFqn
-        }).ToArray();
-
-        writer.Write(JsonSerializer.Serialize(array, SymbolFormatter.DefaultJsonOptions));
+        // Delegates to the shared core projection so the CLI's --json and the native MCP
+        // semantic_diff handler emit byte-identical JSON for the same deltas.
+        writer.Write(SemanticDiffJson.Serialize(Deltas));
     }
 }

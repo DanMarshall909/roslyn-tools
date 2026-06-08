@@ -19,6 +19,9 @@ namespace RoslynTools.Tests.Mcp.Handlers;
 /// </summary>
 public sealed class SemanticDiffHandlerTests
 {
+    private static readonly string[] ExpectedPropertyNames =
+        ["from", "to", "ignoreAccessibility", "detectRenames", "directory"];
+
     [Fact]
     public void definition_exposes_the_semantic_diff_tool_name_and_optional_args()
     {
@@ -34,9 +37,7 @@ public sealed class SemanticDiffHandlerTests
         def.inputSchema.ShouldNotContainKey("required");
 
         var properties = (Dictionary<string, Dictionary<string, object>>)def.inputSchema["properties"];
-        properties.Keys.ShouldBe(
-            new[] { "from", "to", "ignoreAccessibility", "detectRenames", "directory" },
-            ignoreOrder: true);
+        properties.Keys.ShouldBe(ExpectedPropertyNames, ignoreOrder: true);
     }
 
     [Fact]
@@ -58,8 +59,17 @@ public sealed class SemanticDiffHandlerTests
 
         var changed = payload.RootElement.EnumerateArray()
             .First(d => d.GetProperty("status").GetString() == "Changed");
-        changed.GetProperty("fqn").GetString().ShouldContain("Gadget");
+        changed.GetProperty("fqn").GetString().ShouldNotBeNull().ShouldContain("Gadget");
         changed.GetProperty("kind").GetString().ShouldNotBeNullOrEmpty();
+
+        // The Gadget class itself is Unchanged on the same path (only its method body changed),
+        // so the surfaced-only filter must exclude it — proving SemanticDiffJson applies IsSurfaced.
+        payload.RootElement.EnumerateArray()
+            .ShouldNotContain(d =>
+                d.GetProperty("status").GetString() == "Unchanged"
+                && d.GetProperty("oldPath").GetString() == d.GetProperty("newPath").GetString());
+        payload.RootElement.EnumerateArray()
+            .ShouldNotContain(d => d.GetProperty("fqn").GetString() == "Gadget");
     }
 
     [Fact]
@@ -111,9 +121,9 @@ public sealed class SemanticDiffHandlerTests
         using var notIgnoredDoc = JsonDocument.Parse(notIgnored.content);
 
         ignoredDoc.RootElement.EnumerateArray()
-            .ShouldNotContain(d => d.GetProperty("fqn").GetString()!.Contains("M"));
+            .ShouldNotContain(d => d.GetProperty("fqn").GetString()!.Contains(".M", StringComparison.Ordinal));
         notIgnoredDoc.RootElement.EnumerateArray()
-            .ShouldContain(d => d.GetProperty("fqn").GetString()!.Contains("M"));
+            .ShouldContain(d => d.GetProperty("fqn").GetString()!.Contains(".M", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -189,6 +199,27 @@ public sealed class SemanticDiffHandlerTests
     }
 
     [Fact]
+    public async Task a_directory_arg_targets_that_repository_and_a_non_repo_path_errors_cleanly()
+    {
+        // A directory that is not a git repository builds a fresh GitClient for that path; the
+        // provider's EnsureRepository fails and surfaces as a clean error, not a thrown exception.
+        var nonRepo = Path.Combine(Path.GetTempPath(), $"rt-sdiff-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(nonRepo);
+        try
+        {
+            var result = await NewHandler(new RecordingGitClient()).HandleAsync(
+                Args($$"""{"directory":{{JsonSerializer.Serialize(nonRepo)}}}"""), CancellationToken.None);
+
+            result.isError.ShouldBeTrue();
+            result.content.ShouldContain("not a git repository");
+        }
+        finally
+        {
+            Directory.Delete(nonRepo, recursive: true);
+        }
+    }
+
+    [Fact]
     public void semantic_diff_handler_is_registered_as_an_imcphandler()
     {
         var services = new ServiceCollection();
@@ -199,6 +230,25 @@ public sealed class SemanticDiffHandlerTests
         var toolNames = provider.GetServices<IMcpHandler>().Select(h => h.ToolName).ToList();
 
         toolNames.ShouldContain("semantic_diff");
+    }
+
+    [Fact]
+    public async Task tool_registry_dispatches_semantic_diff_to_the_native_handler()
+    {
+        // End-to-end through the real ToolRegistry against the live repo: HEAD..HEAD is a
+        // deterministic no-op diff (independent of the working tree), so the native handler
+        // returns an empty JSON array — proving the registry routes semantic_diff to it
+        // rather than the text-capture CliCommandBridge fallback.
+        using var provider = McpTestHost.CreateProvider();
+        var registry = provider.GetRequiredService<ToolRegistry>();
+        using var args = JsonDocument.Parse("""{"from":"HEAD","to":"HEAD"}""");
+
+        var result = await registry.InvokeAsync("semantic_diff", args.RootElement);
+
+        result.isError.ShouldBeFalse();
+        using var payload = JsonDocument.Parse(result.content);
+        payload.RootElement.ValueKind.ShouldBe(JsonValueKind.Array);
+        payload.RootElement.GetArrayLength().ShouldBe(0);
     }
 
     private static SemanticDiffHandler NewHandler(IGitClient git) =>
@@ -220,8 +270,6 @@ public sealed class SemanticDiffHandlerTests
 
         public IReadOnlyList<string> WorkingTreeChangedPaths { get; init; } = [];
 
-        public Dictionary<(string From, string To), IReadOnlyList<string>> ChangedPathsBetween { get; } = new();
-
         public Dictionary<string, string> FilesAtRef { get; } = new(StringComparer.Ordinal);
 
         public Dictionary<string, string> WorkingTreeFiles { get; } = new(StringComparer.Ordinal);
@@ -238,8 +286,9 @@ public sealed class SemanticDiffHandlerTests
                 throw new ArgumentException($"invalid git ref: {reference}");
         }
 
-        public IReadOnlyList<string> GetChangedPathsBetween(string fromRef, string toRef) =>
-            ChangedPathsBetween.TryGetValue((fromRef, toRef), out var paths) ? paths : [];
+        // No test exercises a successful ref-vs-ref diff; the invalid-ref test throws at
+        // EnsureRefExists before this is reached, so an empty list is the honest default.
+        public IReadOnlyList<string> GetChangedPathsBetween(string fromRef, string toRef) => [];
 
         public IReadOnlyList<string> GetWorkingTreeChangedPaths() => WorkingTreeChangedPaths;
 
