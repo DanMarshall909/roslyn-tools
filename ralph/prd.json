@@ -214,9 +214,11 @@
                 "Diagnostics/progress to stderr, results to stdout; exits 0 on success."
             ],
             "priority": 122,
-            "passes": false,
+            "passes": true,
             "epicId": "EP-016",
-            "notes": "P1. Part of EP-016 semantic diff. Default working-tree-vs-HEAD; --from/--to arbitrary refs. git-diff-style text output, moved-but-unchanged suppressed. Two-version loading is new (WorkspaceLoader opens one solution today)."
+            "notes": "P1. Part of EP-016 semantic diff. Default working-tree-vs-HEAD; --from/--to arbitrary refs. git-diff-style text output, moved-but-unchanged suppressed. Two-version loading is new (WorkspaceLoader opens one solution today).",
+            "resolution": "Shipped 'rt analyze semantic-diff' (alias sdiff): git version source (working-tree-vs-HEAD default + --from/--to refs, .cs-only, union of both sides via --no-renames so moved classes match) feeds the US-121 engine and renders git-diff-style text (per-declaration hunks via DiffPlex; moved=relocation note, renamed=old->new, comment/whitespace=clean). Flags --ignore-accessibility, --no-detect-renames. Core-service + thin-adapter: IGitClient/GitClient (shell git, fake-tested), GitSemanticDiffSourceProvider, shared DeclarationWalker (engine+renderer one FQN scheme), SemanticDiffTextRenderer, SemanticDiffCommand. JSON output (--json) also delivered to satisfy the read-only result-contract ratchet (delta array via IRtJsonOutput; shared IsSurfaced predicate so text/json never drift) - covers US-124 CLI JSON core. ~130 SemanticDiff tests; dogfooded against this repo. Follow-ups: US-126 hardening, US-127 renderer mutation scope; rt gaps FB-362/FB-363.",
+            "resolvedAt": "2026-06-08"
         }
     ]
 }

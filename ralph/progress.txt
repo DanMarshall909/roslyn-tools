@@ -1,109 +1,16 @@
 roslyn-tools
-Branch: backlog
+Branch: result-type-and-cleanup
 
-Current Status: 31/79 stories complete (39%)
+Current Status: 5/10 stories complete (50%)
 
-EP-005 — codebase consistency sweep (1/1)
-[x] US-025 fix formatting violations: CRLF and encoding errors in 4 files
-
-EP-006 — SOLID Adherence Analysis (0/0)
-
-EP-007 — Add structured JSON output to all inspect/analyze commands (8/9)
-[x] US-045 rt inspect find-refs: structured JSON output
-[x] US-046 rt inspect find-callers: structured JSON output
-[x] US-047 rt inspect find-undocumented: structured JSON output
-[x] US-048 rt inspect find-unused: structured JSON output
-[x] US-049 rt analyze circular-deps: structured JSON output
-[x] US-050 rt analyze find-magic-strings: structured JSON output
-[x] US-051 rt analyze list-imports: structured JSON output
-[x] US-052 rt analyze list-smells: structured JSON output
-[ ] US-082 EP-007 umbrella: structured JSON output across all 8 inspect/analyze read commands
-
-EP-008 — Platform abstractions: IWorkspaceSessionFactory + ISolutionApplier (3/4)
-[x] US-053 Introduce IWorkspaceSessionFactory + WorkspaceSession (rt-006)
-[x] US-054 Migrate direct SolutionWriter call sites to ISolutionChangeWriter (rt-007)
-[x] US-072 Eliminate RtServiceProvider.Get<T> service locator in favour of ctor injection
-[ ] US-102 Complete the IWorkspaceSessionFactory migration — remove LoadWorkspaceAsync compat surface
-
-EP-009 — Consistent command contracts and migration ratchets (8/17)
-[ ] US-057 Introduce a shared read-only command handler wrapper
-[x] US-058 Standardize common CLI options through option factories
-[x] US-059 Add machine-readable command capabilities to RtCommandInfo
-[ ] US-060 Normalize command outputs around shared result contracts
-[ ] US-061 Introduce SymbolQuery for consistent symbol resolution
-[x] US-062 Standardize command vocabulary and aliases
-[x] US-063 Standardize command file structure
-[x] US-064 Add migration ratchets for command consistency
-[x] US-065 Make dump-help metadata-driven and consistency-tested
-[x] US-066 Create a command migration playbook
-[ ] US-084 Metadata catalog: RtCommandInfo schema + dump-help --json + consistency test
-[x] US-085 Standardize CLI options through CommandOptionFactory with consistent vocabulary and aliases
-[ ] US-086 Command file structure convention + architecture ratchet + migration playbook
-[ ] US-108 Delete redundant RtCommandInfo.Category and Info.Mutates after category interfaces land
-[ ] US-109 Extend shared output-format pipeline to every command (JSON/YAML/text for mutating commands too)
-[ ] US-112 rt refactor change-signature: add missing --dry-run option
-[ ] US-115 Target-architecture ratchet suite: SkippableFact arch tests for every testable rule
-
-EP-010 — Error-handling architecture: Result<T,RtError> rollout (0/2)
-[ ] US-078 Result<T,RtError> migration: WorkspaceLoader.LoadAsync
-[ ] US-079 Result<T,RtError> migration: MethodExtractor user-input validations
-
-EP-011 — rt suggest — LLM-friendly command discovery and cross-linking (0/5)
-[ ] US-080 Replace hand-curated synonyms with real thesaurus in rt suggest
-[ ] US-087 rt suggest <task>: BM25 scorer + synonym map + JSON/text output
-[ ] US-088 RtCommandInfo.SeeAlso: schema + startup validator + help/markdown rendering
-[ ] US-089 Seed SeeAlso data across the command catalog
-[ ] US-090 Unknown-command fallback: reuse Bm25Scorer to suggest matches on parse errors
-
-EP-012 — Complete thin-host-adapter migration (1/10)
-[x] US-094 Architectural ratchet test for native MCP handler coverage
-[ ] US-095 Migrate read-only inspect commands to native MCP handlers
-[ ] US-096 Migrate analyze commands to native MCP handlers
-[ ] US-097 Decide MCP shape for mutating refactor commands
-[ ] US-098 Drop the RoslynTools.Mcp -> RoslynTools.Cli project reference
-[ ] US-099 Extract IRtCommand registry into a new RoslynTools.Commands project so MCP stops depending on the Cli host
-[ ] US-104 rt change-signature: native MCP handler with explicit input schema
-[ ] US-105 rt move: declare required MCP input fields (native handler preferred)
-[ ] US-106 Align native MCP suggest naming with CLI rt suggest
-[ ] US-110 Modernise MCP result shape: structuredContent, outputSchema, typed content array
-
-EP-013 — Command consistency consolidation — checklist becomes compiler-enforced (0/0)
-
-EP-014 — Semantic codebase exploration (0/1)
-[ ] US-113 rt analyze conventions: embedding-assisted C# pattern and deviation discovery
-
-EP-015 — Resume in-flight half-completed work (2026-05-26 audit) (2/3)
-[x] US-117 Daemon forwards piped stdin to routed commands
-[x] US-118 rt dev wrapper leaks dotnet build output to stdout, corrupting pipes
-[ ] US-120 Daemon client reads stdin only for commands that consume it
-
-EP-016 — Semantic diff for C# (0/4)
-[ ] US-123 Compare two files on disc
-[ ] US-124 Structured JSON output + --format selection
-[ ] US-125 First-class MCP handler for semantic-diff
-[ ] US-126 Semantic diff engine hardening: container-scoped rename pairing + edge guards
-
-Loose stories
-[x] US-037 rt: convert-static-class — interface generation
-[x] US-038 rt: convert-static-class — DI registration in Bootstrap.cs
-[x] US-039 rt: convert-static-class — fix field and ctor formatting in existing-constructor path
-[ ] US-055 Add rt refactor extract-orchestrator command (rt-003)
-[x] US-056 rt refactor rename: accept symbol FQN from stdin JSON for pipe chains (rt-008)
-[ ] US-067 Revisit nested-branch pattern in execute skill for trunk-based repos
-[x] RT-001 rt dump-help --json: emit machine-readable command catalog
-[ ] RT-002 Expand command help text with output shape, exit codes, and error modes
-[ ] RT-003 Make --decisions YAML schema self-discoverable from the CLI
-[x] RT-004 Finish stderr discipline migration: Console.Write to RtLog/RtConsole
-[x] US-069 Bring src/RoslynTools.Cli/ into Stryker mutation pilot
-[x] US-070 Bring src/RoslynTools.Mcp/ into Stryker mutation pilot
-[ ] US-073 migrate solution to .NET 10
-[ ] US-081 rt refactor convert-static-class: finish interface generation, DI registration, and ctor/field formatting
-[ ] US-083 Bring src/RoslynTools.Cli/ and src/RoslynTools.Mcp/ into the Stryker mutation pilot
-[ ] US-091 Enrich C# diff syntax highlighting with type-name and method-call heuristics
-[ ] US-092 Stable fix IDs in dry-run + --apply / --skip filters for batch mutation commands
-[ ] US-093 Route command exit codes through System.CommandLine middleware (replace Environment.ExitCode)
-[ ] US-101 Decompose SolidAnalyzer into per-principle analyzers behind a thin orchestrator
-[ ] US-103 Eliminate parameterless service ctors that hand-roll concrete dependencies
-[ ] US-111 rt refactor add-base-type: add interface or base class to a class declaration without generating stubs
-[ ] US-116 Daemon Stage 3 — workspace cache with git-HEAD invalidation + operational hardening
-[ ] US-127 Bring SemanticDiffTextRenderer.cs into Stryker mutation scope at 100%
+Stories
+[ ] US-077 Result<T,RtError> ADT + SymbolLocator migration + App exception ladder
+[x] US-076 stop capturing handled user-error exceptions to feedback.json
+[x] US-074 rt analyze list-smells: add --top N limiter
+[ ] US-075 make rt parallel-safe for agent dogfooding (feedback file, wrapper rebuild, deploy-skill, MSBuild obj)
+[ ] US-071 rt refactor extract-interface produces malformed output for internal classes
+[ ] US-100 Unify RtResultRenderer call shape and enforce IStructuredOutputCommand for every JSON-output command
+[x] US-107 Category + capability interfaces to enforce command consistency at the type system
+[ ] US-114 Represent shared CLI flags as reusable capability interfaces backed by a central option registry
+[x] US-121 Semantic comparison engine for C# (FQN-keyed, trivia-insensitive)
+[x] US-122 Git version source + rt analyze semantic-diff command
