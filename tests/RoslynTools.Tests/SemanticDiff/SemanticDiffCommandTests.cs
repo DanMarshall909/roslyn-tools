@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using RoslynTools;
@@ -165,6 +166,48 @@ public sealed class SemanticDiffCommandTests
         plainOut.ShouldContain("Added", Case.Sensitive);
         plainOut.ShouldContain("Removed", Case.Sensitive);
         plainOut.ShouldNotContain("Renamed");
+    }
+
+    [Fact]
+    public async Task json_output_emits_an_array_of_deltas_with_fqn_and_status()
+    {
+        var git = new RecordingGitClient
+        {
+            WorkingTreeChangedPaths = ["Gadget.cs"],
+            FilesAtRef = { ["HEAD:Gadget.cs"] = "class Gadget { void M() { var x = 1; } }" },
+            WorkingTreeFiles = { ["Gadget.cs"] = "class Gadget { void M() { var x = 2; } }" },
+        };
+
+        var (exit, stdout, _) = await InvokeAsync(["analyze", "semantic-diff", "--json"], git);
+
+        exit.ShouldBe(0);
+        using var doc = JsonDocument.Parse(stdout);
+        doc.RootElement.ValueKind.ShouldBe(JsonValueKind.Array);
+        var deltas = doc.RootElement.EnumerateArray().ToList();
+        deltas.ShouldNotBeEmpty();
+        var changed = deltas.ShouldHaveSingleItem();
+        (changed.GetProperty("fqn").GetString() ?? "").ShouldContain("Gadget");
+        changed.GetProperty("status").GetString().ShouldBe("Changed");
+        // kind is the readable enum name, not its integer ordinal.
+        changed.GetProperty("kind").GetString().ShouldBe("Method");
+    }
+
+    [Fact]
+    public async Task json_output_with_no_semantic_changes_emits_an_empty_array()
+    {
+        var git = new RecordingGitClient
+        {
+            WorkingTreeChangedPaths = ["Gadget.cs"],
+            FilesAtRef = { ["HEAD:Gadget.cs"] = "class Gadget { void M() { } }" },
+            WorkingTreeFiles = { ["Gadget.cs"] = "class    Gadget {\n   void M() {  }\n}" },
+        };
+
+        var (exit, stdout, _) = await InvokeAsync(["analyze", "semantic-diff", "--json"], git);
+
+        exit.ShouldBe(0);
+        using var doc = JsonDocument.Parse(stdout);
+        doc.RootElement.ValueKind.ShouldBe(JsonValueKind.Array);
+        doc.RootElement.GetArrayLength().ShouldBe(0);
     }
 
     [Fact]
