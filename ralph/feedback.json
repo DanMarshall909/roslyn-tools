@@ -120,7 +120,7 @@
       "description": "Parallel read-only rt analyses can emit MSBuild obj file lock warnings because workspace loading writes shared obj/Debug files; an agent-friendly mode should avoid or isolate generated state for concurrent analysis runs.",
       "expectedResult": "Read-only commands such as analyze find-duplicates, complexity, list-smells, and static-class-inventory can run concurrently without MSBuild cache write conflicts, or rt documents/enforces serialization when workspace state cannot be isolated.",
       "status": "processed",
-      "processedAt": "2026-05-28T18:35:00+10:00",
+      "processedAt": "2026-05-28T18:35:00\u002B10:00",
       "resolution": "WorkspaceLoader now serializes MSBuildWorkspace.OpenSolutionAsync through a process-wide async gate so concurrent read-only rt analyses do not race shared MSBuild obj/bin state during solution load."
     },
     {
@@ -6757,6 +6757,24 @@
       "rtVersion": "1.0.0\u002Bfcb557c56bd91f230eab2ccce2ef86d89899289e",
       "dotnetVersion": "10.0.5",
       "osPlatform": "Microsoft Windows 10.0.26200"
+    },
+    {
+      "id": "FB-362",
+      "type": "user-feedback",
+      "timestamp": "2026-06-08T07:14:52.9441275\u002B00:00",
+      "commandLine": "rt refactor extract-class --type SemanticDiffService --members Collect,Walk,MemberFqn,Join,NameWithArity,TypeKind,StripWhitespace --new-type DeclarationWalker --static --solution RoslynTools.slnx --dry-run",
+      "description": "extract-class mangles indentation of moved method bodies (flattens nested blocks to a single 4-space indent), cannot move nested types (e.g. a private record used by the moved methods), and leaves moved members \u0027private\u0027 in the new class so cross-class callers cannot reach them. For a verbatim refactor-extraction (zero source drift required) this is unusable: the flattened bodies fail dotnet format and risk character drift in load-bearing strings.",
+      "expectedResult": "Moved members keep their original indentation verbatim; a flag (or auto-detection) promotes cross-class-called members to internal/public; nested types named in --members (or referenced by moved members) are moved too.",
+      "status": "pending"
+    },
+    {
+      "id": "FB-363",
+      "type": "user-feedback",
+      "timestamp": "2026-06-08T07:15:02.0565027\u002B00:00",
+      "commandLine": "rt inspect find-refs --symbol Collect --solution RoslynTools.slnx",
+      "description": "find-refs --symbol Collect crashes with \u0027Unbalanced markup stack. Did you forget to close a tag?\u0027 when multiple symbols match and the disambiguation prompt renders candidate signatures containing Spectre.Console markup metacharacters (e.g. generic type args with brackets). The candidate text must be markup-escaped before being written to the prompt.",
+      "expectedResult": "Disambiguation prompt lists all matching Collect overloads without a Spectre markup parse error.",
+      "status": "pending"
     }
   ]
 }

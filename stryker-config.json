@@ -17,6 +17,7 @@
       "**/Services/DebugTraceAnalyzerService.cs",
       "**/Services/ImportDirectiveService.cs",
       "**/Services/SemanticDiff/SemanticDiffService.cs",
+      "**/Services/SemanticDiff/DeclarationWalker.cs",
       "**/Commands/AddStaticImportCommand.cs",
       "**/Models/DebugReport.cs",
       "**/RoslynTools.Cli/App.cs",
