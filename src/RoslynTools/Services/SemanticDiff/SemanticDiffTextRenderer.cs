@@ -60,7 +60,9 @@ internal sealed class SemanticDiffTextRenderer : IRtService
         var afterDecls = DeclarationWalker.Collect(after);
 
         var sb = new StringBuilder();
-        foreach (var delta in result.Deltas)
+        // IsSurfaced is the single source of truth (shared with the JSON projection) for which
+        // deltas are worth showing: everything except same-path Unchanged bookkeeping.
+        foreach (var delta in result.Deltas.Where(SemanticDiffDelta.IsSurfaced))
             RenderDelta(sb, delta, beforeDecls, afterDecls);
 
         return sb.Length == 0 ? NoChanges : sb.ToString().TrimEnd('\n');
@@ -118,15 +120,12 @@ internal sealed class SemanticDiffTextRenderer : IRtService
 
             case DeclarationStatus.Unchanged:
                 {
-                    // Same-path Unchanged is silent; a path change is a relocation note, never
-                    // a delete+add pair.
-                    if (delta.OldPath != delta.NewPath)
-                    {
-                        sb.Append(
-                            CultureInfo.InvariantCulture,
-                            $"> Moved    {kind} {delta.Fqn}   {delta.OldPath} -> {delta.NewPath}\n\n");
-                    }
-
+                    // Only path-changed Unchanged deltas reach here — same-path bookkeeping is
+                    // filtered out by IsSurfaced before RenderDelta is called — so this is always
+                    // a relocation note, never a delete+add pair.
+                    sb.Append(
+                        CultureInfo.InvariantCulture,
+                        $"> Moved    {kind} {delta.Fqn}   {delta.OldPath} -> {delta.NewPath}\n\n");
                     break;
                 }
         }
