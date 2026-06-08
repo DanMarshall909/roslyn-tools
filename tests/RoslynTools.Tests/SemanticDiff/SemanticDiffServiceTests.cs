@@ -481,6 +481,191 @@ public sealed class SemanticDiffServiceTests
     }
 
     [Fact]
+    public void a_method_with_a_genuinely_different_body_on_both_sides_is_changed_with_both_paths()
+    {
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                public int Compute(int x) => x + 1;
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class A
+            {
+                public int Compute(int x) => x * 2;
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("before.cs", before)],
+            after: [Source("after.cs", after)]));
+
+        var method = result.Deltas.Single(d => d.Fqn == "Acme.A.Compute(int)");
+        method.Status.ShouldBe(DeclarationStatus.Changed);
+        method.OldPath.ShouldBe("before.cs");
+        method.NewPath.ShouldBe("after.cs");
+
+        // No bubble-up: the containing type stays Unchanged (type-header comparison
+        // is deferred to a later cycle). A member edit must not mark the type Changed.
+        var type = result.Deltas.Single(d => d.Fqn == "Acme.A");
+        type.Status.ShouldBe(DeclarationStatus.Unchanged);
+    }
+
+    [Fact]
+    public void two_bodies_with_the_same_structure_but_different_identifiers_and_literals_are_changed()
+    {
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                public int Compute(int a) => a + 1;
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class A
+            {
+                public int Compute(int b) => b + 2;
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("a.cs", before)],
+            after: [Source("a.cs", after)]));
+
+        var method = result.Deltas.Single(d => d.Fqn == "Acme.A.Compute(int)");
+        method.Status.ShouldBe(DeclarationStatus.Changed);
+    }
+
+    [Fact]
+    public void a_member_differing_only_in_comments_is_unchanged()
+    {
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                public int Compute(int x) => x + 1;
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class A
+            {
+                /// <summary>Adds one.</summary>
+                // line comment
+                public int Compute(int x) => x + 1 /* trailing */;
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("a.cs", before)],
+            after: [Source("a.cs", after)]));
+
+        var method = result.Deltas.Single(d => d.Fqn == "Acme.A.Compute(int)");
+        method.Status.ShouldBe(DeclarationStatus.Unchanged);
+    }
+
+    [Fact]
+    public void a_member_differing_only_in_whitespace_and_brace_style_is_unchanged()
+    {
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                public int Compute(int x)
+                {
+                    return x + 1;
+                }
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class A
+            {
+                public int Compute(int x) {
+                        return x   +   1; }
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("a.cs", before)],
+            after: [Source("a.cs", after)]));
+
+        var method = result.Deltas.Single(d => d.Fqn == "Acme.A.Compute(int)");
+        method.Status.ShouldBe(DeclarationStatus.Unchanged);
+    }
+
+    [Fact]
+    public void a_member_with_an_equivalent_body_moved_to_a_different_path_is_unchanged_with_both_paths()
+    {
+        const string text = """
+            namespace Acme;
+
+            public class A
+            {
+                public int Compute(int x) => x + 1;
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("old/A.cs", text)],
+            after: [Source("new/A.cs", text)]));
+
+        var method = result.Deltas.Single(d => d.Fqn == "Acme.A.Compute(int)");
+        method.Status.ShouldBe(DeclarationStatus.Unchanged);
+        method.OldPath.ShouldBe("old/A.cs");
+        method.NewPath.ShouldBe("new/A.cs");
+        method.OldPath.ShouldNotBe(method.NewPath);
+    }
+
+    [Fact]
+    public void a_member_moved_to_a_different_path_and_edited_is_changed_with_distinct_paths()
+    {
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                public int Compute(int x) => x + 1;
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class A
+            {
+                public int Compute(int x) => x * 2;
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("old/A.cs", before)],
+            after: [Source("new/A.cs", after)]));
+
+        var method = result.Deltas.Single(d => d.Fqn == "Acme.A.Compute(int)");
+        method.Status.ShouldBe(DeclarationStatus.Changed);
+        method.OldPath.ShouldBe("old/A.cs");
+        method.NewPath.ShouldBe("new/A.cs");
+        method.OldPath.ShouldNotBe(method.NewPath);
+    }
+
+    [Fact]
     public void deltas_are_ordered_deterministically_by_fqn()
     {
         const string text = """
