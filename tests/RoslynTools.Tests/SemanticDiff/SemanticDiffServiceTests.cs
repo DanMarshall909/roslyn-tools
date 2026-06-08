@@ -422,6 +422,65 @@ public sealed class SemanticDiffServiceTests
     }
 
     [Fact]
+    public void a_request_exposes_options_that_default_to_not_ignoring_accessibility()
+    {
+        // AC6 (smoke): the options seam exists, defaults are safe, and a request is
+        // constructible without specifying options. IgnoreAccessibility logic is a
+        // later cycle — here we only assert the contract is present and wired.
+        var defaultOptions = new SemanticDiffOptions();
+        defaultOptions.IgnoreAccessibility.ShouldBeFalse();
+        defaultOptions.DetectRenames.ShouldBeTrue();
+
+        var request = Request(before: [], after: []);
+        request.Options.ShouldNotBeNull();
+        request.Options.IgnoreAccessibility.ShouldBeFalse();
+        request.Options.DetectRenames.ShouldBeTrue();
+
+        var customised = request with { Options = new SemanticDiffOptions { IgnoreAccessibility = true } };
+        customised.Options.IgnoreAccessibility.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void renamed_is_a_defined_status_member_reserved_for_a_later_cycle()
+    {
+        // AC6 (smoke): Renamed is part of the contract now so serializers are stable,
+        // even though the rename post-pass that produces it lands in a later cycle.
+        System.Enum.IsDefined(DeclarationStatus.Renamed).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void delta_exposes_old_and_new_fqn_identity_left_null_until_rename_pairing_lands()
+    {
+        // The delta carries OldFqn/NewFqn so a later cycle's rename post-pass can
+        // record old->new identity on a single Renamed delta. This foundational
+        // cycle never produces a Renamed delta, so the fields stay null for every
+        // added / removed / unchanged delta — the contract exists, the value does not.
+        const string before = """
+            namespace Acme;
+
+            public class Gone { }
+            public class Stable { }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class Fresh { }
+            public class Stable { }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("before.cs", before)],
+            after: [Source("after.cs", after)]));
+
+        foreach (var delta in result.Deltas)
+        {
+            delta.OldFqn.ShouldBeNull();
+            delta.NewFqn.ShouldBeNull();
+        }
+    }
+
+    [Fact]
     public void deltas_are_ordered_deterministically_by_fqn()
     {
         const string text = """
