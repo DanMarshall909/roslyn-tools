@@ -1964,4 +1964,232 @@ public sealed class SemanticDiffServiceTests
         result.Deltas.ShouldContain(d => d.Kind == DeclarationKind.Operator && d.Status == DeclarationStatus.Removed);
         result.Deltas.ShouldContain(d => d.Kind == DeclarationKind.Operator && d.Status == DeclarationStatus.Added);
     }
+
+    // ----- US-121 fix: per-declarator nodes for multi-variable fields/events -----
+
+    [Fact]
+    public void an_unedited_declarator_in_a_multi_variable_field_stays_unchanged_when_a_sibling_declarator_is_replaced()
+    {
+        // `int a, b;` -> `int a, c;`. The byte-identical declarator `a` must be
+        // Unchanged: it is its OWN single-variable node now, so it never compares
+        // against `b`/`c`. Before the fix every declarator carried the whole
+        // `int a, b` node, so `a` compared `int a,b` vs `int a,c` and reported a
+        // FALSE Changed. This `a`-is-Unchanged assertion is the defect's signature.
+        //
+        // The dropped `b` and the new `c` are empty-bodied fields of the same kind,
+        // so the rename post-pass (on by default) pairs them as a single Renamed
+        // delta — the same accepted trivial-body pairing as a lone field rename.
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                public int a, b;
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class A
+            {
+                public int a, c;
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("before.cs", before)],
+            after: [Source("after.cs", after)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.A.a").Status.ShouldBe(DeclarationStatus.Unchanged);
+
+        var renamed = result.Deltas.Single(d => d.Status == DeclarationStatus.Renamed);
+        renamed.OldFqn.ShouldBe("Acme.A.b");
+        renamed.NewFqn.ShouldBe("Acme.A.c");
+
+        // The false Renamed of the byte-identical `a` must never appear.
+        result.Deltas.ShouldNotContain(d => d.Fqn == "Acme.A.a" && d.Status == DeclarationStatus.Renamed);
+    }
+
+    [Fact]
+    public void dropping_and_adding_declarators_in_a_multi_variable_field_are_distinct_when_rename_detection_is_off()
+    {
+        // The same `int a, b;` -> `int a, c;` edit, but with rename detection off so
+        // the trivial-body pairing does not fire. `a` is Unchanged; `b` is Removed;
+        // `c` is Added — each declarator classified on its own single-variable node.
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                public int a, b;
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class A
+            {
+                public int a, c;
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(new SemanticDiffRequest(
+            [Source("before.cs", before)],
+            [Source("after.cs", after)],
+            new SemanticDiffOptions(DetectRenames: false)));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.A.a").Status.ShouldBe(DeclarationStatus.Unchanged);
+        result.Deltas.Single(d => d.Fqn == "Acme.A.b").Status.ShouldBe(DeclarationStatus.Removed);
+        result.Deltas.Single(d => d.Fqn == "Acme.A.c").Status.ShouldBe(DeclarationStatus.Added);
+    }
+
+    [Fact]
+    public void changing_the_type_of_one_declarator_leaves_the_other_declarator_unchanged()
+    {
+        // `int a, b;` -> `int a; long b;`. Declarator `a` keeps type `int` on both
+        // sides and is Unchanged; declarator `b` changes from `int` to `long` and is
+        // Changed. Without per-declarator nodes, `a` would compare `int a,b` vs
+        // `int a` and falsely report Changed.
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                public int a, b;
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class A
+            {
+                public int a;
+                public long b;
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("before.cs", before)],
+            after: [Source("after.cs", after)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.A.a").Status.ShouldBe(DeclarationStatus.Unchanged);
+        result.Deltas.Single(d => d.Fqn == "Acme.A.b").Status.ShouldBe(DeclarationStatus.Changed);
+    }
+
+    [Fact]
+    public void a_multi_variable_field_with_no_change_reports_every_declarator_unchanged()
+    {
+        // Regression of the both-sides comma-field test, now asserting Unchanged
+        // (not merely present): each declarator's own single-variable node compares
+        // equal to itself.
+        const string text = """
+            namespace Acme;
+
+            public class A
+            {
+                public int x, y;
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("a.cs", text)],
+            after: [Source("a.cs", text)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.A.x").Status.ShouldBe(DeclarationStatus.Unchanged);
+        result.Deltas.Single(d => d.Fqn == "Acme.A.y").Status.ShouldBe(DeclarationStatus.Unchanged);
+    }
+
+    [Fact]
+    public void a_multi_variable_event_field_with_no_change_reports_every_declarator_unchanged()
+    {
+        // The event-field mirror of the field regression: `event EventHandler X, Y;`
+        // yields one Unchanged delta per declarator, each on its own single-variable
+        // event node.
+        const string text = """
+            namespace Acme;
+
+            public class A
+            {
+                public event System.EventHandler X, Y;
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("a.cs", text)],
+            after: [Source("a.cs", text)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.A.X").Status.ShouldBe(DeclarationStatus.Unchanged);
+        result.Deltas.Single(d => d.Fqn == "Acme.A.Y").Status.ShouldBe(DeclarationStatus.Unchanged);
+    }
+
+    [Fact]
+    public void changing_one_declarator_in_a_multi_variable_event_field_leaves_the_other_unchanged()
+    {
+        // `event EventHandler X, Y;` -> `event Action X, Y;` for X only is not
+        // expressible in one declaration, so flip the type of the whole field but
+        // keep one declarator removed/re-added: here X keeps its type and Y is
+        // dropped, proving per-declarator isolation for event fields.
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                public event System.EventHandler X, Y;
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class A
+            {
+                public event System.EventHandler X;
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(new SemanticDiffRequest(
+            [Source("before.cs", before)],
+            [Source("after.cs", after)],
+            new SemanticDiffOptions(DetectRenames: false)));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.A.X").Status.ShouldBe(DeclarationStatus.Unchanged);
+        result.Deltas.Single(d => d.Fqn == "Acme.A.Y").Status.ShouldBe(DeclarationStatus.Removed);
+    }
+
+    [Fact]
+    public void a_generic_arity_change_is_reported_as_remove_plus_add_not_a_rename()
+    {
+        // Bug 2 (documented limitation): arity is part of the FQN key, so `Box`1` and
+        // `Box`2` are different keys. NormalizeIdentifier blanks only the identifier
+        // token, never the type-parameter list, so `class <><T>` and `class <><T,U>`
+        // are not equivalent-modulo-name and never pair as a rename.
+        const string before = """
+            namespace Acme;
+
+            public class Box<T>
+            {
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class Box<T, U>
+            {
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("before.cs", before)],
+            after: [Source("after.cs", after)]));
+
+        result.Deltas.Single(d => d.Fqn == "Acme.Box`1").Status.ShouldBe(DeclarationStatus.Removed);
+        result.Deltas.Single(d => d.Fqn == "Acme.Box`2").Status.ShouldBe(DeclarationStatus.Added);
+        result.Deltas.ShouldNotContain(d => d.Status == DeclarationStatus.Renamed);
+    }
 }
