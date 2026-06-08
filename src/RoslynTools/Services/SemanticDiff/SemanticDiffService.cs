@@ -41,7 +41,7 @@ internal sealed class SemanticDiffService : IRtService
                 // coverage: the Changed arm is unreachable this cycle because the
                 // BodiesEquivalent seam is hard-wired to true; a later story that
                 // implements real body comparison will exercise it.
-                status = BodiesEquivalent(oldDecl!.Node, newDecl!.Node)
+                status = BodiesEquivalent(oldDecl!.Node, newDecl!.Node, request.Options)
                     ? DeclarationStatus.Unchanged
                     : DeclarationStatus.Changed;
             else if (inAfter)
@@ -67,9 +67,13 @@ internal sealed class SemanticDiffService : IRtService
     /// <summary>
     ///     Seam for body-equality. The foundational cycle treats any declaration
     ///     present on both sides as unchanged; a later story replaces this with a
-    ///     real comparison (e.g. <c>a.IsEquivalentTo(b, topLevel: false)</c>).
+    ///     real comparison (e.g. <c>a.IsEquivalentTo(b, topLevel: false)</c>) and
+    ///     consults <paramref name="opts" /> (e.g. <see cref="SemanticDiffOptions.IgnoreAccessibility" />).
+    ///     The <paramref name="opts" /> parameter is part of the seam now — even
+    ///     though it is unused this cycle — so the later story can act on it without
+    ///     changing this signature.
     /// </summary>
-    private bool BodiesEquivalent(SyntaxNode a, SyntaxNode b) => true;
+    private bool BodiesEquivalent(SyntaxNode a, SyntaxNode b, SemanticDiffOptions opts) => true;
 
     /// <summary>
     ///     Parse every source document and index its declarations by syntactic FQN.
