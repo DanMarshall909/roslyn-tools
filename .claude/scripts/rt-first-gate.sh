@@ -14,14 +14,20 @@ if [[ "$fp" != *.cs ]]; then
   exit 0
 fi
 
-basename=$(basename "$fp" .cs)
-log=/c/temp/rt-inspected.log
+# Strip the directory (handle BOTH / and \ separators — Windows tool paths use
+# backslashes, and `basename` only splits on /), then the .cs suffix, so we match
+# on the bare filename. Matching the bare name (not the full path) makes the gate
+# independent of drive-letter / path case (FB-364/FB-365).
+fname="${fp##*/}"       # strip up to the last forward slash
+fname="${fname##*\\}"   # strip up to the last backslash
+basename="${fname%.cs}"
+log="${RT_INSPECTED_LOG:-/c/temp/rt-inspected.log}"
 
 # Bypass if rt build is known broken. rt.ps1 writes /c/temp/rt-build-status
 # on every invocation: 'ok' on success, 'broken' on rebuild failure. Without
 # this bypass, a broken build would lock the agent out of the very files it
 # needs to read to fix the build.
-status_marker=/c/temp/rt-build-status
+status_marker="${RT_BUILD_STATUS_MARKER:-/c/temp/rt-build-status}"
 if [[ -f "$status_marker" ]] && [[ "$(cat "$status_marker" 2>/dev/null)" == "broken" ]]; then
   jq -nc --arg msg "rt-first gate bypassed: rt build is broken (per $status_marker). Fix the build, then run any rt command to clear the marker." \
     '{hookSpecificOutput: {hookEventName: "PreToolUse", additionalContext: $msg}}'
@@ -36,7 +42,7 @@ if [[ "$tool_name" == "Write" ]]; then
 fi
 
 # If the basename appears in the last 50 logged rt-inspect commands, allow with reminder.
-if [[ -f "$log" ]] && tail -n 50 "$log" 2>/dev/null | grep -qF "$basename"; then
+if [[ -f "$log" ]] && tail -n 50 "$log" 2>/dev/null | grep -qiF "$basename"; then
   jq -nc --arg msg "rt-first reminder: prefer rt for C# files. inspect outline <file> for structure, inspect describe <FQN> for symbols, inspect find-refs --symbol X for callers, refactor rename/move/extract-method/inline-method for mutations. If rt has a gap, log via /task to ralph/backlog-prd.json before falling back to manual Read/Edit." \
     '{hookSpecificOutput: {hookEventName: "PreToolUse", additionalContext: $msg}}'
   exit 0
