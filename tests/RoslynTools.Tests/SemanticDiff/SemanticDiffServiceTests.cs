@@ -1717,4 +1717,251 @@ public sealed class SemanticDiffServiceTests
         result.Deltas.ShouldNotContain(d => d.Status == DeclarationStatus.Added);
         result.Deltas.ShouldNotContain(d => d.Status == DeclarationStatus.Removed);
     }
+
+    [Fact]
+    public void a_renamed_property_with_an_identical_body_is_one_renamed_delta()
+    {
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                public int Foo => 0;
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class A
+            {
+                public int Bar => 0;
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("before.cs", before)],
+            after: [Source("after.cs", after)]));
+
+        var renamed = result.Deltas.Single(d => d.Kind == DeclarationKind.Property);
+        renamed.Status.ShouldBe(DeclarationStatus.Renamed);
+        renamed.OldFqn.ShouldBe("Acme.A.Foo");
+        renamed.NewFqn.ShouldBe("Acme.A.Bar");
+    }
+
+    [Fact]
+    public void a_renamed_field_with_an_identical_type_is_one_renamed_delta()
+    {
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                public int foo;
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class A
+            {
+                public int bar;
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("before.cs", before)],
+            after: [Source("after.cs", after)]));
+
+        var renamed = result.Deltas.Single(d => d.Kind == DeclarationKind.Field);
+        renamed.Status.ShouldBe(DeclarationStatus.Renamed);
+        renamed.OldFqn.ShouldBe("Acme.A.foo");
+        renamed.NewFqn.ShouldBe("Acme.A.bar");
+    }
+
+    [Fact]
+    public void a_renamed_field_form_event_with_an_identical_type_is_one_renamed_delta()
+    {
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                public event System.Action Foo;
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class A
+            {
+                public event System.Action Bar;
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("before.cs", before)],
+            after: [Source("after.cs", after)]));
+
+        var renamed = result.Deltas.Single(d => d.Kind == DeclarationKind.Event);
+        renamed.Status.ShouldBe(DeclarationStatus.Renamed);
+        renamed.OldFqn.ShouldBe("Acme.A.Foo");
+        renamed.NewFqn.ShouldBe("Acme.A.Bar");
+    }
+
+    [Fact]
+    public void a_renamed_declaration_form_event_with_identical_accessors_is_one_renamed_delta()
+    {
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                public event System.Action Foo { add { } remove { } }
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class A
+            {
+                public event System.Action Bar { add { } remove { } }
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("before.cs", before)],
+            after: [Source("after.cs", after)]));
+
+        var renamed = result.Deltas.Single(d => d.Kind == DeclarationKind.Event);
+        renamed.Status.ShouldBe(DeclarationStatus.Renamed);
+        renamed.OldFqn.ShouldBe("Acme.A.Foo");
+        renamed.NewFqn.ShouldBe("Acme.A.Bar");
+    }
+
+    [Fact]
+    public void a_renamed_delegate_with_an_identical_signature_is_one_renamed_delta()
+    {
+        const string before = """
+            namespace Acme;
+
+            public delegate void Foo(int x);
+            """;
+        const string after = """
+            namespace Acme;
+
+            public delegate void Bar(int x);
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("before.cs", before)],
+            after: [Source("after.cs", after)]));
+
+        var renamed = result.Deltas.Single(d => d.Kind == DeclarationKind.Delegate);
+        renamed.Status.ShouldBe(DeclarationStatus.Renamed);
+        renamed.OldFqn.ShouldBe("Acme.Foo");
+        renamed.NewFqn.ShouldBe("Acme.Bar");
+    }
+
+    [Fact]
+    public void a_renamed_enum_with_identical_members_is_one_renamed_delta()
+    {
+        const string before = """
+            namespace Acme;
+
+            public enum Foo { One, Two }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public enum Bar { One, Two }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("before.cs", before)],
+            after: [Source("after.cs", after)]));
+
+        var renamed = result.Deltas.Single(d => d.Kind == DeclarationKind.Enum);
+        renamed.Status.ShouldBe(DeclarationStatus.Renamed);
+        renamed.OldFqn.ShouldBe("Acme.Foo");
+        renamed.NewFqn.ShouldBe("Acme.Bar");
+    }
+
+    [Fact]
+    public void renaming_a_type_cascades_its_constructor_to_a_renamed_delta()
+    {
+        // A ctor's identifier IS the type name, so a ctor rename can only ride a type
+        // rename. The input produces a Renamed type AND a Renamed ctor (the documented
+        // member-cascade behaviour). Covers the ConstructorDeclarationSyntax arm.
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                public A() { }
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class B
+            {
+                public B() { }
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("before.cs", before)],
+            after: [Source("after.cs", after)]));
+
+        var renamedCtor = result.Deltas.Single(d => d.Kind == DeclarationKind.Constructor);
+        renamedCtor.Status.ShouldBe(DeclarationStatus.Renamed);
+        renamedCtor.OldFqn.ShouldBe("Acme.A.A()");
+        renamedCtor.NewFqn.ShouldBe("Acme.B.B()");
+
+        var renamedType = result.Deltas.Single(d => d.Kind == DeclarationKind.Class);
+        renamedType.Status.ShouldBe(DeclarationStatus.Renamed);
+    }
+
+    [Fact]
+    public void indexers_and_operators_are_never_paired_as_renames()
+    {
+        // Indexers (named `this`) and operators (keyed on a token, not a name) have no
+        // renameable own-name, so an apparent "rename" of either stays Added + Removed.
+        const string before = """
+            namespace Acme;
+
+            public class A
+            {
+                public int this[int i] => i;
+                public static A operator +(A x, A y) => x;
+            }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class A
+            {
+                public int this[string s] => 0;
+                public static A operator -(A x, A y) => x;
+            }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("before.cs", before)],
+            after: [Source("after.cs", after)]));
+
+        result.Deltas.ShouldNotContain(d => d.Status == DeclarationStatus.Renamed);
+        result.Deltas.ShouldContain(d => d.Kind == DeclarationKind.Indexer && d.Status == DeclarationStatus.Removed);
+        result.Deltas.ShouldContain(d => d.Kind == DeclarationKind.Indexer && d.Status == DeclarationStatus.Added);
+        result.Deltas.ShouldContain(d => d.Kind == DeclarationKind.Operator && d.Status == DeclarationStatus.Removed);
+        result.Deltas.ShouldContain(d => d.Kind == DeclarationKind.Operator && d.Status == DeclarationStatus.Added);
+    }
 }

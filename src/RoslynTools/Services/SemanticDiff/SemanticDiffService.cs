@@ -60,7 +60,107 @@ internal sealed class SemanticDiffService : IRtService
                 NewPath: inAfter ? newDecl!.Path : null));
         }
 
+        if (request.Options.DetectRenames)
+            deltas = DetectRenames(deltas, before, after, request.Options);
+
         return new SemanticDiffResult(deltas);
+    }
+
+    /// <summary>
+    ///     Post-pass that collapses pairs of Added/Removed declarations that are a pure
+    ///     rename (same <see cref="DeclarationKind" />, bodies equivalent ignoring their
+    ///     own name) into a single <see cref="DeclarationStatus.Renamed" /> delta.
+    ///     <para>
+    ///         <b>Pairing is greedy and deterministic.</b> Removed declarations are
+    ///         considered in Ordinal FQN order; for each, the first not-yet-paired Added
+    ///         declaration — also iterated in Ordinal FQN order — of the same kind whose
+    ///         body is equivalent-modulo-name is taken. Each Added pairs at most one
+    ///         Removed; leftovers keep their original Added / Removed status. Two trivially
+    ///         identical bodies (e.g. two <c>=&gt; 0</c> methods) can mis-pair, which is an
+    ///         accepted, fully deterministic v1 behaviour.
+    ///     </para>
+    ///     <para>
+    ///         <b>v1 limitation.</b> Only pure renames pair: a name change combined with a
+    ///         body change is not equivalent-modulo-name, so it stays Added + Removed.
+    ///     </para>
+    ///     <para>
+    ///         <b>Member cascade on a type rename.</b> Pairing is independent per kind, so
+    ///         when a type is renamed its members — which key under the new type FQN — are
+    ///         not Added/Removed at all (their FQN is present on both sides via the new
+    ///         name only if the type kept its name; on a true type rename the members'
+    ///         FQNs change too and they appear as their own Added/Removed pairs). Each such
+    ///         member pair is evaluated on its own merits: an unchanged-body member cascades
+    ///         to its own Renamed delta, a changed-body member stays Added + Removed. The
+    ///         containing type's Renamed delta does not suppress or force its members'
+    ///         classification.
+    ///     </para>
+    /// </summary>
+    private static List<DeclarationDelta> DetectRenames(
+        List<DeclarationDelta> deltas,
+        Dictionary<string, DeclEntry> before,
+        Dictionary<string, DeclEntry> after,
+        SemanticDiffOptions opts)
+    {
+        var removed = deltas
+            .Where(d => d.Status == DeclarationStatus.Removed && IsRenameable(d.Kind))
+            .OrderBy(d => d.Fqn, StringComparer.Ordinal)
+            .ToList();
+        var added = deltas
+            .Where(d => d.Status == DeclarationStatus.Added && IsRenameable(d.Kind))
+            .OrderBy(d => d.Fqn, StringComparer.Ordinal)
+            .ToList();
+
+        // Fqn -> the paired counterpart, recorded so the rebuild can drop both originals
+        // and emit one Renamed delta in their place.
+        var pairedRemovedToAdded = new Dictionary<string, DeclarationDelta>(StringComparer.Ordinal);
+        var pairedAddedFqns = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var rem in removed)
+        {
+            foreach (var add in added)
+            {
+                if (pairedAddedFqns.Contains(add.Fqn) || add.Kind != rem.Kind)
+                    continue;
+
+                if (!AreEquivalent(before[rem.Fqn].Node, after[add.Fqn].Node, opts, normalizeIdentifier: true))
+                    continue;
+
+                pairedRemovedToAdded[rem.Fqn] = add;
+                pairedAddedFqns.Add(add.Fqn);
+                break;
+            }
+        }
+
+        if (pairedRemovedToAdded.Count == 0)
+            return deltas;
+
+        var result = new List<DeclarationDelta>(deltas.Count);
+        foreach (var delta in deltas)
+        {
+            // Drop the Added half of every pair; it is re-emitted via its Removed half.
+            if (delta.Status == DeclarationStatus.Added && pairedAddedFqns.Contains(delta.Fqn))
+                continue;
+
+            // Replace the Removed half with a single Renamed delta keyed on the new FQN.
+            if (delta.Status == DeclarationStatus.Removed
+                && pairedRemovedToAdded.TryGetValue(delta.Fqn, out var add))
+            {
+                result.Add(new DeclarationDelta(
+                    Fqn: add.Fqn,
+                    Kind: add.Kind,
+                    Status: DeclarationStatus.Renamed,
+                    OldPath: delta.OldPath,
+                    NewPath: add.NewPath,
+                    OldFqn: delta.Fqn,
+                    NewFqn: add.Fqn));
+                continue;
+            }
+
+            result.Add(delta);
+        }
+
+        result.Sort(static (x, y) => string.CompareOrdinal(x.Fqn, y.Fqn));
+        return result;
     }
 
     /// <summary>
@@ -98,26 +198,130 @@ internal sealed class SemanticDiffService : IRtService
     ///     modifier change still reports Changed, and a genuine body difference is never
     ///     masked. With the flag off (default) the operands are untouched.
     /// </summary>
-    private static bool BodiesEquivalent(SyntaxNode a, SyntaxNode b, SemanticDiffOptions opts)
+    private static bool BodiesEquivalent(SyntaxNode a, SyntaxNode b, SemanticDiffOptions opts) =>
+        AreEquivalent(a, b, opts, normalizeIdentifier: false);
+
+    /// <summary>
+    ///     Equality for a pair of declarations after <see cref="Canonicalize" /> has put
+    ///     both through the same trivia / type-header-shell / accessibility rules. When
+    ///     <paramref name="normalizeIdentifier" /> is <c>true</c> the declaration's own
+    ///     name is also blanked, so the comparison answers "equivalent modulo own name" —
+    ///     the predicate the rename post-pass pairs on. The Changed path passes
+    ///     <c>false</c>; the rename path passes <c>true</c>. Both share one comparison so
+    ///     the shell-strip and accessibility-strip rules can never drift between them.
+    /// </summary>
+    private static bool AreEquivalent(SyntaxNode a, SyntaxNode b, SemanticDiffOptions opts, bool normalizeIdentifier) =>
+        Canonicalize(a, opts, normalizeIdentifier)
+            .IsEquivalentTo(Canonicalize(b, opts, normalizeIdentifier), topLevel: false);
+
+    /// <summary>
+    ///     Produce the comparison-ready form of <paramref name="node" />:
+    ///     <list type="number">
+    ///         <item>
+    ///             For a type (class / struct / record / interface) or enum, strip the
+    ///             member list (<c>WithMembers(default)</c>) so only the header shell is
+    ///             compared — a member edit does not bubble up into the containing type.
+    ///             A delegate or member keeps its whole node (a delegate signature IS its
+    ///             header). Each branch gates on the node's own category, so a category
+    ///             flip (<c>class Foo</c> → <c>enum Foo</c>) falls through unchanged and is
+    ///             later reported not-equivalent rather than throwing.
+    ///         </item>
+    ///         <item>
+    ///             When <paramref name="normalizeIdentifier" /> is set, blank the
+    ///             declaration's own name via <see cref="NormalizeIdentifier" /> so two
+    ///             declarations that differ only in their name canonicalize identically.
+    ///         </item>
+    ///         <item>
+    ///             When <see cref="SemanticDiffOptions.IgnoreAccessibility" /> is set,
+    ///             strip accessibility modifiers from the node's own header. Applied after
+    ///             the shell strip so it targets the type's own modifiers, not the members
+    ///             it would otherwise reach.
+    ///         </item>
+    ///     </list>
+    /// </summary>
+    private static SyntaxNode Canonicalize(SyntaxNode node, SemanticDiffOptions opts, bool normalizeIdentifier)
     {
-        // Class / struct / record / interface: compare the header shell only, with the
-        // member list removed so member edits/adds/removals do not mark the type Changed.
-        // Accessibility is stripped after WithMembers so the strip targets the type's
-        // own header modifiers only (the members it would otherwise reach are gone).
-        if (a is TypeDeclarationSyntax typeA && b is TypeDeclarationSyntax typeB)
-            return StripAccessibility(typeA.WithMembers(default), opts)
-                .IsEquivalentTo(StripAccessibility(typeB.WithMembers(default), opts), topLevel: false);
+        // Step 1: strip the member list for declarations that carry one, so the shell
+        // alone is compared. TypeDeclarationSyntax and EnumDeclarationSyntax both expose
+        // WithMembers; delegates and members fall through with the whole node intact.
+        var shell = node switch
+        {
+            TypeDeclarationSyntax type => type.WithMembers(default),
+            EnumDeclarationSyntax @enum => @enum.WithMembers(default),
+            _ => node,
+        };
 
-        // Enum: same shell-only comparison — enum-member changes are out of scope, but
-        // the enum's own header (e.g. underlying type, attributes) is in scope.
-        if (a is EnumDeclarationSyntax enumA && b is EnumDeclarationSyntax enumB)
-            return StripAccessibility(enumA.WithMembers(default), opts)
-                .IsEquivalentTo(StripAccessibility(enumB.WithMembers(default), opts), topLevel: false);
+        // Step 2 (rename path only): blank the declaration's own name.
+        if (normalizeIdentifier)
+            shell = NormalizeIdentifier(shell);
 
-        // Members and delegates: trivia-insensitive whole-node comparison. A delegate
-        // is a signature with no member list, so the whole node IS its header.
-        return StripAccessibility(a, opts).IsEquivalentTo(StripAccessibility(b, opts), topLevel: false);
+        // Step 3: strip accessibility modifiers when the option is set.
+        return StripAccessibility(shell, opts);
     }
+
+    /// <summary>
+    ///     Blank the declaration's own identifier to a fixed placeholder so two
+    ///     declarations that differ <i>only</i> in their name canonicalize to the same
+    ///     node — the comparison the rename post-pass keys on. The name token lives in a
+    ///     different place per syntax category:
+    ///     <list type="bullet">
+    ///         <item>Types, methods, delegates: the <c>Identifier</c> token.</item>
+    ///         <item>Constructors: the <c>Identifier</c> token (it spells the type name).</item>
+    ///         <item>Properties, declaration-form events: the <c>Identifier</c> token.</item>
+    ///         <item>Fields and field-form events: each variable declarator's identifier.</item>
+    ///     </list>
+    ///     Indexers (named <c>this</c>) and operators (keyed on an operator token, not a
+    ///     name) have no renameable own-name and are returned unchanged — the rename pass
+    ///     never reaches them because it excludes those kinds before comparing.
+    /// </summary>
+    private static SyntaxNode NormalizeIdentifier(SyntaxNode node)
+    {
+        var blank = SyntaxFactory.Identifier(string.Empty);
+        return node switch
+        {
+            TypeDeclarationSyntax type => type.WithIdentifier(blank),
+            EnumDeclarationSyntax @enum => @enum.WithIdentifier(blank),
+            DelegateDeclarationSyntax @delegate => @delegate.WithIdentifier(blank),
+            MethodDeclarationSyntax method => method.WithIdentifier(blank),
+            ConstructorDeclarationSyntax ctor => ctor.WithIdentifier(blank),
+            PropertyDeclarationSyntax prop => prop.WithIdentifier(blank),
+            EventDeclarationSyntax @event => @event.WithIdentifier(blank),
+            FieldDeclarationSyntax field => field.WithDeclaration(BlankDeclarators(field.Declaration)),
+            EventFieldDeclarationSyntax eventField =>
+                eventField.WithDeclaration(BlankDeclarators(eventField.Declaration)),
+
+            // coverage: unreachable through the public API. The rename pass only
+            // normalizes declarations that survived the IsRenameable filter, and every
+            // such kind has an explicit arm above; indexers/operators are excluded before
+            // they reach here. The arm is a defensive identity for any future caller.
+            _ => node,
+        };
+    }
+
+    /// <summary>
+    ///     Blank every variable declarator's name in a field/event-field declaration so
+    ///     the declaration canonicalizes by type and initializer alone. Single-declarator
+    ///     declarations (the rename case) are fully covered; multi-declarator forms are
+    ///     blanked uniformly but are not a targeted rename scenario.
+    /// </summary>
+    private static VariableDeclarationSyntax BlankDeclarators(VariableDeclarationSyntax declaration)
+    {
+        var blanked = declaration.Variables.Select(static v => v.WithIdentifier(SyntaxFactory.Identifier(string.Empty)));
+        return declaration.WithVariables(SyntaxFactory.SeparatedList(blanked));
+    }
+
+    /// <summary>
+    ///     True for declaration kinds that have a renameable own-name and so can take
+    ///     part in rename pairing. Indexers (<c>this</c>) and operators (keyed on an
+    ///     operator/conversion token rather than a name) are excluded — there is no name
+    ///     to rename, so blanking the identifier would mis-pair unrelated members.
+    /// </summary>
+    private static bool IsRenameable(DeclarationKind kind) => kind switch
+    {
+        DeclarationKind.Indexer => false,
+        DeclarationKind.Operator => false,
+        _ => true,
+    };
 
     /// <summary>
     ///     When <see cref="SemanticDiffOptions.IgnoreAccessibility" /> is set, return a
