@@ -6765,7 +6765,8 @@
       "commandLine": "rt refactor extract-class --type SemanticDiffService --members Collect,Walk,MemberFqn,Join,NameWithArity,TypeKind,StripWhitespace --new-type DeclarationWalker --static --solution RoslynTools.slnx --dry-run",
       "description": "extract-class mangles indentation of moved method bodies (flattens nested blocks to a single 4-space indent), cannot move nested types (e.g. a private record used by the moved methods), and leaves moved members \u0027private\u0027 in the new class so cross-class callers cannot reach them. For a verbatim refactor-extraction (zero source drift required) this is unusable: the flattened bodies fail dotnet format and risk character drift in load-bearing strings.",
       "expectedResult": "Moved members keep their original indentation verbatim; a flag (or auto-detection) promotes cross-class-called members to internal/public; nested types named in --members (or referenced by moved members) are moved too.",
-      "status": "pending"
+      "status": "partial",
+      "resolution": "GREEN (2026-06-09): all three reported defects fixed in ExtractClassService. (1) Indentation: BuildNewClassText now emits each member with token text intact (no per-line TrimStart) and re-indents the whole compilation unit via Roslyn Formatter, so nested blocks keep correct depth, verbatim-string interiors are byte-for-byte untouched, and output is `dotnet format`-clean. (2) Access: PromoteMembersReferencedFromOrigin promotes a moved member private->internal only when a member remaining on the origin still references it; internally-only-referenced members keep their modifier. (3) Nested types: a BaseTypeDeclarationSyntax named in --members moves wholesale. 19/20 ExtractClass tests green (all 15 existing + 4 of 5 FB-362 regression tests). PARTIAL because one committed RED test, moved_member_with_verbatim_string_preserves_literal_whitespace, is over-specified: its source verbatim literal has 12 leading spaces (de-indent base = closing-delimiter column 43; line lead 55 -> 12), and byte-for-byte preservation (the test's own stated requirement) yields 12 spaces, but the assertion demands 20. No correct, non-corrupting implementation can produce 20 from a 12-space source literal (injecting 8 spaces into the literal interior would change the runtime string value -- exactly the char-drift bug this suite guards against). The 20 appears copied from the sibling Score test where doubly-nested code lands at 20. Fix is on the test author: change the assertion to 12 (preferred) or deepen the source literal line by 8 spaces. Test was NOT edited per task constraints."
     },
     {
       "id": "FB-363",
@@ -6792,6 +6793,15 @@
       "commandLine": "rt inspect outline c:\\code\\roslyn-tools\\src\\RoslynTools.Mcp\\McpServiceRegistration.cs --solution RoslynTools.slnx  (lowercase c: fails to satisfy gate; uppercase C: works)",
       "description": "ROOT CAUSE of FB-364: the rt-first Read/Edit gate\u0027s session path-tracker is case-sensitive on the Windows drive letter. Outlining \u0027c:\\code\\...\u0027 (lowercase c) did NOT satisfy a later Read of the same file; re-running outline with \u0027C:\\code\\...\u0027 (uppercase C) immediately allowed the Read\u002BEdit. The gate should normalise drive-letter case (and ideally full-path case on Windows) before comparing inspected-paths to the Read target.",
       "expectedResult": "Drive-letter case should not matter; outline with any casing satisfies a subsequent Read of the same file.",
+      "status": "pending"
+    },
+    {
+      "id": "FB-366",
+      "type": "user-feedback",
+      "timestamp": "2026-06-09T00:01:05.7307091\u002B00:00",
+      "commandLine": "rt inspect describe RoslynTools.Services.ExtractClassService --solution RoslynTools.slnx (then Read ExtractClassService.cs -\u003E denied)",
+      "description": "rt-first-gate denies Read/Edit on a .cs file even though its basename was just logged by rt-inspect-log.sh (verified 9 occurrences of \u0027ExtractClassService\u0027 in /c/temp/rt-inspected.log, last line is a fresh \u0027rt inspect describe RoslynTools.Services.ExtractClassService\u0027). The gate\u0027s tail -n 50 | grep -qiF should match but denies. Suspect log path divergence or tail line-window vs multi-line log entries.",
+      "expectedResult": "Read/Edit allowed because basename ExtractClassService is present in last 50 log lines",
       "status": "pending"
     }
   ]

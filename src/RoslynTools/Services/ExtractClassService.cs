@@ -2,7 +2,9 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Formatting;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
@@ -110,7 +112,8 @@ internal class ExtractClassService : IRtService
             ? target.Symbol.ContainingNamespace.ToDisplayString()
             : string.Empty;
 
-        var newClassText = BuildNewClassText(namespaceName, newTypeName, isStatic, selection.Declarations);
+        var membersToEmit = PromoteMembersReferencedFromOrigin(target, selection);
+        var newClassText = BuildNewClassText(namespaceName, newTypeName, isStatic, membersToEmit);
 
         var updatedClassDecl =
             target.Declaration.RemoveNodes(selection.Declarations, SyntaxRemoveOptions.KeepNoTrivia)!;
@@ -215,6 +218,13 @@ internal class ExtractClassService : IRtService
                     declarations.Add(property);
                     foundNames.Add(property.Identifier.Text);
                     AddDeclaredSymbol(symbols, target.SemanticModel.GetDeclaredSymbol(property));
+                    break;
+
+                // A nested type named in --members moves wholesale (FB-362 defect 3).
+                case BaseTypeDeclarationSyntax nestedType when memberNames.Contains(nestedType.Identifier.Text):
+                    declarations.Add(nestedType);
+                    foundNames.Add(nestedType.Identifier.Text);
+                    AddDeclaredSymbol(symbols, target.SemanticModel.GetDeclaredSymbol(nestedType));
                     break;
 
                 case FieldDeclarationSyntax field:
@@ -335,6 +345,69 @@ internal class ExtractClassService : IRtService
             $"Cannot extract '{GetMemberName(member)}' from '{target.Symbol.ToDisplayString(TypeDisplayFormat)}' because it references non-extracted instance member '{unsafeMember.Name}'. Extract that member too or keep '{GetMemberName(member)}' on the source type.";
     }
 
+    /// <summary>
+    /// Returns the selected member declarations to emit into the new type, promoting
+    /// any moved member's <c>private</c> modifier to <c>internal</c> when a member
+    /// that stays on the origin type still references it — otherwise the origin
+    /// could not reach it after the move (FB-362 defect 2). Members referenced only
+    /// by other moved members keep their original access; nothing is over-promoted.
+    /// </summary>
+    internal List<MemberDeclarationSyntax> PromoteMembersReferencedFromOrigin(
+        ResolvedSourceType target,
+        SelectedMembers selection)
+    {
+        // Symbols of selected members that a member remaining on the origin references.
+        var referencedFromOrigin = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+        foreach (var member in target.Declaration.Members)
+        {
+            if (selection.Declarations.Contains(member))
+                continue;
+
+            foreach (var reference in member.DescendantNodes().OfType<SimpleNameSyntax>())
+            {
+                var symbol = target.SemanticModel.GetSymbolInfo(reference).Symbol?.OriginalDefinition;
+                if (symbol is not null && selection.Symbols.Contains(symbol))
+                    referencedFromOrigin.Add(symbol);
+            }
+        }
+
+        var result = new List<MemberDeclarationSyntax>(selection.Declarations.Count);
+        foreach (var member in selection.Declarations)
+        {
+            var declaredSymbol = target.SemanticModel.GetDeclaredSymbol(member)?.OriginalDefinition;
+            if (declaredSymbol is not null &&
+                referencedFromOrigin.Contains(declaredSymbol) &&
+                TryPromotePrivateToInternal(member, out var promoted))
+            {
+                result.Add(promoted);
+            }
+            else
+            {
+                result.Add(member);
+            }
+        }
+
+        return result;
+    }
+
+    private bool TryPromotePrivateToInternal(MemberDeclarationSyntax member, out MemberDeclarationSyntax promoted)
+    {
+        var modifiers = member.Modifiers;
+        var privateToken = modifiers.FirstOrDefault(m => m.IsKind(SyntaxKind.PrivateKeyword));
+        if (privateToken == default)
+        {
+            promoted = member;
+            return false;
+        }
+
+        var internalToken = SyntaxFactory.Token(
+            privateToken.LeadingTrivia,
+            SyntaxKind.InternalKeyword,
+            privateToken.TrailingTrivia);
+        promoted = member.WithModifiers(modifiers.Replace(privateToken, internalToken));
+        return true;
+    }
+
     private async Task<SyntaxNode> InjectExtractedTypeAsync(
         Document updatedDocument,
         INamedTypeSymbol targetSymbol,
@@ -385,6 +458,11 @@ internal class ExtractClassService : IRtService
 
     /// <summary>
     /// Builds new class text based on selected members and other parameters.
+    /// Each member is emitted with its original token text intact (no per-line
+    /// trimming), then the whole compilation unit is re-parsed and re-indented by
+    /// the Roslyn formatter. This keeps nested block bodies correctly indented and
+    /// leaves token interiors — e.g. verbatim string literals — byte-for-byte
+    /// untouched, so the output is idempotent under `dotnet format` (FB-362).
     /// </summary>
     internal string BuildNewClassText(
         string namespaceName,
@@ -394,10 +472,11 @@ internal class ExtractClassService : IRtService
     {
         var sb = new StringBuilder();
 
-        if (!string.IsNullOrEmpty(namespaceName))
+        var hasNamespace = !string.IsNullOrEmpty(namespaceName);
+        if (hasNamespace)
         {
-            sb.AppendLine(CultureInfo.InvariantCulture, $"namespace {namespaceName};");
-            sb.AppendLine();
+            sb.AppendLine(CultureInfo.InvariantCulture, $"namespace {namespaceName}");
+            sb.AppendLine("{");
         }
 
         var staticKeyword = isStatic ? "static " : string.Empty;
@@ -405,20 +484,16 @@ internal class ExtractClassService : IRtService
         sb.AppendLine("{");
 
         foreach (var member in membersToExtract)
-        {
-            var text = member.ToFullString().TrimEnd();
-            foreach (var line in text.Split('\n'))
-            {
-                var trimmedLine = line.TrimEnd('\r');
-                if (string.IsNullOrWhiteSpace(trimmedLine))
-                    sb.AppendLine();
-                else
-                    sb.AppendLine(CultureInfo.InvariantCulture, $"    {trimmedLine.TrimStart()}");
-            }
-        }
+            sb.AppendLine(member.ToFullString().Trim());
 
         sb.AppendLine("}");
-        return sb.ToString();
+        if (hasNamespace)
+            sb.AppendLine("}");
+
+        using var workspace = new AdhocWorkspace();
+        var root = CSharpSyntaxTree.ParseText(sb.ToString()).GetRoot();
+        var formatted = Formatter.Format(root, workspace).ToFullString();
+        return formatted.TrimEnd() + Environment.NewLine;
     }
 
     /// <summary>
@@ -455,6 +530,7 @@ internal class ExtractClassService : IRtService
         {
             MethodDeclarationSyntax method => method.Identifier.Text,
             PropertyDeclarationSyntax property => property.Identifier.Text,
+            BaseTypeDeclarationSyntax type => type.Identifier.Text,
             FieldDeclarationSyntax field => string.Join(", ",
                 field.Declaration.Variables.Select(v => v.Identifier.Text)),
             _ => member.Kind().ToString()
