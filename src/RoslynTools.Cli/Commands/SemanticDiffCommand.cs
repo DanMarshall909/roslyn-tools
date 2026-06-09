@@ -51,7 +51,11 @@ internal sealed class SemanticDiffCommand : IRtCommand, IStructuredOutputCommand
         + "rename into a single Renamed entry. No --solution: it parses sources directly, so it "
         + "works on an un-built or partially-broken tree. Two modes: with no file arguments it "
         + "diffs git versions (default: working tree vs HEAD; --from/--to select others); with "
-        + "exactly two .cs file paths it diffs those files on disc, which needs no git repository.",
+        + "exactly two .cs file paths it diffs those files on disc, which needs no git repository. "
+        + "Default output is a git-diff-style text report; --json emits a stable array with one "
+        + "object per surfaced declaration: { fqn, kind, status (Added|Removed|Changed|Renamed|"
+        + "Unchanged), oldPath, newPath, oldFqn, newFqn }. The JSON is byte-identical to the MCP "
+        + "semantic_diff handler and identical across git and two-files modes.",
         Examples:
         [
             "rt analyze semantic-diff",
@@ -65,8 +69,9 @@ internal sealed class SemanticDiffCommand : IRtCommand, IStructuredOutputCommand
         ],
         KnownIssues:
         [
-            "Rename pairing is per-container and greedy: two trivially identical bodies can mis-pair, "
-            + "and a rename combined with a body change stays Added + Removed (tracked in US-126)."
+            "Rename pairing is greedy within a container: two trivially identical bodies in the same "
+            + "type/namespace can pair arbitrarily (deterministic by FQN order), and a rename combined "
+            + "with a body change stays Added + Removed."
         ],
         // Text (the git-diff report) and Json (the delta array). The shared renderer selects
         // between them from the global --json flag; both projections live on SemanticDiffOutput.

@@ -1,7 +1,7 @@
 roslyn-tools
 Branch: result-type-and-cleanup
 
-Current Status: 8/13 stories complete (62%)
+Current Status: 9/14 stories complete (64%)
 
 Stories
 [ ] US-077 Result<T,RtError> ADT + SymbolLocator migration + App exception ladder
@@ -17,3 +17,4 @@ Stories
 [x] US-125 First-class MCP handler for semantic-diff
 [x] US-126 Semantic diff engine hardening: container-scoped rename pairing + edge guards
 [x] US-123 Compare two files on disc
+[x] US-124 Structured JSON output + --format selection

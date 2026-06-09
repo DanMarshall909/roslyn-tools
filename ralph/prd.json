@@ -271,6 +271,23 @@
             "notes": "P2. Part of EP-016 semantic diff. rt analyze semantic-diff <leftFile> <rightFile> through the same engine; same trivia-insensitive FQN-keyed semantics.",
             "resolution": "Shipped 'rt analyze semantic-diff <leftFile> <rightFile>' — two-files-on-disc mode through the same engine/renderer/JSON. New IFileTextReader + FileTextReader (thin System.IO adapter, missing file -> null, other read failure -> IOException) and FileSemanticDiffSourceProvider (injectable, host-agnostic, no git — works outside a repo). Command gained a ZeroOrMore 'files' argument: 0 files = git mode, exactly 2 = two-files mode, any other shape or files+--from/--to throws ArgumentException -> clean exit-1 stderr (never an unhandled exception). Missing file -> 'Error: file not found: <path>' exit 1. Output and JSON shape identical to git mode. Quality fix from dogfooding: two-files mode suppresses spurious '> Moved' lines (every Unchanged decl would otherwise render as Moved because the two input files have different names) by collapsing Unchanged deltas' paths in the adapter only — Added/Removed/Changed/Renamed keep true distinct paths; engine/IsSurfaced/renderer untouched. 143 SemanticDiff tests green (10 new: 4 provider + 6 command incl. moved-suppression silent test). Dogfooded: text/JSON/missing-file/identical-pair all correct. New files are interface/thin-IO/provider/CLI/DI — outside the Stryker pilot (matches GitClient/GitSemanticDiffSourceProvider/SemanticDiffCommand); committed with RT_MUTATION_ALLOW_UNSCOPED=1.",
             "resolvedAt": "2026-06-09"
+        },
+        {
+            "id": "US-124",
+            "title": "Structured JSON output + --format selection",
+            "description": "As a tool/agent, I want machine-readable diff output so I can consume it programmatically.",
+            "acceptanceCriteria": [
+                "`--format json` emits the engine's structured result as JSON to stdout (added/removed/changed/unchanged with FQN, kind, old/new file location, and a per-declaration change summary).",
+                "`--format text` (default) emits the git-diff-style view.",
+                "The JSON shape is stable and documented in the command's Info metadata/examples.",
+                "Both formats work identically across git mode and two-files-on-disc mode."
+            ],
+            "priority": 124,
+            "passes": true,
+            "epicId": "EP-016",
+            "notes": "P1. Part of EP-016 semantic diff. --format json|text; stable documented JSON shape; identical across git and two-files modes.",
+            "resolution": "Machine-readable JSON output shipped and verified across BOTH modes (git versions and two-files-on-disc), byte-identical to the MCP semantic_diff handler via the shared SemanticDiffJson serializer. Stable shape — one object per surfaced declaration { fqn, kind, status (Added|Removed|Changed|Renamed|Unchanged), oldPath, newPath, oldFqn, newFqn } — now documented in the command's Info.WhenToUse and surfaced by 'rt analyze semantic-diff --help'/dump-help (Output: Text, Json). Tests cover JSON in git mode (incl. empty array, relocation with both paths) and two-files mode (both paths; unchanged silent). DEVIATION FROM AC WORDING: the AC asked for '--format json|text'; this project standardised on a single global '--json' flag routed through the central RtResultRenderer and enforced by the IStructuredOutputCommand<->JsonOutput biconditional + the read-only-commands-declare-Text-AND-Json ratchet. A command-local '--format' would have to bypass or re-plumb that central renderer, diverging from every other command. So the substance (machine-readable output, text default) is delivered via '--json'; '--format' is intentionally NOT added. Default (no --json) = git-diff-style text. No code behaviour change in this story beyond doc; capability landed with US-122/US-123.",
+            "resolvedAt": "2026-06-09"
         }
     ]
 }

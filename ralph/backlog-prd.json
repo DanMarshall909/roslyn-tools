@@ -1667,21 +1667,6 @@
             "notes": "Deferred verification from US-117 (2026-05-27): the unconditional client-side stdin read was dogfood-verified NOT to hang in a non-TTY context (inherited stdin EOFs; describe completed in ~5s). Logged as a refinement because the read is unnecessary for non-consumers and has a latent hang risk if a context ever provides a never-EOF stdin. Gate it on a stdin-consuming capability."
         },
         {
-            "id": "US-124",
-            "title": "Structured JSON output + --format selection",
-            "description": "As a tool/agent, I want machine-readable diff output so I can consume it programmatically.",
-            "acceptanceCriteria": [
-                "`--format json` emits the engine's structured result as JSON to stdout (added/removed/changed/unchanged with FQN, kind, old/new file location, and a per-declaration change summary).",
-                "`--format text` (default) emits the git-diff-style view.",
-                "The JSON shape is stable and documented in the command's Info metadata/examples.",
-                "Both formats work identically across git mode and two-files-on-disc mode."
-            ],
-            "priority": 124,
-            "passes": false,
-            "epicId": "EP-016",
-            "notes": "P1. Part of EP-016 semantic diff. --format json|text; stable documented JSON shape; identical across git and two-files modes."
-        },
-        {
             "id": "US-127",
             "title": "Bring SemanticDiffTextRenderer.cs into Stryker mutation scope at 100%",
             "description": "As a maintainer, I want the semantic-diff text renderer under mutation testing so its git-diff formatting logic is verified to the same standard as the SemanticDiff engine and Commands/.",
