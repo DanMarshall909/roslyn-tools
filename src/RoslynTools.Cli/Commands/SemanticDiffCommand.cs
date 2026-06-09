@@ -54,8 +54,9 @@ internal sealed class SemanticDiffCommand : IRtCommand, IStructuredOutputCommand
         + "exactly two .cs file paths it diffs those files on disc, which needs no git repository. "
         + "Default output is a git-diff-style text report; --json emits a stable array with one "
         + "object per surfaced declaration: { fqn, kind, status (Added|Removed|Changed|Renamed|"
-        + "Unchanged), oldPath, newPath, oldFqn, newFqn }. The JSON is byte-identical to the MCP "
-        + "semantic_diff handler and identical across git and two-files modes.",
+        + "Unchanged), oldPath, newPath, oldFqn, newFqn }. The same JSON shape is emitted in both "
+        + "git and two-files modes, and the git-mode JSON is byte-identical to the MCP "
+        + "semantic_diff handler (which shares the serializer).",
         Examples:
         [
             "rt analyze semantic-diff",
