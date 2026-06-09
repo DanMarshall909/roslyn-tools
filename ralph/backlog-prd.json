@@ -1679,6 +1679,20 @@
             "priority": 128,
             "passes": false,
             "notes": "P2. Dogfooding finding during US-126. Stryker mutation runs deliberately induce exceptions (killed mutants); rt's global handler still appended them to the real ralph/feedback.json as false 'pending' entries (observed FB-367/FB-368: NullReferenceException in SemanticDiffService.AreEquivalent from a 'semantic-diff --from v1 --to v2' invocation that only exists in a temp test repo). Fix: env-overridable sink path (cf. RT_INSPECTED_LOG) or test-host detection."
+        },
+        {
+            "id": "US-129",
+            "title": "extract-class BuildNewClassText drops 'static' modifier (FB-362 regression)",
+            "description": "As a developer, I want rt refactor extract-class --static to emit a static class so the extracted class matches the requested shape.",
+            "acceptanceCriteria": [
+                "BuildNewClassText(ns, name, generateStatic:true, members:[]) emits 'public static class <name>' (the static modifier is present)",
+                "The existing test Mutation.ServiceHelpers.builds_new_class_text_generates_static_class_when_flag_set passes",
+                "The instance-class path (generateStatic:false) is unaffected",
+                "rt refactor extract-class --static (or equivalent) produces a static class end-to-end"
+            ],
+            "priority": 129,
+            "passes": false,
+            "notes": "P1. Pre-existing regression from the FB-362 BuildNewClassText rewrite (emit member text + Roslyn Formatter). Deterministic red test: Mutation.ServiceHelpers.builds_new_class_text_generates_static_class_when_flag_set — BuildNewClassText('MyApp','Helper',generateStatic:true,[]) no longer contains 'public static class Helper'. The FB-362 session's '20 ExtractClass tests pass' check missed it (this test is in the Mutation/ServiceHelpers namespace, not the ExtractClass filter). Not caused by EP-016 (US-123/124/126/127 never touched ExtractClassService). Fix the static-modifier emission in BuildNewClassText."
         }
     ]
 }
