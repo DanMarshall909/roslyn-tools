@@ -254,6 +254,23 @@
             "notes": "P2. Follow-up from US-121 close (Opus review + rt list-smells). Cross-container rename mis-pairing (One.A<->Two.B) is the chief footgun; v1 pairs by equivalent-body-modulo-name across all containers. Also: null list guards, parse-error trees, LongMethod smells on Walk(139)/DetectRenames(67)/Compare(44), tautological Renamed-status test.",
             "resolution": "Engine hardened. (1) Container-scoped rename pairing: two-phase — member-container types (class/struct/record/interface) pair first within an identical enclosing container and seed a type-rename map; then enums/delegates/members pair, where members match by equal declaring-type FQN OR a declaring type renamed in phase 1. Preserves the legit ctor/member cascade on a type rename while rejecting unrelated-container (A.Foo/B.Bar) and cross-namespace (One.Gone/Two.Fresh) mis-pairs. (2) Null Before/After lists now throw ArgumentNullException (named arg), not an NRE. (3) Malformed source is tolerated — declarations that parse are still reported. (4) Smell review: extracted PairRenames + ApplyRenamePairs + IsMemberContainerType (genuine readability win); Walk (syntax-kind dispatch table) and Compare (central orchestration) accepted-with-rationale per pragmatic-refactoring doctrine. (5) Tautological Enum.IsDefined(Renamed) test deleted — behaviourally superseded. 132 SemanticDiff tests green; 100% mutation (110 mutants, 0 survivors) on SemanticDiffService.cs + DeclarationWalker.cs. Documented limitation: a type renamed AND moved to a different namespace stays Added+Removed (phase 1 requires identical enclosing container).",
             "resolvedAt": "2026-06-09"
+        },
+        {
+            "id": "US-123",
+            "title": "Compare two files on disc",
+            "description": "As a developer, I want to point the diff at any two files so I can compare versions outside git.",
+            "acceptanceCriteria": [
+                "`rt analyze semantic-diff <leftFile> <rightFile>` compares two .cs files on disc through the same engine.",
+                "The same trivia-insensitive and FQN-keyed semantics apply (a type renamed-in-place vs genuinely changed is reported correctly).",
+                "Missing or unreadable file paths produce a clear error (exit 1, stderr), not an unhandled exception.",
+                "Output matches the git-mode rendering and the JSON shape."
+            ],
+            "priority": 123,
+            "passes": true,
+            "epicId": "EP-016",
+            "notes": "P2. Part of EP-016 semantic diff. rt analyze semantic-diff <leftFile> <rightFile> through the same engine; same trivia-insensitive FQN-keyed semantics.",
+            "resolution": "Shipped 'rt analyze semantic-diff <leftFile> <rightFile>' — two-files-on-disc mode through the same engine/renderer/JSON. New IFileTextReader + FileTextReader (thin System.IO adapter, missing file -> null, other read failure -> IOException) and FileSemanticDiffSourceProvider (injectable, host-agnostic, no git — works outside a repo). Command gained a ZeroOrMore 'files' argument: 0 files = git mode, exactly 2 = two-files mode, any other shape or files+--from/--to throws ArgumentException -> clean exit-1 stderr (never an unhandled exception). Missing file -> 'Error: file not found: <path>' exit 1. Output and JSON shape identical to git mode. Quality fix from dogfooding: two-files mode suppresses spurious '> Moved' lines (every Unchanged decl would otherwise render as Moved because the two input files have different names) by collapsing Unchanged deltas' paths in the adapter only — Added/Removed/Changed/Renamed keep true distinct paths; engine/IsSurfaced/renderer untouched. 143 SemanticDiff tests green (10 new: 4 provider + 6 command incl. moved-suppression silent test). Dogfooded: text/JSON/missing-file/identical-pair all correct. New files are interface/thin-IO/provider/CLI/DI — outside the Stryker pilot (matches GitClient/GitSemanticDiffSourceProvider/SemanticDiffCommand); committed with RT_MUTATION_ALLOW_UNSCOPED=1.",
+            "resolvedAt": "2026-06-09"
         }
     ]
 }

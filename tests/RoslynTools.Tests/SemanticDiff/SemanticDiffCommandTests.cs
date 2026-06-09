@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using RoslynTools;
+using RoslynTools.Services.SemanticDiff;
 using RoslynTools.Services.SemanticDiff.Git;
 using Shouldly;
 
@@ -264,12 +265,158 @@ public sealed class SemanticDiffCommandTests
         stderr.ShouldNotContain("at RoslynTools"); // no stack trace
     }
 
+    // ----- US-123: two files on disc -----
+
+    [Fact]
+    public async Task two_file_mode_compares_two_files_on_disc_and_writes_a_git_style_diff()
+    {
+        var files = new RecordingFileReader
+        {
+            Files =
+            {
+                ["old/Widget.cs"] = "class Widget { void M() { var x = 1; } }",
+                ["new/Widget.cs"] = "class Widget { void M() { var x = 2; } }",
+            },
+        };
+        // A git client that throws if touched — proves two-files mode never goes near git.
+        var git = new RecordingGitClient { ThrowNotARepository = true };
+
+        var (exit, stdout, stderr) = await InvokeAsync(
+            ["analyze", "semantic-diff", "old/Widget.cs", "new/Widget.cs"], git, files);
+
+        exit.ShouldBe(0);
+        stdout.ShouldContain("Changed", Case.Sensitive);
+        stdout.ShouldContain("Widget");
+        stderr.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task two_file_mode_works_outside_a_git_repository()
+    {
+        var files = new RecordingFileReader
+        {
+            Files =
+            {
+                ["a.cs"] = "class C { }",
+                ["b.cs"] = "class C { }",
+            },
+        };
+        // Not a git repository at all — two-files mode must still succeed.
+        var git = new RecordingGitClient { ThrowNotARepository = true };
+
+        var (exit, _, _) = await InvokeAsync(["analyze", "semantic-diff", "a.cs", "b.cs"], git, files);
+
+        exit.ShouldBe(0);
+        git.RefsValidated.ShouldBeEmpty();
+        git.WorkingTreeRead.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task two_file_mode_emits_json_with_both_file_paths()
+    {
+        var files = new RecordingFileReader
+        {
+            Files =
+            {
+                ["old/Widget.cs"] = "class Widget { void M() { return; } }",
+                ["new/Widget.cs"] = "class Widget { void M() { var x = 1; } }",
+            },
+        };
+        var git = new RecordingGitClient { ThrowNotARepository = true };
+
+        var (exit, stdout, _) = await InvokeAsync(
+            ["analyze", "semantic-diff", "old/Widget.cs", "new/Widget.cs", "--json"], git, files);
+
+        exit.ShouldBe(0);
+        using var doc = JsonDocument.Parse(stdout);
+        var deltas = doc.RootElement.EnumerateArray().ToList();
+        var changed = deltas.Single(d => d.GetProperty("status").GetString() == "Changed");
+        changed.GetProperty("oldPath").GetString().ShouldBe("old/Widget.cs");
+        changed.GetProperty("newPath").GetString().ShouldBe("new/Widget.cs");
+    }
+
+    [Fact]
+    public async Task two_file_mode_does_not_report_unchanged_declarations_as_moved()
+    {
+        // The two files differ only in path (different names) and a comment. Every declaration
+        // is semantically unchanged, so nothing should surface — no "> Moved" noise driven by
+        // the inputs having different file names, and an empty JSON array.
+        var files = new RecordingFileReader
+        {
+            Files =
+            {
+                ["old/Widget.cs"] = "class Widget { /* old */ int Score(int x) => x + 1; }",
+                ["new/Widget.cs"] = "class Widget { int Score(int x) => x + 1; }",
+            },
+        };
+        var git = new RecordingGitClient { ThrowNotARepository = true };
+
+        var (textExit, textOut, _) = await InvokeAsync(
+            ["analyze", "semantic-diff", "old/Widget.cs", "new/Widget.cs"], git, files);
+        textExit.ShouldBe(0);
+        textOut.ShouldContain("no semantic changes");
+        textOut.ShouldNotContain("Moved");
+
+        var (jsonExit, jsonOut, _) = await InvokeAsync(
+            ["analyze", "semantic-diff", "old/Widget.cs", "new/Widget.cs", "--json"], git, files);
+        jsonExit.ShouldBe(0);
+        using var doc = JsonDocument.Parse(jsonOut);
+        doc.RootElement.GetArrayLength().ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task a_missing_file_exits_one_with_a_clean_error()
+    {
+        var files = new RecordingFileReader { Files = { ["present.cs"] = "class C { }" } };
+        var git = new RecordingGitClient { ThrowNotARepository = true };
+
+        var (exit, stdout, stderr) = await InvokeAsync(
+            ["analyze", "semantic-diff", "present.cs", "absent.cs"], git, files);
+
+        exit.ShouldBe(1);
+        stderr.ShouldContain("absent.cs");
+        stderr.ShouldNotContain("at RoslynTools"); // no stack trace
+        stdout.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task a_single_file_argument_is_a_usage_error()
+    {
+        var git = new RecordingGitClient { ThrowNotARepository = true };
+
+        var (exit, _, stderr) = await InvokeAsync(
+            ["analyze", "semantic-diff", "only-one.cs"], git, new RecordingFileReader());
+
+        exit.ShouldBe(1);
+        stderr.ShouldContain("exactly two files");
+        stderr.ShouldNotContain("at RoslynTools");
+    }
+
+    [Fact]
+    public async Task file_arguments_combined_with_from_are_a_usage_error()
+    {
+        var files = new RecordingFileReader
+        {
+            Files = { ["a.cs"] = "class C { }", ["b.cs"] = "class C { }" },
+        };
+        var git = new RecordingGitClient();
+
+        var (exit, _, stderr) = await InvokeAsync(
+            ["analyze", "semantic-diff", "a.cs", "b.cs", "--from", "HEAD"], git, files);
+
+        exit.ShouldBe(1);
+        stderr.ShouldContain("cannot combine");
+        stderr.ShouldNotContain("at RoslynTools");
+    }
+
     private static async Task<(int ExitCode, string StdOut, string StdErr)> InvokeAsync(
-        string[] args, IGitClient git)
+        string[] args, IGitClient git, IFileTextReader? files = null)
     {
         var sc = new ServiceCollection();
         RoslynTools.Bootstrap.RegisterServices(sc);
         sc.Replace(ServiceDescriptor.Singleton(git));
+        if (files is not null)
+            sc.Replace(ServiceDescriptor.Singleton(files));
         using var services = sc.BuildServiceProvider();
 
         var originalOut = Console.Out;
@@ -346,5 +493,17 @@ public sealed class SemanticDiffCommandTests
             WorkingTreeRead = true;
             return WorkingTreeFiles.TryGetValue(path, out var text) ? text : null;
         }
+    }
+
+    /// <summary>
+    ///     In-memory <see cref="IFileTextReader" /> for the two-files-on-disc mode: returns the
+    ///     seeded text for a known path and <c>null</c> for an unknown one (the missing-file case).
+    /// </summary>
+    private sealed class RecordingFileReader : IFileTextReader
+    {
+        public Dictionary<string, string> Files { get; } = new(StringComparer.Ordinal);
+
+        public string? TryReadAllText(string path) =>
+            Files.TryGetValue(path, out var text) ? text : null;
     }
 }

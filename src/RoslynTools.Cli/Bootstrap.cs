@@ -4,6 +4,7 @@ using RoslynTools.Cli.Suggest;
 using RoslynTools.Core;
 using RoslynTools.Daemon;
 using RoslynTools.Services;
+using RoslynTools.Services.SemanticDiff;
 using RoslynTools.Services.SemanticDiff.Git;
 using RoslynTools.Services.Suggest;
 
@@ -34,6 +35,11 @@ internal static class Bootstrap
         // IGitClient. The git working directory is the process's current directory; the
         // batch-5 command can override per-invocation if it ever needs a different root.
         services.AddSingleton<IGitClient>(_ => new GitClient(Directory.GetCurrentDirectory()));
+
+        // FileSemanticDiffSourceProvider (an IRtService, auto-scanned below) depends on
+        // IFileTextReader for the two-files-on-disc diff mode (US-123). The real reader hits
+        // System.IO.File; tests replace it with a fake.
+        services.AddSingleton<IFileTextReader, FileTextReader>();
 
         services.Scan(scan => scan
             .FromAssemblyOf<IRtService>()
