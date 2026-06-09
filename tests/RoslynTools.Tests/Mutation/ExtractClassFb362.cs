@@ -86,8 +86,11 @@ public class ExtractClassFb362 : IClassFixture<RtServicesFixture>
 
         // The second line of the verbatim string is part of the literal's
         // value. Its leading whitespace must survive byte-for-byte — the
-        // formatter cannot recover it once a per-line TrimStart deletes it.
-        extracted.ShouldContain("                    indented line two\";", Case.Sensitive);
+        // formatter must NOT re-indent inside a verbatim literal (doing so would
+        // change the runtime string). In the source raw-string fixture the
+        // continuation de-indents to 12 spaces; the extraction must preserve
+        // exactly that, NOT bump it to the new method's code-nesting depth.
+        extracted.ShouldContain("            indented line two\";", Case.Sensitive);
     }
 
     [Fact]
