@@ -288,6 +288,23 @@
             "notes": "P1. Part of EP-016 semantic diff. --format json|text; stable documented JSON shape; identical across git and two-files modes.",
             "resolution": "Machine-readable JSON output shipped and verified across BOTH modes (git versions and two-files-on-disc), byte-identical to the MCP semantic_diff handler via the shared SemanticDiffJson serializer. Stable shape — one object per surfaced declaration { fqn, kind, status (Added|Removed|Changed|Renamed|Unchanged), oldPath, newPath, oldFqn, newFqn } — now documented in the command's Info.WhenToUse and surfaced by 'rt analyze semantic-diff --help'/dump-help (Output: Text, Json). Tests cover JSON in git mode (incl. empty array, relocation with both paths) and two-files mode (both paths; unchanged silent). DEVIATION FROM AC WORDING: the AC asked for '--format json|text'; this project standardised on a single global '--json' flag routed through the central RtResultRenderer and enforced by the IStructuredOutputCommand<->JsonOutput biconditional + the read-only-commands-declare-Text-AND-Json ratchet. A command-local '--format' would have to bypass or re-plumb that central renderer, diverging from every other command. So the substance (machine-readable output, text default) is delivered via '--json'; '--format' is intentionally NOT added. Default (no --json) = git-diff-style text. No code behaviour change in this story beyond doc; capability landed with US-122/US-123.",
             "resolvedAt": "2026-06-09"
+        },
+        {
+            "id": "US-127",
+            "title": "Bring SemanticDiffTextRenderer.cs into Stryker mutation scope at 100%",
+            "description": "As a maintainer, I want the semantic-diff text renderer under mutation testing so its git-diff formatting logic is verified to the same standard as the SemanticDiff engine and Commands/.",
+            "acceptanceCriteria": [
+                "SemanticDiffTextRenderer.cs is added to the mutate globs in stryker-config.json",
+                "Running Stryker against SemanticDiffTextRenderer.cs reports a 100% mutation score",
+                "Every surviving mutant is resolved by adding a killing test, deleting dead code, or classifying it as equivalent with a documented // mutation: equivalent comment and an ignore-mutations entry",
+                "The git-diff formatting branches (hunks, context lines, kind labels, and the Added/Removed/Changed/Renamed/Moved arms) each have at least one test exercising their observable output",
+                "No assertions are weakened to make a mutant die"
+            ],
+            "priority": 127,
+            "passes": true,
+            "notes": "P2. US-122 follow-up. The semantic-diff feature routes both text and JSON output through SemanticDiffDelta.IsSurfaced, now in the Stryker globs at 100%. SemanticDiffTextRenderer.cs (hunks, context lines, kind labels, Added/Removed/Changed/Renamed/Moved arms) is in the core library and mutatable but not yet in stryker-config.json mutate globs. Affected: stryker-config.json, src/RoslynTools/Services/SemanticDiff/SemanticDiffTextRenderer.cs, tests/RoslynTools.Tests/SemanticDiff/SemanticDiffTextRendererTests.cs.",
+            "resolution": "SemanticDiffTextRenderer.cs added to stryker-config.json mutate globs and driven to 100% mutation (0 survived, 0 no-coverage). Added 11 targeted renderer tests: 3 null-guard (Render rejects null result/before/after), every_declaration_kind_renders_its_own_label (all 13 KindLabel arms), and exact-output golden ShouldBe tests for the hunk machinery — single mid-body hunk (@@ line numbers/counts/context prefix), merge (two edits within 2*ContextSize -> one hunk), split (two edits beyond -> two hunks with correct second-hunk start), block separators (Changed/Added/Removed each followed by another block), added multi-line body (AppendPrefixed/SplitLines), and a single-line declaration change. The one genuinely-equivalent mutant (the outer hunk-coalescing loop bound, which only ever exits via its break) was eliminated structurally by writing 'while (true)' — honest control flow, no equivalent annotation, and its true->false mutant is killed by any hunk test. No assertions weakened. The 13 Stryker-Ignored mutants are all its own 'block already covered' auto-filter, not suppressions. Renderer now under mutation testing to the same standard as the engine.",
+            "resolvedAt": "2026-06-09"
         }
     ]
 }

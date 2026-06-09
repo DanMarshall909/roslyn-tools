@@ -212,7 +212,13 @@ internal sealed class SemanticDiffTextRenderer : IRtService
     {
         var hunkEnd = changeStart;
 
-        while (hunkEnd < entries.Count)
+        // Loop until the else branch breaks. The exit is always that break: every iteration
+        // either merges an adjacent change (hunkEnd = peek, with peek < Count guaranteed by the
+        // merge guard) and continues, or takes the else and breaks. A `while (hunkEnd < Count)`
+        // bound would be dead code here — hunkEnd is strictly < Count at every check — so `true`
+        // states the real control flow honestly (and its sole mutant, true->false, is killed by
+        // any hunk test, since it would skip extension entirely).
+        while (true)
         {
             while (hunkEnd < entries.Count && entries[hunkEnd].Type != ChangeType.Unchanged)
                 hunkEnd++;

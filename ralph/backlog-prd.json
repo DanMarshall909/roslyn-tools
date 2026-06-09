@@ -1667,21 +1667,6 @@
             "notes": "Deferred verification from US-117 (2026-05-27): the unconditional client-side stdin read was dogfood-verified NOT to hang in a non-TTY context (inherited stdin EOFs; describe completed in ~5s). Logged as a refinement because the read is unnecessary for non-consumers and has a latent hang risk if a context ever provides a never-EOF stdin. Gate it on a stdin-consuming capability."
         },
         {
-            "id": "US-127",
-            "title": "Bring SemanticDiffTextRenderer.cs into Stryker mutation scope at 100%",
-            "description": "As a maintainer, I want the semantic-diff text renderer under mutation testing so its git-diff formatting logic is verified to the same standard as the SemanticDiff engine and Commands/.",
-            "acceptanceCriteria": [
-                "SemanticDiffTextRenderer.cs is added to the mutate globs in stryker-config.json",
-                "Running Stryker against SemanticDiffTextRenderer.cs reports a 100% mutation score",
-                "Every surviving mutant is resolved by adding a killing test, deleting dead code, or classifying it as equivalent with a documented // mutation: equivalent comment and an ignore-mutations entry",
-                "The git-diff formatting branches (hunks, context lines, kind labels, and the Added/Removed/Changed/Renamed/Moved arms) each have at least one test exercising their observable output",
-                "No assertions are weakened to make a mutant die"
-            ],
-            "priority": 127,
-            "passes": false,
-            "notes": "P2. US-122 follow-up. The semantic-diff feature routes both text and JSON output through SemanticDiffDelta.IsSurfaced, now in the Stryker globs at 100%. SemanticDiffTextRenderer.cs (hunks, context lines, kind labels, Added/Removed/Changed/Renamed/Moved arms) is in the core library and mutatable but not yet in stryker-config.json mutate globs. Affected: stryker-config.json, src/RoslynTools/Services/SemanticDiff/SemanticDiffTextRenderer.cs, tests/RoslynTools.Tests/SemanticDiff/SemanticDiffTextRendererTests.cs."
-        },
-        {
             "id": "US-128",
             "title": "rt exception logger pollutes ralph/feedback.json during test and Stryker runs",
             "description": "As a maintainer, I want rt's exception feedback sink suppressed (or redirected) under test/mutation runs so killed-mutant exceptions don't masquerade as real feedback and dirty the tree.",

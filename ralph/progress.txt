@@ -1,7 +1,7 @@
 roslyn-tools
 Branch: result-type-and-cleanup
 
-Current Status: 9/14 stories complete (64%)
+Current Status: 10/15 stories complete (67%)
 
 Stories
 [ ] US-077 Result<T,RtError> ADT + SymbolLocator migration + App exception ladder
@@ -18,3 +18,4 @@ Stories
 [x] US-126 Semantic diff engine hardening: container-scoped rename pairing + edge guards
 [x] US-123 Compare two files on disc
 [x] US-124 Structured JSON output + --format selection
+[x] US-127 Bring SemanticDiffTextRenderer.cs into Stryker mutation scope at 100%
