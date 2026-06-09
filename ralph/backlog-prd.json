@@ -1710,6 +1710,20 @@
             "priority": 127,
             "passes": false,
             "notes": "P2. US-122 follow-up. The semantic-diff feature routes both text and JSON output through SemanticDiffDelta.IsSurfaced, now in the Stryker globs at 100%. SemanticDiffTextRenderer.cs (hunks, context lines, kind labels, Added/Removed/Changed/Renamed/Moved arms) is in the core library and mutatable but not yet in stryker-config.json mutate globs. Affected: stryker-config.json, src/RoslynTools/Services/SemanticDiff/SemanticDiffTextRenderer.cs, tests/RoslynTools.Tests/SemanticDiff/SemanticDiffTextRendererTests.cs."
+        },
+        {
+            "id": "US-128",
+            "title": "rt exception logger pollutes ralph/feedback.json during test and Stryker runs",
+            "description": "As a maintainer, I want rt's exception feedback sink suppressed (or redirected) under test/mutation runs so killed-mutant exceptions don't masquerade as real feedback and dirty the tree.",
+            "acceptanceCriteria": [
+                "When the rt CLI runs under a test host or Stryker mutant process, an induced/handled exception does NOT append a new entry to the repo's ralph/feedback.json",
+                "The feedback sink path is overridable via an environment variable (mirroring RT_INSPECTED_LOG / RT_BUILD_STATUS_MARKER on the rt-first gate), or auto-disabled when a test host is detected",
+                "A normal interactive rt invocation still logs exception feedback as today",
+                "A Stryker mutation run over the SemanticDiff (or any) files leaves ralph/feedback.json unmodified in the working tree"
+            ],
+            "priority": 128,
+            "passes": false,
+            "notes": "P2. Dogfooding finding during US-126. Stryker mutation runs deliberately induce exceptions (killed mutants); rt's global handler still appended them to the real ralph/feedback.json as false 'pending' entries (observed FB-367/FB-368: NullReferenceException in SemanticDiffService.AreEquivalent from a 'semantic-diff --from v1 --to v2' invocation that only exists in a temp test repo). Fix: env-overridable sink path (cf. RT_INSPECTED_LOG) or test-host detection."
         }
     ]
 }
