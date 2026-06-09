@@ -6,8 +6,24 @@
 set -e
 
 input=$(cat)
-fp=$(echo "$input" | jq -r '.tool_input.file_path // ""')
-tool_name=$(echo "$input" | jq -r '.tool_name // ""')
+
+# Parse the payload. FB-366: on Windows the harness sends file paths with raw
+# single backslashes (e.g. "c:\code\...") — invalid JSON escapes that make jq
+# abort. Under `set -e` that aborted the gate and surfaced as a spurious deny.
+# So: try jq on the payload as-is (the common, valid case); only if that fails,
+# escape every backslash to "\\" and retry, recovering the path on Windows.
+parse_field()
+{
+  local query="$1" out
+  if out=$(printf '%s' "$input" | jq -er "$query" 2>/dev/null); then
+    printf '%s' "$out"
+    return 0
+  fi
+  printf '%s' "$input" | sed 's/\\/\\\\/g' | jq -r "$query // \"\"" 2>/dev/null || true
+}
+
+fp=$(parse_field '.tool_input.file_path // ""')
+tool_name=$(parse_field '.tool_name // ""')
 
 # Non-.cs files: silent pass.
 if [[ "$fp" != *.cs ]]; then
@@ -41,8 +57,17 @@ if [[ "$tool_name" == "Write" ]]; then
   exit 0
 fi
 
-# If the basename appears in the last 50 logged rt-inspect commands, allow with reminder.
-if [[ -f "$log" ]] && tail -n 50 "$log" 2>/dev/null | grep -qiF "$basename"; then
+# If the basename appears in the last 50 logged rt-inspect commands, allow with
+# reminder. FB-366: the inspect log can contain large pasted blobs (e.g. PRD JSON)
+# whose bytes make some `grep` builds treat the piped stream as binary and
+# silently skip line matches (observed live: a present basename matched 0 times).
+# Do the case-insensitive substring search in awk under a byte-wise C locale so
+# the decision never depends on grep's binary-detection heuristics.
+if [[ -f "$log" ]] && tail -n 50 "$log" 2>/dev/null \
+     | LC_ALL=C awk -v needle="$basename" '
+         BEGIN { n = tolower(needle); found = 0 }
+         { if (index(tolower($0), n) > 0) { found = 1 } }
+         END { exit(found ? 0 : 1) }'; then
   jq -nc --arg msg "rt-first reminder: prefer rt for C# files. inspect outline <file> for structure, inspect describe <FQN> for symbols, inspect find-refs --symbol X for callers, refactor rename/move/extract-method/inline-method for mutations. If rt has a gap, log via /task to ralph/backlog-prd.json before falling back to manual Read/Edit." \
     '{hookSpecificOutput: {hookEventName: "PreToolUse", additionalContext: $msg}}'
   exit 0
