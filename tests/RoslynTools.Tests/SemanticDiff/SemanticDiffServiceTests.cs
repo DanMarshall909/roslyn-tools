@@ -441,14 +441,6 @@ public sealed class SemanticDiffServiceTests
     }
 
     [Fact]
-    public void renamed_is_a_defined_status_member_reserved_for_a_later_cycle()
-    {
-        // AC6 (smoke): Renamed is part of the contract now so serializers are stable,
-        // even though the rename post-pass that produces it lands in a later cycle.
-        System.Enum.IsDefined(DeclarationStatus.Renamed).ShouldBeTrue();
-    }
-
-    [Fact]
     public void renamed_delta_carries_old_and_new_fqn_while_unpaired_deltas_keep_null_identity()
     {
         // Cycle 5 update (was: delta_exposes_old_and_new_fqn_identity_left_null_...).
@@ -1937,6 +1929,88 @@ public sealed class SemanticDiffServiceTests
     }
 
     [Fact]
+    public void renaming_a_struct_cascades_its_method_to_a_renamed_delta()
+    {
+        // A struct is a member-container type, so a struct rename must be paired in phase 1
+        // and recorded in the type-rename map, letting its method cascade to a Renamed delta
+        // in phase 2. If structs were not treated as member containers the method would
+        // surface as Added + Removed instead.
+        const string before = """
+            namespace Acme;
+
+            public struct A { public int M() => 0; }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public struct B { public int M() => 0; }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("before.cs", before)],
+            after: [Source("after.cs", after)]));
+
+        var renamedMethod = result.Deltas.Single(d => d.Kind == DeclarationKind.Method);
+        renamedMethod.Status.ShouldBe(DeclarationStatus.Renamed);
+        renamedMethod.OldFqn.ShouldBe("Acme.A.M()");
+        renamedMethod.NewFqn.ShouldBe("Acme.B.M()");
+    }
+
+    [Fact]
+    public void renaming_a_record_cascades_its_method_to_a_renamed_delta()
+    {
+        const string before = """
+            namespace Acme;
+
+            public record A { public int M() => 0; }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public record B { public int M() => 0; }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("before.cs", before)],
+            after: [Source("after.cs", after)]));
+
+        var renamedMethod = result.Deltas.Single(d => d.Kind == DeclarationKind.Method);
+        renamedMethod.Status.ShouldBe(DeclarationStatus.Renamed);
+        renamedMethod.OldFqn.ShouldBe("Acme.A.M()");
+        renamedMethod.NewFqn.ShouldBe("Acme.B.M()");
+    }
+
+    [Fact]
+    public void renaming_an_interface_cascades_its_method_to_a_renamed_delta()
+    {
+        // The method's own name (M) is unchanged; only its declaring interface renames. It is
+        // still reported Renamed because its FQN changed when the container did — the same
+        // cascade behaviour as a renamed class's constructor.
+        const string before = """
+            namespace Acme;
+
+            public interface IFoo { int M(); }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public interface IBar { int M(); }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("before.cs", before)],
+            after: [Source("after.cs", after)]));
+
+        var renamedMethod = result.Deltas.Single(d => d.Kind == DeclarationKind.Method);
+        renamedMethod.Status.ShouldBe(DeclarationStatus.Renamed);
+        renamedMethod.OldFqn.ShouldBe("Acme.IFoo.M()");
+        renamedMethod.NewFqn.ShouldBe("Acme.IBar.M()");
+    }
+
+    [Fact]
     public void indexers_and_operators_are_never_paired_as_renames()
     {
         // Indexers (named `this`) and operators (keyed on a token, not a name) have no
@@ -2284,5 +2358,143 @@ public sealed class SemanticDiffServiceTests
             .Select(d => d.Fqn)
             .ToList();
         typeFqns.ShouldBe(["Acme.Apple", "Acme.Mango"]);
+    }
+
+    // ----- US-126 hardening: container-scoped rename pairing + edge guards -----
+
+    [Fact]
+    public void two_identical_bodied_members_in_different_types_do_not_pair_as_a_rename()
+    {
+        // A.Foo is removed and B.Bar is added with byte-identical bodies. Without
+        // container scoping the greedy pass pairs them into a single A.Foo -> B.Bar
+        // Renamed delta — a false positive, because a member only "renames" within the
+        // type that declares it. Scoping pairing to a shared containing-type FQN keeps
+        // them as an independent Removed + Added.
+        const string before = """
+            namespace Acme;
+
+            public class A { public int Foo() => 0; }
+            public class B { }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class A { }
+            public class B { public int Bar() => 0; }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("before.cs", before)],
+            after: [Source("after.cs", after)]));
+
+        result.Deltas.ShouldNotContain(d => d.Status == DeclarationStatus.Renamed);
+        result.Deltas.Single(d => d.Fqn == "Acme.A.Foo()").Status.ShouldBe(DeclarationStatus.Removed);
+        result.Deltas.Single(d => d.Fqn == "Acme.B.Bar()").Status.ShouldBe(DeclarationStatus.Added);
+    }
+
+    [Fact]
+    public void two_identical_bodied_types_in_different_namespaces_do_not_pair_as_a_rename()
+    {
+        // One.Gone is removed and Two.Fresh is added with equivalent (empty) headers.
+        // Without container scoping they pair into a single Renamed delta across
+        // unrelated namespaces. A type only renames within the namespace (or enclosing
+        // type) that declares it, so scoping keeps them as Removed + Added.
+        const string before = """
+            namespace One { public class Gone { } }
+            namespace Two { }
+            """;
+        const string after = """
+            namespace One { }
+            namespace Two { public class Fresh { } }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("before.cs", before)],
+            after: [Source("after.cs", after)]));
+
+        result.Deltas.ShouldNotContain(d => d.Status == DeclarationStatus.Renamed);
+        result.Deltas.Single(d => d.Fqn == "One.Gone").Status.ShouldBe(DeclarationStatus.Removed);
+        result.Deltas.Single(d => d.Fqn == "Two.Fresh").Status.ShouldBe(DeclarationStatus.Added);
+    }
+
+    [Fact]
+    public void a_same_container_rename_still_pairs_after_container_scoping()
+    {
+        // Regression guard for the scoping change: a genuine rename WITHIN one type must
+        // still collapse to a single Renamed delta. Foo and Bar share the containing
+        // type Acme.A, so the container key matches and pairing proceeds as before.
+        const string before = """
+            namespace Acme;
+
+            public class A { public int Foo(int x) => x + 1; }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class A { public int Bar(int x) => x + 1; }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("before.cs", before)],
+            after: [Source("after.cs", after)]));
+
+        var renamed = result.Deltas.Single(d => d.Kind == DeclarationKind.Method);
+        renamed.Status.ShouldBe(DeclarationStatus.Renamed);
+        renamed.OldFqn.ShouldBe("Acme.A.Foo(int)");
+        renamed.NewFqn.ShouldBe("Acme.A.Bar(int)");
+    }
+
+    [Fact]
+    public void comparing_a_request_with_a_null_before_list_throws_argument_null()
+    {
+        // A null Before list must fail fast as an ArgumentNullException naming the
+        // argument, not as a NullReferenceException from the walker's foreach.
+        var service = new SemanticDiffService();
+        var request = new SemanticDiffRequest(null!, [], SemanticDiffOptions.Default);
+
+        Should.Throw<ArgumentNullException>(() => service.Compare(request));
+    }
+
+    [Fact]
+    public void comparing_a_request_with_a_null_after_list_throws_argument_null()
+    {
+        var service = new SemanticDiffService();
+        var request = new SemanticDiffRequest([], null!, SemanticDiffOptions.Default);
+
+        Should.Throw<ArgumentNullException>(() => service.Compare(request));
+    }
+
+    [Fact]
+    public void a_malformed_source_does_not_crash_and_still_reports_the_declarations_that_parse()
+    {
+        // A parameter list with a trailing comma leaves a parameter whose Type node is
+        // null in the error-recovery tree — the path the walker previously dereferenced
+        // unconditionally. The engine must tolerate it: no exception, and the sibling
+        // type that parses cleanly is still reported.
+        const string before = """
+            namespace Acme;
+
+            public class Broken { public void M(int a, ) { } }
+            public class Good { public int Ok() => 1; }
+            """;
+        const string after = """
+            namespace Acme;
+
+            public class Broken { public void M(int a, ) { } }
+            public class Good { public int Ok() => 2; }
+            """;
+        var service = new SemanticDiffService();
+
+        var result = service.Compare(Request(
+            before: [Source("before.cs", before)],
+            after: [Source("after.cs", after)]));
+
+        // The cleanly-parsed member's body changed (1 -> 2): it must be reported Changed.
+        result.Deltas.Single(d => d.Fqn == "Acme.Good.Ok()").Status.ShouldBe(DeclarationStatus.Changed);
+        // The malformed type's own header is unchanged and present on both sides.
+        result.Deltas.ShouldContain(d => d.Fqn == "Acme.Broken");
     }
 }

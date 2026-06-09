@@ -23,6 +23,11 @@ internal sealed class SemanticDiffService : IRtService
     public SemanticDiffResult Compare(SemanticDiffRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        // Guard the source lists explicitly: without this the walker's foreach would
+        // dereference a null list and surface as an opaque NullReferenceException rather
+        // than naming the offending argument (US-126).
+        ArgumentNullException.ThrowIfNull(request.Before);
+        ArgumentNullException.ThrowIfNull(request.After);
 
         var before = DeclarationWalker.Collect(request.Before);
         var after = DeclarationWalker.Collect(request.After);
@@ -83,15 +88,22 @@ internal sealed class SemanticDiffService : IRtService
     ///         body change is not equivalent-modulo-name, so it stays Added + Removed.
     ///     </para>
     ///     <para>
-    ///         <b>Member cascade on a type rename.</b> Pairing is independent per kind, so
-    ///         when a type is renamed its members — which key under the new type FQN — are
-    ///         not Added/Removed at all (their FQN is present on both sides via the new
-    ///         name only if the type kept its name; on a true type rename the members'
-    ///         FQNs change too and they appear as their own Added/Removed pairs). Each such
-    ///         member pair is evaluated on its own merits: an unchanged-body member cascades
-    ///         to its own Renamed delta, a changed-body member stays Added + Removed. The
-    ///         containing type's Renamed delta does not suppress or force its members'
-    ///         classification.
+    ///         <b>Container scoping (US-126).</b> Pairing happens in two phases so a
+    ///         declaration only renames within its own container. Phase 1 pairs type-level
+    ///         declarations (class / struct / record / interface / enum / delegate) scoped to
+    ///         an identical enclosing container (namespace or outer type). Phase 2 pairs
+    ///         members (method / ctor / property / field / event), where two members share a
+    ///         container if their declaring-type FQNs are equal <i>or</i> the removed member's
+    ///         declaring type was itself paired as a rename in phase 1 — this is what lets a
+    ///         renamed type <c>A → B</c> cascade its constructor <c>A() → B()</c> while two
+    ///         identical-bodied members in unrelated types (<c>A.Foo</c> / <c>B.Bar</c>) stay
+    ///         Added + Removed.
+    ///     </para>
+    ///     <para>
+    ///         <b>v1 limitation.</b> Only pure renames pair: a name change combined with a
+    ///         body change is not equivalent-modulo-name, so it stays Added + Removed. A type
+    ///         renamed <i>and</i> moved to a different namespace also stays Added + Removed,
+    ///         since phase 1 requires an identical enclosing container.
     ///     </para>
     /// </summary>
     private static List<DeclarationDelta> DetectRenames(
@@ -114,25 +126,58 @@ internal sealed class SemanticDiffService : IRtService
         var pairedRemovedToAdded = new Dictionary<string, DeclarationDelta>(StringComparer.Ordinal);
         var pairedAddedFqns = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (var rem in removed)
-        {
-            foreach (var add in added)
-            {
-                if (pairedAddedFqns.Contains(add.Fqn) || add.Kind != rem.Kind)
-                    continue;
+        // Phase 1: member-container types (class / struct / record / interface), scoped to an
+        // identical enclosing container. These pair first because a rename here changes the
+        // container FQN of every member inside, which phase 2 needs to know about. Enums and
+        // delegates are NOT here — they hold no members, so nothing depends on pairing them
+        // first; they fall to phase 2 and pair there by equal container like any leaf.
+        PairRenames(
+            removed.Where(d => IsMemberContainerType(d.Kind)),
+            added.Where(d => IsMemberContainerType(d.Kind)),
+            before,
+            after,
+            opts,
+            (rem, add) => string.Equals(before[rem.Fqn].Container, after[add.Fqn].Container, StringComparison.Ordinal),
+            pairedRemovedToAdded,
+            pairedAddedFqns);
 
-                if (!AreEquivalent(before[rem.Fqn].Node, after[add.Fqn].Node, opts, normalizeIdentifier: true))
-                    continue;
+        // Map each renamed container type's old FQN -> new FQN, so a member whose declaring
+        // type was renamed in phase 1 can still pair. Every phase-1 pairing is a member
+        // container, so no kind filter is needed.
+        var typeRenameMap = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (oldFqn, add) in pairedRemovedToAdded)
+            typeRenameMap[oldFqn] = add.Fqn;
 
-                pairedRemovedToAdded[rem.Fqn] = add;
-                pairedAddedFqns.Add(add.Fqn);
-                break;
-            }
-        }
+        // Phase 2: everything else (enums, delegates, and all members). Containers match when
+        // equal — which covers same-type members and same-namespace enums/delegates — or when
+        // the removed member's declaring type was renamed to the added member's in phase 1.
+        PairRenames(
+            removed.Where(d => !IsMemberContainerType(d.Kind)),
+            added.Where(d => !IsMemberContainerType(d.Kind)),
+            before,
+            after,
+            opts,
+            (rem, add) => MemberContainersCompatible(before[rem.Fqn].Container, after[add.Fqn].Container, typeRenameMap),
+            pairedRemovedToAdded,
+            pairedAddedFqns);
 
         if (pairedRemovedToAdded.Count == 0)
             return deltas;
 
+        return ApplyRenamePairs(deltas, pairedRemovedToAdded, pairedAddedFqns);
+    }
+
+    /// <summary>
+    ///     Rebuild the delta list with each rename pair collapsed: the Added half is dropped
+    ///     and the Removed half is replaced by a single <see cref="DeclarationStatus.Renamed" />
+    ///     delta keyed on the new FQN. The list is re-sorted Ordinal by FQN afterwards because
+    ///     a Renamed delta is re-keyed to its after-side FQN, which can reorder it.
+    /// </summary>
+    private static List<DeclarationDelta> ApplyRenamePairs(
+        List<DeclarationDelta> deltas,
+        Dictionary<string, DeclarationDelta> pairedRemovedToAdded,
+        HashSet<string> pairedAddedFqns)
+    {
         var result = new List<DeclarationDelta>(deltas.Count);
         foreach (var delta in deltas)
         {
@@ -161,6 +206,79 @@ internal sealed class SemanticDiffService : IRtService
         result.Sort(static (x, y) => string.CompareOrdinal(x.Fqn, y.Fqn));
         return result;
     }
+
+    /// <summary>
+    ///     Greedy, deterministic rename pairing within one candidate set. Removed
+    ///     declarations are considered in Ordinal FQN order; for each, the first
+    ///     not-yet-paired Added declaration (also Ordinal) of the same kind that satisfies
+    ///     <paramref name="containersCompatible" /> and is equivalent-modulo-name is taken.
+    ///     Each Added pairs at most one Removed. Pairings are accumulated into the shared
+    ///     <paramref name="pairedRemovedToAdded" /> / <paramref name="pairedAddedFqns" />
+    ///     across both phases so the caller's single rebuild handles every kind uniformly.
+    /// </summary>
+    private static void PairRenames(
+        IEnumerable<DeclarationDelta> removed,
+        IEnumerable<DeclarationDelta> added,
+        IReadOnlyDictionary<string, DeclEntry> before,
+        IReadOnlyDictionary<string, DeclEntry> after,
+        SemanticDiffOptions opts,
+        Func<DeclarationDelta, DeclarationDelta, bool> containersCompatible,
+        Dictionary<string, DeclarationDelta> pairedRemovedToAdded,
+        HashSet<string> pairedAddedFqns)
+    {
+        var candidates = added.ToList();
+        foreach (var rem in removed)
+        {
+            foreach (var add in candidates)
+            {
+                if (pairedAddedFqns.Contains(add.Fqn) || add.Kind != rem.Kind)
+                    continue;
+
+                if (!containersCompatible(rem, add))
+                    continue;
+
+                if (!AreEquivalent(before[rem.Fqn].Node, after[add.Fqn].Node, opts, normalizeIdentifier: true))
+                    continue;
+
+                pairedRemovedToAdded[rem.Fqn] = add;
+                pairedAddedFqns.Add(add.Fqn);
+                break;
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Two members share a container when their declaring-type FQNs are equal, or when
+    ///     the removed member's declaring type was renamed to the added member's declaring
+    ///     type in phase 1 (recorded in <paramref name="typeRenameMap" />).
+    /// </summary>
+    private static bool MemberContainersCompatible(
+        string? removedContainer,
+        string? addedContainer,
+        Dictionary<string, string> typeRenameMap)
+    {
+        if (string.Equals(removedContainer, addedContainer, StringComparison.Ordinal))
+            return true;
+
+        return removedContainer is not null
+            && typeRenameMap.TryGetValue(removedContainer, out var renamedTo)
+            && string.Equals(renamedTo, addedContainer, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Kinds that can declare members and so must be paired first (phase 1): a rename here
+    ///     re-keys every member inside, which the phase-2 member pairing depends on. Enums and
+    ///     delegates are deliberately excluded — they hold no member declarations, so nothing
+    ///     waits on them and they pair as ordinary leaves in phase 2 by equal container.
+    /// </summary>
+    private static bool IsMemberContainerType(DeclarationKind kind) => kind switch
+    {
+        DeclarationKind.Class => true,
+        DeclarationKind.Struct => true,
+        DeclarationKind.Record => true,
+        DeclarationKind.Interface => true,
+        _ => false,
+    };
 
     /// <summary>
     ///     Equality for a declaration present on both sides, trivia-insensitive

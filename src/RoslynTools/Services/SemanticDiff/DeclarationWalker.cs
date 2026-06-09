@@ -50,6 +50,14 @@ internal static class DeclarationWalker
         string? containingTypeFqn,
         string path)
     {
+        // Every declaration yielded here is contained by `containingTypeFqn`: for a member
+        // that is its declaring type's FQN; for a type/enum/delegate it is the enclosing
+        // namespace (or enclosing type when nested). Recording it lets the rename pass
+        // scope pairing to a shared container so two identical-bodied declarations in
+        // unrelated containers never mis-pair as a rename (US-126).
+        DeclEntry Entry(string fqn, DeclarationKind kind, SyntaxNode node) =>
+            new(fqn, kind, path, node, containingTypeFqn);
+
         foreach (var member in members)
         {
             switch (member)
@@ -62,7 +70,7 @@ internal static class DeclarationWalker
 
                 case TypeDeclarationSyntax type:
                     var typeFqn = Join(containingTypeFqn, NameWithArity(type.Identifier, type.TypeParameterList));
-                    yield return new DeclEntry(typeFqn, TypeKind(type), path, type);
+                    yield return Entry(typeFqn, TypeKind(type), type);
                     foreach (var entry in Walk(type.Members, typeFqn, path))
                         yield return entry;
                     break;
@@ -70,78 +78,71 @@ internal static class DeclarationWalker
                 case EnumDeclarationSyntax @enum:
                     // Enum members are not reported as declarations — only the enum type.
                     var enumFqn = Join(containingTypeFqn, @enum.Identifier.Text);
-                    yield return new DeclEntry(enumFqn, DeclarationKind.Enum, path, @enum);
+                    yield return Entry(enumFqn, DeclarationKind.Enum, @enum);
                     break;
 
                 case DelegateDeclarationSyntax @delegate:
                     var delegateFqn = Join(
                         containingTypeFqn,
                         NameWithArity(@delegate.Identifier, @delegate.TypeParameterList));
-                    yield return new DeclEntry(delegateFqn, DeclarationKind.Delegate, path, @delegate);
+                    yield return Entry(delegateFqn, DeclarationKind.Delegate, @delegate);
                     break;
 
                 case MethodDeclarationSyntax method:
-                    yield return new DeclEntry(
+                    yield return Entry(
                         MemberFqn(
                             containingTypeFqn,
                             NameWithArity(method.Identifier, method.TypeParameterList),
                             method.ParameterList),
                         DeclarationKind.Method,
-                        path,
                         method);
                     break;
 
                 case ConstructorDeclarationSyntax ctor:
-                    yield return new DeclEntry(
+                    yield return Entry(
                         MemberFqn(containingTypeFqn, ctor.Identifier.Text, ctor.ParameterList),
                         DeclarationKind.Constructor,
-                        path,
                         ctor);
                     break;
 
                 case OperatorDeclarationSyntax op:
-                    yield return new DeclEntry(
+                    yield return Entry(
                         MemberFqn(
                             containingTypeFqn,
                             "operator " + op.OperatorToken.Text,
                             op.ParameterList),
                         DeclarationKind.Operator,
-                        path,
                         op);
                     break;
 
                 case ConversionOperatorDeclarationSyntax conv:
-                    yield return new DeclEntry(
+                    yield return Entry(
                         MemberFqn(
                             containingTypeFqn,
                             "operator " + conv.Type.ToString(),
                             conv.ParameterList),
                         DeclarationKind.Operator,
-                        path,
                         conv);
                     break;
 
                 case IndexerDeclarationSyntax indexer:
-                    yield return new DeclEntry(
+                    yield return Entry(
                         MemberFqn(containingTypeFqn, "this", indexer.ParameterList),
                         DeclarationKind.Indexer,
-                        path,
                         indexer);
                     break;
 
                 case PropertyDeclarationSyntax prop:
-                    yield return new DeclEntry(
+                    yield return Entry(
                         Join(containingTypeFqn, prop.Identifier.Text),
                         DeclarationKind.Property,
-                        path,
                         prop);
                     break;
 
                 case EventDeclarationSyntax @event:
-                    yield return new DeclEntry(
+                    yield return Entry(
                         Join(containingTypeFqn, @event.Identifier.Text),
                         DeclarationKind.Event,
-                        path,
                         @event);
                     break;
 
@@ -152,10 +153,9 @@ internal static class DeclarationWalker
                     // must not let an edit to Y bleed into X's classification.
                     foreach (var variable in eventField.Declaration.Variables)
                     {
-                        yield return new DeclEntry(
+                        yield return Entry(
                             Join(containingTypeFqn, variable.Identifier.Text),
                             DeclarationKind.Event,
-                            path,
                             eventField.WithDeclaration(
                                 eventField.Declaration.WithVariables(
                                     SyntaxFactory.SingletonSeparatedList(variable))));
@@ -171,10 +171,9 @@ internal static class DeclarationWalker
                     // declarator Changed when a sibling changes.
                     foreach (var variable in field.Declaration.Variables)
                     {
-                        yield return new DeclEntry(
+                        yield return Entry(
                             Join(containingTypeFqn, variable.Identifier.Text),
                             DeclarationKind.Field,
-                            path,
                             field.WithDeclaration(
                                 field.Declaration.WithVariables(
                                     SyntaxFactory.SingletonSeparatedList(variable))));
@@ -263,5 +262,11 @@ internal static class DeclarationWalker
     }
 }
 
-/// <summary>Shared index entry: a declaration's syntactic key, kind, source path, and node.</summary>
-internal sealed record DeclEntry(string Fqn, DeclarationKind Kind, string Path, SyntaxNode Node);
+/// <summary>
+///     Shared index entry: a declaration's syntactic key, kind, source path, and node, plus the
+///     FQN of its container (declaring type for a member; enclosing namespace or type for a
+///     type/enum/delegate; <c>null</c> at the compilation-unit root). The rename pass scopes
+///     pairing to a shared <see cref="Container" /> so identical-bodied declarations in unrelated
+///     containers never mis-pair as a rename.
+/// </summary>
+internal sealed record DeclEntry(string Fqn, DeclarationKind Kind, string Path, SyntaxNode Node, string? Container);
