@@ -61,11 +61,13 @@
                 "rt refactor extract-interface --type WorkspaceLoader --solution RoslynTools.slnx (no dry-run) succeeds without producing files that fail dotnet build"
             ],
             "priority": 75,
-            "passes": false,
+            "passes": true,
             "epicId": "EP-006",
             "notes": "P2. Surfaced during EP-008/US-053 dogfood at branch ep-008-isessionfactory. Three bundled defects: (1) base-list insertion is malformed -- 'IDisposable\\n,IWorkspaceLoader{' (no space, brace adjacent); (2) generated interface is hardcoded public regardless of source class accessibility (internal sealed class WorkspaceLoader yielded public interface IWorkspaceLoader); (3) only public members are extracted, missing internal GetSolutionAsync/LoadWorkspaceAsync from WorkspaceLoader. Repro: rt refactor extract-interface --type WorkspaceLoader --solution RoslynTools.slnx --dry-run. Forced fallback to hand-authoring IWorkspaceSessionFactory.",
             "urgency": 5,
-            "urgencyReason": "P2 dogfood bug surfaced during EP-008; blocks broader extract-interface use on internal classes"
+            "urgencyReason": "P2 dogfood bug surfaced during EP-008; blocks broader extract-interface use on internal classes",
+            "resolution": "Fixed all three extract-interface defects (commit 1fe8e3f): (1) base-list trivia relocation gives ', IFoo' with brace on its own line; (2) BuildInterfaceText takes Accessibility, emits 'internal interface' for internal source classes; (3) internal members included for internal classes via IsExposed + includeInternal. Brought both files into Stryker scope: InterfaceTextBuilder 100%, ExtractInterfaceService 97.73% (1 documented-equivalent). Dogfood on WorkspaceLoader verified.",
+            "resolvedAt": "2026-06-10"
         },
         {
             "id": "US-100",
