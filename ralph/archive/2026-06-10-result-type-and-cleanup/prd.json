@@ -1,0 +1,310 @@
+{
+    "project": "roslyn-tools",
+    "branchName": "result-type-and-cleanup",
+    "description": "Result<T,RtError> rollout (US-068 split) + feedback noise reduction + parallel-safety + extract-interface fix. Promoted from triaged backlog after 2026-05-22 refinement.",
+    "epics": [],
+    "userStories": [
+        {
+            "id": "US-077",
+            "title": "Result<T,RtError> ADT + SymbolLocator migration + App exception ladder",
+            "description": "As a developer, I want SymbolLocator's four lookup methods to return Result<ISymbol, RtError> for routine not-found / ambiguous cases instead of throwing InvalidOperationException, so the App-level exception handler can route handled errors via a typed ladder (no substring-matching) while still surfacing genuine bugs with full stack traces.",
+            "acceptanceCriteria": [
+                "src/RoslynTools/Core/Result.cs defines an internal sealed record Result<T, TError> ADT with Ok(T value) and Err(TError error) factory methods plus IsOk/IsErr predicates and Match/Map combinators (no nullable-T trickery; either branch is total).",
+                "src/RoslynTools/Core/RtError.cs defines an internal sealed record RtError(RtErrorKind Kind, string Message, IReadOnlyDictionary<string,string>? Context = null).",
+                "src/RoslynTools/Core/RtErrorKind.cs defines an enum with NotFound, InvalidInput, AmbiguousMatch, and WorkspaceLoadFailure entries (no others in this story; further kinds added only when a real call-site needs them).",
+                "SymbolLocator.FindSymbolAsync, FindSymbolByFqnAsync, FindTypeByFqnAsync, and FindMethodBySpecAsync return Result<ISymbol, RtError>; symbol-not-found and ambiguous-match cases produce RtError.NotFound / RtError.AmbiguousMatch — never throw InvalidOperationException.",
+                "Every existing caller of those four SymbolLocator methods is updated to consume Result<ISymbol, RtError>; commands surface RtError via a single shared RtLog.Error(...) + context.ExitCode = 1 helper (no per-command if/else ladder).",
+                "App.CaptureExceptionAsync gains a typed-only catch ladder for FileNotFoundException, DirectoryNotFoundException, ArgumentException, and JsonException that emits a single 'Error: <message>' line to stderr with exit 1.",
+                "No substring-matching of Exception.Message exists anywhere in App.cs after this change (grep for `ex.Message.Contains` / `ex.Message.StartsWith` / `ex.Message.IndexOf` returns zero matches in the file).",
+                "feedback.json still receives an entry for every exception not in the typed ladder; handled-via-Result paths do NOT add a feedback entry (regression test verifies the count stays unchanged across one symbol-not-found scenario).",
+                "Integration test: rt inspect find-refs --symbol DoesNotExistSymbolFoo exits 1, writes exactly one 'Error: ...' line to stderr, writes nothing to stdout, and does not append to feedback.json.",
+                "Integration test: rt inspect describe Foo.Bar (ambiguous match across two namespaces) exits 1 with an RtError.AmbiguousMatch-formatted message that lists candidate FQNs.",
+                "CLAUDE.md gains a 'Result types' section that explains when to use Result<T, RtError> (routine user-error flows in core services) vs when to throw (invariant violations and genuinely unexpected failures).",
+                "dotnet build RoslynTools.slnx succeeds with zero errors; dotnet format --verify-no-changes exits 0; existing test suite passes; rt dump-help output unchanged.",
+                "rt dogfood smoke: running rt inspect describe RoslynTools.Core.SymbolLocator --solution RoslynTools.slnx exits 0 with the same JSON shape as before; running it with a typo'd symbol exits 1 cleanly without a stack trace."
+            ],
+            "priority": 78,
+            "passes": false,
+            "epicId": "EP-010",
+            "notes": "First of three sub-stories split from the originally-paused US-068. Lands the ADT, the first migration target (SymbolLocator), and the typed catch ladder that replaces App.TryHandleUserErrorAsync's substring-matching. US-068b (WorkspaceLoader) and US-068c (MethodExtractor) follow with smaller migrations once the pattern is proven here. Audit 2026-05-26: re-spec SymbolLocator↔DaemonServer error contract before coding (does DaemonServer translate Result<T, RtError> to wire envelope or vice versa?). See EP-015.",
+            "urgency": 1,
+            "urgencyReason": "EP-010 lead: Result ADT + SymbolLocator + App handler ladder; unblocks US-078/079 and US-060",
+            "effort": 5
+        },
+        {
+            "id": "US-076",
+            "title": "stop capturing handled user-error exceptions to feedback.json",
+            "description": "As a roslyn-tools maintainer, I want App.CaptureExceptionAsync to skip exception types that App.TryHandleUserErrorAsync already maps to a clean exit-1 + stderr UX, so feedback.json only collects genuinely unexpected failures that need human triage — not the expected bad-input UX paths that the dogfood/integration harness exercises on every run.",
+            "acceptanceCriteria": [
+                "App.TryHandleUserErrorAsync (src/RoslynTools.Cli/App.cs:342) no longer calls CaptureExceptionAsync for exception types it already translates (FileNotFoundException, IOException, InvalidOperationException, JsonException, YamlException) — those are documented, expected user errors with a clean stderr message and exit 1; capturing them adds noise without adding signal",
+                "Exceptions that fall through TryHandleUserErrorAsync (return false → rethrow) ARE still captured to feedback.json — the unmapped path is the one that needs human triage",
+                "Running the bad-input integration scenarios (`refactor add-xml-doc --from-json <invalid.json>`, `inspect describe Foo --decisions <invalid.yaml>`, `inspect describe Foo --solution <missing.slnx>`, `analyze analyze-interface <non-interface>`) leaves feedback.json untouched — exit code is still 1, stderr is still the friendly message, but no FB-NNN entry is appended",
+                "Regression test added under tests/RoslynTools.Tests/Cli/ that runs one of the four scenarios end-to-end and asserts feedback.json count is unchanged",
+                "Existing tests pass; dotnet format --verify-no-changes clean"
+            ],
+            "priority": 65,
+            "passes": true,
+            "notes": "P3. Source cluster: FB-280 through FB-299 (feedback.json, 2026-05-22) — 5 repeated runs of 4 identical scenarios from a dogfood/integration harness that exercises bad-input UX paths. All four scenarios are already handled correctly by TryHandleUserErrorAsync (exit 1 + stderr); the only output of those captures was 20 lines of feedback.json noise. Implementation: invert the order in TryHandleUserErrorAsync — only capture when the exception is NOT in the handled set (i.e. capture inside the trailing `return false` branch, not at the top). The 20 FB-280..FB-299 entries themselves are discarded; this story will be the audit trail.",
+            "urgency": 2,
+            "urgencyReason": "P3 trivial cleanup; clears 20-line feedback.json noise from bad-input integration scenarios",
+            "resolution": "Shipped on commit b81642a. TryHandleUserErrorAsync inverted: known user-error exception types (FileNotFoundException, IOException, InvalidOperationException, JsonException, YamlException) now skip CaptureExceptionAsync; only unmapped exceptions land in feedback.json. Regression test HandledUserErrorsDoNotPolluteFeedbackTests.missing_solution_file_exits_1_without_appending_feedback exercises the missing-solution path end-to-end. Full suite green, format clean, mutation score 100%.",
+            "resolvedAt": "2026-05-23"
+        },
+        {
+            "id": "US-074",
+            "title": "rt analyze list-smells: add --top N limiter",
+            "description": "As an agent driving rt, I want `rt analyze list-smells --top N` to cap the output to the N highest-priority smells so that I can run concise smell scans without paging through thousands of lines of JSON.",
+            "acceptanceCriteria": [
+                "rt analyze list-smells --solution <sln> --top 30 exits 0 and emits at most 30 smell entries to stdout",
+                "Ordering is deterministic and matches the existing default ordering (highest severity/score first; tie-break by file path then line)",
+                "Omitting --top preserves current behaviour (no limit)",
+                "--top 0 emits an empty smells array (still valid JSON with metadata intact)",
+                "--top with a negative integer exits 1 with stderr 'Invalid --top value: must be >= 0' (no stack trace)",
+                "rt dump-help shows --top in the list-smells command help",
+                "ListSmellsCommand.Info.Examples includes a --top example"
+            ],
+            "priority": 60,
+            "passes": true,
+            "notes": "P2. Source: FB-006 (feedback.json, 2026-05-15). Pure CLI surface — slice the result list after ranking, before JSON serialisation. No behavioural change to the analyser itself.",
+            "urgency": 3,
+            "urgencyReason": "Pure CLI surface (slice list before JSON serialise); FB-006 driver; no analyser logic change",
+            "resolution": "Shipped. ListSmellsCommand.cs lines 43-76 implement --top: default 0 (no limit), int <0 emits 'must be >= 0' to stderr and exits 1, top>0 slices via Take(top). Example with --top in Info.Examples (line 31). Test in tests/RoslynTools.Tests/Analysis/ListSmellsMigration.cs:199 (list_smells_command_accepts_top_option). dump-help shows --top. AC satisfied — closing.",
+            "resolvedAt": "2026-05-23"
+        },
+        {
+            "id": "US-075",
+            "title": "make rt parallel-safe for agent dogfooding (feedback file, wrapper rebuild, deploy-skill, MSBuild obj)",
+            "description": "As an agent running /execute-style parallel rt invocations across worktrees, I want rt and its build/deploy plumbing to be safe under concurrency so that parallel dogfooding does not corrupt feedback.json, race the rt.cmd rebuild, fight deploy-skill Copy-Item, or trip MSBuild obj/Debug file locks.",
+            "acceptanceCriteria": [
+                "rt feedback add is safe under concurrent invocation: parallel calls each get a unique FB-id and every entry is persisted (regression test runs N parallel `rt feedback add` and asserts N distinct ids + N items on disk)",
+                "Concurrent ./rt.cmd / rt.ps1 invocations after a source edit serialise on a build mutex so only one rebuild runs at a time; subsequent invocations wait then execute against the freshly built binary (no CS2012 / rt.exe copy-lock warnings)",
+                "deploy-skill Copy-Item retries on file-lock with bounded backoff, or skips with a clear stderr message when the destination is locked by a concurrent build (no unhandled IOException)",
+                "Read-only `rt analyze …` commands accept a flag (e.g. --isolated-obj) or unconditionally redirect BaseIntermediateOutputPath to a per-process temp dir so parallel analyses do not race on shared obj/Debug files",
+                "Integration test exercises FB-007/FB-008/FB-013 reproduction scenarios in parallel and confirms no exceptions and no MSBuild lock warnings on stderr",
+                "Documentation update in AGENTS.md and CLAUDE.md noting that rt is now parallel-safe for agent use"
+            ],
+            "priority": 70,
+            "passes": false,
+            "notes": "P2. Source cluster: FB-007, FB-008, FB-012, FB-013 (feedback.json, 2026-05-15). Four distinct race sites but one story — each is a small fix and they share the same trigger (parallel agent invocation). Implementation order: (1) feedback file mutex (FileStream with FileShare.None + retry loop on id allocation), (2) rt.cmd build mutex via named mutex around dotnet build, (3) deploy-skill retry, (4) MSBuildWorkspace BaseIntermediateOutputPath isolation for read-only commands. Audit 2026-05-26: no design changes; start with feedback-file mutex. See EP-015.",
+            "urgency": 4,
+            "urgencyReason": "Blocks parallel /execute worktrees; FB-007/008/012/013 race-site cluster"
+        },
+        {
+            "id": "US-071",
+            "title": "rt refactor extract-interface produces malformed output for internal classes",
+            "description": "[DISPOSITION: DEFERRED] extract-interface dogfood bug — schedule after the sweep; touches one command.\n\nAs a roslyn-tools developer, I want extract-interface to honor source class accessibility, include internal members when the source is internal, and emit syntactically valid C# so that I can dogfood it during DI migrations on internal types.",
+            "acceptanceCriteria": [
+                "rt refactor extract-interface --type WorkspaceLoader --solution RoslynTools.slnx --dry-run emits a syntactically valid diff: the new interface name is inserted into the existing base list with proper formatting (space after comma, brace placement matching the file's brace style), and the resulting file would compile",
+                "Extracting from an internal sealed class produces an internal interface (not public). Accessibility of the generated interface matches the source class accessibility",
+                "Extracting from an internal class includes the class's internal members in the generated interface (today only public members are picked up). Public-only behaviour remains the default for public source classes",
+                "Regression test added covering an internal class with internal members and an existing IDisposable base list, asserting both the file compiles and the interface accessibility/membership matches expectation",
+                "rt refactor extract-interface --type WorkspaceLoader --solution RoslynTools.slnx (no dry-run) succeeds without producing files that fail dotnet build"
+            ],
+            "priority": 75,
+            "passes": false,
+            "epicId": "EP-006",
+            "notes": "P2. Surfaced during EP-008/US-053 dogfood at branch ep-008-isessionfactory. Three bundled defects: (1) base-list insertion is malformed -- 'IDisposable\\n,IWorkspaceLoader{' (no space, brace adjacent); (2) generated interface is hardcoded public regardless of source class accessibility (internal sealed class WorkspaceLoader yielded public interface IWorkspaceLoader); (3) only public members are extracted, missing internal GetSolutionAsync/LoadWorkspaceAsync from WorkspaceLoader. Repro: rt refactor extract-interface --type WorkspaceLoader --solution RoslynTools.slnx --dry-run. Forced fallback to hand-authoring IWorkspaceSessionFactory.",
+            "urgency": 5,
+            "urgencyReason": "P2 dogfood bug surfaced during EP-008; blocks broader extract-interface use on internal classes"
+        },
+        {
+            "id": "US-100",
+            "title": "Unify RtResultRenderer call shape and enforce IStructuredOutputCommand for every JSON-output command",
+            "description": "As an rt maintainer, I want every structured-output command to call RtResultRenderer through one consistent entry point and to declare its JSON output by implementing IStructuredOutputCommand, so renderer behaviour cannot drift between commands and RtCommandInfo.JsonOutput=true is reliably synchronised with the interface implementation.",
+            "acceptanceCriteria": [
+                "RtResultRenderer exposes one canonical method that structured-output commands call (the default JSON options are encapsulated inside the renderer; callers do not pass options).",
+                "The previously-divergent overload (Write with explicit JsonOptions) is removed, or restricted to a clearly-scoped use case that no command currently needs.",
+                "Every command with RtCommandInfo.JsonOutput=true implements IStructuredOutputCommand; every command that implements IStructuredOutputCommand has JsonOutput=true.",
+                "App.cs startup validator enforces this biconditional and fails at startup (and therefore fails post-build docs/COMMANDS.md generation) if a new command violates it.",
+                "rt inspect find-refs --json, rt inspect find-callers --json, and rt inspect find-impl --json produce byte-identical output before and after the change.",
+                "Architecture test under tests/RoslynTools.Tests/Architecture/ covers the biconditional invariant by exercising the validator against the live command registry.",
+                "dotnet build clean, dotnet format --verify-no-changes clean, full test suite passes."
+            ],
+            "priority": 101,
+            "passes": false,
+            "notes": "P2. Source: architectural audit on 2026-05-24. RtResultRenderer exposes three methods: Write(RtResult<T>, JsonOptions), WriteOutput<T>(RtResult<T>), WriteText(RtResult<string>). Today FindRefsCommand:58 and FindCallersCommand:61 call WriteOutput, while FindImplementationsCommand:79-81 calls Write(..., SymbolFormatter.DefaultJsonOptions). IStructuredOutputCommand marker exists but only FindImplementationsCommand implements it; the other two do not. App.cs has a static-ctor check that the category enum stays in sync — extend it to enforce the JsonOutput=true ⇔ IStructuredOutputCommand biconditional. Audit 2026-05-26: pick (a) collapse RtResultRenderer to one overload, or (b) keep three and add IStructuredOutputCommand to FindRefs/FindCallers. See EP-015."
+        },
+        {
+            "id": "US-107",
+            "title": "Category + capability interfaces to enforce command consistency at the type system",
+            "description": "As a maintainer, I want IInspectCommand/IAnalyzeCommand/IRefactorCommand marker interfaces plus capability interfaces (IMutatingCommand, IStructuredOutputCommand, IBatchMutationCommand, INativeMcpExposable) so the compiler and architecture tests enforce category-specific contracts (mutates, JSON output, dry-run, MCP exposure), replacing several rows of the per-command checklist with mechanical checks.",
+            "acceptanceCriteria": [
+                "src/RoslynTools/Core/ defines three marker category interfaces inheriting from IRtCommand: IInspectCommand, IAnalyzeCommand, IRefactorCommand. They are empty subinterfaces — no member additions — so existing commands implement them by declaration only.",
+                "Every concrete *Command class in src/RoslynTools/Commands/ implements exactly one of the three category interfaces. Picking zero or more than one is a compile error or an architecture-test failure.",
+                "Capability interfaces also defined in src/RoslynTools/Core/: IMutatingCommand (commands that produce file changes; must expose a dry-run option and emit a diff or change summary), IStructuredOutputCommand (commands that emit JSON; consolidates with the US-100 IStructuredOutputCommand if that lands first), IBatchMutationCommand (commands that use the BatchMutationRunner/FixId pipeline; ties into US-092), INativeMcpExposable (commands that should have a corresponding native IMcpHandler; ties into US-094).",
+                "Architecture test (under tests/RoslynTools.Tests/Architecture/) asserts: every IInspectCommand has Info.Category == \"inspect\", Info.Mutates == false, Info.JsonOutput == true",
+                "Architecture test asserts: every IAnalyzeCommand has Info.Category == \"analyze\", Info.Mutates == false, Info.JsonOutput == true",
+                "Architecture test asserts: every IRefactorCommand has Info.Category == \"refactor\", Info.Mutates == true, implements IMutatingCommand, and its Build() registers a --dry-run option (detected by inspecting the System.CommandLine surface)",
+                "Architecture test asserts: every IInspectCommand and IAnalyzeCommand also implements INativeMcpExposable AND has a registered IMcpHandler with matching ToolName (replaces the bespoke ratchet from US-094 if US-094 hasn't landed yet, or extends it if it has)",
+                "Awkward outliers are handled explicitly, not by relaxing the rules: debug (analyze category but operates on a JSONL trace, not the solution) gets an explicit ITraceAnalyzeCommand subinterface OR a documented [DoesNotRequireSolution] marker so the solution-scoped checks skip it",
+                "docs/per-command-checklist.md updated: every checklist row that is now compiler- or test-enforced is annotated with \"(enforced)\" and dropped from the manual checklist. The remaining manual items are the genuinely-human ones (Examples freshness, SeeAlso correctness, behaviour-vs-Mutates accuracy).",
+                "All 52 existing commands compile and pass after the interfaces are introduced (no behaviour change; pure type-system + ratchet)",
+                "dotnet build RoslynTools.slnx clean; dotnet format --verify-no-changes clean; existing tests pass; new architecture tests green",
+                "Pattern reference: commit 6d767b1 (feat(mcp): wire find_refs and rename as native MCP handlers) for the native-handler conventions the INativeMcpExposable rule encodes"
+            ],
+            "priority": 108,
+            "passes": true,
+            "epicId": "EP-009",
+            "notes": "P2. EP-009 consistency enabler. Shrinks docs/per-command-checklist.md to the genuinely-human items. Composes with: US-094 (MCP ratchet — INativeMcpExposable encodes this), US-100 (IStructuredOutputCommand — consolidate), US-092 (BatchMutationRunner — IBatchMutationCommand marks adopters), US-097 (refactor MCP shape — IRefactorCommand + IMutatingCommand contract owns this). Awkward commands (debug, outline) get explicit carve-out subinterfaces or markers — do NOT relax the universal rules to fit them.",
+            "resolution": "Shipped across 6 batches (deb8d12, 94fdb1a, 9ba586d, 609f36a/cce9c12, 308881f, c69f64f, dc6e2e4). Added 6 marker interfaces (IInspectCommand, IAnalyzeCommand, IRefactorCommand, IMutatingCommand, IBatchMutationCommand, ITraceAnalyzeCommand) under src/RoslynTools/Core/ with IRefactorCommand : IMutatingCommand and IBatchMutationCommand : IMutatingCommand hierarchy. Tagged 52 commands with their category marker. Extended App.cs static ctor with the category-coverage ratchet. Added architecture tests CategoryInterfacesShape, CategoryInterfaceCoverage, MutatingCommandCoverage, CategoryInterfaceContracts (Tests project) and McpHandlerNameContract (Tests.Mcp project). 34 architecture/handler tests pass; 2 skipped (US-082 soft ratchet on JsonOutput axis; pre-existing language-tool skip). Surfaced and logged US-111 (rt add-base-type gap) and US-112 (change-signature missing --dry-run). docs/per-command-checklist.md annotated with (enforced) rows. Composes with US-094/US-095/US-096 (still open) for the eventual every-inspect-analyze-has-native-handler ratchet.",
+            "resolvedAt": "2026-05-25"
+        },
+        {
+            "id": "US-114",
+            "title": "Represent shared CLI flags as reusable capability interfaces backed by a central option registry",
+            "description": "As an rt maintainer, I want every reusable CLI flag to be represented by a real capability interface with shared binding/parsing behavior and registered in one central option catalog, so commands reuse flag code, standardize semantics, and keep CLI/MCP/help surfaces from drifting.",
+            "acceptanceCriteria": [
+                "A central flag catalog exists in src/RoslynTools.Cli/ (or a shared command-surface project if US-099 has landed) that owns every reusable System.CommandLine option definition: solution, dry-run, json/format, scope, top, symbol, type, file, kind, decisions, apply, skip, verbose, and any other flag used by 2+ commands.",
+                "Each reusable flag has a corresponding capability interface in Core or the command-surface project with real reusable contract members, not an empty tag. Examples: IHasSolutionOption exposes string? SolutionPath; ISupportsDryRun exposes bool DryRun; ISupportsTopOption exposes int? Top; IHasSymbolTarget exposes string Symbol; ISupportsApplySkipOptions exposes IReadOnlySet<string> ApplyIds and SkipIds.",
+                "Each capability interface has one shared binder/parser that reads the central catalog option from ParseResult and populates the typed capability/request object; commands do not call GetValueForOption directly for catalog-owned flags.",
+                "Shared flag validation lives with the capability binder, not in individual commands: examples include --top >= 0, --apply/--skip mutual exclusion, solution path normalization/autodetection, output format normalization, and deprecated-alias warnings.",
+                "Commands consume typed request/context objects composed from these interfaces rather than raw option variables.",
+                "Service-layer APIs remain flag-agnostic: services receive domain request objects that say what to do or ask (for example symbol, target type, desired transformation, limit/count), not how that request arrived from CLI/MCP flags.",
+                "CLI/MCP adapters and shared binders are responsible for translating flag capability objects into service-domain requests; services do not reference System.CommandLine, ParseResult, option catalog types, MCP schema types, or flag capability interfaces unless the capability is also a true domain concept.",
+                "Reusable service-layer request models may share plain domain interfaces only when they describe the operation itself, not transport/input mechanics; for example a query may expose Limit, but not ISupportsTopOption.",
+                "Command classes or command request types implement the flag capability interfaces for every reusable flag they expose; command category interfaces may inherit common capabilities where universal, e.g. IRefactorCommand implies ISupportsDryRun if the US-112 exception has been closed.",
+                "The command builder path reads capability interfaces and registers options from the central catalog, then attaches the shared binder pipeline, so command files no longer manually instantiate reusable Option<T> objects or call ad hoc factory methods for common flags.",
+                "The central catalog is the single source of truth for flag name, aliases, description, default value, required/optional status, parse validation, and deprecation aliases.",
+                "Architecture test asserts the biconditional: if a command implements a flag capability interface, its built System.CommandLine.Command exposes exactly the catalog option; if a command exposes a reusable catalog flag, it implements the matching capability interface.",
+                "Architecture test flags direct `new Option<T>(\"--known-flag\"...)` declarations for catalog-owned flags anywhere under src/RoslynTools.Cli/Commands/.",
+                "Architecture test flags direct ParseResult.GetValueForOption calls for catalog-owned flags outside the shared capability binders.",
+                "dump-help and dump-help --json derive flag metadata from the central catalog so generated docs show consistent names, aliases, defaults, and descriptions.",
+                "Native MCP schema generation reuses the same flag catalog metadata for command inputs, so CLI and MCP required fields/defaults remain aligned.",
+                "Backward-compatible aliases are preserved for any previously shipped flag spellings unless explicitly documented as a breaking change in the story notes.",
+                "CommandOptionFactory is either removed or reduced to a thin compatibility wrapper over the new catalog; no second source of option truth remains.",
+                "Migration can be ratcheted: a checked-in marker file may list commands migrated to capability-driven options, and the architecture test enforces the full contract for listed commands until all commands are migrated.",
+                "docs/per-command-checklist.md is updated to replace the manual 'options constructed via CommandOptionFactory' row with the new interface/catalog rule and its enforcing architecture test.",
+                "Tests cover at least solution, dry-run, json/format, top, symbol, and apply/skip capabilities against representative inspect/analyze/refactor commands, including the shared binder output and validation errors.",
+                "dotnet build RoslynTools.slnx clean; dotnet format RoslynTools.slnx --verify-no-changes clean; relevant architecture tests pass; rt dump-help output changes only where option descriptions/aliases are intentionally standardized."
+            ],
+            "priority": 115,
+            "passes": false,
+            "epicId": "EP-009",
+            "notes": "P2 consistency and reuse feature. Seeded by 2026-05-25 design note: flags should be declared as interfaces so reusable option support is visible in the type system, centrally registered, mechanically enforced, and backed by shared binders/validation instead of empty marker tags. Keep the boundary clean: flag capabilities belong to adapters/binders; services should only do or answer the domain thing. This likely supersedes or sharpens US-085/US-062's CommandOptionFactory-only approach; preserve compatibility aliases while migrating."
+        },
+        {
+            "id": "US-121",
+            "title": "Semantic comparison engine for C# (FQN-keyed, trivia-insensitive)",
+            "description": "As a developer, I want a pure comparison engine that takes two sets of C# sources and reports the semantic delta, so the CLI and MCP can share one source of truth.",
+            "acceptanceCriteria": [
+                "Given a \"before\" and \"after\" set of C# sources, produces a structured result listing each declaration (type, method, property, field, etc.) as added, removed, changed, or unchanged.",
+                "Declarations are matched by fully-qualified name, independent of which file they live in — a declaration present in both sides counts as the same declaration even if it moved files.",
+                "Comment-only and whitespace-only differences in a declaration's body produce unchanged, not changed.",
+                "A declaration that exists on both sides with an equivalent normalized body is unchanged even when its containing file path differs (the \"moved file\" case); the result records the old and new file location.",
+                "The engine takes its inputs as in-memory source text (no git/CLI/Console dependency) and is unit-testable in isolation.",
+                "Member reordering and using-directive reordering within a file do not, by themselves, mark a declaration as changed."
+            ],
+            "priority": 121,
+            "passes": true,
+            "epicId": "EP-016",
+            "notes": "P1. Part of EP-016 semantic diff. Foundational engine; pure service, no host deps. Matches by fully-qualified name so a moved-file declaration is unchanged. Candidate reuse: BlockNormalizer, FindDuplicatesService normalized-block walk.",
+            "resolution": "Built the host-agnostic semantic comparison engine (SemanticDiffService : IRtService): parses two in-memory C# source sets (no MSBuild workspace), keys declarations by syntactic FQN (namespace + nesting + generic arity; members add as-written parameter types), and reports Added/Removed/Changed/Unchanged/Renamed deltas. Body comparison is trivia-insensitive via IsEquivalentTo(topLevel:false) over a canonicalized node (type/enum member-lists stripped so member edits don't bubble to the type header); a moved declaration is matched across files (records old/new path). IgnoreAccessibility option strips only accessibility modifiers; default-on DetectRenames pairs equivalent-modulo-name Removed/Added into a single Renamed delta (deterministic by Ordinal FQN). 76 tests across 6 TDD cycles. An Opus review found+fixed a multi-declarator-field false-positive. Hardening (container-scoped rename pairing, edge guards) deferred to US-126. CLI/MCP adapters are US-122..125.",
+            "resolvedAt": "2026-06-08"
+        },
+        {
+            "id": "US-122",
+            "title": "Git version source + rt analyze semantic-diff command",
+            "description": "As a developer, I want to run the semantic diff against git so I can review what I have actually changed.",
+            "acceptanceCriteria": [
+                "`rt analyze semantic-diff` with no version flags compares the working tree against HEAD.",
+                "`--from <ref> --to <ref>` compares two arbitrary git refs (e.g. --from HEAD~3 --to HEAD).",
+                "Only C# (.cs) files in the changed set are parsed and fed to the engine; non-C# changes are ignored.",
+                "Runs from inside any git repo; a clear error (exit 1, stderr) when not in a git repo or a ref is invalid.",
+                "Default output is text rendered to look very similar to a standard git diff (per-declaration hunks, +/- lines, file headers), with moved-but-unchanged declarations suppressed or shown as a relocation note rather than delete+add.",
+                "Diagnostics/progress to stderr, results to stdout; exits 0 on success."
+            ],
+            "priority": 122,
+            "passes": true,
+            "epicId": "EP-016",
+            "notes": "P1. Part of EP-016 semantic diff. Default working-tree-vs-HEAD; --from/--to arbitrary refs. git-diff-style text output, moved-but-unchanged suppressed. Two-version loading is new (WorkspaceLoader opens one solution today).",
+            "resolution": "Shipped 'rt analyze semantic-diff' (alias sdiff): git version source (working-tree-vs-HEAD default + --from/--to refs, .cs-only, union of both sides via --no-renames so moved classes match) feeds the US-121 engine and renders git-diff-style text (per-declaration hunks via DiffPlex; moved=relocation note, renamed=old->new, comment/whitespace=clean). Flags --ignore-accessibility, --no-detect-renames. Core-service + thin-adapter: IGitClient/GitClient (shell git, fake-tested), GitSemanticDiffSourceProvider, shared DeclarationWalker (engine+renderer one FQN scheme), SemanticDiffTextRenderer, SemanticDiffCommand. JSON output (--json) also delivered to satisfy the read-only result-contract ratchet (delta array via IRtJsonOutput; shared IsSurfaced predicate so text/json never drift) - covers US-124 CLI JSON core. ~130 SemanticDiff tests; dogfooded against this repo. Follow-ups: US-126 hardening, US-127 renderer mutation scope; rt gaps FB-362/FB-363.",
+            "resolvedAt": "2026-06-08"
+        },
+        {
+            "id": "US-125",
+            "title": "First-class MCP handler for semantic-diff",
+            "description": "As an MCP client, I want a native semantic-diff tool that returns the structured result directly.",
+            "acceptanceCriteria": [
+                "An MCP handler exposes semantic-diff and returns the engine's structured result as native JSON (not text-captured CLI output).",
+                "The handler accepts the same inputs the CLI supports: git working-vs-HEAD, from/to refs, and two file paths.",
+                "The handler is registered in MCP service registration and resolves the same engine/service the CLI uses (no logic duplicated between adapters).",
+                "Invalid inputs return a structured error rather than throwing."
+            ],
+            "priority": 125,
+            "passes": true,
+            "epicId": "EP-016",
+            "notes": "P1. Part of EP-016 semantic diff. Native JSON handler (not text-captured), registered in MCP service registration, resolves the same engine the CLI uses. Accepts git working-vs-HEAD, from/to refs, and two file paths.",
+            "resolution": "Shipped first-class MCP semantic_diff handler: native structured JSON (not text-capture), resolving the same GitSemanticDiffSourceProvider + SemanticDiffService the CLI uses. Args: from/to refs, ignoreAccessibility, detectRenames, optional directory (target repo). Byte-identical JSON to CLI --json by construction - extracted shared SemanticDiffJson.Serialize (surfaced deltas, camelCase, SymbolFormatter.DefaultJsonOptions) consumed by both adapters. Registered in McpServiceRegistration; e2e ToolRegistry dispatch test. 25 MCP tests. rt gaps FB-364/365 (rt-first gate drive-letter case bug).",
+            "resolvedAt": "2026-06-08"
+        },
+        {
+            "id": "US-126",
+            "title": "Semantic diff engine hardening: container-scoped rename pairing + edge guards",
+            "description": "As a developer, I want the semantic diff engine to avoid cross-container rename false-positives and handle edge inputs, so the diff stays trustworthy as the host adapters surface it.",
+            "acceptanceCriteria": [
+                "Rename detection is scoped so a Removed and Added of the same kind only pair when they share a container (members: same containing type FQN; types: same namespace), so two identical-bodied declarations in unrelated namespaces/types no longer mis-pair as a single Renamed.",
+                "Engine guards against null Before/After source lists in the request (clear behaviour, not an NRE).",
+                "A parse-error / malformed-source tree is handled gracefully (no crash; declarations that do parse are still reported).",
+                "SemanticDiffService LongMethod/LargeClass smells (Walk, DetectRenames, Compare) are reviewed and either split where it genuinely improves readability or explicitly accepted with rationale.",
+                "Weak tautological tests (e.g. Enum.IsDefined on the Renamed status) are replaced with or backed by behavioural assertions."
+            ],
+            "priority": 126,
+            "passes": true,
+            "epicId": "EP-016",
+            "notes": "P2. Follow-up from US-121 close (Opus review + rt list-smells). Cross-container rename mis-pairing (One.A<->Two.B) is the chief footgun; v1 pairs by equivalent-body-modulo-name across all containers. Also: null list guards, parse-error trees, LongMethod smells on Walk(139)/DetectRenames(67)/Compare(44), tautological Renamed-status test.",
+            "resolution": "Engine hardened. (1) Container-scoped rename pairing: two-phase — member-container types (class/struct/record/interface) pair first within an identical enclosing container and seed a type-rename map; then enums/delegates/members pair, where members match by equal declaring-type FQN OR a declaring type renamed in phase 1. Preserves the legit ctor/member cascade on a type rename while rejecting unrelated-container (A.Foo/B.Bar) and cross-namespace (One.Gone/Two.Fresh) mis-pairs. (2) Null Before/After lists now throw ArgumentNullException (named arg), not an NRE. (3) Malformed source is tolerated — declarations that parse are still reported. (4) Smell review: extracted PairRenames + ApplyRenamePairs + IsMemberContainerType (genuine readability win); Walk (syntax-kind dispatch table) and Compare (central orchestration) accepted-with-rationale per pragmatic-refactoring doctrine. (5) Tautological Enum.IsDefined(Renamed) test deleted — behaviourally superseded. 132 SemanticDiff tests green; 100% mutation (110 mutants, 0 survivors) on SemanticDiffService.cs + DeclarationWalker.cs. Documented limitation: a type renamed AND moved to a different namespace stays Added+Removed (phase 1 requires identical enclosing container).",
+            "resolvedAt": "2026-06-09"
+        },
+        {
+            "id": "US-123",
+            "title": "Compare two files on disc",
+            "description": "As a developer, I want to point the diff at any two files so I can compare versions outside git.",
+            "acceptanceCriteria": [
+                "`rt analyze semantic-diff <leftFile> <rightFile>` compares two .cs files on disc through the same engine.",
+                "The same trivia-insensitive and FQN-keyed semantics apply (a type renamed-in-place vs genuinely changed is reported correctly).",
+                "Missing or unreadable file paths produce a clear error (exit 1, stderr), not an unhandled exception.",
+                "Output matches the git-mode rendering and the JSON shape."
+            ],
+            "priority": 123,
+            "passes": true,
+            "epicId": "EP-016",
+            "notes": "P2. Part of EP-016 semantic diff. rt analyze semantic-diff <leftFile> <rightFile> through the same engine; same trivia-insensitive FQN-keyed semantics.",
+            "resolution": "Shipped 'rt analyze semantic-diff <leftFile> <rightFile>' — two-files-on-disc mode through the same engine/renderer/JSON. New IFileTextReader + FileTextReader (thin System.IO adapter, missing file -> null, other read failure -> IOException) and FileSemanticDiffSourceProvider (injectable, host-agnostic, no git — works outside a repo). Command gained a ZeroOrMore 'files' argument: 0 files = git mode, exactly 2 = two-files mode, any other shape or files+--from/--to throws ArgumentException -> clean exit-1 stderr (never an unhandled exception). Missing file -> 'Error: file not found: <path>' exit 1. Output and JSON shape identical to git mode. Quality fix from dogfooding: two-files mode suppresses spurious '> Moved' lines (every Unchanged decl would otherwise render as Moved because the two input files have different names) by collapsing Unchanged deltas' paths in the adapter only — Added/Removed/Changed/Renamed keep true distinct paths; engine/IsSurfaced/renderer untouched. 143 SemanticDiff tests green (10 new: 4 provider + 6 command incl. moved-suppression silent test). Dogfooded: text/JSON/missing-file/identical-pair all correct. New files are interface/thin-IO/provider/CLI/DI — outside the Stryker pilot (matches GitClient/GitSemanticDiffSourceProvider/SemanticDiffCommand); committed with RT_MUTATION_ALLOW_UNSCOPED=1.",
+            "resolvedAt": "2026-06-09"
+        },
+        {
+            "id": "US-124",
+            "title": "Structured JSON output + --format selection",
+            "description": "As a tool/agent, I want machine-readable diff output so I can consume it programmatically.",
+            "acceptanceCriteria": [
+                "`--format json` emits the engine's structured result as JSON to stdout (added/removed/changed/unchanged with FQN, kind, old/new file location, and a per-declaration change summary).",
+                "`--format text` (default) emits the git-diff-style view.",
+                "The JSON shape is stable and documented in the command's Info metadata/examples.",
+                "Both formats work identically across git mode and two-files-on-disc mode."
+            ],
+            "priority": 124,
+            "passes": true,
+            "epicId": "EP-016",
+            "notes": "P1. Part of EP-016 semantic diff. --format json|text; stable documented JSON shape; identical across git and two-files modes.",
+            "resolution": "Machine-readable JSON output shipped and verified across BOTH modes (git versions and two-files-on-disc), byte-identical to the MCP semantic_diff handler via the shared SemanticDiffJson serializer. Stable shape — one object per surfaced declaration { fqn, kind, status (Added|Removed|Changed|Renamed|Unchanged), oldPath, newPath, oldFqn, newFqn } — now documented in the command's Info.WhenToUse and surfaced by 'rt analyze semantic-diff --help'/dump-help (Output: Text, Json). Tests cover JSON in git mode (incl. empty array, relocation with both paths) and two-files mode (both paths; unchanged silent). DEVIATION FROM AC WORDING: the AC asked for '--format json|text'; this project standardised on a single global '--json' flag routed through the central RtResultRenderer and enforced by the IStructuredOutputCommand<->JsonOutput biconditional + the read-only-commands-declare-Text-AND-Json ratchet. A command-local '--format' would have to bypass or re-plumb that central renderer, diverging from every other command. So the substance (machine-readable output, text default) is delivered via '--json'; '--format' is intentionally NOT added. Default (no --json) = git-diff-style text. No code behaviour change in this story beyond doc; capability landed with US-122/US-123.",
+            "resolvedAt": "2026-06-09"
+        },
+        {
+            "id": "US-127",
+            "title": "Bring SemanticDiffTextRenderer.cs into Stryker mutation scope at 100%",
+            "description": "As a maintainer, I want the semantic-diff text renderer under mutation testing so its git-diff formatting logic is verified to the same standard as the SemanticDiff engine and Commands/.",
+            "acceptanceCriteria": [
+                "SemanticDiffTextRenderer.cs is added to the mutate globs in stryker-config.json",
+                "Running Stryker against SemanticDiffTextRenderer.cs reports a 100% mutation score",
+                "Every surviving mutant is resolved by adding a killing test, deleting dead code, or classifying it as equivalent with a documented // mutation: equivalent comment and an ignore-mutations entry",
+                "The git-diff formatting branches (hunks, context lines, kind labels, and the Added/Removed/Changed/Renamed/Moved arms) each have at least one test exercising their observable output",
+                "No assertions are weakened to make a mutant die"
+            ],
+            "priority": 127,
+            "passes": true,
+            "notes": "P2. US-122 follow-up. The semantic-diff feature routes both text and JSON output through SemanticDiffDelta.IsSurfaced, now in the Stryker globs at 100%. SemanticDiffTextRenderer.cs (hunks, context lines, kind labels, Added/Removed/Changed/Renamed/Moved arms) is in the core library and mutatable but not yet in stryker-config.json mutate globs. Affected: stryker-config.json, src/RoslynTools/Services/SemanticDiff/SemanticDiffTextRenderer.cs, tests/RoslynTools.Tests/SemanticDiff/SemanticDiffTextRendererTests.cs.",
+            "resolution": "SemanticDiffTextRenderer.cs added to stryker-config.json mutate globs and driven to 100% mutation (0 survived, 0 no-coverage). Added 11 targeted renderer tests: 3 null-guard (Render rejects null result/before/after), every_declaration_kind_renders_its_own_label (all 13 KindLabel arms), and exact-output golden ShouldBe tests for the hunk machinery — single mid-body hunk (@@ line numbers/counts/context prefix), merge (two edits within 2*ContextSize -> one hunk), split (two edits beyond -> two hunks with correct second-hunk start), block separators (Changed/Added/Removed each followed by another block), added multi-line body (AppendPrefixed/SplitLines), and a single-line declaration change. The one genuinely-equivalent mutant (the outer hunk-coalescing loop bound, which only ever exits via its break) was eliminated structurally by writing 'while (true)' — honest control flow, no equivalent annotation, and its true->false mutant is killed by any hunk test. No assertions weakened. The 13 Stryker-Ignored mutants are all its own 'block already covered' auto-filter, not suppressions. Renderer now under mutation testing to the same standard as the engine.",
+            "resolvedAt": "2026-06-09"
+        }
+    ]
+}
