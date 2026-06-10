@@ -53,6 +53,7 @@ internal class ExtractInterfaceService : IRtService
             throw new InvalidOperationException($"'{typeName}' must be a class, but is {classSymbol.TypeKind}.");
 
         var interfaceName = "I" + classSymbol.Name;
+        // Stryker disable once String : ContainingNamespace is non-null for every source type, so the '?? string.Empty' fallback is unreachable.
         var targetNamespace = ns ?? classSymbol.ContainingNamespace?.ToDisplayString() ?? string.Empty;
 
         var classFilePath = classSymbol.Locations
@@ -67,24 +68,33 @@ internal class ExtractInterfaceService : IRtService
         var interfaceFileName = interfaceName + ".cs";
         var interfaceFilePath = Path.Combine(classDir, interfaceFileName);
 
-        var publicMethods = classSymbol.GetMembers()
+        // Members visible at the interface's accessibility level: a public source class
+        // exposes only public members; an internal source class also exposes its internal members.
+        var includeInternal = classSymbol.DeclaredAccessibility != Accessibility.Public;
+        bool IsExposed(Accessibility a) =>
+            a == Accessibility.Public || (includeInternal && a == Accessibility.Internal);
+
+        var exposedMethods = classSymbol.GetMembers()
             .OfType<IMethodSymbol>()
             .Where(m =>
-                m.DeclaredAccessibility == Accessibility.Public &&
+                IsExposed(m.DeclaredAccessibility) &&
                 !m.IsStatic &&
                 m.MethodKind == MethodKind.Ordinary)
             .ToList();
 
-        var publicProperties = classSymbol.GetMembers()
+        var exposedProperties = classSymbol.GetMembers()
             .OfType<IPropertySymbol>()
             .Where(p =>
-                p.DeclaredAccessibility == Accessibility.Public &&
+                IsExposed(p.DeclaredAccessibility) &&
                 !p.IsStatic)
             .ToList();
 
         var interfaceText = InterfaceTextBuilder.BuildInterfaceText(
-            targetNamespace, interfaceName, ((IEnumerable<ISymbol>)publicMethods).Concat(publicProperties));
+            targetNamespace, interfaceName,
+            ((IEnumerable<ISymbol>)exposedMethods).Concat(exposedProperties),
+            classSymbol.DeclaredAccessibility);
 
+        // Stryker disable once Linq, NullCoalescing, String : classFilePath was derived from this same classSymbol's in-source location, so the document is always present (FirstOrDefault never null, '?? throw' and its message unreachable).
         var classDocument = sln.Projects
                                 .SelectMany(p => p.Documents)
                                 .FirstOrDefault(d =>
@@ -94,6 +104,7 @@ internal class ExtractInterfaceService : IRtService
 
         var updatedClassSolution = await AddInterfaceToClassAsync(sln, classDocument, classSymbol, interfaceName);
 
+        // Stryker disable once NullCoalescing, String : the owning project always contains the just-found classDocument, so '?? throw' and its message are unreachable. NOTE: this statement also carries a KILLABLE Any()->All() Linq mutant (covered by succeeds_when_project_has_multiple_documents), so we deliberately do NOT disable Linq here — the remaining FirstOrDefault()->First() Linq mutant is a documented equivalent (single owning project => First()==FirstOrDefault()) that cannot be disabled without masking the killable Any()->All().
         var owningProject = updatedClassSolution.Projects
                                 .FirstOrDefault(p => p.Documents.Any(d =>
                                     string.Equals(d.FilePath, classFilePath, StringComparison.OrdinalIgnoreCase)))
@@ -119,9 +130,11 @@ internal class ExtractInterfaceService : IRtService
         INamedTypeSymbol classSymbol,
         string interfaceName)
     {
+        // Stryker disable once NullCoalescing, String : a parsed C# document always has a syntax root, so '?? throw' and its message are unreachable.
         var root = await classDocument.GetSyntaxRootAsync()
                    ?? throw new InvalidOperationException("Cannot get syntax root.");
 
+        // Stryker disable once Linq, NullCoalescing, String : the class declaration always exists in its own resolved document, so FirstOrDefault is never null and '?? throw' / its message are unreachable. (The '==' Equality mutant on the identifier match IS killable and is left enabled.)
         var classDecl = root.DescendantNodes()
                             .OfType<ClassDeclarationSyntax>()
                             .FirstOrDefault(c => c.Identifier.Text == classSymbol.Name)
@@ -151,7 +164,20 @@ internal class ExtractInterfaceService : IRtService
         }
         else
         {
-            var newTypes = classDecl.BaseList.Types.Add(interfaceTypeName);
+            // Move the existing last base type's trailing trivia (e.g. the newline before '{')
+            // onto the appended interface so the brace stays on its own line, and give the new
+            // type a leading space so it reads ", IFoo" rather than the malformed ",IFoo".
+            var existingTypes = classDecl.BaseList.Types;
+            var lastType = existingTypes[^1];
+            var trailing = lastType.GetTrailingTrivia();
+
+            var appended = interfaceTypeName
+                .WithLeadingTrivia(SyntaxFactory.Space)
+                .WithTrailingTrivia(trailing);
+
+            var newTypes = existingTypes
+                .Replace(lastType, lastType.WithTrailingTrivia(SyntaxFactory.TriviaList()))
+                .Add(appended);
             updatedClass = classDecl.WithBaseList(classDecl.BaseList.WithTypes(newTypes));
         }
 

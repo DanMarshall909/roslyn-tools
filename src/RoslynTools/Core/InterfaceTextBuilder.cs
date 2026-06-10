@@ -9,7 +9,8 @@ internal static class InterfaceTextBuilder
     internal static string BuildInterfaceText(
         string namespaceName,
         string interfaceName,
-        IEnumerable<ISymbol> members)
+        IEnumerable<ISymbol> members,
+        Accessibility accessibility = Accessibility.Public)
     {
         var sb = new StringBuilder();
 
@@ -19,7 +20,9 @@ internal static class InterfaceTextBuilder
             sb.AppendLine();
         }
 
-        sb.AppendLineF($"public interface {interfaceName}");
+        var keyword = accessibility == Accessibility.Public ? "public" : "internal";
+        var includeInternal = accessibility != Accessibility.Public;
+        sb.AppendLineF($"{keyword} interface {interfaceName}");
         sb.AppendLine("{");
 
         foreach (var member in members)
@@ -33,7 +36,7 @@ internal static class InterfaceTextBuilder
 
                 case IPropertySymbol property:
                     var propType = property.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
-                    var accessors = BuildAccessors(property);
+                    var accessors = BuildAccessors(property, includeInternal);
                     sb.AppendLineF($"    {propType} {property.Name} {{ {accessors} }}");
                     break;
 
@@ -56,13 +59,21 @@ internal static class InterfaceTextBuilder
         }));
     }
 
-    internal static string BuildAccessors(IPropertySymbol property)
+    internal static string BuildAccessors(IPropertySymbol property, bool includeInternal = false)
     {
         var parts = new List<string>();
-        if (property.GetMethod is { DeclaredAccessibility: Accessibility.Public })
+        if (IsAccessorVisible(property.GetMethod, includeInternal))
             parts.Add("get;");
-        if (property.SetMethod is { DeclaredAccessibility: Accessibility.Public })
+        if (IsAccessorVisible(property.SetMethod, includeInternal))
             parts.Add("set;");
         return string.Join(" ", parts);
+    }
+
+    private static bool IsAccessorVisible(IMethodSymbol? accessor, bool includeInternal)
+    {
+        if (accessor is null)
+            return false;
+        return accessor.DeclaredAccessibility == Accessibility.Public
+               || (includeInternal && accessor.DeclaredAccessibility == Accessibility.Internal);
     }
 }

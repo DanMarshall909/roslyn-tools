@@ -16,6 +16,8 @@
       "**/Core/MethodExtractorBuilder.cs",
       "**/Services/DebugTraceAnalyzerService.cs",
       "**/Services/ImportDirectiveService.cs",
+      "**/Services/ExtractInterfaceService.cs",
+      "**/Core/InterfaceTextBuilder.cs",
       "**/Services/SemanticDiff/SemanticDiffService.cs",
       "**/Services/SemanticDiff/SemanticDiffDelta.cs",
       "**/Services/SemanticDiff/DeclarationWalker.cs",
