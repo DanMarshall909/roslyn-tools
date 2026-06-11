@@ -62,9 +62,13 @@ internal static class SymbolLocator
     }
 
     /// <summary>
-    /// Finds a symbol by its fully-qualified name.
+    ///     Finds a symbol by its fully-qualified name, returning a typed <see cref="Result{T,TError}" />
+    ///     for the routine not-found / ambiguous-match flows instead of throwing. A genuinely
+    ///     interactive disambiguation (a decisions store, or a TTY that supplies a choice) is honoured
+    ///     as before — only the store path can still throw <see cref="DecisionsRequiredException" />
+    ///     (the exit-2 mechanism), which is not an <see cref="RtError" />.
     /// </summary>
-    internal static async Task<ISymbol> FindSymbolByFqnAsync(
+    internal static async Task<Result<ISymbol, RtError>> TryFindSymbolByFqnAsync(
         Solution solution,
         string fullyQualifiedName,
         string? kind)
@@ -98,12 +102,26 @@ internal static class SymbolLocator
             .ToList();
 
         if (matches.Count == 0)
-            throw new InvalidOperationException($"No symbol with FQN '{fullyQualifiedName}' found in solution.");
+            return Result<ISymbol, RtError>.Err(
+                RtError.NotFound($"No symbol with FQN '{fullyQualifiedName}' found in solution."));
 
         if (matches.Count == 1)
-            return matches[0].Symbol;
+            return Result<ISymbol, RtError>.Ok(matches[0].Symbol);
 
-        return Disambiguate(matches, fullyQualifiedName);
+        return TryDisambiguate(matches, fullyQualifiedName);
+    }
+
+    /// <summary>
+    ///     Finds a symbol by its fully-qualified name. Throwing bridge over
+    ///     <see cref="TryFindSymbolByFqnAsync" /> for callers not yet migrated to consume
+    ///     <see cref="Result{T,TError}" />; preserves the historical exception message.
+    /// </summary>
+    internal static async Task<ISymbol> FindSymbolByFqnAsync(
+        Solution solution,
+        string fullyQualifiedName,
+        string? kind)
+    {
+        return (await TryFindSymbolByFqnAsync(solution, fullyQualifiedName, kind)).Unwrap();
     }
 
     /// <summary>
@@ -224,6 +242,46 @@ internal static class SymbolLocator
             var input = rawInput.Trim();
             if (int.TryParse(input, out var choice) && choice >= 0 && choice < matches.Count)
                 return matches[choice].Symbol;
+            RtConsole.WriteLine(RtOutputContext.Interactive, "  Invalid selection, try again.");
+        }
+    }
+
+    /// <summary>
+    ///     Result-returning counterpart to <see cref="Disambiguate" /> for migrated callers.
+    ///     The decisions-store path is unchanged (it may throw <see cref="DecisionsRequiredException" />
+    ///     for the exit-2 flow); a non-interactive prompt with no input becomes a typed
+    ///     <see cref="RtErrorKind.AmbiguousMatch" /> error that lists the candidate FQNs.
+    /// </summary>
+    private static Result<ISymbol, RtError> TryDisambiguate(List<SymbolMatch> matches, string name)
+    {
+        var store = DecisionContext.Store;
+        if (store is not null)
+            return Result<ISymbol, RtError>.Ok(DisambiguateViaStore(matches, name, store));
+
+        RtConsole.WriteLine(RtOutputContext.Interactive, $"\nMultiple symbols match '{name}':");
+        for (var i = 0; i < matches.Count; i++)
+        {
+            var m = matches[i];
+            RtConsole.WriteLine(RtOutputContext.Interactive,
+                $"  [{i}]  {m.Symbol.Kind,-12} {m.DisplayName,-60} ({m.ProjectName})");
+        }
+
+        while (true)
+        {
+            RtConsole.Write(RtOutputContext.Interactive, $"Enter number [0-{matches.Count - 1}]: ");
+            var rawInput = RtConsole.ReadLine();
+            if (rawInput is null)
+            {
+                var candidates = matches.Select(m => m.DisplayName).ToList();
+                return Result<ISymbol, RtError>.Err(RtError.AmbiguousMatch(
+                    $"Multiple symbols match '{name}': {string.Join(", ", candidates)}. "
+                    + "Pass a more specific fully-qualified name.",
+                    new Dictionary<string, string> { ["candidates"] = string.Join(";", candidates) }));
+            }
+
+            var input = rawInput.Trim();
+            if (int.TryParse(input, out var choice) && choice >= 0 && choice < matches.Count)
+                return Result<ISymbol, RtError>.Ok(matches[choice].Symbol);
             RtConsole.WriteLine(RtOutputContext.Interactive, "  Invalid selection, try again.");
         }
     }

@@ -69,4 +69,117 @@ public class SymbolLocator
             symbol.Name.ShouldBe("Logger");
         }
     }
+
+    [Fact]
+    public async Task try_find_by_fqn_returns_ok_for_a_unique_match()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Widget.cs", """
+                                       namespace TestApp;
+
+                                       public class Widget
+                                       {
+                                       }
+                                       """);
+        var (workspace, solution) = project.Build();
+
+        using (workspace)
+        {
+            var result = await Core.SymbolLocator.TryFindSymbolByFqnAsync(solution, "TestApp.Widget", "type");
+
+            result.IsOk.ShouldBeTrue();
+            result.Match(s => s.Name, _ => "err").ShouldBe("Widget");
+        }
+    }
+
+    [Fact]
+    public async Task try_find_by_fqn_returns_err_not_found_with_preserved_message()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Widget.cs", """
+                                       namespace TestApp;
+
+                                       public class Widget
+                                       {
+                                       }
+                                       """);
+        var (workspace, solution) = project.Build();
+
+        using (workspace)
+        {
+            var result = await Core.SymbolLocator.TryFindSymbolByFqnAsync(solution, "TestApp.Missing", "type");
+
+            result.IsErr.ShouldBeTrue();
+            result.Match(_ => default!, e => e).Kind.ShouldBe(RtErrorKind.NotFound);
+            result.Match(_ => "ok", e => e.Message)
+                .ShouldBe("No symbol with FQN 'TestApp.Missing' found in solution.");
+        }
+    }
+
+    [Fact]
+    public async Task try_find_by_fqn_returns_err_ambiguous_listing_candidate_fqns()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Service.cs", """
+                                        namespace TestApp;
+
+                                        public class Service
+                                        {
+                                            public void Foo(int count)
+                                            {
+                                            }
+
+                                            public void Foo(string name)
+                                            {
+                                            }
+                                        }
+                                        """);
+        var (workspace, solution) = project.Build();
+
+        using (workspace)
+        {
+            var originalIn = Console.In;
+            Console.SetIn(new StringReader(""));
+            try
+            {
+                var lookup = Core.SymbolLocator.TryFindSymbolByFqnAsync(solution, "TestApp.Service.Foo", null);
+                var completed = await Task.WhenAny(lookup, Task.Delay(TimeSpan.FromSeconds(5)));
+                completed.ShouldBeSameAs(lookup);
+
+                var result = await lookup;
+                result.IsErr.ShouldBeTrue();
+                var error = result.Match(_ => default!, e => e);
+                error.Kind.ShouldBe(RtErrorKind.AmbiguousMatch);
+                error.Message.ShouldContain("TestApp.Service.Foo(int)", Case.Sensitive);
+                error.Message.ShouldContain("TestApp.Service.Foo(string)", Case.Sensitive);
+                error.Context.ShouldNotBeNull();
+                error.Context!["candidates"].ShouldContain("TestApp.Service.Foo(int)", Case.Sensitive);
+            }
+            finally
+            {
+                Console.SetIn(originalIn);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task bridge_find_by_fqn_still_throws_preserved_not_found_message()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Widget.cs", """
+                                       namespace TestApp;
+
+                                       public class Widget
+                                       {
+                                       }
+                                       """);
+        var (workspace, solution) = project.Build();
+
+        using (workspace)
+        {
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => Core.SymbolLocator.FindSymbolByFqnAsync(solution, "TestApp.Missing", "type"));
+            ex.Message.ShouldBe("No symbol with FQN 'TestApp.Missing' found in solution.");
+        }
+    }
 }
