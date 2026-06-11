@@ -1,5 +1,6 @@
 using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
+using RoslynTools.Services;
 using Shouldly;
 
 namespace RoslynTools.Tests.Navigation;
@@ -142,6 +143,54 @@ public class Inspect
             var readOnlyProp = readOnly.ShouldBeAssignableTo<IPropertySymbol>()!;
             readOnlyProp.GetMethod.ShouldNotBeNull();
             readOnlyProp.SetMethod.ShouldBeNull();
+        }
+    }
+
+    [Fact]
+    public async Task describe_returns_ok_inspection_for_a_known_type()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Widget.cs", """
+                                       namespace TestApp;
+
+                                       public sealed class Widget
+                                       {
+                                           public string Label { get; set; } = "";
+                                       }
+                                       """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var result = await new InspectService().Describe(sln, "TestApp.Widget", "type");
+
+            result.IsOk.ShouldBeTrue();
+            var inspection = result.Match(d => d, _ => new Dictionary<string, object?>());
+            inspection["name"].ShouldBe("Widget");
+            inspection["kind"].ShouldBe("NamedType");
+            inspection["fqn"].ShouldBe("TestApp.Widget");
+        }
+    }
+
+    [Fact]
+    public async Task describe_returns_err_not_found_for_an_unknown_symbol()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Widget.cs", """
+                                       namespace TestApp;
+
+                                       public sealed class Widget
+                                       {
+                                       }
+                                       """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var result = await new InspectService().Describe(sln, "TestApp.Missing", "type");
+
+            result.IsErr.ShouldBeTrue();
+            result.Match(_ => RtErrorKind.NotFound, e => e.Kind).ShouldBe(RtErrorKind.NotFound);
         }
     }
 }

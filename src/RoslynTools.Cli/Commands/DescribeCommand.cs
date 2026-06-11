@@ -1,4 +1,5 @@
 using System.CommandLine;
+using RoslynTools.Cli;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
@@ -53,12 +54,13 @@ internal sealed class DescribeCommand : IRtCommand, IStructuredOutputCommand, II
                 var kind = ctx.ParseResult.GetValueForOption(kindOpt);
 
                 var sln = await _sessionFactory.GetSolutionAsync(solution);
-                var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, symbol, kind);
-                var result = _inspect.BuildInspection(sym, sln);
+                var inspection = await _inspect.Describe(sln, symbol, kind);
 
-                RtResultRenderer.Write(
-                    RtResult<object>.Ok(result),
-                    SymbolFormatter.DefaultJsonOptions);
+                inspection.Match(
+                    result => RtResultRenderer.Write(
+                        RtResult<object>.Ok(result),
+                        SymbolFormatter.DefaultJsonOptions),
+                    error => RtErrorPresenter.Surface(ctx, error));
             });
 
         return cmd;

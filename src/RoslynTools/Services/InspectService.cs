@@ -12,6 +12,21 @@ namespace RoslynTools.Services;
 internal class InspectService : IRtService
 {
     /// <summary>
+    ///     Resolves <paramref name="symbol" /> by fully-qualified name and builds its inspection,
+    ///     returning a typed <see cref="Result{T,TError}" />: a routine not-found / ambiguous lookup
+    ///     surfaces as <see cref="RtError" /> rather than an exception. The success shape is the same
+    ///     dictionary produced by <see cref="BuildInspection" />.
+    /// </summary>
+    internal async Task<Result<Dictionary<string, object?>, RtError>> Describe(
+        Solution solution,
+        string symbol,
+        string? kind)
+    {
+        var resolved = await SymbolLocator.TryFindSymbolByFqnAsync(solution, symbol, kind);
+        return resolved.Map(sym => BuildInspection(sym, solution));
+    }
+
+    /// <summary>
     /// Builds an inspection for a symbol in a solution
     /// </summary>
     internal Dictionary<string, object?> BuildInspection(ISymbol symbol, Solution solution)

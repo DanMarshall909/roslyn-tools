@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using RoslynTools.Core;
 using RoslynTools.Feedback;
 using Shouldly;
 
@@ -30,6 +31,55 @@ public sealed class HandledUserErrorsDoNotPolluteFeedbackTests
             FeedbackStore.LoadAll().ShouldBeEmpty(
                 "FileNotFoundException is translated to a clean exit-1 by TryHandleUserErrorAsync; "
                 + "capturing it adds noise without adding signal.");
+        }
+    }
+
+    [Fact]
+    public async Task describe_unknown_symbol_exits_1_via_result_without_appending_feedback()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Widget.cs", """
+                                       namespace TestApp;
+
+                                       public sealed class Widget { }
+                                       """);
+        var (workspace, sln) = project.Build();
+
+        using var feedback = new FeedbackWorkspace();
+        using (feedback.UseCurrentDirectory())
+        using (workspace)
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+        {
+            var sc = new ServiceCollection();
+            RoslynTools.Bootstrap.RegisterServices(sc);
+            using var services = sc.BuildServiceProvider();
+
+            var originalOut = Console.Out;
+            var originalError = Console.Error;
+            using var stdout = new StringWriter();
+            using var stderr = new StringWriter();
+            Console.SetOut(stdout);
+            Console.SetError(stderr);
+
+            int exitCode;
+            try
+            {
+                exitCode = await App.RunAsync(
+                    ["inspect", "describe", "TestApp.Missing", "--kind", "type", "--solution", "ignored"],
+                    services);
+            }
+            finally
+            {
+                Console.SetOut(originalOut);
+                Console.SetError(originalError);
+            }
+
+            exitCode.ShouldBe(1);
+            stdout.ToString().Trim().ShouldBeEmpty("the error branch must not emit a JSON result to stdout");
+            stderr.ToString().ShouldContain("No symbol with FQN 'TestApp.Missing' found in solution.");
+            FeedbackStore.LoadAll().ShouldBeEmpty(
+                "A symbol-not-found is now a routine RtError surfaced cleanly via Result — it never "
+                + "throws, so it must not be captured to feedback.json.");
         }
     }
 

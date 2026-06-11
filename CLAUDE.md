@@ -199,6 +199,40 @@ See `AGENTS.md` for detailed style guidelines. Key points:
 - Diagnostics to stderr, results to stdout
 - C# 11+ features OK (nullable enabled, implicit usings)
 
+## Result types: `Result<T, RtError>` vs throwing
+
+Core services use a typed `Result<T, RtError>` ADT (`Core/Result.cs`, `Core/RtError.cs`,
+`Core/RtErrorKind.cs`) to **return** routine, expected user-facing failures instead of
+throwing them. Reach for `Result<T, RtError>` when the failure is a normal flow the user
+will hit — symbol not found, ambiguous match, invalid input. **Throw** for invariant
+violations and genuinely unexpected failures: those should surface with a stack trace and
+get captured to `feedback.json` for triage. Rule of thumb: if you'd write a friendly
+one-line message and exit 1, it's an `RtError`; if hitting it means a bug, throw.
+
+- Consume a `Result` with `.Match(onOk, onErr)` (both branches total) or `.Map(...)`.
+- CLI commands surface the error branch through the single shared helper
+  `RtErrorPresenter.Surface(ctx, error)` (stderr `Error: <message>` + exit 1) — no
+  per-command if/else ladder. MCP handlers map it to `new ToolResult(isError: true, message)`.
+- `Result<T, RtError>` is **not** `RtResult<T>` (`Core/RtResult.cs`): the latter is the
+  output envelope (status + diagnostics + exit code) for renderers. The two coexist by design.
+- `.Unwrap()` is a temporary bridge: it re-throws the `RtError.Message` as
+  `InvalidOperationException` for callers not yet migrated to consume the `Result`. A migration
+  adds a Result-returning `Try*` variant and reimplements the old throwing method as a one-line
+  `Try*().Unwrap()` bridge (**parallel-change**) so the signature flip stays incremental — one
+  caller/tool at a time — with zero blast radius. Delete the bridge when the last caller moves.
+
+### Per-tool target shape (migration in progress)
+
+The codebase is being brought to a consistent **per-command target shape**, one tool at a
+time: logic in a Core service · routine errors as `Result<T, RtError>` · output through the
+shared renderer · thin CLI **and** native MCP adapters that both `Match` the same service
+Result · complete `RtCommandInfo` metadata. `rt inspect describe` is the reference pilot
+(`InspectService.Describe` + `DescribeCommand` + `Handlers/DescribeHandler`). Note: the typed
+`IRtOutput` DTO facet is **not** universal — for commands with polymorphic output whose nested
+shapes come from shared helpers (`SymbolFormatter`), a typed DTO is a separate EP-009 concern,
+not a prerequisite. Don't retrofit a DTO just to "complete the shape" if it forces touching
+shared code.
+
 ## Design Philosophy: Pragmatic Refactoring Over Architectural Purity
 
 **Core principle:** Consolidate duplicates only when they genuinely solve real problems. Do not apply design patterns for their own sake.
