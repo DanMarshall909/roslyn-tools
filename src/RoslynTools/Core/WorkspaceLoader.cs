@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.MSBuild;
 
@@ -11,6 +13,14 @@ namespace RoslynTools.Core;
 internal sealed class WorkspaceLoader : IWorkspaceSessionFactory, IDisposable
 {
     private static readonly SemaphoreSlim SolutionLoadGate = new(1, 1);
+
+    // MSBuild property name used to redirect obj/ output; suffixed with a directory separator
+    // so MSBuild treats it as a folder (otherwise `obj.123/file.dll` style paths result).
+    internal const string BaseIntermediateOutputPathProperty = "BaseIntermediateOutputPath";
+
+    // Env var that opts in to per-process obj isolation. See ResolveIsolatedObjPath.
+    internal const string IsolatedObjEnvVar = "RT_ISOLATED_OBJ";
+
     private MSBuildWorkspace? _workspace;
 
     // ── Test hooks ──────────────────────────────────────────────────────────
@@ -95,6 +105,29 @@ internal sealed class WorkspaceLoader : IWorkspaceSessionFactory, IDisposable
         return (workspace, solution);
     }
 
+    // ── Obj isolation (AC4 of US-075) ───────────────────────────────────────
+
+    /// <summary>
+    ///     Returns the per-process <c>BaseIntermediateOutputPath</c> when
+    ///     <c>RT_ISOLATED_OBJ=1</c> is set in the environment, otherwise
+    ///     <see langword="null" /> (shared obj/ — default).
+    ///
+    ///     Set this env var on parallel-agent shells so simultaneous
+    ///     <c>rt analyze …</c> invocations don't race on shared <c>obj/Debug</c>
+    ///     file locks. Trade-off: every process gets a cold obj cache.
+    /// </summary>
+    internal static string? ResolveIsolatedObjPath()
+    {
+        var flag = Environment.GetEnvironmentVariable(IsolatedObjEnvVar);
+        if (string.IsNullOrWhiteSpace(flag) || flag is "0" or "false" or "False")
+            return null;
+
+        var pid = Environment.ProcessId.ToString(CultureInfo.InvariantCulture);
+        var path = Path.Combine(Path.GetTempPath(), "rt-obj", pid);
+        // Trailing separator: MSBuild requires it on directory-shaped properties.
+        return path.EndsWith(Path.DirectorySeparatorChar) ? path : path + Path.DirectorySeparatorChar;
+    }
+
     // ── Shared load logic ───────────────────────────────────────────────────
 
     private static async Task<(MSBuildWorkspace Workspace, Solution Solution)> LoadCoreAsync(string? solutionPath)
@@ -104,12 +137,21 @@ internal sealed class WorkspaceLoader : IWorkspaceSessionFactory, IDisposable
         if (!File.Exists(solutionPath))
             throw new FileNotFoundException($"Solution not found: {solutionPath}", solutionPath);
 
-        var workspace = MSBuildWorkspace.Create(new Dictionary<string, string>
+        var properties = new Dictionary<string, string>
         {
             // Essential for legacy web projects that import TypeScript/EF Design targets
             // which may not be present in all environments.
             { "SkipUnrecognizedProjects", "true" }
-        });
+        };
+
+        // AC4 of US-075: when RT_ISOLATED_OBJ=1, redirect obj/ output to a per-process
+        // temp directory so parallel `rt analyze ...` agents don't race on shared
+        // obj/Debug file locks. Opt-in to preserve cold-start obj cache for humans.
+        var isolatedObj = ResolveIsolatedObjPath();
+        if (isolatedObj is not null)
+            properties[BaseIntermediateOutputPathProperty] = isolatedObj;
+
+        var workspace = MSBuildWorkspace.Create(properties);
 
         var diagnostics = new List<WorkspaceDiagnostic>();
         workspace.RegisterWorkspaceFailedHandler(e =>
