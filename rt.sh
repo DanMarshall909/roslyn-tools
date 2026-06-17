@@ -29,6 +29,23 @@ needs_build() {
 }
 
 if needs_build; then
+    # Serialise concurrent rebuilds across parallel rt invocations.
+    # Mirrors rt.ps1's named-mutex strategy (commit 0ad69f3) so the two
+    # wrappers behave identically on the POSIX side. Without this, two
+    # `bash rt.sh ...` calls landing after a source edit can both run
+    # `dotnet build` at once and trip CS2012 (file in use).
+    LOCK_PATH="${TMPDIR:-/tmp}/rt-rebuild.lock"
+    if command -v flock >/dev/null 2>&1; then
+        exec 9>"$LOCK_PATH"
+        if ! flock -w 300 9; then
+            echo 'rt: timed out waiting for rebuild lock' >&2
+            exit 1
+        fi
+        # fd 9 is released automatically when the script exits.
+    else
+        echo 'rt: flock not available; concurrent invocations may race' >&2
+    fi
+
     echo 'rt: rebuilding...' >&2
     if ! dotnet build "$PROJ" -c Release --nologo -v quiet 1>&2; then
         echo 'rt: build failed' >&2
