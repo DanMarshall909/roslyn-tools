@@ -549,6 +549,16 @@ internal sealed class StubSymbolResolutionService : ISymbolResolutionService
 
     public StubSymbolResolutionService(Func<string, ISymbol?> resolve) => _resolve = resolve;
 
+    public Task<Result<ISymbol, RtError>> TryFindSymbolAsync(Solution solution, string symbolName, string? kind) =>
+        Task.FromResult(_resolve(symbolName) is { } symbol
+            ? Result<ISymbol, RtError>.Ok(symbol)
+            : Result<ISymbol, RtError>.Err(RtError.NotFound(
+                $"No symbol named '{symbolName}' found in solution" +
+                (kind != null ? $" (kind: {kind})" : "") + ".")));
+
+    public Task<Result<ISymbol, RtError>> TryFindSymbolByFqnAsync(Solution solution, string fullyQualifiedName, string? kind) =>
+        throw new NotImplementedException();
+
     public Task<ISymbol> FindSymbolAsync(Solution solution, string symbolName, string? kind) =>
         Task.FromResult(_resolve(symbolName)!);
 

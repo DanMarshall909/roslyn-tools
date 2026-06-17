@@ -17,10 +17,14 @@ internal static class SymbolLocator
         SymbolDisplayGenericsOptions.IncludeTypeParameters);
 
     /// <summary>
-    ///     Finds a symbol by simple name across all projects in the solution.
-    ///     Prompts the user to choose if multiple matches exist.
+    ///     Finds a symbol by simple name across all projects in the solution, returning a typed
+    ///     <see cref="Result{T,TError}" /> for the routine not-found / ambiguous-match flows instead
+    ///     of throwing. A genuinely interactive disambiguation (a decisions store, or a TTY that
+    ///     supplies a choice) is honoured as before — only the store path can still throw
+    ///     <see cref="DecisionsRequiredException" /> (the exit-2 mechanism), which is not an
+    ///     <see cref="RtError" />.
     /// </summary>
-    internal static async Task<ISymbol> FindSymbolAsync(
+    internal static async Task<Result<ISymbol, RtError>> TryFindSymbolAsync(
         Solution solution,
         string symbolName,
         string? kind)
@@ -51,14 +55,27 @@ internal static class SymbolLocator
             .ToList();
 
         if (matches.Count == 0)
-            throw new InvalidOperationException(
+            return Result<ISymbol, RtError>.Err(RtError.NotFound(
                 $"No symbol named '{symbolName}' found in solution" +
-                (kind != null ? $" (kind: {kind})" : "") + ".");
+                (kind != null ? $" (kind: {kind})" : "") + "."));
 
         if (matches.Count == 1)
-            return matches[0].Symbol;
+            return Result<ISymbol, RtError>.Ok(matches[0].Symbol);
 
-        return Disambiguate(matches, symbolName);
+        return TryDisambiguate(matches, symbolName);
+    }
+
+    /// <summary>
+    ///     Finds a symbol by simple name. Throwing bridge over <see cref="TryFindSymbolAsync" />
+    ///     for callers not yet migrated to consume <see cref="Result{T,TError}" />; preserves the
+    ///     historical exception message.
+    /// </summary>
+    internal static async Task<ISymbol> FindSymbolAsync(
+        Solution solution,
+        string symbolName,
+        string? kind)
+    {
+        return (await TryFindSymbolAsync(solution, symbolName, kind)).Unwrap();
     }
 
     /// <summary>

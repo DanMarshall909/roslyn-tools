@@ -9,6 +9,10 @@ namespace RoslynTools.Services;
 /// </summary>
 internal interface ISymbolResolutionService
 {
+    Task<Result<ISymbol, RtError>> TryFindSymbolAsync(Solution solution, string symbolName, string? kind);
+
+    Task<Result<ISymbol, RtError>> TryFindSymbolByFqnAsync(Solution solution, string fullyQualifiedName, string? kind);
+
     Task<ISymbol> FindSymbolAsync(Solution solution, string symbolName, string? kind);
 
     Task<ISymbol> FindSymbolByFqnAsync(Solution solution, string fullyQualifiedName, string? kind);
@@ -27,6 +31,16 @@ internal interface ISymbolResolutionService
     Justification = "Instance service registered through DI for dependency inversion.")]
 internal sealed class SymbolResolutionService : ISymbolResolutionService, IRtService
 {
+    public Task<Result<ISymbol, RtError>> TryFindSymbolAsync(Solution solution, string symbolName, string? kind)
+    {
+        return SymbolLocator.TryFindSymbolAsync(solution, symbolName, kind);
+    }
+
+    public Task<Result<ISymbol, RtError>> TryFindSymbolByFqnAsync(Solution solution, string fullyQualifiedName, string? kind)
+    {
+        return SymbolLocator.TryFindSymbolByFqnAsync(solution, fullyQualifiedName, kind);
+    }
+
     public Task<ISymbol> FindSymbolAsync(Solution solution, string symbolName, string? kind)
     {
         return SymbolLocator.FindSymbolAsync(solution, symbolName, kind);
