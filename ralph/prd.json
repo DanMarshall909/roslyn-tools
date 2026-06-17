@@ -46,10 +46,12 @@
                 "Documentation update in AGENTS.md and CLAUDE.md noting that rt is now parallel-safe for agent use"
             ],
             "priority": 70,
-            "passes": false,
+            "passes": true,
             "notes": "P2. Source cluster: FB-007, FB-008, FB-012, FB-013 (feedback.json, 2026-05-15). Four distinct race sites but one story — each is a small fix and they share the same trigger (parallel agent invocation). Implementation order: (1) feedback file mutex (FileStream with FileShare.None + retry loop on id allocation), (2) rt.cmd build mutex via named mutex around dotnet build, (3) deploy-skill retry, (4) MSBuildWorkspace BaseIntermediateOutputPath isolation for read-only commands. Audit 2026-05-26: no design changes; start with feedback-file mutex. See EP-015.",
             "urgency": 4,
-            "urgencyReason": "Blocks parallel /execute worktrees; FB-007/008/012/013 race-site cluster"
+            "urgencyReason": "Blocks parallel /execute worktrees; FB-007/008/012/013 race-site cluster",
+            "resolution": "Landed all six ACs: AC1 FeedbackStore concurrency-safe (pre-existing fix from 0ad69f3, regression test 798760e); AC2 rt.ps1 named mutex (pre-existing 0ad69f3) + rt.sh flock added in 1aa5077; AC3 deploy-skill graceful-skip in 8ec8ff8; AC4 RT_ISOLATED_OBJ env var for per-process MSBuild BaseIntermediateOutputPath in d8cfa21; AC5 parallel integration test ParallelDogfoodSafety in cacbf1a (FB-007/FB-013 covered, FB-008 manual smoke); AC6 docs in CLAUDE.md + AGENTS.md (2694883). Two parts of the story were already in place (AC1 + AC2-Windows) from May; the remaining four ACs landed today. Surfaced + fixed in-flight: em-dash MSB3073 noise in deploy-skill.ps1 (Windows PowerShell 5.1 ANSI parsing).",
+            "resolvedAt": "2026-06-17"
         },
         {
             "id": "US-071",
