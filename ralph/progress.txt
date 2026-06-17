@@ -1,7 +1,7 @@
 roslyn-tools
 Branch: result-type-and-cleanup
 
-Current Status: 4/5 stories complete (80%)
+Current Status: 5/6 stories complete (83%)
 
 Stories
 [x] US-077 Result<T,RtError> ADT + SymbolLocator migration + App exception ladder
@@ -9,3 +9,4 @@ Stories
 [x] US-071 rt refactor extract-interface produces malformed output for internal classes
 [x] US-100 Unify RtResultRenderer call shape and enforce IStructuredOutputCommand for every JSON-output command
 [ ] US-114 Represent shared CLI flags as reusable capability interfaces backed by a central option registry
+[x] US-130 rt MCP server crashes during JSON serialization (JsonElement outlives JsonDocument)
