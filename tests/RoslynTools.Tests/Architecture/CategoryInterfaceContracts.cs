@@ -128,6 +128,31 @@ public sealed class CategoryInterfaceContracts
             + string.Join("; ", offenders));
     }
 
+    /// <summary>
+    ///     US-100: Mirrors the biconditional enforced at startup in
+    ///     <c>App.cs</c>'s static ctor — <c>IStructuredOutputCommand</c> ⇔ <c>Info.JsonOutput == true</c>.
+    ///     Surfaces the invariant in the test suite so a violation lights up CI without booting the CLI.
+    /// </summary>
+    [Fact]
+    public void with_every_command_istructuredoutputcommand_iff_jsonoutput_true()
+    {
+        var offenders = AllCommandTypes()
+            .Select(t => (
+                Name: t.Name,
+                JsonOutput: InfoOf(t)?.JsonOutput ?? false,
+                IsStructured: typeof(IStructuredOutputCommand).IsAssignableFrom(t)))
+            .Where(x => x.JsonOutput != x.IsStructured)
+            .Select(x => $"{x.Name} (JsonOutput={x.JsonOutput}, IStructuredOutputCommand={x.IsStructured})")
+            .OrderBy(s => s, StringComparer.Ordinal)
+            .ToList();
+
+        Assert.True(
+            offenders.Count == 0,
+            "Every IRtCommand must satisfy: implements IStructuredOutputCommand ⇔ Info.JsonOutput==true. "
+            + $"Offenders ({offenders.Count}): "
+            + string.Join("; ", offenders));
+    }
+
     [Fact]
     public void with_every_irefactorcommand_the_built_command_registers_a_dry_run_option()
     {
