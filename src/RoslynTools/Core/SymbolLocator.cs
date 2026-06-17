@@ -142,9 +142,14 @@ internal static class SymbolLocator
     }
 
     /// <summary>
-    ///     Finds a symbol by fully-qualified type name (e.g. "ProjectX.Core.Services.BookingService").
+    ///     Finds a symbol by fully-qualified type name (e.g. "ProjectX.Core.Services.BookingService"),
+    ///     returning a typed <see cref="Result{T,TError}" /> for the routine not-found / ambiguous-match
+    ///     flows instead of throwing. A genuinely interactive disambiguation (a decisions store, or a
+    ///     TTY that supplies a choice) is honoured as before — only the store path can still throw
+    ///     <see cref="DecisionsRequiredException" /> (the exit-2 mechanism), which is not an
+    ///     <see cref="RtError" />.
     /// </summary>
-    internal static async Task<ISymbol> FindTypeByFqnAsync(Solution solution, string fqn)
+    internal static async Task<Result<ISymbol, RtError>> TryFindTypeByFqnAsync(Solution solution, string fqn)
     {
         var lastDot = fqn.LastIndexOf('.');
         var simpleName = lastDot >= 0 ? fqn[(lastDot + 1)..] : fqn;
@@ -171,16 +176,24 @@ internal static class SymbolLocator
             .Select(g => g.First())
             .ToList();
 
-        // Re-extract the raw symbols list for the single-match fast path
-        var matches = symbolMatches.Select(m => m.Symbol).ToList();
+        if (symbolMatches.Count == 0)
+            return Result<ISymbol, RtError>.Err(
+                RtError.NotFound($"No type with FQN '{fqn}' found in solution."));
 
-        if (matches.Count == 0)
-            throw new InvalidOperationException($"No type with FQN '{fqn}' found in solution.");
+        if (symbolMatches.Count == 1)
+            return Result<ISymbol, RtError>.Ok(symbolMatches[0].Symbol);
 
-        if (matches.Count == 1)
-            return matches[0];
+        return TryDisambiguate(symbolMatches, fqn);
+    }
 
-        return Disambiguate(symbolMatches, fqn);
+    /// <summary>
+    ///     Finds a symbol by fully-qualified type name. Throwing bridge over
+    ///     <see cref="TryFindTypeByFqnAsync" /> for callers not yet migrated to consume
+    ///     <see cref="Result{T,TError}" />; preserves the historical exception message.
+    /// </summary>
+    internal static async Task<ISymbol> FindTypeByFqnAsync(Solution solution, string fqn)
+    {
+        return (await TryFindTypeByFqnAsync(solution, fqn)).Unwrap();
     }
 
     /// <summary>

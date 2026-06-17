@@ -163,6 +163,30 @@ public class SymbolLocator
     }
 
     [Fact]
+    public async Task try_find_type_by_fqn_returns_err_not_found_with_preserved_message()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Widget.cs", """
+                                       namespace TestApp;
+
+                                       public class Widget
+                                       {
+                                       }
+                                       """);
+        var (workspace, solution) = project.Build();
+
+        using (workspace)
+        {
+            var result = await Core.SymbolLocator.TryFindTypeByFqnAsync(solution, "TestApp.Missing");
+
+            result.IsErr.ShouldBeTrue();
+            result.Match(_ => default!, e => e).Kind.ShouldBe(RtErrorKind.NotFound);
+            result.Match(_ => "ok", e => e.Message)
+                .ShouldBe("No type with FQN 'TestApp.Missing' found in solution.");
+        }
+    }
+
+    [Fact]
     public async Task bridge_find_by_fqn_still_throws_preserved_not_found_message()
     {
         using var project = new AdhocProjectBuilder();
