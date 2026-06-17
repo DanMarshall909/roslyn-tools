@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using RoslynTools.Core;
 using RoslynTools.Mcp.Tools;
 
 namespace RoslynTools.Mcp;
@@ -11,7 +12,10 @@ internal sealed class Server
 {
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        // JSON-RPC 2.0 requires the response `id` field to be present even
+        // when its value is null (otherwise the client cannot correlate it
+        // with the originating request). Do NOT enable WhenWritingNull here.
+        DefaultIgnoreCondition = JsonIgnoreCondition.Never
     };
 
     private readonly TextReader _input;
@@ -34,7 +38,7 @@ internal sealed class Server
             if (line == null)
                 break;
 
-            JsonElement idElement = default;
+            object? id = null;
 
             try
             {
@@ -45,31 +49,54 @@ internal sealed class Server
                     !request.TryGetProperty("method", out var methodProp) ||
                     !request.TryGetProperty("id", out var idProp))
                 {
-                    await SendErrorAsync(idElement, -32700, "Invalid Request");
+                    await SendErrorAsync(id, -32700, "Invalid Request");
                     continue;
                 }
 
-                idElement = idProp.Clone();
+                // Materialize the JSON-RPC id into a CLR primitive BEFORE the
+                // JsonDocument is disposed at the end of this `using` scope.
+                // Embedding a JsonElement in the serialized response is what
+                // crashes the process when its parent document goes away
+                // (US-130 / FB-001).
+                id = UnwrapJsonElement(idProp);
                 var method = methodProp.GetString();
 
                 var response = method switch
                 {
-                    "initialize" => HandleInitialize(idElement),
-                    "tools/list" => HandleListTools(idElement),
-                    "tools/call" => await HandleCallToolAsync(request, idElement, cancellationToken),
-                    _ => CreateErrorResponse(idElement, -32601, $"Method not found: {method}")
+                    "initialize" => HandleInitialize(id),
+                    "tools/list" => HandleListTools(id),
+                    "tools/call" => await HandleCallToolAsync(request, id, cancellationToken),
+                    _ => CreateErrorResponse(id, -32601, $"Method not found: {method}")
                 };
 
                 await SendResponseAsync(response);
             }
             catch (Exception ex)
             {
-                await SendErrorAsync(idElement, -32603, $"Internal error: {ex.Message}");
+                await SendErrorAsync(id, -32603, $"Internal error: {ex.Message}");
             }
         }
     }
 
-    private object HandleInitialize(JsonElement id)
+    /// <summary>
+    /// Materializes a JSON-RPC id <see cref="JsonElement"/> into a CLR
+    /// primitive that is safe to embed in a response object after the source
+    /// <see cref="JsonDocument"/> has been disposed. Per JSON-RPC 2.0 the id
+    /// MUST be a string, number, or null — objects and arrays collapse to
+    /// null (the spec treats them as invalid).
+    /// </summary>
+    private static object? UnwrapJsonElement(JsonElement element) => element.ValueKind switch
+    {
+        JsonValueKind.String => element.GetString(),
+        JsonValueKind.Number => element.TryGetInt64(out var l) ? l : element.GetDouble(),
+        JsonValueKind.True => true,
+        JsonValueKind.False => false,
+        // Undefined covers the default(JsonElement) case used when no id was
+        // present on the inbound request — surface as JSON null.
+        _ => null
+    };
+
+    private object HandleInitialize(object? id)
     {
         return new
         {
@@ -84,7 +111,7 @@ internal sealed class Server
         };
     }
 
-    private object HandleListTools(JsonElement id)
+    private object HandleListTools(object? id)
     {
         return new
         {
@@ -96,7 +123,7 @@ internal sealed class Server
 
     private async Task<object> HandleCallToolAsync(
         JsonElement request,
-        JsonElement id,
+        object? id,
         CancellationToken cancellationToken)
     {
         if (!request.TryGetProperty("params", out var paramsProp))
@@ -126,7 +153,7 @@ internal sealed class Server
         };
     }
 
-    private static object CreateErrorResponse(JsonElement id, int code, string message)
+    private static object CreateErrorResponse(object? id, int code, string message)
     {
         return new
         {
@@ -136,14 +163,41 @@ internal sealed class Server
         };
     }
 
-    private async Task SendErrorAsync(JsonElement id, int code, string message)
+    private async Task SendErrorAsync(object? id, int code, string message)
     {
         await SendResponseAsync(CreateErrorResponse(id, code, message));
     }
 
+    /// <summary>
+    /// Internal seam exposed for unit testing the defence-in-depth catch in
+    /// <see cref="SendResponseAsync(object)"/>. Production callers always go
+    /// through the private path; the test-only entry point keeps the
+    /// behaviour observable without weakening the public surface.
+    /// </summary>
+    internal Task SendResponseForTestAsync(object response) => SendResponseAsync(response);
+
     private async Task SendResponseAsync(object response)
     {
-        var json = JsonSerializer.Serialize(response, SerializerOptions);
+        string json;
+        try
+        {
+            json = JsonSerializer.Serialize(response, SerializerOptions);
+        }
+        catch (Exception ex)
+        {
+            // Defence-in-depth (US-130): a fault inside Serialize must NOT
+            // tear the server down. Emit a JSON-RPC -32603 envelope with
+            // id=null and keep accepting requests.
+            RtLog.Warning("MCP serialization failed: {0}", ex.Message);
+            var fallback = new
+            {
+                jsonrpc = "2.0",
+                id = (object?)null,
+                error = new { code = -32603, message = $"Internal error: serialization failed: {ex.Message}" }
+            };
+            json = JsonSerializer.Serialize(fallback, SerializerOptions);
+        }
+
         await _output.WriteLineAsync(json);
     }
 }
