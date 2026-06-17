@@ -45,6 +45,7 @@ Use PowerShell syntax by default.
 - Avoid prompts in scripts/commands that require manual input.
 - Prefer exit-code driven checks so agents can reliably detect failures.
 - Keep command output concise and parseable; avoid noisy one-off wrappers.
+- **Parallel-safe by default.** `rt` is hardened for concurrent invocation from parallel agent worktrees: `rt feedback add`, wrapper rebuild, `deploy-skill`, and (with `RT_ISOLATED_OBJ=1`) MSBuild obj/ are all race-free. See CLAUDE.md → "Parallel safety" for details.
 
 ## Build Commands
 Build entire solution:

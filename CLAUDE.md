@@ -41,6 +41,17 @@ dotnet format "RoslynTools.slnx"                                         # fix f
 
 Wrapper scripts `rt.cmd` / `rt.ps1` / `rt.sh` auto-detect source changes and rebuild before running. No manual publish step needed — just run `rt` and it rebuilds if any `*.cs`, `*.csproj`, `*.slnx`, or `Directory.*.props` file under `src/` is newer than the binary.
 
+## Parallel safety (agent dogfooding)
+
+rt is safe to invoke from parallel agent worktrees. The four race sites are all guarded:
+
+- **`rt feedback add`**: `FeedbackStore.Append` wraps load → id-allocate → write in a `SemaphoreSlim` + `FileShare.None` lock on `feedback.json.lock`. Regression test: `FeedbackStoreConcurrencyTests` (16 parallel appends → 16 distinct ids).
+- **Wrapper rebuild race**: `rt.ps1` serialises `dotnet build` on a named mutex (`rt-rebuild-<base64-PSScriptRoot>`, 5-minute timeout). `rt.sh` mirrors this with `flock -w 300` on `${TMPDIR:-/tmp}/rt-rebuild.lock`, with a stderr fallback when `flock` is unavailable.
+- **`scripts/deploy-skill.ps1`**: 10-attempt retry on `Copy-Item` with linear backoff (100 ms × attempt). After exhaustion, writes a friendly stderr message and exits 0 instead of throwing — agents can keep going while the concurrent build settles.
+- **MSBuild obj race**: set `RT_ISOLATED_OBJ=1` and `WorkspaceLoader` passes `BaseIntermediateOutputPath = %TEMP%/rt-obj/<pid>/` into `MSBuildWorkspace.Create(...)`. Default off (preserves shared obj cache for human reruns); agents flip the env var process-wide. Regression test: `ParallelDogfoodSafety.parallel_workspace_loads_under_isolated_obj_complete_without_lock_warnings`.
+
+If you encounter a new race, log via `rt feedback add` and capture the scenario in a parallel xUnit test before fixing.
+
 ```powershell
 dotnet test "RoslynTools.slnx" -v minimal
 dotnet test "tests/RoslynTools.Tests/RoslynTools.Tests.csproj" -v minimal --filter "FullyQualifiedName~TypeName"
