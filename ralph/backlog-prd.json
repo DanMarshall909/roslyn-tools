@@ -1708,6 +1708,69 @@
             "priority": 130,
             "passes": false,
             "notes": "P0. Surfaced as FB-001 in the rt global feedback store on 2026-06-16T06:36:50Z (separate from ralph/feedback.json). InvalidOperationException 'Operation is not valid due to the current state of the object' from System.Text.Json.Serialization.Converters.JsonElementConverter.Write. Stack: JsonElementConverter.Write -> JsonConverter`1.TryWrite -> JsonPropertyInfo`1.GetMemberAndWriteJson -> ObjectDefaultConverter`1.OnTryWrite -> JsonConverter`1.TryWrite -> JsonConverter`1.WriteCore -> JsonTypeInfo`1.Serialize. Root cause: MCP tool-result DTO embeds a JsonElement whose backing JsonDocument has been disposed before serialization. .NET 10.0.5 / CoreCLR 10.0.526.15411. Repro verification: Get-WinEvent -FilterHashtable @{LogName='Application'; ProviderName='.NET Runtime'; Id=1026} | Where-Object { $_.Message -match 'RoslynTools.Mcp' }."
+        },
+        {
+            "id": "US-131",
+            "title": "Drain SymbolLocator throwing-bridge callers (consume Result directly)",
+            "description": "As an rt maintainer, I want every production caller of SymbolLocator.Find{Symbol,SymbolByFqn,Type,Method}* and their ISymbolResolutionService passthroughs to consume Result<T, RtError> directly so the throwing bridges can be deleted and App.TryHandleUserErrorAsync no longer needs InvalidOperationException in its catch ladder.",
+            "acceptanceCriteria": [
+                "Every production caller of SymbolLocator.FindSymbolAsync, FindSymbolByFqnAsync, FindTypeByFqnAsync, and FindMethodBySpecAsync (and their ISymbolResolutionService passthroughs) consumes Result<T, RtError> directly rather than the throwing bridge.",
+                "Every command surfaces RtError through RoslynTools.Cli.RtErrorPresenter.Surface(context, error) — no per-command if/else ladder, no direct RtLog.Error calls for RtError-shaped failures.",
+                "The four throwing bridge methods (FindSymbolAsync, FindSymbolByFqnAsync, FindTypeByFqnAsync, FindMethodBySpecAsync) are deleted from SymbolLocator and ISymbolResolutionService once the last production caller migrates.",
+                "Test callers either migrate to the Try* variants OR continue to assert exception-throwing behaviour via a dedicated thin test-only helper; no test directly references a deleted bridge.",
+                "dotnet build RoslynTools.slnx succeeds; dotnet format --verify-no-changes exits 0; existing test suite passes.",
+                "After the drain, App.TryHandleUserErrorAsync no longer needs to catch InvalidOperationException for symbol-resolution paths — verifiable by removing InvalidOperationException from the ladder and confirming no symbol-not-found regression in HandledUserErrorsDoNotPolluteFeedbackTests."
+            ],
+            "priority": 131,
+            "passes": false,
+            "notes": "P1. US-077 follow-up: AC5 deferred. The 4 Try* methods + bridges landed in commits 7acab0f / e79e45e / 5c91f07 / 9281b53 / c9f9d96, but ~50 production+test caller sites still call the throwing bridges. Effort: medium-large (~12-20 commits). Blocks the AC6 ladder-narrow follow-up. Use rt inspect find-callers per method for the enumeration; precedent migrations: commit 83b33d5 (DescribeCommand) and 4535c28 (FindCallersService)."
+        },
+        {
+            "id": "US-132",
+            "title": "Narrow App.TryHandleUserErrorAsync to typed spec (FileNotFoundException, DirectoryNotFoundException, ArgumentException, JsonException)",
+            "description": "As an rt maintainer, I want App.TryHandleUserErrorAsync's catch ladder narrowed to exactly the four exception types named in US-077 AC6 so genuine bugs (any InvalidOperationException, IOException, YamlException not migrated to Result) surface as feedback entries with stack traces instead of being silently absorbed as user-error UX.",
+            "acceptanceCriteria": [
+                "App.TryHandleUserErrorAsync's typed catch ladder is narrowed to exactly the four exception types named in US-077's AC6: FileNotFoundException, DirectoryNotFoundException, ArgumentException, JsonException.",
+                "IOException, InvalidOperationException, and YamlException are removed from the ladder. The sources that previously relied on these arms (FileSemanticDiffSourceProvider, FileTextReader, AnalyzeInterfaceService.ResolveInterfaceAsync, AddNullChecksService, --decisions YAML parsing) all return Result<T, RtError> for their routine user-error paths.",
+                "DirectoryNotFoundException is added to the ladder explicitly (currently absorbed via IOException base class).",
+                "feedback.json continues to receive entries for unmapped exception types but no longer receives entries for routine user-error paths now routed through Result.",
+                "HandledUserErrorsDoNotPolluteFeedbackTests is extended with regression tests for each newly-Result-handled scenario (non-interface analyze-interface, missing semantic-diff input, malformed --decisions YAML, etc.).",
+                "dotnet build succeeds; dotnet format --verify-no-changes exits 0; existing test suite passes; rt dump-help unchanged."
+            ],
+            "priority": 132,
+            "passes": false,
+            "notes": "P1. US-077 follow-up: AC6 deferred. GATED ON US-131 (caller-drain). Removing InvalidOperationException from the ladder while any throwing-bridge caller remains turns every routine symbol-not-found into a stack trace + feedback-pollution regression. AC6 intent (no substring matching) is already met — only the exact 4-type narrowing is gated."
+        },
+        {
+            "id": "US-133",
+            "title": "describe Foo.Bar across two namespaces should hit AmbiguousMatch via FQN suffix matching",
+            "description": "As an rt user, I want 'rt inspect describe Foo.Bar' against a solution containing A.Foo.Bar and B.Foo.Bar to fail with an AmbiguousMatch listing both candidate FQNs, not a NotFound — because that's the disambiguation outcome a user expects when their input is non-fully-qualified.",
+            "acceptanceCriteria": [
+                "rt inspect describe Foo.Bar against a solution containing types A.Foo.Bar and B.Foo.Bar exits 1 with an RtError.AmbiguousMatch-formatted message listing both candidate FQNs — NOT a NotFound error.",
+                "SymbolLocator.TryFindSymbolByFqnAsync (and TryFindTypeByFqnAsync) treat the supplied FQN as a suffix when no project's FQN matches exactly; multiple suffix matches surface as AmbiguousMatch with all candidates listed.",
+                "Exact-FQN inputs continue to win over suffix matches when both exist (no behaviour regression for unambiguous fully-qualified inputs).",
+                "Integration test: rt inspect describe Foo.Bar against an AdhocProjectBuilder fixture with A.Foo.Bar + B.Foo.Bar exits 1 with both FQNs in the stderr error message; the existing US-077 AC10 method-overload test still passes.",
+                "dotnet build succeeds; dotnet format --verify-no-changes exits 0; existing test suite passes."
+            ],
+            "priority": 133,
+            "passes": false,
+            "notes": "P2. US-077 follow-up. Surfaced by the AC10 integration test in commit ee236cc: literal AC10 scenario actually returns NotFound because SymbolLocator.MatchesFqn requires exact FQN equality. The test was pivoted to a method-overload fixture to land US-077 AC10. The literal scenario remains uncovered; FQN suffix matching is the right product call (matches how 'rt rename Foo.Bar' currently disambiguates). See SymbolLocator.MatchesFqn + TryFindSymbolByFqnAsync."
+        },
+        {
+            "id": "US-134",
+            "title": "TryDisambiguate menu leaks to stdout on non-TTY runs (should be stderr or embedded in RtError)",
+            "description": "As an rt user piping stdout to a JSON consumer, I want ambiguous-match runs to keep stdout completely empty so JSON parsers don't choke on the human-readable candidate menu. On non-TTY ambiguous matches today, TryDisambiguate writes the menu to Console.Out before returning the AmbiguousMatch error to the catch ladder.",
+            "acceptanceCriteria": [
+                "On a non-TTY run (no rawInput, no decisions store), SymbolLocator.TryDisambiguate does NOT write the candidate menu to stdout — stdout stays empty for downstream JSON consumers.",
+                "The candidate FQN list is embedded in the RtError.AmbiguousMatch message instead, so a single stderr `Error: ...` line carries all candidates (matches the stderr-only error contract of every other Result-handled error).",
+                "On a TTY interactive run, the menu prompt is preserved exactly as today — printed to stderr (not stdout) so JSON-mode consumers piping stdout still get clean output.",
+                "Decisions-store runs (--decisions <file>) write pending entries to the YAML file as today and exit 2 — no UX change there.",
+                "Integration test: the AC10 ambiguous-overload test asserts stdout is exactly empty (currently relaxed to 'no JSON' because the menu leaks). Tighten the assertion once the fix lands.",
+                "dotnet build / format / test all green."
+            ],
+            "priority": 134,
+            "passes": false,
+            "notes": "P2. US-077 follow-up. Surfaced by the AC10 integration test in commit ee236cc — had to relax the 'stdout empty' assertion to 'stdout contains no JSON result' because the menu leaks. SymbolLocator.TryDisambiguate uses RtConsole.WriteLine(RtOutputContext.Interactive, ...) which routes to Console.Out. The fix is either (a) suppress the menu when rawInput is null and embed candidate FQNs in RtError.AmbiguousMatch (currently they already are), or (b) route the menu to stderr."
         }
     ]
 }

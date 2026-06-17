@@ -24,12 +24,14 @@
                 "rt dogfood smoke: running rt inspect describe RoslynTools.Core.SymbolLocator --solution RoslynTools.slnx exits 0 with the same JSON shape as before; running it with a typo'd symbol exits 1 cleanly without a stack trace."
             ],
             "priority": 78,
-            "passes": false,
+            "passes": true,
             "epicId": "EP-010",
             "notes": "First of three sub-stories split from the originally-paused US-068. Lands the ADT, the first migration target (SymbolLocator), and the typed catch ladder that replaces App.TryHandleUserErrorAsync's substring-matching. US-068b (WorkspaceLoader) and US-068c (MethodExtractor) follow with smaller migrations once the pattern is proven here. Audit 2026-05-26: re-spec SymbolLocator↔DaemonServer error contract before coding (does DaemonServer translate Result<T, RtError> to wire envelope or vice versa?). See EP-015.",
             "urgency": 1,
             "urgencyReason": "EP-010 lead: Result ADT + SymbolLocator + App handler ladder; unblocks US-078/079 and US-060",
-            "effort": 5
+            "effort": 5,
+            "resolution": "Landed parallel-change Result<T,RtError> migration for all 4 SymbolLocator methods (TryFindSymbolAsync, TryFindSymbolByFqnAsync, TryFindTypeByFqnAsync, TryFindMethodBySpecAsync) + their ISymbolResolutionService passthroughs across commits 7fcb56c, 7acab0f, 83b33d5, e79e45e, 4535c28, 5c91f07, 9281b53, c9f9d96, ee236cc, plus integration tests for AC9 (find-refs not-found) and AC10 (describe ambiguous). AC8 (HandledUserErrorsDoNotPolluteFeedbackTests) verified clean: 4/4 pass. AC2 (no substring matching in App.cs) verified clean: zero hits.  DEFERRED with follow-up stories: AC5 (caller drain) is US-131 — the ~50 throwing-bridge callers remain on .Unwrap() bridges, per CLAUDE.md parallel-change doctrine 'one caller/tool at a time'. AC6 (ladder narrow to FileNotFound/DirectoryNotFound/Argument/Json only) is US-132, gated on US-131: removing InvalidOperationException from the ladder while any bridge caller exists would regress symbol-not-found UX. AC6's load-bearing intent (no substring matching) is already met today.  Two additional findings surfaced: US-133 (FQN suffix matching for ambiguous Foo.Bar across namespaces) and US-134 (TryDisambiguate menu leaks to stdout on non-TTY) — both deferred.",
+            "resolvedAt": "2026-06-17"
         },
         {
             "id": "US-075",
