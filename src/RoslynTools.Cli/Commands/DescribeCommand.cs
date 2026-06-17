@@ -57,9 +57,7 @@ internal sealed class DescribeCommand : IRtCommand, IStructuredOutputCommand, II
                 var inspection = await _inspect.Describe(sln, symbol, kind);
 
                 inspection.Match(
-                    result => RtResultRenderer.Write(
-                        RtResult<object>.Ok(result),
-                        SymbolFormatter.DefaultJsonOptions),
+                    result => RtResultRenderer.Write(RtResult<object>.Ok(result)),
                     error => RtErrorPresenter.Surface(ctx, error));
             });
 

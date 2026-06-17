@@ -132,7 +132,7 @@ internal sealed class SemanticDiffCommand : IRtCommand, IStructuredOutputCommand
             var text = _renderer.Render(result, before, after);
             var output = new SemanticDiffOutput(result.Deltas, text);
 
-            RtResultRenderer.WriteOutput(RtResult<SemanticDiffOutput>.Ok(output));
+            RtResultRenderer.Write(RtResult<SemanticDiffOutput>.Ok(output));
         }, filesArg, fromOpt, toOpt, ignoreAccessibilityOpt, noDetectRenamesOpt);
 
         return cmd;

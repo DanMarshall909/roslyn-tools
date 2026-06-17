@@ -54,7 +54,7 @@ internal sealed class CircularDepsCommand : IRtCommand, IAnalyzeCommand
             {
                 var cycles = await _circularDeps.AnalyzeCyclesAsync(sln, scope);
                 var result = CircularDepsResult.FromCycles(cycles);
-                RtResultRenderer.WriteOutput(RtResult<CircularDepsResult>.Ok(result));
+                RtResultRenderer.Write(RtResult<CircularDepsResult>.Ok(result));
             }
         }, scopeOpt, solutionOpt);
 

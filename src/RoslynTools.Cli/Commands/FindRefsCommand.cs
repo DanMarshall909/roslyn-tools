@@ -52,7 +52,7 @@ internal sealed class FindRefsCommand : IRtCommand, IInspectCommand
             var request = flags.Bind(ctx.ParseResult, FindRefsCliRequest.FromFlags);
             var sln = await _sessionFactory.GetSolutionAsync(request.SolutionPath);
             var result = await _findRefs.FindAsync(sln, request.Symbol!, request.Kind);
-            RtResultRenderer.WriteOutput(RtResult<FindRefsResult>.Ok(result));
+            RtResultRenderer.Write(RtResult<FindRefsResult>.Ok(result));
         });
 
         return cmd;

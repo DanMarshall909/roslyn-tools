@@ -76,9 +76,7 @@ internal sealed class FindImplementationsCommand : IRtCommand, IStructuredOutput
                     ["implementations"] = implementations
                 };
 
-                RtResultRenderer.Write(
-                    RtResult<object>.Ok(result),
-                    SymbolFormatter.DefaultJsonOptions);
+                RtResultRenderer.Write(RtResult<object>.Ok(result));
             });
 
         return cmd;

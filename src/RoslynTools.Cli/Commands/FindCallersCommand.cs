@@ -59,7 +59,7 @@ internal sealed class FindCallersCommand : IRtCommand, IInspectCommand
             var sln = await _sessionFactory.GetSolutionAsync(request.SolutionPath);
             var result = await _findCallers.FindAsync(sln, request.Symbol!, includeTests);
             result.Match(
-                callers => RtResultRenderer.WriteOutput(RtResult<FindCallersResult>.Ok(callers)),
+                callers => RtResultRenderer.Write(RtResult<FindCallersResult>.Ok(callers)),
                 error => RtErrorPresenter.Surface(ctx, error));
         });
 

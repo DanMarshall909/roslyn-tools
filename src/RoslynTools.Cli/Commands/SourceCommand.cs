@@ -56,9 +56,7 @@ internal sealed class SourceCommand : IRtCommand, IStructuredOutputCommand, IIns
                 var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, request.Symbol, request.Kind);
                 var source = await _inspect.GetSourceAsync(sym);
 
-                RtResultRenderer.Write(
-                    RtResult<object>.Ok(source),
-                    SymbolFormatter.DefaultJsonOptions);
+                RtResultRenderer.Write(RtResult<object>.Ok(source));
             });
 
         return cmd;

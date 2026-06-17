@@ -59,7 +59,7 @@ internal sealed class AnalyzeInterfaceCommand : IRtCommand, IStructuredOutputCom
                     interfaceSpec,
                     new AnalyzeInterfaceOptions(scope, includeTests, suggest));
 
-                RtResultRenderer.WriteOutput(RtResult<AnalyzeInterfaceResult>.Ok(
+                RtResultRenderer.Write(RtResult<AnalyzeInterfaceResult>.Ok(
                     AnalyzeInterfaceResult.FromReport(report, suggest)));
             }
         }, interfaceArg, solutionOpt, scopeOpt, includeTestsOpt, suggestOpt);

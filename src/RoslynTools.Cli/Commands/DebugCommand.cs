@@ -67,7 +67,7 @@ internal sealed class DebugCommand : IRtCommand, IStructuredOutputCommand, ITrac
                 assertions,
                 breakOnly);
 
-            RtResultRenderer.WriteOutput(RtResult<DebugResult>.Ok(DebugResult.FromReport(report)));
+            RtResultRenderer.Write(RtResult<DebugResult>.Ok(DebugResult.FromReport(report)));
 
             if (report.Assertions.Any(assertion => !assertion.Passed))
                 ctx.ExitCode = 2;

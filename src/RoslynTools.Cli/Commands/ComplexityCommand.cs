@@ -131,7 +131,7 @@ internal sealed class ComplexityCommand : IRtCommand, IStructuredOutputCommand, 
                 }).ToList()
             };
 
-            RtResultRenderer.WriteOutput(RtResult<ComplexityResult>.Ok(result));
+            RtResultRenderer.Write(RtResult<ComplexityResult>.Ok(result));
 
             RtLog.Info("Analyzed {Count} method(s).", report.Methods.Count);
             return 0;

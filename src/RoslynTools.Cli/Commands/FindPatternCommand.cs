@@ -1,5 +1,4 @@
 using System.CommandLine;
-using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
@@ -14,9 +13,6 @@ internal sealed class FindPatternCommand : IRtCommand, IStructuredOutputCommand,
     private FindPatternCommand()
     {
     }
-
-    // Use the shared options so generic type names like List<int> render as `<` not `<`.
-    private static JsonSerializerOptions JsonOptions => SymbolFormatter.DefaultJsonOptions;
 
     public static RtCommandInfo Info { get; } = new(
         "find-pattern",
@@ -76,9 +72,7 @@ internal sealed class FindPatternCommand : IRtCommand, IStructuredOutputCommand,
             }
 
             var output = new { matches };
-            RtResultRenderer.Write(
-                RtResult<object>.Ok(output),
-                JsonOptions);
+            RtResultRenderer.Write(RtResult<object>.Ok(output));
         });
 
         return cmd;

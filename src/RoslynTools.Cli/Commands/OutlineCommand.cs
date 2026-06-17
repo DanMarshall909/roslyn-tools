@@ -100,8 +100,7 @@ internal sealed class OutlineCommand : IRtCommand, IStructuredOutputCommand, IIn
                     return;
                 }
 
-                RtResultRenderer.Write(RtResult<List<Dictionary<string, object?>>>.Ok(result),
-                    SymbolFormatter.DefaultJsonOptions);
+                RtResultRenderer.Write(RtResult<List<Dictionary<string, object?>>>.Ok(result));
             }
         });
 

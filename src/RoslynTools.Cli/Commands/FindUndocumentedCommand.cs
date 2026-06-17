@@ -63,7 +63,7 @@ internal sealed class FindUndocumentedCommand : IRtCommand, IInspectCommand
             {
                 var symbols = await _findUndocumented
                     .AnalyzeAsync(sln, members, scope, accessibilityKinds);
-                RtResultRenderer.WriteOutput(RtResult<FindUndocumentedResult>.Ok(FindUndocumentedResult.From(symbols, sln.FilePath)));
+                RtResultRenderer.Write(RtResult<FindUndocumentedResult>.Ok(FindUndocumentedResult.From(symbols, sln.FilePath)));
             }
         }, solutionOpt, membersOpt, scopeOpt, levelOpt);
 

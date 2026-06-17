@@ -48,7 +48,7 @@ internal sealed class StaticClassInventoryCommand : IRtCommand, IStructuredOutpu
             var report = await _inventory.AnalyzeAsync(sln);
             var result = StaticClassInventoryResult.FromReport(report);
 
-            RtResultRenderer.WriteOutput(RtResult<StaticClassInventoryResult>.Ok(result));
+            RtResultRenderer.Write(RtResult<StaticClassInventoryResult>.Ok(result));
         });
 
         return cmd;

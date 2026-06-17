@@ -51,7 +51,7 @@ internal sealed class ListImportsCommand : IRtCommand, IAnalyzeCommand
             using (workspace)
             {
                 var imports = await _importDirective.AnalyzeAsync(sln, kind);
-                RtResultRenderer.WriteOutput(RtResult<ImportDirectiveResult>.Ok(ImportDirectiveResult.FromImports(imports)));
+                RtResultRenderer.Write(RtResult<ImportDirectiveResult>.Ok(ImportDirectiveResult.FromImports(imports)));
             }
         }, solutionOpt, kindOpt);
 

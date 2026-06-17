@@ -235,7 +235,7 @@ internal sealed class SolidCommand : IRtCommand, IStructuredOutputCommand, IAnal
             };
         }
 
-        RtResultRenderer.WriteOutput(RtResult<SolidResult>.Ok(result));
+        RtResultRenderer.Write(RtResult<SolidResult>.Ok(result));
         if (runSrp)
             RtLog.Info("Found {Count} SRP violation(s).", result.SRP.Count);
         if (runIsp)

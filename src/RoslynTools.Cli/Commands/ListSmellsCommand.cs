@@ -89,7 +89,7 @@ internal sealed class ListSmellsCommand : IRtCommand, IAnalyzeCommand
                 }).ToList()
             };
 
-            RtResultRenderer.WriteOutput(RtResult<ListSmellsResult>.Ok(result));
+            RtResultRenderer.Write(RtResult<ListSmellsResult>.Ok(result));
 
             RtLog.Info("Found {Count} smell(s).", smells.Count);
         });
