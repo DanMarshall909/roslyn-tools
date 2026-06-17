@@ -1693,6 +1693,21 @@
             "priority": 129,
             "passes": false,
             "notes": "P1. Pre-existing regression from the FB-362 BuildNewClassText rewrite (emit member text + Roslyn Formatter). Deterministic red test: Mutation.ServiceHelpers.builds_new_class_text_generates_static_class_when_flag_set — BuildNewClassText('MyApp','Helper',generateStatic:true,[]) no longer contains 'public static class Helper'. The FB-362 session's '20 ExtractClass tests pass' check missed it (this test is in the Mutation/ServiceHelpers namespace, not the ExtractClass filter). Not caused by EP-016 (US-123/124/126/127 never touched ExtractClassService). Fix the static-modifier emission in BuildNewClassText."
+        },
+        {
+            "id": "US-130",
+            "title": "rt MCP server crashes during JSON serialization (JsonElement outlives JsonDocument)",
+            "description": "As an rt user dogfooding via Claude Code, I want the MCP server to serialize tool results safely so that the server doesn't crash mid-call and force a cold restart on the next invocation.",
+            "acceptanceCriteria": [
+                "RoslynTools.Mcp.exe no longer terminates with InvalidOperationException from JsonElementConverter.Write during tool-result serialization.",
+                "MCP tool-result handlers do not return DTOs that embed a raw JsonElement whose backing JsonDocument has already been disposed — payloads are either materialized to JsonNode / string / typed value before return, or the source JsonDocument is kept alive until the MCP response is fully written.",
+                "If any unhandled exception still escapes a tool handler during serialization, the MCP server catches it, logs it, and returns a structured MCP error response to the client; the host process does not terminate.",
+                "A regression test reproduces the disposed-JsonDocument scenario against an MCP handler and asserts the response is delivered without process termination.",
+                "Over a 24h dogfood window after the fix lands, `Get-WinEvent -FilterHashtable @{LogName='Application'; ProviderName='.NET Runtime'; Id=1026} | Where-Object { $_.Message -match 'RoslynTools.Mcp' }` returns zero new events matching this stack."
+            ],
+            "priority": 130,
+            "passes": false,
+            "notes": "P0. Surfaced as FB-001 in the rt global feedback store on 2026-06-16T06:36:50Z (separate from ralph/feedback.json). InvalidOperationException 'Operation is not valid due to the current state of the object' from System.Text.Json.Serialization.Converters.JsonElementConverter.Write. Stack: JsonElementConverter.Write -> JsonConverter`1.TryWrite -> JsonPropertyInfo`1.GetMemberAndWriteJson -> ObjectDefaultConverter`1.OnTryWrite -> JsonConverter`1.TryWrite -> JsonConverter`1.WriteCore -> JsonTypeInfo`1.Serialize. Root cause: MCP tool-result DTO embeds a JsonElement whose backing JsonDocument has been disposed before serialization. .NET 10.0.5 / CoreCLR 10.0.526.15411. Repro verification: Get-WinEvent -FilterHashtable @{LogName='Application'; ProviderName='.NET Runtime'; Id=1026} | Where-Object { $_.Message -match 'RoslynTools.Mcp' }."
         }
     ]
 }
