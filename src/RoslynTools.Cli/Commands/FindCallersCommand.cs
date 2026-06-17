@@ -1,5 +1,6 @@
 using System.CommandLine;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using RoslynTools.Cli;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
@@ -57,7 +58,9 @@ internal sealed class FindCallersCommand : IRtCommand, IInspectCommand
 
             var sln = await _sessionFactory.GetSolutionAsync(request.SolutionPath);
             var result = await _findCallers.FindAsync(sln, request.Symbol!, includeTests);
-            RtResultRenderer.WriteOutput(RtResult<FindCallersResult>.Ok(result));
+            result.Match(
+                callers => RtResultRenderer.WriteOutput(RtResult<FindCallersResult>.Ok(callers)),
+                error => RtErrorPresenter.Surface(ctx, error));
         });
 
         return cmd;

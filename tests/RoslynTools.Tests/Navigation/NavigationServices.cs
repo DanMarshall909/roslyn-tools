@@ -38,7 +38,7 @@ public class NavigationServices
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await new FindCallersService().FindAsync(sln, "Greet", true);
+            var result = (await new FindCallersService().FindAsync(sln, "Greet", true)).Unwrap();
             result.SymbolName.ShouldBe("Greet");
             result.Callers.ShouldNotBeEmpty();
         }
@@ -52,7 +52,7 @@ public class NavigationServices
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await new FindCallersService().FindAsync(sln, "Greet", false);
+            var result = (await new FindCallersService().FindAsync(sln, "Greet", false)).Unwrap();
             result.Callers.ShouldBeEmpty();
         }
     }

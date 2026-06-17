@@ -34,12 +34,16 @@ internal class FindCallersService : IRtService
     /// <summary>
     /// Async method to find callers based on a string and a boolean flag.
     /// </summary>
-    internal async Task<FindCallersResult> FindAsync(
+    internal async Task<Result<FindCallersResult, RtError>> FindAsync(
         Solution sln,
         string symbol,
         bool includeTests)
     {
-        var methodSymbol = await _symbols.FindSymbolAsync(sln, symbol, "method");
+        var resolved = await _symbols.TryFindSymbolAsync(sln, symbol, "method");
+        if (resolved.IsErr)
+            return resolved.Map(_ => default(FindCallersResult)!);
+
+        var methodSymbol = resolved.Match(found => found, _ => default!);
 
         _logger.RtInfo("Finding callers of '{Method}'...", methodSymbol.ToDisplayString());
 
@@ -89,11 +93,11 @@ internal class FindCallersService : IRtService
 
         _logger.RtInfo("Found {Count} caller(s) of '{Name}'.", callers.Count, methodSymbol.Name);
 
-        return new FindCallersResult
+        return Result<FindCallersResult, RtError>.Ok(new FindCallersResult
         {
             SymbolName = methodSymbol.Name,
             Callers = callers
-        };
+        });
     }
 
     /// <summary>
