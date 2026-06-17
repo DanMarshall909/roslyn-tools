@@ -197,9 +197,15 @@ internal static class SymbolLocator
     }
 
     /// <summary>
-    /// Finds a method by its specification.
+    ///     Finds a method by its specification, returning a typed <see cref="Result{T,TError}" />
+    ///     for the routine not-found / ambiguous-match flows instead of throwing. A genuinely
+    ///     interactive disambiguation (a decisions store, or a TTY that supplies a choice) is honoured
+    ///     as before — only the store path can still throw <see cref="DecisionsRequiredException" />
+    ///     (the exit-2 mechanism), which is not an <see cref="RtError" />.
     /// </summary>
-    internal static async Task<IMethodSymbol> FindMethodBySpecAsync(Solution solution, string methodSpec)
+    internal static async Task<Result<IMethodSymbol, RtError>> TryFindMethodBySpecAsync(
+        Solution solution,
+        string methodSpec)
     {
         var input = NormalizeFqn(methodSpec);
         var inputWithoutSignature = RemoveSignature(input);
@@ -238,12 +244,23 @@ internal static class SymbolLocator
             .ToList();
 
         if (matches.Count == 0)
-            throw new InvalidOperationException($"Method '{methodSpec}' not found in solution.");
+            return Result<IMethodSymbol, RtError>.Err(
+                RtError.NotFound($"Method '{methodSpec}' not found in solution."));
 
         if (matches.Count == 1)
-            return (IMethodSymbol)matches[0].Symbol;
+            return Result<IMethodSymbol, RtError>.Ok((IMethodSymbol)matches[0].Symbol);
 
-        return (IMethodSymbol)Disambiguate(matches, methodSpec);
+        return TryDisambiguate(matches, methodSpec).Map(s => (IMethodSymbol)s);
+    }
+
+    /// <summary>
+    ///     Finds a method by its specification. Throwing bridge over
+    ///     <see cref="TryFindMethodBySpecAsync" /> for callers not yet migrated to consume
+    ///     <see cref="Result{T,TError}" />; preserves the historical exception message.
+    /// </summary>
+    internal static async Task<IMethodSymbol> FindMethodBySpecAsync(Solution solution, string methodSpec)
+    {
+        return (await TryFindMethodBySpecAsync(solution, methodSpec)).Unwrap();
     }
 
     private static ISymbol Disambiguate(List<SymbolMatch> matches, string name)

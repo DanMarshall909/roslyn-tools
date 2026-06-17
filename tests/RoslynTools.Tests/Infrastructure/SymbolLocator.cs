@@ -38,7 +38,7 @@ public class SymbolLocator
                 completed.ShouldBeSameAs(lookup);
                 var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => lookup);
                 ex.Message.ShouldContain("Multiple symbols match 'TestApp.Service.Foo'", Case.Sensitive);
-                ex.Message.ShouldContain("no selection was provided", Case.Sensitive);
+                ex.Message.ShouldContain("Pass a more specific fully-qualified name", Case.Sensitive);
             }
             finally
             {
@@ -183,6 +183,33 @@ public class SymbolLocator
             result.Match(_ => default!, e => e).Kind.ShouldBe(RtErrorKind.NotFound);
             result.Match(_ => "ok", e => e.Message)
                 .ShouldBe("No type with FQN 'TestApp.Missing' found in solution.");
+        }
+    }
+
+    [Fact]
+    public async Task try_find_method_by_spec_returns_err_not_found_with_preserved_message()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Service.cs", """
+                                        namespace TestApp;
+
+                                        public class Service
+                                        {
+                                            public void Bar()
+                                            {
+                                            }
+                                        }
+                                        """);
+        var (workspace, solution) = project.Build();
+
+        using (workspace)
+        {
+            var result = await Core.SymbolLocator.TryFindMethodBySpecAsync(solution, "TestApp.Service.Missing");
+
+            result.IsErr.ShouldBeTrue();
+            result.Match(_ => default!, e => e).Kind.ShouldBe(RtErrorKind.NotFound);
+            result.Match(_ => "ok", e => e.Message)
+                .ShouldBe("Method 'TestApp.Service.Missing' not found in solution.");
         }
     }
 
