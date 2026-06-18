@@ -26,12 +26,12 @@ internal sealed class DescribeCommand : IRtCommand, IStructuredOutputCommand, II
         "inspect",
         Aliases: null,
         WhenToUse:
-        "Getting a detailed JSON description of a symbol's shape — members, base types, interfaces, constructors, locations — without opening the file. Ideal for agents that need to understand a type's surface area before planning a refactor.",
+        "Getting a type's surface area as a compact JSON signature array { fqn, kind, signatures: [...] } — one canonical signature per member, no line numbers (stable across edits). Drill into a single member by passing its signature ('Type.Method(paramType, ...)') for full detail. Add --with-locations for the legacy verbose shape (per-member line numbers + locations).",
         Examples:
         [
             "rt inspect describe BookingService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt inspect describe ProjectX.Core.Services.IEmailService --kind type --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt inspect describe IRtCommand --solution RoslynTools.slnx"
+            "rt inspect describe \"RoslynTools.Core.SymbolFormatter.ExtractMembers(INamedTypeSymbol, bool)\" --solution RoslynTools.slnx",
+            "rt inspect describe IRtCommand --solution RoslynTools.slnx --with-locations"
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json]
     );

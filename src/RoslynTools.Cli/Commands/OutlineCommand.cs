@@ -25,7 +25,7 @@ internal sealed class OutlineCommand : IRtCommand, IStructuredOutputCommand, IIn
         "inspect",
         Aliases: null,
         WhenToUse:
-        "Getting a JSON summary of all types and member signatures in a file or namespace without reading the raw source. Useful for agents to orient themselves in an unfamiliar module before planning a refactor, or to diff the public surface area across branches. Use --summary for a compact one-entry-per-type view (fqn, kind, line range, optional XML doc description) — ideal for directory-wide orientation.",
+        "Getting a JSON summary of all types and member signatures in a file or namespace without reading the raw source. The default is a compact per-type view { name, kind, signatures: [...] } with no line numbers (stable across edits) — ideal for agents orienting in an unfamiliar module or diffing public surface area across branches. Use --with-locations for the legacy verbose grouped-members shape with line ranges, or --summary for a one-entry-per-type overview (fqn, kind, line range, optional XML doc description).",
         Examples:
         [
             "rt inspect outline src/backend/TourStore.Api/Controllers/Admin/AdminController.cs --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
@@ -35,7 +35,8 @@ internal sealed class OutlineCommand : IRtCommand, IStructuredOutputCommand, IIn
             "rt inspect outline \"RoslynTools.*\" --solution RoslynTools.slnx",
             "rt inspect outline --regex \"Service\\.cs$\" --solution RoslynTools.slnx",
             "rt inspect outline src/RoslynTools/Core --solution RoslynTools.slnx --summary",
-            "rt inspect outline RoslynTools.Core --solution RoslynTools.slnx --summary"
+            "rt inspect outline RoslynTools.Core --solution RoslynTools.slnx --summary",
+            "rt inspect outline src/RoslynTools/Core/SymbolLocator.cs --solution RoslynTools.slnx --with-locations"
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json]
     );
