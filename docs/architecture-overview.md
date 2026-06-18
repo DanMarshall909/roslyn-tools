@@ -81,6 +81,8 @@ One method (`Write<T>`). One encoder helper. `--relax-json` opts out of strict e
 
 Output shapes are typed records, not dicts. Compact by default (`{ fqn, kind, signatures: [...] }`); `--with-locations` opt-in restores line-bearing detail. Single typed result record where byte-identity allows (outline); two-shape stays where the JSON key order can't be reconciled (describe).
 
+Every inspection result may also carry a `_suggestions` array — five pre-filled follow-on commands with symbol FQN and `--solution` path baked in. Populated at the adapter layer (CLI handler, MCP handler) by `SuggestionHelper`; never inside the core service (which doesn't know the host format or the `--solution` path). The field is an init property per DTO, `null` when JSON output is inactive. See [ADR-0002](adr/0002-suggestions-output-contract-and-proactive-session-start.md) for the full contract and the fan-out backlog (US-136, US-137).
+
 ## The catalog (single source of truth)
 
 | Surface | Lives in |
@@ -97,7 +99,8 @@ If two surfaces describe the same flag, the catalog wins.
 
 - **Architecture tests** under `tests/RoslynTools.Tests/Architecture/`. Biconditional invariants, no-direct-console, no-static-WorkspaceLoader, no-RtServiceProvider, no direct `Option<T>` for catalog flags (US-114).
 - **Stryker mutation gate** at pre-commit. 95% break threshold for files in scope. `RT_MUTATION_ALLOW_UNSCOPED=1` is the documented escape hatch for behaviour-preserving refactors of files outside the pilot — used with documented rationale in the commit body. Mutation scope expands incrementally from `src/RoslynTools/Core/` outward.
-- **rt-first hook gate** (committed to `.claude/settings.json`). Blocks `Read`/`Edit` on existing `.cs` files until you've run an `rt` command against them. Forces dogfooding.
+- **rt-first hook gate** (`PreToolUse` in `.claude/settings.json`). Blocks `Read`/`Edit` on existing `.cs` files until you've run an `rt` command against them. Forces dogfooding.
+- **Session-start hook** (`UserPromptSubmit` in `.claude/settings.json`). Fires `rt prime --json` once per session (PPID-stamped `/tmp` marker prevents re-runs). Proactive orientation — agents know the gate rule and hot commands before the first tool call, not just after a violation. See [ADR-0002](adr/0002-suggestions-output-contract-and-proactive-session-start.md).
 - **Parallel-safe by default**. FeedbackStore mutex, wrapper rebuild mutex, deploy-skill graceful-skip, `RT_ISOLATED_OBJ=1` per-PID MSBuild obj — agents can fan out across worktrees without corrupting shared state.
 
 ## The dogfood loop
@@ -123,6 +126,8 @@ The whole tool is its own customer. The architecture exists to make that loop ti
 - **EP-009 (capability flags) is the biggest open architectural lift** — US-114 is 20 ACs, multi-week. Until it lands, commands still wire `Option<T>` ad hoc and the catalog is partly notional.
 - **The Result/Throw bridges are designed to persist** across stories. Don't drain the SymbolLocator bridges all at once — `one caller/tool at a time`, then delete the bridge.
 - **`CompactDescription` vs verbose dict** for describe stays two-shape (JSON key order is irreducible). Outline has been unified. Trade-off accepted in US-135.
+- **`_suggestions` fan-out is incomplete.** Only `describe` (CLI+MCP) and `find-refs` (MCP) carry suggestions today. Remaining inspect/analyze commands are tracked in US-136 (outline envelope) and US-137 (fan-out). Body-call related-symbol extraction and frequency ranking are deferred in US-135.
+- **`rt prime` hot-command list is hardcoded.** It will drift as the catalog grows. The deliberate trade-off (speed vs currency) is documented in [ADR-0002](adr/0002-suggestions-output-contract-and-proactive-session-start.md).
 - **Static class migration is ~57% done.** Instance + DI is the new default; static is a migration target. EP-008 hardens the workspace boundary; `RtServiceProvider.Get<T>` was eliminated in US-072.
 - **Pragmatism over purity** — patterns applied only when `rt analyze find-duplicates` shows real pain. Trust the detector, not the textbook.
 
