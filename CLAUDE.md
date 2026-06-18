@@ -8,6 +8,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A CLI refactoring tool (`rt`) that uses Roslyn to perform solution-wide C# refactoring operations (rename, move, find-refs) against the ProjectX solutions at `C:\code\`. Built on .NET 8, System.CommandLine, and Microsoft.CodeAnalysis.
 
+## Architecture
+
+Authoritative descriptions, in increasing detail:
+
+- [docs/architecture-overview.md](docs/architecture-overview.md) — umbrella view: layers, the five binding contracts, output + error pipelines, catalog, safety net, dogfood loop, open tensions.
+- [docs/adr/](docs/adr/) — Architecture Decision Records (historical log).
+- [docs/pattern-core-service.md](docs/pattern-core-service.md) — the Core-service + thin-host-adapters pattern in depth.
+- [docs/target-command-surface-architecture.md](docs/target-command-surface-architecture.md) — target shape for command wiring (catalog + capabilities + binders).
+
+**When an architectural decision is taken**, write an ADR under [docs/adr/](docs/adr/), update [docs/architecture-overview.md](docs/architecture-overview.md), and update the most specific companion doc — all in a single `docs(adr): NNNN <title>` commit. See [docs/adr/README.md](docs/adr/README.md) for the template and the trigger conditions.
+
 ## Architecture pattern: Core service + thin host adapters
 
 Every new feature follows the **Core service + thin host adapters** pattern. Logic lives in a pure service in `src/RoslynTools/Services/` (no `System.CommandLine`, no `Console`, no IO except via injected dependencies). The CLI and MCP each have a *thin adapter*: the CLI command parses args + renders text/JSON; the MCP handler parses JSON + returns structured JSON. Both resolve the same service from DI.

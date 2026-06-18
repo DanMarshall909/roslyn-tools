@@ -1,0 +1,68 @@
+# Architecture Decision Records
+
+This directory holds the Architecture Decision Records (ADRs) for `rt`. Each ADR captures a single architectural decision: what was chosen, why, what alternatives were rejected, and what the consequences are. The architecture overview at [../architecture-overview.md](../architecture-overview.md) is the running synthesis; ADRs are the historical log.
+
+## When to write an ADR
+
+Write an ADR when a decision:
+
+- introduces or removes a layer contract (e.g. a new capability interface, a renamed registry pattern)
+- changes the error-handling doctrine (e.g. typed ladder, Result-vs-throw boundary)
+- changes the output pipeline (e.g. renderer collapse, encoder selection, DTO unification)
+- adopts or retires a doctrine (e.g. "static classes are migration targets", "rt-first gate on Read/Edit")
+- accepts a non-obvious trade-off worth justifying for future readers (e.g. byte-identity gate blocking a refactor)
+
+If the decision only affects a single file or is purely tactical, don't bother — the commit message is enough.
+
+## Format
+
+Use the template below. Files are `NNNN-kebab-case-title.md`, numbered sequentially from `0001`. Once a record is `Accepted`, do not edit it — supersede with a new record.
+
+```markdown
+# ADR-NNNN: <title>
+
+- Status: Proposed | Accepted | Deprecated | Superseded by ADR-MMMM
+- Date: YYYY-MM-DD (use the system-provided currentDate verbatim)
+- Stories: US-NNN, US-MMM (cross-link the work that drove the decision)
+
+## Context
+
+What forced this decision? What was the existing state? What problem appeared?
+
+## Decision
+
+What did we decide? State it plainly — one or two sentences. Then the mechanics:
+how the layer, contract, or pipeline works after this decision.
+
+## Consequences
+
+- What gets easier?
+- What gets harder?
+- What invariants now hold (and where are they enforced — startup check, arch test, code review)?
+- What's deliberately deferred (cross-link follow-up stories)?
+
+## Alternatives considered
+
+For each, one line: what it was, why it was rejected.
+
+## References
+
+- Commits: <SHA list>
+- Related ADRs: <links>
+- Related docs: <links>
+```
+
+## When updating after a decision
+
+Per the architecture-overview doc's "Updating this doc" section:
+
+1. Write the ADR here.
+2. Update [../architecture-overview.md](../architecture-overview.md) to reflect the new state and cross-link the ADR.
+3. Update the most specific companion doc if one applies.
+4. Commit all three together as `docs(adr): NNNN <title>`.
+
+## Index
+
+| # | Title | Status | Date |
+|---|---|---|---|
+| [0001](0001-core-service-thin-host-adapters.md) | Core service + thin host adapters | Accepted | 2026-06-17 |
