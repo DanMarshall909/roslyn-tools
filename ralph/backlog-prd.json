@@ -1756,44 +1756,6 @@
             "priority": 134,
             "passes": false,
             "notes": "P2. US-077 follow-up. Surfaced by the AC10 integration test in commit ee236cc — had to relax the 'stdout empty' assertion to 'stdout contains no JSON result' because the menu leaks. SymbolLocator.TryDisambiguate uses RtConsole.WriteLine(RtOutputContext.Interactive, ...) which routes to Console.Out. The fix is either (a) suppress the menu when rawInput is null and embed candidate FQNs in RtError.AmbiguousMatch (currently they already are), or (b) route the menu to stderr."
-        },
-        {
-            "id": "US-135",
-            "title": "rt inspect describe/outline default to signature-array; drill in by signature",
-            "description": "As an agent (or human) using rt inspect describe / rt inspect outline, I want the default output to be a compact array of signatures (one per member), and to be able to drill into a single member by passing its signature, so the common 'what does this look like?' question stays small and stable across edits.",
-            "acceptanceCriteria": [
-                "rt inspect describe <FQN> --solution X defaults to emitting { fqn, kind, signatures: [\"sig1\", \"sig2\", ...] } for a named type — no per-member lineFrom/lineTo/locations in the default output.",
-                "Each signature in the array is the canonical C# overload signature (e.g. 'Task<Result<ISymbol, RtError>> TryFindSymbolAsync(Solution, string, string?)') and is unambiguous within the type.",
-                "rt inspect describe <FQN.MemberSignature> --solution X returns the full single-member detail (parameters, return type, attributes, locations) when the input uniquely identifies a member; ambiguous matches return AmbiguousMatch with candidate signatures listed.",
-                "rt inspect outline <file> defaults to the same compact shape: per-type { name, kind, signatures: [...] } — no per-member line ranges in default output.",
-                "--with-locations opt-in restores the legacy line-number-bearing output for both describe and outline (back-compat for tooling that consumes lineFrom/lineTo today).",
-                "CLI --help text and rt dump-help reflect the new defaults and the --with-locations flag.",
-                "MCP handlers for describe and outline return the same compact default shape (CLI/MCP parity).",
-                "Existing tests that asserted the legacy shape are migrated — either to --with-locations (proving back-compat) or to the new compact shape (proving the new default).",
-                "dotnet build RoslynTools.slnx succeeds; dotnet format --verify-no-changes exits 0; relevant tests pass."
-            ],
-            "priority": 135,
-            "passes": false,
-            "notes": "P2. Surfaced by Dan 2026-06-17 after closing US-130. Two motivations: (1) the legacy describe output is verbose with per-member lineFrom/lineTo dictionaries that aren't useful for the common case; (2) line-number references churn on every edit — observed concretely in US-100 where a removed 'using' shifted a downstream lineFrom by 1 and caused a non-zero byte-diff on rt inspect find-impl. The drill-in path can reuse SymbolLocator.TryFindMethodBySpecAsync from US-077 commit 9281b53 for signature lookup. Pairs with US-136 (calls-depth) but ships independently."
-        },
-        {
-            "id": "US-136",
-            "title": "rt inspect describe --calls-depth N: depth-bounded call graph",
-            "description": "As an agent investigating what a method actually does, I want rt inspect describe <FQN.MemberSignature> --calls-depth N to return the method's body plus every called method (and their callees, recursively, up to depth N) with cycle detection and external-leaf marking, so I can understand a feature without reading the whole codebase.",
-            "acceptanceCriteria": [
-                "rt inspect describe <FQN.MemberSignature> --calls-depth N returns { signature, calls: [{ signature, calls: [...] }, ...] } where each nested calls array is truncated at depth N.",
-                "Depth 0 (default, flag omitted) returns just the target signature with no calls array — preserves the existing describe behaviour.",
-                "Recursion stops at the depth limit AND when the same method is encountered a second time on a path (cycle detection); a cycled method appears once with an empty or `cycled: true` calls field.",
-                "External methods (referenced via the semantic model but not present in the loaded solution — framework, NuGet, etc.) are surfaced as leaf entries with `external: true` and no recursion.",
-                "Calls within a single method body are ordered deterministically (source order — first invocation in the body appears first).",
-                "--calls-depth flag is gated to the describe command (or wherever the per-tool target shape allows it); attempting to pass it to commands that don't support it produces a clear 'flag not supported' message, not a silent ignore.",
-                "Integration test exercises a fixture with A → B → C call chain at depth 1 (just A), depth 2 (A + B), depth 3 (A + B + C); a fixture with A → B → A cycle is detected and B's calls array stops at the cycle.",
-                "Integration test exercises an external-method scenario (e.g. a method that calls Console.WriteLine) and asserts the external method appears as a leaf with external: true.",
-                "dotnet build RoslynTools.slnx succeeds; dotnet format --verify-no-changes exits 0; relevant tests pass."
-            ],
-            "priority": 136,
-            "passes": false,
-            "notes": "P2. Surfaced by Dan 2026-06-17 alongside US-135. Builds on US-077's TryFindMethodBySpecAsync. Implementation walks the method's syntax tree, resolves each invocation expression via the semantic model, and recurses on in-solution callees only. Roslyn's SymbolFinder.FindCallersAsync is the inverse (we'd need to walk the body for callees). Depth + visited-set caps prevent runaway expansion. Ships separately from US-135 — bigger lift, depends on US-135's signature-targeting being in place."
         }
     ]
 }
