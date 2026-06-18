@@ -35,22 +35,104 @@ internal class InspectService : IRtService
             return member.Map(sym => (object)BuildInspection(sym, solution));
         }
 
+        var solutionAssemblyNames = solution.Projects
+            .Select(p => p.AssemblyName)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         var resolved = await SymbolLocator.TryFindSymbolByFqnAsync(solution, symbol, kind);
         return resolved.Map(sym =>
             !withLocations && sym is INamedTypeSymbol type
-                ? (object)BuildCompact(type)
+                ? (object)BuildCompact(type, solutionAssemblyNames)
                 : BuildInspection(sym, solution));
     }
 
     /// <summary>
     ///     Builds the default compact describe shape for a named type: fqn, type kind, and one
     ///     canonical signature per member (no line numbers or locations).
+    ///     <paramref name="solutionAssemblyNames" />, when supplied, filters
+    ///     <see cref="CompactDescription.RelatedSymbolFqns" /> to solution-internal types only.
     /// </summary>
-    internal CompactDescription BuildCompact(INamedTypeSymbol type) =>
-        new(
-            type.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
-            type.TypeKind.ToString(),
-            SignatureFormatter.TypeMemberSignatures(type));
+    internal CompactDescription BuildCompact(
+        INamedTypeSymbol type,
+        HashSet<string>? solutionAssemblyNames = null)
+    {
+        var fqn = type.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
+        return new CompactDescription(fqn, type.TypeKind.ToString(), SignatureFormatter.TypeMemberSignatures(type))
+        {
+            RelatedSymbolFqns = ExtractRelatedSymbolFqns(type, fqn, solutionAssemblyNames)
+        };
+    }
+
+    /// <summary>
+    ///     Extracts FQNs of solution-internal types that <paramref name="type" /> depends on,
+    ///     ranked by importance: constructor params → public method signatures → properties → fields.
+    ///     Generic wrapper types (e.g. <c>IReadOnlyList&lt;T&gt;</c>) are unwrapped to their type
+    ///     arguments. Returns at most 5 distinct FQNs.
+    /// </summary>
+    private static IReadOnlyList<string> ExtractRelatedSymbolFqns(
+        INamedTypeSymbol type,
+        string selfFqn,
+        HashSet<string>? solutionAssemblyNames)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var result = new List<string>();
+
+        void AddIfSolution(INamedTypeSymbol named)
+        {
+            var fqn = named.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
+            if (fqn == selfFqn) return;
+            if (solutionAssemblyNames != null &&
+                !solutionAssemblyNames.Contains(named.ContainingAssembly?.Name ?? ""))
+                return;
+            if (seen.Add(fqn))
+                result.Add(fqn);
+        }
+
+        void TryAdd(ITypeSymbol? t)
+        {
+            switch (t)
+            {
+                case INamedTypeSymbol { SpecialType: SpecialType.None, IsGenericType: false } named:
+                    AddIfSolution(named);
+                    break;
+                case INamedTypeSymbol { SpecialType: SpecialType.None, IsGenericType: true } generic:
+                    foreach (var arg in generic.TypeArguments)
+                        TryAdd(arg);
+                    break;
+                case IArrayTypeSymbol arr:
+                    TryAdd(arr.ElementType);
+                    break;
+            }
+        }
+
+        // Priority 1: Constructor parameters (injected dependencies — highest signal)
+        foreach (var ctor in type.Constructors.Where(c => !c.IsImplicitlyDeclared))
+            foreach (var p in ctor.Parameters)
+                TryAdd(p.Type);
+
+        // Priority 2: Public method return types and parameters
+        foreach (var method in type.GetMembers()
+                                   .OfType<IMethodSymbol>()
+                                   .Where(m => m.DeclaredAccessibility == Accessibility.Public
+                                            && m.MethodKind == MethodKind.Ordinary))
+        {
+            TryAdd(method.ReturnType);
+            foreach (var p in method.Parameters)
+                TryAdd(p.Type);
+        }
+
+        // Priority 3: Properties
+        foreach (var prop in type.GetMembers().OfType<IPropertySymbol>())
+            TryAdd(prop.Type);
+
+        // Priority 4: Fields (stored collaborators)
+        foreach (var field in type.GetMembers()
+                                   .OfType<IFieldSymbol>()
+                                   .Where(f => !f.IsImplicitlyDeclared))
+            TryAdd(field.Type);
+
+        return [.. result.Take(5)];
+    }
 
     /// <summary>
     /// Builds an inspection for a symbol in a solution

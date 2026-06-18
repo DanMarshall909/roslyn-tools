@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using RoslynTools.Core.Output;
 
 namespace RoslynTools.Services.Results;
@@ -35,6 +36,9 @@ internal sealed record FindRefsResult : IRtOutput
 
     [OutputField(OutputLevel.Llm, "references")]
     public required IReadOnlyList<ReferenceResult> References { get; init; }
+
+    [JsonPropertyName("_suggestions")]
+    public IReadOnlyList<string>? Suggestions { get; init; }
 
     public void RenderText(TextWriter writer)
     {

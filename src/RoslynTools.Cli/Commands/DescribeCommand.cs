@@ -3,6 +3,7 @@ using RoslynTools.Cli;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
+using RoslynTools.Services.Suggest;
 
 namespace RoslynTools.Commands;
 
@@ -62,7 +63,12 @@ internal sealed class DescribeCommand : IRtCommand, IStructuredOutputCommand, II
                 var inspection = await _inspect.Describe(sln, symbol, kind, withLocations);
 
                 inspection.Match(
-                    result => RtResultRenderer.Write(RtResult<object>.Ok(result)),
+                    result =>
+                    {
+                        if (result is CompactDescription cd)
+                            result = cd with { Suggestions = SuggestionHelper.ForDescribe(cd, solution) };
+                        RtResultRenderer.Write(RtResult<object>.Ok(result));
+                    },
                     error => RtErrorPresenter.Surface(ctx, error));
             });
 

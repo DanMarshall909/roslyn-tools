@@ -26,11 +26,22 @@ internal static class DumpHelpCommand
             IsHidden = true
         };
 
-        cmd.SetHandler(() =>
+        var compactOpt = new Option<bool>("--compact",
+            "One-line-per-command catalog (<name> | <category> | <description>) — ~500 tokens, agent-friendly");
+        cmd.AddOption(compactOpt);
+
+        cmd.SetHandler(ctx =>
         {
+            var compact = ctx.ParseResult.GetValueForOption(compactOpt);
             var snapshot = App.Commands
                 .Select(e => (Cmd: e.Build(), e.Info))
                 .ToList();
+
+            if (compact)
+            {
+                RenderCompact(snapshot);
+                return;
+            }
 
             switch (RtContext.Format)
             {
@@ -53,6 +64,22 @@ internal static class DumpHelpCommand
         });
 
         return cmd;
+    }
+
+    /// <summary>
+    ///     One-line-per-command output: <c>&lt;name&gt; | &lt;category&gt; | &lt;description&gt;</c>.
+    ///     ~500 tokens for the full catalog — agent-friendly alternative to the full dump.
+    /// </summary>
+    private static void RenderCompact(IReadOnlyList<(Command Cmd, RtCommandInfo Info)> snapshot)
+    {
+        foreach (var (cmd, info) in snapshot.OrderBy(e => e.Info.Category).ThenBy(e => e.Info.Name))
+        {
+            var raw = cmd.Description;
+            var desc = string.IsNullOrEmpty(raw) ? info.WhenToUse ?? "" : raw;
+            var firstLine = desc.Split('\n', 2)[0].Trim();
+            if (firstLine.Length > 90) firstLine = firstLine[..89] + "…";
+            RtConsole.WriteLine(RtOutputContext.Result, $"{info.Name,-28} | {info.Category,-8} | {firstLine}");
+        }
     }
 
     /// <summary>

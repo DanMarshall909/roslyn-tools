@@ -3,6 +3,7 @@ using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Mcp.Tools;
 using RoslynTools.Services;
+using RoslynTools.Services.Suggest;
 
 namespace RoslynTools.Mcp.Handlers;
 
@@ -74,7 +75,12 @@ internal sealed class DescribeHandler : IMcpHandler
 
         var inspection = await _inspect.Describe(sln, symbol, kind, withLocations);
         return inspection.Match(
-            result => new ToolResult(false, JsonSerializer.Serialize(result, JsonOptions)),
+            result =>
+            {
+                if (result is CompactDescription cd)
+                    result = cd with { Suggestions = SuggestionHelper.ForDescribe(cd, solutionPath) };
+                return new ToolResult(false, JsonSerializer.Serialize(result, JsonOptions));
+            },
             error => new ToolResult(true, error.Message));
     }
 

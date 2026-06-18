@@ -1756,6 +1756,57 @@
             "priority": 134,
             "passes": false,
             "notes": "P2. US-077 follow-up. Surfaced by the AC10 integration test in commit ee236cc — had to relax the 'stdout empty' assertion to 'stdout contains no JSON result' because the menu leaks. SymbolLocator.TryDisambiguate uses RtConsole.WriteLine(RtOutputContext.Interactive, ...) which routes to Console.Out. The fix is either (a) suppress the menu when rawInput is null and embed candidate FQNs in RtError.AmbiguousMatch (currently they already are), or (b) route the menu to stderr."
+        },
+        {
+            "id": "US-135",
+            "title": "rt inspect describe: body-call related symbols + frequency ranking",
+            "description": "As an LLM agent using rt, I want _suggestions to include types that the described symbol actually calls (not just declares in its signature), ranked by appearance frequency, so that the most-navigated targets surface first.",
+            "acceptanceCriteria": [
+                "ExtractRelatedSymbolFqns returns up to 5 FQNs ranked by frequency across signatures AND method bodies",
+                "Body walk resolves InvocationExpression symbols per public method via async semantic model",
+                "Signature and body FQNs merged into a frequency map before ranking",
+                "Only solution-internal types appear in the ranked list",
+                "BuildCompact or caller is async to support per-document semantic walk",
+                "_suggestions for describe includes both signature-sourced and body-sourced related types",
+                "Existing signature-only tests continue to pass; new tests assert body-call FQNs rank correctly"
+            ],
+            "priority": 135,
+            "passes": false,
+            "notes": "P2. Signature-only extraction shipped in US-135 Beads-lessons batch. User confirmed 'Both: signatures first, body calls second'. Body-walk requires async semantic model per method body (InvocationExpression nodes). Frequency ranking needed across both sources. Affects: InspectService.ExtractRelatedSymbolFqns (currently sync), BuildCompact. See SuggestionHelper.ForDescribe."
+        },
+        {
+            "id": "US-136",
+            "title": "rt inspect outline: add _suggestions envelope (schema change)",
+            "description": "As an LLM agent using rt, I want rt inspect outline --json to return an envelope object with a _suggestions array rather than a bare array, so I know what to do next after reviewing a file's structure.",
+            "acceptanceCriteria": [
+                "rt inspect outline JSON output is wrapped in an envelope with a top-level _suggestions array",
+                "The envelope preserves the existing members array as a property (no schema break for consumers expecting the array)",
+                "CLI --json and MCP handler both return the envelope shape",
+                "SuggestionHelper gains a ForOutline(string filePath, string? solutionPath) overload",
+                "Outline _suggestions include: rt inspect describe for the first 2 public types, rt inspect find-refs for the file path, rt inspect find-unused",
+                "Existing outline text (non-JSON) output is unchanged",
+                "Tests assert the envelope shape and that _suggestions array is non-empty for a file with at least one type"
+            ],
+            "priority": 136,
+            "passes": false,
+            "notes": "P2. Deferred from US-135 Beads-lessons batch. Outline currently returns a List<object> JSON array — adding _suggestions requires wrapping in an envelope (breaking schema change for any consumer expecting a bare array). Needs: a new OutlineEnvelope record, updated CLI DescribeCommand JSON path, updated MCP OutlineHandler, SuggestionHelper.ForOutline overload. Consumers must be updated."
+        },
+        {
+            "id": "US-137",
+            "title": "rt: fan-out _suggestions to remaining inspect + analyze commands",
+            "description": "As an LLM agent using rt, I want every inspect and analyze command's JSON output to include a _suggestions array, so I always have pre-filled next-step commands regardless of which command I ran first.",
+            "acceptanceCriteria": [
+                "All rt inspect commands (find-callers, find-impl, find-unused, find-pattern) append _suggestions to their JSON output",
+                "All rt analyze commands (circular-deps, dependency-graph, analyze-interface, find-duplicates, find-magic-strings, list-imports, list-smells) append _suggestions to their JSON output",
+                "SuggestionHelper has a For<Command> overload for each migrated command with pre-filled symbol/file arguments from the result",
+                "MCP handlers for each migrated command enrich their ToolResult with _suggestions",
+                "CLI handlers for each migrated command enrich their JSON output with _suggestions",
+                "Each command test asserts _suggestions is non-null and non-empty in JSON output",
+                "Commands not yet migrated (mutation group) are tracked in a separate story"
+            ],
+            "priority": 137,
+            "passes": false,
+            "notes": "P2. Deferred from US-135 Beads-lessons batch. Only describe (CLI+MCP) and find-refs (MCP) received _suggestions. Remaining commands: find-callers, find-impl, find-unused, find-pattern (inspect group); circular-deps, dependency-graph, analyze-interface, find-duplicates, find-magic-strings, list-imports, list-smells (analyze group). Each needs: SuggestionHelper.For<Command> overload + CLI adapter + MCP handler enrichment + tests."
         }
     ]
 }

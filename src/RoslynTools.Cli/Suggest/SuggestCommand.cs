@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
+using RoslynTools.Services.SemanticDiff.Git;
 using RoslynTools.Services.Suggest;
 using Spectre.Console;
 
@@ -25,8 +26,11 @@ internal static class SuggestCommand
 
     internal static Command Build(IServiceProvider services)
     {
-        var queryArg = new Argument<string>("query",
-            "Natural-language description of what you want to do");
+        var queryArg = new Argument<string?>("query",
+            "Natural-language description of what you want to do (omit to get git-context suggestions)")
+        {
+            Arity = ArgumentArity.ZeroOrOne
+        };
         var topOpt = new Option<int>("--top", () => 3,
             "Maximum number of ranked candidates to return");
 
@@ -40,6 +44,13 @@ internal static class SuggestCommand
         {
             var query = context.ParseResult.GetValueForArgument(queryArg);
             var top = context.ParseResult.GetValueForOption(topOpt);
+
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                var git = services.GetService<IGitClient>();
+                RenderGitFallback(git, top);
+                return;
+            }
 
             var suggest = services.GetRequiredService<SuggestService>();
             var response = suggest.Suggest(new SuggestRequest(query, top));
@@ -94,5 +105,47 @@ internal static class SuggestCommand
     {
         var firstLine = text.Split('\n', 2)[0].Trim();
         return firstLine.Length <= max ? firstLine : firstLine[..(max - 1)] + "…";
+    }
+
+    /// <summary>
+    ///     No-query fallback: lists changed .cs files and surfaces pre-filled
+    ///     <c>rt inspect outline</c> commands so the agent knows exactly where to start.
+    /// </summary>
+    private static void RenderGitFallback(IGitClient? git, int top)
+    {
+        IReadOnlyList<string> changed = [];
+        try { changed = git?.GetWorkingTreeChangedPaths() ?? []; }
+        catch { /* not a git repo or git unavailable */ }
+
+        var csFiles = changed
+            .Where(p => p.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+            .Take(top)
+            .ToList();
+
+        if (RtContext.Format == OutputFormat.Json)
+        {
+            var payload = new
+            {
+                context = $"{csFiles.Count} .cs file(s) changed vs HEAD",
+                suggestions = csFiles.Select(f => $"rt inspect outline \"{f}\" --solution <slnx>")
+                    .Append("rt dump-help --compact")
+                    .ToList()
+            };
+            RtConsole.WriteLine(RtOutputContext.Result, JsonSerializer.Serialize(payload, JsonOptions));
+            return;
+        }
+
+        if (csFiles.Count == 0)
+        {
+            RtConsole.WriteLine(RtOutputContext.Ui,
+                "[grey]No changed .cs files found. Pass a query: rt suggest \"<task>\"[/]");
+            return;
+        }
+
+        RtConsole.WriteLine(RtOutputContext.Ui, $"[silver]Context: {csFiles.Count} changed .cs file(s)[/]");
+        foreach (var f in csFiles)
+            RtConsole.WriteLine(RtOutputContext.Result,
+                $"rt inspect outline \"{f}\" --solution <slnx>");
+        RtConsole.WriteLine(RtOutputContext.Result, "rt dump-help --compact");
     }
 }

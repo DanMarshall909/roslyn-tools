@@ -2,6 +2,7 @@ using System.Text.Json;
 using RoslynTools.Core;
 using RoslynTools.Mcp.Tools;
 using RoslynTools.Services;
+using RoslynTools.Services.Suggest;
 
 namespace RoslynTools.Mcp.Handlers;
 
@@ -59,7 +60,8 @@ internal sealed class FindReferencesHandler : IMcpHandler
         cancellationToken.ThrowIfCancellationRequested();
 
         var result = await _findRefs.FindAsync(sln, symbol, kind);
-        var json = JsonSerializer.Serialize(result, JsonOptions);
+        var enriched = result with { Suggestions = SuggestionHelper.ForFindRefs(result.FullyQualifiedName, solutionPath) };
+        var json = JsonSerializer.Serialize(enriched, JsonOptions);
         return new ToolResult(false, json);
     }
 

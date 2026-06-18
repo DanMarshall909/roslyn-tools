@@ -6,6 +6,7 @@ using System.CommandLine.Parsing;
 using System.Reflection;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using RoslynTools.Cli.Prime;
 using RoslynTools.Cli.Suggest;
 using RoslynTools.Commands;
 using RoslynTools.Core;
@@ -219,6 +220,9 @@ internal static class App
         // catalog (via ICommandCatalog → AppCommandCatalog) rather than any
         // user solution, so it sits outside the inspect/analyze/refactor groups.
         root.AddCommand(SuggestCommand.Build(services));
+
+        // Compact session-start summary: gate, entry, hot commands. No MSBuild.
+        root.AddCommand(PrimeCommand.Build(services));
 
         if (additionalCommands is not null)
             foreach (var cmd in additionalCommands)
