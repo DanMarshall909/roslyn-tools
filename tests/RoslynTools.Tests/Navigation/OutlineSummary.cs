@@ -107,7 +107,7 @@ public class OutlineSummary
         using (workspace)
         {
             var result = await new OutlineService().OutlineDirectoryAsync(sln, project.ProjectDir);
-            var names = result.Cast<CompactOutlineType>().Select(r => r.Name).ToHashSet();
+            var names = result.Cast<OutlineTypeResult>().Select(r => r.Name).ToHashSet();
 
             names.ShouldContain("Alpha");
             names.ShouldContain("Beta");

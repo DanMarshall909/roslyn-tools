@@ -310,34 +310,53 @@ internal class OutlineService : IRtService
     ///     Builds the default compact outline for a named type: name, type kind, and one canonical
     ///     signature per member (no line ranges).
     /// </summary>
-    internal CompactOutlineType BuildCompactOutline(INamedTypeSymbol type) =>
-        new(type.Name, type.TypeKind.ToString(), SignatureFormatter.TypeMemberSignatures(type));
+    internal OutlineTypeResult BuildCompactOutline(INamedTypeSymbol type) =>
+        new(
+            Name: type.Name,
+            Fqn: null,
+            Kind: type.TypeKind.ToString(),
+            Signatures: SignatureFormatter.TypeMemberSignatures(type),
+            Accessibility: null,
+            LineFrom: null,
+            LineTo: null,
+            BaseType: null,
+            Interfaces: null,
+            Members: null);
 
     /// <summary>
     /// Builds an outline for a named type within a solution.
     /// </summary>
-    internal Dictionary<string, object?> BuildTypeOutline(INamedTypeSymbol type)
+    internal OutlineTypeResult BuildTypeOutline(INamedTypeSymbol type)
     {
         var (lineFrom, lineTo) = SymbolFormatter.GetSourceLineRange(type);
-        var outline = new Dictionary<string, object?>
-        {
-            ["name"] = type.Name,
-            ["fqn"] = type.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
-            ["kind"] = type.TypeKind.ToString(),
-            ["accessibility"] = type.DeclaredAccessibility.ToString(),
-            ["lineFrom"] = lineFrom,
-            ["lineTo"] = lineTo
-        };
 
-        SymbolFormatter.AddTypeHierarchyInfo(outline, type);
+        // Walk the hierarchy dict the legacy helper populates so we can lift baseType /
+        // interfaces into typed properties without forking the helper. Dict is only used as
+        // a temporary collector; the public shape is the OutlineTypeResult record.
+        var hierarchy = new Dictionary<string, object?>(StringComparer.Ordinal);
+        SymbolFormatter.AddTypeHierarchyInfo(hierarchy, type);
+        var baseType = hierarchy.TryGetValue("baseType", out var bt) ? (string?)bt : null;
+        var interfaces = hierarchy.TryGetValue("interfaces", out var ifs)
+            ? (IReadOnlyList<string>?)(List<string>)ifs!
+            : null;
 
         // Group members by kind, then accessibility, to save tokens (kind/accessibility appear
         // once per group instead of on every member). Each member entry strips those redundant
         // keys but keeps name + signature + lineFrom/lineTo.
-        outline["members"] = GroupMembersByKindAndAccessibility(
+        var members = GroupMembersByKindAndAccessibility(
             SymbolFormatter.ExtractMembers(type, false));
 
-        return outline;
+        return new OutlineTypeResult(
+            Name: type.Name,
+            Fqn: type.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
+            Kind: type.TypeKind.ToString(),
+            Signatures: null,
+            Accessibility: type.DeclaredAccessibility.ToString(),
+            LineFrom: lineFrom,
+            LineTo: lineTo,
+            BaseType: baseType,
+            Interfaces: interfaces,
+            Members: members);
     }
 
     /// <summary>

@@ -194,7 +194,7 @@ public class NavigationServices
         using (workspace)
         {
             var results = (await new OutlineService().OutlineNamespaceAsync(sln, "App"))
-                .Cast<CompactOutlineType>().ToList();
+                .Cast<OutlineTypeResult>().ToList();
             (results.Count >= 2).ShouldBeTrue();
             Assert.Contains(results, r => r.Name == "Greeter");
             Assert.Contains(results, r => r.Name == "Runner");

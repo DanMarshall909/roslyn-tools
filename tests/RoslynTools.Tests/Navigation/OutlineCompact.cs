@@ -5,8 +5,9 @@ namespace RoslynTools.Tests.Navigation;
 
 /// <summary>
 ///     US-135: <c>rt inspect outline</c> defaults to a compact per-type signature array
-///     (<see cref="CompactOutlineType" />); <c>--with-locations</c> restores the legacy verbose shape;
-///     <c>--summary</c> is unchanged and still wins.
+///     (<see cref="OutlineTypeResult" /> with only <c>Name</c>, <c>Kind</c>, <c>Signatures</c>
+///     populated); <c>--with-locations</c> populates the verbose fields of the same record;
+///     <c>--summary</c> is unchanged and still wins (returns a <see cref="Dictionary{TKey,TValue}" />).
 /// </summary>
 public class OutlineCompact
 {
@@ -35,10 +36,17 @@ public class OutlineCompact
             var result = await new OutlineService()
                 .OutlineFileAsync(sln, Path.Combine(project.ProjectDir, "Order.cs"));
 
-            var order = result.Cast<CompactOutlineType>().Single(t => t.Name == "Order");
+            var order = result.Cast<OutlineTypeResult>().Single(t => t.Name == "Order");
             order.Kind.ShouldBe("Class");
+            order.Signatures.ShouldNotBeNull();
             order.Signatures.ShouldContain("void Cancel()");
             order.Signatures.ShouldContain(s => s.Contains("Id"));
+            // Compact path leaves verbose-only fields null (driver of the omitted JSON keys).
+            order.Fqn.ShouldBeNull();
+            order.Accessibility.ShouldBeNull();
+            order.LineFrom.ShouldBeNull();
+            order.LineTo.ShouldBeNull();
+            order.Members.ShouldBeNull();
         }
     }
 
@@ -52,9 +60,13 @@ public class OutlineCompact
             var result = await new OutlineService()
                 .OutlineFileAsync(sln, Path.Combine(project.ProjectDir, "Order.cs"), withLocations: true);
 
-            var order = result.Cast<Dictionary<string, object?>>().Single(t => (string)t["name"]! == "Order");
-            order.ShouldContainKey("lineFrom");
-            order.ShouldContainKey("members");
+            var order = result.Cast<OutlineTypeResult>().Single(t => t.Name == "Order");
+            order.LineFrom.ShouldNotBeNull();
+            order.Members.ShouldNotBeNull();
+            // Verbose path populates the full record except Signatures (driver of the omitted JSON key).
+            order.Fqn.ShouldNotBeNull();
+            order.Accessibility.ShouldNotBeNull();
+            order.Signatures.ShouldBeNull();
         }
     }
 
