@@ -66,11 +66,11 @@ internal static class DumpHelpCommand
         // Global options live on the root, not on individual commands, so reconstruct them
         // from the canonical definition rather than walking any single command.
         var (jsonOpt, llmOpt, markdownOpt, yamlOpt, decisionsOpt, strictJsonOpt, relaxJsonOpt,
-            showWorkspaceWarningsOpt) = App.RegisterGlobalOptions(new RootCommand());
+            showWorkspaceWarningsOpt, noSuggestOpt) = App.RegisterGlobalOptions(new RootCommand());
         var globalOptions = new Option[]
         {
             jsonOpt, llmOpt, markdownOpt, yamlOpt, strictJsonOpt, relaxJsonOpt, decisionsOpt,
-            showWorkspaceWarningsOpt
+            showWorkspaceWarningsOpt, noSuggestOpt
         };
 
         var model = CommandSurfaceBuilder.Build(snapshot, App.GroupDescriptions, globalOptions);

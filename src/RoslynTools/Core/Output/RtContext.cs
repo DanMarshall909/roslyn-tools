@@ -34,4 +34,12 @@ internal static class RtContext
     ///     Workspace failures (Kind == Failure) are always emitted regardless of this flag.
     /// </summary>
     public static bool ShowWorkspaceWarnings { get; set; }
+
+    /// <summary>
+    ///     When true, suppress the "Did you mean: ..." tail appended to drill-in not-found error messages
+    ///     (e.g. <c>rt inspect describe Type.Misspelt(int)</c>). Default false → suggestions ON because the
+    ///     tail goes to stderr alongside the error message and never pollutes structured stdout output.
+    ///     Set by the global <c>--no-suggest</c> flag for strict-output pipelines that pin error text.
+    /// </summary>
+    public static bool NoSuggest { get; set; }
 }

@@ -225,7 +225,7 @@ internal static class App
                 root.AddCommand(cmd);
 
         var (jsonOpt, llmOpt, markdownOpt, yamlOpt, decisionsOpt, strictJsonOpt, relaxJsonOpt,
-            showWorkspaceWarningsOpt) = RegisterGlobalOptions(root);
+            showWorkspaceWarningsOpt, noSuggestOpt) = RegisterGlobalOptions(root);
 
         return await new CommandLineBuilder(root)
             .UseVersionOption()
@@ -303,6 +303,7 @@ internal static class App
                 if (context.ParseResult.FindResultFor(strictJsonOpt) is not null)
                     RtLog.Warning("--strict-json is deprecated; strict escaping is now the default. Pass --relax-json to opt out.");
                 RtContext.ShowWorkspaceWarnings = context.ParseResult.GetValueForOption(showWorkspaceWarningsOpt);
+                RtContext.NoSuggest = context.ParseResult.GetValueForOption(noSuggestOpt);
 
                 var decisionsFile = context.ParseResult.GetValueForOption(decisionsOpt);
                 if (decisionsFile is not null)
@@ -358,7 +359,7 @@ internal static class App
     /// </summary>
     internal static (Option<bool> jsonOpt, Option<bool> llmOpt, Option<bool> markdownOpt, Option<bool> yamlOpt,
         Option<FileInfo?> decisionsOpt, Option<bool> strictJsonOpt, Option<bool> relaxJsonOpt,
-        Option<bool> showWorkspaceWarningsOpt)
+        Option<bool> showWorkspaceWarningsOpt, Option<bool> noSuggestOpt)
         RegisterGlobalOptions(RootCommand root)
     {
         var jsonOpt = new Option<bool>("--json", "Emit results as JSON");
@@ -380,13 +381,16 @@ internal static class App
             + "If unanswered entries exist (or new ones surface), rt writes them and exits 2.");
         var showWorkspaceWarningsOpt = new Option<bool>("--show-workspace-warnings",
             "Show MSBuild workspace warnings (NuGet audit, unresolved imports, etc.). Off by default.");
+        var noSuggestOpt = new Option<bool>("--no-suggest",
+            "Suppress 'Did you mean: ...' suggestion tails on drill-in not-found errors. Off by default; "
+            + "useful for strict-output pipelines that pin error text.");
         foreach (var option in new Option[]
                      { jsonOpt, llmOpt, markdownOpt, yamlOpt, strictJsonOpt, relaxJsonOpt, decisionsOpt,
-                         showWorkspaceWarningsOpt })
+                         showWorkspaceWarningsOpt, noSuggestOpt })
             root.AddGlobalOption(option);
 
         return (jsonOpt, llmOpt, markdownOpt, yamlOpt, decisionsOpt, strictJsonOpt, relaxJsonOpt,
-            showWorkspaceWarningsOpt);
+            showWorkspaceWarningsOpt, noSuggestOpt);
     }
 
     private static string TruncateOneLine(string text, int max)

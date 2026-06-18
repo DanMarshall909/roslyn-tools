@@ -2,6 +2,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using RoslynTools.Core.Decisions;
+using RoslynTools.Core.Output;
 using RoslynTools.Models;
 
 namespace RoslynTools.Core;
@@ -295,7 +296,7 @@ internal static class SymbolLocator
 
         if (byName.Count == 0)
             return Result<ISymbol, RtError>.Err(
-                RtError.NotFound($"Member '{memberName}' not found on type '{typeFqn}'."));
+                RtError.NotFound(BuildMemberNotFoundMessage(type, memberName, typeFqn)));
 
         List<ISymbol> matches;
         if (paramSpec is null)
@@ -653,6 +654,29 @@ internal static class SymbolLocator
     {
         var parenIndex = value.IndexOf('(');
         return parenIndex >= 0 ? value[..parenIndex] : value;
+    }
+
+    /// <summary>
+    ///     US-135 Batch 2: build the not-found message for a drill-in member miss, appending a
+    ///     "Did you mean: ..." tail when <see cref="NameSuggest" /> finds one or more candidate
+    ///     member names within the length-relative edit-distance threshold. The tail is
+    ///     suppressed when <see cref="RtContext.NoSuggest" /> is set (the global
+    ///     <c>--no-suggest</c> flag), so strict-output pipelines can pin error text.
+    /// </summary>
+    private static string BuildMemberNotFoundMessage(INamedTypeSymbol type, string memberName, string typeFqn)
+    {
+        var baseMessage = $"Member '{memberName}' not found on type '{typeFqn}'.";
+        if (RtContext.NoSuggest)
+            return baseMessage;
+
+        var candidateNames = type.GetMembers()
+            .Where(m => !m.IsImplicitlyDeclared && m.CanBeReferencedByName)
+            .Select(m => m.Name);
+        var nearest = NameSuggest.NearestNames(memberName, candidateNames, max: 3);
+        if (nearest.Count == 0)
+            return baseMessage;
+
+        return baseMessage + " Did you mean: " + string.Join(", ", nearest) + "?";
     }
 
     /// <summary>

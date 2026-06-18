@@ -97,8 +97,10 @@ public sealed class AppRegistration
                 "markdown",
                 "yaml",
                 "strict-json",
+                "relax-json",
                 "decisions",
-                "show-workspace-warnings"
+                "show-workspace-warnings",
+                "no-suggest"
             });
     }
 
