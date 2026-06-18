@@ -4,8 +4,9 @@ namespace RoslynTools.Services;
 
 /// <summary>
 ///     Produces a compact session-start summary for <c>rt prime</c>.
-///     No MSBuild, no solution load — reads only the command catalog.
+///     No MSBuild, no solution load — returns a hardcoded hot-command list.
 ///     Fast enough to run from a <c>UserPromptSubmit</c> hook.
+///     Trade-off: the list is static and will need manual updates as the catalog grows.
 /// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class registered with DI; IRtService contract requires instance.")]
