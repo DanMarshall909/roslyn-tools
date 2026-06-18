@@ -100,6 +100,8 @@ Capability interfaces are **not empty markers**. They expose the typed value the
 
 A command's `*CliRequest` record implements every flag capability the command exposes. The binder reads catalog options from `ParseResult` and constructs the request via `FromFlags(...)`. Services receive plain domain values; they do not see capability interfaces.
 
+**Status (2026-06-18):** the capability interfaces themselves are shipped in [`src/RoslynTools.Cli/CommandFlags/RtCommandFlags.cs`](../src/RoslynTools.Cli/CommandFlags/RtCommandFlags.cs) (`ISupportsSolutionOption`, `ISupportsDryRunOption`, `ISupportsTopOption`, `ISupportsSymbolOption`, `ISupportsScopeOption`, `ISupportsKindOption`, …). Nine commands are listed in the [`flag-capability-migrated-commands.txt`](flag-capability-migrated-commands.txt) ratchet. The central catalog as single source of truth, the biconditional architecture tests, the `dump-help` / MCP schema integration, and the `CommandOptionFactory` retirement are all still in flight — US-114 closes when the ratchet covers every command and those ACs land.
+
 ### Flag Binders
 
 Shared binders parse catalog-owned flags and validate common semantics. Examples:
@@ -145,7 +147,7 @@ As coverage grows, ratchets should transition from marker-mode to all-command en
 | Ticket | Alignment | Notes |
 |---|---|---|
 | US-084 | Strong | Metadata catalog and machine-readable `dump-help` are central to discoverability. |
-| US-085 | Needs reshaping | Factory-only standardization is weaker than the target. Fold into or supersede with US-114 where possible. |
+| US-085 | Superseded by US-114 | Factory-only standardization is weaker than the target. US-114 (capability interfaces + central catalog + shared binders) is the canonical replacement direction. Capability interfaces shipped 2026-06-18; full US-114 closure pending. |
 | US-086 | Strong | Command file structure and ratchets support ease of change. |
 | US-088 | Strong | `SeeAlso` schema feeds discoverability and command routing. |
 | US-089 | Strong | Seeded `SeeAlso` data improves navigation and `rt suggest`. |

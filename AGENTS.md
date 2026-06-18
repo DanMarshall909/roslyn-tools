@@ -16,12 +16,16 @@ Guidance for agentic coding tools working in `C:\code\roslyn-tools`.
 - Nullable reference types: enabled.
 - Implicit usings: enabled.
 - Layout:
-  - `src/RoslynTools/Commands`: CLI command builders/handlers. Each `*Command.cs` implements `IRtCommand`.
-  - `src/RoslynTools/Core`: Roslyn workspace/symbol/change logic + the `IRtCommand` contract and `RtCommandInfo` metadata record.
-  - `src/RoslynTools/Models`: small model types.
+  - `src/RoslynTools.Cli/Commands/`: CLI commands. Each `*Command.cs` implements `IRtCommand`. Thin host adapter that parses `System.CommandLine` args, calls the service via DI, renders text or JSON via `RtResultRenderer.Write<T>`.
+  - `src/RoslynTools.Mcp/Handlers/`: MCP handlers — the second thin host adapter for the same services. Parses JSON args, calls the same service from DI, returns `ToolResult`.
+  - `src/RoslynTools/Services/`: pure service layer (no `System.CommandLine`, no `Console`, no IO except via injected dependencies). Receives domain request objects; returns `Result<T, RtError>` or `RtResult<T>`.
+  - `src/RoslynTools/Core/`: Roslyn workspace/symbol/change primitives (`WorkspaceLoader`, `SymbolLocator`, `SolutionWriter`, `MethodExtractor`, ...) plus the `IRtCommand` contract and `RtCommandInfo` metadata record (command registration layer, not domain logic).
+  - `src/RoslynTools/Models/`: small model types.
+
+See [docs/architecture-overview.md](docs/architecture-overview.md) for the full layered cake and [docs/adr/0001-core-service-thin-host-adapters.md](docs/adr/0001-core-service-thin-host-adapters.md) for the foundational pattern.
 
 ## Command reference
-**Run `rt dump-help` to view the full command reference** (or `dotnet run --project src/RoslynTools.Cli/RoslynTools.Cli.csproj -- dump-help` without publishing). For an agent-friendly pre-loaded reference, load the `use-rt` skill. See `CLAUDE.md` → "Command metadata contract" for the workflow when adding or changing a command.
+**Run `rt dump-help` to view the full command reference** (or `dotnet run --project src/RoslynTools.Cli/RoslynTools.Cli.csproj -- dump-help` without publishing). For an agent-friendly pre-loaded reference, load the `use-rt` skill. See `CLAUDE.md` → "Architecture pattern: Core service + thin host adapters" for worked examples and [docs/adr/0001-core-service-thin-host-adapters.md](docs/adr/0001-core-service-thin-host-adapters.md) for the full contract.
 
 ## Cursor and Copilot Rules
 No repository-specific rule files were found:

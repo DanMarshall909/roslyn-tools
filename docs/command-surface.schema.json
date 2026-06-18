@@ -1,6 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/DanMarshall909/roslyn-tools/main/docs/command-surface.schema.json",
+  "$comment": "Reflects RtCommandInfo prior to US-108 (deletion of Category and Mutates fields, both derived from category interfaces). Once US-108 ships, regenerate this schema from the runtime RtCommandInfo shape and drop the deprecated fields here.",
   "title": "rt command surface",
   "description": "Machine-readable description of the entire rt command-line surface, as emitted by `rt dump-help --json`. Every command's metadata plus its options and positional arguments, the host's global options, and the command-group descriptions.",
   "type": "object",
