@@ -1,7 +1,7 @@
 roslyn-tools
 Branch: result-type-and-cleanup
 
-Current Status: 5/8 stories complete (63%)
+Current Status: 6/8 stories complete (75%)
 
 Stories
 [x] US-077 Result<T,RtError> ADT + SymbolLocator migration + App exception ladder
@@ -10,5 +10,5 @@ Stories
 [x] US-100 Unify RtResultRenderer call shape and enforce IStructuredOutputCommand for every JSON-output command
 [ ] US-114 Represent shared CLI flags as reusable capability interfaces backed by a central option registry
 [x] US-130 rt MCP server crashes during JSON serialization (JsonElement outlives JsonDocument)
-[ ] US-135 rt inspect describe/outline default to signature-array; drill in by signature
+[x] US-135 rt inspect describe/outline default to signature-array; drill in by signature
 [ ] US-136 rt inspect describe --calls-depth N: depth-bounded call graph
