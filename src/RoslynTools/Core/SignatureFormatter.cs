@@ -46,4 +46,16 @@ internal static class SignatureFormatter
     ///     "<c>Name(paramType, ...)</c>" for methods, or just "<c>Name</c>" for non-method members.
     /// </summary>
     internal static string MatchSignature(ISymbol symbol) => symbol.ToDisplayString(MatchFormat);
+
+    /// <summary>
+    ///     One <see cref="Signature" /> per declared member of <paramref name="type" />, in source order.
+    ///     Compiler-generated members and property/event accessors (get_/set_/add_/remove_) are excluded
+    ///     so the array carries one entry per logical member.
+    /// </summary>
+    internal static IReadOnlyList<string> TypeMemberSignatures(INamedTypeSymbol type) =>
+        type.GetMembers()
+            .Where(m => !m.IsImplicitlyDeclared)
+            .Where(m => m is not IMethodSymbol { AssociatedSymbol: not null })
+            .Select(Signature)
+            .ToList();
 }

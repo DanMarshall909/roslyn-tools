@@ -12,19 +12,45 @@ namespace RoslynTools.Services;
 internal class InspectService : IRtService
 {
     /// <summary>
-    ///     Resolves <paramref name="symbol" /> by fully-qualified name and builds its inspection,
-    ///     returning a typed <see cref="Result{T,TError}" />: a routine not-found / ambiguous lookup
-    ///     surfaces as <see cref="RtError" /> rather than an exception. The success shape is the same
-    ///     dictionary produced by <see cref="BuildInspection" />.
+    ///     Resolves <paramref name="symbol" /> and builds its inspection, returning a typed
+    ///     <see cref="Result{T,TError}" />: a routine not-found / ambiguous lookup surfaces as
+    ///     <see cref="RtError" /> rather than an exception. Dispatch (US-135):
+    ///     <list type="bullet">
+    ///         <item>A member signature input (contains '(') drills in to a single member and returns
+    ///         the full verbose detail <see cref="Dictionary{TKey,TValue}" /> from <see cref="BuildInspection" />.</item>
+    ///         <item>A named type returns the compact <see cref="CompactDescription" /> by default;
+    ///         <paramref name="withLocations" /> restores the legacy verbose dictionary.</item>
+    ///         <item>Any other symbol (method/property/field/namespace by name) returns the verbose dictionary.</item>
+    ///     </list>
     /// </summary>
-    internal async Task<Result<Dictionary<string, object?>, RtError>> Describe(
+    internal async Task<Result<object, RtError>> Describe(
         Solution solution,
         string symbol,
-        string? kind)
+        string? kind,
+        bool withLocations = false)
     {
+        if (symbol.Contains('('))
+        {
+            var member = await SymbolLocator.TryFindMemberBySignatureAsync(solution, symbol);
+            return member.Map(sym => (object)BuildInspection(sym, solution));
+        }
+
         var resolved = await SymbolLocator.TryFindSymbolByFqnAsync(solution, symbol, kind);
-        return resolved.Map(sym => BuildInspection(sym, solution));
+        return resolved.Map(sym =>
+            !withLocations && sym is INamedTypeSymbol type
+                ? (object)BuildCompact(type)
+                : BuildInspection(sym, solution));
     }
+
+    /// <summary>
+    ///     Builds the default compact describe shape for a named type: fqn, type kind, and one
+    ///     canonical signature per member (no line numbers or locations).
+    /// </summary>
+    internal CompactDescription BuildCompact(INamedTypeSymbol type) =>
+        new(
+            type.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
+            type.TypeKind.ToString(),
+            SignatureFormatter.TypeMemberSignatures(type));
 
     /// <summary>
     /// Builds an inspection for a symbol in a solution

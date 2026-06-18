@@ -147,7 +147,7 @@ public class Inspect
     }
 
     [Fact]
-    public async Task describe_returns_ok_inspection_for_a_known_type()
+    public async Task describe_defaults_to_compact_signature_array_for_a_type()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Widget.cs", """
@@ -156,19 +156,94 @@ public class Inspect
                                        public sealed class Widget
                                        {
                                            public string Label { get; set; } = "";
+                                           public void Activate() { }
                                        }
                                        """);
 
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await new InspectService().Describe(sln, "TestApp.Widget", "type");
+            var result = await Service().Describe(sln, "TestApp.Widget", "type");
 
             result.IsOk.ShouldBeTrue();
-            var inspection = result.Match(d => d, _ => new Dictionary<string, object?>());
+            var compact = result.Match(v => v, _ => (object)null!).ShouldBeOfType<CompactDescription>();
+            compact.Fqn.ShouldBe("TestApp.Widget");
+            compact.Kind.ShouldBe("Class");
+            compact.Signatures.ShouldContain("void Activate()");
+            compact.Signatures.ShouldContain(s => s.Contains("Label"));
+        }
+    }
+
+    [Fact]
+    public async Task describe_compact_default_omits_line_numbers_and_locations()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Widget.cs", """
+                                       namespace TestApp;
+
+                                       public sealed class Widget { public int Id { get; set; } }
+                                       """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var result = await Service().Describe(sln, "TestApp.Widget", "type");
+
+            var compact = result.Match(v => v, _ => (object)null!).ShouldBeOfType<CompactDescription>();
+            compact.Signatures.ShouldNotContain(s => s.Contains("lineFrom"));
+        }
+    }
+
+    [Fact]
+    public async Task describe_with_locations_restores_legacy_verbose_shape()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Widget.cs", """
+                                       namespace TestApp;
+
+                                       public sealed class Widget { public string Label { get; set; } = ""; }
+                                       """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var result = await Service().Describe(sln, "TestApp.Widget", "type", withLocations: true);
+
+            result.IsOk.ShouldBeTrue();
+            var inspection = result.Match(v => v, _ => (object)null!).ShouldBeOfType<Dictionary<string, object?>>();
             inspection["name"].ShouldBe("Widget");
-            inspection["kind"].ShouldBe("NamedType");
             inspection["fqn"].ShouldBe("TestApp.Widget");
+            inspection.ShouldContainKey("locations");
+            inspection.ShouldContainKey("members");
+        }
+    }
+
+    [Fact]
+    [Trait("Concern", "DrillIn")]
+    public async Task describe_with_member_signature_returns_full_member_detail()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Calc.cs", """
+                                     namespace TestApp;
+
+                                     public class Calculator
+                                     {
+                                         public int Add(int a, int b) => a + b;
+                                         public double Add(double a, double b) => a + b;
+                                     }
+                                     """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var result = await Service().Describe(sln, "TestApp.Calculator.Add(int, int)", null);
+
+            result.IsOk.ShouldBeTrue();
+            var detail = result.Match(v => v, _ => (object)null!).ShouldBeOfType<Dictionary<string, object?>>();
+            detail["name"].ShouldBe("Add");
+            detail["returnType"].ShouldBe("int");
+            var parameters = detail["parameters"].ShouldBeAssignableTo<IEnumerable<Dictionary<string, object?>>>()!;
+            parameters.Count().ShouldBe(2);
         }
     }
 
@@ -187,10 +262,12 @@ public class Inspect
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await new InspectService().Describe(sln, "TestApp.Missing", "type");
+            var result = await Service().Describe(sln, "TestApp.Missing", "type");
 
             result.IsErr.ShouldBeTrue();
             result.Match(_ => RtErrorKind.NotFound, e => e.Kind).ShouldBe(RtErrorKind.NotFound);
         }
     }
+
+    private static InspectService Service() => new();
 }

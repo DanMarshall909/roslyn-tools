@@ -32,15 +32,19 @@ internal sealed class DescribeHandler : IMcpHandler
 
     public ToolDefinition Definition => new(
         ToolName,
-        "Describe a symbol's shape — members, base types, interfaces, constructors, locations — "
-        + "as structured JSON, without opening the file.",
+        "Describe a type's compact signature array (fqn, kind, signatures), or drill into a single "
+        + "member by passing its signature ('Type.Method(paramType, ...)'). Returns structured JSON. "
+        + "Use withLocations=true for the legacy verbose shape (per-member line numbers + locations).",
         JsonSchemaBuilder.Object(
             required: ["symbol"],
             properties: new Dictionary<string, Dictionary<string, object>>
             {
-                ["symbol"] = JsonSchemaBuilder.String("Fully-qualified symbol name to inspect"),
+                ["symbol"] = JsonSchemaBuilder.String(
+                    "Fully-qualified type name, or a member signature ('Type.Method(paramType, ...)')"),
                 ["kind"] = JsonSchemaBuilder.String("Symbol kind filter: type, method, property, field, namespace"),
-                ["solution"] = JsonSchemaBuilder.String("Path to the .sln/.slnx file")
+                ["solution"] = JsonSchemaBuilder.String("Path to the .sln/.slnx file"),
+                ["withLocations"] = JsonSchemaBuilder.Boolean(
+                    "Restore the legacy verbose shape (per-member line numbers + locations)")
             }));
 
     public async Task<ToolResult> HandleAsync(JsonElement arguments, CancellationToken cancellationToken)
@@ -53,11 +57,12 @@ internal sealed class DescribeHandler : IMcpHandler
 
         var kind = ReadString(arguments, "kind");
         var solutionPath = ReadString(arguments, "solution");
+        var withLocations = ReadBool(arguments, "withLocations");
 
         var sln = await _workspaceLoader.GetSolutionAsync(solutionPath);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var inspection = await _inspect.Describe(sln, symbol, kind);
+        var inspection = await _inspect.Describe(sln, symbol, kind, withLocations);
         return inspection.Match(
             result => new ToolResult(false, JsonSerializer.Serialize(result, JsonOptions)),
             error => new ToolResult(true, error.Message));
@@ -69,5 +74,10 @@ internal sealed class DescribeHandler : IMcpHandler
             return null;
         var s = el.GetString();
         return string.IsNullOrEmpty(s) ? null : s;
+    }
+
+    private static bool ReadBool(JsonElement args, string name)
+    {
+        return args.TryGetProperty(name, out var el) && el.ValueKind == JsonValueKind.True;
     }
 }

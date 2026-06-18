@@ -38,13 +38,17 @@ internal sealed class DescribeCommand : IRtCommand, IStructuredOutputCommand, II
 
     public Command Build()
     {
-        var symbolArg = new Argument<string>("symbol", "Fully-qualified symbol name to inspect");
+        var symbolArg = new Argument<string>("symbol",
+            "Fully-qualified type name, or a member signature ('Type.Method(paramType, ...)') to drill in");
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln/.slnx file");
         var kindOpt = new Option<string?>("--kind", "Symbol kind: type, method, property, field, namespace");
+        var withLocationsOpt = new Option<bool>("--with-locations",
+            "Restore the legacy verbose shape (per-member line numbers + locations) instead of the compact signature array");
 
-        var cmd = new Command("describe", "Show type shape: members, base types, interfaces, locations (JSON)")
+        var cmd = new Command("describe",
+            "Show a type's compact signature array, or drill into a member by signature (JSON)")
         {
-            symbolArg, solutionOpt, kindOpt
+            symbolArg, solutionOpt, kindOpt, withLocationsOpt
         };
 
         cmd.SetHandler(async ctx =>
@@ -52,9 +56,10 @@ internal sealed class DescribeCommand : IRtCommand, IStructuredOutputCommand, II
                 var symbol = ctx.ParseResult.GetValueForArgument(symbolArg);
                 var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
                 var kind = ctx.ParseResult.GetValueForOption(kindOpt);
+                var withLocations = ctx.ParseResult.GetValueForOption(withLocationsOpt);
 
                 var sln = await _sessionFactory.GetSolutionAsync(solution);
-                var inspection = await _inspect.Describe(sln, symbol, kind);
+                var inspection = await _inspect.Describe(sln, symbol, kind, withLocations);
 
                 inspection.Match(
                     result => RtResultRenderer.Write(RtResult<object>.Ok(result)),

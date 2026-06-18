@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using YamlDotNet.Serialization;
+using YamlDotNet.Serialization.NamingConventions;
 
 namespace RoslynTools.Core.Output;
 
@@ -11,7 +12,12 @@ namespace RoslynTools.Core.Output;
 /// </summary>
 internal static class StructuredOutput
 {
-    private static readonly ISerializer YamlSerializer = new SerializerBuilder().Build();
+    // CamelCase keeps typed-record YAML keys (e.g. CompactDescription) in parity with their
+    // [JsonPropertyName] JSON keys. Dictionary keys are emitted verbatim regardless of this
+    // convention, so dict-based callers are unaffected; IRtOutput results use RtSerializer, not this.
+    private static readonly ISerializer YamlSerializer = new SerializerBuilder()
+        .WithNamingConvention(CamelCaseNamingConvention.Instance)
+        .Build();
 
     // Belt-and-suspenders: escape any raw control chars that slipped past the encoder
     // (e.g. encoding-corrupted source files whose XML docs contain 0x00-0x1F bytes).
