@@ -100,9 +100,7 @@ internal sealed class CliCommandBridge
             }
         }
 
-        foreach (var val in positionals.OfType<string>())
-            list.Add(val);
-
+        list.AddRange(positionals.OfType<string>());
         list.AddRange(named);
 
         if (info.Mutates && !hasDryRun)
