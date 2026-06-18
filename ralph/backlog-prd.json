@@ -67,7 +67,7 @@
             "id": "EP-015",
             "title": "Resume in-flight half-completed work (2026-05-26 audit)",
             "description": "Sequence and finish the in-flight stories surfaced by the 2026-05-26 half-done audit, applying the design revisions identified there. Bridges EP-009 (renderer unification via US-100) and EP-010 (Result ADT via US-077), and finishes the daemon protocol started in ralph/sessions/2026-05-04-daemon-protocol.md.",
-            "notes": "Audit at ~/.claude/plans/which-claude-sessions-have-crystalline-simon.md. US-114 was confirmed complete (7ef1da7) and removed from the resume list. Suggested order: US-056 → US-100 → US-092 Phase-2 pilot → US-077 (re-spec the SymbolLocator↔DaemonServer error contract first) → US-075 → US-116 (new). Each story above carries a design-revision note pointing back to the audit."
+            "notes": "Audit at ~/.claude/plans/which-claude-sessions-have-crystalline-simon.md. US-114's capability interfaces (src/RoslynTools.Cli/CommandFlags/RtCommandFlags.cs) and the per-command ratchet (docs/flag-capability-migrated-commands.txt, 9 commands as of 2026-06-18) landed; the catalog SoT, architecture-test biconditionals, dump-help/MCP schema integration, and CommandOptionFactory retirement are still in flight. Story remains OPEN. Suggested order: US-056 → US-100 → US-092 Phase-2 pilot → US-077 (re-spec the SymbolLocator↔DaemonServer error contract first) → US-075 → US-116 (new). Each story above carries a design-revision note pointing back to the audit."
         },
         {
             "id": "EP-016",

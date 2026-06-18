@@ -123,7 +123,7 @@
             "priority": 115,
             "passes": false,
             "epicId": "EP-009",
-            "notes": "P2 consistency and reuse feature. Seeded by 2026-05-25 design note: flags should be declared as interfaces so reusable option support is visible in the type system, centrally registered, mechanically enforced, and backed by shared binders/validation instead of empty marker tags. Keep the boundary clean: flag capabilities belong to adapters/binders; services should only do or answer the domain thing. This likely supersedes or sharpens US-085/US-062's CommandOptionFactory-only approach; preserve compatibility aliases while migrating."
+            "notes": "P2 consistency and reuse feature. Seeded by 2026-05-25 design note: flags should be declared as interfaces so reusable option support is visible in the type system, centrally registered, mechanically enforced, and backed by shared binders/validation instead of empty marker tags. Keep the boundary clean: flag capabilities belong to adapters/binders; services should only do or answer the domain thing. This likely supersedes or sharpens US-085/US-062's CommandOptionFactory-only approach; preserve compatibility aliases while migrating. Partial landing as of 2026-06-18: capability interfaces (ISupportsSolutionOption, ISupportsDryRunOption, ISupportsTopOption, ISupportsSymbolOption, ISupportsScopeOption, ISupportsKindOption in src/RoslynTools.Cli/CommandFlags/RtCommandFlags.cs) and the per-command ratchet (docs/flag-capability-migrated-commands.txt, 9 commands) shipped. Remaining ACs: central catalog SoT, biconditional architecture tests, dump-help / MCP schema integration, CommandOptionFactory retirement, full ratchet coverage."
         },
         {
             "id": "US-130",
