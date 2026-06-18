@@ -263,6 +263,106 @@ internal static class SymbolLocator
         return (await TryFindMethodBySpecAsync(solution, methodSpec)).Unwrap();
     }
 
+    /// <summary>
+    ///     Resolves a single member of a type from a signature drill-in input of the form
+    ///     <c>&lt;TypeFqn&gt;.&lt;Name&gt;(&lt;paramTypes&gt;)</c> (US-135). The containing type is
+    ///     resolved via <see cref="TryFindTypeByFqnAsync" />; the member is matched within it by
+    ///     comparing <see cref="SignatureFormatter.MatchSignature" /> against the supplied param list,
+    ///     so a signature emitted in the default describe/outline output round-trips back to its member.
+    ///     A name with no parenthesised param list matches by name alone: unique resolves, overloads
+    ///     return <see cref="RtErrorKind.AmbiguousMatch" /> with the candidate signatures listed.
+    /// </summary>
+    internal static async Task<Result<ISymbol, RtError>> TryFindMemberBySignatureAsync(
+        Solution solution,
+        string input)
+    {
+        var (typeFqn, memberName, paramSpec) = ParseMemberSignatureInput(input);
+        if (string.IsNullOrEmpty(typeFqn) || string.IsNullOrEmpty(memberName))
+            return Result<ISymbol, RtError>.Err(
+                new RtError(RtErrorKind.InvalidInput,
+                    $"Could not parse member signature '{input}'. "
+                    + "Expected '<TypeFqn>.<Name>(<paramTypes>)'."));
+
+        var typeResult = await TryFindTypeByFqnAsync(solution, typeFqn);
+        if (typeResult.IsErr)
+            return typeResult;
+
+        var type = (INamedTypeSymbol)typeResult.Match(s => s, _ => null!);
+
+        var byName = type.GetMembers(memberName)
+            .Where(m => !m.IsImplicitlyDeclared)
+            .ToList();
+
+        if (byName.Count == 0)
+            return Result<ISymbol, RtError>.Err(
+                RtError.NotFound($"Member '{memberName}' not found on type '{typeFqn}'."));
+
+        List<ISymbol> matches;
+        if (paramSpec is null)
+        {
+            matches = byName;
+        }
+        else
+        {
+            var normalizedSpec = NormalizeSignature(memberName + paramSpec);
+            matches = byName
+                .Where(m => NormalizeSignature(SignatureFormatter.MatchSignature(m)) == normalizedSpec)
+                .ToList();
+        }
+
+        if (matches.Count == 0)
+            return Result<ISymbol, RtError>.Err(
+                RtError.NotFound($"No member matching '{input}' found on type '{typeFqn}'."));
+
+        if (matches.Count == 1)
+            return Result<ISymbol, RtError>.Ok(matches[0]);
+
+        var candidates = string.Join("; ", matches.Select(SignatureFormatter.Signature));
+        return Result<ISymbol, RtError>.Err(
+            RtError.AmbiguousMatch(
+                $"'{input}' is ambiguous on type '{typeFqn}'. Candidates: {candidates}"));
+    }
+
+    /// <summary>
+    ///     Splits a drill-in input into its type FQN, member name, and parenthesised param spec
+    ///     ("(int, int)"); the param spec is null when the input carries no parentheses (name-only).
+    ///     Tolerates a stray return-type prefix by keeping only the token after the last whitespace
+    ///     before the member name.
+    /// </summary>
+    private static (string TypeFqn, string Name, string? ParamSpec) ParseMemberSignatureInput(string input)
+    {
+        var trimmed = NormalizeFqn(input);
+        var parenIndex = trimmed.IndexOf('(');
+
+        string head;
+        string? paramSpec;
+        if (parenIndex >= 0)
+        {
+            head = trimmed[..parenIndex].TrimEnd();
+            paramSpec = trimmed[parenIndex..];
+        }
+        else
+        {
+            head = trimmed;
+            paramSpec = null;
+        }
+
+        var lastSpace = head.LastIndexOf(' ');
+        if (lastSpace >= 0)
+            head = head[(lastSpace + 1)..];
+
+        var lastDot = head.LastIndexOf('.');
+        if (lastDot < 0)
+            return (string.Empty, string.Empty, paramSpec);
+
+        return (head[..lastDot], head[(lastDot + 1)..], paramSpec);
+    }
+
+    private static string NormalizeSignature(string signature)
+    {
+        return new string(signature.Where(c => !char.IsWhiteSpace(c)).ToArray());
+    }
+
     private static ISymbol Disambiguate(List<SymbolMatch> matches, string name)
     {
         var store = DecisionContext.Store;
