@@ -224,7 +224,8 @@ internal static class App
             foreach (var cmd in additionalCommands)
                 root.AddCommand(cmd);
 
-        var (jsonOpt, llmOpt, markdownOpt, yamlOpt, decisionsOpt, strictJsonOpt, showWorkspaceWarningsOpt) = RegisterGlobalOptions(root);
+        var (jsonOpt, llmOpt, markdownOpt, yamlOpt, decisionsOpt, strictJsonOpt, relaxJsonOpt,
+            showWorkspaceWarningsOpt) = RegisterGlobalOptions(root);
 
         return await new CommandLineBuilder(root)
             .UseVersionOption()
@@ -292,7 +293,15 @@ internal static class App
                     : json ? OutputFormat.Json
                     : llm ? OutputFormat.Llm
                     : OutputFormat.Text;
+                RtContext.RelaxJson = context.ParseResult.GetValueForOption(relaxJsonOpt);
+                // --strict-json is now a no-op alias for the default behaviour: the converged JSON paths
+                // (StructuredOutput, JsonRenderer, MCP handlers) always escape unless --relax-json is set.
+                // Keep populating RtContext.StrictJson for un-migrated legacy renderers
+                // (CommandSurfaceBuilder, RoslynTools.Cli.Commands.Results.*Result) that still branch on it.
+                // When users explicitly pass --strict-json, emit a one-line deprecation note to stderr.
                 RtContext.StrictJson = context.ParseResult.GetValueForOption(strictJsonOpt);
+                if (context.ParseResult.FindResultFor(strictJsonOpt) is not null)
+                    RtLog.Warning("--strict-json is deprecated; strict escaping is now the default. Pass --relax-json to opt out.");
                 RtContext.ShowWorkspaceWarnings = context.ParseResult.GetValueForOption(showWorkspaceWarningsOpt);
 
                 var decisionsFile = context.ParseResult.GetValueForOption(decisionsOpt);
@@ -348,15 +357,23 @@ internal static class App
     /// Registers global command options with the root command.
     /// </summary>
     internal static (Option<bool> jsonOpt, Option<bool> llmOpt, Option<bool> markdownOpt, Option<bool> yamlOpt,
-        Option<FileInfo?> decisionsOpt, Option<bool> strictJsonOpt, Option<bool> showWorkspaceWarningsOpt)
+        Option<FileInfo?> decisionsOpt, Option<bool> strictJsonOpt, Option<bool> relaxJsonOpt,
+        Option<bool> showWorkspaceWarningsOpt)
         RegisterGlobalOptions(RootCommand root)
     {
         var jsonOpt = new Option<bool>("--json", "Emit results as JSON");
         var llmOpt = new Option<bool>("--llm", "Emit compact output for LLM consumption");
         var markdownOpt = new Option<bool>("--markdown", "Emit results as Markdown");
         var yamlOpt = new Option<bool>("--yaml", "Emit results as YAML");
+        // --strict-json was the original opt-in for \uXXXX-escaping of non-ASCII chars. It is now the
+        // default behaviour for the converged paths (StructuredOutput, JsonRenderer, MCP handlers), so the
+        // flag is a no-op alias kept for back-compat with scripts/CI. A deprecation note is emitted when
+        // it's passed explicitly.
         var strictJsonOpt = new Option<bool>("--strict-json",
-            "Escape all non-ASCII and control characters as \\uXXXX in JSON output (RFC 8259 compliant)");
+            "Deprecated: strict escaping is now the default. Kept as a no-op alias for back-compat.");
+        var relaxJsonOpt = new Option<bool>("--relax-json",
+            "Emit raw non-ASCII and HTML-sensitive characters in JSON output "
+            + "(JavaScriptEncoder.UnsafeRelaxedJsonEscaping). Default off keeps output strict-deserialiser safe.");
         var decisionsOpt = new Option<FileInfo?>(
             "--decisions",
             "Path to a YAML file recording disambiguation choices. "
@@ -364,10 +381,12 @@ internal static class App
         var showWorkspaceWarningsOpt = new Option<bool>("--show-workspace-warnings",
             "Show MSBuild workspace warnings (NuGet audit, unresolved imports, etc.). Off by default.");
         foreach (var option in new Option[]
-                     { jsonOpt, llmOpt, markdownOpt, yamlOpt, strictJsonOpt, decisionsOpt, showWorkspaceWarningsOpt })
+                     { jsonOpt, llmOpt, markdownOpt, yamlOpt, strictJsonOpt, relaxJsonOpt, decisionsOpt,
+                         showWorkspaceWarningsOpt })
             root.AddGlobalOption(option);
 
-        return (jsonOpt, llmOpt, markdownOpt, yamlOpt, decisionsOpt, strictJsonOpt, showWorkspaceWarningsOpt);
+        return (jsonOpt, llmOpt, markdownOpt, yamlOpt, decisionsOpt, strictJsonOpt, relaxJsonOpt,
+            showWorkspaceWarningsOpt);
     }
 
     private static string TruncateOneLine(string text, int max)

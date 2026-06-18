@@ -21,7 +21,7 @@ internal static class JsonRenderer
         }
 
         var obj = BuildObject(result, OutputLevel.Detailed);
-        var json = JsonSerializer.Serialize(obj, SymbolFormatter.DefaultJsonOptions);
+        var json = JsonSerializer.Serialize(obj, JsonEncoders.Select(RtContext.RelaxJson));
         writer.Write(json);
     }
 

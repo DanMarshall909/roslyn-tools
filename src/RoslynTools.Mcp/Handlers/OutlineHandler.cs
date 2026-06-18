@@ -1,5 +1,6 @@
 using System.Text.Json;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 using RoslynTools.Mcp.Tools;
 using RoslynTools.Services;
 
@@ -13,7 +14,9 @@ namespace RoslynTools.Mcp.Handlers;
 /// </summary>
 internal sealed class OutlineHandler : IMcpHandler
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    // Encoder is centralised in JsonEncoders.Select(RtContext.RelaxJson) so this handler
+    // tracks the global --relax-json toggle.
+    private static JsonSerializerOptions JsonOptions => JsonEncoders.Select(RtContext.RelaxJson);
 
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly OutlineService _outline;

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 using RoslynTools.Mcp.Tools;
 using RoslynTools.Services;
 
@@ -13,11 +14,20 @@ namespace RoslynTools.Mcp.Handlers;
 /// </summary>
 internal sealed class DescribeHandler : IMcpHandler
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
+    // Encoder is centralised in JsonEncoders.Select(RtContext.RelaxJson) so this handler
+    // tracks the global --relax-json toggle. Property naming policy is layered on top because
+    // describe is the only handler that emits camelCase keys (fqn / kind / signatures).
+    private static JsonSerializerOptions JsonOptions
     {
-        WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
+        get
+        {
+            var baseOpts = JsonEncoders.Select(RtContext.RelaxJson);
+            return new JsonSerializerOptions(baseOpts)
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+        }
+    }
 
     private readonly IWorkspaceSessionFactory _workspaceLoader;
     private readonly InspectService _inspect;
