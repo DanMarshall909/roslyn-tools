@@ -9,8 +9,10 @@ namespace RoslynTools.Services;
 /// <param name="Regex">Regex matched against solution file paths. Null when <see cref="Target" /> is set.</param>
 /// <param name="Solution">Path to the .sln/.slnx file. Null for auto-detection.</param>
 /// <param name="Summary">Compact mode: one entry per top-level type, no member detail.</param>
+/// <param name="WithLocations">Legacy verbose mode: grouped members with per-member line ranges.</param>
 internal sealed record OutlineRequest(
     string? Target = null,
     string? Regex = null,
     string? Solution = null,
-    bool Summary = false);
+    bool Summary = false,
+    bool WithLocations = false);

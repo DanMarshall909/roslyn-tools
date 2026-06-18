@@ -48,11 +48,13 @@ internal sealed class OutlineCommand : IRtCommand, IStructuredOutputCommand, IIn
         var regexOpt = new Option<string?>("--regex", "Regex pattern matched against solution file paths");
         var summaryOpt = new Option<bool>("--summary",
             "Compact mode: one entry per top-level type (fqn, kind, lines, description if present); no member detail");
+        var withLocationsOpt = new Option<bool>("--with-locations",
+            "Legacy verbose mode: grouped members with per-member line ranges, instead of the compact signature array");
 
         var cmd = new Command("outline",
-            "List all types and member signatures in a file, glob, namespace, or regex (JSON)")
+            "List types as a compact signature array (or verbose with --with-locations) in a file, glob, namespace, or regex (JSON)")
         {
-            targetArg, solutionOpt, regexOpt, summaryOpt
+            targetArg, solutionOpt, regexOpt, summaryOpt, withLocationsOpt
         };
 
         cmd.SetHandler(async context =>
@@ -61,37 +63,38 @@ internal sealed class OutlineCommand : IRtCommand, IStructuredOutputCommand, IIn
             var solution = context.ParseResult.GetValueForOption(solutionOpt);
             var regex = context.ParseResult.GetValueForOption(regexOpt);
             var summary = context.ParseResult.GetValueForOption(summaryOpt);
+            var withLocations = context.ParseResult.GetValueForOption(withLocationsOpt);
 
             var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
             using (workspace)
             {
-                List<Dictionary<string, object?>> result;
+                List<object> result;
 
                 if (regex is not null)
                 {
-                    result = await _outline.OutlineRegexAsync(sln, regex, summary);
+                    result = await _outline.OutlineRegexAsync(sln, regex, summary, withLocations);
                 }
                 else if (target?.EndsWith(".*", StringComparison.Ordinal) == true
                          && !target.Contains('/') && !target.Contains('\\'))
                 {
-                    result = await _outline.OutlineNamespaceAsync(sln, target, summary);
+                    result = await _outline.OutlineNamespaceAsync(sln, target, summary, withLocations);
                 }
                 else if (target is not null && (target.Contains('*') || target.Contains('?')))
                 {
-                    result = await _outline.OutlineGlobAsync(sln, target, summary);
+                    result = await _outline.OutlineGlobAsync(sln, target, summary, withLocations);
                 }
                 else if (target is not null && Directory.Exists(target))
                 {
-                    result = await _outline.OutlineDirectoryAsync(sln, target, summary);
+                    result = await _outline.OutlineDirectoryAsync(sln, target, summary, withLocations);
                 }
                 else if (target is not null && (target.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) ||
                                                 Path.Exists(target)))
                 {
-                    result = await _outline.OutlineFileAsync(sln, target, summary);
+                    result = await _outline.OutlineFileAsync(sln, target, summary, withLocations);
                 }
                 else if (target is not null)
                 {
-                    result = await _outline.OutlineNamespaceAsync(sln, target, summary);
+                    result = await _outline.OutlineNamespaceAsync(sln, target, summary, withLocations);
                 }
                 else
                 {
@@ -100,7 +103,7 @@ internal sealed class OutlineCommand : IRtCommand, IStructuredOutputCommand, IIn
                     return;
                 }
 
-                RtResultRenderer.Write(RtResult<List<Dictionary<string, object?>>>.Ok(result));
+                RtResultRenderer.Write(RtResult<List<object>>.Ok(result));
             }
         });
 

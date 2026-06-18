@@ -26,13 +26,14 @@ internal class OutlineService : IRtService
     /// <summary>
     /// Outlines a file within a solution asynchronously.
     /// </summary>
-    internal async Task<List<Dictionary<string, object?>>> OutlineFileAsync(
+    internal async Task<List<object>> OutlineFileAsync(
         Solution solution,
         string filePath,
-        bool summary = false)
+        bool summary = false,
+        bool withLocations = false)
     {
         var fullPath = Path.GetFullPath(filePath.Replace('/', Path.DirectorySeparatorChar));
-        var results = new List<Dictionary<string, object?>>();
+        var results = new List<object>();
 
         foreach (var project in solution.Projects)
             foreach (var doc in project.Documents)
@@ -59,7 +60,7 @@ internal class OutlineService : IRtService
                     declaredSymbols = declaredSymbols.Where(t => t.ContainingType is null);
 
                 foreach (var type in declaredSymbols)
-                    results.Add(summary ? BuildTypeSummary(type) : BuildTypeOutline(type));
+                    results.Add(Render(type, summary, withLocations));
             }
 
         return results;
@@ -68,14 +69,15 @@ internal class OutlineService : IRtService
     /// <summary>
     /// Outlines a directory within a solution asynchronously.
     /// </summary>
-    internal async Task<List<Dictionary<string, object?>>> OutlineDirectoryAsync(
+    internal async Task<List<object>> OutlineDirectoryAsync(
         Solution solution,
         string directoryPath,
-        bool summary = false)
+        bool summary = false,
+        bool withLocations = false)
     {
         var fullDir = Path.GetFullPath(directoryPath.Replace('/', Path.DirectorySeparatorChar));
         var prefix = fullDir.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-        var results = new List<Dictionary<string, object?>>();
+        var results = new List<object>();
 
         foreach (var project in solution.Projects)
             foreach (var doc in project.Documents)
@@ -102,7 +104,7 @@ internal class OutlineService : IRtService
                     types = types.Where(t => t.ContainingType is null);
 
                 foreach (var type in types)
-                    results.Add(summary ? BuildTypeSummary(type) : BuildTypeOutline(type));
+                    results.Add(Render(type, summary, withLocations));
             }
 
         return results;
@@ -111,12 +113,13 @@ internal class OutlineService : IRtService
     /// <summary>
     /// Outlines a namespace within a solution asynchronously.
     /// </summary>
-    internal async Task<List<Dictionary<string, object?>>> OutlineNamespaceAsync(
+    internal async Task<List<object>> OutlineNamespaceAsync(
         Solution solution,
         string namespaceName,
-        bool summary = false)
+        bool summary = false,
+        bool withLocations = false)
     {
-        var results = new List<Dictionary<string, object?>>();
+        var results = new List<object>();
         var seen = new HashSet<string>();
 
         var isPrefix = namespaceName.EndsWith(".*", StringComparison.Ordinal);
@@ -138,7 +141,7 @@ internal class OutlineService : IRtService
             {
                 var key = type.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
                 if (seen.Add(key))
-                    results.Add(summary ? BuildTypeSummary(type) : BuildTypeOutline(type));
+                    results.Add(Render(type, summary, withLocations));
             }
         }
 
@@ -151,13 +154,14 @@ internal class OutlineService : IRtService
     /// <summary>
     /// Outlines files matching a glob pattern within a solution asynchronously.
     /// </summary>
-    internal async Task<List<Dictionary<string, object?>>> OutlineGlobAsync(
+    internal async Task<List<object>> OutlineGlobAsync(
         Solution solution,
         string globPattern,
-        bool summary = false)
+        bool summary = false,
+        bool withLocations = false)
     {
         var matchingPaths = ExpandGlob(globPattern);
-        var results = new List<Dictionary<string, object?>>();
+        var results = new List<object>();
 
         foreach (var project in solution.Projects)
             foreach (var doc in project.Documents)
@@ -182,7 +186,7 @@ internal class OutlineService : IRtService
                     types = types.Where(t => t.ContainingType is null);
 
                 foreach (var type in types)
-                    results.Add(summary ? BuildTypeSummary(type) : BuildTypeOutline(type));
+                    results.Add(Render(type, summary, withLocations));
             }
 
         return results;
@@ -191,13 +195,14 @@ internal class OutlineService : IRtService
     /// <summary>
     /// Outlines files matching a regular expression pattern within a solution asynchronously.
     /// </summary>
-    internal async Task<List<Dictionary<string, object?>>> OutlineRegexAsync(
+    internal async Task<List<object>> OutlineRegexAsync(
         Solution solution,
         string regexPattern,
-        bool summary = false)
+        bool summary = false,
+        bool withLocations = false)
     {
         var regex = new Regex(regexPattern, RegexOptions.IgnoreCase);
-        var results = new List<Dictionary<string, object?>>();
+        var results = new List<object>();
 
         foreach (var project in solution.Projects)
             foreach (var doc in project.Documents)
@@ -221,7 +226,7 @@ internal class OutlineService : IRtService
                     types = types.Where(t => t.ContainingType is null);
 
                 foreach (var type in types)
-                    results.Add(summary ? BuildTypeSummary(type) : BuildTypeOutline(type));
+                    results.Add(Render(type, summary, withLocations));
             }
 
         return results;
@@ -287,6 +292,26 @@ internal class OutlineService : IRtService
             ];
         }
     }
+
+    /// <summary>
+    ///     Renders one type entry in the requested mode: <paramref name="summary" /> wins (compact
+    ///     one-liner with optional XML doc); otherwise <paramref name="withLocations" /> selects the
+    ///     legacy verbose outline (grouped members + line ranges) and the default is the compact
+    ///     signature array (US-135).
+    /// </summary>
+    internal object Render(INamedTypeSymbol type, bool summary, bool withLocations)
+    {
+        if (summary)
+            return BuildTypeSummary(type);
+        return withLocations ? BuildTypeOutline(type) : BuildCompactOutline(type);
+    }
+
+    /// <summary>
+    ///     Builds the default compact outline for a named type: name, type kind, and one canonical
+    ///     signature per member (no line ranges).
+    /// </summary>
+    internal CompactOutlineType BuildCompactOutline(INamedTypeSymbol type) =>
+        new(type.Name, type.TypeKind.ToString(), SignatureFormatter.TypeMemberSignatures(type));
 
     /// <summary>
     /// Builds an outline for a named type within a solution.

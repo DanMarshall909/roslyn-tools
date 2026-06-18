@@ -24,7 +24,7 @@ public class OutlineMultiTarget
             var svc = new OutlineService();
             var path = Path.Combine(project.ProjectDir, "Container.cs").Replace('\\', '/');
             var result = await svc.OutlineFileAsync(sln, path);
-            var names = result.Select(r => (string)r["name"]!).ToList();
+            var names = result.Cast<CompactOutlineType>().Select(r => r.Name).ToList();
             names.ShouldContain("Container");
             names.ShouldContain("NestedHelper");
             names.ShouldContain("NestedProcessor");
@@ -83,7 +83,7 @@ public class OutlineMultiTarget
             var svc = new OutlineService();
             var glob = Path.Combine(project.ProjectDir, "**", "*.cs");
             var result = await svc.OutlineGlobAsync(sln, glob);
-            var typeNames = result.Select(r => (string)r["name"]!).ToList();
+            var typeNames = result.Cast<CompactOutlineType>().Select(r => r.Name).ToList();
             typeNames.ShouldContain("Product");
             typeNames.ShouldContain("OrderService");
         }
@@ -108,7 +108,7 @@ public class OutlineMultiTarget
             var svc = new OutlineService();
             var glob = Path.Combine(project.ProjectDir, "Models", "*.cs");
             var result = await svc.OutlineGlobAsync(sln, glob);
-            var typeNames = result.Select(r => (string)r["name"]!).ToList();
+            var typeNames = result.Cast<CompactOutlineType>().Select(r => r.Name).ToList();
             typeNames.ShouldContain("Product");
             typeNames.ShouldNotContain("OrderService");
         }
@@ -136,7 +136,7 @@ public class OutlineMultiTarget
         {
             var svc = new OutlineService();
             var result = await svc.OutlineNamespaceAsync(sln, "TestApp.*");
-            var typeNames = result.Select(r => (string)r["name"]!).ToList();
+            var typeNames = result.Cast<CompactOutlineType>().Select(r => r.Name).ToList();
             typeNames.ShouldContain("Product");
             typeNames.ShouldContain("OrderService");
             typeNames.ShouldNotContain("Unrelated");
@@ -161,7 +161,7 @@ public class OutlineMultiTarget
         {
             var svc = new OutlineService();
             var result = await svc.OutlineRegexAsync(sln, @"Service\.cs$");
-            var typeNames = result.Select(r => (string)r["name"]!).ToList();
+            var typeNames = result.Cast<CompactOutlineType>().Select(r => r.Name).ToList();
             typeNames.ShouldContain("OrderService");
             typeNames.ShouldNotContain("Product");
         }

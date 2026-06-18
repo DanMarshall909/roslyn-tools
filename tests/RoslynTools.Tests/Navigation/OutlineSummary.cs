@@ -24,7 +24,7 @@ public class OutlineSummary
             var result = await new OutlineService().OutlineFileAsync(sln,
                 Path.Combine(project.ProjectDir, "Widget.cs"), true);
 
-            var entry = Assert.Single(result);
+            var entry = (Dictionary<string, object?>)Assert.Single(result);
             entry["fqn"].ShouldBe("TestApp.Widget");
             entry["kind"].ShouldBe("Class");
             entry["lineFrom"].ShouldNotBeNull();
@@ -50,7 +50,7 @@ public class OutlineSummary
             var result = await new OutlineService().OutlineFileAsync(sln,
                 Path.Combine(project.ProjectDir, "Service.cs"), true);
 
-            var entry = Assert.Single(result);
+            var entry = (Dictionary<string, object?>)Assert.Single(result);
             Assert.True(entry.ContainsKey("description"), "should include description when XML doc exists");
             ((string)entry["description"]!).ShouldContain("Loads things from the database", Case.Sensitive);
         }
@@ -68,7 +68,7 @@ public class OutlineSummary
             var result = await new OutlineService().OutlineFileAsync(sln,
                 Path.Combine(project.ProjectDir, "Plain.cs"), true);
 
-            var entry = Assert.Single(result);
+            var entry = (Dictionary<string, object?>)Assert.Single(result);
             Assert.False(entry.ContainsKey("description"), "should omit description when no XML doc");
         }
     }
@@ -92,7 +92,7 @@ public class OutlineSummary
                 Path.Combine(project.ProjectDir, "Outer.cs"), true);
 
             Assert.Single(result);
-            result[0]["fqn"].ShouldBe("TestApp.Outer");
+            ((Dictionary<string, object?>)result[0])["fqn"].ShouldBe("TestApp.Outer");
         }
     }
 
@@ -107,10 +107,10 @@ public class OutlineSummary
         using (workspace)
         {
             var result = await new OutlineService().OutlineDirectoryAsync(sln, project.ProjectDir);
-            var fqns = result.Select(r => (string)r["fqn"]!).ToHashSet();
+            var names = result.Cast<CompactOutlineType>().Select(r => r.Name).ToHashSet();
 
-            fqns.ShouldContain("TestApp.Alpha");
-            fqns.ShouldContain("TestApp.Beta");
+            names.ShouldContain("Alpha");
+            names.ShouldContain("Beta");
         }
     }
 
@@ -128,12 +128,12 @@ public class OutlineSummary
         using (workspace)
         {
             var result = await new OutlineService().OutlineDirectoryAsync(sln, project.ProjectDir, true);
-            var fqns = result.Select(r => (string)r["fqn"]!).ToHashSet();
+            var fqns = result.Cast<Dictionary<string, object?>>().Select(r => (string)r["fqn"]!).ToHashSet();
 
             fqns.ShouldContain("TestApp.Parent");
             fqns.ShouldContain("TestApp.Sibling");
             fqns.ShouldNotContain("TestApp.Parent.Child");
-            result.All(r => !r.ContainsKey("members")).ShouldBeTrue();
+            result.Cast<Dictionary<string, object?>>().All(r => !r.ContainsKey("members")).ShouldBeTrue();
         }
     }
 
@@ -151,7 +151,7 @@ public class OutlineSummary
         {
             var result = await new OutlineService().OutlineNamespaceAsync(sln, "TestApp", true);
 
-            var entry = Assert.Single(result);
+            var entry = (Dictionary<string, object?>)Assert.Single(result);
             entry["fqn"].ShouldBe("TestApp.MyService");
             entry.ContainsKey("members").ShouldBeFalse();
         }

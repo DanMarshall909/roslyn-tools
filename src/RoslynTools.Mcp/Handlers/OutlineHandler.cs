@@ -37,7 +37,9 @@ internal sealed class OutlineHandler : IMcpHandler
                 ["target"] = JsonSchemaBuilder.String("File path, directory, glob, or namespace"),
                 ["regex"] = JsonSchemaBuilder.String("Regex matched against solution file paths"),
                 ["solution"] = JsonSchemaBuilder.String("Path to the .sln/.slnx file"),
-                ["summary"] = JsonSchemaBuilder.Boolean("Compact mode: one entry per top-level type")
+                ["summary"] = JsonSchemaBuilder.Boolean("Compact mode: one entry per top-level type"),
+                ["withLocations"] = JsonSchemaBuilder.Boolean(
+                    "Legacy verbose mode: grouped members with per-member line ranges")
             }));
 
     public async Task<ToolResult> HandleAsync(JsonElement arguments, CancellationToken cancellationToken)
@@ -48,7 +50,8 @@ internal sealed class OutlineHandler : IMcpHandler
             Target: ReadString(arguments, "target"),
             Regex: ReadString(arguments, "regex"),
             Solution: ReadString(arguments, "solution"),
-            Summary: ReadBool(arguments, "summary"));
+            Summary: ReadBool(arguments, "summary"),
+            WithLocations: ReadBool(arguments, "withLocations"));
 
         if (string.IsNullOrEmpty(request.Solution))
             return new ToolResult(true, "Missing required property 'solution'.");
@@ -62,7 +65,7 @@ internal sealed class OutlineHandler : IMcpHandler
         }
     }
 
-    private async Task<List<Dictionary<string, object?>>> DispatchAsync(
+    private async Task<List<object>> DispatchAsync(
         Microsoft.CodeAnalysis.Solution sln,
         OutlineRequest req)
     {
@@ -70,20 +73,20 @@ internal sealed class OutlineHandler : IMcpHandler
         // intentionally so OutlineService's public surface doesn't change — that
         // surface consolidation is a separate refactor.
         if (req.Regex is not null)
-            return await _outline.OutlineRegexAsync(sln, req.Regex, req.Summary);
+            return await _outline.OutlineRegexAsync(sln, req.Regex, req.Summary, req.WithLocations);
         if (req.Target is null)
             return [];
         if (req.Target.EndsWith(".*", StringComparison.Ordinal)
             && !req.Target.Contains('/')
             && !req.Target.Contains('\\'))
-            return await _outline.OutlineNamespaceAsync(sln, req.Target, req.Summary);
+            return await _outline.OutlineNamespaceAsync(sln, req.Target, req.Summary, req.WithLocations);
         if (req.Target.Contains('*') || req.Target.Contains('?'))
-            return await _outline.OutlineGlobAsync(sln, req.Target, req.Summary);
+            return await _outline.OutlineGlobAsync(sln, req.Target, req.Summary, req.WithLocations);
         if (Directory.Exists(req.Target))
-            return await _outline.OutlineDirectoryAsync(sln, req.Target, req.Summary);
+            return await _outline.OutlineDirectoryAsync(sln, req.Target, req.Summary, req.WithLocations);
         if (req.Target.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) || File.Exists(req.Target))
-            return await _outline.OutlineFileAsync(sln, req.Target, req.Summary);
-        return await _outline.OutlineNamespaceAsync(sln, req.Target, req.Summary);
+            return await _outline.OutlineFileAsync(sln, req.Target, req.Summary, req.WithLocations);
+        return await _outline.OutlineNamespaceAsync(sln, req.Target, req.Summary, req.WithLocations);
     }
 
     private static string? ReadString(JsonElement args, string name)
