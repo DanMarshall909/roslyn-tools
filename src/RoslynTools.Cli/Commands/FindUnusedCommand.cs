@@ -39,25 +39,28 @@ internal sealed class FindUnusedCommand : IRtCommand, IInspectCommand
 
     public Command Build()
     {
-        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
+        var binder = RtCommandFlagBinder.Create()
+            .WithSolution("Path to .sln/.slnx");
         var scopeOpt = new Option<string?>("--scope", "Filter: types, methods, or all (default: all)");
 
         var cmd = new Command("find-unused", "Report types and methods with no references (dead code)");
         cmd.AddAlias("unused");
-        cmd.Add(solutionOpt);
         cmd.Add(scopeOpt);
+        binder.AddTo(cmd);
 
         cmd.SetHandler(async ctx =>
         {
-            var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
             var scope = ctx.ParseResult.GetValueForOption(scopeOpt);
+            var req = binder.Bind(ctx.ParseResult, f => new FindUnusedCliRequest(f.SolutionPath, scope));
 
-            var sln = await _sessionFactory.GetSolutionAsync(solution);
-            var symbols = await _findUnused.AnalyzeAsync(sln, scope ?? "all");
+            var sln = await _sessionFactory.GetSolutionAsync(req.SolutionPath);
+            var symbols = await _findUnused.AnalyzeAsync(sln, req.Scope ?? "all");
             var result = FindUnusedResult.FromSymbols(symbols, sln.FilePath);
             RtResultRenderer.Write(RtResult<FindUnusedResult>.Ok(result));
         });
 
         return cmd;
     }
+
+    private sealed record FindUnusedCliRequest(string? SolutionPath, string? Scope) : ISupportsSolutionOption;
 }

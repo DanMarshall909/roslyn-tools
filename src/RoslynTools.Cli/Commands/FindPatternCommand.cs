@@ -38,31 +38,31 @@ internal sealed class FindPatternCommand : IRtCommand, IStructuredOutputCommand,
         { IsRequired = true };
         var endLineOpt = new Option<int>("--end-line", "Last line of the pattern range (1-based, inclusive).")
         { IsRequired = true };
-        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx. Auto-detected if omitted.");
-        var scopeOpt = new Option<string?>("--scope",
-            "Filter matches to documents in this namespace prefix or project name.");
+        var binder = RtCommandFlagBinder.Create()
+            .WithSolution("Path to .sln/.slnx. Auto-detected if omitted.")
+            .WithScope("Filter matches to documents in this namespace prefix or project name.");
 
         var cmd = new Command("find-pattern",
             "Find all solution locations structurally matching a given statement range.");
         cmd.AddAlias("fp");
-        cmd.AddAll(fileOpt, startLineOpt, endLineOpt, solutionOpt, scopeOpt);
+        cmd.AddAll(fileOpt, startLineOpt, endLineOpt);
+        binder.AddTo(cmd);
 
         cmd.SetHandler(async ctx =>
         {
             var file = ctx.ParseResult.GetValueForOption(fileOpt)!;
             var startLine = ctx.ParseResult.GetValueForOption(startLineOpt);
             var endLine = ctx.ParseResult.GetValueForOption(endLineOpt);
-            var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
-            var scope = ctx.ParseResult.GetValueForOption(scopeOpt);
+            var req = binder.Bind(ctx.ParseResult, f => new FindPatternCliRequest(f.SolutionPath, f.Scope));
             var sp = ctx.BindingContext.GetService<IServiceProvider>();
             var loader = sp?.GetService<IWorkspaceSessionFactory>() ?? IWorkspaceSessionFactory.CreateDefault();
 
-            var sln = await loader.GetSolutionAsync(solution);
+            var sln = await loader.GetSolutionAsync(req.SolutionPath);
             RtLog.Info("Searching for pattern at {File}:{StartLine}-{EndLine}...", file, startLine, endLine);
             List<PatternMatch> matches;
             try
             {
-                matches = await PatternMatcher.FindMatchesAsync(sln, file, startLine, endLine, scope);
+                matches = await PatternMatcher.FindMatchesAsync(sln, file, startLine, endLine, req.Scope);
             }
             catch (InvalidOperationException ex)
             {
@@ -77,4 +77,7 @@ internal sealed class FindPatternCommand : IRtCommand, IStructuredOutputCommand,
 
         return cmd;
     }
+
+    private sealed record FindPatternCliRequest(string? SolutionPath, string? Scope)
+        : ISupportsSolutionOption, ISupportsScopeOption;
 }

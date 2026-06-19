@@ -34,17 +34,18 @@ internal sealed class StaticClassInventoryCommand : IRtCommand, IStructuredOutpu
 
     public Command Build()
     {
-        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln/.slnx file");
+        var binder = RtCommandFlagBinder.Create()
+            .WithSolution("Path to the .sln/.slnx file");
 
         var cmd = new Command("static-class-inventory",
             "List every static class with call-site count, member count, and inbound coupling for migration planning");
-        cmd.Add(solutionOpt);
+        binder.AddTo(cmd);
 
         cmd.SetHandler(async ctx =>
         {
-            var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
+            var req = binder.Bind(ctx.ParseResult, f => new StaticClassInventoryCliRequest(f.SolutionPath));
 
-            var sln = await _sessionFactory.GetSolutionAsync(solution);
+            var sln = await _sessionFactory.GetSolutionAsync(req.SolutionPath);
             var report = await _inventory.AnalyzeAsync(sln);
             var result = StaticClassInventoryResult.FromReport(report);
 
@@ -53,4 +54,6 @@ internal sealed class StaticClassInventoryCommand : IRtCommand, IStructuredOutpu
 
         return cmd;
     }
+
+    private sealed record StaticClassInventoryCliRequest(string? SolutionPath) : ISupportsSolutionOption;
 }
