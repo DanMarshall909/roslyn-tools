@@ -39,15 +39,21 @@ internal sealed class MakeSealedCommand : IRtCommand, IRefactorCommand
     public Command Build()
     {
         var typeOpt = CommandOptionFactory.CreateTypeOption("--type", "Class to seal");
-        var solutionOpt = CommandOptionFactory.CreateSolutionOption();
-        var dryRunOpt = CommandOptionFactory.CreateDryRunOption();
+        var binder = RtCommandFlagBinder.Create()
+            .WithSolution()
+            .WithDryRun();
 
         var cmd = new Command("make-sealed", "Add the sealed modifier to a class that has no derived types");
         cmd.AddAlias("ms");
-        cmd.AddAll(typeOpt, solutionOpt, dryRunOpt);
+        cmd.Add(typeOpt);
+        binder.AddTo(cmd);
 
-        cmd.SetHandler(async (type, solution, dryRun) => { await ExecuteAsync(type, solution, dryRun); }, typeOpt,
-            solutionOpt, dryRunOpt);
+        cmd.SetHandler(async ctx =>
+        {
+            var req = binder.Bind(ctx.ParseResult, f =>
+                new MakeSealedCliRequest(ctx.ParseResult.GetValueForOption(typeOpt)!, f.SolutionPath, f.DryRun));
+            await ExecuteAsync(req.Type, req.SolutionPath, req.DryRun);
+        });
 
         return cmd;
     }
@@ -64,4 +70,9 @@ internal sealed class MakeSealedCommand : IRtCommand, IRefactorCommand
             await _makeSealed.RunAsync(sln, typeName, dryRun);
         }
     }
+
+    private sealed record MakeSealedCliRequest(
+        string Type,
+        string? SolutionPath,
+        bool DryRun) : ISupportsSolutionOption, ISupportsDryRunOption;
 }

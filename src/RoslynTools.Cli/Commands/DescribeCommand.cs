@@ -41,32 +41,34 @@ internal sealed class DescribeCommand : IRtCommand, IStructuredOutputCommand, II
     {
         var symbolArg = new Argument<string>("symbol",
             "Fully-qualified type name, or a member signature ('Type.Method(paramType, ...)') to drill in");
-        var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln/.slnx file");
-        var kindOpt = new Option<string?>("--kind", "Symbol kind: type, method, property, field, namespace");
+        var binder = RtCommandFlagBinder.Create()
+            .WithSolution("Path to the .sln/.slnx file")
+            .WithKind("Symbol kind: type, method, property, field, namespace");
         var withLocationsOpt = new Option<bool>("--with-locations",
             "Restore the legacy verbose shape (per-member line numbers + locations) instead of the compact signature array");
 
         var cmd = new Command("describe",
             "Show a type's compact signature array, or drill into a member by signature (JSON)")
         {
-            symbolArg, solutionOpt, kindOpt, withLocationsOpt
+            symbolArg, withLocationsOpt
         };
+        binder.AddTo(cmd);
 
         cmd.SetHandler(async ctx =>
             {
                 var symbol = ctx.ParseResult.GetValueForArgument(symbolArg);
-                var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
-                var kind = ctx.ParseResult.GetValueForOption(kindOpt);
                 var withLocations = ctx.ParseResult.GetValueForOption(withLocationsOpt);
+                var req = binder.Bind(ctx.ParseResult,
+                    f => new DescribeCliRequest(symbol, f.SolutionPath, f.Kind, withLocations));
 
-                var sln = await _sessionFactory.GetSolutionAsync(solution);
-                var inspection = await _inspect.Describe(sln, symbol, kind, withLocations);
+                var sln = await _sessionFactory.GetSolutionAsync(req.SolutionPath);
+                var inspection = await _inspect.Describe(sln, req.Symbol, req.Kind, req.WithLocations);
 
                 inspection.Match(
                     result =>
                     {
                         if (result is CompactDescription cd)
-                            result = cd with { Suggestions = SuggestionHelper.ForDescribe(cd, solution) };
+                            result = cd with { Suggestions = SuggestionHelper.ForDescribe(cd, req.SolutionPath) };
                         RtResultRenderer.Write(RtResult<object>.Ok(result));
                     },
                     error => RtErrorPresenter.Surface(ctx, error));
@@ -74,4 +76,10 @@ internal sealed class DescribeCommand : IRtCommand, IStructuredOutputCommand, II
 
         return cmd;
     }
+
+    private sealed record DescribeCliRequest(
+        string Symbol,
+        string? SolutionPath,
+        string? Kind,
+        bool WithLocations) : ISupportsSolutionOption, ISupportsKindOption;
 }
