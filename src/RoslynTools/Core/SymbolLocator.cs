@@ -364,40 +364,9 @@ internal static class SymbolLocator
         return new string(signature.Where(c => !char.IsWhiteSpace(c)).ToArray());
     }
 
-    private static ISymbol Disambiguate(List<SymbolMatch> matches, string name)
-    {
-        var store = DecisionContext.Store;
-        if (store is not null)
-            return DisambiguateViaStore(matches, name, store);
-
-        RtConsole.WriteLine(RtOutputContext.Interactive, $"\nMultiple symbols match '{name}':");
-        for (var i = 0; i < matches.Count; i++)
-        {
-            var m = matches[i];
-            RtConsole.WriteLine(RtOutputContext.Interactive,
-                $"  [{i}]  {m.Symbol.Kind,-12} {m.DisplayName,-60} ({m.ProjectName})");
-        }
-
-        while (true)
-        {
-            RtConsole.Write(RtOutputContext.Interactive, $"Enter number [0-{matches.Count - 1}]: ");
-            var rawInput = RtConsole.ReadLine();
-            if (rawInput is null)
-                throw new InvalidOperationException(
-                    $"Multiple symbols match '{name}', but no selection was provided. "
-                    + "Pass a more specific symbol or provide input for the prompt.");
-
-            var input = rawInput.Trim();
-            if (int.TryParse(input, out var choice) && choice >= 0 && choice < matches.Count)
-                return matches[choice].Symbol;
-            RtConsole.WriteLine(RtOutputContext.Interactive, "  Invalid selection, try again.");
-        }
-    }
-
     /// <summary>
-    ///     Result-returning counterpart to <see cref="Disambiguate" /> for migrated callers.
     ///     The decisions-store path is unchanged (it may throw <see cref="DecisionsRequiredException" />
-    ///     for the exit-2 flow); a non-interactive prompt with no input becomes a typed
+    ///     for the exit-2 flow); without a decisions store this returns a typed
     ///     <see cref="RtErrorKind.AmbiguousMatch" /> error that lists the candidate FQNs.
     /// </summary>
     private static Result<ISymbol, RtError> TryDisambiguate(List<SymbolMatch> matches, string name)
@@ -406,32 +375,16 @@ internal static class SymbolLocator
         if (store is not null)
             return Result<ISymbol, RtError>.Ok(DisambiguateViaStore(matches, name, store));
 
-        RtConsole.WriteLine(RtOutputContext.Interactive, $"\nMultiple symbols match '{name}':");
-        for (var i = 0; i < matches.Count; i++)
-        {
-            var m = matches[i];
-            RtConsole.WriteLine(RtOutputContext.Interactive,
-                $"  [{i}]  {m.Symbol.Kind,-12} {m.DisplayName,-60} ({m.ProjectName})");
-        }
+        return AmbiguousMatch(matches, name);
+    }
 
-        while (true)
-        {
-            RtConsole.Write(RtOutputContext.Interactive, $"Enter number [0-{matches.Count - 1}]: ");
-            var rawInput = RtConsole.ReadLine();
-            if (rawInput is null)
-            {
-                var candidates = matches.Select(m => m.DisplayName).ToList();
-                return Result<ISymbol, RtError>.Err(RtError.AmbiguousMatch(
-                    $"Multiple symbols match '{name}': {string.Join(", ", candidates)}. "
-                    + "Pass a more specific fully-qualified name.",
-                    new Dictionary<string, string> { ["candidates"] = string.Join(";", candidates) }));
-            }
-
-            var input = rawInput.Trim();
-            if (int.TryParse(input, out var choice) && choice >= 0 && choice < matches.Count)
-                return Result<ISymbol, RtError>.Ok(matches[choice].Symbol);
-            RtConsole.WriteLine(RtOutputContext.Interactive, "  Invalid selection, try again.");
-        }
+    private static Result<ISymbol, RtError> AmbiguousMatch(List<SymbolMatch> matches, string name)
+    {
+        var candidates = matches.Select(m => m.DisplayName).ToList();
+        return Result<ISymbol, RtError>.Err(RtError.AmbiguousMatch(
+            $"Multiple symbols match '{name}': {string.Join(", ", candidates)}. "
+            + "Pass a more specific fully-qualified name.",
+            new Dictionary<string, string> { ["candidates"] = string.Join(";", candidates) }));
     }
 
     private static ISymbol DisambiguateViaStore(List<SymbolMatch> matches, string name, DecisionStore store)

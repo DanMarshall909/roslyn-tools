@@ -1,5 +1,6 @@
 using System.CommandLine.Invocation;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 
 namespace RoslynTools.Cli;
 
@@ -13,6 +14,18 @@ internal static class RtErrorPresenter
 {
     internal static void Surface(InvocationContext context, RtError error)
     {
+        if (RtContext.Format == OutputFormat.Json)
+        {
+            StructuredOutput.Write(new
+            {
+                kind = error.Kind.ToString(),
+                message = error.Message,
+                context = error.Context
+            }, SymbolFormatter.DefaultJsonOptions);
+            context.ExitCode = 1;
+            return;
+        }
+
         RtLog.Error("Error: {Message}", error.Message);
         context.ExitCode = 1;
     }

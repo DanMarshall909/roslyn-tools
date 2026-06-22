@@ -68,8 +68,4 @@ internal sealed class CapturingConsole : IRtConsole, IDisposable
     private static bool CarriesMarkup(RtOutputContext context)
         => context.HasFlag(RtOutputContext.Ui);
 
-    public string? ReadLine()
-    {
-        return null;
-    }
 }

@@ -105,7 +105,6 @@ public class RtConsole
         public void Log(RtLogLevel level, string template, object?[] args) { }
         public void WriteLine(RtOutputContext context, string message = "", ConsoleColor? color = null) { }
         public void Write(RtOutputContext context, string message, ConsoleColor? color = null) { }
-        public string? ReadLine() => null;
     }
 
     private sealed class CollectingConsole : IRtConsole
@@ -124,11 +123,6 @@ public class RtConsole
 
         public void Write(RtOutputContext context, string message, ConsoleColor? color = null)
         {
-        }
-
-        public string? ReadLine()
-        {
-            return null;
         }
 
         public bool IsOutputRedirected => false;

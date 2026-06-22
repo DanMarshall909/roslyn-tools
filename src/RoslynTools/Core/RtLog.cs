@@ -56,11 +56,6 @@ internal static class RtLog
             RtConsole.DefaultConsole.Write(context, message, color);
         }
 
-        public string? ReadLine()
-        {
-            return RtConsole.DefaultConsole.ReadLine();
-        }
-
         public bool IsOutputRedirected => RtConsole.DefaultConsole.IsOutputRedirected;
     }
 }

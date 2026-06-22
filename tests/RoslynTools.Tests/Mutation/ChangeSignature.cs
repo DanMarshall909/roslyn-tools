@@ -235,7 +235,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
     }
 
     [Fact]
-    public async Task uses_the_existing_disambiguation_flow_for_overloads()
+    public async Task ambiguous_overloads_require_decision_store_or_specific_signature()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
@@ -256,28 +256,57 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var originalIn = Console.In;
-            var originalOut = Console.Out;
-            using var input = new StringReader("0" + Environment.NewLine);
-            using var output = new StringWriter();
-            Console.SetIn(input);
-            Console.SetOut(output);
-
-            try
-            {
-                var updated = await new ChangeSignatureService().RenameParamAsync(
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                new ChangeSignatureService().RenameParamAsync(
                     solution,
                     "TestApp.Service.Foo",
                     "count",
-                    "total");
+                    "total"));
 
-                output.ToString().ShouldContain("Multiple symbols match 'TestApp.Service.Foo'", Case.Sensitive);
-                (await GetDocumentTextAsync(updated, "Service.cs")).ShouldContain("Foo(int total)", Case.Sensitive);
+            ex.Message.ShouldContain("Multiple symbols match 'TestApp.Service.Foo'", Case.Sensitive);
+            ex.Message.ShouldContain("TestApp.Service.Foo(int)", Case.Sensitive);
+            ex.Message.ShouldContain("TestApp.Service.Foo(string)", Case.Sensitive);
+        }
+    }
+
+    [Fact]
+    public async Task ambiguous_overload_records_decision_entry_without_tty_prompt()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Service.cs", """
+                                        namespace TestApp;
+
+                                        public class Service
+                                        {
+                                            public void Foo(int count)
+                                            {
+                                            }
+
+                                            public void Foo(string name)
+                                            {
+                                            }
+                                        }
+                                        """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var store = Core.Decisions.DecisionStore.Empty();
+            Core.Decisions.DecisionContext.Store = store;
+            try
+            {
+                await Assert.ThrowsAsync<Core.Decisions.DecisionsRequiredException>(() =>
+                    new ChangeSignatureService().RenameParamAsync(
+                        solution,
+                        "TestApp.Service.Foo",
+                        "count",
+                        "total"));
+
+                store.TryGetAnswer("ambig-TestApp.Service.Foo-2", out _).ShouldBeFalse();
             }
             finally
             {
-                Console.SetIn(originalIn);
-                Console.SetOut(originalOut);
+                Core.Decisions.DecisionContext.Store = null;
             }
         }
     }

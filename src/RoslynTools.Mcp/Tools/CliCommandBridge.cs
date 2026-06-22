@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 
 namespace RoslynTools.Mcp.Tools;
 
@@ -54,7 +55,7 @@ internal sealed class CliCommandBridge
     {
         var list = new List<string> { commandName };
 
-        if (info.JsonOutput)
+        if (info.JsonOutput || info.SupportedFormats?.Contains(OutputFormat.Json) == true)
             list.Add("--json");
 
         var hasDryRun = false;

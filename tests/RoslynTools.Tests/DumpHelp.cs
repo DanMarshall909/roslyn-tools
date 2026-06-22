@@ -520,6 +520,5 @@ public sealed class DumpHelp
             => _sb.AppendLine(message);
         public void Write(RtOutputContext context, string message, ConsoleColor? color = null)
             => _sb.Append(message);
-        public string? ReadLine() => null;
     }
 }

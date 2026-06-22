@@ -77,14 +77,6 @@ internal static class RtConsole
     }
 
     /// <summary>
-    /// Reads a line of input from the console.
-    /// </summary>
-    internal static string? ReadLine()
-    {
-        return Current.ReadLine();
-    }
-
-    /// <summary>
     /// Configures the console for use with the specified provider.
     /// </summary>
     internal static IDisposable UseConsole(IRtConsole console)
@@ -158,11 +150,6 @@ internal static class RtConsole
 
             if (color.HasValue)
                 Console.ResetColor();
-        }
-
-        public string? ReadLine()
-        {
-            return Console.ReadLine();
         }
 
         public bool IsOutputRedirected => Console.IsOutputRedirected;

@@ -304,11 +304,6 @@ public class LoggingRefactor : IClassFixture<RtServicesFixture>
             WriteEntries.Add(new WriteEntry(context, message, color));
         }
 
-        public string? ReadLine()
-        {
-            return null;
-        }
-
         public bool IsOutputRedirected => false;
 
         public sealed record LogEntry(RtLogLevel Level, string Template, object?[] Args, string RenderedMessage);

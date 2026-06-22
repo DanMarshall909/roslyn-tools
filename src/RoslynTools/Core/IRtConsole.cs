@@ -17,6 +17,4 @@ internal interface IRtConsole
     void WriteLine(RtOutputContext context, string message = "", ConsoleColor? color = null);
 
     void Write(RtOutputContext context, string message, ConsoleColor? color = null);
-
-    string? ReadLine();
 }

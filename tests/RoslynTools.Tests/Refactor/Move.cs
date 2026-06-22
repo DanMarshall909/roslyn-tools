@@ -394,11 +394,6 @@ public class Move : IClassFixture<RtServicesFixture>
         {
         }
 
-        public string? ReadLine()
-        {
-            return null;
-        }
-
         public void WriteLine(RtOutputContext context, string message = "", ConsoleColor? color = null)
         {
             if (context == RtOutputContext.Result)

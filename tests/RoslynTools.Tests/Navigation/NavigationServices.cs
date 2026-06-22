@@ -65,6 +65,50 @@ public class NavigationServices
         new FindCallersService().IsTestProject("OrderService").ShouldBeFalse();
     }
 
+    [Fact]
+    public async Task finds_callers_ambiguous_symbol_returns_machine_readable_error_without_prompt()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Decider.cs", """
+                                        namespace App;
+
+                                        public class First
+                                        {
+                                            public void Decide()
+                                            {
+                                            }
+                                        }
+
+                                        public class Second
+                                        {
+                                            public void Decide()
+                                            {
+                                            }
+                                        }
+                                        """);
+        var (workspace, sln) = project.Build();
+
+        using (workspace)
+        {
+            var console = new PromptTrackingConsole();
+            using (Core.RtConsole.UseConsole(console))
+            {
+                var result = await new FindCallersService().FindAsync(sln, "Decide", true);
+
+                result.IsErr.ShouldBeTrue();
+                var error = result.Match(_ => default!, e => e);
+                error.Kind.ShouldBe(RtErrorKind.AmbiguousMatch);
+                error.Message.ShouldContain("App.First.Decide()", Case.Sensitive);
+                error.Message.ShouldContain("App.Second.Decide()", Case.Sensitive);
+                error.Context.ShouldNotBeNull();
+                error.Context!["candidates"].ShouldContain("App.First.Decide()", Case.Sensitive);
+                error.Context!["candidates"].ShouldContain("App.Second.Decide()", Case.Sensitive);
+            }
+
+            console.InteractiveWrites.ShouldBeEmpty();
+        }
+    }
+
     // ── FindRefsService ───────────────────────────────────────────────────
 
     [Fact]
@@ -311,6 +355,28 @@ public class NavigationServices
             result["name"].ShouldBe("MaxSize");
             ((bool?)result["isConst"]).ShouldBe(true);
             result["constantValue"].ShouldBe(100);
+        }
+    }
+
+    private sealed class PromptTrackingConsole : IRtConsole
+    {
+        public List<string> InteractiveWrites { get; } = [];
+        public bool IsOutputRedirected => true;
+
+        public void Log(RtLogLevel level, string template, params object?[] args)
+        {
+        }
+
+        public void WriteLine(RtOutputContext context, string message = "", ConsoleColor? color = null)
+        {
+            if (context.HasFlag(RtOutputContext.Interactive))
+                InteractiveWrites.Add(message);
+        }
+
+        public void Write(RtOutputContext context, string message, ConsoleColor? color = null)
+        {
+            if (context.HasFlag(RtOutputContext.Interactive))
+                InteractiveWrites.Add(message);
         }
     }
 }

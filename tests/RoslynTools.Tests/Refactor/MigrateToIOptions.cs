@@ -462,11 +462,6 @@ public class MigrateToIOptions : IClassFixture<RtServicesFixture>
                 Results.Add(message);
         }
 
-        public string? ReadLine()
-        {
-            return null;
-        }
-
         public bool IsOutputRedirected => false;
     }
 }

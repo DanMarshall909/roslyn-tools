@@ -45,11 +45,6 @@ internal sealed class DaemonPipeConsole(StreamWriter writer, string requestId, s
         Send(stream, RenderToPlainText(context, message, newline: false));
     }
 
-    public string? ReadLine()
-    {
-        return null;
-    }
-
     private string RenderToPlainText(RtOutputContext context, string message, bool newline)
     {
         // Only `Ui` carries trusted host-authored markup. `Interactive` (the symbol

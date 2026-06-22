@@ -46,8 +46,6 @@ internal sealed class SpectreRtConsole : IRtConsole
 
     public TextWriter Out => System.Console.Out;
 
-    public string? ReadLine() => System.Console.ReadLine();
-
     public void Log(RtLogLevel level, string template, params object?[] args)
     {
         var body = Markup.Escape(RtConsole.RenderTemplate(template, args));
