@@ -8,59 +8,119 @@ namespace RoslynTools.Tests.Architecture;
 
 /// <summary>
 ///     Ratchets the US-114 flag-capability migration toward 100% command coverage.
-///     <para>
-///         Two <c>SkippableFact</c> tests assert the full US-114 biconditional between catalog-owned
-///         options and <c>ISupports*</c> capability interfaces. They are <b>Skipped</b> while
-///         migration is in progress, with a dynamic message reporting the remaining-work count and
-///         per-offender detail. When the count reaches zero the tests pass naturally; when US-114
-///         closes, delete the <c>Skip.If</c> guard so they become permanent hard ratchets.
-///     </para>
-///     <para>
-///         A third test (<c>[Fact]</c>, not Skipped) is the per-file regression guard: command
-///         files that have already adopted at least one capability must not regress to hand-rolled
-///         <c>new Option&lt;T&gt;("--known-flag")</c> or ad-hoc <c>GetValueForOption</c> calls for
-///         catalog-owned flags.
-///     </para>
 /// </summary>
 public sealed class FlagCapabilityMigrationTests
 {
-    /// <summary>Catalog option name → matching capability interface type.</summary>
-    private static readonly Dictionary<string, Type> OptionToCapability =
-        new(StringComparer.Ordinal)
-        {
-            ["solution"] = typeof(ISupportsSolutionOption),
-            ["dry-run"] = typeof(ISupportsDryRunOption),
-            ["top"] = typeof(ISupportsTopOption),
-            ["symbol"] = typeof(ISupportsSymbolOption),
-            ["scope"] = typeof(ISupportsScopeOption),
-            ["kind"] = typeof(ISupportsKindOption)
-        };
+    private static readonly IReadOnlyDictionary<string, Type> OptionToCapability = RtFlagCapabilityMap.OptionToCapability;
+    private static readonly IReadOnlyDictionary<Type, string[]> CapabilityToOptions = RtFlagCapabilityMap.CapabilityToOptions;
 
-    private static readonly Dictionary<Type, string> CapabilityToOption =
-        OptionToCapability.ToDictionary(kv => kv.Value, kv => kv.Key);
-
-    [SkippableFact]
-    public void every_command_with_catalog_option_implements_matching_capability()
+    [Fact]
+    public void every_catalog_option_has_a_matching_capability_interface()
     {
-        var offenders = CollectBiconditionalOffenders().ForwardOffenders;
+        var offenders = RtFlagCatalog.CatalogOptionNames
+            .Where(option => !OptionToCapability.ContainsKey(option))
+            .OrderBy(option => option, StringComparer.Ordinal)
+            .ToList();
 
-        Skip.If(
-            offenders.Count > 0,
-            $"US-114 WIP — {offenders.Count} command/option pair(s) expose a catalog flag but lack the matching ISupports* capability on the command type or its nested *CliRequest record:\n  "
-            + string.Join("\n  ", offenders)
-            + "\nRemove `Skip.If` permanently when US-114 closes.");
+        Assert.True(
+            offenders.Count == 0,
+            "Every catalog-owned option must have a matching ISupports* capability interface. "
+            + $"Offenders ({offenders.Count}): "
+            + string.Join("; ", offenders));
     }
 
-    [SkippableFact]
-    public void every_command_with_capability_exposes_matching_catalog_option()
+    [Fact]
+    public void every_capability_interface_points_at_catalog_options()
     {
-        var offenders = CollectBiconditionalOffenders().BackwardOffenders;
+        var offenders = CapabilityToOptions
+            .SelectMany(kv => kv.Value.Select(option => (Capability: kv.Key.Name, Option: option)))
+            .Where(x => !RtFlagCatalog.IsCatalogOptionName(x.Option))
+            .Select(x => $"{x.Capability} -> --{x.Option}")
+            .OrderBy(text => text, StringComparer.Ordinal)
+            .ToList();
 
-        Skip.If(
-            offenders.Count > 0,
-            $"US-114 WIP — {offenders.Count} command/capability pair(s) implement an ISupports* capability but the built Command.Options does not include the matching catalog flag:\n  "
-            + string.Join("\n  ", offenders)
-            + "\nRemove `Skip.If` permanently when US-114 closes.");
+        Assert.True(
+            offenders.Count == 0,
+            "Every ISupports* capability must point at catalog-owned options. "
+            + $"Offenders ({offenders.Count}): "
+            + string.Join("; ", offenders));
+    }
+
+    [Fact]
+    public void every_command_catalog_option_is_declared_in_the_capability_map()
+    {
+        var offenders = new List<string>();
+
+        foreach (var entry in App.Commands)
+        {
+            Command cmd;
+            try
+            {
+                cmd = entry.Build();
+            }
+            catch
+            {
+                continue;
+            }
+
+            foreach (var option in cmd.Options.Where(o => RtFlagCatalog.IsCatalogOptionName(o.Name)))
+            {
+                if (!OptionToCapability.ContainsKey(option.Name))
+                    offenders.Add($"{entry.Info.Name}: --{option.Name} is catalog-owned but has no capability mapping");
+            }
+        }
+
+        offenders.Sort(StringComparer.Ordinal);
+
+        Assert.True(
+            offenders.Count == 0,
+            "Every built command option that belongs to RtFlagCatalog must have a capability mapping. "
+            + $"Offenders ({offenders.Count}): "
+            + string.Join("; ", offenders));
+    }
+
+    [Fact]
+    public void every_command_with_capability_exposes_matching_catalog_options()
+    {
+        var offenders = new List<string>();
+
+        foreach (var entry in App.Commands)
+        {
+            var commandType = ResolveCommandType(entry.Info.Name);
+            if (commandType is null)
+                continue;
+
+            Command cmd;
+            try
+            {
+                cmd = entry.Build();
+            }
+            catch
+            {
+                continue;
+            }
+
+            var declaredOptionNames = cmd.Options
+                .Select(o => o.Name)
+                .ToHashSet(StringComparer.Ordinal);
+
+            foreach (var capability in GetImplementedCapabilities(commandType))
+            {
+                foreach (var optionName in CapabilityToOptions[capability])
+                {
+                    if (!declaredOptionNames.Contains(optionName))
+                        offenders.Add($"{entry.Info.Name}: implements {capability.Name} but built Command lacks --{optionName}");
+                }
+            }
+        }
+
+        offenders.Sort(StringComparer.Ordinal);
+
+        Assert.True(
+            offenders.Count == 0,
+            "Every command/request type that implements an ISupports* capability must expose the matching catalog option(s). "
+            + $"Offenders ({offenders.Count}): "
+            + string.Join("; ", offenders));
     }
 
     [Fact]
@@ -76,14 +136,13 @@ public sealed class FlagCapabilityMigrationTests
 
         foreach (var commandType in migratedCommandTypes)
         {
-            var commandName = ToCommandName(commandType!.Name);
-            var file = Path.Combine(sourceRoot, "src", "RoslynTools.Cli", "Commands", commandType.Name + ".cs");
+            var file = Path.Combine(sourceRoot, "src", "RoslynTools.Cli", "Commands", commandType!.Name + ".cs");
             if (!File.Exists(file))
                 continue;
 
             var text = File.ReadAllText(file);
             var implementedFlags = GetImplementedCapabilities(commandType)
-                .Select(c => CapabilityToOption[c])
+                .SelectMany(c => CapabilityToOptions[c])
                 .ToList();
 
             foreach (var flag in implementedFlags)
@@ -111,53 +170,6 @@ public sealed class FlagCapabilityMigrationTests
             + string.Join("\n", offenders));
     }
 
-    private static (List<string> ForwardOffenders, List<string> BackwardOffenders) CollectBiconditionalOffenders()
-    {
-        var forwardOffenders = new List<string>();
-        var backwardOffenders = new List<string>();
-
-        foreach (var entry in App.Commands)
-        {
-            var commandType = ResolveCommandType(entry.Info.Name);
-            if (commandType is null)
-                continue;
-
-            Command cmd;
-            try
-            {
-                cmd = entry.Build();
-            }
-            catch
-            {
-                continue;
-            }
-
-            var declaredOptionNames = cmd.Options
-                .Select(o => o.Name)
-                .Where(name => OptionToCapability.ContainsKey(name))
-                .ToHashSet(StringComparer.Ordinal);
-            var implementedCapabilities = GetImplementedCapabilities(commandType);
-
-            foreach (var optionName in declaredOptionNames)
-            {
-                var capability = OptionToCapability[optionName];
-                if (!implementedCapabilities.Contains(capability))
-                    forwardOffenders.Add($"{entry.Info.Name}: option --{optionName} present but {capability.Name} not implemented");
-            }
-
-            foreach (var capability in implementedCapabilities)
-            {
-                var optionName = CapabilityToOption[capability];
-                if (!declaredOptionNames.Contains(optionName))
-                    backwardOffenders.Add($"{entry.Info.Name}: implements {capability.Name} but built Command lacks --{optionName}");
-            }
-        }
-
-        forwardOffenders.Sort(StringComparer.Ordinal);
-        backwardOffenders.Sort(StringComparer.Ordinal);
-        return (forwardOffenders, backwardOffenders);
-    }
-
     private static Type? ResolveCommandType(string commandName)
     {
         var className = ToCommandClassName(commandName);
@@ -165,7 +177,7 @@ public sealed class FlagCapabilityMigrationTests
     }
 
     /// <summary>
-    ///     Returns every <see cref="ISupports*"/> capability interface implemented by the
+    ///     Returns every <see cref="ISupportsSolutionOption" />-style capability interface implemented by the
     ///     command type itself OR by any nested type (the conventional <c>*CliRequest</c> record).
     /// </summary>
     private static HashSet<Type> GetImplementedCapabilities(Type? commandType)
@@ -186,7 +198,7 @@ public sealed class FlagCapabilityMigrationTests
     {
         foreach (var i in t.GetInterfaces())
         {
-            if (CapabilityToOption.ContainsKey(i))
+            if (CapabilityToOptions.ContainsKey(i))
                 sink.Add(i);
         }
     }
@@ -198,15 +210,6 @@ public sealed class FlagCapabilityMigrationTests
                 .Split('-', StringSplitOptions.RemoveEmptyEntries)
                 .Select(part => char.ToUpperInvariant(part[0]) + part[1..]))
             + "Command";
-    }
-
-    private static string ToCommandName(string commandClassName)
-    {
-        // Inverse of ToCommandClassName: "FindRefsCommand" → "find-refs".
-        var trimmed = commandClassName.EndsWith("Command", StringComparison.Ordinal)
-            ? commandClassName[..^"Command".Length]
-            : commandClassName;
-        return Regex.Replace(trimmed, "(?<!^)([A-Z])", "-$1").ToLowerInvariant();
     }
 
     private static string ToCamelCase(string value)
