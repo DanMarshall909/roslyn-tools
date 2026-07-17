@@ -83,7 +83,7 @@ internal sealed record FindUnusedResult : IRtOutput, IRtJsonOutput
                 Line = s.Line,
                 Confidence = s.Confidence,
                 Reason = s.Reason,
-                SuggestedFixes = s.Confidence.Equals("high", StringComparison.OrdinalIgnoreCase)
+                SuggestedFixes = s.Confidence.Equals(UnusedConfidence.High, StringComparison.OrdinalIgnoreCase)
                     ? FixCatalog.ForUnusedSymbol(s.Kind, s.Name, solutionPath)
                     : []
             }).ToList()

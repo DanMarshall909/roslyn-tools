@@ -168,7 +168,9 @@ public class FindUnusedMigration : IDisposable
             Kind = "method",
             Name = "Foo",
             FilePath = "/a/b.cs",
-            Line = 1
+            Line = 1,
+            Confidence = UnusedConfidence.High,
+            Reason = UnusedReason.NoSourceReferences
         };
         symbolResult.ShouldBeAssignableTo<IRtOutput>();
     }

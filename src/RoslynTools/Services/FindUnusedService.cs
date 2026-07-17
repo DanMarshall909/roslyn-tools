@@ -7,6 +7,26 @@ using RoslynTools.Core;
 namespace RoslynTools.Services;
 
 /// <summary>
+/// How far a finding can be trusted. find-unused emits a safe-delete suggestion only at
+/// <see cref="High"/>, so anything the analysis cannot see through must be reported at
+/// <see cref="Low"/> rather than excluded outright — the finding stays visible, but it
+/// cannot invite a deletion.
+/// </summary>
+internal static class UnusedConfidence
+{
+    internal const string High = "high";
+    internal const string Low = "low";
+}
+
+/// <summary>
+/// Standard <see cref="UnusedSymbol.Reason"/> values.
+/// </summary>
+internal static class UnusedReason
+{
+    internal const string NoSourceReferences = "No source references were found.";
+}
+
+/// <summary>
 /// Detects unused symbols in the codebase.
 /// </summary>
 internal record UnusedSymbol(
@@ -14,8 +34,8 @@ internal record UnusedSymbol(
     string Kind,
     string? FilePath,
     int Line,
-    string Confidence = "high",
-    string Reason = "No source references were found.");
+    string Confidence = UnusedConfidence.High,
+    string Reason = UnusedReason.NoSourceReferences);
 
 /// <summary>
 /// Searches for unused services in a solution.

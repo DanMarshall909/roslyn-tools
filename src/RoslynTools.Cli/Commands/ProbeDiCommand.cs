@@ -32,7 +32,8 @@ internal sealed class ProbeDiCommand : IRtCommand, IAnalyzeCommand, IStructuredO
         [
             "rt analyze probe-di --entrypoint Bootstrap.RegisterServices --solution MyApp.slnx"
         ],
-        SeeAlso: ["add-dynamic-dependency", "find-unused"]);
+        SeeAlso: ["add-dynamic-dependency", "find-unused"],
+        SupportedFormats: [OutputFormat.Text, OutputFormat.Json]);
 
     public Command Build()
     {
@@ -209,19 +210,19 @@ internal sealed record ProbeDiFinding
         string implementationType,
         string root,
         string? solutionPath) => new()
-    {
-        ServiceType = serviceType,
-        ImplementationType = implementationType,
-        Status = "invisible",
-        Reason = "The implementation is registered at runtime but has no source reference or reflective-use annotation.",
-        SuggestedFix = new SuggestedFix
         {
-            Tool = "rt",
-            Ref = "add-dynamic-dependency",
-            Description = "Add a durable static reference at the composition root.",
-            CommandLine = $"rt refactor add-dynamic-dependency --type \"{implementationType}\" --root \"{root}\" --solution \"{solutionPath}\""
-        }
-    };
+            ServiceType = serviceType,
+            ImplementationType = implementationType,
+            Status = "invisible",
+            Reason = "The implementation is registered at runtime but has no source reference or reflective-use annotation.",
+            SuggestedFix = new SuggestedFix
+            {
+                Tool = "rt",
+                Ref = "add-dynamic-dependency",
+                Description = "Add a durable static reference at the composition root.",
+                CommandLine = $"rt refactor add-dynamic-dependency --type \"{implementationType}\" --root \"{root}\" --solution \"{solutionPath}\""
+            }
+        };
 }
 
 internal sealed record ProbeDiResult : IRtOutput, IRtJsonOutput
