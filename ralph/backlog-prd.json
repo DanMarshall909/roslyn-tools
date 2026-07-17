@@ -1807,6 +1807,21 @@
             "priority": 137,
             "passes": false,
             "notes": "P2. Deferred from US-135 Beads-lessons batch. Only describe (CLI+MCP) and find-refs (MCP) received _suggestions. Remaining commands: find-callers, find-impl, find-unused, find-pattern (inspect group); circular-deps, dependency-graph, analyze-interface, find-duplicates, find-magic-strings, list-imports, list-smells (analyze group). Each needs: SuggestionHelper.For<Command> overload + CLI adapter + MCP handler enrichment + tests."
+        },
+        {
+            "id": "US-138",
+            "title": "rt inspect find-unused: framework-instantiated types reported as unused (xUnit fixtures, DI/convention-registered services)",
+            "description": "As a user running find-unused before a safe-delete pass, I want types that a framework constructs reflectively to be excluded, so that the output is signal rather than noise and never invites deleting live code. find-unused equates 'zero SymbolFinder references' with 'dead'. A type constructed by a container or test runner rather than by explicit `new` has no source references, so it is reported as unused even though deleting it breaks the build or silently drops behaviour.",
+            "acceptanceCriteria": [
+                "A class is not reported when it or any base type declares [Fact]/[Theory] methods (inherited-only fixtures must also be excluded, e.g. a contract base class holding the [Fact]s)",
+                "A class deriving from ControllerBase or carrying [ApiController] is not reported",
+                "A type used as a type-argument in a DI registration (AddSingleton<IFoo,Foo>, AddScoped, AddTransient, AddHostedService, AddHttpClient<TI,TImpl>) is not reported — add a regression test even if FindReferencesAsync already resolves the type-argument",
+                "Assembly-scanning registration (Scrutor .FromAssemblies().AddClasses()) is documented in Info.KnownIssues as an undetectable case rather than silently mis-reported",
+                "find-unused --scope types on RoslynTools.slnx and on a solution with xUnit tests reports zero test fixtures"
+            ],
+            "priority": 138,
+            "passes": false,
+            "notes": "P1 correctness. Root cause: FindUnusedService.ShouldExclude (src/RoslynTools/Services/FindUnusedService.cs:75-96) excludes METHODS carrying [Fact]/[Theory] (`symbol is IMethodSymbol m`) but never the CONTAINING TYPE, and has no DI/reflection awareness at all. Evidence: `find_unused --scope types` via MCP against DnDan-2nd-Edition (csharp/DnDan.slnx) returned ~30 types of which all but one (RecordedEventExtensions, a genuine finding) were xUnit test classes. SqliteEventStoreTests was among them despite having no [Fact] of its own — its [Fact]s are inherited from the EventStoreContractTests base — so keying the fix on directly-declared attributes only would still miss it. Severity is raised by each finding emitting a `rt refactor safe-delete` suggestedFix, so the false positives actively invite deleting live code. The xUnit half is directly verified; the DI half follows from the same root cause and bites specifically on convention/assembly-scan registration, since explicit AddSingleton<IFoo,Foo>() does create a resolvable reference."
         }
     ]
 }
