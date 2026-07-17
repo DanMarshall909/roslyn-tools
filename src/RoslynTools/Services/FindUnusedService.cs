@@ -9,7 +9,13 @@ namespace RoslynTools.Services;
 /// <summary>
 /// Detects unused symbols in the codebase.
 /// </summary>
-internal record UnusedSymbol(string Name, string Kind, string? FilePath, int Line);
+internal record UnusedSymbol(
+    string Name,
+    string Kind,
+    string? FilePath,
+    int Line,
+    string Confidence = "high",
+    string Reason = "No source references were found.");
 
 /// <summary>
 /// Searches for unused services in a solution.
@@ -25,6 +31,7 @@ internal class FindUnusedService : IRtService
     {
         var results = new List<UnusedSymbol>();
         var rtIgnore = RtIgnore.ForSolution(solution);
+        var reflectivelyScannedProjects = await FindReflectivelyScannedProjectsAsync(solution);
 
         foreach (var project in solution.Projects)
             foreach (var document in project.Documents)
@@ -46,11 +53,17 @@ internal class FindUnusedService : IRtService
 
                         var refs = await SymbolFinder.FindReferencesAsync(symbol, solution);
                         var count = refs.Sum(r => r.Locations.Count());
-                        if (count == 0)
-                        {
-                            var line = typeDecl.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
-                            results.Add(new UnusedSymbol(symbol.Name, "type", document.FilePath, line));
-                        }
+                        if (count != 0)
+                            continue;
+
+                        // Assembly scanning intentionally trades false negatives for zero false positives.
+                        // find-unused can trigger deletion, so a live type must never be labelled dead merely
+                        // because its construction happens through a reflective container.
+                        if (reflectivelyScannedProjects.Contains(project.Id) && IsInstantiable(symbol))
+                            continue;
+
+                        var line = typeDecl.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+                        results.Add(new UnusedSymbol(symbol.Name, "type", document.FilePath, line));
                     }
 
                 if (scope is "all" or "methods")
@@ -73,13 +86,51 @@ internal class FindUnusedService : IRtService
         return results;
     }
 
+    private static async Task<HashSet<ProjectId>> FindReflectivelyScannedProjectsAsync(Solution solution)
+    {
+        var projects = new HashSet<ProjectId>();
+        foreach (var project in solution.Projects)
+            foreach (var document in project.Documents)
+            {
+                var root = await document.GetSyntaxRootAsync();
+                if (root == null)
+                    continue;
+
+                var hasAssemblyScan = root.DescendantNodes()
+                    .OfType<InvocationExpressionSyntax>()
+                    .Select(i => i.Expression.ToString())
+                    .Any(e => e.Contains("FromAssemblyOf", StringComparison.Ordinal)
+                              || e.Contains("FromAssemblies", StringComparison.Ordinal)
+                              || e.EndsWith(".AddClasses", StringComparison.Ordinal)
+                              || e == "AddClasses");
+
+                if (hasAssemblyScan)
+                {
+                    projects.Add(project.Id);
+                    break;
+                }
+            }
+
+        return projects;
+    }
+
+    private static bool IsInstantiable(INamedTypeSymbol type) =>
+        type.TypeKind == TypeKind.Class
+        && !type.IsAbstract
+        && !type.IsStatic;
+
     private bool ShouldExclude(ISymbol symbol)
     {
         if (symbol is INamedTypeSymbol type)
         {
-            var attrNames = type.GetAttributes().Select(a => a.AttributeClass?.Name ?? "");
-            if (attrNames.Any(n => n is "SerializableAttribute" or "Serializable"
-                    or "DataContractAttribute" or "JsonObjectAttribute"))
+            if (HasAttribute(type, "SerializableAttribute", "Serializable", "DataContractAttribute",
+                    "JsonObjectAttribute", "ApiControllerAttribute", "UsedImplicitlyAttribute"))
+                return true;
+
+            if (InheritsFrom(type, "ControllerBase"))
+                return true;
+
+            if (IsXunitFixture(type))
                 return true;
         }
 
@@ -89,10 +140,36 @@ internal class FindUnusedService : IRtService
         if (symbol.Name == "Main")
             return true;
 
-        if (symbol is IMethodSymbol m && m.GetAttributes().Any(a =>
-                a.AttributeClass?.Name is "FactAttribute" or "TheoryAttribute"))
+        if (symbol is IMethodSymbol m && HasAttribute(m, "FactAttribute", "TheoryAttribute"))
             return true;
 
         return false;
+    }
+
+    private static bool IsXunitFixture(INamedTypeSymbol type)
+    {
+        for (var current = type; current != null; current = current.BaseType)
+            if (current.GetMembers().OfType<IMethodSymbol>()
+                .Any(m => HasAttribute(m, "FactAttribute", "TheoryAttribute")))
+                return true;
+
+        return false;
+    }
+
+    private static bool InheritsFrom(INamedTypeSymbol type, string baseTypeName)
+    {
+        for (var current = type.BaseType; current != null; current = current.BaseType)
+            if (current.Name == baseTypeName)
+                return true;
+
+        return false;
+    }
+
+    private static bool HasAttribute(ISymbol symbol, params string[] names)
+    {
+        var expected = names.ToHashSet(StringComparer.Ordinal);
+        return symbol.GetAttributes().Any(a =>
+            a.AttributeClass is { } attribute
+            && (expected.Contains(attribute.Name) || expected.Contains(attribute.MetadataName)));
     }
 }
