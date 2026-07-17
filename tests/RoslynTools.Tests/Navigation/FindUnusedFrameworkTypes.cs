@@ -310,6 +310,47 @@ public class FindUnusedFrameworkTypes
         }
     }
 
+    [Fact(DisplayName = "find-unused stays conservative when a project reflects in more than one file")]
+    public async Task reports_low_confidence_when_several_documents_each_discover_reflectively()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Registry.cs", """
+                                         using System;
+                                         using System.Reflection;
+
+                                         public sealed class HandlerOne { }
+
+                                         public static class Registry
+                                         {
+                                             public static void Register(Assembly assembly)
+                                             {
+                                                 foreach (var type in assembly.GetTypes())
+                                                     Console.WriteLine(type.Name);
+                                             }
+                                         }
+                                         """);
+        // The mirror of the two-scanning-files case: a second reflecting file cannot cancel the
+        // first, so the per-project signal must be a fold here too.
+        project.AddSource("Activator.cs", """
+                                          using System;
+
+                                          public static class Factory
+                                          {
+                                              public static object? Make(Type type) => Activator.CreateInstance(type);
+                                          }
+                                          """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var results = await new FindUnusedService().AnalyzeAsync(solution, "types");
+
+            results.Single(result => result.Name == "HandlerOne").Confidence
+                .ShouldBe(UnusedConfidence.Low,
+                    "two reflecting files mean more reflective construction, not less");
+        }
+    }
+
     [Fact(DisplayName = "find-unused reports an abstract class in a scanned project at high confidence")]
     public async Task abstract_class_in_a_scanned_project_is_reported_at_high_confidence()
     {
