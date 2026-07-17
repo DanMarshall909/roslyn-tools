@@ -37,13 +37,16 @@ fi
 fname="${fp##*/}"       # strip up to the last forward slash
 fname="${fname##*\\}"   # strip up to the last backslash
 basename="${fname%.cs}"
-log="${RT_INSPECTED_LOG:-/c/temp/rt-inspected.log}"
 
-# Bypass if rt build is known broken. rt.ps1 writes /c/temp/rt-build-status
+# shellcheck source=rt-paths.sh
+. "$(dirname "${BASH_SOURCE[0]}")/rt-paths.sh"
+log="$(rt_inspected_log)"
+
+# Bypass if rt build is known broken. The rt wrappers write the status marker
 # on every invocation: 'ok' on success, 'broken' on rebuild failure. Without
 # this bypass, a broken build would lock the agent out of the very files it
 # needs to read to fix the build.
-status_marker="${RT_BUILD_STATUS_MARKER:-/c/temp/rt-build-status}"
+status_marker="$(rt_build_status_marker)"
 if [[ -f "$status_marker" ]] && [[ "$(cat "$status_marker" 2>/dev/null)" == "broken" ]]; then
   jq -nc --arg msg "rt-first gate bypassed: rt build is broken (per $status_marker). Fix the build, then run any rt command to clear the marker." \
     '{hookSpecificOutput: {hookEventName: "PreToolUse", additionalContext: $msg}}'
@@ -52,7 +55,7 @@ fi
 
 # Write: always allow, and log the basename so subsequent Edits pass the gate.
 if [[ "$tool_name" == "Write" ]]; then
-  mkdir -p /c/temp
+  mkdir -p "$(dirname "$log")" 2>/dev/null || true
   echo "$basename" >> "$log"
   exit 0
 fi

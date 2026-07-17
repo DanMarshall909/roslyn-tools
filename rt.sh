@@ -5,7 +5,15 @@ EXE="$OUT_DIR/rt"
 WIN_EXE="$OUT_DIR/rt.exe"
 DLL="$OUT_DIR/rt.dll"
 PROJ="$SCRIPT_DIR/src/RoslynTools.Cli/RoslynTools.Cli.csproj"
-BUILD_STATUS_MARKER="/c/temp/rt-build-status"
+
+# The build-status marker path is shared with .claude/scripts/rt-first-gate.sh,
+# which reads it to bypass the rt-first gate while the build is broken. Both
+# sides resolve it through the single definition in rt-paths.sh so they cannot
+# drift. rt.sh always runs from a checkout (it builds $PROJ from source), so
+# rt-paths.sh is always alongside it.
+# shellcheck source=.claude/scripts/rt-paths.sh
+. "$SCRIPT_DIR/.claude/scripts/rt-paths.sh"
+BUILD_STATUS_MARKER="$(rt_build_status_marker)"
 
 write_build_status() {
     mkdir -p "$(dirname "$BUILD_STATUS_MARKER")" 2>/dev/null || true
