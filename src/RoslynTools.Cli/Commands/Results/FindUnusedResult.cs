@@ -8,9 +8,6 @@ namespace RoslynTools.Commands.Results;
 /// <summary>Per-symbol entry in a find-unused result.</summary>
 internal sealed record UnusedSymbolResult : IRtOutput
 {
-    // Kind and Name are Llm-level so the LLM renderer writes them;
-    // FilePath and Line are Default so all renderers include them.
-
     [OutputField(OutputLevel.Llm, "kind")] public required string Kind { get; init; }
 
     [OutputField(OutputLevel.Llm, "name")] public required string Name { get; init; }
@@ -21,11 +18,17 @@ internal sealed record UnusedSymbolResult : IRtOutput
     [OutputField(OutputLevel.Default, "line")]
     public required int Line { get; init; }
 
+    [OutputField(OutputLevel.Llm, "confidence")]
+    public required string Confidence { get; init; }
+
+    [OutputField(OutputLevel.Llm, "reason")]
+    public required string Reason { get; init; }
+
     public IReadOnlyList<SuggestedFix> SuggestedFixes { get; init; } = [];
 
     public void RenderText(TextWriter writer)
     {
-        writer.Write($"{Kind,-10} {Name,-40} {FilePath}:{Line}");
+        writer.Write($"{Kind,-10} {Name,-40} {FilePath}:{Line} [{Confidence}] {Reason}");
         foreach (var fix in SuggestedFixes)
         {
             writer.WriteLine();
@@ -50,6 +53,8 @@ internal sealed record FindUnusedResult : IRtOutput, IRtJsonOutput
                 name = s.Name,
                 filePath = s.FilePath,
                 line = s.Line,
+                confidence = s.Confidence,
+                reason = s.Reason,
                 suggestedFixes = s.SuggestedFixes.Select(f => f.AsJsonObject()).ToArray()
             }).ToArray()
         };
@@ -76,7 +81,11 @@ internal sealed record FindUnusedResult : IRtOutput, IRtJsonOutput
                 Name = s.Name,
                 FilePath = s.FilePath ?? string.Empty,
                 Line = s.Line,
-                SuggestedFixes = FixCatalog.ForUnusedSymbol(s.Kind, s.Name, solutionPath)
+                Confidence = s.Confidence,
+                Reason = s.Reason,
+                SuggestedFixes = s.Confidence.Equals("high", StringComparison.OrdinalIgnoreCase)
+                    ? FixCatalog.ForUnusedSymbol(s.Kind, s.Name, solutionPath)
+                    : []
             }).ToList()
         };
     }
