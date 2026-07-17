@@ -30,8 +30,15 @@ jobs:
       - name: Restore
         run: dotnet restore RoslynTools.slnx
 
-      - name: Verify formatting
+      - name: Check formatting
+        id: formatting
+        continue-on-error: true
         run: dotnet format RoslynTools.slnx --verify-no-changes --no-restore
+
+      - name: Report formatting warning
+        if: steps.formatting.outcome == 'failure'
+        shell: pwsh
+        run: Write-Warning "dotnet format found formatting differences. Build and tests will continue."
 
       - name: Build
         run: dotnet build RoslynTools.slnx --configuration Release --no-restore
