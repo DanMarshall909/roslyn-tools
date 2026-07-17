@@ -120,6 +120,74 @@ public class FindUnusedFrameworkTypes
         }
     }
 
+    [Fact(DisplayName = "find-unused excludes the type declaring the entry point")]
+    public async Task excludes_the_type_that_declares_main()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Program.cs", """
+                                        public static class Program
+                                        {
+                                            public static void Main(string[] args) { }
+                                        }
+                                        """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var results = await new FindUnusedService().AnalyzeAsync(solution, "types");
+
+            results.Select(result => result.Name).ShouldNotContain("Program",
+                "the runtime invokes Main, so the entry-point type has no source reference and deleting it breaks the build");
+        }
+    }
+
+    [Fact(DisplayName = "find-unused excludes a static class whose extension method is called")]
+    public async Task excludes_extension_class_whose_extension_method_is_called()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Extensions.cs", """
+                                           public static class StringExtensions
+                                           {
+                                               public static bool IsBlank(this string value) => value.Length == 0;
+                                           }
+
+                                           public class Caller
+                                           {
+                                               public bool Run(string s) => s.IsBlank();
+                                           }
+                                           """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var results = await new FindUnusedService().AnalyzeAsync(solution, "types");
+
+            results.Select(result => result.Name).ShouldNotContain("StringExtensions",
+                "an extension call names the method, never the containing class, so the type has zero references while being live");
+        }
+    }
+
+    [Fact(DisplayName = "find-unused still reports a static class whose extension method is never called")]
+    public async Task reports_extension_class_whose_extension_method_is_never_called()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Extensions.cs", """
+                                           public static class DeadExtensions
+                                           {
+                                               public static bool IsBlank(this string value) => value.Length == 0;
+                                           }
+                                           """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var results = await new FindUnusedService().AnalyzeAsync(solution, "types");
+
+            results.Select(result => result.Name).ShouldContain("DeadExtensions",
+                "an extension class nobody calls is genuinely dead and must still be reported");
+        }
+    }
+
     [Fact(DisplayName = "find-unused reports a type in a non-reflective project at high confidence")]
     public async Task type_in_a_project_without_reflection_is_reported_at_high_confidence()
     {

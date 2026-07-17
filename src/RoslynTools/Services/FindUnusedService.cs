@@ -19,11 +19,20 @@ internal static class UnusedConfidence
 }
 
 /// <summary>
-/// Standard <see cref="UnusedSymbol.Reason"/> values.
+/// Standard <see cref="UnusedSymbol.Reason"/> values. A reason states what the analysis
+/// could or could not see, so the caller can judge a low-confidence finding for itself.
 /// </summary>
 internal static class UnusedReason
 {
     internal const string NoSourceReferences = "No source references were found.";
+
+    internal const string AssemblyScan =
+        "No source references were found, but this project registers types by assembly scan, "
+        + "so a live registration would leave no reference.";
+
+    internal const string ReflectiveDiscovery =
+        "No source references were found, but this project discovers types reflectively, "
+        + "so a live use would leave no reference.";
 }
 
 /// <summary>
@@ -77,14 +86,20 @@ internal class FindUnusedService : IRtService
                         if (count != 0)
                             continue;
 
-                        // Assembly scanning intentionally trades false negatives for zero false positives.
-                        // find-unused can trigger deletion, so a live type must never be labelled dead merely
-                        // because its construction happens through a reflective container.
-                        if (reflectivelyScannedProjects.Contains(project.Id) && IsInstantiable(symbol))
+                        if (await HasReferencedExtensionMethodAsync(symbol, solution))
                             continue;
 
+                        // A reflective container can construct this type without any source
+                        // reference, so zero references is no longer proof of death. Report the
+                        // finding at low confidence with the reason: safe-delete is withheld, and
+                        // the caller decides whether to investigate.
                         var line = typeDecl.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
-                        results.Add(new UnusedSymbol(symbol.Name, "type", document.FilePath, line));
+                        results.Add(
+                            IsInstantiable(symbol)
+                            && reflectivelyScannedProjects.TryGetValue(project.Id, out var reflectiveReason)
+                                ? new UnusedSymbol(symbol.Name, "type", document.FilePath, line,
+                                    UnusedConfidence.Low, reflectiveReason)
+                                : new UnusedSymbol(symbol.Name, "type", document.FilePath, line));
                     }
 
                 if (scope is "all" or "methods")
@@ -107,9 +122,30 @@ internal class FindUnusedService : IRtService
         return results;
     }
 
-    private static async Task<HashSet<ProjectId>> FindReflectivelyScannedProjectsAsync(Solution solution)
+    /// <summary>
+    /// Scrutor-style selector calls. Their presence means registration is driven by an
+    /// assembly walk, so any instantiable type in that assembly may be a live registration.
+    /// </summary>
+    private static readonly string[] AssemblyScanSelectors =
+        ["FromAssemblyOf", "FromAssemblies", "AddClasses"];
+
+    /// <summary>
+    /// Reflection APIs that construct or discover types without naming them. A hand-rolled
+    /// registry (rt's own IRtCommand discovery is one) leaves no source reference either,
+    /// so the same uncertainty applies as for a Scrutor scan.
+    /// </summary>
+    private static readonly string[] ReflectiveDiscoveryApis =
+        ["GetTypes", "GetExportedTypes", "DefinedTypes", "CreateInstance", "IsAssignableFrom"];
+
+    /// <summary>
+    /// Maps each project that discovers types reflectively to the reason describing what the
+    /// analysis cannot see through. Findings in those projects are reported at low confidence
+    /// rather than suppressed: the caller — not rt — decides what an uncertain finding means,
+    /// and hiding it would only trade a false positive for a false negative.
+    /// </summary>
+    private static async Task<Dictionary<ProjectId, string>> FindReflectivelyScannedProjectsAsync(Solution solution)
     {
-        var projects = new HashSet<ProjectId>();
+        var projects = new Dictionary<ProjectId, string>();
         foreach (var project in solution.Projects)
             foreach (var document in project.Documents)
             {
@@ -117,17 +153,20 @@ internal class FindUnusedService : IRtService
                 if (root == null)
                     continue;
 
-                var hasAssemblyScan = root.DescendantNodes()
+                var invoked = root.DescendantNodes()
                     .OfType<InvocationExpressionSyntax>()
                     .Select(i => i.Expression.ToString())
-                    .Any(e => e.Contains("FromAssemblyOf", StringComparison.Ordinal)
-                              || e.Contains("FromAssemblies", StringComparison.Ordinal)
-                              || e.EndsWith(".AddClasses", StringComparison.Ordinal)
-                              || e == "AddClasses");
+                    .ToList();
 
-                if (hasAssemblyScan)
+                var reason = invoked.Any(e => AssemblyScanSelectors.Any(s => e.Contains(s, StringComparison.Ordinal)))
+                    ? UnusedReason.AssemblyScan
+                    : invoked.Any(e => ReflectiveDiscoveryApis.Any(s => e.Contains(s, StringComparison.Ordinal)))
+                        ? UnusedReason.ReflectiveDiscovery
+                        : null;
+
+                if (reason != null)
                 {
-                    projects.Add(project.Id);
+                    projects[project.Id] = reason;
                     break;
                 }
             }
@@ -135,10 +174,44 @@ internal class FindUnusedService : IRtService
         return projects;
     }
 
+    /// <summary>
+    /// True when the type declares an extension method that something calls. `value.IsBlank()`
+    /// binds to the method and never writes the declaring class's name, so an extension
+    /// container shows zero references however heavily it is used — reporting it as dead
+    /// offered a safe-delete that would break the build (found dogfooding rt's own
+    /// StringExtensions, which has live callers). Only extension methods need this: a normal
+    /// static call writes `Foo.Bar()`, which does reference the type.
+    /// </summary>
+    private static async Task<bool> HasReferencedExtensionMethodAsync(INamedTypeSymbol type, Solution solution)
+    {
+        foreach (var method in type.GetMembers().OfType<IMethodSymbol>().Where(m => m.IsExtensionMethod))
+        {
+            var refs = await SymbolFinder.FindReferencesAsync(method, solution);
+            if (refs.Sum(r => r.Locations.Count()) > 0)
+                return true;
+        }
+
+        return false;
+    }
+
     private static bool IsInstantiable(INamedTypeSymbol type) =>
         type.TypeKind == TypeKind.Class
         && !type.IsAbstract
         && !type.IsStatic;
+
+    /// <summary>
+    /// The name of the CLR entry-point method. The runtime calls it, so neither it nor the
+    /// type declaring it is ever referenced from source.
+    /// </summary>
+    private const string EntryPointMethodName = "Main";
+
+    /// <summary>
+    /// True when the type declares the entry point. Excluding only the <c>Main</c> method — as
+    /// this service originally did — still left its containing type reported as dead, the same
+    /// method-excluded-but-type-not gap that reported xUnit fixtures. Deleting it breaks the build.
+    /// </summary>
+    private static bool DeclaresEntryPoint(INamedTypeSymbol type) =>
+        type.GetMembers(EntryPointMethodName).OfType<IMethodSymbol>().Any(m => m.IsStatic);
 
     private bool ShouldExclude(ISymbol symbol)
     {
@@ -151,6 +224,9 @@ internal class FindUnusedService : IRtService
             if (InheritsFrom(type, "ControllerBase"))
                 return true;
 
+            if (DeclaresEntryPoint(type))
+                return true;
+
             if (IsXunitFixture(type))
                 return true;
         }
@@ -158,7 +234,7 @@ internal class FindUnusedService : IRtService
         if (symbol.ContainingType?.TypeKind == TypeKind.Interface)
             return true;
 
-        if (symbol.Name == "Main")
+        if (symbol.Name == EntryPointMethodName)
             return true;
 
         if (symbol is IMethodSymbol m && HasAttribute(m, "FactAttribute", "TheoryAttribute"))

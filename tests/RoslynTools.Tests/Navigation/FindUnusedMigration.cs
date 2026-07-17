@@ -30,10 +30,16 @@ public class FindUnusedMigration : IDisposable
         return FindUnusedResult.FromSymbols(symbols);
     }
 
-    // ── AC-3: RenderText reproduces prior output byte-for-byte ───────────────
+    // ── AC-3: RenderText preserves the legacy column layout ──────────────────
+    // The original migration asserted byte-for-byte equality with the pre-renderer
+    // output. Two later changes deliberately extended the line: the suggested-fix
+    // catalog appends "  → [tool] ..." continuation lines, and US-138 appends the
+    // finding's confidence. What still has to hold is that the legacy prefix — the
+    // aligned "{Kind,-10} {Name,-40} {FilePath}:{Line}" columns — is intact, so
+    // existing readers of the leading columns keep working.
 
     [Fact]
-    public void renders_text_matching_legacy_format_exactly()
+    public void renders_text_preserving_the_legacy_column_prefix()
     {
         var symbol = new UnusedSymbol("UnusedMethod", "method", "/path/to/Services.cs", 42);
         var result = FindUnusedResult.FromSymbols([symbol]);
@@ -41,21 +47,41 @@ public class FindUnusedMigration : IDisposable
         var sw = new StringWriter();
         result.RenderText(sw);
 
-        // Legacy format: "{r.Kind,-10} {r.Name,-40} {r.FilePath}:{r.Line}"
-        var expected = $"{"method",-10} {"UnusedMethod",-40} /path/to/Services.cs:42";
-        sw.ToString().TrimEnd('\r', '\n').ShouldBe(expected);
+        var legacyPrefix = $"{"method",-10} {"UnusedMethod",-40} /path/to/Services.cs:42";
+        var firstLine = sw.ToString().Split('\n')[0];
+        firstLine.ShouldStartWith(legacyPrefix, Case.Sensitive,
+            "the aligned legacy columns lead the line; confidence and fixes are additive");
     }
 
     [Fact]
-    public void renders_text_with_each_symbol_on_own_line()
+    public void renders_text_reporting_the_confidence_of_each_finding()
+    {
+        var symbol = new UnusedSymbol("UnusedMethod", "method", "/path/to/Services.cs", 42);
+        var result = FindUnusedResult.FromSymbols([symbol]);
+
+        var sw = new StringWriter();
+        result.RenderText(sw);
+
+        sw.ToString().Split('\n')[0].ShouldContain(UnusedConfidence.High, Case.Sensitive,
+            "the caller decides what to do with a finding, so text output must state the confidence too");
+    }
+
+    [Fact]
+    public void renders_text_with_each_symbol_heading_its_own_line()
     {
         var result = BuildSampleResult();
         var sw = new StringWriter();
         result.RenderText(sw);
-        var lines = sw.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        lines.Length.ShouldBe(2);
-        lines[0].ShouldContain("UnusedMethod", Case.Sensitive);
-        lines[1].ShouldContain("OrphanClass", Case.Sensitive);
+
+        // Continuation lines for suggested fixes are indented with "  →"; a finding heads a line.
+        var findingLines = sw.ToString()
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Where(line => !line.TrimStart().StartsWith('→'))
+            .ToList();
+
+        findingLines.Count.ShouldBe(2, "two symbols means two findings, however many fixes each carries");
+        findingLines[0].ShouldContain("UnusedMethod", Case.Sensitive);
+        findingLines[1].ShouldContain("OrphanClass", Case.Sensitive);
     }
 
     [Fact]
