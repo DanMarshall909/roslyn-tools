@@ -138,6 +138,21 @@ internal class FindUnusedService : IRtService
         ["GetTypes", "GetExportedTypes", "DefinedTypes", "CreateInstance", "IsAssignableFrom"];
 
     /// <summary>
+    /// Attribute class names marking a type whose instances a framework produces — a serializer,
+    /// MVC, or a container — so source references understate real use. Names carry the compiler's
+    /// "Attribute" suffix: `[Serializable]` binds to SerializableAttribute, so the bare spelling
+    /// can never match and is not listed.
+    /// </summary>
+    private static readonly string[] FrameworkOwnedTypeAttributes =
+    [
+        "SerializableAttribute",
+        "DataContractAttribute",
+        "JsonObjectAttribute",
+        "ApiControllerAttribute",
+        "UsedImplicitlyAttribute"
+    ];
+
+    /// <summary>
     /// Maps each project that discovers types reflectively to the reason describing what the
     /// analysis cannot see through. Findings in those projects are reported at low confidence
     /// rather than suppressed: the caller — not rt — decides what an uncertain finding means,
@@ -147,6 +162,10 @@ internal class FindUnusedService : IRtService
     {
         var projects = new Dictionary<ProjectId, string>();
         foreach (var project in solution.Projects)
+        {
+            var scans = false;
+            var reflects = false;
+
             foreach (var document in project.Documents)
             {
                 var root = await document.GetSyntaxRootAsync();
@@ -158,18 +177,18 @@ internal class FindUnusedService : IRtService
                     .Select(i => i.Expression.ToString())
                     .ToList();
 
-                var reason = invoked.Any(e => AssemblyScanSelectors.Any(s => e.Contains(s, StringComparison.Ordinal)))
-                    ? UnusedReason.AssemblyScan
-                    : invoked.Any(e => ReflectiveDiscoveryApis.Any(s => e.Contains(s, StringComparison.Ordinal)))
-                        ? UnusedReason.ReflectiveDiscovery
-                        : null;
-
-                if (reason != null)
-                {
-                    projects[project.Id] = reason;
-                    break;
-                }
+                scans |= invoked.Any(e => AssemblyScanSelectors.Any(s => e.Contains(s, StringComparison.Ordinal)));
+                reflects |= invoked.Any(e => ReflectiveDiscoveryApis.Any(s => e.Contains(s, StringComparison.Ordinal)));
             }
+
+            // Every document is examined before choosing, and an assembly scan outranks bare
+            // reflection: stopping at the first hit would make the reported reason depend on
+            // document order in a project that does both.
+            if (scans)
+                projects[project.Id] = UnusedReason.AssemblyScan;
+            else if (reflects)
+                projects[project.Id] = UnusedReason.ReflectiveDiscovery;
+        }
 
         return projects;
     }
@@ -187,7 +206,7 @@ internal class FindUnusedService : IRtService
         foreach (var method in type.GetMembers().OfType<IMethodSymbol>().Where(m => m.IsExtensionMethod))
         {
             var refs = await SymbolFinder.FindReferencesAsync(method, solution);
-            if (refs.Sum(r => r.Locations.Count()) > 0)
+            if (refs.SelectMany(r => r.Locations).Any())
                 return true;
         }
 
@@ -217,8 +236,7 @@ internal class FindUnusedService : IRtService
     {
         if (symbol is INamedTypeSymbol type)
         {
-            if (HasAttribute(type, "SerializableAttribute", "Serializable", "DataContractAttribute",
-                    "JsonObjectAttribute", "ApiControllerAttribute", "UsedImplicitlyAttribute"))
+            if (HasAttribute(type, FrameworkOwnedTypeAttributes))
                 return true;
 
             if (InheritsFrom(type, "ControllerBase"))
@@ -262,11 +280,14 @@ internal class FindUnusedService : IRtService
         return false;
     }
 
+    /// <summary>
+    /// Matches by attribute class name. Names are the compiler's, so they always carry the
+    /// "Attribute" suffix however the usage was written: `[Fact]` binds to FactAttribute.
+    /// </summary>
     private static bool HasAttribute(ISymbol symbol, params string[] names)
     {
         var expected = names.ToHashSet(StringComparer.Ordinal);
         return symbol.GetAttributes().Any(a =>
-            a.AttributeClass is { } attribute
-            && (expected.Contains(attribute.Name) || expected.Contains(attribute.MetadataName)));
+            a.AttributeClass is { } attribute && expected.Contains(attribute.Name));
     }
 }

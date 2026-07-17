@@ -192,7 +192,19 @@ public class FindUnusedFrameworkTypes
     public async Task type_in_a_project_without_reflection_is_reported_at_high_confidence()
     {
         using var project = new AdhocProjectBuilder();
-        project.AddSource("Models.cs", "public sealed class OrphanType { }");
+        // This project makes ordinary calls but no reflective ones. A project with no calls at
+        // all would pass even if every selector were blanked out (the Any() over an empty list
+        // is false regardless), so the ordinary calls are what make this test discriminating.
+        project.AddSource("Models.cs", """
+                                       using System;
+
+                                       public sealed class OrphanType { }
+
+                                       public sealed class Worker
+                                       {
+                                           public string Run(string value) => value.Trim().ToUpperInvariant();
+                                       }
+                                       """);
 
         var (workspace, solution) = project.Build();
         using (workspace)
@@ -202,6 +214,140 @@ public class FindUnusedFrameworkTypes
             var finding = results.Single(result => result.Name == "OrphanType");
             finding.Confidence.ShouldBe(UnusedConfidence.High,
                 "nothing in this project constructs types reflectively, so zero references really does mean dead");
+        }
+    }
+
+    [Fact(DisplayName = "find-unused reports types in a project using reflection at low confidence")]
+    public async Task reports_types_in_a_project_using_reflective_discovery_at_low_confidence()
+    {
+        using var project = new AdhocProjectBuilder();
+        // A hand-rolled registry rather than a Scrutor scan — rt's own IRtCommand discovery is
+        // exactly this shape, and it leaves no source reference either.
+        project.AddSource("Registry.cs", """
+                                         using System;
+                                         using System.Reflection;
+
+                                         public sealed class HandlerOne { }
+
+                                         public static class Registry
+                                         {
+                                             public static void Register(Assembly assembly)
+                                             {
+                                                 foreach (var type in assembly.GetTypes())
+                                                     Console.WriteLine(type.Name);
+                                             }
+                                         }
+                                         """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var results = await new FindUnusedService().AnalyzeAsync(solution, "types");
+
+            var finding = results.Single(result => result.Name == "HandlerOne");
+            finding.Confidence.ShouldBe(UnusedConfidence.Low,
+                "a reflective registry can construct any instantiable type without naming it");
+            finding.Reason.ShouldBe(UnusedReason.ReflectiveDiscovery,
+                "the reason must name reflection, not assembly scanning — they are different mechanisms");
+        }
+    }
+
+    [Fact(DisplayName = "find-unused reports a static class in a scanned project at high confidence")]
+    public async Task static_class_in_a_scanned_project_is_reported_at_high_confidence()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Services.cs", AssemblyScannedProject + """
+
+
+                                                                  public static class DeadHelpers
+                                                                  {
+                                                                      public static int Double(int x) => x * 2;
+                                                                  }
+                                                                  """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var results = await new FindUnusedService().AnalyzeAsync(solution, "types");
+
+            var finding = results.Single(result => result.Name == "DeadHelpers");
+            finding.Confidence.ShouldBe(UnusedConfidence.High,
+                "a container cannot construct a static class, so a scan casts no doubt on it");
+        }
+    }
+
+    [Fact(DisplayName = "find-unused reports an abstract class in a scanned project at high confidence")]
+    public async Task abstract_class_in_a_scanned_project_is_reported_at_high_confidence()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Services.cs", AssemblyScannedProject + """
+
+
+                                                                  public abstract class DeadBase { }
+                                                                  """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var results = await new FindUnusedService().AnalyzeAsync(solution, "types");
+
+            var finding = results.Single(result => result.Name == "DeadBase");
+            finding.Confidence.ShouldBe(UnusedConfidence.High,
+                "a container cannot construct an abstract class, so a scan casts no doubt on it either");
+        }
+    }
+
+    [Fact(DisplayName = "find-unused excludes a fixture declaring only theories")]
+    public async Task excludes_test_fixture_declaring_theory_methods()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Tests.cs", """
+                                      using System;
+
+                                      [AttributeUsage(AttributeTargets.Method)]
+                                      public sealed class TheoryAttribute : Attribute { }
+
+                                      public sealed class TheoryOnlyTests
+                                      {
+                                          [Theory]
+                                          public void Parameterised(int x) { }
+                                      }
+                                      """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var results = await new FindUnusedService().AnalyzeAsync(solution, "types");
+
+            results.Select(result => result.Name).ShouldNotContain("TheoryOnlyTests",
+                "a fixture whose cases are all [Theory] is runner-constructed just as a [Fact] fixture is");
+        }
+    }
+
+    [Theory(DisplayName = "find-unused excludes types owned by a framework attribute")]
+    [InlineData("JsonObjectAttribute", "JsonObject")]
+    [InlineData("UsedImplicitlyAttribute", "UsedImplicitly")]
+    [InlineData("DataContractAttribute", "DataContract")]
+    public async Task excludes_types_carrying_a_framework_attribute(string attributeType, string usage)
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Contracts.cs", $$"""
+                                            using System;
+
+                                            [AttributeUsage(AttributeTargets.Class)]
+                                            public sealed class {{attributeType}} : Attribute { }
+
+                                            [{{usage}}]
+                                            public sealed class OwnedType { }
+                                            """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var results = await new FindUnusedService().AnalyzeAsync(solution, "types");
+
+            results.Select(result => result.Name).ShouldNotContain("OwnedType",
+                $"[{usage}] means something other than source constructs this type");
         }
     }
 }

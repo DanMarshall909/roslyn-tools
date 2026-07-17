@@ -46,23 +46,60 @@ internal sealed class AddDynamicDependencyService : IRtService
         if (attributes.Length == 0)
             return;
 
+        // The attribute list is emitted ahead of the method but inherits none of its trivia,
+        // so it must carry the method's own indentation or the result fails dotnet format.
         var updatedMethod = method.AddAttributeLists(
-            SyntaxFactory.AttributeList(SyntaxFactory.SeparatedList(attributes))
-                .WithTrailingTrivia(SyntaxFactory.ElasticCarriageReturnLineFeed));
+            Format(SyntaxFactory.AttributeList(SyntaxFactory.SeparatedList(attributes)))
+                .WithLeadingTrivia(IndentationOf(method))
+                .WithTrailingTrivia(SyntaxFactory.ElasticLineFeed));
 
         var root = (CompilationUnitSyntax)(await document.GetSyntaxRootAsync()
                    ?? throw new InvalidOperationException("The composition-root document has no syntax root."));
         var updatedRoot = root.ReplaceNode(method, updatedMethod);
 
-        if (!updatedRoot.Usings.Any(u => u.Name?.ToString() == "System.Diagnostics.CodeAnalysis"))
+        if (!updatedRoot.Usings.Any(u => u.Name?.ToString() == CodeAnalysisNamespace))
         {
             updatedRoot = updatedRoot.AddUsings(
-                SyntaxFactory.UsingDirective(SyntaxFactory.ParseName("System.Diagnostics.CodeAnalysis"))
-                    .WithTrailingTrivia(SyntaxFactory.ElasticCarriageReturnLineFeed));
+                Format(SyntaxFactory.UsingDirective(SyntaxFactory.ParseName(CodeAnalysisNamespace)))
+                    .WithTrailingTrivia(SyntaxFactory.ElasticLineFeed));
         }
 
         solution = solution.WithDocumentSyntaxRoot(document.Id, updatedRoot);
         await _solutionChangeWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
+    }
+
+    /// <summary>The BCL namespace holding <c>DynamicDependencyAttribute</c>; no package reference needed.</summary>
+    private const string CodeAnalysisNamespace = "System.Diagnostics.CodeAnalysis";
+
+    /// <summary>
+    /// Line ending for emitted syntax. The repo is LF-only (.gitattributes eol=lf), so the
+    /// Roslyn default of CRLF would mix endings into every file this refactor touches.
+    /// </summary>
+    private const string LineEnding = "\n";
+
+    private const string Indentation = "    ";
+
+    /// <summary>
+    /// Applies standard C# spacing to a node built from raw <see cref="SyntaxFactory"/> calls.
+    /// Factory nodes carry no trivia at all, so without this a using directive renders as
+    /// "usingSystem.Diagnostics.CodeAnalysis;" — which does not compile — and argument lists
+    /// render without the space after each comma.
+    /// </summary>
+    private static TNode Format<TNode>(TNode node) where TNode : SyntaxNode =>
+        node.NormalizeWhitespace(Indentation, LineEnding);
+
+    /// <summary>
+    /// The whitespace a declaration sits at, so an emitted attribute can line up with it rather
+    /// than against the margin.
+    /// </summary>
+    private static SyntaxTriviaList IndentationOf(SyntaxNode node)
+    {
+        var whitespace = node.GetLeadingTrivia()
+            .LastOrDefault(t => t.IsKind(SyntaxKind.WhitespaceTrivia));
+
+        return whitespace.IsKind(SyntaxKind.WhitespaceTrivia)
+            ? SyntaxTriviaList.Create(whitespace)
+            : SyntaxTriviaList.Empty;
     }
 
     private static AttributeSyntax BuildAttribute(INamedTypeSymbol targetType)
