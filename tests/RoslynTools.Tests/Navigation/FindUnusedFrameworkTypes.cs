@@ -64,7 +64,12 @@ public class FindUnusedFrameworkTypes
 
     // A project whose registration goes through a reflective container. The scan is what
     // makes any instantiable type in the assembly a possible live registration.
+    // The ordinary Trim() call alongside the selectors is deliberate: with selector calls
+    // only, "every invocation is a selector" and "some invocation is a selector" agree, and
+    // a test cannot tell the two apart.
     private const string AssemblyScannedProject = """
+                                                  using System;
+
                                                   public sealed class ServiceCollection
                                                   {
                                                       public ServiceCollection FromAssemblies() => this;
@@ -75,9 +80,10 @@ public class FindUnusedFrameworkTypes
 
                                                   public static class Registration
                                                   {
-                                                      public static void AddServices(ServiceCollection services)
+                                                      public static string AddServices(ServiceCollection services, string name)
                                                       {
                                                           services.FromAssemblies().AddClasses();
+                                                          return name.Trim();
                                                       }
                                                   }
                                                   """;
@@ -273,6 +279,34 @@ public class FindUnusedFrameworkTypes
             var finding = results.Single(result => result.Name == "DeadHelpers");
             finding.Confidence.ShouldBe(UnusedConfidence.High,
                 "a container cannot construct a static class, so a scan casts no doubt on it");
+        }
+    }
+
+    [Fact(DisplayName = "find-unused stays conservative when a project scans in more than one file")]
+    public async Task reports_low_confidence_when_several_documents_each_register_by_scan()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Services.cs", AssemblyScannedProject);
+        // A second registration file is ordinary in a real app. Accumulating the signal per
+        // project must stay a fold, not a toggle: a second scan cannot cancel the first.
+        project.AddSource("MoreServices.cs", """
+                                             public static class MoreRegistration
+                                             {
+                                                 public static void AddMore(ServiceCollection services)
+                                                 {
+                                                     services.FromAssemblies().AddClasses();
+                                                 }
+                                             }
+                                             """);
+
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var results = await new FindUnusedService().AnalyzeAsync(solution, "types");
+
+            results.Single(result => result.Name == "ReflectiveService").Confidence
+                .ShouldBe(UnusedConfidence.Low,
+                    "two scanning files mean more reflective registration, not less");
         }
     }
 
