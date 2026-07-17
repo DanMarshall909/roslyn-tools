@@ -1816,12 +1816,45 @@
                 "A class is not reported when it or any base type declares [Fact]/[Theory] methods (inherited-only fixtures must also be excluded, e.g. a contract base class holding the [Fact]s)",
                 "A class deriving from ControllerBase or carrying [ApiController] is not reported",
                 "A type used as a type-argument in a DI registration (AddSingleton<IFoo,Foo>, AddScoped, AddTransient, AddHostedService, AddHttpClient<TI,TImpl>) is not reported — add a regression test even if FindReferencesAsync already resolves the type-argument",
-                "Assembly-scanning registration (Scrutor .FromAssemblies().AddClasses()) is documented in Info.KnownIssues as an undetectable case rather than silently mis-reported",
-                "find-unused --scope types on RoslynTools.slnx and on a solution with xUnit tests reports zero test fixtures"
+                "Scrutor assembly-scanning is handled in tiers rather than declared undetectable: interpret the readable selector chain (FromAssemblyOf<T>/FromAssemblies, AddClasses(c => c.AssignableTo<T>()), InNamespaces, WithAttribute<T>) and treat matching types as referenced; where the selector is an arbitrary lambda, suppress unused-type findings for instantiable types in the scanned assembly only (sound, localised, trades false negatives for zero false positives). See US-139 for the probe that backfills annotations.",
+                "find-unused --scope types on RoslynTools.slnx and on a solution with xUnit tests reports zero test fixtures",
+                "Findings carry confidence + reason, and the safe-delete suggestedFix is emitted only at high confidence, so an uncertain finding can never invite deleting live code"
             ],
             "priority": 138,
             "passes": false,
-            "notes": "P1 correctness. Root cause: FindUnusedService.ShouldExclude (src/RoslynTools/Services/FindUnusedService.cs:75-96) excludes METHODS carrying [Fact]/[Theory] (`symbol is IMethodSymbol m`) but never the CONTAINING TYPE, and has no DI/reflection awareness at all. Evidence: `find_unused --scope types` via MCP against DnDan-2nd-Edition (csharp/DnDan.slnx) returned ~30 types of which all but one (RecordedEventExtensions, a genuine finding) were xUnit test classes. SqliteEventStoreTests was among them despite having no [Fact] of its own — its [Fact]s are inherited from the EventStoreContractTests base — so keying the fix on directly-declared attributes only would still miss it. Severity is raised by each finding emitting a `rt refactor safe-delete` suggestedFix, so the false positives actively invite deleting live code. The xUnit half is directly verified; the DI half follows from the same root cause and bites specifically on convention/assembly-scan registration, since explicit AddSingleton<IFoo,Foo>() does create a resolvable reference."
+            "notes": "P1 correctness. Root cause: FindUnusedService.ShouldExclude (src/RoslynTools/Services/FindUnusedService.cs:75-96) excludes METHODS carrying [Fact]/[Theory] (`symbol is IMethodSymbol m`) but never the CONTAINING TYPE, and has no DI/reflection awareness at all. Evidence: `find_unused --scope types` via MCP against DnDan-2nd-Edition (csharp/DnDan.slnx) returned ~30 types of which all but one (RecordedEventExtensions, a genuine finding) were xUnit test classes. SqliteEventStoreTests was among them despite having no [Fact] of its own — its [Fact]s are inherited from the EventStoreContractTests base — so keying the fix on directly-declared attributes only would still miss it. Severity is raised by each finding emitting a `rt refactor safe-delete` suggestedFix, so the false positives actively invite deleting live code. The xUnit half is directly verified; the DI half follows from the same root cause and bites specifically on convention/assembly-scan registration, since explicit AddSingleton<IFoo,Foo>() does create a resolvable reference. | Design note: find-unused's error costs are asymmetric — it triggers deletion, so a false positive (live code called dead) is far worse than a false negative (dead code missed). Bias conservative wherever the analysis is blind."
+        },
+        {
+            "id": "US-139",
+            "title": "rt analyze probe-di: opt-in DI probe that lists registered types invisible to static analysis",
+            "description": "As a maintainer of a solution using assembly-scanning DI, I want an opt-in probe that reports which registered implementation types carry no static reference and no reflective-use annotation, so that I can backfill annotations once and let the purely-static find-unused stay correct afterwards. The probe is a generator, not part of the analysis path: find-unused itself never executes user code.",
+            "acceptanceCriteria": [
+                "rt analyze probe-di --entrypoint <Type.Method> --solution <sln> invokes ONLY the named registration method against a fresh ServiceCollection and enumerates ServiceDescriptors — it does not boot the host or run the application",
+                "Reports each ServiceDescriptor.ImplementationType that has zero SymbolFinder references AND carries none of [UsedImplicitly], [DynamicDependency] (targeting it via typeof), or an ILLink descriptor entry",
+                "Types registered via a factory delegate (ImplementationType == null) are reported as unprobeable rather than silently skipped",
+                "Each finding carries a suggestedFix whose commandLine invokes `rt refactor add-dynamic-dependency` (US-140) for that type — probe-di is in the analyze group and stays read-only; it never mutates source",
+                "The probe requires a built solution; it fails with a clear message rather than a load exception when assemblies are missing",
+                "probe-di is never invoked implicitly by find-unused"
+            ],
+            "priority": 139,
+            "passes": false,
+            "notes": "P2. Child of US-138; addresses the assembly-scanning hole that static analysis alone cannot close. Key design: the probe's output is durable static facts (annotations), so it runs occasionally rather than on every analysis — this is what makes executing a slice of user code acceptable. Narrow blast radius: invoke the registration extension method only, not the app lifecycle. Annotation choice matters — [DynamicDependency] goes on the CONSUMER pointing at the target via typeof, which SymbolFinder already counts, so it is self-fixing; [UsedImplicitly] sits on the type but needs a JetBrains.Annotations package reference plus explicit Tier-3 support in ShouldExclude; [DynamicallyAccessedMembers] is the wrong shape (it annotates Type-valued parameters/fields, not declarations). Known hole: factory registrations expose no ImplementationType, but their lambda bodies usually contain `new X()`, which is already a static reference — so the probe's real yield is Scrutor scans and AddHostedService<T>. | Read/write split: probe-di reports and links; US-140 applies. Keeps the analyze group read-only per repo convention and lets a user review findings before any source changes."
+        },
+        {
+            "id": "US-140",
+            "title": "rt refactor add-dynamic-dependency: annotate a composition root so reflectively-registered types stay visible",
+            "description": "As a maintainer acting on probe-di findings, I want a refactor that adds [DynamicDependency] for a reflectively-registered type onto its composition root, so that the type gains a real source reference and every static tool — find-unused, trimming, NativeAOT — stops treating it as dead. Applying the annotation is the durable fix; the probe only finds what needs it.",
+            "acceptanceCriteria": [
+                "rt refactor add-dynamic-dependency --type <fqn> --root <Type.Method> --solution <sln> adds [DynamicDependency(DynamicallyAccessedMemberTypes.PublicConstructors, typeof(<type>))] to the named composition-root method",
+                "--dry-run prints the diff and applies nothing (repo convention for destructive refactors)",
+                "Adds the System.Diagnostics.CodeAnalysis using directive when absent, and adds no package reference (the attribute is in the BCL)",
+                "Re-running is idempotent: an existing [DynamicDependency] for the same type is not duplicated",
+                "After applying, rt inspect find-unused no longer reports the annotated type — because typeof(<type>) is a real reference SymbolFinder already resolves, with no special-casing in ShouldExclude",
+                "Accepts repeated --type arguments so a full probe-di run can be actioned in one invocation"
+            ],
+            "priority": 140,
+            "passes": false,
+            "notes": "P2. Completes the US-138 → US-139 → US-140 chain: detect the blindness, probe for what static analysis cannot see, then make it statically visible for good. The annotation is chosen so the fix is self-reinforcing rather than tool-specific — [DynamicDependency] is BCL, needs no package, and helps trimming/NativeAOT for the same reason it helps find-unused: it turns an invisible reflective edge into a real typeof reference. Verify the acceptance test asserts find-unused's behaviour AFTER the refactor, so the chain is proven end to end rather than assumed."
         }
     ]
 }
