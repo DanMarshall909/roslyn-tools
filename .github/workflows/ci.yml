@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   build-and-test:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 30
 
     steps:
@@ -37,8 +37,7 @@ jobs:
 
       - name: Report formatting warning
         if: steps.formatting.outcome == 'failure'
-        shell: pwsh
-        run: Write-Warning "dotnet format found formatting differences. Build and tests will continue."
+        run: echo "::warning::dotnet format found formatting differences. Build and tests will continue."
 
       - name: Build
         run: dotnet build RoslynTools.slnx --configuration Release --no-restore
