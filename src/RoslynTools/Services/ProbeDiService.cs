@@ -115,7 +115,12 @@ internal sealed class ProbeDiService : IRtService
         return services;
     }
 
-    private static async Task<IReadOnlyList<ProbeDiRegistration>> ClassifyAsync(
+    /// <summary>
+    /// Decides what each observed registration means. This is the analysis, and it is separable
+    /// from the probe: it reads a ServiceCollection someone else produced, so it can be exercised
+    /// against a hand-built one without loading an assembly or executing any user code.
+    /// </summary>
+    internal static async Task<IReadOnlyList<ProbeDiRegistration>> ClassifyAsync(
         Solution solution,
         ServiceCollection services)
     {

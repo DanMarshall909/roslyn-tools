@@ -61,6 +61,16 @@ public sealed class AdhocProjectBuilder : IDisposable
     }
 
     /// <summary>
+    ///     Add a non-source file to the default project — an ILLink descriptor, say. These land in
+    ///     <see cref="Project.AdditionalDocuments" />, not <see cref="Project.Documents" />.
+    /// </summary>
+    public AdhocProjectBuilder AddAdditionalDocument(string relativePath, string content)
+    {
+        _default.AdditionalFiles.Add((relativePath, content));
+        return this;
+    }
+
+    /// <summary>
     ///     Create (or get) a named project in the solution. Use the returned handle to add
     ///     sources and reference other projects.
     /// </summary>
@@ -106,6 +116,21 @@ public sealed class AdhocProjectBuilder : IDisposable
                     loader: TextLoader.From(TextAndVersion.Create(text, VersionStamp.Create(), fullPath))));
             }
 
+            var additionalDocs = new List<DocumentInfo>();
+            foreach (var (rel, content) in p.AdditionalFiles)
+            {
+                var fullPath = Path.GetFullPath(Path.Combine(projectDir, rel));
+                System.IO.Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+                File.WriteAllText(fullPath, content, Encoding.UTF8);
+
+                var text = SourceText.From(content, Encoding.UTF8);
+                additionalDocs.Add(DocumentInfo.Create(
+                    DocumentId.CreateNewId(projectIds[p.Name]),
+                    Path.GetFileName(rel),
+                    filePath: fullPath,
+                    loader: TextLoader.From(TextAndVersion.Create(text, VersionStamp.Create(), fullPath))));
+            }
+
             var projectRefs = p.ProjectReferenceNames
                 .Select(n => new ProjectReference(projectIds[n]))
                 .ToList();
@@ -123,7 +148,8 @@ public sealed class AdhocProjectBuilder : IDisposable
                 parseOptions: CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Latest),
                 documents: docs,
                 projectReferences: projectRefs,
-                metadataReferences: BclReferences));
+                metadataReferences: BclReferences)
+                .WithAdditionalDocuments(additionalDocs));
         }
 
         var workspace = new AdhocWorkspace();
@@ -169,6 +195,7 @@ public sealed class AdhocProjectBuilder : IDisposable
 
         public string Name { get; }
         internal List<(string RelativePath, string Content)> Files { get; } = new();
+        internal List<(string RelativePath, string Content)> AdditionalFiles { get; } = new();
         internal List<string> ProjectReferenceNames { get; } = new();
 
         public ProjectDef AddSource(string relativePath, string content)
