@@ -78,12 +78,15 @@ public class ProbeDiClassification
     public async Task ignores_an_implementation_carrying_a_reflective_use_annotation()
     {
         using var project = new AdhocProjectBuilder();
+        // The Obsolete alongside it is deliberate: with the one attribute only, "some attribute
+        // marks reflective use" and "every attribute does" agree, and no test can separate them.
         project.AddSource("Subjects.cs", SourceFor("""
                                                    using System;
 
                                                    [AttributeUsage(AttributeTargets.Class)]
                                                    public sealed class UsedImplicitlyAttribute : Attribute { }
 
+                                                   [Obsolete]
                                                    [UsedImplicitly]
                                                    public sealed class InvisibleSubject { }
                                                    """));
