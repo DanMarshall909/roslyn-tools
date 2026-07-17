@@ -47,8 +47,9 @@ internal class FindUnusedService : IRtService
                 if (scope is "all" or "types")
                     foreach (var typeDecl in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
                     {
-                        var symbol = semanticModel.GetDeclaredSymbol(typeDecl);
-                        if (symbol == null) continue;
+                        if (semanticModel.GetDeclaredSymbol(typeDecl) is not INamedTypeSymbol symbol)
+                            continue;
+
                         if (ShouldExclude(symbol)) continue;
 
                         var refs = await SymbolFinder.FindReferencesAsync(symbol, solution);
