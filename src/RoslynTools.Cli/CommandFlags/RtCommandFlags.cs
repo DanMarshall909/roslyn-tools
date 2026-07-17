@@ -264,7 +264,7 @@ internal sealed class RtCommandFlagBinder
             command.Add(option);
     }
 
-    private static IReadOnlySet<string> ToSet(IEnumerable<string> values)
+    private static HashSet<string> ToSet(IEnumerable<string> values)
     {
         return values
             .Where(value => !string.IsNullOrWhiteSpace(value))
