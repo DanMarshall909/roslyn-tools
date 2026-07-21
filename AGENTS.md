@@ -25,7 +25,7 @@ Guidance for agentic coding tools working in `C:\code\roslyn-tools`.
 See [docs/architecture-overview.md](docs/architecture-overview.md) for the full layered cake and [docs/adr/0001-core-service-thin-host-adapters.md](docs/adr/0001-core-service-thin-host-adapters.md) for the foundational pattern.
 
 ## Command reference
-**Run `rt dump-help` to view the full command reference** (or `dotnet run --project src/RoslynTools.Cli/RoslynTools.Cli.csproj -- dump-help` without publishing). For an agent-friendly pre-loaded reference, load the `use-rt` skill. See `CLAUDE.md` → "Architecture pattern: Core service + thin host adapters" for worked examples and [docs/adr/0001-core-service-thin-host-adapters.md](docs/adr/0001-core-service-thin-host-adapters.md) for the full contract.
+**Run `rt dump-help` to view the full command reference** (or `dotnet run --project src/RoslynTools.Cli/RoslynTools.Cli.csproj -- dump-help` without publishing). For an agent-friendly pre-loaded reference, load the `use-rt` skill. See [docs/pattern-core-service.md](docs/pattern-core-service.md) for worked examples and [docs/adr/0001-core-service-thin-host-adapters.md](docs/adr/0001-core-service-thin-host-adapters.md) for the full contract.
 
 ## Cursor and Copilot Rules
 No repository-specific rule files were found:
@@ -49,7 +49,7 @@ Use PowerShell syntax by default.
 - Avoid prompts in scripts/commands that require manual input.
 - Prefer exit-code driven checks so agents can reliably detect failures.
 - Keep command output concise and parseable; avoid noisy one-off wrappers.
-- **Parallel-safe by default.** `rt` is hardened for concurrent invocation from parallel agent worktrees: `rt feedback add`, wrapper rebuild, `deploy-skill`, and (with `RT_ISOLATED_OBJ=1`) MSBuild obj/ are all race-free. See CLAUDE.md → "Parallel safety" for details.
+- **Parallel-safe by default.** `rt` is hardened for concurrent invocation from parallel agent worktrees: `rt feedback add`, wrapper rebuild, `deploy-skill`, and (with `RT_ISOLATED_OBJ=1`) MSBuild obj/ are all race-free. See [docs/agent-playbook.md](docs/agent-playbook.md) for details.
 
 ## Build Commands
 Build entire solution:
