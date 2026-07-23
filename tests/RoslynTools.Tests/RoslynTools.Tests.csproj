@@ -3,7 +3,6 @@
         <TargetFramework>net10.0</TargetFramework>
         <!-- CA1707: test method names use underscores by xUnit convention -->
         <NoWarn>$(NoWarn);CA1707</NoWarn>
-        <RuntimeIdentifier>win-x64</RuntimeIdentifier>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <IsPackable>false</IsPackable>
