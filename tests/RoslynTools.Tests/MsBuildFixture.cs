@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace RoslynTools.Tests;
 
 /// <summary>
@@ -9,6 +11,9 @@ public static class MsBuildFixture
 {
     private static readonly object Lock = new();
     private static bool _registered;
+
+    [ModuleInitializer]
+    internal static void Initialize() => Ensure();
 
     public static void Ensure()
     {
