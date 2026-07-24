@@ -82,11 +82,8 @@ internal class RenameService : IRtService
             .OrderBy(path => path, StringComparer.Ordinal)
             .ToArray();
 
-        if (!request.DryRun)
-        {
-            await _solutionChangeWriter.ApplyChangesAsync(solution, renamedSolution, false);
-            ApplyRelatedFileRenames(relatedPlan, request.RelatedEditIds, false);
-        }
+        await _solutionChangeWriter.ApplyChangesAsync(solution, renamedSolution, request.DryRun);
+        ApplyRelatedFileRenames(relatedPlan, request.RelatedEditIds, request.DryRun);
 
         return new RenameResult(
             request.Symbol,

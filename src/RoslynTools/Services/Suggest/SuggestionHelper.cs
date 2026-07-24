@@ -23,7 +23,13 @@ internal static class SuggestionHelper
             Create("find_callers", "find-callers", cd.Fqn, solutionPath),
             cd.Kind.Equals("Interface", StringComparison.OrdinalIgnoreCase)
                 ? Create("find_impl", "find-impl", cd.Fqn, solutionPath)
-                : Create("analyze_interface", "analyze-interface", cd.Fqn, solutionPath, "analyze"),
+                : Create(
+                    "analyze_interface",
+                    "analyze-interface",
+                    cd.Fqn,
+                    solutionPath,
+                    "analyze",
+                    "interface"),
         };
 
         foreach (var relFqn in cd.RelatedSymbolFqns.Take(2))
@@ -60,12 +66,20 @@ internal static class SuggestionHelper
         string cliName,
         string symbol,
         string? solutionPath,
-        string cliGroup = "inspect")
+        string cliGroup = "inspect",
+        string argumentName = "symbol")
     {
         var sol = solutionPath != null ? $" --solution {solutionPath}" : "";
+        var arguments = Args(symbol, solutionPath);
+        if (!string.Equals(argumentName, "symbol", StringComparison.Ordinal))
+        {
+            arguments.Remove("symbol");
+            arguments[argumentName] = symbol;
+        }
+
         return new ToolSuggestion(
             toolName,
-            Args(symbol, solutionPath),
+            arguments,
             $"rt {cliGroup} {cliName} \"{symbol}\"{sol}");
     }
 

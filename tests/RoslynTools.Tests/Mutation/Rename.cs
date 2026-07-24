@@ -1,6 +1,9 @@
 using Microsoft.CodeAnalysis.Rename;
+using Microsoft.Extensions.Logging.Abstractions;
 using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Models;
+using RoslynTools.Services;
 using RoslynTools.Tests.Infrastructure;
 using Shouldly;
 
@@ -148,6 +151,32 @@ public class Rename : IClassFixture<RtServicesFixture>
 
         var afterContent = await project.ReadSourceAsync("Original.cs");
         afterContent.ShouldBe(originalContent);
+    }
+
+    [Fact]
+    public async Task dry_run_sends_the_renamed_solution_to_the_preview_writer()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Widget.cs", "namespace TestApp; public class Widget { }");
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var writer = new CapturingSolutionChangeWriter();
+            var service = new RenameService(NullLogger<RenameService>.Instance, writer);
+
+            var result = await service.ExecuteAsync(
+                solution,
+                new RenameRequest(
+                    "TestApp.Widget",
+                    "Gadget",
+                    "type",
+                    true,
+                    new HashSet<string>(StringComparer.Ordinal)));
+
+            writer.DryRun.ShouldBe(true);
+            writer.NewSolution.ShouldNotBeNull();
+            result.Applied.ShouldBeFalse();
+        }
     }
 
     [Fact]
