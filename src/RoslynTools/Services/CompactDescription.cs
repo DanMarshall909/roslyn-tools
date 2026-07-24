@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using RoslynTools.Services.Suggest;
 
 namespace RoslynTools.Services;
 
@@ -29,5 +30,5 @@ internal sealed record CompactDescription(
     ///     Populated by CLI/MCP adapters from <see cref="RelatedSymbolFqns" /> plus static routing.
     /// </summary>
     [JsonPropertyName("_suggestions")]
-    public IReadOnlyList<string>? Suggestions { get; init; }
+    public IReadOnlyList<ToolSuggestion>? Suggestions { get; init; }
 }

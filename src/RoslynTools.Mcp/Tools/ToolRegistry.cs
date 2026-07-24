@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace RoslynTools.Mcp.Tools;
 
@@ -29,7 +30,10 @@ internal sealed class ToolRegistry
         var bridged = schemaBuilder.Build()
             .Where(t => !_handlers.ContainsKey(t.name))
             .ToList();
-        var native = _handlers.Values.Select(h => h.Definition);
+        var native = _handlers.Values.Select(h => h.Definition with
+        {
+            outputSchema = h.Definition.outputSchema ?? JsonSchemaBuilder.StructuredOutput()
+        });
         _tools = bridged.Concat(native).ToArray();
     }
 
@@ -52,7 +56,12 @@ internal sealed class ToolRegistry
 /// <summary>
 /// Class defining the structure of a tool in the Roslyn MCP system.
 /// </summary>
-internal sealed record ToolDefinition(string name, string description, Dictionary<string, object> inputSchema);
+internal sealed record ToolDefinition(
+    string name,
+    string description,
+    Dictionary<string, object> inputSchema,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    Dictionary<string, object>? outputSchema = null);
 
 /// <summary>
 /// Class representing the result of a tool execution in the Roslyn MCP system.
@@ -84,6 +93,18 @@ internal static class JsonSchemaBuilder
     public static Dictionary<string, object> Boolean(string description = "")
     {
         return Scalar("boolean", description);
+    }
+
+    public static Dictionary<string, object> StructuredOutput()
+    {
+        return new Dictionary<string, object>
+        {
+            ["oneOf"] = new object[]
+            {
+                new Dictionary<string, object> { ["type"] = "object" },
+                new Dictionary<string, object> { ["type"] = "array" }
+            }
+        };
     }
 
     private static Dictionary<string, object> Scalar(string type, string description)

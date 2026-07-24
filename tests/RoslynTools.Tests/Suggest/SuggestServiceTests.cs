@@ -1,4 +1,5 @@
 using RoslynTools.Core;
+using RoslynTools.Cli.Suggest;
 using RoslynTools.Services.Suggest;
 using Shouldly;
 
@@ -117,5 +118,18 @@ public sealed class SuggestServiceTests
         var response = service.Suggest(new SuggestRequest(Query: "rename", Top: 1));
 
         response.Related.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void application_catalog_includes_feedback_workflow()
+    {
+        var service = new SuggestService(new AppCommandCatalog());
+
+        var response = service.Suggest(
+            new SuggestRequest("record dogfood feedback about rename behavior", 3));
+
+        response.Results.ShouldContain(result => result.Name == "feedback");
+        response.Results.Single(result => result.Name == "feedback").PrimaryExample
+            .ShouldContain("rt feedback add");
     }
 }

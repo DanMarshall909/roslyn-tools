@@ -1,6 +1,7 @@
 using System.Text.Json;
 using RoslynTools.Core;
 using RoslynTools.Mcp.Tools;
+using RoslynTools.Models;
 using RoslynTools.Services;
 
 namespace RoslynTools.Mcp.Handlers;
@@ -22,16 +23,13 @@ internal sealed class RenameSymbolHandler : IMcpHandler
 
     private readonly IWorkspaceSessionFactory _workspaceLoader;
     private readonly RenameService _rename;
-    private readonly ISolutionChangeWriter _solutionChangeWriter;
 
     public RenameSymbolHandler(
         IWorkspaceSessionFactory workspaceLoader,
-        RenameService rename,
-        ISolutionChangeWriter solutionChangeWriter)
+        RenameService rename)
     {
         _workspaceLoader = workspaceLoader;
         _rename = rename;
-        _solutionChangeWriter = solutionChangeWriter;
     }
 
     public string ToolName => "rename";
@@ -50,7 +48,14 @@ internal sealed class RenameSymbolHandler : IMcpHandler
                 ["new-name"] = JsonSchemaBuilder.String("New name for the symbol"),
                 ["kind"] = JsonSchemaBuilder.String("Symbol kind filter: type, method, property, field, namespace"),
                 ["solution"] = JsonSchemaBuilder.String("Path to the .sln/.slnx file"),
-                ["dry-run"] = JsonSchemaBuilder.Boolean("Preview without writing (default true)")
+                ["dry-run"] = JsonSchemaBuilder.Boolean("Preview without writing (default true)"),
+                ["related-edits"] = new Dictionary<string, object>
+                {
+                    ["type"] = "array",
+                    ["items"] = new Dictionary<string, object> { ["type"] = "string" },
+                    ["description"] = "Related edit IDs to apply. Omit to apply only the semantic rename; "
+                                      + "IDs are returned in relatedRenamePlan."
+                }
             }));
 
     public async Task<ToolResult> HandleAsync(JsonElement arguments, CancellationToken cancellationToken)
@@ -68,33 +73,16 @@ internal sealed class RenameSymbolHandler : IMcpHandler
         var kind = ReadString(arguments, "kind");
         var solutionPath = ReadString(arguments, "solution");
         var dryRun = ReadBoolOrDefault(arguments, "dry-run", defaultValue: true);
+        var relatedEditIds = ReadStringArray(arguments, "related-edits");
 
         var sln = await _workspaceLoader.GetSolutionAsync(solutionPath);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var newSln = await _rename.RenameAsync(sln, symbol, newName, kind);
-
-        var changedDocs = newSln.GetChanges(sln)
-            .GetProjectChanges()
-            .SelectMany(p => p.GetChangedDocuments())
-            .Select(id => newSln.GetDocument(id)?.FilePath)
-            .Where(path => !string.IsNullOrEmpty(path))
-            .Select(path => path!)
-            .ToList();
-
-        if (!dryRun)
-            await _solutionChangeWriter.ApplyChangesAsync(sln, newSln, false);
-
-        var response = new
-        {
-            symbol,
-            newName,
-            changedFiles = changedDocs.Count,
-            changedFilePaths = changedDocs,
-            applied = !dryRun
-        };
-
-        var json = JsonSerializer.Serialize(response, JsonOptions);
+        var selectedIds = relatedEditIds.ToHashSet(StringComparer.Ordinal);
+        var result = await _rename.ExecuteAsync(
+            sln,
+            new RenameRequest(symbol, newName, kind, dryRun, selectedIds));
+        var json = JsonSerializer.Serialize(result, JsonOptions);
         return new ToolResult(false, json);
     }
 
@@ -115,5 +103,18 @@ internal sealed class RenameSymbolHandler : IMcpHandler
             JsonValueKind.False => false,
             _ => defaultValue
         };
+    }
+
+    private static string[] ReadStringArray(JsonElement args, string name)
+    {
+        if (!args.TryGetProperty(name, out var element) || element.ValueKind != JsonValueKind.Array)
+            return [];
+
+        return element.EnumerateArray()
+            .Where(item => item.ValueKind == JsonValueKind.String)
+            .Select(item => item.GetString())
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Select(item => item!)
+            .ToArray();
     }
 }

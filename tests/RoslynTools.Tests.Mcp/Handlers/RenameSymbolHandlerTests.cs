@@ -39,6 +39,47 @@ public class RenameToolTests
     }
 
     [Fact]
+    public async Task rename_returns_related_edits_as_an_opt_in_plan()
+    {
+        using var project = McpTestHost.CreateInvoiceProject(
+            """
+            // Invoice is the persisted business document.
+            public string WindowClass => "InvoiceWindow";
+            """);
+
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (var provider = McpTestHost.CreateProvider())
+        {
+            var registry = provider.GetRequiredService<ToolRegistry>();
+            using var args = JsonDocument.Parse("""
+                                                {
+                                                  "symbol": "TestApp.Invoice",
+                                                  "new-name": "Bill",
+                                                  "solution": "ignored.slnx"
+                                                }
+                                                """);
+
+            var result = await registry.InvokeAsync("rename", args.RootElement);
+
+            result.isError.ShouldBeFalse();
+            using var payload = JsonDocument.Parse(result.content);
+            var edits = payload.RootElement.GetProperty("relatedRenamePlan");
+            edits.EnumerateArray().ShouldContain(edit =>
+                edit.GetProperty("kind").GetString() == "identifier"
+                && edit.GetProperty("oldText").GetString() == "InvoiceService");
+            edits.EnumerateArray().ShouldContain(edit =>
+                edit.GetProperty("kind").GetString() == "string"
+                && edit.GetProperty("oldText").GetString() == "InvoiceWindow");
+            edits.EnumerateArray().ShouldContain(edit =>
+                edit.GetProperty("kind").GetString() == "comment"
+                && edit.GetProperty("prose").GetBoolean());
+            payload.RootElement.GetProperty("selectedRelatedEdits").GetArrayLength().ShouldBe(0);
+        }
+    }
+
+    [Fact]
     public async Task rename_returns_error_when_new_name_missing()
     {
         using var provider = McpTestHost.CreateProvider();
