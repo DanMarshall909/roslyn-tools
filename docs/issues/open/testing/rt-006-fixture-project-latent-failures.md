@@ -8,10 +8,10 @@ status: Open
 area: testing
 owner: ""
 reported: 2026-07-24
-summary: "RoslynTools.Tests has 34 latent failures unmasked when the win-x64 RID was removed — the suite could not run before, so these never surfaced"
+summary: "RoslynTools.Tests has 12 latent failures (CI-confirmed) unmasked when the win-x64 RID was removed — the suite could not run before, so these never surfaced. Most are tests that launch a Debug-built rt.dll while CI builds Release."
 ---
 
-# RoslynTools.Tests: 34 latent failures now visible
+# RoslynTools.Tests: 12 latent failures now visible
 
 ## Context
 
@@ -25,51 +25,54 @@ authored on.
 The RID was removed to unblock CI and to fix the sibling
 `RoslynTools.Tests.Mcp` project, whose portable host could not resolve the
 RID-specific fixture assemblies (see the `fix/win-x64-fixture-rid` commit). That
-change took the fixture project from aborting (0 tests run) to **1541 passed /
-34 failed / 9 skipped**. The 34 are pre-existing — the abort was hiding them,
-not preventing them. They are not regressions from the RID removal.
+change took the fixture project from aborting (0 tests run) to a suite that
+runs. The failures are pre-existing — the abort was hiding them, not preventing
+them. They are not regressions from the RID removal.
 
-## The 34, by area
+**Counts differ by environment, and CI is the authority.** The ARM64 Windows
+dev box first used to measure showed 34 failures; the Ubuntu CI runner (run
+30065272023, the first green-able run after the RID removal) shows **12**. The
+~22 difference was machine-specific to the ARM64 box — exactly the risk this
+issue was opened flagging. Work the **12 CI failures**; ignore the ARM64-only
+ones.
 
-| Class prefix | Count | Observed cause |
+## The 12 (Ubuntu CI), by class
+
+| Class | Count | Cause |
 |---|---|---|
-| `Infrastructure` | 23 | CLI-bootstrap harness. At least 4 fail with "Could not execute because the specified command or file was not found" — `CliBootstrap.cs` hardcodes `src/RoslynTools.Cli/bin/Debug/net8.0/rt.dll`, but the project targets `net10.0`, so the path does not exist. (`JsonEncoderUnification.cs` already uses `net10.0`.) The stale `net8.0` path is the same "cleanup left it behind" family as the RID itself. |
-| `Navigation` | 3 | Assertion failures (`Assert.Contains`, Shouldly). Not yet triaged. |
-| `Architecture` | 1 | Assertion failure. Not yet triaged. |
-| `Mutation` | 1 | Assertion failure. Not yet triaged. |
+| `Infrastructure.CliBootstrap` | 5 | Launches `src/RoslynTools.Cli/bin/**Debug**/…/rt.dll`. CI builds **Release** with `--no-build`, so no Debug `rt.dll` exists on the runner and the process fails to start. (`CliBootstrap.cs` additionally hardcodes the TFM as `net8.0` while the project is `net10.0` — wrong on two axes.) |
+| `Infrastructure.JsonEncoderUnification` | 3 | Same root cause — launches a Debug-built `rt.dll` that a Release CI build never produces. |
+| `Refactor.Move` | 1 | Assertion failure. Not yet triaged. |
+| `Mutation.ServiceHelpers` | 1 | Assertion failure. Not yet triaged. |
+| `Architecture.ResultContractConstraints` | 1 | Assertion failure. Not yet triaged. |
 | `AppRegistration` | 1 | Assertion failure. Not yet triaged. |
-| other | 5 | Scattered assertion failures. Not yet triaged. |
-
-## Caveat on reproduction
-
-The failure counts above were measured on an ARM64 Windows dev box. Some of the
-non-`Infrastructure` assertion failures may be environment-specific (path
-casing, line endings, tool availability) rather than genuine logic bugs — each
-needs to be reproduced on the Ubuntu CI runner before it is treated as real.
-The stale-`net8.0`-path failures are environment-independent and will fail
-everywhere.
 
 ## Suggested order of attack
 
-1. Fix the hardcoded `net8.0` path in `CliBootstrap.cs` (resolve the framework
-   from the running assembly, or read it from a shared test constant rather than
-   hardcoding a TFM). Re-measure — this likely clears most of the 23
-   `Infrastructure` failures at once.
-2. Re-run on CI (Ubuntu) to separate genuine logic failures from
-   this-machine-only ones.
-3. Triage the remainder individually.
+1. **The 8 `Infrastructure` failures share one root cause:** tests shell out to a
+   Debug-built `rt.dll`, but CI builds Release. Make the harness resolve the
+   `rt.dll` for the configuration and TFM it is actually running under (derive
+   both from the running assembly, or from a shared test constant) rather than
+   hardcoding `bin/Debug/net8.0`. One fix should clear all 8.
+2. Triage the remaining 4 assertion failures individually against CI.
 
 ## Guardrail worth considering
 
-A hardcoded target-framework moniker in a test path is exactly the kind of
-mistake that recurs silently on the next TFM bump. A small architecture test
-asserting no test source hardcodes a `netN.0` path segment (they should derive
-it) would fail at build time instead of at the next framework upgrade. Flagged,
-not built — see the guardrails rule.
+A hardcoded build configuration or target-framework in a test path is exactly
+the kind of mistake that recurs silently on the next TFM bump — or, as here,
+the moment CI builds a different configuration than the test assumes. A small
+architecture test asserting no test source hardcodes a `bin/Debug` or `netN.0`
+path segment (they should derive both from the running assembly) would fail at
+build time instead of only on the CI runner. Flagged, not built — see the
+guardrails rule.
 
 ## Decision log
 
 - 2026-07-24 — Opened. The `fix/win-x64-fixture-rid` change fixed the 12
-  `RoslynTools.Tests.Mcp` failures it targeted and unblocked the CI abort; these
-  34 fixture-project failures were explicitly left out of that change's scope
-  and filed here for separate triage.
+  `RoslynTools.Tests.Mcp` failures it targeted and unblocked the CI abort; the
+  fixture-project failures it unmasked were explicitly left out of that change's
+  scope and filed here for separate triage.
+- 2026-07-24 — Corrected the count against CI. The ARM64 dev box showed 34; the
+  first post-RID Ubuntu run (30065272023) shows **12**, of which 8 share the
+  Debug-vs-Release `rt.dll` root cause. The other 22 were ARM64-specific and are
+  out of scope — CI is the authority.
