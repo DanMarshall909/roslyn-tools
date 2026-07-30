@@ -105,7 +105,7 @@ public class ServerSerializationTests
     }
 
     [Fact]
-    public async Task native_tools_advertise_output_schema()
+    public async Task structured_tools_advertise_output_schema()
     {
         var output = await RunSingleRequestAsync(
             """{"jsonrpc":"2.0","method":"tools/list","id":1}""");
@@ -120,7 +120,7 @@ public class ServerSerializationTests
     }
 
     [Fact]
-    public async Task native_tool_call_returns_structured_content_and_concise_text_fallback()
+    public async Task descriptor_tool_call_returns_structured_content_and_concise_text_fallback()
     {
         var output = await RunSingleRequestAsync(
             """
@@ -129,7 +129,7 @@ public class ServerSerializationTests
 
         using var doc = JsonDocument.Parse(output);
         var result = doc.RootElement.GetProperty("result");
-        result.GetProperty("structuredContent").GetProperty("Results").GetArrayLength().ShouldBe(1);
+        result.GetProperty("structuredContent").GetProperty("results").GetArrayLength().ShouldBe(1);
         result.GetProperty("content")[0].GetProperty("text").GetString()
             .ShouldBe("Structured result returned by suggest_command.");
     }

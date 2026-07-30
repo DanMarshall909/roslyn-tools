@@ -14,15 +14,17 @@ internal static class FeedbackCommand
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
-    internal static Command Build()
+    internal static Command Build(
+        FeedbackAddOperation addOperation,
+        FeedbackListOperation listOperation)
     {
         var cmd = new Command("feedback", "Log and list feedback items for rt improvement");
-        cmd.AddCommand(BuildAdd());
-        cmd.AddCommand(BuildList());
+        cmd.AddCommand(BuildAdd(addOperation));
+        cmd.AddCommand(BuildList(listOperation));
         return cmd;
     }
 
-    private static Command BuildAdd()
+    internal static Command BuildAdd(FeedbackAddOperation operation)
     {
         var descriptionOpt = new Option<string>("--description", "Description of the problem or feature request")
         {
@@ -41,20 +43,20 @@ internal static class FeedbackCommand
         cmd.AddOption(expectedResultOpt);
         cmd.AddOption(commandLineOpt);
 
-        cmd.SetHandler((description, sampleCode, expectedResult, commandLine) =>
+        cmd.SetHandler(async (description, sampleCode, expectedResult, commandLine) =>
         {
-            var entry = FeedbackStore.AddUserFeedback(
+            var result = await operation.ExecuteAsync(new FeedbackAddRequest(
                 description,
                 sampleCode,
                 expectedResult,
-                commandLine);
-            RtConsole.WriteLine(RtOutputContext.Result, $"Feedback recorded: {entry.Id}");
+                commandLine));
+            RtConsole.WriteLine(RtOutputContext.Result, $"Feedback recorded: {result.Id}");
         }, descriptionOpt, sampleCodeOpt, expectedResultOpt, commandLineOpt);
 
         return cmd;
     }
 
-    private static Command BuildList()
+    internal static Command BuildList(FeedbackListOperation operation)
     {
         var statusOpt = new Option<string>("--status", () => "pending",
             "Filter by status: pending, processed, or all");
@@ -62,9 +64,9 @@ internal static class FeedbackCommand
         var cmd = new Command("list", "List feedback items");
         cmd.AddOption(statusOpt);
 
-        cmd.SetHandler(status =>
+        cmd.SetHandler(async status =>
         {
-            var filtered = FeedbackStore.ListByStatus(status);
+            var filtered = await operation.ExecuteAsync(new FeedbackListRequest(status));
             RtConsole.WriteLine(RtOutputContext.Result, JsonSerializer.Serialize(filtered, JsonOpts));
         }, statusOpt);
 

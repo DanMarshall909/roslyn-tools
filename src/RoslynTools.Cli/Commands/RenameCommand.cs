@@ -13,10 +13,16 @@ internal sealed class RenameCommand : IRtCommand, IRefactorCommand
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly RenameService _rename;
-    public RenameCommand(IWorkspaceSessionFactory sessionFactory, RenameService rename)
+    private readonly RenameOperation _operation;
+
+    public RenameCommand(
+        IWorkspaceSessionFactory sessionFactory,
+        RenameService rename,
+        RenameOperation operation)
     {
         _rename = rename;
         _sessionFactory = sessionFactory;
+        _operation = operation;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -78,28 +84,33 @@ internal sealed class RenameCommand : IRtCommand, IRefactorCommand
                 if (string.IsNullOrWhiteSpace(csv))
                     symbol = await PipedSymbolReader.ResolveAsync(symbol, RtConsole.IsInputRedirected, RtConsole.In);
                 var request = flags.Bind(ctx.ParseResult, f => RenameCliRequest.FromFlags(f, symbol, newName, csv));
-                var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(request.SolutionPath);
-                using (workspace)
+                if (!string.IsNullOrWhiteSpace(request.CsvPath))
                 {
-                    if (!string.IsNullOrWhiteSpace(request.CsvPath))
+                    var (workspace, solution) =
+                        await _sessionFactory.LoadWorkspaceAsync(request.SolutionPath);
+                    using (workspace)
                     {
-                        await _rename.ExecuteBatchAsync(sln, request.CsvPath, request.DryRun);
-                        return;
+                        await _rename.ExecuteBatchAsync(
+                            solution,
+                            request.CsvPath,
+                            request.DryRun);
                     }
-
-                    if (string.IsNullOrWhiteSpace(request.Symbol) || string.IsNullOrWhiteSpace(request.NewName))
-                        throw new InvalidOperationException("Provide either <symbol> <new-name> or --csv <path>.");
-
-                    var result = await _rename.ExecuteAsync(
-                        sln,
-                        new RenameRequest(
-                            request.Symbol,
-                            request.NewName,
-                            request.Kind,
-                            request.DryRun,
-                            relatedEditIds.ToHashSet(StringComparer.Ordinal)));
-                    WriteRelatedRenamePlan(result);
+                    return;
                 }
+
+                if (string.IsNullOrWhiteSpace(request.Symbol)
+                    || string.IsNullOrWhiteSpace(request.NewName))
+                    throw new InvalidOperationException(
+                        "Provide either <symbol> <new-name> or --csv <path>.");
+
+                var result = await _operation.ExecuteAsync(new RenameOperationRequest(
+                    request.Symbol,
+                    request.NewName,
+                    request.Kind,
+                    request.SolutionPath,
+                    request.DryRun,
+                    relatedEditIds));
+                WriteRelatedRenamePlan(result);
             });
 
         cmd.AddAlias("ren");

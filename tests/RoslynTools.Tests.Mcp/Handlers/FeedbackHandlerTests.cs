@@ -1,8 +1,6 @@
 using System.Globalization;
-using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Feedback;
-using RoslynTools.Mcp.Handlers;
 using RoslynTools.Mcp.Tools;
 using Shouldly;
 
@@ -41,7 +39,7 @@ public sealed class FeedbackHandlerTests
     public async Task feedback_add_records_every_input_and_returns_the_allocated_id()
     {
         FeedbackEntry? recorded = null;
-        var handler = new FeedbackAddHandler((description, sampleCode, expectedResult, commandLine) =>
+        var operation = new FeedbackAddOperation((description, sampleCode, expectedResult, commandLine) =>
         {
             recorded = new FeedbackEntry
             {
@@ -55,19 +53,12 @@ public sealed class FeedbackHandlerTests
             };
             return recorded;
         });
-        using var arguments = JsonDocument.Parse(
-            """
-            {
-              "description": "Expose feedback through MCP",
-              "sampleCode": "sample",
-              "expectedResult": "structured result",
-              "commandLine": "feedback_add"
-            }
-            """);
+        var result = await operation.ExecuteAsync(new FeedbackAddRequest(
+            "Expose feedback through MCP",
+            "sample",
+            "structured result",
+            "feedback_add"));
 
-        var result = await handler.HandleAsync(arguments.RootElement, CancellationToken.None);
-
-        result.isError.ShouldBeFalse();
         recorded.ShouldNotBeNull();
         recorded.Type.ShouldBe("user-feedback");
         recorded.Status.ShouldBe("pending");
@@ -78,9 +69,8 @@ public sealed class FeedbackHandlerTests
         DateTimeOffset.Parse(recorded.Timestamp, CultureInfo.InvariantCulture)
             .ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow);
 
-        using var payload = JsonDocument.Parse(result.content);
-        payload.RootElement.GetProperty("id").GetString().ShouldBe("FB-374");
-        payload.RootElement.GetProperty("status").GetString().ShouldBe("pending");
+        result.Id.ShouldBe("FB-374");
+        result.Status.ShouldBe("pending");
     }
 
     [Fact]
@@ -91,17 +81,13 @@ public sealed class FeedbackHandlerTests
             new() { Id = "FB-001", Description = "pending", Status = "pending" },
             new() { Id = "FB-002", Description = "done", Status = "processed" }
         };
-        var handler = new FeedbackListHandler(status => entries
+        var operation = new FeedbackListOperation(status => entries
             .Where(entry => string.Equals(entry.Status, status, StringComparison.OrdinalIgnoreCase))
             .ToList());
-        using var arguments = JsonDocument.Parse("""{"status":"processed"}""");
+        var result = await operation.ExecuteAsync(new FeedbackListRequest("processed"));
 
-        var result = await handler.HandleAsync(arguments.RootElement, CancellationToken.None);
-
-        result.isError.ShouldBeFalse();
-        using var payload = JsonDocument.Parse(result.content);
-        payload.RootElement.GetArrayLength().ShouldBe(1);
-        payload.RootElement[0].GetProperty("id").GetString().ShouldBe("FB-002");
-        payload.RootElement[0].GetProperty("status").GetString().ShouldBe("processed");
+        result.Count.ShouldBe(1);
+        result[0].Id.ShouldBe("FB-002");
+        result[0].Status.ShouldBe("processed");
     }
 }

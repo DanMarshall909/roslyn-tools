@@ -219,7 +219,9 @@ internal static class App
         // Meta-command for natural-language command discovery. Reaches into the
         // catalog (via ICommandCatalog → AppCommandCatalog) rather than any
         // user solution, so it sits outside the inspect/analyze/refactor groups.
-        root.AddCommand(SuggestCommand.Build(services));
+        root.AddCommand(SuggestCommand.Build(
+            services.GetRequiredService<SuggestOperation>(),
+            services.GetService<Services.SemanticDiff.Git.IGitClient>()));
 
         // Compact session-start summary: gate, entry, hot commands. No MSBuild.
         root.AddCommand(PrimeCommand.Build(services));

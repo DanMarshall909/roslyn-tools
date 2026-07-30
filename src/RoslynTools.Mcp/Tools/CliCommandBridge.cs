@@ -1,39 +1,38 @@
 using System.Text;
 using System.Text.Json;
+using RoslynTools.CommandDescriptors;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 
 namespace RoslynTools.Mcp.Tools;
 
 /// <summary>
-/// Class for the command bridge in the Roslyn MCP system.
+/// Temporary compatibility adapter for descriptors that have not yet migrated to an
+/// <see cref="ICommandApplicationPort" />. New commands should provide a port and never
+/// enter this CLI parsing path.
 /// </summary>
 internal sealed class CliCommandBridge
 {
-    private readonly Dictionary<string, List<string>> _positionalArgNames;
     private readonly IServiceProvider _services;
 
     public CliCommandBridge(IServiceProvider services)
     {
         _services = services;
-        _positionalArgNames = App.Commands.ToDictionary(
-            e => e.Info.Name,
-            e => e.Build().Arguments.Select(a => a.Name).ToList(),
-            StringComparer.Ordinal);
     }
 
     public async Task<ToolResult> InvokeAsync(
-        string toolName,
+        ApplicationCommandDescriptor descriptor,
         JsonElement arguments,
         CancellationToken cancellationToken = default)
     {
-        var commandName = toolName.Replace('_', '-');
-        var entry = App.Commands.FirstOrDefault(c => c.Info.Name == commandName);
-        if (entry.Info is null)
-            return new ToolResult(true, $"Unknown tool: {toolName}");
-
-        var positionalNames = _positionalArgNames.GetValueOrDefault(commandName) ?? [];
-        var cliArgs = BuildCliArgs(commandName, arguments, entry.Info, positionalNames);
+        var commandName = descriptor.Path[^1];
+        var command = descriptor.BuildCliCommand();
+        var positionalNames = command.Arguments.Select(a => a.Name).ToList();
+        var cliArgs = BuildCliArgs(
+            commandName,
+            arguments,
+            positionalNames,
+            descriptor.Structured);
 
         var capture = new StringBuilder();
         int exitCode;
@@ -50,15 +49,14 @@ internal sealed class CliCommandBridge
     private static string[] BuildCliArgs(
         string commandName,
         JsonElement args,
-        RtCommandInfo info,
-        List<string> positionalNames)
+        List<string> positionalNames,
+        bool structured)
     {
         var list = new List<string> { commandName };
 
-        if (info.JsonOutput || info.SupportedFormats?.Contains(OutputFormat.Json) == true)
+        if (structured)
             list.Add("--json");
 
-        var hasDryRun = false;
         var positionals = new string?[positionalNames.Count];
         var named = new List<string>();
 
@@ -66,7 +64,6 @@ internal sealed class CliCommandBridge
         {
             if (prop.Name == "dry-run")
             {
-                hasDryRun = true;
                 if (prop.Value.ValueKind == JsonValueKind.True)
                     list.Add("--dry-run");
                 continue;
@@ -103,9 +100,6 @@ internal sealed class CliCommandBridge
 
         list.AddRange(positionals.OfType<string>());
         list.AddRange(named);
-
-        if (info.Mutates && !hasDryRun)
-            list.Add("--dry-run");
 
         return [.. list];
     }

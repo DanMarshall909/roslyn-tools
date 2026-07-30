@@ -15,8 +15,8 @@ Companion documents:
 ```
 ┌─ Host adapters (thin) ─────────────────────────────┐
 │  CLI: src/RoslynTools.Cli/Commands/   <Foo>Command │
-│  MCP: src/RoslynTools.Mcp/Handlers/   <Foo>Handler │
-│       (System.CommandLine parse / JSON parse)      │
+│  MCP: generic descriptor adapter                   │
+│       (System.CommandLine parse / JSON bind)       │
 │       (Renders text/JSON / returns ToolResult)     │
 └────────────┬──────────────┬────────────────────────┘
              ▼              ▼   ← both resolve same service from DI
@@ -41,9 +41,15 @@ Companion documents:
 
 ## Five contracts that bind the layers
 
-### 1. `IRtCommand` — command registration
+### 1. `ApplicationCommandDescriptor` + `IRtCommand` — command registration
 
-Every `*Command.cs` implements it. Reflection-discovered registry; no hand-maintained list. Each command exposes a static `RtCommandInfo` (name, category, examples, mutates, JSON-output, see-also, known-issues). `App.cs` static ctor asserts biconditionals at startup and fails the post-build docs generation if drift exists.
+Every `*Command.cs` implements `IRtCommand`. The reflection-discovered commands and
+explicit nested leaves are projected into one `ApplicationCommandDescriptor` registry.
+The descriptor carries path, tool identity, metadata, CLI builder, MCP visibility,
+safety, structured-result capability, and an optional typed
+`ICommandApplicationPort`. Port-backed CLI and MCP adapters invoke the same operation;
+unmigrated descriptors temporarily use the isolated compatibility bridge. See
+[ADR-0003](adr/0003-shared-command-descriptors-and-application-ports.md).
 
 ### 2. Category interfaces — `IInspectCommand` / `IAnalyzeCommand` / `IRefactorCommand`
 
@@ -87,11 +93,12 @@ Every inspection result may also carry a `_suggestions` array — five pre-fille
 
 | Surface | Lives in |
 |---|---|
-| Command name + category + examples + mutates + JSON-output flag | `RtCommandInfo` (per-command static) |
+| Command path, tool name, visibility, safety, structured contract, application port | `ApplicationCommandDescriptor` registry |
+| Command name + category + examples + mutates + JSON-output flag | `RtCommandInfo` (per-command static input to descriptors) |
 | Reusable flag name + aliases + default + parse validation | Central option catalog (US-114) |
 | Capability interface ↔ catalog flag binding | Shared binders (US-114) |
 | Help, examples, known-issues | Same `RtCommandInfo` — `rt dump-help` reads it; `docs/COMMANDS.md` is generated, never hand-edited |
-| MCP tool schema | Same `RtCommandInfo` (US-114 makes catalog metadata drive both CLI and MCP) |
+| MCP tool schema | Generated from the descriptor's CLI builder; port-backed request names are normalized for JSON |
 
 If two surfaces describe the same flag, the catalog wins.
 
@@ -124,6 +131,7 @@ The whole tool is its own customer. The architecture exists to make that loop ti
 ## Open tensions worth naming
 
 - **EP-009 (capability flags) is the biggest open architectural lift** — US-114 is 20 ACs, multi-week. Until it lands, commands still wire `Option<T>` ad hoc and the catalog is partly notional.
+- **Application-port migration is incremental.** `outline`, `describe`, `find-refs`, `rename`, `semantic-diff`, `suggest`, and the two feedback leaves are port-backed; descriptors without a port still enter the compatibility `CliCommandBridge`. rt-007 tracks draining it.
 - **The Result/Throw bridges are designed to persist** across stories. Don't drain the SymbolLocator bridges all at once — `one caller/tool at a time`, then delete the bridge.
 - **`CompactDescription` vs verbose dict** for describe stays two-shape (JSON key order is irreducible). Outline has been unified. Trade-off accepted in US-135.
 - **`_suggestions` fan-out is incomplete.** Only `describe` (CLI+MCP) and `find-refs` (MCP) carry suggestions today. Remaining inspect/analyze commands are tracked in US-136 (outline envelope) and US-137 (fan-out). Body-call related-symbol extraction and frequency ranking are deferred in US-135.

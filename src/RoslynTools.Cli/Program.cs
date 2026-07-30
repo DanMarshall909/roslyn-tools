@@ -55,7 +55,15 @@ internal static class Program
                 return exitCode.Value;
         }
 
-        return await App.RunAsync(args, host.Services, [DaemonCommand.Build(), FeedbackCommand.Build()]);
+        return await App.RunAsync(
+            args,
+            host.Services,
+            [
+                DaemonCommand.Build(),
+                FeedbackCommand.Build(
+                    host.Services.GetRequiredService<FeedbackAddOperation>(),
+                    host.Services.GetRequiredService<FeedbackListOperation>())
+            ]);
     }
 
     private static bool IsDaemonCommand(string[] args)

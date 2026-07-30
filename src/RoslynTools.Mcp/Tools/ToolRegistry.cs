@@ -4,37 +4,23 @@ using System.Text.Json.Serialization;
 namespace RoslynTools.Mcp.Tools;
 
 /// <summary>
-///     Routes MCP tool invocations. Native handlers (those implementing
-///     <see cref="IMcpHandler" />) take precedence over the auto-bridge —
-///     commands without a dedicated handler fall through to
-///     <see cref="CliCommandBridge" />, which executes the CLI and captures
-///     stdout as text.
+///     Routes MCP tool invocations exclusively through command descriptors.
 /// </summary>
 /// <remarks>
-///     Migration pattern: as commands gain native handlers (and richer JSON
-///     returns), they shift from the bridge to <see cref="_handlers" />. The
-///     bridge stays for the long tail.
+///     Commands gain an <see cref="Core.ICommandApplicationPort" /> as they migrate away
+///     from the compatibility bridge; no command-specific MCP dispatch path exists.
 /// </remarks>
 internal sealed class ToolRegistry
 {
-    private readonly CliCommandBridge _bridge;
-    private readonly Dictionary<string, IMcpHandler> _handlers;
+    private readonly McpCommandAdapter _adapter;
     private readonly ToolDefinition[] _tools;
 
-    public ToolRegistry(ToolSchemaBuilder schemaBuilder, CliCommandBridge bridge, IEnumerable<IMcpHandler> handlers)
+    public ToolRegistry(
+        ToolSchemaBuilder schemaBuilder,
+        McpCommandAdapter adapter)
     {
-        _bridge = bridge;
-        _handlers = handlers.ToDictionary(h => h.ToolName, StringComparer.Ordinal);
-
-        // Native handler tool definitions override or extend the auto-bridged ones.
-        var bridged = schemaBuilder.Build()
-            .Where(t => !_handlers.ContainsKey(t.name))
-            .ToList();
-        var native = _handlers.Values.Select(h => h.Definition with
-        {
-            outputSchema = h.Definition.outputSchema ?? JsonSchemaBuilder.StructuredOutput()
-        });
-        _tools = bridged.Concat(native).ToArray();
+        _adapter = adapter;
+        _tools = [.. schemaBuilder.Build()];
     }
 
     public ToolDefinition[] GetTools()
@@ -47,9 +33,7 @@ internal sealed class ToolRegistry
         JsonElement arguments,
         CancellationToken cancellationToken = default)
     {
-        if (_handlers.TryGetValue(toolName, out var handler))
-            return handler.HandleAsync(arguments, cancellationToken);
-        return _bridge.InvokeAsync(toolName, arguments, cancellationToken);
+        return _adapter.InvokeAsync(toolName, arguments, cancellationToken);
     }
 }
 

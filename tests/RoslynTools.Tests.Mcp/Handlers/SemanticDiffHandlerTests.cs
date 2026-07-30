@@ -1,8 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
-using RoslynTools.Commands.Results;
+using RoslynTools.Core;
 using RoslynTools.Mcp;
-using RoslynTools.Mcp.Handlers;
 using RoslynTools.Mcp.Tools;
 using RoslynTools.Services.SemanticDiff;
 using RoslynTools.Services.SemanticDiff.Git;
@@ -19,17 +18,22 @@ namespace RoslynTools.Tests.Mcp.Handlers;
 /// </summary>
 public sealed class SemanticDiffHandlerTests
 {
+    private static readonly JsonSerializerOptions RequestJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     private static readonly string[] ExpectedPropertyNames =
-        ["from", "to", "ignoreAccessibility", "detectRenames", "directory"];
+        ["files", "from", "to", "ignoreAccessibility", "detectRenames", "directory"];
 
     [Fact]
     public void definition_exposes_the_semantic_diff_tool_name_and_optional_args()
     {
-        var handler = NewHandler(new RecordingGitClient());
-
-        handler.ToolName.ShouldBe("semantic_diff");
-
-        var def = handler.Definition;
+        using var provider = McpTestHost.CreateProvider();
+        var def = provider.GetRequiredService<ToolRegistry>()
+            .GetTools()
+            .Single(tool => tool.name == "semantic_diff");
         def.name.ShouldBe("semantic_diff");
         def.description.ShouldNotBeNullOrWhiteSpace();
 
@@ -50,7 +54,7 @@ public sealed class SemanticDiffHandlerTests
             WorkingTreeFiles = { ["Gadget.cs"] = "class Gadget { void M() { var x = 2; } }" },
         };
 
-        var result = await NewHandler(git).HandleAsync(EmptyArgs(), CancellationToken.None);
+        var result = await InvokeAsync(git, EmptyArgs());
 
         result.isError.ShouldBeFalse();
         using var payload = JsonDocument.Parse(result.content);
@@ -83,7 +87,7 @@ public sealed class SemanticDiffHandlerTests
         };
 
         // The handler's JSON.
-        var result = await NewHandler(git).HandleAsync(EmptyArgs(), CancellationToken.None);
+        var result = await InvokeAsync(git, EmptyArgs());
 
         // The CLI's JSON: same provider + engine, projected through SemanticDiffOutput.RenderJson.
         var provider = new GitSemanticDiffSourceProvider(git);
@@ -109,10 +113,10 @@ public sealed class SemanticDiffHandlerTests
             WorkingTreeFiles = { ["Gadget.cs"] = "class Gadget { private void M() { } }" },
         };
 
-        var ignored = await NewHandler(git).HandleAsync(
-            Args("""{"ignoreAccessibility":true}"""), CancellationToken.None);
-        var notIgnored = await NewHandler(git).HandleAsync(
-            Args("""{"ignoreAccessibility":false}"""), CancellationToken.None);
+        var ignored = await InvokeAsync(
+            git, Args("""{"ignoreAccessibility":true}"""));
+        var notIgnored = await InvokeAsync(
+            git, Args("""{"ignoreAccessibility":false}"""));
 
         ignored.isError.ShouldBeFalse();
         notIgnored.isError.ShouldBeFalse();
@@ -138,10 +142,10 @@ public sealed class SemanticDiffHandlerTests
             WorkingTreeFiles = { ["Gadget.cs"] = "class Gadget { void New() { var x = 1; } }" },
         };
 
-        var detected = await NewHandler(git).HandleAsync(
-            Args("""{"detectRenames":true}"""), CancellationToken.None);
-        var notDetected = await NewHandler(git).HandleAsync(
-            Args("""{"detectRenames":false}"""), CancellationToken.None);
+        var detected = await InvokeAsync(
+            git, Args("""{"detectRenames":true}"""));
+        var notDetected = await InvokeAsync(
+            git, Args("""{"detectRenames":false}"""));
 
         using var detectedDoc = JsonDocument.Parse(detected.content);
         using var notDetectedDoc = JsonDocument.Parse(notDetected.content);
@@ -167,7 +171,7 @@ public sealed class SemanticDiffHandlerTests
             WorkingTreeFiles = { ["Gadget.cs"] = "class Gadget { void New() { var x = 1; } }" },
         };
 
-        var result = await NewHandler(git).HandleAsync(EmptyArgs(), CancellationToken.None);
+        var result = await InvokeAsync(git, EmptyArgs());
 
         using var doc = JsonDocument.Parse(result.content);
         doc.RootElement.EnumerateArray()
@@ -180,7 +184,7 @@ public sealed class SemanticDiffHandlerTests
     {
         var git = new RecordingGitClient { ThrowNotARepository = true };
 
-        var result = await NewHandler(git).HandleAsync(EmptyArgs(), CancellationToken.None);
+        var result = await InvokeAsync(git, EmptyArgs());
 
         result.isError.ShouldBeTrue();
         result.content.ShouldContain("not a git repository");
@@ -191,8 +195,7 @@ public sealed class SemanticDiffHandlerTests
     {
         var git = new RecordingGitClient { InvalidRefs = { "nope" } };
 
-        var result = await NewHandler(git).HandleAsync(
-            Args("""{"from":"nope"}"""), CancellationToken.None);
+        var result = await InvokeAsync(git, Args("""{"from":"nope"}"""));
 
         result.isError.ShouldBeTrue();
         result.content.ShouldContain("invalid git ref");
@@ -207,8 +210,9 @@ public sealed class SemanticDiffHandlerTests
         Directory.CreateDirectory(nonRepo);
         try
         {
-            var result = await NewHandler(new RecordingGitClient()).HandleAsync(
-                Args($$"""{"directory":{{JsonSerializer.Serialize(nonRepo)}}}"""), CancellationToken.None);
+            var result = await InvokeAsync(
+                new RecordingGitClient(),
+                Args($$"""{"directory":{{JsonSerializer.Serialize(nonRepo)}}}"""));
 
             result.isError.ShouldBeTrue();
             result.content.ShouldContain("not a git repository");
@@ -220,16 +224,16 @@ public sealed class SemanticDiffHandlerTests
     }
 
     [Fact]
-    public void semantic_diff_handler_is_registered_as_an_imcphandler()
+    public void semantic_diff_is_descriptor_backed()
     {
         var services = new ServiceCollection();
         RoslynTools.Bootstrap.RegisterServices(services);
         services.AddMcpServices(new StringReader(string.Empty), new StringWriter());
 
         using var provider = services.BuildServiceProvider();
-        var toolNames = provider.GetServices<IMcpHandler>().Select(h => h.ToolName).ToList();
-
-        toolNames.ShouldContain("semantic_diff");
+        provider.GetRequiredService<ToolRegistry>().GetTools()
+            .Select(tool => tool.name)
+            .ShouldContain("semantic_diff");
     }
 
     [Fact]
@@ -251,8 +255,33 @@ public sealed class SemanticDiffHandlerTests
         payload.RootElement.GetArrayLength().ShouldBe(0);
     }
 
-    private static SemanticDiffHandler NewHandler(IGitClient git) =>
-        new(new GitSemanticDiffSourceProvider(git), new SemanticDiffService());
+    private static async Task<ToolResult> InvokeAsync(
+        IGitClient git,
+        JsonElement arguments)
+    {
+        var operation = new SemanticDiffOperation(
+            new GitSemanticDiffSourceProvider(git),
+            new FileSemanticDiffSourceProvider(new FileTextReader()),
+            new SemanticDiffService(),
+            new SemanticDiffTextRenderer());
+
+        try
+        {
+            var request = JsonSerializer.Deserialize<SemanticDiffOperationRequest>(
+                arguments.GetRawText(),
+                RequestJsonOptions)!;
+            var result = await ((ICommandApplicationPort)operation)
+                .InvokeAsync(request, CancellationToken.None);
+            var content = result.Value is JsonElement json
+                ? json.GetRawText()
+                : JsonSerializer.Serialize(result.Value);
+            return new ToolResult(result.IsError, result.Error ?? content);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
+        {
+            return new ToolResult(true, ex.Message);
+        }
+    }
 
     private static JsonElement EmptyArgs() => Args("{}");
 
