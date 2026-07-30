@@ -75,3 +75,50 @@ internal sealed class FeedbackListOperation
         return Task.FromResult(_list(request.Status ?? "pending"));
     }
 }
+
+internal sealed record FeedbackProcessRequest(
+    [property: JsonRequired] string? Id = null,
+    [property: JsonRequired] string? Resolution = null);
+
+internal sealed record FeedbackProcessResult(
+    string Id,
+    string Status,
+    string ProcessedAt,
+    string Resolution);
+
+internal sealed class FeedbackProcessOperation
+    : CommandApplicationPort<FeedbackProcessRequest, FeedbackProcessResult>, IRtService
+{
+    private readonly Func<string, string, FeedbackEntry> _process;
+
+    public FeedbackProcessOperation()
+        : this(FeedbackStore.MarkProcessed)
+    {
+    }
+
+    internal FeedbackProcessOperation(Func<string, string, FeedbackEntry> process)
+    {
+        _process = process;
+    }
+
+    public override string CommandName => "feedback_process";
+
+    public override Task<FeedbackProcessResult> ExecuteAsync(
+        FeedbackProcessRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (string.IsNullOrWhiteSpace(request.Id))
+            throw new ArgumentException("Feedback ID is required.");
+        if (string.IsNullOrWhiteSpace(request.Resolution))
+            throw new ArgumentException("Resolution is required.");
+
+        var entry = _process(request.Id, request.Resolution);
+        return Task.FromResult(new FeedbackProcessResult(
+            entry.Id,
+            entry.Status,
+            entry.ProcessedAt!,
+            entry.Resolution!));
+    }
+}

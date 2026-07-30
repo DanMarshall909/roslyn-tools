@@ -16,11 +16,13 @@ internal static class FeedbackCommand
 
     internal static Command Build(
         FeedbackAddOperation addOperation,
-        FeedbackListOperation listOperation)
+        FeedbackListOperation listOperation,
+        FeedbackProcessOperation processOperation)
     {
         var cmd = new Command("feedback", "Log and list feedback items for rt improvement");
         cmd.AddCommand(BuildAdd(addOperation));
         cmd.AddCommand(BuildList(listOperation));
+        cmd.AddCommand(BuildProcess(processOperation));
         return cmd;
     }
 
@@ -69,6 +71,30 @@ internal static class FeedbackCommand
             var filtered = await operation.ExecuteAsync(new FeedbackListRequest(status));
             RtConsole.WriteLine(RtOutputContext.Result, JsonSerializer.Serialize(filtered, JsonOpts));
         }, statusOpt);
+
+        return cmd;
+    }
+
+    internal static Command BuildProcess(FeedbackProcessOperation operation)
+    {
+        var idOpt = new Option<string>("--id", "Feedback ID to mark processed")
+        {
+            IsRequired = true
+        };
+        var resolutionOpt = new Option<string>("--resolution", "How the feedback item was resolved")
+        {
+            IsRequired = true
+        };
+
+        var cmd = new Command("process", "Mark a feedback item as processed");
+        cmd.AddOption(idOpt);
+        cmd.AddOption(resolutionOpt);
+
+        cmd.SetHandler(async (id, resolution) =>
+        {
+            var result = await operation.ExecuteAsync(new FeedbackProcessRequest(id, resolution));
+            RtConsole.WriteLine(RtOutputContext.Result, $"Feedback processed: {result.Id}");
+        }, idOpt, resolutionOpt);
 
         return cmd;
     }

@@ -18,6 +18,7 @@ public sealed class FeedbackHandlerTests
 
         tools.Select(tool => tool.name).ShouldContain("feedback_add");
         tools.Select(tool => tool.name).ShouldContain("feedback_list");
+        tools.Select(tool => tool.name).ShouldContain("feedback_process");
 
         var add = tools.Single(tool => tool.name == "feedback_add");
         var required = (string[])add.inputSchema["required"];
@@ -33,6 +34,10 @@ public sealed class FeedbackHandlerTests
         var listProperties =
             (Dictionary<string, Dictionary<string, object>>)list.inputSchema["properties"];
         listProperties.Keys.ShouldBe(["status"]);
+
+        var process = tools.Single(tool => tool.name == "feedback_process");
+        var processRequired = (string[])process.inputSchema["required"];
+        processRequired.ShouldBe(["id", "resolution"], ignoreOrder: true);
     }
 
     [Fact]
@@ -89,5 +94,34 @@ public sealed class FeedbackHandlerTests
         result.Count.ShouldBe(1);
         result[0].Id.ShouldBe("FB-002");
         result[0].Status.ShouldBe("processed");
+    }
+
+    [Fact]
+    public async Task feedback_process_marks_the_requested_item_processed()
+    {
+        string? processedId = null;
+        string? recordedResolution = null;
+        var operation = new FeedbackProcessOperation((id, resolution) =>
+        {
+            processedId = id;
+            recordedResolution = resolution;
+            return new FeedbackEntry
+            {
+                Id = id,
+                Status = "processed",
+                ProcessedAt = "2026-07-30T08:00:00.0000000+00:00",
+                Resolution = resolution
+            };
+        });
+
+        var result = await operation.ExecuteAsync(
+            new FeedbackProcessRequest("FB-001", "Regression test added."));
+
+        processedId.ShouldBe("FB-001");
+        recordedResolution.ShouldBe("Regression test added.");
+        result.Id.ShouldBe("FB-001");
+        result.Status.ShouldBe("processed");
+        result.Resolution.ShouldBe("Regression test added.");
+        result.ProcessedAt.ShouldNotBeNullOrWhiteSpace();
     }
 }

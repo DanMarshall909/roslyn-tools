@@ -35,6 +35,42 @@ public class FeedbackStoreTests
         }
     }
 
+    [Fact]
+    public void mark_processed_persists_resolution_and_removes_entry_from_pending_work()
+    {
+        using var workspace = new FeedbackWorkspace();
+        using (workspace.UseCurrentDirectory())
+        {
+            FeedbackStore.Append(new FeedbackEntry
+            {
+                Type = "exception",
+                Description = "fixed defect"
+            });
+
+            var processed = FeedbackStore.MarkProcessed("FB-001", "Covered by regression test.");
+
+            processed.Id.ShouldBe("FB-001");
+            processed.Status.ShouldBe("processed");
+            processed.Resolution.ShouldBe("Covered by regression test.");
+            processed.ProcessedAt.ShouldNotBeNullOrWhiteSpace();
+            FeedbackStore.ListByStatus("pending").ShouldBeEmpty();
+            FeedbackStore.ListByStatus("processed").Single().Id.ShouldBe("FB-001");
+        }
+    }
+
+    [Fact]
+    public void mark_processed_rejects_an_unknown_feedback_id()
+    {
+        using var workspace = new FeedbackWorkspace();
+        using (workspace.UseCurrentDirectory())
+        {
+            var exception = Should.Throw<ArgumentException>(
+                () => FeedbackStore.MarkProcessed("FB-999", "not present"));
+
+            exception.Message.ShouldContain("FB-999", Case.Sensitive);
+        }
+    }
+
     private sealed class FeedbackWorkspace : IDisposable
     {
         private readonly string _previousDirectory;

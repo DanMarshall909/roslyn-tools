@@ -41,6 +41,7 @@ internal sealed class CommandDescriptorRegistry
         IEnumerable<ICommandApplicationPort> ports,
         FeedbackAddOperation feedbackAdd,
         FeedbackListOperation feedbackList,
+        FeedbackProcessOperation feedbackProcess,
         SuggestOperation suggest,
         IGitClient git)
     {
@@ -85,6 +86,16 @@ internal sealed class CommandDescriptorRegistry
             CommandSafetyPolicy.ReadOnly,
             Structured: true,
             feedbackList));
+        descriptors.Add(new ApplicationCommandDescriptor(
+            ["feedback", "process"],
+            "feedback_process",
+            "Mark an rt feedback item as processed with a resolution.",
+            "Close verified feedback so pending work only contains unresolved items.",
+            () => FeedbackCommand.BuildProcess(feedbackProcess),
+            McpVisible: true,
+            CommandSafetyPolicy.ReadOnly,
+            Structured: true,
+            feedbackProcess));
         descriptors.Add(new ApplicationCommandDescriptor(
             ["suggest"],
             "suggest_command",

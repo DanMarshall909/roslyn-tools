@@ -34,10 +34,13 @@ internal static class Bootstrap
         services.AddSingleton<ICommandCatalog, AppCommandCatalog>();
         services.AddSingleton<FeedbackAddOperation>();
         services.AddSingleton<FeedbackListOperation>();
+        services.AddSingleton<FeedbackProcessOperation>();
         services.AddSingleton<ICommandApplicationPort>(
             sp => sp.GetRequiredService<FeedbackAddOperation>());
         services.AddSingleton<ICommandApplicationPort>(
             sp => sp.GetRequiredService<FeedbackListOperation>());
+        services.AddSingleton<ICommandApplicationPort>(
+            sp => sp.GetRequiredService<FeedbackProcessOperation>());
         services.AddSingleton<CommandDescriptorRegistry>();
 
         // GitSemanticDiffSourceProvider (an IRtService, so auto-scanned below) depends on

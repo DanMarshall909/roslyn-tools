@@ -115,6 +115,30 @@ internal static class FeedbackStore
         };
     }
 
+    internal static FeedbackEntry MarkProcessed(string id, string resolution)
+    {
+        Lock.Wait();
+        try
+        {
+            using var storeLock = AcquireStoreLock();
+            var all = ReadExisting();
+            var entry = all.SingleOrDefault(candidate =>
+                string.Equals(candidate.Id, id, StringComparison.OrdinalIgnoreCase));
+            if (entry is null)
+                throw new ArgumentException($"Feedback item '{id}' was not found.", nameof(id));
+
+            entry.Status = "processed";
+            entry.ProcessedAt = DateTimeOffset.UtcNow.ToString("O");
+            entry.Resolution = resolution;
+            WriteAll(all);
+            return entry;
+        }
+        finally
+        {
+            Lock.Release();
+        }
+    }
+
     internal static async Task AppendExceptionAsync(
         string cmdLine,
         Exception ex,

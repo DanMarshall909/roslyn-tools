@@ -34,7 +34,7 @@ public sealed class McpDependencyInjectionTests
         var tools = builder.Build();
 
         var cliCommandCount = App.Commands.Count;
-        tools.Count.ShouldBe(cliCommandCount + 3);
+        tools.Count.ShouldBe(cliCommandCount + 4);
         Assert.All(tools, t =>
         {
             string.IsNullOrWhiteSpace(t.name).ShouldBeFalse();

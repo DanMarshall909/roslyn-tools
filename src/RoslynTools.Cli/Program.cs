@@ -62,7 +62,8 @@ internal static class Program
                 DaemonCommand.Build(),
                 FeedbackCommand.Build(
                     host.Services.GetRequiredService<FeedbackAddOperation>(),
-                    host.Services.GetRequiredService<FeedbackListOperation>())
+                    host.Services.GetRequiredService<FeedbackListOperation>(),
+                    host.Services.GetRequiredService<FeedbackProcessOperation>())
             ]);
     }
 

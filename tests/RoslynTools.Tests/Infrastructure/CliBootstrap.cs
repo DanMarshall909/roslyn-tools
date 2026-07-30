@@ -9,7 +9,7 @@ public class CliBootstrap
     public async Task informational_startup_messages_do_not_use_the_error_stream()
     {
         var repoRoot = FindRepoRoot();
-        var rtDll = Path.Combine(repoRoot, "src", "RoslynTools.Cli", "bin", "Debug", "net8.0", "rt.dll");
+        var rtDll = FindRtDll(repoRoot);
 
         var result = await RunAsync("dotnet", $"\"{rtDll}\" --help", repoRoot);
 
@@ -25,7 +25,7 @@ public class CliBootstrap
         // stderr line and exit 1 — no FileNotFoundException stack trace, no "Unhandled exception:"
         // banner from System.CommandLine's default UseExceptionHandler.
         var repoRoot = FindRepoRoot();
-        var rtDll = Path.Combine(repoRoot, "src", "RoslynTools.Cli", "bin", "Debug", "net8.0", "rt.dll");
+        var rtDll = FindRtDll(repoRoot);
         var missingPath = Path.Combine(Path.GetTempPath(), $"does-not-exist-{Guid.NewGuid():N}.slnx");
 
         var result = await RunAsync(
@@ -48,7 +48,7 @@ public class CliBootstrap
         // analyze-interface) must print one clean stderr line and exit 1 — no stack trace,
         // no "Unhandled exception:" banner. Sources: FB-027/FB-028.
         var repoRoot = FindRepoRoot();
-        var rtDll = Path.Combine(repoRoot, "src", "RoslynTools.Cli", "bin", "Debug", "net8.0", "rt.dll");
+        var rtDll = FindRtDll(repoRoot);
         var slnxPath = Path.Combine(repoRoot, "RoslynTools.slnx");
 
         // App is a class in the rt assembly; analyze-interface expects an interface, so it
@@ -72,7 +72,7 @@ public class CliBootstrap
         // US-042: JsonException from a malformed --from-json file must produce one clean
         // stderr line and exit 1.
         var repoRoot = FindRepoRoot();
-        var rtDll = Path.Combine(repoRoot, "src", "RoslynTools.Cli", "bin", "Debug", "net8.0", "rt.dll");
+        var rtDll = FindRtDll(repoRoot);
         var slnxPath = Path.Combine(repoRoot, "RoslynTools.slnx");
         var badJsonPath = Path.Combine(Path.GetTempPath(), $"bad-json-{Guid.NewGuid():N}.json");
         await File.WriteAllTextAsync(badJsonPath, "{ this is not valid json");
@@ -102,7 +102,7 @@ public class CliBootstrap
         // stderr line and exit 1. DecisionStore.Load runs before next(context), so this
         // also verifies that the Load call is inside the same exception-handling path.
         var repoRoot = FindRepoRoot();
-        var rtDll = Path.Combine(repoRoot, "src", "RoslynTools.Cli", "bin", "Debug", "net8.0", "rt.dll");
+        var rtDll = FindRtDll(repoRoot);
         var slnxPath = Path.Combine(repoRoot, "RoslynTools.slnx");
         var badYamlPath = Path.Combine(Path.GetTempPath(), $"bad-yaml-{Guid.NewGuid():N}.yaml");
         // Invalid YAML — unclosed mapping with a tab and bad indentation.
@@ -173,6 +173,19 @@ public class CliBootstrap
                 return directory.FullName;
 
         throw new InvalidOperationException("Could not locate repository root.");
+    }
+
+    private static string FindRtDll(string repoRoot)
+    {
+        var targetFramework = new DirectoryInfo(AppContext.BaseDirectory).Name;
+        return Path.Combine(
+            repoRoot,
+            "src",
+            "RoslynTools.Cli",
+            "bin",
+            "Debug",
+            targetFramework,
+            "rt.dll");
     }
 
     private sealed record CommandResult(int ExitCode, string Stdout, string Stderr);
