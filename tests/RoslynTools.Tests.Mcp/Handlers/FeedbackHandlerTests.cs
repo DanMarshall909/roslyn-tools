@@ -41,11 +41,19 @@ public sealed class FeedbackHandlerTests
     public async Task feedback_add_records_every_input_and_returns_the_allocated_id()
     {
         FeedbackEntry? recorded = null;
-        var handler = new FeedbackAddHandler(entry =>
+        var handler = new FeedbackAddHandler((description, sampleCode, expectedResult, commandLine) =>
         {
-            recorded = entry;
-            entry.Id = "FB-374";
-            return entry.Id;
+            recorded = new FeedbackEntry
+            {
+                Id = "FB-374",
+                Type = "user-feedback",
+                Timestamp = DateTimeOffset.UtcNow.ToString("O"),
+                Description = description,
+                SampleCode = sampleCode,
+                ExpectedResult = expectedResult,
+                CommandLine = commandLine
+            };
+            return recorded;
         });
         using var arguments = JsonDocument.Parse(
             """
@@ -83,7 +91,9 @@ public sealed class FeedbackHandlerTests
             new() { Id = "FB-001", Description = "pending", Status = "pending" },
             new() { Id = "FB-002", Description = "done", Status = "processed" }
         };
-        var handler = new FeedbackListHandler(() => entries);
+        var handler = new FeedbackListHandler(status => entries
+            .Where(entry => string.Equals(entry.Status, status, StringComparison.OrdinalIgnoreCase))
+            .ToList());
         using var arguments = JsonDocument.Parse("""{"status":"processed"}""");
 
         var result = await handler.HandleAsync(arguments.RootElement, CancellationToken.None);

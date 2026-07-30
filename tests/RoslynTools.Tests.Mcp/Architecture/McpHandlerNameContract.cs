@@ -35,7 +35,9 @@ public sealed class McpHandlerNameContract
     /// </summary>
     private static readonly HashSet<string> KnownMetaHandlerNames = new(StringComparer.Ordinal)
     {
-        "suggest_command" // US-106 tracks aligning this with the CLI `rt suggest` meta-command name
+        "suggest_command", // US-106 tracks aligning this with the CLI `rt suggest` meta-command name
+        "feedback_add", // FB-373: nested `rt feedback add` command, not an App.Commands entry
+        "feedback_list" // FB-373: nested `rt feedback list` command, not an App.Commands entry
     };
 
     [Fact]

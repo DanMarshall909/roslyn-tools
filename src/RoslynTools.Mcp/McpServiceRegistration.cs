@@ -29,6 +29,8 @@ internal static class McpServiceRegistration
         services.AddSingleton<IMcpHandler, FindReferencesHandler>();
         services.AddSingleton<IMcpHandler, RenameSymbolHandler>();
         services.AddSingleton<IMcpHandler, SemanticDiffHandler>();
+        services.AddSingleton<IMcpHandler, FeedbackAddHandler>();
+        services.AddSingleton<IMcpHandler, FeedbackListHandler>();
 
         return services;
     }

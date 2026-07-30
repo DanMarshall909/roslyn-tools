@@ -6854,6 +6854,26 @@
       "description": "Architecture: make every CLI and MCP feature a thin adapter over one shared request/result service operation. Native MCP handlers currently drift from CLI behavior: outline duplicates dispatch logic; semantic-diff lacks CLI two-file mode and has different options; find-refs enriches only MCP; schemas are handwritten separately; output and errors vary. Move dispatch, enrichment, defaults, mutation policy, and supported modes into shared operation contracts. Add parity tests proving equivalent CLI and MCP inputs produce the same domain results.",
       "expectedResult": "Every feature has one host-agnostic request/result operation. CLI and MCP only parse and render, and parity tests prevent defaults, modes, mutations, suggestions, schemas, and errors from drifting.",
       "status": "pending"
+    },
+    {
+      "id": "FB-372",
+      "type": "user-feedback",
+      "timestamp": "2026-07-30T07:03:31.1466681\u002B00:00",
+      "commandLine": "MCP: feedback add",
+      "description": "Add universal filters and deterministic grouped output to structured analysis tools. Implement one shared structured-result filter contract rather than per-command flags. Expose repeatable include/exclude rules in MCP and CLI: field=pattern is a glob (* within one path segment, ** across directories), and field~pattern is regex. Same-field includes are ORed, includes for different fields are ANDed, and any exclusion wins. Normalize paths, reject invalid or unsafe regex visibly, and apply filtering to structured data before rendering/grouping; never screen-scrape formatted text. Wire the shared behavior centrally through the MCP ToolRegistry and CLI structured renderer so every analysis feature can opt in with minimal code. Plain-text-only tools should reject filters until they provide structured output.\n\nImprove semantic-diff as the first consumer. Keep canonical flat deltas as the source of truth, then deterministically project them as Status (Added, Changed, Removed, Renamed, plus derived Moved) -\u003E adaptive Directory (only when multiple files share it) -\u003E Path -\u003E containing Type -\u003E Member. Filter before grouping, remove empty groups, and recompute counts. Add schemaVersion, deterministic ordering, 1-based old/new start/end line ranges, and stable drilldownId values accepted by describe/source. Preserve a flat/no-group compatibility view and support summary/compact/full detail.",
+      "expectedResult": "All structured analysis tools accept the same include/exclude syntax and semantics without duplicating filtering logic. semantic-diff emits a stable, deterministic schema ordered by status, directory/path, containing fully-qualified type, declaration kind/FQN, and start line; filtered results contain no empty groups and have accurate counts. Each member can be located by line range and inspected through its drill-down identifier.",
+      "status": "pending"
+    },
+    {
+      "id": "FB-373",
+      "type": "user-feedback",
+      "timestamp": "2026-07-30T07:04:39.3006854\u002B00:00",
+      "commandLine": "Attempted MCP feedback add; tool was not exposed, so native CLI fallback was required.",
+      "description": "Expose roslyn-tools feedback operations as first-class MCP commands. The command catalog recommends \u0060feedback add\u0060, but the connected MCP server does not advertise or provide an executable feedback tool; only \u0060suggest_command\u0060 can identify it. This forces MCP clients to fall back to invoking the CLI directly, undermining the feedback workflow precisely when reporting MCP usability gaps. Add an MCP \u0060feedback_add\u0060 tool with description, sampleCode, expectedResult, and commandLine inputs, and expose \u0060feedback_list\u0060 with the existing status filter. Reuse FeedbackStore and the same validation/persistence path as the CLI so IDs, locking, schema, and behavior cannot diverge.",
+      "expectedResult": "MCP discovery returns executable feedback_add and feedback_list tools. Calling feedback_add records a pending item through FeedbackStore and returns its allocated feedback ID in structured output; feedback_list returns structured entries filtered by pending, processed, or all. No shell or CLI bridge is required.",
+      "status": "processed",
+      "processedAt": "2026-07-30T07:12:47.6772223Z",
+      "resolution": "Implemented first-class feedback_add and feedback_list MCP handlers with structured schemas and results. Both handlers reuse FeedbackStore.AddUserFeedback and FeedbackStore.ListByStatus, and focused MCP discovery, add, and list regression tests pass."
     }
   ]
 }

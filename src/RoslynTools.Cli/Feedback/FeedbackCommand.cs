@@ -43,20 +43,12 @@ internal static class FeedbackCommand
 
         cmd.SetHandler((description, sampleCode, expectedResult, commandLine) =>
         {
-            var existing = FeedbackStore.LoadAll();
-            var entry = new FeedbackEntry
-            {
-                Id = FeedbackStore.NextId(existing),
-                Type = "user-feedback",
-                Timestamp = DateTimeOffset.UtcNow.ToString("O"),
-                CommandLine = commandLine,
-                Description = description,
-                SampleCode = sampleCode,
-                ExpectedResult = expectedResult
-            };
-
-            var id = FeedbackStore.Append(entry);
-            RtConsole.WriteLine(RtOutputContext.Result, $"Feedback recorded: {id}");
+            var entry = FeedbackStore.AddUserFeedback(
+                description,
+                sampleCode,
+                expectedResult,
+                commandLine);
+            RtConsole.WriteLine(RtOutputContext.Result, $"Feedback recorded: {entry.Id}");
         }, descriptionOpt, sampleCodeOpt, expectedResultOpt, commandLineOpt);
 
         return cmd;
@@ -72,16 +64,7 @@ internal static class FeedbackCommand
 
         cmd.SetHandler(status =>
         {
-            var all = FeedbackStore.LoadAll();
-            var filtered = status switch
-            {
-                "all" => all,
-                "processed" => all.Where(e =>
-                    string.Equals(e.Status, "processed", StringComparison.OrdinalIgnoreCase)).ToList(),
-                _ => all.Where(e =>
-                    string.Equals(e.Status, "pending", StringComparison.OrdinalIgnoreCase)).ToList()
-            };
-
+            var filtered = FeedbackStore.ListByStatus(status);
             RtConsole.WriteLine(RtOutputContext.Result, JsonSerializer.Serialize(filtered, JsonOpts));
         }, statusOpt);
 
