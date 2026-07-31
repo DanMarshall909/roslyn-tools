@@ -54,8 +54,8 @@ public class ExtractClassFb362 : IClassFixture<RtServicesFixture>
         // The innermost statement must be indented deeper than the foreach,
         // which is deeper than the method signature. A flat single-indent
         // (the bug) would put them all at the same column.
-        extracted.ShouldContain("                    total += value;", Case.Sensitive);
-        extracted.ShouldContain("            foreach (var value in values)", Case.Sensitive);
+        extracted.ShouldContain("                total += value;", Case.Sensitive);
+        extracted.ShouldContain("        foreach (var value in values)", Case.Sensitive);
     }
 
     [Fact]

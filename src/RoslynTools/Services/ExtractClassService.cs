@@ -475,8 +475,8 @@ internal class ExtractClassService : IRtService
         var hasNamespace = !string.IsNullOrEmpty(namespaceName);
         if (hasNamespace)
         {
-            sb.AppendLine(CultureInfo.InvariantCulture, $"namespace {namespaceName}");
-            sb.AppendLine("{");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"namespace {namespaceName};");
+            sb.AppendLine();
         }
 
         var staticKeyword = isStatic ? "static " : string.Empty;
@@ -487,8 +487,6 @@ internal class ExtractClassService : IRtService
             sb.AppendLine(member.ToFullString().Trim());
 
         sb.AppendLine("}");
-        if (hasNamespace)
-            sb.AppendLine("}");
 
         using var workspace = new AdhocWorkspace();
         var root = CSharpSyntaxTree.ParseText(sb.ToString()).GetRoot();
