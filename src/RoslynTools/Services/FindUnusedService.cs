@@ -232,6 +232,23 @@ internal class FindUnusedService : IRtService
     private static bool DeclaresEntryPoint(INamedTypeSymbol type) =>
         type.GetMembers(EntryPointMethodName).OfType<IMethodSymbol>().Any(m => m.IsStatic);
 
+    /// <summary>
+    /// The method name and interface App.Discover() invokes reflectively (via
+    /// <c>Type.GetMethod("Build", ...)</c> + <c>MethodInfo.Invoke</c>) on every command. Like
+    /// <see cref="EntryPointMethodName"/>, this is a known, narrow reflective consumer inside rt
+    /// itself — not a generic assembly scan — so the method is excluded outright rather than
+    /// downgraded to low confidence.
+    /// </summary>
+    private const string CommandFactoryMethodName = "Build";
+
+    private const string CommandInterfaceName = "IRtCommand";
+
+    private static bool IsCommandFactoryMethod(IMethodSymbol method) =>
+        method.Name == CommandFactoryMethodName
+        && method.DeclaredAccessibility == Accessibility.Public
+        && method.ContainingType is { } containingType
+        && ImplementsInterface(containingType, CommandInterfaceName);
+
     private bool ShouldExclude(ISymbol symbol)
     {
         if (symbol is INamedTypeSymbol type)
@@ -258,6 +275,9 @@ internal class FindUnusedService : IRtService
         if (symbol is IMethodSymbol m && HasAttribute(m, "FactAttribute", "TheoryAttribute"))
             return true;
 
+        if (symbol is IMethodSymbol factoryCandidate && IsCommandFactoryMethod(factoryCandidate))
+            return true;
+
         return false;
     }
 
@@ -279,6 +299,9 @@ internal class FindUnusedService : IRtService
 
         return false;
     }
+
+    private static bool ImplementsInterface(INamedTypeSymbol type, string interfaceName) =>
+        type.AllInterfaces.Any(i => i.Name == interfaceName);
 
     /// <summary>
     /// Matches by attribute class name. Names are the compiler's, so they always carry the
