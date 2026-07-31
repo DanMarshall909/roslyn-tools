@@ -25,32 +25,11 @@ internal class ExtractClassService : IRtService
         SymbolDisplayGlobalNamespaceStyle.Omitted,
         SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
         SymbolDisplayGenericsOptions.IncludeTypeParameters);
-    private readonly IWorkspaceSessionFactory _sessionFactory;
 
-    public ExtractClassService(ILogger<ExtractClassService> logger, ISolutionChangeWriter solutionChangeWriter, IWorkspaceSessionFactory sessionFactory)
+    public ExtractClassService(ILogger<ExtractClassService> logger, ISolutionChangeWriter solutionChangeWriter)
     {
-        _sessionFactory = sessionFactory;
         _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
-    }
-
-    /// <summary>
-    /// Runs the extraction process for a class from a method.
-    /// </summary>
-    internal async Task RunAsync(
-        string typeName,
-        string members,
-        string newTypeName,
-        bool isStatic,
-        string? solutionPath,
-        string? outputDir,
-        bool dryRun)
-    {
-        var (workspace, solution) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
-        using (workspace)
-        {
-            await ExecuteAsync(solution, typeName, members, newTypeName, isStatic, outputDir, dryRun);
-        }
     }
 
     /// <summary>

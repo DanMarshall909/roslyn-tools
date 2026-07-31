@@ -20,37 +20,6 @@ public class FindDuplicatesMigration : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    private static (AdhocProjectBuilder Project, IReadOnlyList<DuplicateGroup> Groups, string? SolutionDir)
-        BuildDuplicateProject()
-    {
-        var project = new AdhocProjectBuilder();
-        project.AddSource("A.cs", """
-                                  namespace TestApp;
-
-                                  public class A
-                                  {
-                                      public void First()
-                                      {
-                                          int x = 1;
-                                          int y = 2;
-                                          System.Console.WriteLine(x + y);
-                                      }
-
-                                      public void Second()
-                                      {
-                                          int x = 1;
-                                          int y = 2;
-                                          System.Console.WriteLine(x + y);
-                                      }
-                                  }
-                                  """);
-
-        var (workspace, sln) = project.Build();
-        var groups = new FindDuplicatesService().RunAsync(sln, new FindDuplicatesOptions()).GetAwaiter().GetResult();
-        workspace.Dispose();
-        return (project, groups, null);
-    }
-
     // ── AC-4: RenderText reproduces PrintGroups output byte-for-byte ──────────────
 
     [Fact]

@@ -6,15 +6,6 @@ namespace RoslynTools.Tests.Mutation;
 
 public class MoveMethod
 {
-    // ─── helpers ─────────────────────────────────────────────────────────────
-
-    private static async Task<string> TextAsync(Solution sln, string name)
-    {
-        var doc = sln.Projects
-            .SelectMany(p => p.Documents)
-            .Single(d => d.Name == name);
-        return (await doc.GetTextAsync()).ToString();
-    }
 
     // ─── happy-path: single call site ────────────────────────────────────────
 

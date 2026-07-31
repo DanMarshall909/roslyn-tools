@@ -69,16 +69,6 @@ internal static class JsonSchemaBuilder
         return schema;
     }
 
-    public static Dictionary<string, object> String(string description = "")
-    {
-        return Scalar("string", description);
-    }
-
-    public static Dictionary<string, object> Boolean(string description = "")
-    {
-        return Scalar("boolean", description);
-    }
-
     public static Dictionary<string, object> StructuredOutput()
     {
         return new Dictionary<string, object>
