@@ -17,6 +17,8 @@ internal interface ISymbolResolutionService
 
     Task<Result<IMethodSymbol, RtError>> TryFindMethodBySpecAsync(Solution solution, string methodSpec);
 
+    Task<Result<ISymbol, RtError>> TryFindMemberBySignatureAsync(Solution solution, string signature);
+
     Task<ISymbol> FindSymbolAsync(Solution solution, string symbolName, string? kind);
 
     Task<ISymbol> FindSymbolByFqnAsync(Solution solution, string fullyQualifiedName, string? kind);
@@ -53,6 +55,11 @@ internal sealed class SymbolResolutionService : ISymbolResolutionService, IRtSer
     public Task<Result<IMethodSymbol, RtError>> TryFindMethodBySpecAsync(Solution solution, string methodSpec)
     {
         return SymbolLocator.TryFindMethodBySpecAsync(solution, methodSpec);
+    }
+
+    public Task<Result<ISymbol, RtError>> TryFindMemberBySignatureAsync(Solution solution, string signature)
+    {
+        return SymbolLocator.TryFindMemberBySignatureAsync(solution, signature);
     }
 
     public Task<ISymbol> FindSymbolAsync(Solution solution, string symbolName, string? kind)

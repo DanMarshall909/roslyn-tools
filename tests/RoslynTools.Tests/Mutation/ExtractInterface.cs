@@ -565,6 +565,9 @@ internal sealed class StubSymbolResolutionService : ISymbolResolutionService
     public Task<Result<IMethodSymbol, RtError>> TryFindMethodBySpecAsync(Solution solution, string methodSpec) =>
         throw new NotImplementedException();
 
+    public Task<Result<ISymbol, RtError>> TryFindMemberBySignatureAsync(Solution solution, string signature) =>
+        throw new NotImplementedException();
+
     public Task<ISymbol> FindSymbolAsync(Solution solution, string symbolName, string? kind) =>
         Task.FromResult(_resolve(symbolName)!);
 
