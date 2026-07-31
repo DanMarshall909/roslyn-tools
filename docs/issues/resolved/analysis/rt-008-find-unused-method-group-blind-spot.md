@@ -105,34 +105,68 @@ low-confidence downgrade.
 
 ### Triage of residual findings (post-fix, `rt inspect find-unused --scope methods`)
 
-**Confirmed genuinely dead (zero references, spot-checked `RtCommandFlagBinder.WithType` directly via `find-refs`; same shape for the rest — plain private/internal helpers with no interface or override backing):**
-`RtCommandFlagBinder.WithType/WithFile/WithJson/WithFormat/WithVerbose/WithDecisions/WithApplySkip`
-(`RtCommandFlags.cs`), `CommandOptionFactory.CreateNullableStringOption`,
-`DaemonPipeConsole.Write`, `JsonSchemaBuilder.String`/`Boolean`
-(`ToolRegistry.cs`), `MethodExtractorDuplicates.UpdateSourceFileCallSiteAsync`,
-`ExtractClassService.RunAsync`, `SymbolResolutionService`/
-`ISymbolResolutionService`'s `TryFindSymbolByFqnAsync`/`TryFindTypeByFqnAsync`/
-`TryFindMethodBySpecAsync` trio, plus several test-only helpers
-(`AdhocProjectBuilder.ReferenceProject`, `Complexity.FindMethod`,
-`FindDuplicatesMigration.BuildDuplicateProject`,
-`PipedSymbolReaderTests.Read`, `SolutionWriterIntegration.LoadTextAndVersionAsync`,
-`MsBuildFixture.Initialize`, `MoveMethod.TextAsync`,
-`TransformParameters.FilePath`). Candidates for a future safe-delete pass;
-not deleted here.
+**Update (2026-08-01):** the rest of this triage was originally written from the
+finding *names* without opening every declaration. Actually attempting the
+deletions turned up two more wrong calls that the name-only pass missed —
+corrected here rather than left standing:
+
+- `RtCommandFlagBinder.WithType/WithFile/WithJson/WithFormat/WithVerbose/
+  WithDecisions/WithApplySkip` looked like plain unused fluent builder
+  methods (confirmed zero references), but deleting `WithType` orphaned the
+  `_typeOpt` field it was the sole assigner of, which broke the build
+  (`CS0649`) the moment a full rebuild ran. Investigating further,
+  `RtFlagCapabilityMap.OptionToCapability` — a live table asserted against by
+  `FlagCapabilityMigrationTests` — maps `"type"` to `ISupportsTypeOption`,
+  the interface `WithType` exists to populate. This is designed, tested,
+  currently-unused-but-ready extensibility, not a leftover. **Not deleted.**
+- `MethodExtractorDuplicates.UpdateSourceFileCallSiteAsync`'s only call site
+  is commented out a few lines above its own declaration, behind a
+  `TODO (US-032 Phase 4)` explaining exactly why it's disabled pending
+  architectural rework. Pending work, not dead code. **Not deleted.**
+- What was recorded here as `DaemonPipeConsole.Write` was actually the
+  nested `PipeTextWriter.Write(char)` — a `TextWriter` override, dispatched
+  by the BCL. Folded into the rt-011 blind spot below.
+
+**Confirmed genuinely dead and deleted:** `CommandOptionFactory.CreateNullableStringOption`
+(untested sibling of two actively-tested overloads), `JsonSchemaBuilder.String`/`Boolean`
+(`ToolRegistry.cs` — the one call site builds the same shape by hand instead),
+`ExtractClassService.RunAsync` (a self-loading orchestration method superseded by
+the `IWorkspaceSessionFactory` path `ExtractClassCommand` actually calls — its
+deletion also orphaned the `_sessionFactory` field/ctor param, removed with it),
+`SymbolResolutionService`/`ISymbolResolutionService`'s `TryFindTypeByFqnAsync`/
+`TryFindMethodBySpecAsync` (confirmed via independent `find-refs`: every real
+caller uses the non-`Result` `FindTypeByFqnAsync`/`FindMethodBySpecAsync`
+siblings instead), and four orphaned private test helpers (`Complexity.FindMethod`,
+`FindDuplicatesMigration.BuildDuplicateProject`, `MoveMethod.TextAsync`,
+`TransformParameters.FilePath`).
+
+**Not deleted — a real capability, just unused today:**
+`AdhocProjectBuilder.ProjectDef.ReferenceProject`. Its sibling `AddProject` is
+used at 9+ call sites for multi-project test scenarios; `ReferenceProject`
+(wiring an actual project-to-project reference) is the natural next step
+nobody has needed yet, not a leftover.
 
 **A second, distinct analyzer blind spot — not genuinely dead, filed as [[rt-011]]:**
 `BlockNormalizer.VisitToken` and `IdentifierVariationDetector`'s
 `VisitVariableDeclarator` (both `override` members of Roslyn's
-`CSharpSyntaxRewriter`/`CSharpSyntaxWalker`, dispatched from inside
-`Microsoft.CodeAnalysis.CSharp.dll`), `RtConsoleLogger<T>.BeginScope` and the
-test double `CapturingLogger<T>.BeginScope` (both implement `ILogger<T>`,
-dispatched from `Microsoft.Extensions.Logging` internals), and
-`StubSymbolResolutionService`'s interface members (test double for
-`ISymbolResolutionService`). All are invoked only through interface/virtual
-dispatch from a caller outside the analyzed solution's source — a different
-mechanism from this ticket's reflective-invocation bug, so it gets its own
-fix rather than reusing the `IRtCommand.Build` exclusion.
+`CSharpSyntaxRewriter`/`CSharpSyntaxWalker`), `RtConsoleLogger<T>.BeginScope`
+and the test double `CapturingLogger<T>.BeginScope` (both implement
+`ILogger<T>`), `DaemonPipeConsole`'s nested `PipeTextWriter.Write(char)`
+(`TextWriter` override), `PipedSymbolReaderTests`' nested
+`ThrowingTextReader.Read` (`TextReader` override), and
+`SolutionWriterIntegration`'s nested `NewClassTextLoader.LoadTextAndVersionAsync`
+(`TextLoader` override) — all dispatched from inside a compiled BCL/Roslyn
+assembly the analyzed solution doesn't contain source for. Also
+`StubSymbolResolutionService`'s remaining interface members (test double for
+`ISymbolResolutionService`).
 
-**Test-runner-lifecycle methods, likely a narrower instance of the rt-011 shape (not independently re-filed):**
+**A third, related but distinct blind spot, not filed separately:**
+`MsBuildFixture.Initialize` carries `[ModuleInitializer]` — invoked by the CLR
+at assembly load with no source call site *by design*. Same shape as the
+already-handled `[Fact]`/`[Theory]` exclusion (a known attribute naming its own
+reflective invoker); worth folding into `ShouldExclude` alongside rt-011's fix
+rather than opening a fourth ticket for one attribute name.
+
+**Test-runner-lifecycle methods, a narrower instance of the rt-011 shape (not independently re-filed):**
 `PublicCoreIsDocumented`/`SmellFreeNamespaces`'s `InitializeAsync`/
 `DisposeAsync` (both implement `IAsyncLifetime`, dispatched by xunit).
