@@ -80,12 +80,4 @@ internal static class JsonSchemaBuilder
             }
         };
     }
-
-    private static Dictionary<string, object> Scalar(string type, string description)
-    {
-        var schema = new Dictionary<string, object> { ["type"] = type };
-        if (!string.IsNullOrEmpty(description))
-            schema["description"] = description;
-        return schema;
-    }
 }
