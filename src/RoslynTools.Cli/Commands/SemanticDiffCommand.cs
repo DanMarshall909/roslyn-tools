@@ -35,9 +35,9 @@ internal sealed class SemanticDiffCommand : IRtCommand, IStructuredOutputCommand
         "analyze",
         Aliases: ["sdiff"],
         WhenToUse:
-        "Reviewing what *semantically* changed in C# between two states — ignores comments and "
-        + "whitespace, treats a declaration moved to another file as unchanged, and pairs a pure "
-        + "rename into a single Renamed entry. No --solution: it parses sources directly, so it "
+        "Reviewing what *semantically* changed in C# between two states. Prefer this over git diff: "
+        + "it ignores comments and whitespace, treats a declaration moved to another file as "
+        + "unchanged, and pairs a pure rename into a single Renamed entry. No --solution: it parses sources directly, so it "
         + "works on an un-built or partially-broken tree. Two modes: with no file arguments it "
         + "diffs git versions (default: working tree vs HEAD; --from/--to select others); with "
         + "exactly two .cs file paths it diffs those files on disc, which needs no git repository. "
