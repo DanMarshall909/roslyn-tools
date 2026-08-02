@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Shouldly;
 
 namespace RoslynTools.Tests.Infrastructure;
@@ -8,10 +7,7 @@ public class CliBootstrap
     [Fact]
     public async Task informational_startup_messages_do_not_use_the_error_stream()
     {
-        var repoRoot = FindRepoRoot();
-        var rtDll = FindRtDll(repoRoot);
-
-        var result = await RunAsync("dotnet", $"\"{rtDll}\" --help", repoRoot);
+        var result = await RtCliHost.RunAsync("--help");
 
         result.ExitCode.ShouldBe(0);
         result.Stdout.ShouldContain("rt Commands", Case.Sensitive);
@@ -24,14 +20,9 @@ public class CliBootstrap
         // US-041: when --solution points at a file that doesn't exist, rt must print a single
         // stderr line and exit 1 — no FileNotFoundException stack trace, no "Unhandled exception:"
         // banner from System.CommandLine's default UseExceptionHandler.
-        var repoRoot = FindRepoRoot();
-        var rtDll = FindRtDll(repoRoot);
         var missingPath = Path.Combine(Path.GetTempPath(), $"does-not-exist-{Guid.NewGuid():N}.slnx");
 
-        var result = await RunAsync(
-            "dotnet",
-            $"\"{rtDll}\" inspect describe Foo --solution \"{missingPath}\"",
-            repoRoot);
+        var result = await RtCliHost.RunAsync($"inspect describe Foo --solution \"{missingPath}\"");
 
         result.ExitCode.ShouldBe(1);
         Assert.Contains("solution not found", result.Stderr, StringComparison.OrdinalIgnoreCase);
@@ -47,16 +38,12 @@ public class CliBootstrap
         // US-042: InvalidOperationException from a routine user error (passing a class FQN to
         // analyze-interface) must print one clean stderr line and exit 1 — no stack trace,
         // no "Unhandled exception:" banner. Sources: FB-027/FB-028.
-        var repoRoot = FindRepoRoot();
-        var rtDll = FindRtDll(repoRoot);
-        var slnxPath = Path.Combine(repoRoot, "RoslynTools.slnx");
+        var slnxPath = Path.Combine(RtCliHost.RepoRoot, "RoslynTools.slnx");
 
         // App is a class in the rt assembly; analyze-interface expects an interface, so it
         // throws InvalidOperationException("'<fqn>' is not an interface; ...").
-        var result = await RunAsync(
-            "dotnet",
-            $"\"{rtDll}\" analyze analyze-interface RoslynTools.App --solution \"{slnxPath}\"",
-            repoRoot);
+        var result = await RtCliHost.RunAsync(
+            $"analyze analyze-interface RoslynTools.App --solution \"{slnxPath}\"");
 
         result.ExitCode.ShouldBe(1);
         Assert.Contains("Error:", result.Stderr, StringComparison.Ordinal);
@@ -71,18 +58,14 @@ public class CliBootstrap
     {
         // US-042: JsonException from a malformed --from-json file must produce one clean
         // stderr line and exit 1.
-        var repoRoot = FindRepoRoot();
-        var rtDll = FindRtDll(repoRoot);
-        var slnxPath = Path.Combine(repoRoot, "RoslynTools.slnx");
+        var slnxPath = Path.Combine(RtCliHost.RepoRoot, "RoslynTools.slnx");
         var badJsonPath = Path.Combine(Path.GetTempPath(), $"bad-json-{Guid.NewGuid():N}.json");
         await File.WriteAllTextAsync(badJsonPath, "{ this is not valid json");
 
         try
         {
-            var result = await RunAsync(
-                "dotnet",
-                $"\"{rtDll}\" refactor add-xml-doc --from-json \"{badJsonPath}\" --solution \"{slnxPath}\"",
-                repoRoot);
+            var result = await RtCliHost.RunAsync(
+                $"refactor add-xml-doc --from-json \"{badJsonPath}\" --solution \"{slnxPath}\"");
 
             result.ExitCode.ShouldBe(1);
             Assert.Contains("Error:", result.Stderr, StringComparison.Ordinal);
@@ -101,19 +84,15 @@ public class CliBootstrap
         // US-042: YamlException from a malformed --decisions file must produce one clean
         // stderr line and exit 1. DecisionStore.Load runs before next(context), so this
         // also verifies that the Load call is inside the same exception-handling path.
-        var repoRoot = FindRepoRoot();
-        var rtDll = FindRtDll(repoRoot);
-        var slnxPath = Path.Combine(repoRoot, "RoslynTools.slnx");
+        var slnxPath = Path.Combine(RtCliHost.RepoRoot, "RoslynTools.slnx");
         var badYamlPath = Path.Combine(Path.GetTempPath(), $"bad-yaml-{Guid.NewGuid():N}.yaml");
         // Invalid YAML — unclosed mapping with a tab and bad indentation.
         await File.WriteAllTextAsync(badYamlPath, "decisions:\n\t- id: x\n  choose: : :\n");
 
         try
         {
-            var result = await RunAsync(
-                "dotnet",
-                $"\"{rtDll}\" inspect describe Foo --solution \"{slnxPath}\" --decisions \"{badYamlPath}\"",
-                repoRoot);
+            var result = await RtCliHost.RunAsync(
+                $"inspect describe Foo --solution \"{slnxPath}\" --decisions \"{badYamlPath}\"");
 
             result.ExitCode.ShouldBe(1);
             Assert.Contains("Error:", result.Stderr, StringComparison.Ordinal);
@@ -138,55 +117,4 @@ public class CliBootstrap
         await Task.CompletedTask;
         true.ShouldBeTrue();
     }
-
-    private static async Task<CommandResult> RunAsync(string fileName, string arguments, string workingDirectory)
-    {
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = fileName,
-            Arguments = arguments,
-            WorkingDirectory = workingDirectory,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false
-        };
-
-        using var process = Process.Start(startInfo)
-                            ?? throw new InvalidOperationException($"Failed to start '{fileName}'.");
-
-        var stdoutTask = process.StandardOutput.ReadToEndAsync();
-        var stderrTask = process.StandardError.ReadToEndAsync();
-        await process.WaitForExitAsync();
-
-        return new CommandResult(
-            process.ExitCode,
-            await stdoutTask,
-            await stderrTask);
-    }
-
-    private static string FindRepoRoot()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
-             directory is not null;
-             directory = directory.Parent)
-            if (File.Exists(Path.Combine(directory.FullName, "RoslynTools.slnx")))
-                return directory.FullName;
-
-        throw new InvalidOperationException("Could not locate repository root.");
-    }
-
-    private static string FindRtDll(string repoRoot)
-    {
-        var targetFramework = new DirectoryInfo(AppContext.BaseDirectory).Name;
-        return Path.Combine(
-            repoRoot,
-            "src",
-            "RoslynTools.Cli",
-            "bin",
-            "Debug",
-            targetFramework,
-            "rt.dll");
-    }
-
-    private sealed record CommandResult(int ExitCode, string Stdout, string Stderr);
 }
