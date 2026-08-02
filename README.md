@@ -1,115 +1,250 @@
 # roslyn-tools
 
-A CLI for solution-wide C# refactoring and analysis powered by Roslyn. Rename symbols, extract interfaces, inject dependencies, find dead code — all resolved semantically across an entire `.sln`.
+`rt` is a semantic C# navigation, analysis, and refactoring tool for developers and coding agents. It uses Roslyn to operate across complete `.sln` and `.slnx` workspaces rather than matching text one file at a time.
+
+Use it to inspect symbols, trace references, analyse architecture, and apply solution-wide refactorings with dry-run previews and machine-readable output. The CLI and MCP host share the same application services and command metadata.
+
+## Why `rt`
+
+- **Semantic, solution-wide operations** — symbol resolution, references, implementations, callers, dependencies, and refactorings are based on Roslyn semantics.
+- **Safe mutations** — mutating commands support previews and report the changes they intend to make.
+- **Agent-friendly discovery** — describe a task in plain English with `rt suggest`, or load a compact session primer with `rt prime`.
+- **Structured output** — JSON, YAML, Markdown, and compact LLM-oriented output are available for automation.
+- **Multiple hosts** — use the command-line tool directly, install the Claude Code plugin, or run the MCP host from source.
+
+## Requirements
+
+- .NET 10 SDK
+- A C# solution in `.sln` or `.slnx` format
+
+The repository pins its SDK through [`global.json`](global.json).
 
 ## Install
 
-```sh
-dotnet tool install -g roslyn-tools-rt
+```powershell
+dotnet tool install --global roslyn-tools-rt
 ```
 
-Requires .NET 8 SDK or later. After install, `rt` is on your PATH.
+After installation, `rt` is available on your `PATH`.
 
-## Use with Claude Code
+Update or remove it with:
 
-This repo ships a Claude Code plugin so the assistant knows when and how to invoke each command. Install:
+```powershell
+dotnet tool update --global roslyn-tools-rt
+dotnet tool uninstall --global roslyn-tools-rt
+```
 
-```sh
+## Quick start
+
+Ask `rt` which command fits a task:
+
+```powershell
+rt suggest "find every caller of a method"
+```
+
+Inspect a type semantically:
+
+```powershell
+rt inspect describe BookingService --solution MyApp.slnx
+```
+
+Request structured output for an agent or script:
+
+```powershell
+rt inspect describe BookingService --solution MyApp.slnx --json
+```
+
+Discover changed C# files and likely next commands from the current Git working tree:
+
+```powershell
+rt suggest
+```
+
+Print the compact session primer used by coding agents:
+
+```powershell
+rt prime
+```
+
+## Core workflows
+
+| Goal | Representative commands |
+|---|---|
+| Understand code | `describe`, `outline`, `source` |
+| Navigate relationships | `find-refs`, `find-callers`, `find-impl` |
+| Analyse a solution | `find-unused`, `list-smells`, `complexity`, `dependency-graph`, `circular-deps` |
+| Refactor safely | `rename`, `move`, `extract-method`, `safe-delete`, `semantic-diff` |
+| Modernise code | `convert-to-record`, `make-async`, `migrate-to-ioptions`, `replace-xunit-asserts` |
+
+Commands are organised into three groups:
+
+- `rt inspect <command>` — read-only symbol and file queries
+- `rt analyze <command>` — read-only solution-wide analysis
+- `rt refactor <command>` — source mutations
+
+Unambiguous commands are also available directly at the root. These are equivalent:
+
+```powershell
+rt inspect describe BookingService --solution MyApp.slnx
+rt describe BookingService --solution MyApp.slnx
+```
+
+## Command discovery and reference
+
+Use the generated command catalogue rather than relying on a manually maintained list:
+
+```powershell
+rt --help
+rt inspect --help
+rt analyze --help
+rt refactor --help
+rt dump-help
+rt dump-help --compact
+rt dump-help --json
+rt dump-help --yaml
+```
+
+`rt dump-help` is generated from each command's canonical metadata, including its category, aliases, examples, options, and supported output formats.
+
+When an unknown command resembles a known command, `rt` also returns ranked suggestions. For natural-language discovery, use:
+
+```powershell
+rt suggest "extract an interface from a class"
+```
+
+## Output and automation
+
+The primary result is written to stdout. Diagnostics, warnings, and progress are written separately so scripts can consume structured output reliably.
+
+Common global options:
+
+| Option | Purpose |
+|---|---|
+| `--json` | Emit JSON |
+| `--yaml` | Emit YAML |
+| `--markdown` | Emit Markdown |
+| `--llm` | Emit compact output intended for LLM consumption |
+| `--decisions <file>` | Read and persist disambiguation choices in YAML |
+| `--show-workspace-warnings` | Include MSBuild workspace warnings |
+| `--no-suggest` | Suppress suggestion tails on not-found errors |
+| `--relax-json` | Use relaxed JSON escaping instead of the strict default |
+
+Strict JSON escaping is the default. The legacy `--strict-json` option remains as a deprecated no-op for backward compatibility.
+
+Commands that need a user choice can use a decisions file:
+
+```powershell
+rt refactor rename OldName NewName --solution MyApp.slnx --decisions .rt-decisions.yml
+```
+
+When unresolved choices remain, `rt` writes them to the file and exits with code `2`. Resolve the `choose:` fields and rerun the same command.
+
+Common command options include:
+
+| Option | Purpose |
+|---|---|
+| `--solution <path>` | Select a `.sln` or `.slnx`; auto-detected when exactly one is present |
+| `--dry-run` | Preview source changes without writing them |
+| `--kind <kind>` | Restrict symbol resolution to a kind such as `type`, `method`, `property`, `field`, or `namespace` |
+
+Run a command's `--help` to see its exact capabilities.
+
+## Claude Code plugin
+
+The repository includes a Claude Code plugin containing the `use-rt` skill:
+
+```text
 /plugin marketplace add DanMarshall909/roslyn-tools
 /plugin install roslyn-tools
 ```
 
-The plugin contains a single `use-rt` skill that loads on `/use-rt` or any prompt mentioning rt / Roslyn refactoring. The CLI itself (the `rt` binary above) must be installed separately — the skill describes what to invoke, `rt` does the work.
+The CLI must still be installed separately with `dotnet tool install --global roslyn-tools-rt`. The skill teaches Claude Code when and how to invoke `rt`; the CLI performs the work.
 
-## Feedback & automatic triage
+## MCP host
 
-`rt` captures exceptions automatically and lets you log feature requests manually:
+The solution includes a stdio MCP host in `src/RoslynTools.Mcp`. It exposes the migrated application ports through the same services and command descriptors used by the CLI.
 
-```sh
-# Captured automatically on any unhandled exception — nothing to do
-rt feedback list                      # view pending items
-rt feedback list --status all         # view all (including processed)
+Build and run it from the repository root:
 
-# Log a feature request or repro case manually
-rt feedback add --description "replace-new should support multi-arg drop" \
-                --command-line "rt refactor replace-new --type Option<string> ..."
+```powershell
+dotnet build RoslynTools.slnx -c Release
+dotnet run --project src/RoslynTools.Mcp/RoslynTools.Mcp.csproj -c Release --no-build
 ```
 
-Feedback is stored in `ralph/feedback.json`. Items stay pending until triaged.
+Configure an MCP client to launch that command and communicate over stdin/stdout. MCP exposure is being migrated incrementally; use the CLI command catalogue for the complete command surface.
 
-### Automatic triage via Claude Code cron
+## Feedback capture
 
-Triage runs as a daily Claude Code cron job — no API key, no npm, no manual trigger. Set it up once per machine by pasting this into a Claude Code session for this repo:
+Unhandled `rt` exceptions are recorded automatically. Feature requests and reproducible gaps can also be added manually:
 
+```powershell
+rt feedback list
+rt feedback list --status all
+
+rt feedback add `
+  --description "replace-new should support multi-argument drops" `
+  --command-line "rt refactor replace-new --type Option<string> ..."
 ```
-Schedule a durable daily cron at 8:17am to triage rt feedback: read ralph/feedback.json,
-assess each pending item, add genuine bugs and concrete feature requests to
-ralph/backlog-prd.json as user stories (using node C:\code\ai-rules\scripts\prd.cjs add),
-and mark each item processed with a resolution note.
-```
 
-The cron fires once per day while Claude Code is running. It auto-expires after 7 days — re-run the prompt above to renew it.
+Inside a checkout containing a `ralph` directory, feedback is stored in `ralph/feedback.json`. Elsewhere it falls back to `~/.rt/feedback.json`.
 
-> **Note:** Cron jobs are session-scoped. They persist across restarts (durable mode) but are tied to the machine where they were created.
+Maintainer triage instructions are documented in [`docs/feedback-triage.md`](docs/feedback-triage.md).
 
 ## Build from source
 
-```sh
+```powershell
+dotnet restore RoslynTools.slnx
 dotnet build RoslynTools.slnx
 
 # Run without installing
-dotnet run --project src/RoslynTools.Cli/RoslynTools.Cli.csproj -- <command> [options]
-
-# Publish as single exe (Windows)
-dotnet publish src/RoslynTools.Cli/RoslynTools.Cli.csproj -c Release -r win-x64 --self-contained false
+dotnet run --project src/RoslynTools.Cli/RoslynTools.Cli.csproj -- suggest "find unused code"
 ```
 
-## Local workflow
+Publish a self-contained single-file executable for a target runtime:
 
-Use the local gate before handing off changes:
+```powershell
+# Windows x64
+dotnet publish src/RoslynTools.Cli/RoslynTools.Cli.csproj -c Release -r win-x64
+
+# Linux x64
+dotnet publish src/RoslynTools.Cli/RoslynTools.Cli.csproj -c Release -r linux-x64
+
+# macOS Apple Silicon
+dotnet publish src/RoslynTools.Cli/RoslynTools.Cli.csproj -c Release -r osx-arm64
+```
+
+RID-specific publishes are configured as self-contained because Roslyn's MSBuild workspace requires its build-host files to be extracted alongside the executable.
+
+## Development
+
+Run the local verification gate before handing off changes:
+
+```powershell
+pwsh -NoProfile -File scripts/check-local.ps1
+```
+
+On macOS or Linux:
 
 ```sh
-# Windows / PowerShell Core
-pwsh -NoProfile -File scripts/check-local.ps1
-
-# macOS / Linux
 ./scripts/check-local.sh
 ```
 
-For a quick clone sanity check, run `scripts/doctor.ps1` with PowerShell Core or `./scripts/doctor.sh` from bash.
+A quick clone sanity check is also available through `scripts/doctor.ps1` or `scripts/doctor.sh`.
 
-## Commands
+Run the standard checks directly with:
 
-Commands fall into three groups:
-
-- **`rt inspect <cmd>`** — read-only, single-symbol or file queries (`describe`, `outline`, `find-refs`, `find-callers`, `find-impl`, `find-unused`, `find-pattern`)
-- **`rt analyze <cmd>`** — read-only, solution-wide scans (`circular-deps`, `dependency-graph`, `find-duplicates`, `find-magic-strings`, `list-imports`, `list-smells`, and more)
-- **`rt refactor <cmd>`** — mutations (`rename`, `move`, `extract-*`, `inline-method`, `make-*`, `replace-*`, `convert-*`, `add-*`, etc.)
-
-The unqualified form `rt <cmd>` is also accepted for every command.
-
-For the full reference — flags, examples, and output conventions — run:
-
-```sh
-rt dump-help
+```powershell
+dotnet format RoslynTools.slnx --verify-no-changes
+dotnet build RoslynTools.slnx -c Release
+dotnet test RoslynTools.slnx -c Release -v minimal
 ```
 
-Each build writes the output to `docs/COMMANDS.md` (gitignored). The agent-friendly compact reference is deployed automatically to `~/.claude/skills/use-rt/SKILL.md` on every Debug build and is available in Claude Code as `/use-rt`.
+The test suite creates throwaway C# projects, runs Roslyn operations against them, and cleans them up automatically.
 
----
+## Architecture and contributing
 
-## Common options
-
-| Option | Description |
-|--------|-------------|
-| `--solution <path>` | Path to `.sln` or `.slnx` file. Auto-detected if exactly one exists in the current directory. |
-| `--dry-run` | Preview changes as a unified diff without writing to disk |
-| `--kind <kind>` | Filter by symbol kind: `type`, `method`, `property`, `field`, `namespace` |
-
-## Tests
-
-```sh
-dotnet test RoslynTools.slnx -v minimal
-```
-
-Each test generates a throwaway C# project, runs Roslyn operations against it, and cleans up automatically.
+- [`AGENTS.md`](AGENTS.md) — repository-specific guidance for coding agents
+- [`docs/architecture-overview.md`](docs/architecture-overview.md) — layers, contracts, output pipeline, and safety model
+- [`docs/pattern-core-service.md`](docs/pattern-core-service.md) — the core-service and thin-host-adapter pattern
+- [`docs/agent-playbook.md`](docs/agent-playbook.md) — detailed agent workflow
+- [`docs/adr/`](docs/adr/) — architecture decision records
