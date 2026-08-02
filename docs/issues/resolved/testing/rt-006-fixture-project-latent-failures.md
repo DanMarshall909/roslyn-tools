@@ -4,7 +4,7 @@ tags:
   - tests
 ticket: rt-006
 severity: Medium
-status: Open
+status: Resolved
 area: testing
 owner: ""
 reported: 2026-07-24
@@ -66,6 +66,35 @@ path segment (they should derive both from the running assembly) would fail at
 build time instead of only on the CI runner. Flagged, not built — see the
 guardrails rule.
 
+## Resolution (2026-08-02)
+
+All 12 fixed, in two passes:
+
+- **3 of the 4 untriaged assertion failures** (`AppRegistration`,
+  `Mutation.ServiceHelpers`, `Architecture.ResultContractConstraints`) were
+  fixed earlier — real bugs unrelated to each other, found while investigating
+  what turned out to be pre-existing CI failures before the connection to this
+  ticket was noticed: `InspectService` bypassed the injected
+  `ISymbolResolutionService`, `ExtractClassService.BuildNewClassText` emitted
+  block-scoped instead of file-scoped namespaces, and `DumpHelpCommand`
+  bypassed the shared result renderer.
+- **The 8 `Infrastructure` failures** (one root cause) and the **4th untriaged
+  failure** (`Refactor.Move`) were fixed together: `CliBootstrap` and
+  `JsonEncoderUnification` each hardcoded a `bin/Debug/...` path segment CI's
+  Release build can't satisfy — consolidated into `RtCliHost`, which derives
+  both configuration and TFM from the running test assembly's own path.
+  `Move`'s failure was a second, unrelated bug: hardcoded Windows-style
+  `C:\...` path literals in a test that pins `MoveService.cs`'s
+  `GetRelativePath`/`Combine` pair, which Linux CI can't interpret as absolute
+  paths — rebuilt with `Path.Combine`/`Path.GetTempPath()` to be portable.
+- Added the guardrail this ticket flagged: `NoHardcodedBuildOutputPathInTests`
+  fails the build if test source combines a `"bin"` literal with a literal
+  `"Debug"`/`"Release"`/TFM segment in a `Path.Combine(...)` call. Verified it
+  fails for the stated reason by reintroducing the exact mutant it guards
+  against.
+- Verified against `dotnet build -c Release` + `dotnet test -c Release
+  --no-build` locally — CI's exact commands — not just local Debug.
+
 ## Decision log
 
 - 2026-07-24 — Opened. The `fix/win-x64-fixture-rid` change fixed the 12
@@ -76,3 +105,4 @@ guardrails rule.
   first post-RID Ubuntu run (30065272023) shows **12**, of which 8 share the
   Debug-vs-Release `rt.dll` root cause. The other 22 were ARM64-specific and are
   out of scope — CI is the authority.
+- 2026-08-02 — Resolved. All 12 fixed; guardrail built and hand-verified.

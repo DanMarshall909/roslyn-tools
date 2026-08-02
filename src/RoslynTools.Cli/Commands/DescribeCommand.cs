@@ -12,12 +12,11 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class DescribeCommand : IRtCommand, IStructuredOutputCommand, IInspectCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly InspectService _inspect;
-    public DescribeCommand(IWorkspaceSessionFactory sessionFactory, InspectService inspect)
+    private readonly DescribeOperation _operation;
+
+    public DescribeCommand(DescribeOperation operation)
     {
-        _inspect = inspect;
-        _sessionFactory = sessionFactory;
+        _operation = operation;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -61,8 +60,11 @@ internal sealed class DescribeCommand : IRtCommand, IStructuredOutputCommand, II
                 var req = binder.Bind(ctx.ParseResult,
                     f => new DescribeCliRequest(symbol, f.SolutionPath, f.Kind, withLocations));
 
-                var sln = await _sessionFactory.GetSolutionAsync(req.SolutionPath);
-                var inspection = await _inspect.Describe(sln, req.Symbol, req.Kind, req.WithLocations);
+                var inspection = await _operation.ExecuteAsync(new DescribeRequest(
+                    req.Symbol,
+                    req.SolutionPath,
+                    req.Kind,
+                    req.WithLocations));
 
                 inspection.Match(
                     result =>

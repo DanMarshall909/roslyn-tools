@@ -44,16 +44,20 @@ CLI args / MCP input
 
 ### MCP Adapter
 
-- Own MCP tool schema/input binding.
-- Reuse the command/flag metadata where it maps cleanly.
-- Call the same domain services as CLI adapters.
+- Read MCP tool schema/input binding from `ApplicationCommandDescriptor`.
+- Bind JSON to the descriptor's typed application request.
+- Invoke the same `ICommandApplicationPort` as the CLI adapter.
 - Return structured content plus text fallback once the MCP protocol upgrade lands.
+- Keep command-specific MCP handlers out of the dispatch path.
 
 #### MCP Adapter Flag Reuse
 
 MCP tool schemas derive their `inputSchema` properties from the same `RtFlagCatalog` entries the CLI binder uses — names, descriptions, required/optional status, validation. A future MCP-side binder reads `JsonElement` arguments and produces the same typed capability/request objects the CLI binder produces, so the service call signature is identical from either host.
 
-Today's native MCP handlers (`OutlineHandler`, `SuggestHandler`, `FindReferencesHandler`, `RenameSymbolHandler`) hand-roll their `inputSchema` via `JsonSchemaBuilder`. The migration to catalog-driven schemas is the responsibility of **US-095** (inspect natives), **US-096** (analyze natives), and **US-110** (modern `CallToolResult` shape with `outputSchema`) — not US-107 or US-114.
+Port-backed commands generate their schemas from the descriptor's typed request and
+reuse CLI option descriptions where names align. All former native-handler commands
+are now descriptor/application-port backed. Compatibility-bridge commands are the
+remaining migration debt tracked by rt-007.
 
 Composes with the [per-command checklist](per-command-checklist.md): once a flag capability lands in the catalog, both CLI and MCP surfaces inherit the same name/description/validation automatically.
 

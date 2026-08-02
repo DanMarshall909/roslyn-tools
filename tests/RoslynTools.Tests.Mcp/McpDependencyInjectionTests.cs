@@ -21,6 +21,7 @@ public sealed class McpDependencyInjectionTests
 
         provider.GetRequiredService<ToolSchemaBuilder>().ShouldNotBeNull();
         provider.GetRequiredService<CliCommandBridge>().ShouldNotBeNull();
+        provider.GetRequiredService<McpCommandAdapter>().ShouldNotBeNull();
         provider.GetRequiredService<ToolRegistry>().ShouldNotBeNull();
         provider.GetRequiredService<Server>().ShouldNotBeNull();
     }
@@ -28,11 +29,12 @@ public sealed class McpDependencyInjectionTests
     [Fact]
     public void Tool_schema_builder_produces_definition_for_every_IRtCommand()
     {
-        var builder = new ToolSchemaBuilder();
+        using var provider = McpTestHost.CreateProvider();
+        var builder = provider.GetRequiredService<ToolSchemaBuilder>();
         var tools = builder.Build();
 
         var cliCommandCount = App.Commands.Count;
-        tools.Count.ShouldBe(cliCommandCount);
+        tools.Count.ShouldBe(cliCommandCount + 4);
         Assert.All(tools, t =>
         {
             string.IsNullOrWhiteSpace(t.name).ShouldBeFalse();
@@ -45,7 +47,8 @@ public sealed class McpDependencyInjectionTests
     [Fact]
     public void Tool_schema_builder_models_debug_break_and_assert_as_arrays()
     {
-        var builder = new ToolSchemaBuilder();
+        using var provider = McpTestHost.CreateProvider();
+        var builder = provider.GetRequiredService<ToolSchemaBuilder>();
 
         var debug = builder.Build().Single(tool => tool.name == "debug");
         var properties = debug.inputSchema["properties"].ShouldBeOfType<Dictionary<string, Dictionary<string, object>>>();

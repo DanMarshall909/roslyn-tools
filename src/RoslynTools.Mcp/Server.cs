@@ -140,6 +140,7 @@ internal sealed class Server
             return CreateErrorResponse(id, -32602, "Missing arguments");
 
         var result = await _toolRegistry.InvokeAsync(toolName, argsProp, cancellationToken);
+        var structuredContent = TryParseStructuredContent(result);
 
         return new
         {
@@ -147,10 +148,38 @@ internal sealed class Server
             id,
             result = new
             {
-                content = new[] { new { type = "text", text = result.content } },
+                content = new[]
+                {
+                    new
+                    {
+                        type = "text",
+                        text = structuredContent is null
+                            ? result.content
+                            : $"Structured result returned by {toolName}."
+                    }
+                },
+                structuredContent,
                 result.isError
             }
         };
+    }
+
+    private static JsonElement? TryParseStructuredContent(ToolResult result)
+    {
+        if (result.isError)
+            return null;
+
+        try
+        {
+            using var document = JsonDocument.Parse(result.content);
+            return document.RootElement.ValueKind is JsonValueKind.Object or JsonValueKind.Array
+                ? document.RootElement.Clone()
+                : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private static object CreateErrorResponse(object? id, int code, string message)

@@ -6,7 +6,48 @@ namespace RoslynTools.Tests.Mutation;
 public class RenameIntegration
 {
     [Fact]
-    public async Task renames_class_renames_source_file_when_basename_matches_old_name()
+    public async Task related_rename_edits_are_applied_only_when_their_ids_are_selected()
+    {
+        const string model = """
+                             namespace Foo;
+                             // OldType remains prose unless selected.
+                             public class OldType
+                             {
+                                 public string WindowClass => "OldTypeWindow";
+                             }
+                             """;
+        const string related = """
+                               namespace Foo;
+                               public class OldTypeTests { }
+                               """;
+
+        using var project = new AdhocProjectBuilder("RelatedRenameSample")
+            .AddSource("OldType.cs", model)
+            .AddSource("OldTypeTests.cs", related);
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var service = new RenameService();
+            var plan = await service.BuildRelatedRenamePlanAsync(solution, "Foo.OldType", "NewType", "type");
+            var identifier = plan.Edits.Single(edit => edit.OldText == "OldTypeTests");
+            var literal = plan.Edits.Single(edit => edit.Kind == "string");
+            var selected = new HashSet<string>([identifier.Id, literal.Id], StringComparer.Ordinal);
+
+            var withRelated = await service.ApplyRelatedRenameEditsAsync(solution, plan, selected);
+            var renamed = await service.RenameAsync(withRelated, "Foo.OldType", "NewType", "type");
+            var text = string.Join(
+                "\n",
+                await Task.WhenAll(renamed.Projects.SelectMany(p => p.Documents)
+                    .Select(async document => (await document.GetTextAsync()).ToString())));
+
+            text.ShouldContain("class NewTypeTests", Case.Sensitive);
+            text.ShouldContain("\"NewTypeWindow\"", Case.Sensitive);
+            text.ShouldContain("// OldType remains prose unless selected.", Case.Sensitive);
+        }
+    }
+
+    [Fact]
+    public async Task semantic_rename_does_not_apply_unselected_source_file_rename()
     {
         const string source = """
                               namespace Foo;
@@ -28,10 +69,10 @@ public class RenameIntegration
             "type",
             false);
 
-        Assert.False(project.SourceExists("OldType.cs"), "old file should be gone");
-        Assert.True(project.SourceExists("NewType.cs"), "new file should exist");
+        Assert.True(project.SourceExists("OldType.cs"), "unselected file rename should not be applied");
+        Assert.False(project.SourceExists("NewType.cs"), "unselected target file should not be created");
 
-        var renamed = await project.ReadSourceAsync("NewType.cs");
+        var renamed = await project.ReadSourceAsync("OldType.cs");
         renamed.ShouldContain("class NewType", Case.Sensitive);
     }
 

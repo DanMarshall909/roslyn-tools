@@ -72,14 +72,17 @@ internal static class DumpHelpCommand
     /// </summary>
     private static void RenderCompact(IReadOnlyList<(Command Cmd, RtCommandInfo Info)> snapshot)
     {
+        var sb = new StringBuilder();
         foreach (var (cmd, info) in snapshot.OrderBy(e => e.Info.Category).ThenBy(e => e.Info.Name))
         {
             var raw = cmd.Description;
             var desc = string.IsNullOrEmpty(raw) ? info.WhenToUse ?? "" : raw;
             var firstLine = desc.Split('\n', 2)[0].Trim();
             if (firstLine.Length > 90) firstLine = firstLine[..89] + "…";
-            RtConsole.WriteLine(RtOutputContext.Result, $"{info.Name,-28} | {info.Category,-8} | {firstLine}");
+            sb.AppendLineF($"{info.Name,-28} | {info.Category,-8} | {firstLine}");
         }
+
+        RtResultRenderer.WriteText(RtResult<string>.Ok(sb.ToString().TrimEnd()));
     }
 
     /// <summary>
@@ -102,10 +105,11 @@ internal static class DumpHelpCommand
 
         var model = CommandSurfaceBuilder.Build(snapshot, App.GroupDescriptions, globalOptions);
 
-        if (RtContext.Format == OutputFormat.Yaml)
-            RtConsole.Write(RtOutputContext.Result, CommandSurfaceBuilder.ToYaml(model));
-        else
-            RtConsole.WriteLine(RtOutputContext.Result, CommandSurfaceBuilder.ToJson(model));
+        var text = RtContext.Format == OutputFormat.Yaml
+            ? CommandSurfaceBuilder.ToYaml(model)
+            : CommandSurfaceBuilder.ToJson(model);
+
+        RtResultRenderer.WriteText(RtResult<string>.Ok(text));
     }
 
     /// <summary>

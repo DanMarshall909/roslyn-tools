@@ -82,6 +82,63 @@ internal static class FeedbackStore
         }
     }
 
+    internal static FeedbackEntry AddUserFeedback(
+        string description,
+        string? sampleCode,
+        string? expectedResult,
+        string? commandLine)
+    {
+        var entry = new FeedbackEntry
+        {
+            Type = "user-feedback",
+            Timestamp = DateTimeOffset.UtcNow.ToString("O"),
+            CommandLine = commandLine,
+            Description = description,
+            SampleCode = sampleCode,
+            ExpectedResult = expectedResult
+        };
+
+        Append(entry);
+        return entry;
+    }
+
+    internal static List<FeedbackEntry> ListByStatus(string status)
+    {
+        var all = LoadAll();
+        return status switch
+        {
+            "all" => all,
+            "processed" => all.Where(e =>
+                string.Equals(e.Status, "processed", StringComparison.OrdinalIgnoreCase)).ToList(),
+            _ => all.Where(e =>
+                string.Equals(e.Status, "pending", StringComparison.OrdinalIgnoreCase)).ToList()
+        };
+    }
+
+    internal static FeedbackEntry MarkProcessed(string id, string resolution)
+    {
+        Lock.Wait();
+        try
+        {
+            using var storeLock = AcquireStoreLock();
+            var all = ReadExisting();
+            var entry = all.SingleOrDefault(candidate =>
+                string.Equals(candidate.Id, id, StringComparison.OrdinalIgnoreCase));
+            if (entry is null)
+                throw new ArgumentException($"Feedback item '{id}' was not found.", nameof(id));
+
+            entry.Status = "processed";
+            entry.ProcessedAt = DateTimeOffset.UtcNow.ToString("O");
+            entry.Resolution = resolution;
+            WriteAll(all);
+            return entry;
+        }
+        finally
+        {
+            Lock.Release();
+        }
+    }
+
     internal static async Task AppendExceptionAsync(
         string cmdLine,
         Exception ex,

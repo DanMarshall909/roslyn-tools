@@ -36,12 +36,6 @@ public class Complexity : IClassFixture<RtServicesFixture>
         return report.Methods.First(m => m.Method == name || m.Method.EndsWith("." + name, StringComparison.Ordinal));
     }
 
-    private static MethodComplexity? FindMethod(ComplexityReport report, string name)
-    {
-        return report.Methods.FirstOrDefault(m =>
-            m.Method == name || m.Method.EndsWith("." + name, StringComparison.Ordinal));
-    }
-
     // ── Cyclomatic complexity ───────────────────────────────────────────────
     //
     // Each row exercises one decision-point category. Base count is 1; each

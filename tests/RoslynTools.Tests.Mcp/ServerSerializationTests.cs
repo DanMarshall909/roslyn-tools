@@ -103,4 +103,34 @@ public class ServerSerializationTests
         idEl.ValueKind.ShouldBe(JsonValueKind.String);
         idEl.GetString().ShouldBe("abc-123");
     }
+
+    [Fact]
+    public async Task structured_tools_advertise_output_schema()
+    {
+        var output = await RunSingleRequestAsync(
+            """{"jsonrpc":"2.0","method":"tools/list","id":1}""");
+
+        using var doc = JsonDocument.Parse(output);
+        var tools = doc.RootElement.GetProperty("result").GetProperty("tools");
+        var suggest = tools.EnumerateArray().Single(tool =>
+            tool.GetProperty("name").GetString() == "suggest_command");
+
+        suggest.TryGetProperty("outputSchema", out var schema).ShouldBeTrue();
+        schema.GetProperty("oneOf").GetArrayLength().ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task descriptor_tool_call_returns_structured_content_and_concise_text_fallback()
+    {
+        var output = await RunSingleRequestAsync(
+            """
+            {"jsonrpc":"2.0","method":"tools/call","id":2,"params":{"name":"suggest_command","arguments":{"query":"rename","top":1}}}
+            """);
+
+        using var doc = JsonDocument.Parse(output);
+        var result = doc.RootElement.GetProperty("result");
+        result.GetProperty("structuredContent").GetProperty("results").GetArrayLength().ShouldBe(1);
+        result.GetProperty("content")[0].GetProperty("text").GetString()
+            .ShouldBe("Structured result returned by suggest_command.");
+    }
 }

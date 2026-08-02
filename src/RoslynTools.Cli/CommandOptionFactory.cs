@@ -48,12 +48,6 @@ internal static class CommandOptionFactory
         return new Option<string>(name, helpText) { IsRequired = true };
     }
 
-    /// <summary>Creates an optional nullable string option with custom name and help text.</summary>
-    public static Option<string?> CreateNullableStringOption(string name, string helpText)
-    {
-        return new Option<string?>(name, helpText);
-    }
-
     /// <summary>Creates a required --method option with custom help text.</summary>
     public static Option<string> CreateMethodOption(string helpText)
     {

@@ -11,6 +11,13 @@ namespace RoslynTools.Services;
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class InspectService : IRtService
 {
+    private readonly ISymbolResolutionService _symbols;
+
+    public InspectService(ISymbolResolutionService? symbols = null)
+    {
+        _symbols = symbols ?? new SymbolResolutionService();
+    }
+
     /// <summary>
     ///     Resolves <paramref name="symbol" /> and builds its inspection, returning a typed
     ///     <see cref="Result{T,TError}" />: a routine not-found / ambiguous lookup surfaces as
@@ -31,7 +38,7 @@ internal class InspectService : IRtService
     {
         if (symbol.Contains('('))
         {
-            var member = await SymbolLocator.TryFindMemberBySignatureAsync(solution, symbol);
+            var member = await _symbols.TryFindMemberBySignatureAsync(solution, symbol);
             return member.Map(sym => (object)BuildInspection(sym, solution));
         }
 
@@ -39,7 +46,7 @@ internal class InspectService : IRtService
             .Select(p => p.AssemblyName)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        var resolved = await SymbolLocator.TryFindSymbolByFqnAsync(solution, symbol, kind);
+        var resolved = await _symbols.TryFindSymbolByFqnAsync(solution, symbol, kind);
         return resolved.Map(sym =>
             !withLocations && sym is INamedTypeSymbol type
                 ? (object)BuildCompact(type, solutionAssemblyNames)

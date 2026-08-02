@@ -40,6 +40,14 @@ public class FindRefsToolTests
             first.GetProperty("filePath").GetString().ShouldNotBeNullOrEmpty();
             first.GetProperty("line").GetInt32().ShouldBeGreaterThan(0);
             first.GetProperty("lineText").GetString().ShouldNotBeNullOrEmpty();
+
+            var suggestion = payload.RootElement.GetProperty("_suggestions")[0];
+            suggestion.GetProperty("toolName").GetString().ShouldBe("describe");
+            suggestion.GetProperty("arguments").GetProperty("symbol").GetString()
+                .ShouldBe("TestApp.Invoice");
+            suggestion.GetProperty("arguments").GetProperty("solution").GetString()
+                .ShouldBe("ignored.slnx");
+            (suggestion.GetProperty("cli").GetString() ?? "").ShouldContain("rt inspect describe");
         }
     }
 

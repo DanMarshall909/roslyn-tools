@@ -1,8 +1,10 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using RoslynTools.Cli.Suggest;
+using RoslynTools.CommandDescriptors;
 using RoslynTools.Core;
 using RoslynTools.Daemon;
+using RoslynTools.Feedback;
 using RoslynTools.Services;
 using RoslynTools.Services.SemanticDiff;
 using RoslynTools.Services.SemanticDiff.Git;
@@ -30,6 +32,16 @@ internal static class Bootstrap
         services.AddSingleton<IDocumentLocatorService, DocumentLocatorService>();
         services.AddSingleton<ISolutionChangeWriter, SolutionChangeWriter>();
         services.AddSingleton<ICommandCatalog, AppCommandCatalog>();
+        services.AddSingleton<FeedbackAddOperation>();
+        services.AddSingleton<FeedbackListOperation>();
+        services.AddSingleton<FeedbackProcessOperation>();
+        services.AddSingleton<ICommandApplicationPort>(
+            sp => sp.GetRequiredService<FeedbackAddOperation>());
+        services.AddSingleton<ICommandApplicationPort>(
+            sp => sp.GetRequiredService<FeedbackListOperation>());
+        services.AddSingleton<ICommandApplicationPort>(
+            sp => sp.GetRequiredService<FeedbackProcessOperation>());
+        services.AddSingleton<CommandDescriptorRegistry>();
 
         // GitSemanticDiffSourceProvider (an IRtService, so auto-scanned below) depends on
         // IGitClient. The git working directory is the process's current directory; the

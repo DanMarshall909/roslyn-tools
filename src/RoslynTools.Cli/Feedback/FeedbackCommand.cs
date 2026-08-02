@@ -14,15 +14,19 @@ internal static class FeedbackCommand
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
-    internal static Command Build()
+    internal static Command Build(
+        FeedbackAddOperation addOperation,
+        FeedbackListOperation listOperation,
+        FeedbackProcessOperation processOperation)
     {
         var cmd = new Command("feedback", "Log and list feedback items for rt improvement");
-        cmd.AddCommand(BuildAdd());
-        cmd.AddCommand(BuildList());
+        cmd.AddCommand(BuildAdd(addOperation));
+        cmd.AddCommand(BuildList(listOperation));
+        cmd.AddCommand(BuildProcess(processOperation));
         return cmd;
     }
 
-    private static Command BuildAdd()
+    internal static Command BuildAdd(FeedbackAddOperation operation)
     {
         var descriptionOpt = new Option<string>("--description", "Description of the problem or feature request")
         {
@@ -41,28 +45,20 @@ internal static class FeedbackCommand
         cmd.AddOption(expectedResultOpt);
         cmd.AddOption(commandLineOpt);
 
-        cmd.SetHandler((description, sampleCode, expectedResult, commandLine) =>
+        cmd.SetHandler(async (description, sampleCode, expectedResult, commandLine) =>
         {
-            var existing = FeedbackStore.LoadAll();
-            var entry = new FeedbackEntry
-            {
-                Id = FeedbackStore.NextId(existing),
-                Type = "user-feedback",
-                Timestamp = DateTimeOffset.UtcNow.ToString("O"),
-                CommandLine = commandLine,
-                Description = description,
-                SampleCode = sampleCode,
-                ExpectedResult = expectedResult
-            };
-
-            var id = FeedbackStore.Append(entry);
-            RtConsole.WriteLine(RtOutputContext.Result, $"Feedback recorded: {id}");
+            var result = await operation.ExecuteAsync(new FeedbackAddRequest(
+                description,
+                sampleCode,
+                expectedResult,
+                commandLine));
+            RtConsole.WriteLine(RtOutputContext.Result, $"Feedback recorded: {result.Id}");
         }, descriptionOpt, sampleCodeOpt, expectedResultOpt, commandLineOpt);
 
         return cmd;
     }
 
-    private static Command BuildList()
+    internal static Command BuildList(FeedbackListOperation operation)
     {
         var statusOpt = new Option<string>("--status", () => "pending",
             "Filter by status: pending, processed, or all");
@@ -70,20 +66,35 @@ internal static class FeedbackCommand
         var cmd = new Command("list", "List feedback items");
         cmd.AddOption(statusOpt);
 
-        cmd.SetHandler(status =>
+        cmd.SetHandler(async status =>
         {
-            var all = FeedbackStore.LoadAll();
-            var filtered = status switch
-            {
-                "all" => all,
-                "processed" => all.Where(e =>
-                    string.Equals(e.Status, "processed", StringComparison.OrdinalIgnoreCase)).ToList(),
-                _ => all.Where(e =>
-                    string.Equals(e.Status, "pending", StringComparison.OrdinalIgnoreCase)).ToList()
-            };
-
+            var filtered = await operation.ExecuteAsync(new FeedbackListRequest(status));
             RtConsole.WriteLine(RtOutputContext.Result, JsonSerializer.Serialize(filtered, JsonOpts));
         }, statusOpt);
+
+        return cmd;
+    }
+
+    internal static Command BuildProcess(FeedbackProcessOperation operation)
+    {
+        var idOpt = new Option<string>("--id", "Feedback ID to mark processed")
+        {
+            IsRequired = true
+        };
+        var resolutionOpt = new Option<string>("--resolution", "How the feedback item was resolved")
+        {
+            IsRequired = true
+        };
+
+        var cmd = new Command("process", "Mark a feedback item as processed");
+        cmd.AddOption(idOpt);
+        cmd.AddOption(resolutionOpt);
+
+        cmd.SetHandler(async (id, resolution) =>
+        {
+            var result = await operation.ExecuteAsync(new FeedbackProcessRequest(id, resolution));
+            RtConsole.WriteLine(RtOutputContext.Result, $"Feedback processed: {result.Id}");
+        }, idOpt, resolutionOpt);
 
         return cmd;
     }

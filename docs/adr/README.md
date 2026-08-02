@@ -67,3 +67,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 |---|---|---|---|
 | [0001](0001-core-service-thin-host-adapters.md) | Core service + thin host adapters | Accepted | 2026-06-17 |
 | [0002](0002-suggestions-output-contract-and-proactive-session-start.md) | _suggestions output contract and proactive session start | Accepted | 2026-06-19 |
+| [0003](0003-shared-command-descriptors-and-application-ports.md) | Shared command descriptors and application ports | Accepted | 2026-07-30 |

@@ -24,7 +24,7 @@ internal static class SuggestCommand
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
-    internal static Command Build(IServiceProvider services)
+    internal static Command Build(SuggestOperation operation, IGitClient? git)
     {
         var queryArg = new Argument<string?>("query",
             "Natural-language description of what you want to do (omit to get git-context suggestions)")
@@ -40,21 +40,19 @@ internal static class SuggestCommand
             queryArg, topOpt
         };
 
-        cmd.SetHandler(context =>
+        cmd.SetHandler(async context =>
         {
             var query = context.ParseResult.GetValueForArgument(queryArg);
             var top = context.ParseResult.GetValueForOption(topOpt);
 
             if (string.IsNullOrWhiteSpace(query))
             {
-                var git = services.GetService<IGitClient>();
                 RenderGitFallback(git, top);
                 return;
             }
 
-            var suggest = services.GetRequiredService<SuggestService>();
-            var response = suggest.Suggest(new SuggestRequest(query, top));
-
+            var response = await operation.ExecuteAsync(
+                new SuggestOperationRequest(query, top));
             Render(response);
         });
 

@@ -277,6 +277,55 @@ public class FindUnused
     }
 
     [Fact]
+    public async Task excludes_reflectively_invoked_command_build_methods()
+    {
+        using var project = new AdhocProjectBuilder();
+        // Mirrors rt's own App.Discover(): every IRtCommand implementer's Build() is
+        // invoked via MethodInfo.Invoke, never called by name from source.
+        project.AddSource("Commands.cs", """
+                                          public interface IRtCommand
+                                          {
+                                          }
+
+                                          public class FooCommand : IRtCommand
+                                          {
+                                              public object Build() => new object();
+                                          }
+                                          """);
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var results = await new FindUnusedService().AnalyzeAsync(sln, "methods");
+            var names = results.Select(r => r.Name).ToList();
+            names.ShouldNotContain("Build");
+        }
+    }
+
+    [Fact]
+    public async Task still_reports_unused_methods_on_command_types()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Commands.cs", """
+                                          public interface IRtCommand
+                                          {
+                                          }
+
+                                          public class FooCommand : IRtCommand
+                                          {
+                                              public object Build() => new object();
+                                              public void Orphan() { }  // never called, unrelated to Build
+                                          }
+                                          """);
+        var (workspace, sln) = project.Build();
+        using (workspace)
+        {
+            var results = await new FindUnusedService().AnalyzeAsync(sln, "methods");
+            var names = results.Select(r => r.Name).ToList();
+            names.ShouldContain("Orphan");
+        }
+    }
+
+    [Fact]
     public async Task excludes_data_contract_attributed_types()
     {
         using var project = new AdhocProjectBuilder();

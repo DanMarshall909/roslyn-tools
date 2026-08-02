@@ -11,12 +11,11 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class FindRefsCommand : IRtCommand, IInspectCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly FindRefsService _findRefs;
-    public FindRefsCommand(IWorkspaceSessionFactory sessionFactory, FindRefsService findRefs)
+    private readonly FindRefsOperation _operation;
+
+    public FindRefsCommand(FindRefsOperation operation)
     {
-        _findRefs = findRefs;
-        _sessionFactory = sessionFactory;
+        _operation = operation;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -50,8 +49,10 @@ internal sealed class FindRefsCommand : IRtCommand, IInspectCommand
         cmd.SetHandler(async ctx =>
         {
             var request = flags.Bind(ctx.ParseResult, FindRefsCliRequest.FromFlags);
-            var sln = await _sessionFactory.GetSolutionAsync(request.SolutionPath);
-            var result = await _findRefs.FindAsync(sln, request.Symbol!, request.Kind);
+            var result = await _operation.ExecuteAsync(new FindRefsRequest(
+                request.Symbol!,
+                request.SolutionPath,
+                request.Kind));
             RtResultRenderer.Write(RtResult<FindRefsResult>.Ok(result));
         });
 

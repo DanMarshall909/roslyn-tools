@@ -5,10 +5,6 @@ namespace RoslynTools.Tests.Mutation;
 
 public class TransformParameters
 {
-    private static string FilePath(AdhocProjectBuilder project, string relativePath)
-    {
-        return Path.Combine(project.ProjectDir, relativePath);
-    }
 
     // ──────────────────────────────────────────────────────────────────────────
     //  Simple 3-param method: record generated, signature rewritten, call site updated

@@ -1,6 +1,7 @@
 using System.CommandLine;
 using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
+using RoslynTools.Models;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -12,10 +13,16 @@ internal sealed class RenameCommand : IRtCommand, IRefactorCommand
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly RenameService _rename;
-    public RenameCommand(IWorkspaceSessionFactory sessionFactory, RenameService rename)
+    private readonly RenameOperation _operation;
+
+    public RenameCommand(
+        IWorkspaceSessionFactory sessionFactory,
+        RenameService rename,
+        RenameOperation operation)
     {
         _rename = rename;
         _sessionFactory = sessionFactory;
+        _operation = operation;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -54,10 +61,16 @@ internal sealed class RenameCommand : IRtCommand, IRefactorCommand
             "Path to a CSV file with source_symbol/target_name, or prefixed *_fqn plus *_name_new columns.");
         var newNameOpt = new Option<string?>("--new-name",
             "New name for the symbol. Use this when the symbol is supplied via piped stdin JSON.");
+        var relatedEditOpt = new Option<string[]>(
+            "--related-edit",
+            "Related edit ID returned by a previous preview. Repeat to select multiple edits.")
+        {
+            AllowMultipleArgumentsPerToken = true
+        };
 
         var cmd = new Command("rename", "Rename a symbol and all its references across the solution")
         {
-            symbolArg, newNameArg, csvOpt, newNameOpt
+            symbolArg, newNameArg, csvOpt, newNameOpt, relatedEditOpt
         };
         flags.AddTo(cmd);
 
@@ -67,33 +80,60 @@ internal sealed class RenameCommand : IRtCommand, IRefactorCommand
                 var newName = ctx.ParseResult.GetValueForOption(newNameOpt)
                               ?? ctx.ParseResult.GetValueForArgument(newNameArg);
                 var csv = ctx.ParseResult.GetValueForOption(csvOpt);
+                var relatedEditIds = ctx.ParseResult.GetValueForOption(relatedEditOpt) ?? [];
                 if (string.IsNullOrWhiteSpace(csv))
                     symbol = await PipedSymbolReader.ResolveAsync(symbol, RtConsole.IsInputRedirected, RtConsole.In);
                 var request = flags.Bind(ctx.ParseResult, f => RenameCliRequest.FromFlags(f, symbol, newName, csv));
-                var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(request.SolutionPath);
-                using (workspace)
+                if (!string.IsNullOrWhiteSpace(request.CsvPath))
                 {
-                    if (!string.IsNullOrWhiteSpace(request.CsvPath))
+                    var (workspace, solution) =
+                        await _sessionFactory.LoadWorkspaceAsync(request.SolutionPath);
+                    using (workspace)
                     {
-                        await _rename.ExecuteBatchAsync(sln, request.CsvPath, request.DryRun);
-                        return;
+                        await _rename.ExecuteBatchAsync(
+                            solution,
+                            request.CsvPath,
+                            request.DryRun);
                     }
-
-                    if (string.IsNullOrWhiteSpace(request.Symbol) || string.IsNullOrWhiteSpace(request.NewName))
-                        throw new InvalidOperationException("Provide either <symbol> <new-name> or --csv <path>.");
-
-                    await _rename.ExecuteSingleAsync(
-                        sln,
-                        request.Symbol,
-                        request.NewName,
-                        request.Kind,
-                        request.DryRun);
+                    return;
                 }
+
+                if (string.IsNullOrWhiteSpace(request.Symbol)
+                    || string.IsNullOrWhiteSpace(request.NewName))
+                    throw new InvalidOperationException(
+                        "Provide either <symbol> <new-name> or --csv <path>.");
+
+                var result = await _operation.ExecuteAsync(new RenameOperationRequest(
+                    request.Symbol,
+                    request.NewName,
+                    request.Kind,
+                    request.SolutionPath,
+                    request.DryRun,
+                    relatedEditIds));
+                WriteRelatedRenamePlan(result);
             });
 
         cmd.AddAlias("ren");
 
         return cmd;
+    }
+
+    private static void WriteRelatedRenamePlan(RenameResult result)
+    {
+        if (result.RelatedRenamePlan.Count == 0)
+            return;
+
+        RtConsole.WriteLine(RtOutputContext.Diagnostic, "Related rename plan (opt-in):");
+        foreach (var edit in result.RelatedRenamePlan)
+        {
+            var selected = result.SelectedRelatedEdits.Contains(edit.Id, StringComparer.Ordinal)
+                ? "selected"
+                : "not selected";
+            var prose = edit.Prose ? ", prose" : string.Empty;
+            RtConsole.WriteLine(
+                RtOutputContext.Diagnostic,
+                $"  [{selected}{prose}] {edit.Id}: {edit.OldText} -> {edit.NewText}");
+        }
     }
 
     /// <summary>

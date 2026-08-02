@@ -293,10 +293,14 @@ public class Move : IClassFixture<RtServicesFixture>
     [Trait("Concern", "CrossProjectMove")]
     public void destination_path_mirrors_subfolder_under_target_project_dir()
     {
-        // Pure path computation: relative path from source project dir is re-rooted under target dir
-        const string sourceDir = @"C:\repos\src\SourceProject";
-        const string targetDir = @"C:\repos\src\TargetProject";
-        const string sourceFile = @"C:\repos\src\SourceProject\Domain\Orders\Order.cs";
+        // Pure path computation: relative path from source project dir is re-rooted under target dir.
+        // Built via Path.Combine rather than hardcoded separators so it exercises the same
+        // GetRelativePath/Combine pair MoveService.cs uses on whichever OS the test runs on
+        // (a hardcoded "C:\..." path is not a valid absolute path on Linux CI).
+        var reposRoot = Path.Combine(Path.GetTempPath(), "repos", "src");
+        var sourceDir = Path.Combine(reposRoot, "SourceProject");
+        var targetDir = Path.Combine(reposRoot, "TargetProject");
+        var sourceFile = Path.Combine(sourceDir, "Domain", "Orders", "Order.cs");
 
         var relPath = Path.GetRelativePath(sourceDir, sourceFile);
         var destPath = Path.Combine(targetDir, relPath);

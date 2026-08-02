@@ -1,4 +1,7 @@
 using System.CommandLine;
+using System.Reflection;
+using System.Text.Json.Serialization;
+using RoslynTools.CommandDescriptors;
 
 namespace RoslynTools.Mcp.Tools;
 
@@ -7,21 +10,34 @@ namespace RoslynTools.Mcp.Tools;
 /// </summary>
 internal sealed class ToolSchemaBuilder
 {
+    private readonly CommandDescriptorRegistry _descriptors;
+
+    public ToolSchemaBuilder(CommandDescriptorRegistry descriptors)
+    {
+        _descriptors = descriptors;
+    }
+
     public IReadOnlyList<ToolDefinition> Build()
     {
-        return App.Commands
-            .Select(entry =>
+        return _descriptors.All
+            .Where(descriptor => descriptor.McpVisible)
+            .Select(descriptor =>
             {
-                var cmd = entry.Build();
+                var cmd = descriptor.BuildCliCommand();
                 return new ToolDefinition(
-                    entry.Info.Name.Replace('-', '_'),
-                    entry.Info.WhenToUse,
-                    BuildSchema(cmd));
+                    descriptor.ToolName,
+                    descriptor.WhenToUse,
+                    descriptor.Port is null
+                        ? BuildCliSchema(cmd)
+                        : BuildPortSchema(cmd, descriptor.Port.RequestType),
+                    descriptor.Structured
+                        ? JsonSchemaBuilder.StructuredOutput()
+                        : null);
             })
             .ToList();
     }
 
-    private static Dictionary<string, object> BuildSchema(Command cmd)
+    private static Dictionary<string, object> BuildCliSchema(Command cmd)
     {
         var properties = new Dictionary<string, Dictionary<string, object>>();
         var required = new List<string>();
@@ -51,6 +67,43 @@ internal sealed class ToolSchemaBuilder
             properties.Count > 0 ? properties : null);
     }
 
+    private static Dictionary<string, object> BuildPortSchema(
+        Command command,
+        Type requestType)
+    {
+        var descriptions = command.Arguments
+            .Select(argument => (Name: ToCamelCase(argument.Name), argument.Description))
+            .Concat(command.Options.Select(option =>
+                (Name: ToCamelCase(option.Name), option.Description)))
+            .Where(item => !string.IsNullOrEmpty(item.Description))
+            .GroupBy(item => item.Name, StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => group.First().Description!,
+                StringComparer.Ordinal);
+
+        var properties = new Dictionary<string, Dictionary<string, object>>(
+            StringComparer.Ordinal);
+        var required = new List<string>();
+
+        foreach (var property in requestType.GetProperties(BindingFlags.Instance | BindingFlags.Public))
+        {
+            var name = property.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name
+                       ?? char.ToLowerInvariant(property.Name[0]) + property.Name[1..];
+            var schema = BuildPropertySchema(property.PropertyType);
+            if (descriptions.TryGetValue(ToCamelCase(name), out var description))
+                schema["description"] = description;
+            properties[name] = schema;
+
+            if (property.GetCustomAttribute<JsonRequiredAttribute>() is not null)
+                required.Add(name);
+        }
+
+        return JsonSchemaBuilder.Object(
+            required.Count > 0 ? [.. required] : null,
+            properties.Count > 0 ? properties : null);
+    }
+
     private static Dictionary<string, object> BuildPropertySchema(Type type)
     {
         if (type.IsArray)
@@ -72,5 +125,15 @@ internal sealed class ToolSchemaBuilder
         return t == typeof(bool) ? "boolean"
             : t == typeof(int) || t == typeof(long) ? "integer"
             : "string";
+    }
+
+    private static string ToCamelCase(string value)
+    {
+        var parts = value.Split('-', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0)
+            return value;
+
+        return parts[0] + string.Concat(parts.Skip(1).Select(part =>
+            char.ToUpperInvariant(part[0]) + part[1..]));
     }
 }

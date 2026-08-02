@@ -118,4 +118,5 @@ public sealed class SuggestServiceTests
 
         response.Related.ShouldBeEmpty();
     }
+
 }

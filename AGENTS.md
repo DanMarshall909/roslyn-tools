@@ -28,11 +28,13 @@ See [docs/architecture-overview.md](docs/architecture-overview.md) for the full 
 **Run `rt dump-help` to view the full command reference** (or `dotnet run --project src/RoslynTools.Cli/RoslynTools.Cli.csproj -- dump-help` without publishing). For an agent-friendly pre-loaded reference, load the `use-rt` skill. See [docs/pattern-core-service.md](docs/pattern-core-service.md) for worked examples and [docs/adr/0001-core-service-thin-host-adapters.md](docs/adr/0001-core-service-thin-host-adapters.md) for the full contract.
 
 ## Cursor and Copilot Rules
-No repository-specific rule files were found:
+Repository-specific rule-file inventory:
 - `.cursorrules`: not present
 - `.cursor/rules/`: not present
-- `.github/copilot-instructions.md`: not present
-If these appear later, treat them as higher-priority guidance and merge with this file.
+- `.github/copilot-instructions.md`: points Copilot to this canonical guide and
+  the repository's architecture documentation
+If additional rule files appear later, treat them as higher-priority guidance
+and merge them with this file.
 
 ## Setup
 Run from repository root:
