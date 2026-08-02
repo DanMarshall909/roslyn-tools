@@ -1,5 +1,6 @@
 # AGENTS.md
-Guidance for agentic coding tools working in `C:\code\roslyn-tools`.
+
+Guidance for agentic coding tools working in this repository.
 
 ## Project skills
 
@@ -7,167 +8,277 @@ Guidance for agentic coding tools working in `C:\code\roslyn-tools`.
 
 ---
 
-## Project Overview
-- Stack: C# on .NET 8 (`net8.0`).
+## Project overview
+
+- Stack: C# on .NET 10 (`net10.0`).
+- SDK: pinned by `global.json`.
 - Solution: `RoslynTools.slnx`.
 - Main CLI project: `src/RoslynTools.Cli/RoslynTools.Cli.csproj`.
 - Core library project: `src/RoslynTools/RoslynTools.csproj`.
-- App type: CLI (`OutputType=Exe`) using `System.CommandLine`.
+- MCP host project: `src/RoslynTools.Mcp/RoslynTools.Mcp.csproj`.
+- Test projects:
+  - `tests/RoslynTools.Tests/RoslynTools.Tests.csproj`
+  - `tests/RoslynTools.Tests.Mcp/RoslynTools.Tests.Mcp.csproj`
+- CLI framework: `System.CommandLine`.
 - Nullable reference types: enabled.
 - Implicit usings: enabled.
-- Layout:
-  - `src/RoslynTools.Cli/Commands/`: CLI commands. Each `*Command.cs` implements `IRtCommand`. Thin host adapter that parses `System.CommandLine` args, calls the service via DI, renders text or JSON via `RtResultRenderer.Write<T>`.
-  - `src/RoslynTools.Mcp/Handlers/`: MCP handlers — the second thin host adapter for the same services. Parses JSON args, calls the same service from DI, returns `ToolResult`.
-  - `src/RoslynTools/Services/`: pure service layer (no `System.CommandLine`, no `Console`, no IO except via injected dependencies). Receives domain request objects; returns `Result<T, RtError>` or `RtResult<T>`.
-  - `src/RoslynTools/Core/`: Roslyn workspace/symbol/change primitives (`WorkspaceLoader`, `SymbolLocator`, `SolutionWriter`, `MethodExtractor`, ...) plus the `IRtCommand` contract and `RtCommandInfo` metadata record (command registration layer, not domain logic).
-  - `src/RoslynTools/Models/`: small model types.
 
-See [docs/architecture-overview.md](docs/architecture-overview.md) for the full layered cake and [docs/adr/0001-core-service-thin-host-adapters.md](docs/adr/0001-core-service-thin-host-adapters.md) for the foundational pattern.
+### Layout
+
+- `src/RoslynTools.Cli/Commands/`: CLI command definitions. Each concrete `*Command.cs` implements `IRtCommand` plus exactly one category marker: `IInspectCommand`, `IAnalyzeCommand`, or `IRefactorCommand`.
+- `src/RoslynTools.Cli/CommandDescriptors/`: the shared application-command descriptor registry used to project command metadata and application ports into host surfaces.
+- `src/RoslynTools.Mcp/`: generic MCP descriptor adapter and stdio server. Do not recreate one bespoke MCP handler per CLI command.
+- `src/RoslynTools/Services/`: service layer. It must not depend on `System.CommandLine` or render directly to the console. Services receive domain requests and return typed results or errors.
+- `src/RoslynTools/Core/`: Roslyn workspace, symbol, change, output, decision, and command-contract primitives.
+- `src/RoslynTools/Models/`: small model types.
+
+CLI and MCP should call the same application operation through shared services or typed application ports. Application-port migration is incremental; preserve the compatibility bridge for commands that have not yet migrated.
+
+See [docs/architecture-overview.md](docs/architecture-overview.md) for the full layered design and [docs/adr/0001-core-service-thin-host-adapters.md](docs/adr/0001-core-service-thin-host-adapters.md) for the foundational pattern.
 
 ## Command reference
-**Run `rt dump-help` to view the full command reference** (or `dotnet run --project src/RoslynTools.Cli/RoslynTools.Cli.csproj -- dump-help` without publishing). For an agent-friendly pre-loaded reference, load the `use-rt` skill. See [docs/pattern-core-service.md](docs/pattern-core-service.md) for worked examples and [docs/adr/0001-core-service-thin-host-adapters.md](docs/adr/0001-core-service-thin-host-adapters.md) for the full contract.
 
-## Cursor and Copilot Rules
+Run `rt dump-help` to view the full command reference, or use:
+
+```powershell
+dotnet run --project "src/RoslynTools.Cli/RoslynTools.Cli.csproj" -- dump-help
+```
+
+For a compact agent-oriented catalogue:
+
+```powershell
+rt dump-help --compact
+rt prime
+rt suggest "<task in plain English>"
+```
+
+The canonical command metadata lives in each command's `RtCommandInfo`. Do not hand-maintain a second command catalogue.
+
+## Cursor and Copilot rules
+
 Repository-specific rule-file inventory:
+
 - `.cursorrules`: not present
 - `.cursor/rules/`: not present
-- `.github/copilot-instructions.md`: points Copilot to this canonical guide and
-  the repository's architecture documentation
-If additional rule files appear later, treat them as higher-priority guidance
-and merge them with this file.
+- `.github/copilot-instructions.md`: points Copilot to this guide and the architecture documentation
+
+If additional rule files appear later, treat them as higher-priority repository guidance and merge them with this file.
 
 ## Setup
-Run from repository root:
+
+Run from the repository root:
+
 ```powershell
 dotnet --version
 dotnet restore "RoslynTools.slnx"
 ```
-Use PowerShell syntax by default.
 
-## Agent-Friendly CLI Conventions
+The installed SDK must satisfy `global.json`. Use PowerShell syntax by default on Windows.
+
+## Agent-friendly CLI conventions
+
 - Prefer non-interactive commands and flags suitable for automation.
-- Use deterministic output when possible (for example `-v minimal`).
-- Quote file paths in commands to avoid shell parsing issues.
-- Avoid prompts in scripts/commands that require manual input.
-- Prefer exit-code driven checks so agents can reliably detect failures.
-- Keep command output concise and parseable; avoid noisy one-off wrappers.
-- **Parallel-safe by default.** `rt` is hardened for concurrent invocation from parallel agent worktrees: `rt feedback add`, wrapper rebuild, `deploy-skill`, and (with `RT_ISOLATED_OBJ=1`) MSBuild obj/ are all race-free. See [docs/agent-playbook.md](docs/agent-playbook.md) for details.
+- Use deterministic output where possible, for example `-v minimal`.
+- Quote file paths to avoid shell parsing problems.
+- Avoid scripts or commands that require manual prompts.
+- Prefer exit-code-driven checks so agents can detect failures reliably.
+- Keep command output concise and parseable; diagnostics belong on stderr and primary results on stdout.
+- Prefer `--json`, `--yaml`, or `--llm` for automation rather than scraping formatted terminal output.
+- Use `--decisions <file>` for repeatable disambiguation instead of interactive selection.
+- Use `--dry-run` before a mutating command when the intended change is not already proven by a narrow test.
+- **Parallel-safe by default.** `rt` is hardened for concurrent invocation from parallel agent worktrees: feedback writes, wrapper rebuilds, skill deployment, and isolated MSBuild `obj` directories are protected. See [docs/agent-playbook.md](docs/agent-playbook.md).
 
-## Build Commands
-Build entire solution:
+## Build commands
+
+Build the entire solution:
+
 ```powershell
 dotnet build "RoslynTools.slnx"
 ```
+
 Build Release:
+
 ```powershell
 dotnet build "RoslynTools.slnx" -c Release
 ```
-Build only CLI project:
+
+Build only the CLI project:
+
 ```powershell
 dotnet build "src/RoslynTools.Cli/RoslynTools.Cli.csproj"
 ```
+
+Build only the MCP host:
+
+```powershell
+dotnet build "src/RoslynTools.Mcp/RoslynTools.Mcp.csproj"
+```
+
 Run CLI help locally:
+
 ```powershell
 dotnet run --project "src/RoslynTools.Cli/RoslynTools.Cli.csproj" -- --help
 ```
 
-## Lint and Formatting
-No dedicated lint script exists; use `dotnet format`.
-Verify formatting/analyzers without making edits:
+Run the MCP stdio host locally:
+
+```powershell
+dotnet run --project "src/RoslynTools.Mcp/RoslynTools.Mcp.csproj"
+```
+
+## Local verification gate
+
+Prefer the repository gate before handoff:
+
+```powershell
+pwsh -NoProfile -File "scripts/check-local.ps1"
+```
+
+On macOS or Linux:
+
+```sh
+./scripts/check-local.sh
+```
+
+Use `scripts/doctor.ps1` or `scripts/doctor.sh` for a quick clone sanity check.
+
+## Lint and formatting
+
+There is no separate lint framework; formatting and analyser enforcement run through the .NET toolchain.
+
+Verify without making edits:
+
 ```powershell
 dotnet format "RoslynTools.slnx" --verify-no-changes
 ```
-Apply formatting/analyzer fixes:
+
+Apply formatting and supported analyser fixes:
+
 ```powershell
 dotnet format "RoslynTools.slnx"
 ```
-Notes:
-- Current baseline has existing whitespace issues.
-- Keep formatting changes limited to touched files unless asked otherwise.
 
-## Test Commands
-Test project: `tests/RoslynTools.Tests/RoslynTools.Tests.csproj`
+Keep formatting changes limited to task-relevant files unless a broader cleanup is explicitly requested.
 
-Run all tests in solution:
+## Test commands
+
+Run all tests:
+
 ```powershell
 dotnet test "RoslynTools.slnx" -v minimal
 ```
-Run tests for one project:
+
+Run the CLI/core test project:
+
 ```powershell
 dotnet test "tests/RoslynTools.Tests/RoslynTools.Tests.csproj" -v minimal
 ```
-Run a single test (recommended first step):
+
+Run the MCP test project:
+
+```powershell
+dotnet test "tests/RoslynTools.Tests.Mcp/RoslynTools.Tests.Mcp.csproj" -v minimal
+```
+
+Run one test by fully qualified name:
+
 ```powershell
 dotnet test "tests/RoslynTools.Tests/RoslynTools.Tests.csproj" -v minimal --filter "FullyQualifiedName=Namespace.TypeName.TestMethod"
 ```
-Run tests by partial name:
+
+Run tests by partial type or method name:
+
 ```powershell
 dotnet test "tests/RoslynTools.Tests/RoslynTools.Tests.csproj" -v minimal --filter "FullyQualifiedName~TypeName"
 ```
-Useful filter keys (framework-dependent):
+
+Useful filter keys depend on the test framework and adapter, but commonly include:
+
 - `FullyQualifiedName`
 - `Name`
 - `ClassName`
-- `Category` / `TestCategory`
+- `Category` or `TestCategory`
 
-## Coding Style Guidelines
-Follow existing patterns in nearby files first.
+Run the narrowest relevant test first, then broaden to the owning project and finally the solution.
 
-### Imports and Namespaces
-- Use file-scoped namespaces (`namespace RoslynTools.Core;`).
-- Keep `using` directives at file top.
-- Order usings as: `System.*`, then `Microsoft.*`, then `RoslynTools.*`.
+## Coding style guidelines
+
+Follow nearby code first. Repository architecture tests enforce many structural rules; do not work around them.
+
+### Imports and namespaces
+
+- Use file-scoped namespaces.
+- Keep `using` directives at the file top.
+- Order usings as `System.*`, then `Microsoft.*`, then `RoslynTools.*`.
 - Remove unused usings.
 
 ### Formatting
+
 - Use 4 spaces; no tabs.
-- Use Allman braces (`{` on next line).
+- Use Allman braces.
 - Prefer one statement per line.
-- Keep lines readable; wrap long argument lists.
+- Wrap long argument lists and fluent chains for readability.
 
-### Types and Nullability
-- Respect nullable context; annotate optional refs with `?`.
-- Validate external inputs early; fail fast with clear exceptions.
-- Prefer `var` when type is obvious from RHS.
-- Use `required` init properties for required model fields when appropriate.
+### Types and nullability
 
-### Async Practices
-- Prefer async all the way (`Task`/`Task<T>`).
-- Avoid blocking calls (`.Result`, `.Wait()`).
-- Keep handlers and entry points small and composable.
+- Respect the nullable context and annotate optional references with `?`.
+- Validate external input early and return or surface an actionable typed error.
+- Prefer `var` when the right-hand side makes the type obvious.
+- Use `required` init properties for genuinely required model data where appropriate.
+
+### Async practices
+
+- Prefer async all the way through host adapter, operation, service, and Roslyn APIs.
+- Avoid `.Result`, `.Wait()`, and other sync-over-async calls.
+- Keep host adapters small and composable.
 
 ### Naming
-- Types/methods/properties: PascalCase.
-- Locals/parameters: camelCase.
-- CLI option variables end with `Opt` (for example `solutionOpt`).
-- Use descriptive Roslyn-oriented names (`solution`, `workspace`, `sym`).
 
-### Error Handling and Output
-- Throw specific exceptions (`FileNotFoundException`, `InvalidOperationException`).
-- Include actionable context (symbol, file path, expected state).
-- Do not swallow exceptions.
-- For CLI UX: diagnostics/progress to stderr, primary results to stdout.
+- Types, methods, and properties: PascalCase.
+- Locals and parameters: camelCase.
+- CLI option variables end with `Opt` when a local option object is still required.
+- Use descriptive Roslyn-oriented names such as `solution`, `workspace`, and `symbol`.
 
-### Command and Workspace Patterns
-- Define commands in `Commands/*Command.cs` via `System.CommandLine.Command`.
-- Set option descriptions clearly; mark required options with `IsRequired`.
-- Use typed `cmd.SetHandler(...)` signatures matching option declarations.
-- Register `MSBuildLocator` before any MSBuild workspace type usage:
-  `Program.Main` -> `MSBuildLocator.RegisterDefaults()` -> `App.RunAsync`.
-- Dispose `MSBuildWorkspace` with `using`.
-- Re-resolve symbols after syntax-changing edits against updated `Solution` snapshots.
+### Error handling and output
 
-### Editing Expectations for Agents
+- Use the repository's typed `Result<T, RtError>` and `RtResult<T>` contracts where the surrounding code has migrated.
+- Surface routine CLI errors through `RtErrorPresenter` rather than command-specific output ladders.
+- Render command results through `RtResultRenderer`, `RtSerializer`, or the shared output pipeline; do not write result objects directly from command handlers.
+- Do not swallow exceptions. Exception capture must never hide the original failure.
+- Include actionable context such as symbol, path, command, and expected state.
+- Keep diagnostics and progress on stderr and primary results on stdout.
+
+### Command, descriptor, and workspace patterns
+
+- New public commands implement `IRtCommand` and exactly one category marker.
+- Define canonical names, examples, supported formats, and `WhenToUse` text in `RtCommandInfo`.
+- `WhenToUse` should name the triggering situation, not merely restate capability. When replacing a built-in agent action such as Read or Edit, say so explicitly.
+- Reuse shared option catalogues and binders rather than creating duplicate known flags.
+- Prefer a typed application port when exposing the same operation through CLI and MCP.
+- Do not add a bespoke MCP handler when the generic descriptor adapter can expose the port.
+- Register MSBuild before using MSBuild workspace types.
+- Dispose workspace sessions correctly.
+- Re-resolve symbols against updated `Solution` snapshots after syntax-changing edits.
+- Treat `find-unused` conservatively around reflection, framework activation, interface dispatch, and overrides.
+
+### Editing expectations for agents
+
 - Make minimal, task-scoped changes.
-- Preserve current architecture (`Commands`, `Core`, `Models`).
-- Avoid broad refactors unless requested.
-- Avoid new dependencies unless required.
-- Call out unavoidable formatting-only edits in your final report.
+- Preserve the core-service and thin-host-adapter architecture.
+- Avoid broad refactors unless requested or required to preserve an enforced contract.
+- Avoid new dependencies unless they solve a demonstrated need.
+- Update an ADR and architecture overview when changing a layer contract, output doctrine, enforced invariant, or accepted non-obvious trade-off.
+- Do not hand-edit `docs/COMMANDS.md`; it is generated by `rt dump-help` during Debug builds.
+- Call out unavoidable formatting-only edits in the final report.
 
-## Verification Checklist
-For most code changes:
+## Verification checklist
+
+For most changes:
+
 ```powershell
-dotnet build "RoslynTools.slnx"
 dotnet format "RoslynTools.slnx" --verify-no-changes
+dotnet build "RoslynTools.slnx" -c Release
+dotnet test "RoslynTools.slnx" -c Release -v minimal
 ```
-If relevant tests exist, run the narrowest possible `dotnet test` filter first, then broaden.
+
+For a narrow change, run the smallest meaningful test first. Before handoff, use the local verification gate unless the task explicitly requires a different workflow.
