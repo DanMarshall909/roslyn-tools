@@ -120,7 +120,7 @@ public class ServerSerializationTests
     }
 
     [Fact]
-    public async Task descriptor_tool_call_returns_structured_content_and_concise_text_fallback()
+    public async Task descriptor_tool_call_returns_full_json_in_text_and_no_structured_content()
     {
         var output = await RunSingleRequestAsync(
             """
@@ -129,8 +129,10 @@ public class ServerSerializationTests
 
         using var doc = JsonDocument.Parse(output);
         var result = doc.RootElement.GetProperty("result");
-        result.GetProperty("structuredContent").GetProperty("results").GetArrayLength().ShouldBe(1);
-        result.GetProperty("content")[0].GetProperty("text").GetString()
-            .ShouldBe("Structured result returned by suggest_command.");
+        result.TryGetProperty("structuredContent", out _).ShouldBeFalse();
+        var text = result.GetProperty("content")[0].GetProperty("text").GetString();
+        text.ShouldNotBeNull();
+        using var payload = JsonDocument.Parse(text);
+        payload.RootElement.GetProperty("results").GetArrayLength().ShouldBe(1);
     }
 }
