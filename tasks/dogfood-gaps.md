@@ -1,6 +1,8 @@
 # Dogfood Gaps
 
-> **ARCHIVED 2026-05-08.** New rt gaps go to `ralph/backlog-prd.json` via `/task`. This file is a historical record — do not add new entries here.
+> **ARCHIVED 2026-05-08.** New rt gaps go to GitHub Issues, using a
+> parent issue plus official sub-issues for independently testable work. This
+> file is a historical record — do not add new entries here.
 
 | Date | Area | Outstanding issue | Repro / evidence | Suggested fix |
 | --- | --- | --- | --- | --- |

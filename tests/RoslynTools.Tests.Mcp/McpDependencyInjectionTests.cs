@@ -34,7 +34,9 @@ public sealed class McpDependencyInjectionTests
         var tools = builder.Build();
 
         var cliCommandCount = App.Commands.Count;
-        tools.Count.ShouldBe(cliCommandCount + 4);
+        // +5: feedback add/list/process/report and suggest_command are hand-appended
+        // descriptors in CommandDescriptorRegistry, not reflection-discovered IRtCommands.
+        tools.Count.ShouldBe(cliCommandCount + 5);
         Assert.All(tools, t =>
         {
             string.IsNullOrWhiteSpace(t.name).ShouldBeFalse();

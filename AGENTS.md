@@ -54,6 +54,43 @@ rt suggest "<task in plain English>"
 
 The canonical command metadata lives in each command's `RtCommandInfo`. Do not hand-maintain a second command catalogue.
 
+## Work tracking
+
+GitHub Issues is the canonical source for planned and in-progress work.
+
+- Use a parent issue for the desired outcome, context, constraints, and final
+  Definition of Done.
+- Use official GitHub sub-issues for independently deliverable and testable
+  acceptance slices.
+- Use Markdown checkboxes only for small final verification steps, not as a
+  second task database.
+- Query and update issue state through `scripts/github-issues.ps1`; it creates
+  official parent/sub-issue relationships, computes ready work, updates managed
+  checklists, and refuses premature closure. Use raw `gh` only for operations the
+  script does not support.
+- Do not add new work to `ralph/prd.json`, `ralph/backlog-prd.json`,
+  `docs/issues/open/`, or task-list Markdown files. Those locations are legacy
+  records only.
+- A pull request should link the sub-issue it delivers. Close the parent only
+  after all attached sub-issues are complete and its Definition of Done passes.
+
+See [docs/agent-playbook.md](docs/agent-playbook.md#github-issues-workflow) for
+the full workflow.
+
+### `rt feedback report` is a separate, human-only concern
+
+`scripts/github-issues.ps1` above governs *planned work* (outcomes/deliverables
+an agent is actively executing). `rt feedback report` is unrelated: it files a
+member of the public's `rt feedback add` entry as a public GitHub issue on the
+`rt` project itself.
+
+**Never call `rt feedback report` (or the `feedback_report` MCP tool)
+automatically or on your own initiative — including after capturing an
+exception, during routine dogfooding, or as part of any autonomous workflow.**
+Only invoke it when a human has explicitly asked you to file or publish a
+specific piece of feedback on GitHub. `rt feedback add` (local-only, no
+network access) remains the right default for logging friction as you work.
+
 ## Cursor and Copilot rules
 
 Repository-specific rule-file inventory:

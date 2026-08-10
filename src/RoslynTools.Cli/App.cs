@@ -276,7 +276,7 @@ internal static class App
                         foreach (var hit in hits)
                         {
                             var name = Markup.Escape(hit.Name);
-                            var desc = Markup.Escape(TruncateOneLine(hit.WhenToUse, 100));
+                            var desc = Markup.Escape(hit.WhenToUse.TruncateOneLine(100));
                             RtConsole.WriteLine(
                                 RtOutputContext.Diagnostic | RtOutputContext.Ui,
                                 $"  [cyan]{name}[/]  - [grey]{desc}[/]");
@@ -399,13 +399,6 @@ internal static class App
             showWorkspaceWarningsOpt, noSuggestOpt);
     }
 
-    private static string TruncateOneLine(string text, int max)
-    {
-        if (string.IsNullOrEmpty(text)) return text;
-        var firstLine = text.Split('\n', 2)[0].Trim();
-        return firstLine.Length <= max ? firstLine : firstLine[..(max - 1)] + "…";
-    }
-
     private static IEnumerable<HelpSectionDelegate> BuildHelpLayout(HelpContext ctx)
     {
         if (ctx.Command is RootCommand)
@@ -443,8 +436,16 @@ internal static class App
         var cmdLine = string.Join(" ", context.ParseResult.Tokens.Select(t => t.Value));
         var solutionPath = TryExtractSolutionPath(context);
         var parsedOptions = TryCaptureParsedOptions(context);
-        await FeedbackStore.AppendExceptionAsync(cmdLine, ex, solutionPath, parsedOptions);
-        RtLog.Warning("Exception captured — run `rt feedback list` to view.");
+        var entry = await FeedbackStore.AppendExceptionAsync(cmdLine, ex, solutionPath, parsedOptions);
+        // Local-only by design: an unhandled exception is never auto-reported to GitHub —
+        // it may contain absolute local paths or a raw stack trace. Point the human at the
+        // explicit reporting command instead of filing anything on their behalf.
+        if (entry is null)
+            RtLog.Warning("Exception captured — run `rt feedback list` to view.");
+        else
+            RtLog.Warning(
+                "Exception captured as {Id} — run `rt feedback list` to view, or `rt feedback report --id {Id}` to file it on GitHub.",
+                entry.Id, entry.Id);
     }
 
     /// <summary>

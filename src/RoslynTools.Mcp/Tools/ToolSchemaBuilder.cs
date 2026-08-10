@@ -1,5 +1,6 @@
 using System.CommandLine;
 using System.Reflection;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using RoslynTools.CommandDescriptors;
 
@@ -116,7 +117,21 @@ internal sealed class ToolSchemaBuilder
             };
         }
 
-        return new Dictionary<string, object> { ["type"] = ToJsonType(type) };
+        var schema = new Dictionary<string, object> { ["type"] = ToJsonType(type) };
+
+        // Enum request fields (e.g. FeedbackCategory) surface their allowed values in the
+        // schema itself, so an MCP-calling agent doesn't have to guess or read source to know
+        // the accepted strings. Uses the same JsonNamingPolicy.CamelCase the actual
+        // JsonStringEnumConverter serializes with (see FeedbackCategoryJsonConverter) as the
+        // single source of truth, rather than a second hand-rolled lower-casing that would
+        // silently diverge for a future multi-word member name.
+        var underlying = Nullable.GetUnderlyingType(type) ?? type;
+        if (underlying.IsEnum)
+            schema["enum"] = Enum.GetNames(underlying)
+                .Select(JsonNamingPolicy.CamelCase.ConvertName)
+                .ToArray();
+
+        return schema;
     }
 
     private static string ToJsonType(Type type)

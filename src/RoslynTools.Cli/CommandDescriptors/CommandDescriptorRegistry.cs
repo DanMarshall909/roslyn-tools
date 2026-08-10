@@ -42,6 +42,7 @@ internal sealed class CommandDescriptorRegistry
         FeedbackAddOperation feedbackAdd,
         FeedbackListOperation feedbackList,
         FeedbackProcessOperation feedbackProcess,
+        FeedbackReportOperation feedbackReport,
         SuggestOperation suggest,
         IGitClient git)
     {
@@ -96,6 +97,22 @@ internal sealed class CommandDescriptorRegistry
             CommandSafetyPolicy.ReadOnly,
             Structured: true,
             feedbackProcess));
+        descriptors.Add(new ApplicationCommandDescriptor(
+            ["feedback", "report"],
+            "feedback_report",
+            "File a pending rt feedback item as a public GitHub issue, with duplicate detection.",
+            "Do NOT call this automatically. Only call this when a human has explicitly asked you to "
+            + "file or publish feedback on GitHub — never as a routine part of dogfooding, error "
+            + "handling, or any autonomous workflow. Requires the gh CLI installed and authenticated "
+            + "on this machine. Searches existing GitHub issues first; if likely duplicates are found "
+            + "it returns them without creating anything so the human (or you, on their behalf) can "
+            + "review the list before deciding to file a new issue (--yes) or link to an existing one "
+            + "(--attach-to).",
+            () => FeedbackCommand.BuildReport(feedbackReport),
+            McpVisible: true,
+            CommandSafetyPolicy.DryRunByDefault,
+            Structured: true,
+            feedbackReport));
         descriptors.Add(new ApplicationCommandDescriptor(
             ["suggest"],
             "suggest_command",

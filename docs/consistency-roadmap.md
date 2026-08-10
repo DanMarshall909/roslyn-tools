@@ -1,6 +1,11 @@
 # EP-013 — Command Consistency Roadmap
 
-This is the execution plan for [EP-013](../ralph/backlog-prd.json). The epic owns no stories directly; it sequences existing work under EP-007, EP-009, EP-011, and EP-012 into a coherent landing. The target architecture behind this roadmap is [target-command-surface-architecture.md](target-command-surface-architecture.md).
+This is the historical execution plan for EP-013. Remaining work from this
+roadmap must be represented in GitHub as an outcome parent with official
+sub-issues before execution; the legacy Ralph PRD is not an active work queue.
+The plan sequences work formerly grouped under EP-007, EP-009, EP-011, and
+EP-012 into a coherent landing. The target architecture behind this roadmap is
+[target-command-surface-architecture.md](target-command-surface-architecture.md).
 
 > **Status (2026-06-18):** Phase 1 has landed — US-100 (renderer collapse + biconditional arch test) shipped 2026-06-17; US-107 (category + capability interfaces) shipped via `CategoryInterfaceContracts.cs` + the `IInspectCommand` / `IAnalyzeCommand` / `IRefactorCommand` markers. Phase 2 (US-108 / US-109 / US-097) is unblocked and ready to start. Phases 3–6 remain in backlog.
 

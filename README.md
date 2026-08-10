@@ -175,18 +175,33 @@ Configure an MCP client to launch that command and communicate over stdin/stdout
 
 ## Feedback capture
 
-Unhandled `rt` exceptions are recorded automatically. Feature requests and reproducible gaps can also be added manually:
+Unhandled `rt` exceptions are recorded automatically. Feature requests and reproducible gaps can also be added manually. Every report requires a short `--title` and a `--category` (`bug`, `feature`, `question`, or `other`) — consistent, structured reports are what make the duplicate detection in `rt feedback report` (below) work without spamming GitHub:
 
 ```powershell
 rt feedback list
 rt feedback list --status all
 
 rt feedback add `
+  --title "replace-new should support multi-argument drops" `
+  --category feature `
   --description "replace-new should support multi-argument drops" `
-  --command-line "rt refactor replace-new --type Option<string> ..."
+  --command-line "rt refactor replace-new --type Option<string> ..." `
+  --command "refactor replace-new"
 ```
 
-Inside a checkout containing a `ralph` directory, feedback is stored in `ralph/feedback.json`. Elsewhere it falls back to `~/.rt/feedback.json`.
+Inside a checkout containing a `ralph` directory, feedback is stored in `ralph/feedback.json`. Elsewhere it falls back to `~/.rt/feedback.json`. This is always local-only — nothing leaves your machine until you explicitly report it.
+
+### Reporting on GitHub
+
+`rt feedback report` files a pending item as a public GitHub issue, using your own `gh` login (install and run `gh auth login` first — no token is ever stored by `rt` itself):
+
+```powershell
+rt feedback report --id FB-004
+```
+
+It searches existing issues first and, like Stack Overflow's "this looks similar" prompt, shows possible duplicates *before* creating anything. If none of those match, re-run with `--yes` to file a new issue, or `--attach-to <number>` to link your feedback to an existing one instead. Add `--dry-run` to preview without filing or linking anything.
+
+This is a deliberately explicit, human-directed action — separate from `feedback add` — and it is never invoked automatically, including by coding agents driving `rt` over MCP.
 
 Maintainer triage instructions are documented in [`docs/feedback-triage.md`](docs/feedback-triage.md).
 

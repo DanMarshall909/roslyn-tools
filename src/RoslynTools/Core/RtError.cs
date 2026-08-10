@@ -21,4 +21,8 @@ internal sealed record RtError(
     /// <summary>Creates a <see cref="RtErrorKind.AmbiguousMatch" /> error.</summary>
     internal static RtError AmbiguousMatch(string message, IReadOnlyDictionary<string, string>? context = null)
         => new(RtErrorKind.AmbiguousMatch, message, context);
+
+    /// <summary>Creates a <see cref="RtErrorKind.ExternalToolFailure" /> error.</summary>
+    internal static RtError ExternalToolFailure(string message, IReadOnlyDictionary<string, string>? context = null)
+        => new(RtErrorKind.ExternalToolFailure, message, context);
 }

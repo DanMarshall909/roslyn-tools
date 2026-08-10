@@ -9,6 +9,10 @@ Each entry is a candidate for a small script, skill, or alias — but entries ea
 
 Style mirrors `dogfood-gaps.md`: one bullet per entry, `- YYYY-MM-DD: <pattern> — <proposed script shape>`.
 
+> Entries proposing PRD or Ralph backlog automation are historical and
+> superseded by the GitHub parent/sub-issue workflow. Do not implement those
+> proposals.
+
 ---
 
 ## Multi-step sequences

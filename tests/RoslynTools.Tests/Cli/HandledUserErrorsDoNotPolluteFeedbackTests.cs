@@ -230,6 +230,42 @@ public sealed class HandledUserErrorsDoNotPolluteFeedbackTests
         }
     }
 
+    /// <summary>
+    ///     `rt feedback report` shells to the real `gh` CLI (see
+    ///     <see cref="RoslynTools.Services.GitHub.GitHubIssueClient" />) — in this temp
+    ///     workspace (not a git repository, and possibly without `gh` at all) it must fail as
+    ///     a clean <see cref="RtErrorKind.ExternalToolFailure" /> exit-1, not an unhandled
+    ///     exception, and it must not touch the feedback entry it failed to report.
+    /// </summary>
+    [Fact]
+    public async Task feedback_report_failure_exits_1_without_mutating_the_local_entry()
+    {
+        using var workspace = new FeedbackWorkspace();
+        using (workspace.UseCurrentDirectory())
+        {
+            FeedbackStore.Append(new FeedbackEntry
+            {
+                Type = "user-feedback",
+                Title = "sample",
+                Category = FeedbackCategory.Bug,
+                Description = "sample"
+            });
+
+            var sc = new ServiceCollection();
+            RoslynTools.Bootstrap.RegisterServices(sc);
+            using var services = sc.BuildServiceProvider();
+
+            var exitCode = await App.RunAsync(
+                ["feedback", "report", "--id", "FB-001"],
+                services);
+
+            exitCode.ShouldBe(1);
+            var all = FeedbackStore.LoadAll();
+            all.Count.ShouldBe(1, "the failed report call must not append a spurious entry");
+            all[0].Status.ShouldBe("pending", "a failed report must not mark the entry processed");
+        }
+    }
+
     private sealed class FeedbackWorkspace : IDisposable
     {
         private readonly string _previousDirectory;

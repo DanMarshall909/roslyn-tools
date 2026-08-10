@@ -6,6 +6,7 @@ using RoslynTools.Core;
 using RoslynTools.Daemon;
 using RoslynTools.Feedback;
 using RoslynTools.Services;
+using RoslynTools.Services.GitHub;
 using RoslynTools.Services.SemanticDiff;
 using RoslynTools.Services.SemanticDiff.Git;
 using RoslynTools.Services.Suggest;
@@ -35,18 +36,26 @@ internal static class Bootstrap
         services.AddSingleton<FeedbackAddOperation>();
         services.AddSingleton<FeedbackListOperation>();
         services.AddSingleton<FeedbackProcessOperation>();
+        services.AddSingleton<FeedbackReportOperation>();
         services.AddSingleton<ICommandApplicationPort>(
             sp => sp.GetRequiredService<FeedbackAddOperation>());
         services.AddSingleton<ICommandApplicationPort>(
             sp => sp.GetRequiredService<FeedbackListOperation>());
         services.AddSingleton<ICommandApplicationPort>(
             sp => sp.GetRequiredService<FeedbackProcessOperation>());
+        services.AddSingleton<ICommandApplicationPort>(
+            sp => sp.GetRequiredService<FeedbackReportOperation>());
         services.AddSingleton<CommandDescriptorRegistry>();
 
         // GitSemanticDiffSourceProvider (an IRtService, so auto-scanned below) depends on
         // IGitClient. The git working directory is the process's current directory; the
         // batch-5 command can override per-invocation if it ever needs a different root.
         services.AddSingleton<IGitClient>(_ => new GitClient(Directory.GetCurrentDirectory()));
+
+        // GitHubIssueClient has no constructor dependencies but is registered explicitly
+        // (like IGitClient) rather than via the IRtService scan below, for the same reason:
+        // it's consumed through its interface, not its concrete type.
+        services.AddSingleton<IGitHubIssueClient, GitHubIssueClient>();
 
         // FileSemanticDiffSourceProvider (an IRtService, auto-scanned below) depends on
         // IFileTextReader for the two-files-on-disc diff mode (US-123). The real reader hits

@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Work tracking guidance
+    url: https://github.com/DanMarshall909/roslyn-tools/blob/main/docs/agent-playbook.md#github-issues-workflow
+    about: Managed outcomes and deliverables are created with scripts/github-issues.ps1.

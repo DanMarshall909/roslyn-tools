@@ -17,5 +17,12 @@ internal enum RtErrorKind
     AmbiguousMatch,
 
     /// <summary>The solution/workspace failed to load (missing or malformed).</summary>
-    WorkspaceLoadFailure
+    WorkspaceLoadFailure,
+
+    /// <summary>
+    ///     A required external tool (e.g. the <c>gh</c> CLI) was unavailable, unauthenticated,
+    ///     or failed. Distinct from <see cref="WorkspaceLoadFailure" /> because remediation is
+    ///     "fix your environment," not "fix your input."
+    /// </summary>
+    ExternalToolFailure
 }

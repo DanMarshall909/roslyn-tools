@@ -63,7 +63,8 @@ internal static class Program
                 FeedbackCommand.Build(
                     host.Services.GetRequiredService<FeedbackAddOperation>(),
                     host.Services.GetRequiredService<FeedbackListOperation>(),
-                    host.Services.GetRequiredService<FeedbackProcessOperation>())
+                    host.Services.GetRequiredService<FeedbackProcessOperation>(),
+                    host.Services.GetRequiredService<FeedbackReportOperation>())
             ]);
     }
 

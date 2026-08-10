@@ -81,7 +81,8 @@ public sealed class CommandDescriptorTriggerContract
         "suggest_command", // Meta/discovery over the rt catalog itself; no built-in does this.
         "feedback_add", // rt's own dogfood-feedback loop; no built-in tracks it.
         "feedback_list",
-        "feedback_process"
+        "feedback_process",
+        "feedback_report" // Files a public GitHub issue via gh; no built-in does this either.
     };
 
     [Fact]

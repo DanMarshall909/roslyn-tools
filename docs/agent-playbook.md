@@ -32,6 +32,87 @@ rt refactor rename "RoslynTools.Models.SymbolMatch.DisplayName" NewName --soluti
 Check exit code, stdout/stderr separation, sensible dry-run diffs, and workspace
 load warnings.
 
+## GitHub Issues Workflow
+
+GitHub Issues is the only active work queue. Ralph PRD JSON, `docs/issues/open/`,
+and task-list Markdown files are retained as historical context and must not
+receive new work.
+
+### Capture
+
+1. Search open and closed issues before creating anything.
+2. Create one parent issue that states the desired outcome, context, constraints,
+   and a short Definition of Done.
+3. Use the repository script to create the parent and official sub-issues. The
+   commands are idempotent by exact title within their scope:
+
+   ```powershell
+   ./scripts/github-issues.ps1 new-outcome `
+     -Key "mcp-discovery" `
+     -Title "Harden MCP discovery" `
+     -Outcome "MCP contracts cannot represent invalid states." `
+     -Context "Current descriptors coordinate independent booleans." `
+     -Done "All sub-issues are closed","End-to-end MCP tests pass"
+
+   ./scripts/github-issues.ps1 add-deliverable -Parent 123 `
+     -Key "mcp-exposure-contract" `
+     -Title "Model MCP exposure contracts" `
+     -Result "Visible descriptors carry one complete exposure contract." `
+     -Requirement "Independent visibility/output booleans are removed" `
+     -Evidence "Architecture contract test passes" `
+     -BlockedBy 120
+   ```
+
+4. Keep detailed acceptance requirements on the relevant sub-issue. Do not copy
+   the same checklist into the parent.
+
+If issue types are enabled, use Feature for outcome parents and Task or Bug for
+children. Otherwise, use standard issues and preserve the parent/sub-issue
+relationship.
+
+### Execute
+
+1. Query mechanically computed ready work:
+
+   ```powershell
+   ./scripts/github-issues.ps1 status -Parent 123
+   ./scripts/github-issues.ps1 ready -Parent 123
+   ```
+
+2. Scope the branch, implementation, tests, and pull request to that child.
+3. Reference the child issue from the pull request body (for example,
+   `Refs #124`). Do not use an auto-closing keyword; guarded closure happens
+   after merge.
+4. Record newly discovered independent work as another sub-issue rather than
+   expanding the current branch silently.
+
+### Complete
+
+1. Mark verified requirements by one-based index, then use guarded closure:
+
+   ```powershell
+   ./scripts/github-issues.ps1 check -Issue 124 -Section requirements -Index 1
+   ./scripts/github-issues.ps1 check -Issue 124 -Section evidence -Index 1
+   ./scripts/github-issues.ps1 close-deliverable -Issue 124 -PullRequest 130
+   ```
+
+2. Mark final outcome checks and close the parent. The script refuses closure
+   while a sub-issue or Definition of Done item is incomplete:
+
+   ```powershell
+   ./scripts/github-issues.ps1 check -Issue 123 -Section done -Index 1
+   ./scripts/github-issues.ps1 close-outcome -Parent 123
+   ```
+
+3. Update issue bodies or comments with durable decisions and evidence; do not
+   mirror status into PRD files.
+
+Use `-Json` on query and mutation commands for agent-friendly output. Use
+`-WhatIf` to preview creation, checklist edits, and closure. `-Force` is reserved
+for adopting or closing a legacy issue that predates the managed markers.
+Workflow keys are stable kebab-case identifiers and provide idempotency even if
+an issue title changes.
+
 ## Parallel Safety
 
 `rt` is designed for parallel agent worktrees. Known guarded race sites:

@@ -116,12 +116,12 @@ If two surfaces describe the same flag, the catalog wins.
 Agent runs rt on a real refactor
   → rt hits a gap or bug
     → rt feedback add captures it (mutex-safe)
-      → /execute Phase 4 triages feedback.json
-        → bug? → /task logs a backlog story
+      → feedback triage verifies the report and searches GitHub Issues
+        → bug? → create or attach an official sub-issue
         → already-handled? → status: processed, discard
-      → backlog story executes via /execute → /tdd
+      → ready sub-issue executes test-first
         → red → green → refactor → coverage → mutation
-          → commit + push
+          → pull request links and closes the sub-issue
             → Stryker gate enforces
               → next agent benefits
 ```

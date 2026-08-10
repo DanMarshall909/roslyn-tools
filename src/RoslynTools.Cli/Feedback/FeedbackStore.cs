@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using RoslynTools.Core;
 
 namespace RoslynTools.Feedback;
 
@@ -83,23 +84,69 @@ internal static class FeedbackStore
     }
 
     internal static FeedbackEntry AddUserFeedback(
+        string title,
+        FeedbackCategory category,
         string description,
         string? sampleCode,
         string? expectedResult,
-        string? commandLine)
+        string? commandLine,
+        string? command)
     {
         var entry = new FeedbackEntry
         {
             Type = "user-feedback",
             Timestamp = DateTimeOffset.UtcNow.ToString("O"),
+            Title = title,
+            Category = category,
+            Command = command,
             CommandLine = commandLine,
             Description = description,
             SampleCode = sampleCode,
-            ExpectedResult = expectedResult
+            ExpectedResult = expectedResult,
+            // Captured for every report, not just exceptions, so entries are
+            // consistently structured whether or not this one is ever promoted
+            // to a GitHub issue.
+            RtVersion = SafeGet(GetRtVersion),
+            DotnetVersion = SafeGet(() => Environment.Version.ToString()),
+            OsPlatform = SafeGet(() => RuntimeInformation.OSDescription)
         };
 
         Append(entry);
         return entry;
+    }
+
+    internal static FeedbackEntry? TryGetById(string id) =>
+        LoadAll().SingleOrDefault(e => string.Equals(e.Id, id, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    ///     Records that <paramref name="id" /> was filed (or linked) as GitHub issue
+    ///     <paramref name="issueNumber" /> by <c>rt feedback report</c>. Reuses the same
+    ///     process/status shape as <see cref="MarkProcessed" />.
+    /// </summary>
+    internal static FeedbackEntry MarkReported(string id, int issueNumber, string issueUrl)
+    {
+        Lock.Wait();
+        try
+        {
+            using var storeLock = AcquireStoreLock();
+            var all = ReadExisting();
+            var entry = all.SingleOrDefault(candidate =>
+                string.Equals(candidate.Id, id, StringComparison.OrdinalIgnoreCase));
+            if (entry is null)
+                throw new ArgumentException($"Feedback item '{id}' was not found.", nameof(id));
+
+            entry.GitHubIssueNumber = issueNumber;
+            entry.GitHubIssueUrl = issueUrl;
+            entry.Status = "processed";
+            entry.ProcessedAt = DateTimeOffset.UtcNow.ToString("O");
+            entry.Resolution = $"Reported as GitHub issue #{issueNumber}: {issueUrl}";
+            WriteAll(all);
+            return entry;
+        }
+        finally
+        {
+            Lock.Release();
+        }
     }
 
     internal static List<FeedbackEntry> ListByStatus(string status)
@@ -139,7 +186,12 @@ internal static class FeedbackStore
         }
     }
 
-    internal static async Task AppendExceptionAsync(
+    /// <summary>
+    ///     Returns the captured entry (so callers can point the user at
+    ///     <c>rt feedback report --id &lt;id&gt;</c>), or <c>null</c> if capture itself failed —
+    ///     exception capture must never mask the original exception.
+    /// </summary>
+    internal static async Task<FeedbackEntry?> AppendExceptionAsync(
         string cmdLine,
         Exception ex,
         string? solutionPath = null,
@@ -157,6 +209,10 @@ internal static class FeedbackStore
                     Id = NextId(existing),
                     Type = "exception",
                     Timestamp = DateTimeOffset.UtcNow.ToString("O"),
+                    // Best-effort structure so a captured exception is reportable as-is via
+                    // `rt feedback report` without forcing the human to re-classify it first.
+                    Title = ex.Message.TruncateOneLine(100),
+                    Category = FeedbackCategory.Bug,
                     CommandLine = cmdLine,
                     Description = ex.Message,
                     ActualResult = ex.GetType().Name + ": " + ex.Message,
@@ -171,6 +227,7 @@ internal static class FeedbackStore
                 };
                 existing.Add(entry);
                 WriteAll(existing);
+                return entry;
             }
             finally
             {
@@ -180,6 +237,7 @@ internal static class FeedbackStore
         catch
         {
             // Exception capture must never mask the original exception
+            return null;
         }
     }
 
