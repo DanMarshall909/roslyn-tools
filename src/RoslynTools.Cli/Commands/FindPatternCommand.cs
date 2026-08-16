@@ -1,7 +1,7 @@
 using System.CommandLine;
-using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
+using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
@@ -10,27 +10,16 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class FindPatternCommand : IRtCommand, IStructuredOutputCommand, IInspectCommand
 {
-    private FindPatternCommand()
+    private readonly FindPatternOperation _operation;
+
+    public FindPatternCommand(FindPatternOperation operation)
     {
+        _operation = operation;
     }
 
-    public static RtCommandInfo Info { get; } = new(
-        "find-pattern",
-        false,
-        true,
-        "inspect",
-        Aliases: ["fp"],
-        WhenToUse:
-        "Find every location in the solution that structurally matches a given line range — same SyntaxKind tree shape, only identifier and literal values differ. Useful for spotting duplicated logic even when variable names differ.",
-        Examples:
-        [
-            "rt inspect find-pattern --file src/Services/BookingService.cs --start-line 42 --end-line 50 --solution RoslynTools.slnx",
-            "rt inspect fp --file src/Controllers/AdminController.cs --start-line 110 --end-line 125 --scope RoslynTools.Core --solution RoslynTools.slnx"
-        ],
-        SupportedFormats: [OutputFormat.Text, OutputFormat.Json]
-    );
+    public static RtCommandInfo Info => FindPatternCommandDefinition.Info;
 
-    public static Command Build()
+    public Command Build()
     {
         var fileOpt = new Option<string>("--file", "Path to the .cs file containing the pattern.")
         { IsRequired = true };
@@ -54,15 +43,12 @@ internal sealed class FindPatternCommand : IRtCommand, IStructuredOutputCommand,
             var startLine = ctx.ParseResult.GetValueForOption(startLineOpt);
             var endLine = ctx.ParseResult.GetValueForOption(endLineOpt);
             var req = binder.Bind(ctx.ParseResult, f => new FindPatternCliRequest(f.SolutionPath, f.Scope));
-            var sp = ctx.BindingContext.GetService<IServiceProvider>();
-            var loader = sp?.GetService<IWorkspaceSessionFactory>() ?? IWorkspaceSessionFactory.CreateDefault();
-
-            var sln = await loader.GetSolutionAsync(req.SolutionPath);
             RtLog.Info("Searching for pattern at {File}:{StartLine}-{EndLine}...", file, startLine, endLine);
-            List<PatternMatch> matches;
             try
             {
-                matches = await PatternMatcher.FindMatchesAsync(sln, file, startLine, endLine, req.Scope);
+                var result = await _operation.ExecuteAsync(new FindPatternRequest(
+                    file, startLine, endLine, req.SolutionPath, req.Scope));
+                RtResultRenderer.Write(RtResult<object>.Ok(result));
             }
             catch (InvalidOperationException ex)
             {
@@ -70,9 +56,6 @@ internal sealed class FindPatternCommand : IRtCommand, IStructuredOutputCommand,
                 Environment.ExitCode = 1;
                 return;
             }
-
-            var output = new { matches };
-            RtResultRenderer.Write(RtResult<object>.Ok(output));
         });
 
         return cmd;

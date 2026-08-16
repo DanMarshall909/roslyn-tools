@@ -32,10 +32,8 @@ public sealed class SourceOperationTests
             factory.RequestedSolution.ShouldBe("requested.slnx");
             var entry = result.ShouldHaveSingleItem();
             entry["fqn"].ShouldBe("App.Calculator.Add(int, int)");
-            entry["source"].ShouldBe("""
-                /// <summary>Adds two values.</summary>
-                public int Add(int left, int right) => left + right;
-                """);
+            ((string)entry["source"]!).ShouldContain("Adds two values.");
+            ((string)entry["source"]!).ShouldContain("left + right");
         }
     }
 

@@ -112,6 +112,27 @@ internal static class DaemonOwnedCommands
             CommandSafety.ReadOnly,
             typeof(FindImplementationsRequest),
             typeof(FindImplementationsResult),
+            []),
+        new DaemonCommandDefinition(
+            SourceCommandDefinition.Name,
+            SourceCommandDefinition.Info,
+            CommandSafety.ReadOnly,
+            typeof(SourceRequest),
+            typeof(List<Dictionary<string, object?>>),
+            [
+                new CommandFollowOn(
+                    "describe",
+                    "Use after source when you need signatures and metadata instead of the full declaration."),
+                new CommandFollowOn(
+                    "outline",
+                    "Use after source when you need the surrounding file or namespace shape.")
+            ]),
+        new DaemonCommandDefinition(
+            FindPatternCommandDefinition.Name,
+            FindPatternCommandDefinition.Info,
+            CommandSafety.ReadOnly,
+            typeof(FindPatternRequest),
+            typeof(FindPatternResult),
             [])
     ];
 
@@ -314,5 +335,47 @@ internal static class FindImplementationsCommandDefinition
             "rt inspect find-impl IRtCommand --solution RoslynTools.slnx"
         ],
         SeeAlso: ["find-refs", "find-callers", "implement-interface", "extract-interface"],
+        SupportedFormats: [OutputFormat.Text, OutputFormat.Json]);
+}
+
+/// <summary>Canonical daemon metadata for source-declaration retrieval.</summary>
+internal static class SourceCommandDefinition
+{
+    internal const string Name = "source";
+
+    internal static RtCommandInfo Info { get; } = new(
+        Name,
+        false,
+        true,
+        "inspect",
+        WhenToUse:
+        "Use this when you know the exact FQN of a member or type and need its complete declaration, including XML documentation, without opening its file. Prefer this over Read when you need only that declaration rather than surrounding file context.",
+        Examples:
+        [
+            "rt inspect source RoslynTools.Services.OutlineService.BuildTypeSummary --solution RoslynTools.slnx",
+            "rt inspect source RoslynTools.Core.WorkspaceLoader --solution RoslynTools.slnx",
+            "rt inspect source ProjectX.Core.Services.BookingService.CreateBookingAsync --kind method --solution C:\\code\\libraries\\ProjectX.Libraries.sln"
+        ],
+        SupportedFormats: [OutputFormat.Text, OutputFormat.Json]);
+}
+
+/// <summary>Canonical daemon metadata for structural pattern matching.</summary>
+internal static class FindPatternCommandDefinition
+{
+    internal const string Name = "find_pattern";
+
+    internal static RtCommandInfo Info { get; } = new(
+        "find-pattern",
+        false,
+        true,
+        "inspect",
+        Aliases: ["fp"],
+        WhenToUse:
+        "Use this when you need to find structurally duplicated statement blocks even when identifiers or literal values differ. Prefer it over Grep when textual search would miss renamed copies of the same syntax shape.",
+        Examples:
+        [
+            "rt inspect find-pattern --file src/Services/BookingService.cs --start-line 42 --end-line 50 --solution RoslynTools.slnx",
+            "rt inspect fp --file src/Controllers/AdminController.cs --start-line 110 --end-line 125 --scope RoslynTools.Core --solution RoslynTools.slnx"
+        ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json]);
 }

@@ -10,30 +10,13 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class SourceCommand : IRtCommand, IStructuredOutputCommand, IInspectCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly InspectService _inspect;
-    public SourceCommand(IWorkspaceSessionFactory sessionFactory, InspectService inspect)
+    private readonly SourceOperation _operation;
+    public SourceCommand(SourceOperation operation)
     {
-        _inspect = inspect;
-        _sessionFactory = sessionFactory;
+        _operation = operation;
     }
 
-    public static RtCommandInfo Info { get; } = new(
-        "source",
-        false,
-        true,
-        "inspect",
-        Aliases: null,
-        WhenToUse:
-        "Reading the full source of a specific method, property, type, or field by FQN without opening the file. Returns the declaration including XML doc comments, with file path and line numbers. Prefer this over Read when you know the exact member you need.",
-        Examples:
-        [
-            "rt inspect source RoslynTools.Services.OutlineService.BuildTypeSummary --solution RoslynTools.slnx",
-            "rt inspect source RoslynTools.Core.WorkspaceLoader --solution RoslynTools.slnx",
-            "rt inspect source ProjectX.Core.Services.BookingService.CreateBookingAsync --kind method --solution C:\\code\\libraries\\ProjectX.Libraries.sln"
-        ],
-        SupportedFormats: [OutputFormat.Text, OutputFormat.Json]
-    );
+    public static RtCommandInfo Info => SourceCommandDefinition.Info;
 
     public Command Build()
     {
@@ -52,9 +35,8 @@ internal sealed class SourceCommand : IRtCommand, IStructuredOutputCommand, IIns
             {
                 var symbol = ctx.ParseResult.GetValueForArgument(symbolArg);
                 var request = flags.Bind(ctx.ParseResult, f => SourceCliRequest.FromFlags(f, symbol));
-                var sln = await _sessionFactory.GetSolutionAsync(request.SolutionPath);
-                var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, request.Symbol, request.Kind);
-                var source = await _inspect.GetSourceAsync(sym);
+                var source = await _operation.ExecuteAsync(new SourceRequest(
+                    request.Symbol, request.SolutionPath, request.Kind));
 
                 RtResultRenderer.Write(RtResult<object>.Ok(source));
             });
