@@ -1,0 +1,97 @@
+name: Release portable tools
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version label used in artifact names
+        required: true
+        default: dev
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  publish:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: linux-x64
+            runner: ubuntu-latest
+            extension: tar.gz
+          - rid: linux-arm64
+            runner: ubuntu-latest
+            extension: tar.gz
+          - rid: osx-x64
+            runner: macos-15-intel
+            extension: tar.gz
+          - rid: osx-arm64
+            runner: macos-latest
+            extension: tar.gz
+          - rid: win-x64
+            runner: windows-latest
+            extension: zip
+          - rid: win-arm64
+            runner: windows-latest
+            extension: zip
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: echo "value=${GITHUB_REF_NAME:-${{ inputs.version }}}" >> "$GITHUB_OUTPUT"
+      - name: Publish CLI and MCP host
+        shell: bash
+        run: |
+          dotnet publish src/RoslynTools.Cli/RoslynTools.Cli.csproj -c Release -r "${{ matrix.rid }}" -o publish/cli
+          dotnet publish src/RoslynTools.Mcp/RoslynTools.Mcp.csproj -c Release -r "${{ matrix.rid }}" -o publish/mcp
+          if [[ "${{ matrix.rid }}" == win-* ]]; then
+            mv publish/mcp/RoslynTools.Mcp.exe publish/mcp/roslyn-tools-mcp.exe
+          else
+            mv publish/mcp/RoslynTools.Mcp publish/mcp/roslyn-tools-mcp
+          fi
+          mkdir -p staging
+          cp -R publish/cli/. staging/
+          cp -R publish/mcp/. staging/
+      - name: Create archive and checksum
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.value }}"
+          $rid = "${{ matrix.rid }}"
+          if ("${{ matrix.extension }}" -eq "zip") {
+            $archive = "roslyn-tools-$version-$rid.zip"
+            Compress-Archive -Path staging/* -DestinationPath $archive
+          } else {
+            $archive = "roslyn-tools-$version-$rid.tar.gz"
+            tar -czf $archive -C staging .
+          }
+          $hash = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
+          "$hash  $archive" | Set-Content -NoNewline "$archive.sha256"
+          "archive=$archive" | Out-File -Append $env:GITHUB_OUTPUT
+        id: archive
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ steps.archive.outputs.archive }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: roslyn-tools-${{ matrix.rid }}
+          path: |
+            ${{ steps.archive.outputs.archive }}
+            ${{ steps.archive.outputs.archive }}.sha256
+      - name: Attach to GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.archive.outputs.archive }}
+            ${{ steps.archive.outputs.archive }}.sha256

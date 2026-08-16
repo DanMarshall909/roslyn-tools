@@ -14,12 +14,31 @@ Use it to inspect symbols, trace references, analyse architecture, and apply sol
 
 ## Requirements
 
-- .NET 10 SDK
 - A C# solution in `.sln` or `.slnx` format
+- A compatible .NET SDK when running semantic solution operations
 
-The repository pins its SDK through [`global.json`](global.json).
+The portable executables include their own runtime and can start without .NET or ICU installed. Roslyn still uses the
+consumer solution's SDK to load projects; when a `global.json` is present, install the version it requests.
 
 ## Install
+
+Install the portable CLI and MCP host for the current user on POSIX systems:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/DanMarshall909/roslyn-tools/main/scripts/install.sh | bash
+```
+
+On Windows PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/DanMarshall909/roslyn-tools/main/scripts/install.ps1 | iex
+```
+
+The installer verifies the release checksum, installs atomically into a versioned user directory, and exposes `rt` and
+`roslyn-tools-mcp` through a stable user-scoped launcher. Run a downloaded installer with `--uninstall` (POSIX) or
+`-Uninstall` (PowerShell) to remove it.
+
+The .NET tool remains available for CLI-only installations where .NET is already managed centrally:
 
 ```powershell
 dotnet tool install --global roslyn-tools-rt
@@ -162,7 +181,20 @@ The CLI must still be installed separately with `dotnet tool install --global ro
 
 ## MCP host
 
-The solution includes a stdio MCP host in `src/RoslynTools.Mcp`. It exposes the migrated application ports through the same services and command descriptors used by the CLI.
+The portable installation exposes a stable `roslyn-tools-mcp` command. Configure clients without checkout, SDK, or
+developer-specific paths:
+
+```json
+{
+  "mcpServers": {
+    "roslyn-tools": {
+      "command": "roslyn-tools-mcp"
+    }
+  }
+}
+```
+
+The solution also includes the stdio host source in `src/RoslynTools.Mcp`. It exposes the migrated application ports through the same services and command descriptors used by the CLI.
 
 Build and run it from the repository root:
 

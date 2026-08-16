@@ -39,6 +39,16 @@ internal sealed class McpCommandAdapter
             return new ToolResult(true, $"Unknown tool: {toolName}");
 
         var safeArguments = ApplySafetyPolicy(descriptor, arguments);
+
+        try
+        {
+            MsBuildBootstrap.Register();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return new ToolResult(true, ex.Message);
+        }
+
         if (descriptor.Port is null)
             return await _legacyBridge.InvokeAsync(
                 descriptor,

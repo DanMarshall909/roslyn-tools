@@ -33,6 +33,9 @@ jobs:
       - name: Verify formatting
         run: dotnet format RoslynTools.slnx --verify-no-changes --no-restore
 
+      - name: Verify portable distribution contract
+        run: ./scripts/test-distribution.sh
+
       - name: Build
         run: dotnet build RoslynTools.slnx --configuration Release --no-restore
 

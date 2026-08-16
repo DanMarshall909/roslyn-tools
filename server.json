@@ -1,0 +1,21 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.danmarshall909/roslyn-tools",
+  "description": "Semantic C# navigation, analysis, and refactoring through Roslyn",
+  "repository": {
+    "url": "https://github.com/DanMarshall909/roslyn-tools",
+    "source": "github"
+  },
+  "version": "1.0.0",
+  "packages": [
+    {
+      "registryType": "github",
+      "identifier": "DanMarshall909/roslyn-tools",
+      "version": "1.0.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeHint": "roslyn-tools-mcp"
+    }
+  ]
+}

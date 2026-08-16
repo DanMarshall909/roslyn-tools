@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Build.Locator;
 using RoslynTools.Core;
 
@@ -8,17 +9,30 @@ namespace RoslynTools;
 /// </summary>
 internal static class MsBuildBootstrap
 {
+    private static readonly object RegistrationLock = new();
+
     /// <summary>
     /// Method to register MSBuild bootstrapping steps.
     /// </summary>
     internal static void Register()
+    {
+        lock (RegistrationLock)
+        {
+            if (MSBuildLocator.IsRegistered)
+                return;
+
+            RegisterCore();
+        }
+    }
+
+    private static void RegisterCore()
     {
         VisualStudioInstance? sdkInstance = null;
         try
         {
             sdkInstance = FindPreferredInstance();
         }
-        catch (DllNotFoundException)
+        catch (Exception ex) when (ex is DllNotFoundException or InvalidOperationException)
         {
         }
 
@@ -33,7 +47,7 @@ internal static class MsBuildBootstrap
             MSBuildLocator.RegisterDefaults();
             return;
         }
-        catch (DllNotFoundException ex)
+        catch (Exception ex) when (ex is DllNotFoundException or InvalidOperationException)
         {
             RtLog.Warning(
                 "[MsBuildBootstrap] MSBuildLocator.RegisterDefaults failed ({Message}); falling back to manual SDK discovery.",
@@ -42,10 +56,48 @@ internal static class MsBuildBootstrap
 
         var sdkPath = FindLatestDotnetSdkPath();
         if (sdkPath == null)
-            throw new InvalidOperationException(
-                "Unable to locate a .NET SDK for MSBuild. Install a .NET SDK or avoid single-file publish.");
+            throw CreateMissingSdkException();
 
         MSBuildLocator.RegisterMSBuildPath(sdkPath);
+    }
+
+    private static InvalidOperationException CreateMissingSdkException()
+    {
+        var globalJsonPath = FindGlobalJson(Environment.CurrentDirectory);
+        var requestedVersion = globalJsonPath == null ? null : ReadRequestedSdkVersion(globalJsonPath);
+        var requested = requestedVersion == null
+            ? string.Empty
+            : $" The solution requests SDK {requestedVersion} in '{globalJsonPath}'.";
+
+        return new InvalidOperationException(
+            "Roslyn Tools can start without a .NET SDK, but semantic solution loading requires one."
+            + requested
+            + " Install the requested .NET SDK and ensure dotnet is on PATH or DOTNET_ROOT points to it.");
+    }
+
+    private static string? FindGlobalJson(string startDirectory)
+    {
+        for (var directory = new DirectoryInfo(startDirectory); directory != null; directory = directory.Parent)
+        {
+            var candidate = Path.Combine(directory.FullName, "global.json");
+            if (File.Exists(candidate))
+                return candidate;
+        }
+
+        return null;
+    }
+
+    private static string? ReadRequestedSdkVersion(string globalJsonPath)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(globalJsonPath));
+            return document.RootElement.GetProperty("sdk").GetProperty("version").GetString();
+        }
+        catch (Exception ex) when (ex is IOException or JsonException or KeyNotFoundException)
+        {
+            return null;
+        }
     }
 
     // Prefer a .NET SDK instance over VS's .NET Framework MSBuild — the Framework host

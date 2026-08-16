@@ -9,6 +9,14 @@
         <NoWarn>$(NoWarn);CA1861;CA2016;CA1822;CA1852</NoWarn>
     </PropertyGroup>
 
+    <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
+        <PublishSingleFile>true</PublishSingleFile>
+        <SelfContained>true</SelfContained>
+        <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+        <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+        <ValidateExecutableReferencesMatchSelfContained>false</ValidateExecutableReferencesMatchSelfContained>
+    </PropertyGroup>
+
     <ItemGroup>
         <InternalsVisibleTo Include="RoslynTools.Tests.Mcp"/>
     </ItemGroup>

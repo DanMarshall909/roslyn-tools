@@ -14,12 +14,21 @@ Companion documents:
 
 ```
 ┌─ Host adapters (thin) ─────────────────────────────┐
-│  CLI: src/RoslynTools.Cli/Commands/   <Foo>Command │
-│  MCP: generic descriptor adapter                   │
-│       (System.CommandLine parse / JSON bind)       │
-│       (Renders text/JSON / returns ToolResult)     │
-└────────────┬──────────────┬────────────────────────┘
-             ▼              ▼   ← both resolve same service from DI
+│  CLI: argument parsing + terminal rendering        │
+│  MCP: JSON-RPC/stdio session + ToolResult mapping  │
+│  IDE: editor context + native UX (future)          │
+└───────────────────────────┬────────────────────────┘
+                            ▼
+┌─ Typed local-RPC boundary ─────────────────────────┐
+│ descriptor identity + typed arguments + correlation│
+│ cancellation + structured result/error             │
+└───────────────────────────┬────────────────────────┘
+                            ▼
+┌─ Daemon execution host ────────────────────────────┐
+│ workspace lifetime, command execution, diagnostics,│
+│ cancellation, readiness and upgrade lifecycle      │
+└───────────────────────────┬────────────────────────┘
+                            ▼
 ┌─ Service layer (pure) ──────────────────────────────┐
 │  src/RoslynTools/Services/  <Foo>Service           │
 │  - No System.CommandLine / Console / IO            │
@@ -38,6 +47,11 @@ Companion documents:
 ```
 
 **Rule of thumb when adding code:** "Could I unit-test this without any host references in scope?" If no, it's in the wrong layer.
+
+The daemon-centred execution boundary is the target architecture.  The current
+CLI argument forwarding protocol and direct MCP service host are migration
+paths; new transport work must target typed local RPC.  See
+[ADR-0005](adr/0005-daemon-centred-local-execution.md).
 
 ## Five contracts that bind the layers
 
@@ -129,6 +143,16 @@ Agent runs rt on a real refactor
 The whole tool is its own customer. The architecture exists to make that loop tight: contracts caught at compile time, drift caught at test time, races impossible by construction, and the agents that maintain rt use rt to maintain rt.
 
 ## Open tensions worth naming
+
+- **Portable distribution is staged.** Self-contained CLI/MCP archives, verified user-scoped installers, stable
+  launchers, and registry metadata provide the baseline described in
+  [ADR-0004](adr/0004-portable-mcp-distribution.md). Official MCP C# SDK hosting, the full spawned protocol matrix, and
+  MCP Bundle adoption remain open under rt-012.
+
+- **Daemon-centred execution is a migration.** The daemon currently forwards CLI argument arrays and rendered frames,
+  while MCP hosts services directly.  The target is a typed local-RPC daemon that CLI, MCP, and IDE adapters consume;
+  request draining, retry rules, and cancellation semantics remain to be designed and proven.  See
+  [ADR-0005](adr/0005-daemon-centred-local-execution.md).
 
 - **EP-009 (capability flags) is the biggest open architectural lift** — US-114 is 20 ACs, multi-week. Until it lands, commands still wire `Option<T>` ad hoc and the catalog is partly notional.
 - **Application-port migration is incremental.** `outline`, `describe`, `find-refs`, `rename`, `semantic-diff`, `suggest`, and the two feedback leaves are port-backed; descriptors without a port still enter the compatibility `CliCommandBridge`. rt-007 tracks draining it.
