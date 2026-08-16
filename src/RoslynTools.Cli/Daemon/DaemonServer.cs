@@ -3,8 +3,10 @@ using System.Globalization;
 using System.IO.Pipes;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using RoslynTools.Core;
+using RoslynTools.Daemon.Rpc;
 
 namespace RoslynTools.Daemon;
 
@@ -13,7 +15,7 @@ namespace RoslynTools.Daemon;
 /// </summary>
 internal static class DaemonServer
 {
-    internal const string PipeName = "rt-daemon";
+    internal const string PipeName = DaemonTransport.PipeName;
 
     /// <summary>
     /// A method to start the daemon server.
@@ -159,6 +161,20 @@ internal static class DaemonServer
         // because without this you only see "deserialize failed" with no context on what came in.
         await log.WriteLineAsync(
             $"[{Now()}] read {line.Length} chars: {(line.Length > 200 ? line[..200] + "..." : line)}");
+
+        using var document = JsonDocument.Parse(line);
+        if (document.RootElement.TryGetProperty("method", out var method)
+            && method.GetString() == DaemonRpcProtocol.ExecuteCommandMethod)
+        {
+            var rpcRequest = JsonSerializer.Deserialize<DaemonRpcRequest>(line, DaemonProtocol.JsonOpts);
+            if (rpcRequest is null)
+                return false;
+
+            var dispatcher = services.GetRequiredService<DaemonCommandDispatcher>();
+            var rpcResponse = await dispatcher.ExecuteAsync(rpcRequest, ct);
+            await writer.WriteLineAsync(JsonSerializer.Serialize(rpcResponse, DaemonProtocol.JsonOpts));
+            return false;
+        }
 
         DaemonRequest? request;
         try

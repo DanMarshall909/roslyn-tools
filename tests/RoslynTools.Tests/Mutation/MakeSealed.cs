@@ -6,10 +6,11 @@ using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
-public class MakeSealed : IClassFixture<RtServicesFixture>
+public class MakeSealedCommandTests : IClassFixture<RtServicesFixture>
 {
     private readonly RtServicesFixture _services;
-    public MakeSealed(RtServicesFixture services) => _services = services;
+
+    public MakeSealedCommandTests(RtServicesFixture services) => _services = services;
 
     private const string SealAppSource = """
                                          class Standalone { public void Go() { } }
@@ -32,7 +33,10 @@ public class MakeSealed : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<MakeSealedCommand>().ExecuteAsync("Standalone", "ignored", false);
+            var result = await _services.Resolve<MakeSealedCommand>().ExecuteAsync("Standalone", "ignored", false);
+
+            result.Status.ShouldBe(MutationExecutionStatus.Applied);
+            result.ChangedFiles.ShouldHaveSingleItem().ShouldEndWith("Types.cs");
         }
 
         var content = await proj.ReadSourceAsync("Types.cs");

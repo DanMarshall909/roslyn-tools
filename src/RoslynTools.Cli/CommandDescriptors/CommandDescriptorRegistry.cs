@@ -45,11 +45,15 @@ internal sealed class CommandDescriptorRegistry
         SuggestOperation suggest,
         IGitClient git)
     {
-        var portsByName = ports.ToDictionary(p => p.CommandName, StringComparer.Ordinal);
+        var portsByName = ports.ToDictionary(
+            port => NormalizeToolName(port.CommandName),
+            StringComparer.Ordinal);
         var descriptors = App.Commands.Select(entry =>
         {
             var toolName = NormalizeToolName(entry.Info.Name);
             portsByName.TryGetValue(toolName, out var port);
+            var daemonDefinition = DaemonOwnedCommands.All.SingleOrDefault(
+                definition => string.Equals(definition.Name, toolName, StringComparison.Ordinal));
             return new ApplicationCommandDescriptor(
                 [entry.Info.Category, entry.Info.Name],
                 toolName,
@@ -57,9 +61,7 @@ internal sealed class CommandDescriptorRegistry
                 entry.Info.WhenToUse,
                 entry.Build,
                 McpVisible: true,
-                entry.Info.Mutates
-                    ? CommandSafetyPolicy.DryRunByDefault
-                    : CommandSafetyPolicy.ReadOnly,
+                ToDescriptorSafety(daemonDefinition?.Safety, entry.Info.Mutates),
                 entry.Info.JsonOutput
                 || entry.Info.SupportedFormats?.Contains(OutputFormat.Json) == true
                 || port is not null,
@@ -109,6 +111,19 @@ internal sealed class CommandDescriptorRegistry
 
         _descriptors = [.. descriptors];
         _byToolName = _descriptors.ToDictionary(d => d.ToolName, StringComparer.Ordinal);
+    }
+
+    private static CommandSafetyPolicy ToDescriptorSafety(
+        CommandSafety? daemonSafety,
+        bool commandMutates)
+    {
+        // The descriptor bridge still supports only the legacy two-state projection. The core
+        // contract retains whether a mutation is apply- or review-default for daemon adapters.
+        return daemonSafety?.Effect == CommandEffect.ReadOnly
+            ? CommandSafetyPolicy.ReadOnly
+            : commandMutates || daemonSafety?.Effect == CommandEffect.Mutation
+                ? CommandSafetyPolicy.DryRunByDefault
+                : CommandSafetyPolicy.ReadOnly;
     }
 
     public IReadOnlyList<ApplicationCommandDescriptor> All => _descriptors;

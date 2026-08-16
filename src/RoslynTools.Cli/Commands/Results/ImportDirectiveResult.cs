@@ -46,7 +46,7 @@ internal sealed record ImportDirectiveResult : IRtOutput
         }
     }
 
-    internal static ImportDirectiveResult FromImports(IEnumerable<ImportDirectiveInfo> imports)
+    internal static ImportDirectiveResult FromImports(IEnumerable<ListImportsEntry> imports)
     {
         return new ImportDirectiveResult
         {

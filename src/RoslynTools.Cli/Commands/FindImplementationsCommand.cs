@@ -1,5 +1,4 @@
 using System.CommandLine;
-using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
@@ -11,31 +10,13 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class FindImplementationsCommand : IRtCommand, IStructuredOutputCommand, IInspectCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly FindImplementationsService _findImplementations;
-    public FindImplementationsCommand(IWorkspaceSessionFactory sessionFactory, FindImplementationsService findImplementations)
+    private readonly FindImplementationsOperation _operation;
+    public FindImplementationsCommand(FindImplementationsOperation operation)
     {
-        _findImplementations = findImplementations;
-        _sessionFactory = sessionFactory;
+        _operation = operation;
     }
 
-    public static RtCommandInfo Info { get; } = new(
-        "find-impl",
-        false,
-        true,
-        "inspect",
-        Aliases: ["impls"],
-        WhenToUse:
-        "Discovering all concrete implementations of an interface or derived classes of an abstract base, across the entire solution. Useful before making a breaking change to a contract, or to verify a new interface has been wired up everywhere expected.",
-        Examples:
-        [
-            "rt inspect find-impl IEmailService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt inspect impls ProjectX.Core.Services.IBookingRepository --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt inspect find-impl IRtCommand --solution RoslynTools.slnx"
-        ],
-        SeeAlso: ["find-refs", "find-callers", "implement-interface", "extract-interface"],
-        SupportedFormats: [OutputFormat.Text, OutputFormat.Json]
-    );
+    public static RtCommandInfo Info => FindImplementationsCommandDefinition.Info;
 
     public Command Build()
     {
@@ -52,30 +33,11 @@ internal sealed class FindImplementationsCommand : IRtCommand, IStructuredOutput
             {
                 var symbol = ctx.ParseResult.GetValueForArgument(symbolArg);
                 var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
+                var result = await _operation.ExecuteAsync(new FindImplementationsRequest(symbol, solution));
 
-                var sln = await _sessionFactory.GetSolutionAsync(solution);
-                var sym = symbol.Contains('.', StringComparison.Ordinal)
-                    ? await SymbolLocator.FindSymbolByFqnAsync(sln, symbol, "type")
-                    : await SymbolLocator.FindSymbolAsync(sln, symbol, "type");
-
-                if (sym is not INamedTypeSymbol typeSymbol)
-                    throw new InvalidOperationException($"'{symbol}' is not a type (found {sym.Kind}).");
-
-                if (typeSymbol.TypeKind != TypeKind.Interface && !typeSymbol.IsAbstract)
+                if (result.SymbolKind != "Interface" && !result.IsAbstract)
                     RtLog.Warning("'{Symbol}' is not an interface or abstract class. Searching for derived types.",
                         symbol);
-
-                var implementations =
-                    await _findImplementations.FindAsync(sln, typeSymbol);
-
-                var result = new Dictionary<string, object?>
-                {
-                    ["symbol"] = typeSymbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
-                    ["symbolKind"] = typeSymbol.TypeKind.ToString(),
-                    ["implementationCount"] = implementations.Count,
-                    ["implementations"] = implementations
-                };
-
                 RtResultRenderer.Write(RtResult<object>.Ok(result));
             });
 

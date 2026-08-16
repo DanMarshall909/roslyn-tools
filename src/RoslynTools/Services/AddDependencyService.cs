@@ -62,12 +62,58 @@ internal class AddDependencyService : IRtService
         string depType,
         string? fieldName)
     {
+        var result = await PrepareAsync(solution, typeName, depType, fieldName);
+
+        switch (result.Outcome)
+        {
+            case AddDependencyOutcome.TargetNotFound:
+                _logger.RtError("Class '{TypeName}' not found in solution.", typeName);
+                Environment.ExitCode = 1;
+                break;
+
+            case AddDependencyOutcome.TargetAmbiguous:
+            case AddDependencyOutcome.Unsupported:
+                _logger.RtError("{Message}", result.Message);
+                Environment.ExitCode = 1;
+                break;
+
+            case AddDependencyOutcome.AlreadyInjected:
+                _logger.RtInfo("Dependency '{DepType}' is already injected into '{TargetType}'.", depType,
+                    result.TargetType);
+                break;
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Performs dependency injection without rendering, writing files, or changing process state.
+    /// Daemon operations use this method so both adapters receive the same structured outcome.
+    /// </summary>
+    internal async Task<DependencyInjectionResult> PrepareAsync(
+        Solution solution,
+        string typeName,
+        string depType,
+        string? fieldName)
+    {
         var resolvedField = fieldName ?? DeriveFieldName(depType);
         var paramName = resolvedField.TrimStart('_');
+        var targets = await FindTargetClassesAsync(solution, typeName);
 
-        var target = await ResolveTargetClassAsync(solution, typeName);
-        if (target is null)
-            return new DependencyInjectionResult(solution, false, null);
+        if (targets.Count == 0)
+            return new DependencyInjectionResult(solution, false, null, AddDependencyOutcome.TargetNotFound,
+                $"Class '{typeName}' was not found in the solution.", []);
+
+        if (targets.Count > 1)
+        {
+            var candidateList = string.Join(", ", targets
+                .Select(target => target.Symbol.ToDisplayString(TypeDisplayFormat))
+                .Distinct(StringComparer.Ordinal));
+            return new DependencyInjectionResult(solution, false, null, AddDependencyOutcome.TargetAmbiguous,
+                $"Class '{typeName}' is ambiguous across the loaded solution: {candidateList}. Pass a fully qualified type name.", []);
+        }
+
+        var target = targets[0];
 
         var dependencyTypeSymbol = ResolveDependencyTypeSymbol(target.SemanticModel, target.Declaration, depType);
         var injector = new DependencyInjector(
@@ -84,24 +130,23 @@ internal class AddDependencyService : IRtService
         switch (injector.Status)
         {
             case DependencyInjectionStatus.ClassNotFound:
-                _logger.RtError("Class '{TypeName}' not found in solution.", typeName);
-                Environment.ExitCode = 1;
-                return new DependencyInjectionResult(solution, false, target.Symbol.ToDisplayString(TypeDisplayFormat));
+                throw new InvalidOperationException("Resolved target unexpectedly disappeared during injection.");
 
             case DependencyInjectionStatus.AlreadyInjected:
-                _logger.RtInfo("Dependency '{DepType}' is already injected into '{TargetType}'.", depType,
-                    target.Symbol.ToDisplayString(TypeDisplayFormat));
-                return new DependencyInjectionResult(solution, false, target.Symbol.ToDisplayString(TypeDisplayFormat));
+                return new DependencyInjectionResult(solution, false, target.Symbol.ToDisplayString(TypeDisplayFormat),
+                    AddDependencyOutcome.AlreadyInjected,
+                    $"Dependency '{depType}' is already injected into '{target.Symbol.ToDisplayString(TypeDisplayFormat)}'.", []);
 
             case DependencyInjectionStatus.Unsupported:
-                _logger.RtError("{Message}", injector.ValidationError ??
-                                             $"Cannot inject '{depType}' into '{target.Symbol.ToDisplayString(TypeDisplayFormat)}'.");
-                Environment.ExitCode = 1;
-                return new DependencyInjectionResult(solution, false, target.Symbol.ToDisplayString(TypeDisplayFormat));
+                return new DependencyInjectionResult(solution, false, target.Symbol.ToDisplayString(TypeDisplayFormat),
+                    AddDependencyOutcome.Unsupported,
+                    injector.ValidationError ?? $"Cannot inject '{depType}' into '{target.Symbol.ToDisplayString(TypeDisplayFormat)}'.", []);
 
             case DependencyInjectionStatus.Applied:
                 solution = solution.WithDocumentSyntaxRoot(target.Document.Id, newRoot!);
-                return new DependencyInjectionResult(solution, true, target.Symbol.ToDisplayString(TypeDisplayFormat));
+                return new DependencyInjectionResult(solution, true, target.Symbol.ToDisplayString(TypeDisplayFormat),
+                    AddDependencyOutcome.Applied, null,
+                    [target.Document.FilePath ?? target.Document.Name]);
 
             default:
                 throw new InvalidOperationException($"Unknown dependency injection status '{injector.Status}'.");
@@ -113,32 +158,7 @@ internal class AddDependencyService : IRtService
     /// </summary>
     internal async Task<ResolvedTarget?> ResolveTargetClassAsync(Solution solution, string typeName)
     {
-        var normalizedTypeName = NormalizeTypeName(typeName);
-        var isQualifiedName = normalizedTypeName.Contains('.', StringComparison.Ordinal);
-        var matches = new List<ResolvedTarget>();
-
-        foreach (var project in solution.Projects)
-            foreach (var document in project.Documents)
-            {
-                var root = await document.GetSyntaxRootAsync();
-                if (root is null)
-                    continue;
-
-                var semanticModel = await document.GetSemanticModelAsync();
-                if (semanticModel is null)
-                    continue;
-
-                foreach (var declaration in root.DescendantNodes().OfType<ClassDeclarationSyntax>())
-                {
-                    if (semanticModel.GetDeclaredSymbol(declaration) is not INamedTypeSymbol symbol)
-                        continue;
-
-                    if (!IsTypeMatch(symbol, normalizedTypeName, isQualifiedName))
-                        continue;
-
-                    matches.Add(new ResolvedTarget(document, root, semanticModel, declaration, symbol));
-                }
-            }
+        var matches = await FindTargetClassesAsync(solution, typeName);
 
         if (matches.Count == 0)
         {
@@ -160,6 +180,38 @@ internal class AddDependencyService : IRtService
         }
 
         return matches[0];
+    }
+
+    private async Task<List<ResolvedTarget>> FindTargetClassesAsync(Solution solution, string typeName)
+    {
+        var normalizedTypeName = NormalizeTypeName(typeName);
+        var isQualifiedName = normalizedTypeName.Contains('.', StringComparison.Ordinal);
+        var matches = new List<ResolvedTarget>();
+
+        foreach (var project in solution.Projects)
+        foreach (var document in project.Documents)
+        {
+            var root = await document.GetSyntaxRootAsync();
+            if (root is null)
+                continue;
+
+            var semanticModel = await document.GetSemanticModelAsync();
+            if (semanticModel is null)
+                continue;
+
+            foreach (var declaration in root.DescendantNodes().OfType<ClassDeclarationSyntax>())
+            {
+                if (semanticModel.GetDeclaredSymbol(declaration) is not INamedTypeSymbol symbol)
+                    continue;
+
+                if (!IsTypeMatch(symbol, normalizedTypeName, isQualifiedName))
+                    continue;
+
+                matches.Add(new ResolvedTarget(document, root, semanticModel, declaration, symbol));
+            }
+        }
+
+        return matches;
     }
 
     /// <summary>
@@ -232,5 +284,8 @@ internal class AddDependencyService : IRtService
     internal sealed record DependencyInjectionResult(
         Solution Solution,
         bool Changed,
-        string? TargetType);
+        string? TargetType,
+        AddDependencyOutcome Outcome = AddDependencyOutcome.Applied,
+        string? Message = null,
+        IReadOnlyList<string>? ChangedFiles = null);
 }

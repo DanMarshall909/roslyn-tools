@@ -11,30 +11,14 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class FindMagicStringsCommand : IRtCommand, IAnalyzeCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly MagicStringService _magicString;
-    public FindMagicStringsCommand(IWorkspaceSessionFactory sessionFactory, MagicStringService magicString)
+    private readonly FindMagicStringsOperation _operation;
+
+    public FindMagicStringsCommand(FindMagicStringsOperation operation)
     {
-        _magicString = magicString;
-        _sessionFactory = sessionFactory;
+        _operation = operation;
     }
 
-    public static RtCommandInfo Info { get; } = new(
-        "find-magic-strings",
-        false,
-        false,
-        "analyze",
-        Aliases: ["magic-strings"],
-        WhenToUse:
-        "Finding repeated string literals that should probably be named constants before cleanup or domain refactoring. Generated files, const string declarations, and .rtignore matches are skipped.",
-        Examples:
-        [
-            "rt analyze find-magic-strings --solution RoslynTools.slnx",
-            "rt analyze magic-strings --min-length 4 --min-occurrences 3 --solution C:\\code\\app\\App.sln",
-            "rt analyze find-magic-strings --json --solution RoslynTools.slnx"
-        ],
-        SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
-    );
+    public static RtCommandInfo Info => FindMagicStringsCommandDefinition.Info;
 
     public Command Build()
     {
@@ -48,13 +32,12 @@ internal sealed class FindMagicStringsCommand : IRtCommand, IAnalyzeCommand
 
         cmd.SetHandler(async (solution, minLength, minOccurrences) =>
         {
-            var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
-            using (workspace)
-            {
-                var groups = await _magicString
-                    .AnalyzeAsync(sln, minLength, minOccurrences);
-                RtResultRenderer.Write(RtResult<MagicStringResult>.Ok(MagicStringResult.FromGroups(groups, sln.FilePath)));
-            }
+            var result = await _operation.ExecuteAsync(new FindMagicStringsRequest(
+                minLength,
+                minOccurrences,
+                solution));
+            RtResultRenderer.Write(RtResult<MagicStringResult>.Ok(
+                MagicStringResult.FromGroups(result.Groups, result.SolutionPath)));
         }, solutionOpt, minLengthOpt, minOccurrencesOpt);
 
         return cmd;

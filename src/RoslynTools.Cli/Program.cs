@@ -47,7 +47,7 @@ internal static class Program
             .Build();
 
         // Route through the daemon if one is running and this isn't a daemon lifecycle command.
-        if (!IsDaemonCommand(args) && !NoDaemon)
+        if (!IsDaemonCommand(args) && !DaemonOwnedCommands.IsInvocation(args) && !NoDaemon)
         {
             var client = host.Services.GetRequiredService<DaemonClient>();
             var exitCode = await client.TrySendAsync(args);

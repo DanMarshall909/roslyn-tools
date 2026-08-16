@@ -1,16 +1,13 @@
-using RoslynTools.Commands;
+using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging.Abstractions;
 using RoslynTools.Core;
 using RoslynTools.Services;
-using RoslynTools.Tests.Infrastructure;
 using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
-public class AddDependency : IClassFixture<RtServicesFixture>
+public sealed class AddDependency
 {
-    private readonly RtServicesFixture _services;
-    public AddDependency(RtServicesFixture services) => _services = services;
-
     // ──────────────────────────────────────────────────────────────────────────
     //  1. Basic field + ctor param injection
     // ──────────────────────────────────────────────────────────────────────────
@@ -37,15 +34,7 @@ public class AddDependency : IClassFixture<RtServicesFixture>
                                     public class NoCtor { }
                                     """);
         var (workspace, sln) = proj.Build();
-        using (workspace)
-        {
-            await _services.Resolve<AddDependencyCommand>().ExecuteCoreAsync(
-                sln,
-                "AgentService",
-                "IEmailService",
-                null,
-                false);
-        }
+        await ExecuteAsync(workspace, sln, "AgentService", "IEmailService", null, false);
 
         var content = await proj.ReadSourceAsync("AgentService.cs");
 
@@ -80,15 +69,7 @@ public class AddDependency : IClassFixture<RtServicesFixture>
                                     public class NoCtor { }
                                     """);
         var (workspace, sln) = proj.Build();
-        using (workspace)
-        {
-            await _services.Resolve<AddDependencyCommand>().ExecuteCoreAsync(
-                sln,
-                "AgentService",
-                "IEmailService",
-                "_mailer",
-                false);
-        }
+        await ExecuteAsync(workspace, sln, "AgentService", "IEmailService", "_mailer", false);
 
         var content = await proj.ReadSourceAsync("AgentService.cs");
 
@@ -124,15 +105,7 @@ public class AddDependency : IClassFixture<RtServicesFixture>
                                     public class NoCtor { }
                                     """);
         var (workspace, sln) = proj.Build();
-        using (workspace)
-        {
-            await _services.Resolve<AddDependencyCommand>().ExecuteCoreAsync(
-                sln,
-                "NoCtor",
-                "ILogService",
-                null,
-                false);
-        }
+        await ExecuteAsync(workspace, sln, "NoCtor", "ILogService", null, false);
 
         var content = await proj.ReadSourceAsync("NoCtor.cs");
 
@@ -169,17 +142,40 @@ public class AddDependency : IClassFixture<RtServicesFixture>
         var (workspace, sln) = proj.Build();
         var originalContent = await proj.ReadSourceAsync("AgentService.cs");
 
-        using (workspace)
-        {
-            await _services.Resolve<AddDependencyCommand>().ExecuteCoreAsync(
-                sln,
-                "AgentService",
-                "IEmailService",
-                null,
-                true);
-        }
+        await ExecuteAsync(workspace, sln, "AgentService", "IEmailService", null, true);
 
         var afterContent = await proj.ReadSourceAsync("AgentService.cs");
         afterContent.ShouldBe(originalContent);
+    }
+
+    private static async Task ExecuteAsync(
+        Workspace workspace,
+        Solution solution,
+        string typeName,
+        string dependency,
+        string? fieldName,
+        bool dryRun)
+    {
+        var writer = new SolutionChangeWriter();
+        var operation = new AddDependencyOperation(
+            new FixedWorkspaceSessionFactory(workspace, solution),
+            new AddDependencyService(NullLogger<AddDependencyService>.Instance, writer),
+            writer);
+
+        await operation.ExecuteAsync(new AddDependencyRequest(
+            typeName,
+            dependency,
+            fieldName,
+            DryRun: dryRun));
+    }
+
+    private sealed class FixedWorkspaceSessionFactory(
+        Workspace workspace,
+        Solution solution) : IWorkspaceSessionFactory
+    {
+        public Task<Solution> GetSolutionAsync(string? solutionPath) => Task.FromResult(solution);
+
+        public Task<(Workspace Workspace, Solution Solution)> LoadWorkspaceAsync(string? solutionPath) =>
+            Task.FromResult((workspace, solution));
     }
 }

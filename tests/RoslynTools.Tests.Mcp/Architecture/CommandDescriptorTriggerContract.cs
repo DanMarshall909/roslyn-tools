@@ -68,6 +68,11 @@ public sealed class CommandDescriptorTriggerContract
         ["outline"] = "Read",
         ["describe"] = "Read",
         ["rename"] = "Edit",
+        ["list_imports"] = "Read",
+        ["find_callers"] = "Grep",
+        ["find_impl"] = "Grep",
+        ["add_dependency"] = "Edit",
+        ["make_sealed"] = "Edit",
         ["semantic_diff"] = "git diff"
     };
 
@@ -81,7 +86,9 @@ public sealed class CommandDescriptorTriggerContract
         "suggest_command", // Meta/discovery over the rt catalog itself; no built-in does this.
         "feedback_add", // rt's own dogfood-feedback loop; no built-in tracks it.
         "feedback_list",
-        "feedback_process"
+        "feedback_process",
+        "circular_deps", // Specialized graph analysis; no built-in has solution-wide namespace semantics.
+        "find_magic_strings" // Specialized literal grouping; no built-in performs this semantic filter.
     };
 
     [Fact]

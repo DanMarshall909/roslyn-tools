@@ -1,6 +1,8 @@
 using System.CommandLine;
+using System.Text.Json;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -10,35 +12,14 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class OutlineCommand : IRtCommand, IStructuredOutputCommand, IInspectCommand
 {
-    private readonly OutlineOperation _operation;
+    private readonly DaemonRpcClient _daemon;
 
-    public OutlineCommand(OutlineOperation operation)
+    public OutlineCommand(DaemonRpcClient daemon)
     {
-        _operation = operation;
+        _daemon = daemon;
     }
 
-    public static RtCommandInfo Info { get; } = new(
-        "outline",
-        false,
-        true,
-        "inspect",
-        Aliases: null,
-        WhenToUse:
-        "Getting a JSON summary of all types and member signatures in a file or namespace without reading the raw source. Prefer this over Read when you only need the shape of the code, not its contents — a fraction of the tokens reading the files would cost. The default is a compact per-type view { name, kind, signatures: [...] } with no line numbers (stable across edits) — ideal for agents orienting in an unfamiliar module or diffing public surface area across branches. Use --with-locations for the legacy verbose grouped-members shape with line ranges, or --summary for a one-entry-per-type overview (fqn, kind, line range, optional XML doc description).",
-        Examples:
-        [
-            "rt inspect outline src/backend/TourStore.Api/Controllers/Admin/AdminController.cs --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt inspect outline ProjectX.Core.Services --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt inspect outline RoslynTools.Commands --solution RoslynTools.slnx",
-            "rt inspect outline \"src/**/*.cs\" --solution RoslynTools.slnx",
-            "rt inspect outline \"RoslynTools.*\" --solution RoslynTools.slnx",
-            "rt inspect outline --regex \"Service\\.cs$\" --solution RoslynTools.slnx",
-            "rt inspect outline src/RoslynTools/Core --solution RoslynTools.slnx --summary",
-            "rt inspect outline RoslynTools.Core --solution RoslynTools.slnx --summary",
-            "rt inspect outline src/RoslynTools/Core/SymbolLocator.cs --solution RoslynTools.slnx --with-locations"
-        ],
-        SupportedFormats: [OutputFormat.Text, OutputFormat.Json]
-    );
+    public static RtCommandInfo Info => OutlineCommandDefinition.Info;
 
     public Command Build()
     {
@@ -72,8 +53,25 @@ internal sealed class OutlineCommand : IRtCommand, IStructuredOutputCommand, IIn
                 flags.SolutionPath,
                 summary,
                 withLocations);
-            var result = await _operation.ExecuteAsync(request);
-            RtResultRenderer.Write(RtResult<List<object>>.Ok(result));
+            var response = await _daemon.TryExecuteAsync(
+                "outline",
+                JsonSerializer.SerializeToElement(request),
+                CancellationToken.None);
+            if (response is null)
+            {
+                RtLog.Error("The daemon is unavailable. Start it with `rt daemon start` and retry.");
+                context.ExitCode = 1;
+                return;
+            }
+
+            if (response.Error is not null)
+            {
+                RtLog.Error("Error: {Message}", response.Error.Message);
+                context.ExitCode = 1;
+                return;
+            }
+
+            RtResultRenderer.Write(RtResult<JsonElement>.Ok(response.Result ?? default));
         });
 
         return cmd;

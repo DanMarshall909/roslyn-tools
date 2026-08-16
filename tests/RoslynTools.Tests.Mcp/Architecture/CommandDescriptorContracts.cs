@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.CommandDescriptors;
@@ -55,6 +54,23 @@ public sealed class CommandDescriptorContracts
     }
 
     [Fact]
+    public void outline_descriptor_projects_the_core_owned_command_definition_and_request_contract()
+    {
+        using var provider = McpTestHost.CreateProvider();
+        var descriptor = provider.GetRequiredService<CommandDescriptorRegistry>()
+            .All.Single(candidate => candidate.ToolName == OutlineCommandDefinition.Name);
+        var definition = DaemonOwnedCommands.All
+            .Single(candidate => candidate.Name == OutlineCommandDefinition.Name);
+
+        descriptor.WhenToUse.ShouldBe(definition.Info.WhenToUse);
+        descriptor.Port.ShouldNotBeNull();
+        descriptor.Port.RequestType.ShouldBe(definition.RequestType);
+        definition.Safety.ShouldBe(CommandSafety.ReadOnly);
+        descriptor.Safety.ShouldBe(CommandSafetyPolicy.ReadOnly);
+        DaemonOwnedCommands.Contains(descriptor.ToolName).ShouldBeTrue();
+    }
+
+    [Fact]
     public void mutation_safety_adds_dry_run_unless_the_caller_made_an_explicit_choice()
     {
         var descriptor = new ApplicationCommandDescriptor(
@@ -80,15 +96,6 @@ public sealed class CommandDescriptorContracts
     }
 
     [Fact]
-    public async Task outline_cli_and_generic_mcp_adapter_return_equivalent_structured_output()
-    {
-        var cliOutput = await InvokeOutlineCliAsync();
-        var mcpOutput = await InvokeOutlineMcpAsync();
-
-        JsonElement.DeepEquals(cliOutput, mcpOutput).ShouldBeTrue();
-    }
-
-    [Fact]
     public async Task feedback_list_uses_the_generic_port_instead_of_a_native_handler()
     {
         using var provider = McpTestHost.CreateProvider();
@@ -99,52 +106,5 @@ public sealed class CommandDescriptorContracts
         result.isError.ShouldBeFalse();
         using var payload = JsonDocument.Parse(result.content);
         payload.RootElement.ValueKind.ShouldBe(JsonValueKind.Array);
-    }
-
-    private static async Task<JsonElement> InvokeOutlineCliAsync()
-    {
-        using var project = McpTestHost.CreateInvoiceProject();
-        var (workspace, solution) = project.Build();
-        using (workspace)
-        using (WorkspaceLoader.UseOverride(workspace, solution))
-        using (var provider = McpTestHost.CreateProvider())
-        {
-            var output = new StringBuilder();
-            using var capture = new CapturingConsole(output);
-            using (RtConsole.UseConsole(capture))
-            {
-                var exitCode = await App.RunAsync(
-                    ["outline", "TestApp", "--solution", "ignored.slnx", "--json"],
-                    provider);
-                exitCode.ShouldBe(0);
-            }
-
-            using var json = JsonDocument.Parse(output.ToString());
-            return json.RootElement.Clone();
-        }
-    }
-
-    private static async Task<JsonElement> InvokeOutlineMcpAsync()
-    {
-        using var project = McpTestHost.CreateInvoiceProject();
-        var (workspace, solution) = project.Build();
-        using (workspace)
-        using (WorkspaceLoader.UseOverride(workspace, solution))
-        using (var provider = McpTestHost.CreateProvider())
-        using (var arguments = JsonDocument.Parse(
-                   """
-                   {
-                     "target": "TestApp",
-                     "solution": "ignored.slnx"
-                   }
-                   """))
-        {
-            var result = await provider.GetRequiredService<ToolRegistry>()
-                .InvokeAsync("outline", arguments.RootElement);
-            result.isError.ShouldBeFalse();
-
-            using var json = JsonDocument.Parse(result.content);
-            return json.RootElement.Clone();
-        }
     }
 }

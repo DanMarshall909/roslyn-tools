@@ -3,7 +3,6 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
-using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
@@ -16,20 +15,17 @@ namespace RoslynTools.Services;
 internal class MakeSealedService : IRtService
 {
     private readonly IDocumentLocatorService _documents;
-    private readonly ILogger<MakeSealedService> _logger;
     private readonly ISolutionChangeWriter _solutionChangeWriter;
 
     public MakeSealedService()
-        : this(new RtConsoleLogger<MakeSealedService>(), new SolutionChangeWriter())
+        : this(new SolutionChangeWriter())
     {
     }
 
-    public MakeSealedService(ILogger<MakeSealedService> logger, ISolutionChangeWriter solutionChangeWriter,
+    public MakeSealedService(ISolutionChangeWriter solutionChangeWriter,
         IDocumentLocatorService? documents = null)
     {
         _documents = documents ?? new DocumentLocatorService();
-
-        _logger = logger;
         _solutionChangeWriter = solutionChangeWriter;
     }
 
@@ -38,16 +34,49 @@ internal class MakeSealedService : IRtService
     /// </summary>
     internal async Task RunAsync(Solution sln, string typeName, bool dryRun)
     {
-        var originalSolution = sln;
+        await SealAsync(sln, typeName, dryRun);
+    }
 
+    /// <summary>
+    ///     Seals a class and returns a transport-neutral description of the outcome.
+    ///     Rendering of no-op explanations belongs to the calling adapter.
+    /// </summary>
+    internal async Task<MakeSealedResult> SealAsync(Solution sln, string typeName, bool dryRun)
+    {
+        var prepared = await PrepareAsync(sln, typeName);
+        if (prepared.Changed)
+            await _solutionChangeWriter.ApplyChangesAsync(sln, prepared.Solution, dryRun);
+
+        return prepared.Result;
+    }
+
+    /// <summary>
+    ///     Calculates a make-sealed mutation without applying it. The daemon operation owns
+    ///     the application boundary so every transport receives the same mutation envelope.
+    /// </summary>
+    internal async Task<MakeSealedPreparation> PrepareAsync(Solution sln, string typeName)
+    {
         var (classSymbol, syntaxRef, docId) = await FindClassAndDocumentAsync(sln, typeName);
 
-        if (!await CheckDerivedTypesAsync(typeName, classSymbol, sln))
-            return;
+        var validation = await ValidateCanSealAsync(typeName, classSymbol, sln);
+        if (validation is not null)
+            return new MakeSealedPreparation(sln, validation, []);
 
-        sln = await AddSealedModifierAsync(sln, syntaxRef, docId);
+        var changedSolution = await AddSealedModifierAsync(sln, syntaxRef, docId);
+        var changedFilePaths = changedSolution.GetChanges(sln)
+            .GetProjectChanges()
+            .SelectMany(project => project.GetChangedDocuments())
+            .Select(documentId => changedSolution.GetDocument(documentId))
+            .Where(document => document is not null)
+            .Select(document => document!.FilePath ?? document.Name)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(path => path, StringComparer.Ordinal)
+            .ToArray();
 
-        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
+        return new MakeSealedPreparation(
+            changedSolution,
+            new MakeSealedResult(typeName, MakeSealedOutcome.Sealed, null),
+            changedFilePaths);
     }
 
     private async Task<(INamedTypeSymbol classSymbol, SyntaxReference syntaxRef, DocumentId docId)>
@@ -65,20 +94,20 @@ internal class MakeSealedService : IRtService
         return (classSymbol, syntaxRef, docId);
     }
 
-    private async Task<bool> CheckDerivedTypesAsync(
+    private async Task<MakeSealedResult?> ValidateCanSealAsync(
         string typeName, INamedTypeSymbol classSymbol, Solution sln)
     {
         if (classSymbol.IsSealed)
-        {
-            RtConsole.WriteLine(RtOutputContext.Diagnostic, $"Class {typeName} is already sealed.");
-            return false;
-        }
+            return new MakeSealedResult(
+                typeName,
+                MakeSealedOutcome.AlreadySealed,
+                $"Class {typeName} is already sealed.");
 
         if (classSymbol.IsAbstract)
-        {
-            _logger.RtError("Cannot seal an abstract class.");
-            return false;
-        }
+            return new MakeSealedResult(
+                typeName,
+                MakeSealedOutcome.Abstract,
+                "Cannot seal an abstract class.");
 
         var derivedTypes = await SymbolFinder.FindDerivedClassesAsync(
             classSymbol, sln, cancellationToken: CancellationToken.None);
@@ -90,7 +119,7 @@ internal class MakeSealedService : IRtService
             throw new InvalidOperationException($"Cannot seal {typeName}: derived types exist: {names}");
         }
 
-        return true;
+        return null;
     }
 
     private async Task<Solution> AddSealedModifierAsync(

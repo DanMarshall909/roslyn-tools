@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using RoslynTools.Core;
 using RoslynTools.Services;
 using Shouldly;
 
@@ -172,4 +173,5 @@ public sealed class DependencyInjection
             NullLogger<AddDependencyService>.Instance,
             new CapturingSolutionChangeWriter()).DeriveFieldName(dependencyType).ShouldBe(fieldName);
     }
+
 }

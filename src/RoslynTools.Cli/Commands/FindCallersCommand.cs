@@ -13,31 +13,13 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class FindCallersCommand : IRtCommand, IInspectCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly FindCallersService _findCallers;
-    public FindCallersCommand(IWorkspaceSessionFactory sessionFactory, FindCallersService findCallers)
+    private readonly FindCallersOperation _operation;
+    public FindCallersCommand(FindCallersOperation operation)
     {
-        _findCallers = findCallers;
-        _sessionFactory = sessionFactory;
+        _operation = operation;
     }
 
-    public static RtCommandInfo Info { get; } = new(
-        "find-callers",
-        false,
-        false,
-        "inspect",
-        Aliases: ["callers"],
-        WhenToUse:
-        "Finding all invocation sites of a method before renaming or deleting it, or to understand the blast radius of a signature change. Unlike find-refs, this filters to true call sites only, excluding nameof() and other non-invocation references.",
-        Examples:
-        [
-            "rt inspect find-callers --symbol SendEmail --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt inspect callers --symbol ProcessPayment --include-tests --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt inspect find-callers --symbol BuildGraphAsync --solution RoslynTools.slnx"
-        ],
-        SeeAlso: ["find-refs", "find-impl", "change-signature"],
-        SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
-    );
+    public static RtCommandInfo Info => FindCallersCommandDefinition.Info;
 
     public Command Build()
     {
@@ -56,8 +38,8 @@ internal sealed class FindCallersCommand : IRtCommand, IInspectCommand
             var request = flags.Bind(ctx.ParseResult, FindCallersCliRequest.FromFlags);
             var includeTests = ctx.ParseResult.GetValueForOption(includeTestsOpt);
 
-            var sln = await _sessionFactory.GetSolutionAsync(request.SolutionPath);
-            var result = await _findCallers.FindAsync(sln, request.Symbol!, includeTests);
+            var result = await _operation.ExecuteAsync(new FindCallersRequest(
+                request.Symbol!, request.SolutionPath, includeTests));
             result.Match(
                 callers => RtResultRenderer.Write(RtResult<FindCallersResult>.Ok(callers)),
                 error => RtErrorPresenter.Surface(ctx, error));
@@ -68,7 +50,7 @@ internal sealed class FindCallersCommand : IRtCommand, IInspectCommand
 
     internal bool IsNameofExpression(InvocationExpressionSyntax invocation)
     {
-        return _findCallers.IsNameofExpression(invocation);
+        return _operation.IsNameofExpression(invocation);
     }
 
     private sealed record FindCallersCliRequest(

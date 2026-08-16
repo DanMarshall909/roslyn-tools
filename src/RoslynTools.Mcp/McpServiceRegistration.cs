@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Mcp.Tools;
 
 namespace RoslynTools.Mcp;
@@ -17,6 +18,7 @@ internal static class McpServiceRegistration
         services.AddSingleton(output);
         services.AddSingleton<ToolSchemaBuilder>();
         services.AddSingleton<CliCommandBridge>();
+        services.AddSingleton<DaemonRpcClient>();
         services.AddSingleton<McpCommandAdapter>();
         services.AddSingleton<ToolRegistry>();
         services.AddSingleton<Server>();

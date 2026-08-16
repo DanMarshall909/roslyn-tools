@@ -1,7 +1,9 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using RoslynTools.CommandDescriptors;
+using RoslynTools.Core;
 using RoslynTools.Core.Output;
+using RoslynTools.Daemon.Rpc;
 
 namespace RoslynTools.Mcp.Tools;
 
@@ -20,13 +22,16 @@ internal sealed class McpCommandAdapter
 
     private readonly CommandDescriptorRegistry _descriptors;
     private readonly CliCommandBridge _legacyBridge;
+    private readonly DaemonRpcClient _daemonRpc;
 
     public McpCommandAdapter(
         CommandDescriptorRegistry descriptors,
-        CliCommandBridge legacyBridge)
+        CliCommandBridge legacyBridge,
+        DaemonRpcClient daemonRpc)
     {
         _descriptors = descriptors;
         _legacyBridge = legacyBridge;
+        _daemonRpc = daemonRpc;
     }
 
     public async Task<ToolResult> InvokeAsync(
@@ -39,6 +44,18 @@ internal sealed class McpCommandAdapter
             return new ToolResult(true, $"Unknown tool: {toolName}");
 
         var safeArguments = ApplySafetyPolicy(descriptor, arguments);
+
+        if (descriptor.Port is not null
+            && DaemonOwnedCommands.Contains(toolName))
+        {
+            var remote = await _daemonRpc.TryExecuteAsync(toolName, safeArguments, cancellationToken);
+            if (remote is not null)
+                return ToToolResult(remote);
+
+            return new ToolResult(
+                true,
+                "The daemon is unavailable. Start it with `rt daemon start` and retry.");
+        }
 
         try
         {
@@ -81,6 +98,14 @@ internal sealed class McpCommandAdapter
         {
             return new ToolResult(true, ex.Message);
         }
+    }
+
+    private static ToolResult ToToolResult(DaemonRpcResponse response)
+    {
+        if (response.Error is not null)
+            return new ToolResult(true, response.Error.Message);
+
+        return new ToolResult(false, response.Result?.GetRawText() ?? "null");
     }
 
     private static JsonSerializerOptions CreateResponseOptions()

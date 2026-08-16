@@ -11,30 +11,13 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class ListImportsCommand : IRtCommand, IAnalyzeCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly ImportDirectiveService _importDirective;
-    public ListImportsCommand(IWorkspaceSessionFactory sessionFactory, ImportDirectiveService importDirective)
+    private readonly ListImportsOperation _operation;
+    public ListImportsCommand(ListImportsOperation operation)
     {
-        _importDirective = importDirective;
-        _sessionFactory = sessionFactory;
+        _operation = operation;
     }
 
-    public static RtCommandInfo Info { get; } = new(
-        "list-imports",
-        false,
-        false,
-        "analyze",
-        Aliases: ["imports"],
-        WhenToUse:
-        "Auditing C# using directives, especially global using and using static directives, before consolidating imports or introducing static member imports.",
-        Examples:
-        [
-            "rt analyze list-imports --kind global --solution RoslynTools.slnx",
-            "rt analyze imports --kind static --solution C:\\code\\app\\App.sln",
-            "rt analyze list-imports --kind all --json --solution RoslynTools.slnx"
-        ],
-        SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
-    );
+    public static RtCommandInfo Info => ListImportsCommandDefinition.Info;
 
     public Command Build()
     {
@@ -51,12 +34,8 @@ internal sealed class ListImportsCommand : IRtCommand, IAnalyzeCommand
         {
             var kind = ctx.ParseResult.GetValueForOption(kindOpt);
             var req = binder.Bind(ctx.ParseResult, f => new ListImportsCliRequest(f.SolutionPath, kind!));
-            var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(req.SolutionPath);
-            using (workspace)
-            {
-                var imports = await _importDirective.AnalyzeAsync(sln, req.ImportKind);
-                RtResultRenderer.Write(RtResult<ImportDirectiveResult>.Ok(ImportDirectiveResult.FromImports(imports)));
-            }
+            var result = await _operation.ExecuteAsync(new ListImportsRequest(req.SolutionPath, req.ImportKind));
+            RtResultRenderer.Write(RtResult<ImportDirectiveResult>.Ok(ImportDirectiveResult.FromImports(result.Imports)));
         });
 
         return cmd;

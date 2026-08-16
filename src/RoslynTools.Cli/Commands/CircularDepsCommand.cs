@@ -12,30 +12,18 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class CircularDepsCommand : IRtCommand, IAnalyzeCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
+    private readonly CircularDepsOperation _operation;
     private readonly CircularDepsService _circularDeps;
-    public CircularDepsCommand(IWorkspaceSessionFactory sessionFactory, CircularDepsService circularDeps)
+
+    public CircularDepsCommand(
+        CircularDepsOperation operation,
+        CircularDepsService circularDeps)
     {
+        _operation = operation;
         _circularDeps = circularDeps;
-        _sessionFactory = sessionFactory;
     }
 
-    public static RtCommandInfo Info { get; } = new(
-        "circular-deps",
-        false,
-        false,
-        "analyze",
-        Aliases: ["cdeps"],
-        WhenToUse:
-        "Detecting circular namespace dependencies in a solution before a refactor, or after adding new inter-namespace references. Use --scope to limit analysis to your domain namespaces and ignore third-party noise.",
-        Examples:
-        [
-            "rt analyze circular-deps --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt analyze cdeps --scope ProjectX.Core --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt analyze circular-deps --solution RoslynTools.slnx --scope RoslynTools"
-        ],
-        SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
-    );
+    public static RtCommandInfo Info => CircularDepsCommandDefinition.Info;
 
     public Command Build()
     {
@@ -49,13 +37,10 @@ internal sealed class CircularDepsCommand : IRtCommand, IAnalyzeCommand
 
         cmd.SetHandler(async (scope, solution) =>
         {
-            var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
-            using (workspace)
-            {
-                var cycles = await _circularDeps.AnalyzeCyclesAsync(sln, scope);
-                var result = CircularDepsResult.FromCycles(cycles);
-                RtResultRenderer.Write(RtResult<CircularDepsResult>.Ok(result));
-            }
+            var analysis = await _operation.ExecuteAsync(new CircularDepsRequest(solution, scope));
+            var result = CircularDepsResult.FromCycles(
+                analysis.Cycles.Select(cycle => cycle.Nodes).ToList());
+            RtResultRenderer.Write(RtResult<CircularDepsResult>.Ok(result));
         }, scopeOpt, solutionOpt);
 
         return cmd;

@@ -4,6 +4,7 @@ using RoslynTools.Cli.Suggest;
 using RoslynTools.CommandDescriptors;
 using RoslynTools.Core;
 using RoslynTools.Daemon;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Feedback;
 using RoslynTools.Services;
 using RoslynTools.Services.SemanticDiff;
@@ -28,6 +29,8 @@ internal static class Bootstrap
         services.AddSingleton<IWorkspaceSessionFactory>(sp => sp.GetRequiredService<WorkspaceLoader>());
         services.AddSingleton<GitService>();
         services.AddSingleton<DaemonClient>();
+        services.AddSingleton<DaemonRpcClient>();
+        services.AddSingleton<DaemonCommandDispatcher>();
         services.AddSingleton<ISymbolResolutionService, SymbolResolutionService>();
         services.AddSingleton<IDocumentLocatorService, DocumentLocatorService>();
         services.AddSingleton<ISolutionChangeWriter, SolutionChangeWriter>();
