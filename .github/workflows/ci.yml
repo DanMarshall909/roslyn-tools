@@ -49,3 +49,30 @@ jobs:
           name: test-results
           path: TestResults/**/*.trx
           if-no-files-found: warn
+
+  net11-preview-build:
+    name: Build with .NET 11 preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 11 preview
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 11.0.x
+          dotnet-quality: preview
+
+      - name: Disable the .NET 10 SDK pin for this compatibility build
+        run: mv global.json global.json.net10
+
+      - name: Show selected preview SDK
+        run: dotnet --version
+
+      - name: Restore with .NET 11 preview
+        run: dotnet restore RoslynTools.slnx
+
+      - name: Build with .NET 11 preview
+        run: dotnet build RoslynTools.slnx --configuration Release --no-restore

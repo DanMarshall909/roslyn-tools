@@ -33,7 +33,8 @@ public class MakeSealedCommandTests : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            var result = await _services.Resolve<MakeSealedCommand>().ExecuteAsync("Standalone", "ignored", false);
+            var result = await _services.Resolve<MakeSealedOperation>()
+                .ExecuteAsync(new MakeSealedRequest("Standalone", "ignored", DryRun: false));
 
             result.Status.ShouldBe(MutationExecutionStatus.Applied);
             result.ChangedFiles.ShouldHaveSingleItem().ShouldEndWith("Types.cs");
@@ -57,7 +58,8 @@ public class MakeSealedCommandTests : IClassFixture<RtServicesFixture>
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                _services.Resolve<MakeSealedCommand>().ExecuteAsync("Animal", "ignored", false));
+                _services.Resolve<MakeSealedOperation>()
+                    .ExecuteAsync(new MakeSealedRequest("Animal", "ignored", DryRun: false)));
 
             ex.Message.ShouldContain("Dog", Case.Sensitive);
         }
@@ -79,7 +81,8 @@ public class MakeSealedCommandTests : IClassFixture<RtServicesFixture>
         // Should not throw — just skip
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<MakeSealedCommand>().ExecuteAsync("Shape", "ignored", false);
+            await _services.Resolve<MakeSealedOperation>()
+                .ExecuteAsync(new MakeSealedRequest("Shape", "ignored", DryRun: false));
         }
 
         var after = await proj.ReadSourceAsync("Types.cs");
@@ -101,7 +104,8 @@ public class MakeSealedCommandTests : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<MakeSealedCommand>().ExecuteAsync("Circle", "ignored", false);
+            await _services.Resolve<MakeSealedOperation>()
+                .ExecuteAsync(new MakeSealedRequest("Circle", "ignored", DryRun: false));
         }
 
         var after = await proj.ReadSourceAsync("Types.cs");
@@ -123,7 +127,8 @@ public class MakeSealedCommandTests : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<MakeSealedCommand>().ExecuteAsync("Standalone", "ignored", true);
+            await _services.Resolve<MakeSealedOperation>()
+                .ExecuteAsync(new MakeSealedRequest("Standalone", "ignored", DryRun: true));
         }
 
         var after = await proj.ReadSourceAsync("Types.cs");

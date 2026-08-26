@@ -2,9 +2,8 @@ using System.CommandLine;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using RoslynTools.Cli;
 using RoslynTools.Core;
-using RoslynTools.Core.Output;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
-using RoslynTools.Services.Results;
 
 namespace RoslynTools.Commands;
 
@@ -14,9 +13,14 @@ namespace RoslynTools.Commands;
 internal sealed class FindCallersCommand : IRtCommand, IInspectCommand
 {
     private readonly FindCallersOperation _operation;
-    public FindCallersCommand(FindCallersOperation operation)
+    private readonly DaemonRpcClient _daemon;
+
+    public FindCallersCommand(
+        FindCallersOperation operation,
+        DaemonRpcClient daemon)
     {
         _operation = operation;
+        _daemon = daemon;
     }
 
     public static RtCommandInfo Info => FindCallersCommandDefinition.Info;
@@ -38,11 +42,11 @@ internal sealed class FindCallersCommand : IRtCommand, IInspectCommand
             var request = flags.Bind(ctx.ParseResult, FindCallersCliRequest.FromFlags);
             var includeTests = ctx.ParseResult.GetValueForOption(includeTestsOpt);
 
-            var result = await _operation.ExecuteAsync(new FindCallersRequest(
-                request.Symbol!, request.SolutionPath, includeTests));
-            result.Match(
-                callers => RtResultRenderer.Write(RtResult<FindCallersResult>.Ok(callers)),
-                error => RtErrorPresenter.Surface(ctx, error));
+            await DaemonCommandExecutor.ExecuteAsync(
+                _daemon,
+                FindCallersCommandDefinition.Name,
+                new FindCallersRequest(request.Symbol!, request.SolutionPath, includeTests),
+                ctx);
         });
 
         return cmd;

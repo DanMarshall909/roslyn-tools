@@ -62,6 +62,29 @@ public sealed class AddDependencyOperationTests
         writer.DryRun.ShouldBe(true);
     }
 
+    [Fact]
+    public async Task InvokeAsync_returns_failure_for_an_ambiguous_target()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Services.cs", """
+                                         namespace App.Sales { public class AgentService { } }
+                                         namespace App.Support { public class AgentService { } }
+                                         """);
+        var (workspace, solution) = project.Build();
+        var writer = new CapturingSolutionChangeWriter();
+        var operation = new AddDependencyOperation(
+            new FixedWorkspaceSessionFactory(workspace, solution),
+            new AddDependencyService(NullLogger<AddDependencyService>.Instance, writer),
+            writer);
+
+        var result = await ((ICommandApplicationPort)operation).InvokeAsync(
+            new AddDependencyRequest("AgentService", "IEmailService"));
+
+        result.IsError.ShouldBeTrue();
+        result.Value.ShouldBeNull();
+        result.Error!.ShouldContain("ambiguous", Case.Insensitive);
+    }
+
     private sealed class FixedWorkspaceSessionFactory(
         Microsoft.CodeAnalysis.Workspace workspace,
         Microsoft.CodeAnalysis.Solution solution) : IWorkspaceSessionFactory

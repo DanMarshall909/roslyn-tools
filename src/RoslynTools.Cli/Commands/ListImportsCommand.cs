@@ -1,7 +1,6 @@
 using System.CommandLine;
-using RoslynTools.Commands.Results;
 using RoslynTools.Core;
-using RoslynTools.Core.Output;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -11,10 +10,11 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class ListImportsCommand : IRtCommand, IAnalyzeCommand
 {
-    private readonly ListImportsOperation _operation;
-    public ListImportsCommand(ListImportsOperation operation)
+    private readonly DaemonRpcClient _daemon;
+
+    public ListImportsCommand(DaemonRpcClient daemon)
     {
-        _operation = operation;
+        _daemon = daemon;
     }
 
     public static RtCommandInfo Info => ListImportsCommandDefinition.Info;
@@ -34,8 +34,11 @@ internal sealed class ListImportsCommand : IRtCommand, IAnalyzeCommand
         {
             var kind = ctx.ParseResult.GetValueForOption(kindOpt);
             var req = binder.Bind(ctx.ParseResult, f => new ListImportsCliRequest(f.SolutionPath, kind!));
-            var result = await _operation.ExecuteAsync(new ListImportsRequest(req.SolutionPath, req.ImportKind));
-            RtResultRenderer.Write(RtResult<ImportDirectiveResult>.Ok(ImportDirectiveResult.FromImports(result.Imports)));
+            await DaemonCommandExecutor.ExecuteAsync(
+                _daemon,
+                ListImportsCommandDefinition.Name,
+                new ListImportsRequest(req.SolutionPath, req.ImportKind),
+                ctx);
         });
 
         return cmd;

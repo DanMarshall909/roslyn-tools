@@ -4,6 +4,7 @@ using RoslynTools.CommandDescriptors;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Daemon.Rpc;
+using RoslynTools.Services;
 
 namespace RoslynTools.Mcp.Tools;
 
@@ -52,9 +53,9 @@ internal sealed class McpCommandAdapter
             if (remote is not null)
                 return ToToolResult(remote);
 
-            return new ToolResult(
-                true,
-                "The daemon is unavailable. Start it with `rt daemon start` and retry.");
+            // The portable stdio host must remain usable before a daemon has been started,
+            // and while a stale daemon is being replaced. The same typed port is the narrow
+            // in-process recovery path described by ADR-0005.
         }
 
         try

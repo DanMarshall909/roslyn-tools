@@ -1,8 +1,7 @@
 using System.CommandLine;
 using Microsoft.CodeAnalysis;
-using RoslynTools.Commands.Results;
 using RoslynTools.Core;
-using RoslynTools.Core.Output;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -12,14 +11,14 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class CircularDepsCommand : IRtCommand, IAnalyzeCommand
 {
-    private readonly CircularDepsOperation _operation;
+    private readonly DaemonRpcClient _daemon;
     private readonly CircularDepsService _circularDeps;
 
     public CircularDepsCommand(
-        CircularDepsOperation operation,
+        DaemonRpcClient daemon,
         CircularDepsService circularDeps)
     {
-        _operation = operation;
+        _daemon = daemon;
         _circularDeps = circularDeps;
     }
 
@@ -35,13 +34,17 @@ internal sealed class CircularDepsCommand : IRtCommand, IAnalyzeCommand
         cmd.Add(scopeOpt);
         cmd.Add(solutionOpt);
 
-        cmd.SetHandler(async (scope, solution) =>
+        cmd.SetHandler(async context =>
         {
-            var analysis = await _operation.ExecuteAsync(new CircularDepsRequest(solution, scope));
-            var result = CircularDepsResult.FromCycles(
-                analysis.Cycles.Select(cycle => cycle.Nodes).ToList());
-            RtResultRenderer.Write(RtResult<CircularDepsResult>.Ok(result));
-        }, scopeOpt, solutionOpt);
+            var request = new CircularDepsRequest(
+                context.ParseResult.GetValueForOption(solutionOpt),
+                context.ParseResult.GetValueForOption(scopeOpt));
+            await DaemonCommandExecutor.ExecuteAsync(
+                _daemon,
+                CircularDepsCommandDefinition.Name,
+                request,
+                context);
+        });
 
         return cmd;
     }

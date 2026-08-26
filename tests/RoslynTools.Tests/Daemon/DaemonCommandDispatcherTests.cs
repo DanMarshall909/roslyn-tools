@@ -68,7 +68,7 @@ public sealed class DaemonCommandDispatcherTests
     }
 
     [Fact]
-    public async Task Execute_adds_core_owned_follow_on_tools_before_any_adapter_renders()
+    public async Task Execute_adds_application_owned_follow_on_tools_before_any_adapter_renders()
     {
         var port = new EchoPort("outline");
         var dispatcher = new DaemonCommandDispatcher([port]);
@@ -105,6 +105,47 @@ public sealed class DaemonCommandDispatcherTests
         response.Error.ShouldBeNull();
         port.InvocationCount.ShouldBe(1);
         response.Result!.Value.GetProperty("suggestedTools").GetArrayLength().ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task Execute_applies_and_then_restores_the_request_working_directory()
+    {
+        var originalWorkingDirectory = Directory.GetCurrentDirectory();
+        var port = new WorkingDirectoryPort();
+        var dispatcher = new DaemonCommandDispatcher([port]);
+        using var payload = JsonDocument.Parse("{}");
+
+        var response = await dispatcher.ExecuteAsync(new DaemonRpcRequest(
+            DaemonRpcProtocol.CurrentVersion,
+            "request-working-directory",
+            DaemonRpcProtocol.ExecuteCommandMethod,
+            "working-directory",
+            payload.RootElement.Clone(),
+            Path.GetTempPath()));
+
+        response.Error.ShouldBeNull();
+        Path.TrimEndingDirectorySeparator(Path.GetFullPath(port.ObservedWorkingDirectory!)).ShouldBe(
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(Path.GetTempPath())));
+        Directory.GetCurrentDirectory().ShouldBe(originalWorkingDirectory);
+    }
+
+    [Fact]
+    public async Task Execute_returns_workspace_io_failures_as_command_errors()
+    {
+        var dispatcher = new DaemonCommandDispatcher([new IoFailurePort()]);
+        using var payload = JsonDocument.Parse("{}");
+
+        var response = await dispatcher.ExecuteAsync(new DaemonRpcRequest(
+            DaemonRpcProtocol.CurrentVersion,
+            "request-io-failure",
+            DaemonRpcProtocol.ExecuteCommandMethod,
+            "io-failure",
+            payload.RootElement.Clone()));
+
+        response.Result.ShouldBeNull();
+        response.Error.ShouldNotBeNull();
+        response.Error.Code.ShouldBe(DaemonRpcErrorCodes.CommandFailed);
+        response.Error.Message.ShouldBe("missing solution");
     }
 
     [Fact]
@@ -145,6 +186,35 @@ public sealed class DaemonCommandDispatcherTests
         {
             InvocationCount++;
             return Task.FromResult(new EchoResponse(request.Value.ToUpperInvariant()));
+        }
+    }
+
+    private sealed class WorkingDirectoryPort
+        : CommandApplicationPort<EchoRequest, EchoResponse>
+    {
+        public string? ObservedWorkingDirectory { get; private set; }
+
+        public override string CommandName => "working-directory";
+
+        public override Task<EchoResponse> ExecuteAsync(
+            EchoRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            ObservedWorkingDirectory = Directory.GetCurrentDirectory();
+            return Task.FromResult(new EchoResponse(ObservedWorkingDirectory));
+        }
+    }
+
+    private sealed class IoFailurePort
+        : CommandApplicationPort<EchoRequest, EchoResponse>
+    {
+        public override string CommandName => "io-failure";
+
+        public override Task<EchoResponse> ExecuteAsync(
+            EchoRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            throw new FileNotFoundException("missing solution");
         }
     }
 }

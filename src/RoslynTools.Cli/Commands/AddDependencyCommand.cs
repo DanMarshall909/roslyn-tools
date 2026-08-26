@@ -1,6 +1,7 @@
 using System.CommandLine;
+using System.CommandLine.Invocation;
 using RoslynTools.Core;
-using RoslynTools.Core.Output;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -10,10 +11,11 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class AddDependencyCommand : IRtCommand, IRefactorCommand
 {
-    private readonly AddDependencyOperation _operation;
-    public AddDependencyCommand(AddDependencyOperation operation)
+    private readonly DaemonRpcClient _daemon;
+
+    public AddDependencyCommand(DaemonRpcClient daemon)
     {
-        _operation = operation;
+        _daemon = daemon;
     }
 
     public static RtCommandInfo Info => AddDependencyCommandDefinition.Info;
@@ -26,27 +28,33 @@ internal sealed class AddDependencyCommand : IRtCommand, IRefactorCommand
         var fieldOpt =
             CommandOptionFactory.CreateFieldOption("--field", "Field name override (default: derived from type)");
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
-        var dryRunOpt = new Option<bool>("--dry-run", "Preview without writing");
+        var dryRunOpt = new Option<bool>("--dry-run", () => true, "Preview without writing (default)");
+        var applyOpt = new Option<bool>("--apply", "Apply the constructor change to disk");
 
         var cmd = new Command("add-dependency", "Inject a constructor dependency into a class");
         cmd.AddAlias("ad");
-        cmd.AddAll(typeOpt, depOpt, fieldOpt, solutionOpt, dryRunOpt);
+        cmd.AddAll(typeOpt, depOpt, fieldOpt, solutionOpt, dryRunOpt, applyOpt);
 
-        cmd.SetHandler(
-            async (type, dep, field, solution, dryRun) => { await ExecuteAsync(type, dep, field, solution, dryRun); },
-            typeOpt, depOpt, fieldOpt, solutionOpt, dryRunOpt);
+        cmd.SetHandler(async context =>
+        {
+            var request = new AddDependencyRequest(
+                context.ParseResult.GetValueForOption(typeOpt)!,
+                context.ParseResult.GetValueForOption(depOpt)!,
+                context.ParseResult.GetValueForOption(fieldOpt),
+                context.ParseResult.GetValueForOption(solutionOpt),
+                !context.ParseResult.GetValueForOption(applyOpt));
+            await ExecuteThroughDaemonAsync(request, context);
+        });
 
         return cmd;
     }
 
-    /// <summary>
-    /// Executes the add dependency command asynchronously.
-    /// </summary>
-    internal async Task ExecuteAsync(string typeName, string depType, string? fieldName, string? solutionPath,
-        bool dryRun)
+    private async Task ExecuteThroughDaemonAsync(AddDependencyRequest request, InvocationContext context)
     {
-        var result = await _operation.ExecuteAsync(
-            new AddDependencyRequest(typeName, depType, fieldName, solutionPath, dryRun));
-        RtResultRenderer.Write(RtResult<MutationExecutionResult<AddDependencyResult>>.Ok(result));
+        await DaemonCommandExecutor.ExecuteAsync(
+            _daemon,
+            AddDependencyCommandDefinition.Name,
+            request,
+            context);
     }
 }

@@ -10,12 +10,11 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class SourceCommand : IRtCommand, IStructuredOutputCommand, IInspectCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly InspectService _inspect;
-    public SourceCommand(IWorkspaceSessionFactory sessionFactory, InspectService inspect)
+    private readonly SourceOperation _operation;
+
+    public SourceCommand(SourceOperation operation)
     {
-        _inspect = inspect;
-        _sessionFactory = sessionFactory;
+        _operation = operation;
     }
 
     public static RtCommandInfo Info { get; } = new(
@@ -52,9 +51,10 @@ internal sealed class SourceCommand : IRtCommand, IStructuredOutputCommand, IIns
             {
                 var symbol = ctx.ParseResult.GetValueForArgument(symbolArg);
                 var request = flags.Bind(ctx.ParseResult, f => SourceCliRequest.FromFlags(f, symbol));
-                var sln = await _sessionFactory.GetSolutionAsync(request.SolutionPath);
-                var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, request.Symbol, request.Kind);
-                var source = await _inspect.GetSourceAsync(sym);
+                var source = await _operation.ExecuteAsync(new SourceRequest(
+                    request.Symbol,
+                    request.SolutionPath,
+                    request.Kind));
 
                 RtResultRenderer.Write(RtResult<object>.Ok(source));
             });

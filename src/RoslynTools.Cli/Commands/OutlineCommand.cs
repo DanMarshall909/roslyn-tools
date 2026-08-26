@@ -1,7 +1,5 @@
 using System.CommandLine;
-using System.Text.Json;
 using RoslynTools.Core;
-using RoslynTools.Core.Output;
 using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
@@ -53,25 +51,11 @@ internal sealed class OutlineCommand : IRtCommand, IStructuredOutputCommand, IIn
                 flags.SolutionPath,
                 summary,
                 withLocations);
-            var response = await _daemon.TryExecuteAsync(
-                "outline",
-                JsonSerializer.SerializeToElement(request),
-                CancellationToken.None);
-            if (response is null)
-            {
-                RtLog.Error("The daemon is unavailable. Start it with `rt daemon start` and retry.");
-                context.ExitCode = 1;
-                return;
-            }
-
-            if (response.Error is not null)
-            {
-                RtLog.Error("Error: {Message}", response.Error.Message);
-                context.ExitCode = 1;
-                return;
-            }
-
-            RtResultRenderer.Write(RtResult<JsonElement>.Ok(response.Result ?? default));
+            await DaemonCommandExecutor.ExecuteAsync(
+                _daemon,
+                OutlineCommandDefinition.Name,
+                request,
+                context);
         });
 
         return cmd;

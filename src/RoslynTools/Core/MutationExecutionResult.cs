@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace RoslynTools.Core;
 
 /// <summary>
@@ -6,7 +8,8 @@ namespace RoslynTools.Core;
 /// </summary>
 internal sealed record MutationExecutionResult<T>
 {
-    public MutationExecutionResult(
+    [JsonConstructor]
+    internal MutationExecutionResult(
         MutationExecutionStatus status,
         T? value,
         IReadOnlyList<string> changedFiles,

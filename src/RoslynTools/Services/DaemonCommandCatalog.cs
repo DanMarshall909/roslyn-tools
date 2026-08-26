@@ -1,8 +1,8 @@
+using RoslynTools.Core;
 using RoslynTools.Core.Output;
-using RoslynTools.Services;
 using RoslynTools.Services.Results;
 
-namespace RoslynTools.Core;
+namespace RoslynTools.Services;
 
 /// <summary>
 ///     Structured result produced by the daemon before a host adapter renders it.
@@ -17,7 +17,7 @@ internal sealed record CommandExecutionResult(
 internal sealed record CommandFollowOn(string ToolName, string WhenToUse);
 
 /// <summary>
-///     Core-owned command facts used by the daemon and projected by adapters. This contains
+///     Application-owned command facts used by the daemon and projected by adapters. This contains
 ///     no command-line parser, MCP schema, or renderer concept.
 /// </summary>
 internal sealed record DaemonCommandDefinition(
@@ -104,7 +104,7 @@ internal static class DaemonOwnedCommands
             FindCallersCommandDefinition.Info,
             CommandSafety.ReadOnly,
             typeof(FindCallersRequest),
-            typeof(Result<FindCallersResult, RtError>),
+            typeof(FindCallersResult),
             []),
         new DaemonCommandDefinition(
             FindImplementationsCommandDefinition.Name,
@@ -158,7 +158,7 @@ internal static class OutlineCommandDefinition
             "rt inspect outline --regex \"Service\\.cs$\" --solution RoslynTools.slnx",
             "rt inspect outline src/RoslynTools/Core --solution RoslynTools.slnx --summary",
             "rt inspect outline RoslynTools.Core --solution RoslynTools.slnx --summary",
-            "rt inspect outline src/RoslynTools/Core/SymbolLocator.cs --solution RoslynTools.slnx --with-locations"
+            "rt inspect outline src/RoslynTools/Core/WorkspaceLoader.cs --solution RoslynTools.slnx --with-locations"
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json]);
 }

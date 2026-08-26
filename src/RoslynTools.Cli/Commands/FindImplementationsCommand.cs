@@ -1,6 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Core;
-using RoslynTools.Core.Output;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -10,10 +10,11 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class FindImplementationsCommand : IRtCommand, IStructuredOutputCommand, IInspectCommand
 {
-    private readonly FindImplementationsOperation _operation;
-    public FindImplementationsCommand(FindImplementationsOperation operation)
+    private readonly DaemonRpcClient _daemon;
+
+    public FindImplementationsCommand(DaemonRpcClient daemon)
     {
-        _operation = operation;
+        _daemon = daemon;
     }
 
     public static RtCommandInfo Info => FindImplementationsCommandDefinition.Info;
@@ -33,12 +34,11 @@ internal sealed class FindImplementationsCommand : IRtCommand, IStructuredOutput
             {
                 var symbol = ctx.ParseResult.GetValueForArgument(symbolArg);
                 var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
-                var result = await _operation.ExecuteAsync(new FindImplementationsRequest(symbol, solution));
-
-                if (result.SymbolKind != "Interface" && !result.IsAbstract)
-                    RtLog.Warning("'{Symbol}' is not an interface or abstract class. Searching for derived types.",
-                        symbol);
-                RtResultRenderer.Write(RtResult<object>.Ok(result));
+                await DaemonCommandExecutor.ExecuteAsync(
+                    _daemon,
+                    FindImplementationsCommandDefinition.Name,
+                    new FindImplementationsRequest(symbol, solution),
+                    ctx);
             });
 
         return cmd;

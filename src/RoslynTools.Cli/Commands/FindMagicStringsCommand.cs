@@ -1,7 +1,6 @@
 using System.CommandLine;
-using RoslynTools.Commands.Results;
 using RoslynTools.Core;
-using RoslynTools.Core.Output;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -11,11 +10,11 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class FindMagicStringsCommand : IRtCommand, IAnalyzeCommand
 {
-    private readonly FindMagicStringsOperation _operation;
+    private readonly DaemonRpcClient _daemon;
 
-    public FindMagicStringsCommand(FindMagicStringsOperation operation)
+    public FindMagicStringsCommand(DaemonRpcClient daemon)
     {
-        _operation = operation;
+        _daemon = daemon;
     }
 
     public static RtCommandInfo Info => FindMagicStringsCommandDefinition.Info;
@@ -30,15 +29,18 @@ internal sealed class FindMagicStringsCommand : IRtCommand, IAnalyzeCommand
         cmd.AddAlias("magic-strings");
         cmd.AddAll(solutionOpt, minLengthOpt, minOccurrencesOpt);
 
-        cmd.SetHandler(async (solution, minLength, minOccurrences) =>
+        cmd.SetHandler(async context =>
         {
-            var result = await _operation.ExecuteAsync(new FindMagicStringsRequest(
-                minLength,
-                minOccurrences,
-                solution));
-            RtResultRenderer.Write(RtResult<MagicStringResult>.Ok(
-                MagicStringResult.FromGroups(result.Groups, result.SolutionPath)));
-        }, solutionOpt, minLengthOpt, minOccurrencesOpt);
+            var request = new FindMagicStringsRequest(
+                context.ParseResult.GetValueForOption(minLengthOpt),
+                context.ParseResult.GetValueForOption(minOccurrencesOpt),
+                context.ParseResult.GetValueForOption(solutionOpt));
+            await DaemonCommandExecutor.ExecuteAsync(
+                _daemon,
+                FindMagicStringsCommandDefinition.Name,
+                request,
+                context);
+        });
 
         return cmd;
     }

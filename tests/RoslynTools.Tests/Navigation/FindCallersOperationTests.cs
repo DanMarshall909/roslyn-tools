@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
 using RoslynTools.Services;
@@ -62,6 +63,34 @@ public sealed class FindCallersOperationTests
 
             result.Match(callers => callers.Callers.ShouldBeEmpty(),
                 error => throw new InvalidOperationException(error.Message));
+        }
+    }
+
+    [Fact]
+    public async Task InvokeAsync_unwraps_a_domain_error_into_the_port_failure_branch()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Workers.cs", """
+                                         namespace App;
+                                         public class First { public void Work() { } }
+                                         public class Second { public void Work() { } }
+                                         """);
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var operation = new FindCallersOperation(
+                new FixedWorkspaceSessionFactory(solution),
+                new FindCallersService());
+
+            var result = await ((ICommandApplicationPort)operation).InvokeAsync(
+                new FindCallersRequest("Work"));
+
+            result.IsError.ShouldBeTrue();
+            result.Value.ShouldBeNull();
+            using var error = JsonDocument.Parse(result.Error!);
+            error.RootElement.GetProperty("kind").GetString().ShouldBe("AmbiguousMatch");
+            error.RootElement.GetProperty("context").GetProperty("candidates")
+                .GetString()!.ShouldContain("App.First.Work()", Case.Sensitive);
         }
     }
 

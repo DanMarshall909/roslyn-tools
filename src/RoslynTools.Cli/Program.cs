@@ -6,6 +6,7 @@ using RoslynTools.Core;
 using RoslynTools.Daemon;
 using RoslynTools.Feedback;
 using RoslynTools.Rendering;
+using RoslynTools.Services;
 
 /// <summary>
 /// Main entry point for the Roslyn Daemon application.

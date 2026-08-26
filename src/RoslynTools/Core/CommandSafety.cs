@@ -6,7 +6,7 @@ namespace RoslynTools.Core;
 /// </summary>
 internal sealed record CommandSafety
 {
-    public CommandSafety(
+    internal CommandSafety(
         CommandEffect effect,
         MutationExecutionDefault? mutationDefault,
         bool supportsDryRun)

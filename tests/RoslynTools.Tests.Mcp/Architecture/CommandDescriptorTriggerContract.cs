@@ -67,6 +67,7 @@ public sealed class CommandDescriptorTriggerContract
         ["find_refs"] = "Grep",
         ["outline"] = "Read",
         ["describe"] = "Read",
+        ["source"] = "Read",
         ["rename"] = "Edit",
         ["list_imports"] = "Read",
         ["find_callers"] = "Grep",

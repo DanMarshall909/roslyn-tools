@@ -1,6 +1,7 @@
 using System.CommandLine;
+using System.CommandLine.Invocation;
 using RoslynTools.Core;
-using RoslynTools.Core.Output;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -10,11 +11,11 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class MakeSealedCommand : IRtCommand, IRefactorCommand
 {
-    private readonly MakeSealedOperation _operation;
+    private readonly DaemonRpcClient _daemon;
 
-    public MakeSealedCommand(MakeSealedOperation operation)
+    public MakeSealedCommand(DaemonRpcClient daemon)
     {
-        _operation = operation;
+        _daemon = daemon;
     }
 
     // Stryker disable all
@@ -26,39 +27,40 @@ internal sealed class MakeSealedCommand : IRtCommand, IRefactorCommand
     {
         var typeOpt = CommandOptionFactory.CreateTypeOption("--type", "Class to seal");
         var binder = RtCommandFlagBinder.Create()
-            .WithSolution()
-            .WithDryRun();
+            .WithSolution();
+        var dryRunOpt = new Option<bool>("--dry-run", () => true, "Preview without writing (default)");
+        var applyOpt = new Option<bool>("--apply", "Apply the sealed modifier to disk");
 
         var cmd = new Command("make-sealed", "Add the sealed modifier to a class that has no derived types");
         cmd.AddAlias("ms");
-        cmd.Add(typeOpt);
+        cmd.AddAll(typeOpt, dryRunOpt, applyOpt);
         binder.AddTo(cmd);
 
         cmd.SetHandler(async ctx =>
         {
             var req = binder.Bind(ctx.ParseResult, f =>
-                new MakeSealedCliRequest(ctx.ParseResult.GetValueForOption(typeOpt)!, f.SolutionPath, f.DryRun));
-            var result = await ExecuteAsync(req.Type, req.SolutionPath, req.DryRun);
-            RtResultRenderer.Write(RtResult<MutationExecutionResult<MakeSealedResult>>.Ok(result));
+                new MakeSealedCliRequest(
+                    ctx.ParseResult.GetValueForOption(typeOpt)!,
+                    f.SolutionPath,
+                    !ctx.ParseResult.GetValueForOption(applyOpt)));
+            await ExecuteThroughDaemonAsync(new MakeSealedRequest(req.Type, req.SolutionPath, req.DryRun), ctx);
         });
 
         return cmd;
     }
     // Stryker restore all
 
-    /// <summary>
-    /// Executes the MakeSealedCommand with async parameters
-    /// </summary>
-    internal Task<MutationExecutionResult<MakeSealedResult>> ExecuteAsync(
-        string typeName,
-        string? solutionPath,
-        bool dryRun)
+    private async Task ExecuteThroughDaemonAsync(MakeSealedRequest request, InvocationContext context)
     {
-        return _operation.ExecuteAsync(new MakeSealedRequest(typeName, solutionPath, dryRun));
+        await DaemonCommandExecutor.ExecuteAsync(
+            _daemon,
+            MakeSealedCommandDefinition.Name,
+            request,
+            context);
     }
 
     private sealed record MakeSealedCliRequest(
         string Type,
         string? SolutionPath,
-        bool DryRun) : ISupportsSolutionOption, ISupportsDryRunOption;
+        bool DryRun) : ISupportsSolutionOption;
 }

@@ -25,13 +25,16 @@ internal sealed class FindImplementationsOperation
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly FindImplementationsService _findImplementations;
+    private readonly ISymbolResolutionService _symbols;
 
     public FindImplementationsOperation(
         IWorkspaceSessionFactory sessionFactory,
-        FindImplementationsService findImplementations)
+        FindImplementationsService findImplementations,
+        ISymbolResolutionService symbols)
     {
         _sessionFactory = sessionFactory;
         _findImplementations = findImplementations;
+        _symbols = symbols;
     }
 
     public override string CommandName => "find_impl";
@@ -45,8 +48,8 @@ internal sealed class FindImplementationsOperation
         cancellationToken.ThrowIfCancellationRequested();
 
         var symbol = request.Symbol.Contains('.', StringComparison.Ordinal)
-            ? await SymbolLocator.FindSymbolByFqnAsync(solution, request.Symbol, "type")
-            : await SymbolLocator.FindSymbolAsync(solution, request.Symbol, "type");
+            ? await _symbols.FindSymbolByFqnAsync(solution, request.Symbol, "type")
+            : await _symbols.FindSymbolAsync(solution, request.Symbol, "type");
 
         if (symbol is not INamedTypeSymbol typeSymbol)
             throw new InvalidOperationException($"'{request.Symbol}' is not a type (found {symbol.Kind}).");

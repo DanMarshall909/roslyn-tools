@@ -33,7 +33,7 @@ internal sealed record AddDependencyResult(
 
 /// <summary>Daemon-owned add-dependency application operation.</summary>
 internal sealed class AddDependencyOperation
-    : CommandApplicationPort<AddDependencyRequest, MutationExecutionResult<AddDependencyResult>>, IRtService
+    : ICommandApplicationPort, IRtService
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly AddDependencyService _addDependency;
@@ -49,9 +49,10 @@ internal sealed class AddDependencyOperation
         _solutionChangeWriter = solutionChangeWriter;
     }
 
-    public override string CommandName => "add-dependency";
+    public string CommandName => "add-dependency";
+    public Type RequestType => typeof(AddDependencyRequest);
 
-    public override async Task<MutationExecutionResult<AddDependencyResult>> ExecuteAsync(
+    internal async Task<MutationExecutionResult<AddDependencyResult>> ExecuteAsync(
         AddDependencyRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -75,6 +76,24 @@ internal sealed class AddDependencyOperation
                     [CreateDiagnostic(prepared)])
             };
         }
+    }
+
+    async Task<CommandPortResult> ICommandApplicationPort.InvokeAsync(
+        object request,
+        CancellationToken cancellationToken)
+    {
+        if (request is not AddDependencyRequest typedRequest)
+            throw new ArgumentException("Invalid add-dependency request.", nameof(request));
+
+        var result = await ExecuteAsync(typedRequest, cancellationToken);
+        var errors = result.Diagnostics
+            .Where(diagnostic => diagnostic.Severity == MutationDiagnosticSeverity.Error)
+            .Select(diagnostic => diagnostic.Message)
+            .ToArray();
+
+        return errors.Length == 0
+            ? CommandPortResult.Success(result)
+            : CommandPortResult.Failure(string.Join(Environment.NewLine, errors));
     }
 
     private async Task<MutationExecutionResult<AddDependencyResult>> WriteAndCreateResultAsync(

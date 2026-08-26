@@ -20,7 +20,10 @@ public sealed class FindImplementationsOperationTests
         using (workspace)
         {
             var factory = new CapturingSessionFactory(solution);
-            var operation = new FindImplementationsOperation(factory, new FindImplementationsService());
+            var operation = new FindImplementationsOperation(
+                factory,
+                new FindImplementationsService(),
+                new SymbolResolutionService());
 
             var result = await operation.ExecuteAsync(new FindImplementationsRequest(
                 "App.IWorker", "requested.slnx"));

@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.CommandDescriptors;
 using RoslynTools.Core;
 using RoslynTools.Mcp.Tools;
+using RoslynTools.Services;
 using Shouldly;
 
 namespace RoslynTools.Tests.Mcp.Architecture;

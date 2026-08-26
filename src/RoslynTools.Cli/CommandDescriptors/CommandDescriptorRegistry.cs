@@ -3,6 +3,7 @@ using RoslynTools.Cli.Suggest;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Feedback;
+using RoslynTools.Services;
 using RoslynTools.Services.SemanticDiff.Git;
 using RoslynTools.Services.Suggest;
 
