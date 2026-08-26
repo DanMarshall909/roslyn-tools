@@ -7,6 +7,8 @@ Companion documents:
 - [pattern-core-service.md](pattern-core-service.md) — the canonical Core-service + thin-host-adapters pattern with worked examples.
 - [target-command-surface-architecture.md](target-command-surface-architecture.md) — target shape for command wiring (catalog, capabilities, binders).
 - [consistency-roadmap.md](consistency-roadmap.md) — EP-013 execution plan sequencing the EP-007/009/011/012 work that lands this architecture.
+- [command-application-port-migration.md](command-application-port-migration.md) — explicit R0-R5/M0-M4 conversion instructions for the complete command catalog.
+- [command-port-migration-groups.tsv](command-port-migration-groups.tsv) — machine-readable 55-command fan-out manifest.
 - [per-command-checklist.md](per-command-checklist.md) — the per-command checklist; about half is architecture-test-enforced today, the rest is human-judgement.
 - [adr/](adr/) — Architecture Decision Records.
 
@@ -48,10 +50,13 @@ Companion documents:
 
 **Rule of thumb when adding code:** "Could I unit-test this without any host references in scope?" If no, it's in the wrong layer.
 
-The daemon-centred execution boundary is the target architecture.  The current
-CLI argument forwarding protocol and direct MCP service host are migration
-paths; new transport work must target typed local RPC.  See
-[ADR-0005](adr/0005-daemon-centred-local-execution.md).
+The daemon-centred execution boundary is the target architecture for
+workspace-backed commands. File-only and lightweight meta operations may declare
+in-process placement. CLI and MCP use the same host-neutral command definition,
+application port, and recovery policy; new transport work targets typed local RPC or
+the explicitly declared in-process path. See
+[ADR-0005](adr/0005-daemon-centred-local-execution.md) and
+[ADR-0007](adr/0007-host-neutral-command-contracts.md).
 
 For daemon-owned MCP tools, the stdio adapter lazily starts the sibling `rt`
 daemon when RPC is unavailable, retries once, and retains typed in-process
@@ -62,15 +67,17 @@ instances remain resident. See
 
 ## Five contracts that bind the layers
 
-### 1. `ApplicationCommandDescriptor` + `IRtCommand` — command registration
+### 1. Application definition + port — command registration and execution
 
-Every `*Command.cs` implements `IRtCommand`. The reflection-discovered commands and
-explicit nested leaves are projected into one `ApplicationCommandDescriptor` registry.
-The descriptor carries path, tool identity, metadata, CLI builder, MCP visibility,
-safety, structured-result capability, and an optional typed
-`ICommandApplicationPort`. Port-backed CLI and MCP adapters invoke the same operation;
-unmigrated descriptors temporarily use the isolated compatibility bridge. See
-[ADR-0003](adr/0003-shared-command-descriptors-and-application-ports.md).
+Every ordinary command has one host-neutral application definition and exactly one
+typed `ICommandApplicationPort`. The definition carries identity, `RtCommandInfo`,
+request/response types, visibility, safety, execution placement, and suggested tools.
+It contains no CLI builder or protocol type. `IRtCommand` remains the CLI projection;
+the generic MCP adapter projects the same definition into its tool surface. During
+migration only, descriptors without ports enter the isolated compatibility bridge.
+See [ADR-0003](adr/0003-shared-command-descriptors-and-application-ports.md),
+[ADR-0007](adr/0007-host-neutral-command-contracts.md), and the
+[migration playbook](command-application-port-migration.md).
 
 ### 2. Category interfaces — `IInspectCommand` / `IAnalyzeCommand` / `IRefactorCommand`
 
@@ -114,12 +121,12 @@ Every inspection result may also carry a `_suggestions` array — five pre-fille
 
 | Surface | Lives in |
 |---|---|
-| Command path, tool name, visibility, safety, structured contract, application port | `ApplicationCommandDescriptor` registry |
-| Command name + category + examples + mutates + JSON-output flag | `RtCommandInfo` (per-command static input to descriptors) |
+| Command/tool identity, visibility, safety, execution placement, request/result types, suggested tools | Host-neutral application definition |
+| Command name + category + examples + mutates + JSON-output flag | `RtCommandInfo` within the definition; CLI projection must match |
 | Reusable flag name + aliases + default + parse validation | Central option catalog (US-114) |
 | Capability interface ↔ catalog flag binding | Shared binders (US-114) |
 | Help, examples, known-issues | Same `RtCommandInfo` — `rt dump-help` reads it; `docs/COMMANDS.md` is generated, never hand-edited |
-| MCP tool schema | Generated from the descriptor's CLI builder; port-backed request names are normalized for JSON |
+| MCP tool schema | Generated from the typed request contract and host-neutral property metadata |
 
 If two surfaces describe the same flag, the catalog wins.
 
@@ -161,8 +168,16 @@ The whole tool is its own customer. The architecture exists to make that loop ti
   hosting, and request draining plus broader cancellation semantics remain to be designed and proven. See
   [ADR-0005](adr/0005-daemon-centred-local-execution.md).
 
+- **Host projects remain physically coupled.** `RoslynTools.Mcp` still references the CLI executable because the
+  descriptor registry, CLI-derived schema metadata, and compatibility bridge live there. Full port coverage deletes
+  the bridge and permits both hosts to reference `RoslynTools` directly, as specified by
+  [ADR-0007](adr/0007-host-neutral-command-contracts.md).
+
 - **EP-009 (capability flags) is the biggest open architectural lift** — US-114 is 20 ACs, multi-week. Until it lands, commands still wire `Option<T>` ad hoc and the catalog is partly notional.
-- **Application-port migration is incremental.** `outline`, `describe`, `find-refs`, `rename`, `semantic-diff`, `suggest`, and the two feedback leaves are port-backed; descriptors without a port still enter the compatibility `CliCommandBridge`. rt-007 tracks draining it.
+- **Application-port migration is incremental.** Fourteen of the 55 category commands are port-backed, with `rename`
+  still partial; 41 conversion/completion slices remain. `suggest` and feedback are additional typed meta operations.
+  Descriptors without ports still enter `CliCommandBridge`. rt-007 and the
+  [55-row migration manifest](command-port-migration-groups.tsv) track draining it.
 - **The Result/Throw bridges are designed to persist** across stories. Don't drain the SymbolLocator bridges all at once — `one caller/tool at a time`, then delete the bridge.
 - **`CompactDescription` vs verbose dict** for describe stays two-shape (JSON key order is irreducible). Outline has been unified. Trade-off accepted in US-135.
 - **`_suggestions` fan-out is incomplete.** Only `describe` (CLI+MCP) and `find-refs` (MCP) carry suggestions today. Remaining inspect/analyze commands are tracked in US-136 (outline envelope) and US-137 (fan-out). Body-call related-symbol extraction and frequency ranking are deferred in US-135.

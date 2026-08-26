@@ -62,7 +62,7 @@ internal sealed class AddDependencyOperation
         {
             cancellationToken.ThrowIfCancellationRequested();
             var prepared = await _addDependency.PrepareAsync(
-                solution, request.Type, request.Dependency, request.Field);
+                solution, request.Type, request.Dependency, request.Field, cancellationToken);
 
             return new AddDependencyResult(
                 prepared.Outcome,

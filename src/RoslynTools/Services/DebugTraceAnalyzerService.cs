@@ -1,4 +1,5 @@
 using System.Text.Json;
+using RoslynTools.Core;
 using RoslynTools.Models;
 
 namespace RoslynTools.Services;
@@ -6,6 +7,78 @@ namespace RoslynTools.Services;
 internal sealed class DebugTraceAnalyzerService : IRtService
 {
     private const int SummaryLimit = 160;
+
+    /// <summary>
+    /// Analyzes a trace path for application-port callers. Expected file and JSON failures are
+    /// represented as typed errors so a host can choose its own error projection.
+    /// </summary>
+    internal static Result<DebugReport, RtError> Analyze(
+        string tracePath,
+        int fromEvent,
+        int limit,
+        IReadOnlyList<string> breakpoints,
+        IReadOnlyList<string> assertions,
+        bool breakOnly = false)
+    {
+        if (string.IsNullOrWhiteSpace(tracePath))
+            return Result<DebugReport, RtError>.Err(
+                new RtError(RtErrorKind.InvalidInput, "A trace file path is required."));
+
+        FileInfo traceFile;
+        try
+        {
+            traceFile = new FileInfo(tracePath);
+        }
+        catch (ArgumentException ex)
+        {
+            return Result<DebugReport, RtError>.Err(
+                new RtError(RtErrorKind.InvalidInput, $"Trace path is invalid: {ex.Message}"));
+        }
+
+        if (!traceFile.Exists)
+            return Result<DebugReport, RtError>.Err(
+                RtError.NotFound($"LLM trace file was not found: {traceFile.FullName}",
+                    new Dictionary<string, string> { ["path"] = traceFile.FullName }));
+
+        try
+        {
+            return Result<DebugReport, RtError>.Ok(Analyze(
+                traceFile,
+                fromEvent,
+                limit,
+                breakpoints,
+                assertions,
+                breakOnly));
+        }
+        catch (JsonException ex)
+        {
+            return Result<DebugReport, RtError>.Err(
+                new RtError(
+                    RtErrorKind.InvalidInput,
+                    $"Trace file '{traceFile.FullName}' contains malformed JSON: {ex.Message}",
+                    new Dictionary<string, string> { ["path"] = traceFile.FullName }));
+        }
+        catch (FileNotFoundException)
+        {
+            return Result<DebugReport, RtError>.Err(
+                RtError.NotFound($"LLM trace file was not found: {traceFile.FullName}",
+                    new Dictionary<string, string> { ["path"] = traceFile.FullName }));
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return Result<DebugReport, RtError>.Err(
+                RtError.NotFound($"LLM trace file was not found: {traceFile.FullName}",
+                    new Dictionary<string, string> { ["path"] = traceFile.FullName }));
+        }
+        catch (IOException ex)
+        {
+            return Result<DebugReport, RtError>.Err(
+                new RtError(
+                    RtErrorKind.InvalidInput,
+                    $"Trace file '{traceFile.FullName}' could not be read: {ex.Message}",
+                    new Dictionary<string, string> { ["path"] = traceFile.FullName }));
+        }
+    }
 
     public static DebugReport Analyze(
         FileInfo traceFile,

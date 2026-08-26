@@ -48,20 +48,20 @@
     {
       "id": "EP-012",
       "title": "Complete thin-host-adapter migration",
-      "description": "Apply the Core-service + thin-host-adapter pattern (established in the suggest + outline POC, docs/pattern-core-service.md) to every command. Today most commands route through CliCommandBridge text-capture for MCP, losing structure and forcing dry-run-always for mutations. The POC proved the pattern works; this epic finishes the rollout, drops the unusual RoslynTools.Mcp → RoslynTools.Cli exec-to-exec project reference, and locks the pattern with an architectural ratchet test.",
-      "notes": "POC learnings to carry into each migration: (1) For commands already ctor-injected post-US-072 (e.g. OutlineCommand), the CLI side needs minimal change - consolidate parameters into a Request DTO. (2) Native MCP handlers return ToolResult{content=JSON} directly; do not route through CapturingConsole. (3) ICommandCatalog abstraction (Core) lets the service stay host-agnostic. (4) Asymmetries are acceptable: CLI has --json/--yaml/--markdown formatting; MCP always returns native JSON; CLI shows progress on stderr, MCP doesn't. Document any new asymmetry in pattern-core-service.md. (5) Mutating commands (refactor/*) raise a design question: MCP currently force-dry-runs them via CliCommandBridge; native handlers need an explicit decision (carve-out or design). US-098 in this epic owns that decision."
+      "description": "Give every ordinary command one host-neutral application definition and typed application port so CLI, MCP, daemon, and future hosts invoke the same validated operation. Complete the 55-command rollout, delete CliCommandBridge, and remove the RoslynTools.Mcp → RoslynTools.Cli project reference.",
+      "notes": "ADR-0003 and ADR-0007 supersede the original native-MCP-handler direction. Canonical execution plan: docs/command-application-port-migration.md plus docs/command-port-migration-groups.tsv. Sequence: serial shared foundation (US-143), parallel read-only groups (US-095/096) and mutation groups (US-097), serial bridge deletion and physical decoupling (US-098). US-099 is consolidated into US-098; do not promote CLI builders or CliCommandBridge into a renamed shared project."
     },
     {
       "id": "EP-013",
       "title": "Command consistency consolidation — checklist becomes compiler-enforced",
-      "description": "Roll up the strategic outcome that ties EP-007 (JSON output), EP-009 (consistent contracts), EP-011 (suggest discovery), and EP-012 (thin-host-adapter migration) into one coherent landing: interfaces enforce category and capability; the per-command checklist shrinks to genuinely-human items; native MCP handlers replace the auto-bridge for inspect/analyze and follow current MCP spec (structuredContent, outputSchema); every command — including mutating — flows through a shared output-format renderer.",
-      "notes": "P1 strategic outcome epic. Owns no stories directly — references stories under EP-007, EP-009, EP-011, and EP-012 in a phased sequencing plan. See docs/consistency-roadmap.md for the full plan with rationale per phase.\n\nOutcome: roughly half the universal per-command checklist becomes compiler- or architecture-test-enforced; the per-command pending-work matrix collapses to genuinely-human items; MCP callers get typed responses with declared output schemas; CLI callers get format consistency across all commands.\n\nSequencing (high level):\n  Phase 1 Foundation (parallel): US-100 (renderer consolidation), US-107 (category + capability interfaces)\n  Phase 2 Apply foundation (parallel after phase 1): US-108 (delete Info.Category/Mutates), US-109 (format pipeline to all commands), US-097 (decide refactor MCP shape — design decision)\n  Phase 3 MCP modernisation: US-110 (structuredContent + outputSchema), then US-094 (architectural ratchet test)\n  Phase 4 Native MCP handler rollout (parallel after phase 3): US-095 inspect, US-096 analyze, US-104 change-signature, US-105 move, US-106 suggest naming\n  Phase 5 Project structure (independent track): US-099 extract IRtCommand registry, then US-098 drop Mcp→Cli reference\n  Phase 6 Universal metadata (any time, ratcheted): US-084, US-085, US-086, US-088, US-089, US-093, US-103, US-114\n\nDone definition: every story listed above is closed AND the architectural ratchet test (US-094) is green AND docs/per-command-checklist.md has been shrunk to the genuinely-human items only.\n"
+      "description": "Roll up EP-007, EP-009, EP-011, and EP-012 into one consistent command surface: typed application definitions and ports, generic host adapters, centralized input/output policy, and architecture-enforced parity across all commands.",
+      "notes": "P1 strategic outcome epic. See docs/consistency-roadmap.md for current sequencing. ADR-0007 replaces the former native-handler rollout with a serial application-contract foundation, parallel R0-R5/M0-M4 port conversion, bridge deletion, and physical host decoupling."
     },
     {
       "id": "EP-014",
       "title": "Semantic codebase exploration",
       "description": "Add read-only codebase exploration commands that combine Roslyn-derived structure with optional local embeddings. Embeddings retrieve likely families and neighbors; Roslyn remains the source of truth for symbols, facts, references, and any reported convention deviation.",
-      "notes": "Spawned from 2026-05-25 design discussion after evaluating Tome-style local embeddings. Scope is advisory/exploratory only: no automated edits, no embedding-only findings. Composes with EP-011 suggest and EP-012 MCP native handlers so agents can ask natural-language questions about unfamiliar C# solutions and receive structured, verifiable results."
+      "notes": "Spawned from 2026-05-25 design discussion after evaluating Tome-style local embeddings. Scope is advisory/exploratory only: no automated edits, no embedding-only findings. Composes with EP-011 suggest and EP-012 host-neutral application ports so agents can ask natural-language questions about unfamiliar C# solutions and receive structured, verifiable results."
     },
     {
       "id": "EP-015",
@@ -419,8 +419,8 @@
     {
       "id": "US-057",
       "epicId": "EP-009",
-      "title": "Introduce a shared read-only command handler wrapper",
-      "description": "As an rt maintainer, I want read-only commands to execute through a shared wrapper so solution loading, timing, cancellation, error mapping, and result rendering are consistent.",
+      "title": "Superseded: introduce a shared read-only command handler wrapper",
+      "description": "[DISPOSITION: SUPERSEDED-BY US-143] The useful intent—one execution boundary for solution loading, cancellation, error mapping, and rendering—is now part of the host-neutral application-port foundation. A CLI-specific callback wrapper and marker file would duplicate the final router and port ratchets.",
       "acceptanceCriteria": [
         "A new class src/RoslynTools/Cli/Handlers/ReadOnlyCommandHandler.cs (or similar) provides a single async entry point: HandleAsync<TInput, TOutput>(RtContext context, TInput input, Func<Solution, TInput, CancellationToken, Task<Result<TOutput, RtError>>> body) where: solution is loaded once from RtContext.Solution, the body callback receives the loaded solution + input + cancellation token, the Result is mapped to (stdout=JSON of TOutput on Ok, stderr=Error: {message} + exit 1 on Err).",
         "The wrapper owns: solution load (via the existing IWorkspaceSessionFactory from US-053), cancellation token propagation from Console.CancelKeyPress, timing/diagnostic logging via RtLog.Debug, exception-to-exit-code mapping for the typed catch ladder from US-077.",
@@ -437,8 +437,10 @@
       "urgency": 23,
       "urgencyReason": "Shared read-only command handler wrapper; landed alongside US-085 migration",
       "effort": 8,
-      "passes": false,
-      "notes": "P2. Start with a low-risk read-only command already using RtResult<T>."
+      "passes": true,
+      "notes": "Superseded by ADR-0007 and US-143; do not implement the proposed CLI-specific wrapper.",
+      "resolution": "Closed as superseded. US-143 provides the generic execution router and architecture ratchets, while US-095 and US-096 migrate read-only commands to typed application ports.",
+      "resolvedAt": "2026-08-26"
     },
     {
       "id": "US-058",
@@ -1220,106 +1222,97 @@
     },
     {
       "id": "US-094",
-      "title": "Architectural ratchet test for native MCP handler coverage",
-      "description": "[DISPOSITION: FOLDED-INTO US-115] One architectural rule. Becomes a single Skip'd Fact in McpAdapterContracts.cs citing the existing allow-list. US-107's McpHandlerNameContract is the template.\n\nAs an rt maintainer, I want a failing architectural test that names every command without a native IMcpHandler, so the test itself drives the migration tickets — each command-migration commit shrinks the allow-list until the test passes with zero exemptions.",
+      "title": "Superseded: architectural ratchet for command application-port coverage",
+      "description": "[DISPOSITION: SUPERSEDED-BY US-143] The original native-handler allow-list direction was rejected by ADR-0003 and ADR-0007. Its useful invariant is retained as definition/port/schema/routing coverage over the 55-command manifest.",
       "acceptanceCriteria": [
-        "Test file under tests/RoslynTools.Tests.Mcp/Architecture/ (e.g. EveryCommandHasNativeMcpHandler.cs) enumerates every IRtCommand in App.Commands and asserts each has a registered IMcpHandler whose ToolName matches the command's RtCommandInfo.Name (after the `-`→`_` substitution the bridge already applies).",
-        "An explicit allow-list inside the test enumerates every command that does NOT yet have a native handler. The list starts populated with all ~50 commands currently routed through CliCommandBridge — only `suggest_command` and `outline` are exempt-by-handler (they already have native impls).",
-        "Test failure message names the violating command(s) + points at docs/pattern-core-service.md + lists the migration steps (extract service, add Request/Result DTOs, write *Handler : IMcpHandler, register in McpServiceRegistration).",
-        "If a command has BOTH an allow-list entry AND a native handler, the test fails with a 'remove allow-list entry; handler is in place' message — keeps the allow-list shrinking honestly.",
-        "Test is wired into the default dotnet test run; no skip attributes, no opt-in.",
-        "RoslynTools.Cli.csproj (or RoslynTools.csproj) has InternalsVisibleTo for RoslynTools.Tests.Mcp added if it's not already in place so the test can read App.Commands.",
-        "Test passes today (with the full ~50-command allow-list intact). After each EP-012 migration commit removes one entry, the test continues to pass."
+        "ADR-0007 records why per-command MCP handlers and their allow-list are rejected",
+        "US-143 owns replacement definition/port/schema/routing ratchets over docs/command-port-migration-groups.tsv",
+        "No implementation work remains under this superseded story"
       ],
       "priority": 95,
       "passes": true,
       "epicId": "EP-012",
-      "notes": "P1. Drives the rest of EP-012. Implementation ~50 lines: reflection over IMcpHandler implementers in the Mcp assembly, intersect with App.Commands names, diff against allow-list. Bonus: also assert no allow-list entries that DON'T correspond to a real command (keeps the list honest as commands are renamed/added/removed)."
+      "notes": "US-143 owns the replacement ratchets: one host-neutral definition and port per command, schema parity, routing validity, and no host types in shared contracts.",
+      "resolution": "Closed as superseded by ADR-0007 and US-143. No native-handler coverage allow-list should be implemented.",
+      "resolvedAt": "2026-08-26"
     },
     {
       "id": "US-095",
-      "title": "Migrate read-only inspect commands to native MCP handlers",
-      "description": "[DISPOSITION: TRACKER-ONLY] Inspect → native MCP handler — done per-command during the sweep. Close when the sweep removes all commands from US-115's Skip allow-list.\n\nAs an LLM agent invoking rt via MCP, I want read-only inspect commands to return structured JSON (not CLI-formatted JSON wrapped in a text string), so I can parse and pipe results without a string-to-JSON round-trip.",
+      "title": "Migrate inspect commands to host-neutral application ports",
+      "description": "As an agent invoking rt through CLI or MCP, I want every inspect command to use one typed application operation so both hosts receive the same validation, semantic result, and error without CLI output capture or command-specific MCP handlers.",
       "acceptanceCriteria": [
-        "describe — native IMcpHandler wrapping the existing service; returns DescribeResult JSON directly.",
-        "find-refs — native handler returning the structured reference list.",
-        "find-callers — native handler returning the structured caller list.",
-        "find-impl — native handler returning the structured implementations list.",
-        "find-unused — native handler returning structured dead-code list.",
-        "find-undocumented — native handler returning structured undocumented-symbol list.",
-        "find-pattern — native handler returning structured pattern-match list.",
-        "source — native handler returning structured source-text payload.",
-        "Each handler is registered in McpServiceRegistration; the corresponding name is REMOVED from the EP-012 ratchet test's allow-list as that command's handler lands.",
-        "For each command, if the CLI side does not already use a Request DTO (post-US-072 commands like OutlineCommand do), introduce one in the Core service so the handler does not duplicate parsing logic.",
-        "ToolRegistry routes each migrated command to its native handler instead of falling through to CliCommandBridge.",
-        "MCP integration test (or extending tests/RoslynTools.Tests.Mcp/) confirms each migrated tool returns JSON in ToolResult.content (parseable as JSON, not just a string of JSON wrapped in quotes)."
+        "Every inspect command appears exactly once in groups R0, R1, R2, or R4 of docs/command-port-migration-groups.tsv",
+        "Each command has one host-neutral definition, typed request/result, and ICommandApplicationPort",
+        "Existing ports in R0 are reconciled to the final Result/error/schema/execution contract without rewriting proven algorithms",
+        "Legacy inspect commands are converted according to their group instructions in docs/command-application-port-migration.md",
+        "CLI commands bind and project only; they do not load workspaces or call domain services directly",
+        "The generic MCP adapter exposes every inspect port with typed schema and structured success/error",
+        "Daemon-preferred inspect commands pass daemon/in-process parity tests"
       ],
       "priority": 96,
       "passes": false,
       "epicId": "EP-012",
-      "notes": "P2. Eight commands; each one's a small commit. Sequence by dependency: describe and find-refs first (most-used by agents), then the find-* family, then source. The CLI side for most of these is already ctor-injected post-US-072 — the work is consolidating ad-hoc parameters into a Request DTO + writing the native handler."
+      "notes": "P1 EP-012 execution tracker revised by ADR-0007. Inspect membership: R0 outline/describe/find-callers/find-impl/find-refs/source; R1 find-unused/find-undocumented; R2 analyze-interface is analyze-owned; R4 find-pattern. Do not add IMcpHandler implementations."
     },
     {
       "id": "US-096",
-      "title": "Migrate analyze commands to native MCP handlers",
-      "description": "[DISPOSITION: TRACKER-ONLY] Analyze → native MCP handler — done per-command during the sweep. Close when the sweep removes all commands from US-115's Skip allow-list.\n\nAs an LLM agent running cross-cutting analysis via MCP, I want analyze commands to return structured JSON directly so I can ingest the results without the text-capture round-trip.",
+      "title": "Migrate analyze commands to host-neutral application ports",
+      "description": "As an agent running cross-cutting analysis through CLI or MCP, I want every analyze command to use one typed application operation so results remain structured and host-independent without CLI output capture.",
       "acceptanceCriteria": [
-        "circular-deps — native handler.",
-        "dependency-graph — native handler.",
-        "complexity — native handler.",
-        "solid — native handler.",
-        "list-smells — native handler.",
-        "list-imports — native handler.",
-        "analyze-interface — native handler.",
-        "find-duplicates — native handler.",
-        "find-magic-strings — native handler.",
-        "static-class-inventory — native handler.",
-        "Each removes its name from the ratchet test's allow-list.",
-        "Each handler registered in McpServiceRegistration; ToolRegistry routes accordingly.",
-        "Per-command MCP integration test confirms native-JSON shape."
+        "Every analyze command appears exactly once in groups R0, R2, R3, R4, or R5 of docs/command-port-migration-groups.tsv",
+        "Each command has one host-neutral definition, typed request/result, and ICommandApplicationPort",
+        "Existing ports in R0 are reconciled to the final Result/error/schema/execution contract",
+        "Legacy analyze commands are converted according to their explicit group instructions",
+        "Format-specific DOT/text/Markdown rendering remains in host adapters rather than application results",
+        "probe-di and debug retain explicit in-process placement; every other workspace-backed analysis is daemon-preferred",
+        "The generic MCP adapter exposes every analyze port with typed schema and structured success/error"
       ],
       "priority": 97,
       "passes": false,
       "epicId": "EP-012",
-      "notes": "P2. Ten analyze commands. Same shape as the inspect migration — many are already ctor-injected so the work is mostly DTO consolidation + handler wiring. 'debug' is intentionally excluded (it's an LLM-trace debugger meta-command, not a Roslyn analyser)."
+      "notes": "P1 EP-012 execution tracker revised by ADR-0007. Follow R0-R5 in docs/command-application-port-migration.md. Do not add IMcpHandler implementations. Shared suggested-action contracts must move out of CLI before R1/R2/R3 fan-out."
     },
     {
       "id": "US-097",
-      "title": "Decide MCP shape for mutating refactor commands",
-      "description": "As an rt maintainer, I want a documented decision about how mutating refactor commands (rename, extract-method, safe-delete, etc.) surface through MCP — today they all force --dry-run via CliCommandBridge, which means MCP users never actually apply changes; native handlers raise the question of whether MCP should permit mutations and, if so, with what approval UX.",
+      "title": "Migrate refactor commands to typed mutation application ports",
+      "description": "As an rt maintainer, I want every refactor command to use one typed mutation operation with explicit safety and execution state so CLI, MCP, and daemon behavior cannot drift or retry an indeterminate write.",
       "acceptanceCriteria": [
-        "Decision recorded in docs/pattern-core-service.md (new section: 'Mutating commands and MCP') covering options: (a) Native handlers that always run dry-run and return a diff JSON, with a separate confirm-and-apply tool; (b) Native handlers that take an apply: bool input and trust the MCP client to gate it; (c) Refuse mutating commands at the MCP layer entirely and document that mutations are CLI-only.",
-        "Decision applied to one tracer refactor command (recommend rename, since it already has a RenameSymbolHandler scaffolded in src/RoslynTools.Mcp/Handlers/) so the pattern is concrete before scaling.",
-        "If option (a) is chosen, an additional Decision section documents the diff-JSON contract (DiffPlex-style hunks vs file-text-pairs vs Solution-changes-tree).",
-        "Update the EP-012 ratchet test to either: (a) include refactor commands in the migration list (if a path is chosen); (b) exempt them with an explicit reason (carve-out commented in the allow-list)."
+        "Every refactor command appears exactly once in groups M0-M4 of docs/command-port-migration-groups.tsv",
+        "Every refactor command has a typed request, typed outcome, application port, declared safety, and daemon-preferred placement",
+        "Mutation results distinguish Reviewed, DryRun, Applied, and NoOp as applicable and list every affected path",
+        "Review performs analysis only; dry-run prepares the exact transformation without writing",
+        "Multi-file/filesystem mutations use one prepared change-set and cannot leave half-applied raw file operations",
+        "CLI binding and MCP generic safety projection preserve each command's documented public default",
+        "Unavailable-before-dispatch may recover; indeterminate-after-dispatch mutations are never retried or executed via fallback",
+        "All M0-M4 command-specific instructions and mutation parity tests pass"
       ],
       "priority": 98,
       "passes": false,
       "epicId": "EP-012",
-      "notes": "P2. Owner decision needed — the options trade UX/safety differently. Recommend (b) with the MCP client's tool-approval flow as the gate, since that matches how every other MCP server works in practice. RenameSymbolHandler already exists as dead code (zero refs) — repurposing it as the tracer turns scaffolding into shipping work."
+      "notes": "P1 EP-012 execution tracker revised by ADR-0007. M0 reconciles add-dependency/make-sealed and completes rename; M1 mechanical single-workspace; M2 discriminated multi-mode; M3 review-first; M4 high-impact filesystem. No command-specific MCP handlers."
     },
     {
       "id": "US-098",
       "title": "Drop the RoslynTools.Mcp -> RoslynTools.Cli project reference",
-      "description": "As an rt maintainer, I want the unusual exec-to-exec project dependency (Mcp references the Cli executable) removed, so each host depends only on shared library code. The bridge moves to a shared assembly; the catalog moves with it; CLI and MCP become equal-status consumers of the same lower layer.",
+      "description": "As an rt maintainer, I want CLI and MCP to reference only host-neutral application code and never each other, so each host remains a thin equal-status adapter.",
       "acceptanceCriteria": [
-        "New project src/RoslynTools.Commands/ (or RoslynTools.Hosting/) contains: the IRtCommand registry (formerly App.Commands), App.Discover, the auto-bridge / CliCommandBridge (or whatever remains after the inspect + analyze migrations), and the ICommandCatalog implementation.",
-        "RoslynTools.Mcp.csproj no longer ProjectReferences RoslynTools.Cli.csproj — it references RoslynTools.Commands and RoslynTools (Core) only.",
-        "RoslynTools.Cli.csproj also references RoslynTools.Commands instead of holding the registry itself.",
-        "MsBuildBootstrap stays in RoslynTools.Cli (it's an entry-point concern, only used by Cli's Program.Main).",
-        "Bootstrap.RegisterServices remains shared (called by both hosts) — moves to RoslynTools.Commands or stays as-is depending on what makes the boundary cleanest.",
-        "All existing tests pass; dotnet format clean; dotnet stryker scope expanded to include the new project.",
-        "The EP-012 ratchet test still passes (no regression in MCP handler coverage)."
+        "Every MCP-visible ordinary command has exactly one application definition and port before bridge deletion",
+        "CliCommandBridge, CapturingConsole, nullable-port fallback, and CLI-derived MCP schema paths are deleted",
+        "Shared application definitions, service registration, request/result contracts, and command catalog projection live in RoslynTools",
+        "CLI retains System.CommandLine discovery/builders; MCP retains protocol/schema/result projection",
+        "RoslynTools.Mcp.csproj no longer references RoslynTools.Cli.csproj and neither host references the other",
+        "RoslynTools shared code references neither host nor System.CommandLine",
+        "Project dependency, definition/port coverage, schema, daemon routing, full suite, distribution, and real MCP handshake gates pass"
       ],
       "priority": 99,
       "passes": false,
       "epicId": "EP-012",
-      "notes": "P2. Should land AFTER the inspect + analyze migrations — once enough commands have native handlers, CliCommandBridge shrinks to a tail of commands (mutations + edge cases) and the move is mechanical. Trying this before the migration means moving a fat bridge plus all 50 commands; doing it after means moving a thin bridge plus a slim catalog. Verifies the architectural goal of EP-012: hosts are peers, not master-slave."
+      "notes": "P1 serial closeout after US-095/096/097 reach full coverage. ADR-0007 rejects moving the bridge or CLI builders into a new shared Commands/Hosting project; delete the bridge and keep shared definitions host-neutral. Consolidates US-099."
     },
     {
       "id": "US-099",
-      "title": "Extract IRtCommand registry into a new RoslynTools.Commands project so MCP stops depending on the Cli host",
-      "description": "As an rt maintainer, I want the command registry, App.Discover, the ICommandCatalog implementation, and the auto-bridge (CliCommandBridge) extracted into a new project (RoslynTools.Commands or RoslynTools.Hosting) so both RoslynTools.Cli and RoslynTools.Mcp can reference it without MCP transitively depending on the Cli exe.",
+      "title": "Superseded: extract command hosting into a shared project",
+      "description": "[DISPOSITION: SUPERSEDED-BY US-098 / ADR-0007] The proposed shared Commands/Hosting project would move CLI builders and CliCommandBridge rather than remove host coupling. Full typed-port coverage makes that assembly unnecessary.",
       "acceptanceCriteria": [
         "New project src/RoslynTools.Commands/ (or RoslynTools.Hosting/) contains: the IRtCommand registry (formerly App.Commands), App.Discover, the auto-bridge / CliCommandBridge (or whatever remains after the inspect + analyze migrations), and the ICommandCatalog implementation.",
         "RoslynTools.Mcp.csproj no longer ProjectReferences RoslynTools.Cli.csproj — it references RoslynTools.Commands and RoslynTools (Core) only.",
@@ -1330,9 +1323,11 @@
         "The EP-012 ratchet test still passes (no regression in MCP handler coverage)."
       ],
       "priority": 100,
-      "passes": false,
+      "passes": true,
       "epicId": "EP-012",
-      "notes": "P2. Source: 2026-05-24 design note. Relates to EP-012 (thin-host-adapter migration) — the epic description flags the unusual RoslynTools.Mcp → RoslynTools.Cli exe-to-exe project reference. This story removes that coupling by promoting the registry / discovery / bridge to a shared library project. Naming: RoslynTools.Commands vs RoslynTools.Hosting decision happens at planning time based on which scopes cleaner."
+      "notes": "Superseded 2026-08-26 by ADR-0007 and consolidated into US-098. Preserve CLI discovery in CLI, move only host-neutral definitions/registration down, and delete CliCommandBridge after port coverage.",
+      "resolution": "Closed as superseded by US-098. No implementation landed from this obsolete project-extraction direction.",
+      "resolvedAt": "2026-08-26"
     },
     {
       "id": "US-101",
@@ -1359,7 +1354,7 @@
       "acceptanceCriteria": [
         "Every production caller of LoadWorkspaceAsync is migrated to GetSolutionAsync; the `using (workspace) { ... }` wrappers around the returned solution are removed (the factory singleton owns disposal via its own lifecycle).",
         "LoadWorkspaceAsync is removed from IWorkspaceSessionFactory and from the WorkspaceLoader implementation.",
-        "The MCP handlers (OutlineHandler, ChangeSignatureCommandHandlers) also migrate; the only remaining LoadWorkspaceAsync-shaped surface is internal helper code or test fixtures.",
+        "Every application operation, including those projected through generic MCP, migrates; the only remaining LoadWorkspaceAsync-shaped surface is internal helper code or test fixtures.",
         "Grep for `LoadWorkspaceAsync` in src/ returns zero hits.",
         "Architecture test asserts no production code references LoadWorkspaceAsync and no command wraps IWorkspaceSessionFactory results in `using`.",
         "rt dump-help smoke matrix from CLAUDE.md exits 0 across the listed commands.",
@@ -1389,62 +1384,63 @@
     },
     {
       "id": "US-104",
-      "title": "rt change-signature: native MCP handler with explicit input schema",
-      "description": "[DISPOSITION: TRACKER-ONLY] change-signature native MCP handler — done in its sweep slot. Close when the sweep removes all commands from US-115's Skip allow-list.\n\nAs an MCP caller, I want change_signature to expose a real input schema with required fields so the LLM knows what to pass. Today the auto-bridge produces an empty {\"type\":\"object\"} inputSchema, leaving the tool effectively unusable through the MCP.",
+      "title": "rt change-signature: typed application port with explicit schema",
+      "description": "[DISPOSITION: TRACKER-ONLY] M2 migration tracked by docs/command-application-port-migration.md. Close when change-signature has one host-neutral request/result/operation contract used by both CLI and generic MCP projection.\n\nAs an MCP caller, I want change_signature to expose a real input schema with required fields so the LLM knows what to pass. Today the compatibility bridge produces an empty {\"type\":\"object\"} inputSchema, leaving the tool effectively unusable through MCP.",
       "acceptanceCriteria": [
-        "src/RoslynTools.Mcp/Handlers/ChangeSignatureHandler.cs exists, implements IMcpHandler, ToolName = \"change_signature\"",
-        "Definition.inputSchema declares required fields explicitly (no empty {\"type\":\"object\"} like the current auto-bridge produces) and covers every flag the CLI exposes (e.g. symbol, new-signature, kind, solution)",
-        "HandleAsync calls the existing Core ChangeSignatureService (or equivalent) directly and returns structured JSON; if it mutates, dry-run defaults to true per US-097",
-        "Registered in src/RoslynTools.Mcp/McpServiceRegistration.AddMcpServices as services.AddSingleton<IMcpHandler, ChangeSignatureHandler>()",
-        "tests/RoslynTools.Tests.Mcp/Handlers/ChangeSignatureHandlerTests.cs parses returned JSON (no string.Contains) and asserts at least: happy path field shape, missing-required-field error path",
-        "tools/list snapshot test (US-094) refreshed to include the new schema once US-094 lands",
+        "A host-neutral discriminated ChangeSignatureRequest, typed result, and application operation cover every supported change-signature mode without referencing System.CommandLine or MCP types",
+        "The shared command definition derives inputSchema from ChangeSignatureRequest and declares every conditional requirement explicitly; no empty object schema is permitted",
+        "Both the CLI binder and generic MCP adapter call the same application port; no ChangeSignatureHandler or other command-specific MCP handler is added",
+        "The mutation result distinguishes Reviewed, DryRun, Applied, and NoOp and defaults to non-applying execution unless the caller explicitly requests apply",
+        "Tests parse structured results and cover at least: one happy path per request case, missing or conflicting fields, dry-run, apply, and handled domain failure",
+        "The command is removed from compatibility routing and the definition/port/schema/routing ratchets are updated",
         "Run the Per-Command Consistency Checklist (docs/per-command-checklist.md) for change-signature before merge",
-        "Pattern reference: commit 6d767b1 (feat(mcp): wire find_refs and rename as native MCP handlers). Canonical files: FindReferencesHandler.cs, RenameSymbolHandler.cs, OutlineHandler.cs.",
-        "dotnet build RoslynTools.slnx clean; dotnet format --verify-no-changes clean; existing tests pass; new handler tests added"
+        "Pattern references: docs/adr/0007-host-neutral-command-contracts.md and group M2 in docs/command-application-port-migration.md",
+        "dotnet build RoslynTools.slnx clean; dotnet format --verify-no-changes clean; existing tests pass; new port and adapter tests added"
       ],
       "priority": 105,
       "passes": false,
       "epicId": "EP-012",
-      "notes": "P2. EP-012 schema bug. Native handler is the preferred fix (eliminates bridge ambiguity), per the same pattern as 6d767b1."
+      "notes": "P2. EP-012 schema bug. Resolve through the shared application port and generic MCP adapter; bespoke MCP handlers are prohibited by ADR-0007."
     },
     {
       "id": "US-105",
-      "title": "rt move: declare required MCP input fields (native handler preferred)",
-      "description": "[DISPOSITION: TRACKER-ONLY] move native MCP handler — done in its sweep slot. Close when the sweep removes all commands from US-115's Skip allow-list.\n\nAs an MCP caller, I want `move` to fail at the schema layer when neither --type nor --namespace is provided, instead of dispatching into the command and erroring there. Today the MCP schema has properties but an empty required array.",
+      "title": "rt move: typed multi-mode port with conditional schema",
+      "description": "[DISPOSITION: TRACKER-ONLY] M4 migration tracked by docs/command-application-port-migration.md. Close when move has one host-neutral request/result/prepared-change contract used by both CLI and generic MCP projection.\n\nAs an MCP caller, I want `move` to fail at the schema layer when neither --type nor --namespace is provided, instead of dispatching into the operation and erroring there. Today the compatibility schema has properties but an empty required array.",
       "acceptanceCriteria": [
         "MCP `move` tool no longer reports zero required fields; the schema declares the actually-required inputs the CLI enforces (either type + to-namespace OR namespace + to-namespace) so invoking the tool with neither fails at the schema layer, not inside the command body",
-        "Preferred: src/RoslynTools.Mcp/Handlers/MoveHandler.cs exists and implements IMcpHandler with ToolName = \"move\". Acceptable alternative: fix the auto-bridge so it derives the right `required` array from the System.CommandLine option metadata (must apply to all bridged commands, not just move)",
-        "If native: HandleAsync calls the existing MoveService Core service and returns structured JSON {moved: [{from, to}], changedFiles: int, changedFilePaths: [string], applied: bool}",
-        "If native: dry-run defaults to true per US-097",
-        "tests/RoslynTools.Tests.Mcp/Handlers/MoveHandlerTests.cs (or the bridge equivalent test) covers: happy path single-type move, happy path namespace move, missing-both-type-and-namespace error, --solution auto-detect path",
-        "tools/list snapshot test (US-094) refreshed to include the new schema once US-094 lands",
+        "A host-neutral discriminated MoveRequest models type and namespace modes and is the sole source for CLI binding, MCP input schema, and operation validation",
+        "Both the CLI binder and generic MCP adapter call the same MoveOperation; no MoveHandler or other command-specific MCP handler is added",
+        "Preview produces a typed prepared change-set containing moved symbols, changed file paths, diagnostics, and filesystem effects before apply is allowed",
+        "The mutation result distinguishes Reviewed, DryRun, Applied, and NoOp; apply requires explicit caller intent",
+        "Tests cover: happy path single-type move, happy path namespace move, missing or conflicting modes, solution auto-detection, dry-run, apply, and partial-write prevention",
+        "The command is removed from compatibility routing and the definition/port/schema/routing ratchets are updated",
         "Run the Per-Command Consistency Checklist (docs/per-command-checklist.md) for move before merge",
-        "Pattern reference: commit 6d767b1 (feat(mcp): wire find_refs and rename as native MCP handlers). Canonical files: FindReferencesHandler.cs, RenameSymbolHandler.cs, OutlineHandler.cs.",
-        "dotnet build RoslynTools.slnx clean; dotnet format --verify-no-changes clean; existing tests pass; new handler tests added"
+        "Pattern references: docs/adr/0007-host-neutral-command-contracts.md and group M4 in docs/command-application-port-migration.md",
+        "dotnet build RoslynTools.slnx clean; dotnet format --verify-no-changes clean; existing tests pass; new port and adapter tests added"
       ],
       "priority": 106,
       "passes": false,
       "epicId": "EP-012",
-      "notes": "P2. EP-012 schema bug. Native handler preferred; bridge fix is acceptable only if it generalises to all auto-bridged commands. dry-run defaults to true per US-097."
+      "notes": "P2. EP-012 schema bug. Resolve through the shared application port and generic MCP adapter; bespoke MCP handlers are prohibited by ADR-0007."
     },
     {
       "id": "US-106",
-      "title": "Align native MCP suggest naming with CLI rt suggest",
-      "description": "[DISPOSITION: TRACKER-ONLY] suggest naming alignment — done in its sweep slot. Close when the sweep removes all commands from US-115's Skip allow-list.\n\nAs an MCP caller, I expect `mcp__rt-mcp__suggest` to mirror `rt suggest` from the CLI. Today the native handler is registered as `suggest_command` because the CLI meta-command `rt suggest` is filtered out of the auto-bridge — the two name systems diverged and force users to learn both vocabularies.",
+      "title": "Align shared suggest identity across CLI and MCP",
+      "description": "[DISPOSITION: TRACKER-ONLY] suggest naming alignment under ADR-0007. Close when one host-neutral command definition projects the same canonical identity into both CLI and MCP.\n\nAs an MCP caller, I expect `suggest` to mirror `rt suggest`. Today a command-specific MCP path uses `suggest_command`, so the two host vocabularies diverge.",
       "acceptanceCriteria": [
-        "Native MCP tool is reachable under the same name as the CLI command: `mcp__rt-mcp__suggest` exists in tools/list and returns the SuggestService response",
-        "SuggestHandler.ToolName changed from \"suggest_command\" to \"suggest\" (preferred), OR both names route to the same handler and one is marked deprecated in the description",
-        "Existing tests under tests/RoslynTools.Tests.Mcp/Handlers/SuggestHandler*.cs reference the new ToolName and continue to pass",
-        "tools/list snapshot test (US-094) refreshed to reflect the new tool name once US-094 lands",
-        "docs/pattern-core-service.md or docs/per-command-checklist.md notes the convention: native MCP ToolName mirrors the CLI command name (hyphens → underscores) so callers don't have to learn a second vocabulary",
+        "The shared suggest definition owns the canonical name `suggest`; CLI projects it unchanged and MCP applies only the standard hyphen-to-underscore normalization",
+        "The generic MCP descriptor adapter exposes `suggest` and invokes the same SuggestOperation as the CLI; no SuggestHandler remains",
+        "If `suggest_command` is retained temporarily, it is an explicit deprecated alias in the shared definition and routes to the same operation",
+        "Descriptor and tools/list tests prove CLI and MCP names come from the same definition",
+        "docs/pattern-core-service.md and docs/per-command-checklist.md state that MCP names mirror canonical command names with hyphens converted to underscores",
         "Manual handshake check: piping initialize + tools/list to the rebuilt RoslynTools.Mcp.exe shows a `suggest` entry with the SuggestRequest schema (query required, top optional)",
-        "Pattern reference: commit 6d767b1 (feat(mcp): wire find_refs and rename as native MCP handlers). Canonical files: FindReferencesHandler.cs, RenameSymbolHandler.cs, OutlineHandler.cs.",
+        "Pattern reference: docs/adr/0007-host-neutral-command-contracts.md",
         "dotnet build RoslynTools.slnx clean; dotnet format --verify-no-changes clean"
       ],
       "priority": 107,
       "passes": false,
       "epicId": "EP-012",
-      "notes": "P3. EP-012 naming consistency. Preferred resolution: rename native ToolName to 'suggest'. Acceptable: dual-name with a deprecation note. Sequencing: best landed alongside US-087 (rt suggest BM25 command) so the CLI and MCP names settle together."
+      "notes": "P3. EP-012 naming consistency. Resolve identity in the shared definition, not independently in either host."
     },
     {
       "id": "US-108",
@@ -1474,41 +1470,41 @@
       "acceptanceCriteria": [
         "Every command — including refactor/mutating commands — supports a consistent --format flag with values json, yaml, text (and any other formats the renderer already supports such as markdown). The flag lives at the global level, not per-command.",
         "Mutating commands (IRefactorCommand / IMutatingCommand) now expose a structured result type implementing IRtOutput, so their output flows through the same RtResultRenderer that inspect/analyze commands use",
-        "Examples of mutating-command JSON output that now exists: rt refactor rename in JSON mode returns { symbol, newName, changedFiles, changedFilePaths[], applied, dryRun } — the same shape the native MCP RenameHandler returns today (see commit 6d767b1)",
+        "Examples of mutating-command JSON output that now exists: rt refactor rename in JSON mode returns { symbol, newName, changedFiles, changedFilePaths[], status } — the same typed application-port result projected by generic MCP",
         "IStructuredOutputCommand is no longer restricted to JSON-output read commands. Every IRtCommand whose result has a meaningful structured shape implements it. The biconditional with Info.JsonOutput from US-100 either becomes a biconditional with the interface alone, or is deleted once Info.JsonOutput is removed",
         "Default format per category stays as today: inspect/analyze defaults to json (read-only commands are JSON-by-default); refactor defaults to text (mutating commands print diffs / 'wrote N files'); --format json overrides per the user's request",
         "MCP host always serves the JSON form regardless of CLI --format (MCP is a structured protocol); the CLI --format flag is purely a terminal-rendering choice",
         "Architecture test asserts: every command produces output via RtResultRenderer (no direct Console.WriteLine for results — diagnostics to stderr is fine); every IStructuredOutputCommand has a non-null result type",
         "docs/per-command-checklist.md universal-checklist row 'Diagnostics → stderr; results → stdout' tightens to 'Results flow through RtResultRenderer'",
-        "Depends on US-100 (renderer consolidation), US-107 (interfaces). Composes with US-097 (mutating-MCP shape) — mutating commands' JSON shape becomes the native MCP handler's response shape",
+        "Depends on US-100 (renderer consolidation), US-107 (interfaces). Composes with US-097: the shared typed mutation shape is rendered by CLI and projected by generic MCP",
         "dotnet build RoslynTools.slnx clean; dotnet format --verify-no-changes clean; existing tests pass; mutating commands now have JSON-mode tests"
       ],
       "priority": 110,
       "passes": false,
       "epicId": "EP-009",
-      "notes": "P2. EP-009 extension of US-100. Composes with US-097 (mutating-MCP shape) and EP-012: the mutating-command JSON shape becomes the native MCP handler response shape. Depends on US-100 (renderer consolidation) and US-107 (interfaces)."
+    "notes": "P2. EP-009 extension of US-100. Composes with US-097 and EP-012: the typed mutation result is rendered by CLI and projected by generic MCP. Depends on US-100 (renderer consolidation) and US-107 (interfaces)."
     },
     {
       "id": "US-110",
       "title": "Modernise MCP result shape: structuredContent, outputSchema, typed content array",
-      "description": "As an MCP client (LLM agent), I want native handler responses to follow current MCP best practices — typed content[] array, structuredContent for typed responses, outputSchema declared in tools/list — so I can validate response shape, avoid double-JSON-parsing, and rely on the protocol's typed result contract. Today ToolResult flattens the entire JSON response into a single content string.",
+      "description": "As an MCP client (LLM agent), I want generic application-port responses to follow current MCP best practices — typed content[] array, structuredContent for typed responses, and outputSchema declared in tools/list — so I can validate response shape, avoid double-JSON-parsing, and rely on the protocol's typed result contract. Today ToolResult flattens the entire JSON response into a single content string.",
       "acceptanceCriteria": [
         "Audit the current MCP wire format produced by Server.HandleCallToolAsync against the MCP CallToolResult schema. Document any divergence (e.g. content returned as a single string vs. as a content[] array of typed items).",
         "Server returns CallToolResult with a typed content array: {content: [{type: \"text\", text: \"...\"}], isError: bool}. Today our ToolResult(bool isError, string content) flattens the structured result into a single text item — if that is already happening server-side, document it; if not, fix it",
         "Evaluate upgrading the MCP protocolVersion declared in HandleInitialize (currently \"2024-11-05\") to a revision that supports structuredContent and outputSchema (e.g. \"2025-06-18\" or later). Decision recorded in docs/pattern-core-service.md.",
-        "If upgrading: tools/list entries declare outputSchema alongside inputSchema for every native IMcpHandler. The outputSchema describes the response shape so callers can validate and type-check.",
-        "If upgrading: tools/call responses include structuredContent (the typed object) alongside a text fallback in content[] for legacy clients. The native handler stops serialising to JSON-string and instead returns the typed object directly through a new ToolResult shape (e.g. ToolResult.Structured(object) / ToolResult.Error(string)).",
+        "If upgrading: tools/list entries declare outputSchema alongside inputSchema for every shared command definition. The outputSchema describes the typed result so callers can validate and type-check.",
+        "If upgrading: tools/call responses include structuredContent (the typed object) alongside a text fallback in content[] for legacy clients. The generic MCP adapter stops serialising only to a JSON string and instead returns the typed port result through a protocol-level ToolResult shape.",
         "If NOT upgrading (decision documented): at minimum verify the existing 2024-11-05 wire format is correct — content[] array of typed items, isError flag, error responses use isError=true not JSON-RPC error.",
-        "Every native handler (Outline, Suggest, FindRefs, Rename, plus the EP-012 backlog) emits the modernised result shape. Tests under tests/RoslynTools.Tests.Mcp/ assert the wire format against the schema.",
+        "Every generic application-port projection emits the modernised result shape. Tests under tests/RoslynTools.Tests.Mcp/ assert wire output against the shared result schema.",
         "MCP best-practice checklist added as a section of docs/pattern-core-service.md or docs/per-command-checklist.md: ToolName naming convention, required-field declaration, structuredContent + outputSchema usage, error vs success conventions, content[] vs structuredContent guidance, when to set isError=true",
-        "Pattern reference: commit 6d767b1 (feat(mcp): wire find_refs and rename as native MCP handlers). The new ToolResult shape and any protocol-version uplift propagates to those handlers and to OutlineHandler / SuggestHandler.",
-        "Composes with US-094 (the MCP-handler ratchet test should also assert outputSchema is declared for every native handler if the protocol-version uplift lands)",
+        "Pattern references: docs/adr/0007-host-neutral-command-contracts.md and docs/pattern-core-service.md. The new ToolResult shape is implemented once in the generic MCP adapter.",
+        "Composes with US-143: the definition/port ratchet also asserts outputSchema is declared for every projected command if the protocol-version uplift lands",
         "dotnet build RoslynTools.slnx clean; dotnet format --verify-no-changes clean; existing MCP tests pass with the new wire format; manual handshake against the rebuilt RoslynTools.Mcp.exe shows the upgraded schema"
       ],
       "priority": 111,
       "passes": false,
       "epicId": "EP-012",
-      "notes": "P2. EP-012 protocol modernisation. Audit current wire format first, then decide whether to upgrade protocolVersion from 2024-11-05 to a revision that supports structuredContent/outputSchema (2025-06-18 or later). Pattern reference: commit 6d767b1."
+      "notes": "P2. EP-012 protocol modernisation. Audit current wire format first, then decide whether to upgrade protocolVersion. Implement the result projection once in the generic adapter, never per command."
     },
     {
       "id": "US-111",
@@ -1550,7 +1546,7 @@
       "title": "rt analyze conventions: embedding-assisted C# pattern and deviation discovery",
       "description": "[DISPOSITION: DEFERRED] rt analyze conventions / EP-014 exploratory — defer; research-flagged.\n\nAs an agent exploring an unfamiliar C# solution, I want `rt analyze conventions` to discover repeated implementation families and highlight likely deviations from local convention, so I can find one-off drift without manually reading every command, handler, service, or result model.",
       "acceptanceCriteria": [
-        "New read-only command `rt analyze conventions --solution <sln>` exists, implements IAnalyzeCommand, and follows the Core service + thin host adapters pattern: ConventionAnalysisService in src/RoslynTools/Services/, thin CLI adapter, and native MCP handler returning structured JSON.",
+        "New read-only command `rt analyze conventions --solution <sln>` exists, implements IAnalyzeCommand, and follows the host-neutral application-port pattern: ConventionAnalysisService in src/RoslynTools/Services/, shared request/result/definition, thin CLI binder, and generic MCP projection returning structured JSON.",
         "The service builds a Roslyn-derived code fact index for C# type and method declarations: symbol FQN, DocumentationCommentId, kind, namespace, containing type, base type, implemented interfaces, attributes, accessibility, modifiers, constructor dependency types, member signatures, XML doc summary/remarks/param/returns text when present, file path, line span, and a deterministic content hash.",
         "Public method entries use the checked-in XML documentation as canonical semantic text; the index embeds XML docs plus signature/metadata, and never overwrites human-authored public docs with generated summaries.",
         "Generated summaries are permitted only for undocumented non-public methods or aggregate type/family summaries, and every generated summary is marked as generated/disposable in the stored index record.",
@@ -1579,7 +1575,7 @@
       "priority": 114,
       "passes": false,
       "epicId": "EP-014",
-      "notes": "P2 exploratory C# feature. Seeded by 2026-05-25 discussion: use Tome-style local embeddings for codebase exploration, especially pattern/deviation discovery, but keep Roslyn as the authority. Related prior art: tasks/prd-find-duplicates.md US-206 semantic duplicate discovery; EP-011 rt suggest natural-language discovery; EP-012 native MCP handler pattern. This story is intentionally read-only and advisory."
+      "notes": "P2 exploratory C# feature. Seeded by 2026-05-25 discussion: use Tome-style local embeddings for codebase exploration, especially pattern/deviation discovery, but keep Roslyn as the authority. Related prior art: tasks/prd-find-duplicates.md US-206 semantic duplicate discovery; EP-011 rt suggest natural-language discovery; EP-012 host-neutral application-port pattern. This story is intentionally read-only and advisory."
     },
     {
       "id": "US-115",
@@ -1781,7 +1777,7 @@
       "acceptanceCriteria": [
         "rt inspect outline JSON output is wrapped in an envelope with a top-level _suggestions array",
         "The envelope preserves the existing members array as a property (no schema break for consumers expecting the array)",
-        "CLI --json and MCP handler both return the envelope shape",
+        "CLI --json and generic MCP projection both return the same typed envelope shape",
         "SuggestionHelper gains a ForOutline(string filePath, string? solutionPath) overload",
         "Outline _suggestions include: rt inspect describe for the first 2 public types, rt inspect find-refs for the file path, rt inspect find-unused",
         "Existing outline text (non-JSON) output is unchanged",
@@ -1789,7 +1785,7 @@
       ],
       "priority": 136,
       "passes": false,
-      "notes": "P2. Deferred from US-135 Beads-lessons batch. Outline currently returns a List<object> JSON array — adding _suggestions requires wrapping in an envelope (breaking schema change for any consumer expecting a bare array). Needs: a new OutlineEnvelope record, updated CLI DescribeCommand JSON path, updated MCP OutlineHandler, SuggestionHelper.ForOutline overload. Consumers must be updated."
+    "notes": "P2. Deferred from US-135 Beads-lessons batch. Outline currently returns a List<object> JSON array. Implement OutlineEnvelope in the shared result contract, update the CLI renderer and generic MCP adapter tests, and update consumers."
     },
     {
       "id": "US-137",
@@ -1799,14 +1795,14 @@
         "All rt inspect commands (find-callers, find-impl, find-unused, find-pattern) append _suggestions to their JSON output",
         "All rt analyze commands (circular-deps, dependency-graph, analyze-interface, find-duplicates, find-magic-strings, list-imports, list-smells) append _suggestions to their JSON output",
         "SuggestionHelper has a For<Command> overload for each migrated command with pre-filled symbol/file arguments from the result",
-        "MCP handlers for each migrated command enrich their ToolResult with _suggestions",
-        "CLI handlers for each migrated command enrich their JSON output with _suggestions",
+        "Each shared typed result carries _suggestions once; the generic MCP adapter projects it without command-specific enrichment",
+        "CLI renderers project the same typed result into JSON without recomputing suggestions",
         "Each command test asserts _suggestions is non-null and non-empty in JSON output",
         "Commands not yet migrated (mutation group) are tracked in a separate story"
       ],
       "priority": 137,
       "passes": false,
-      "notes": "P2. Deferred from US-135 Beads-lessons batch. Only describe (CLI+MCP) and find-refs (MCP) received _suggestions. Remaining commands: find-callers, find-impl, find-unused, find-pattern (inspect group); circular-deps, dependency-graph, analyze-interface, find-duplicates, find-magic-strings, list-imports, list-smells (analyze group). Each needs: SuggestionHelper.For<Command> overload + CLI adapter + MCP handler enrichment + tests."
+      "notes": "P2. Deferred from US-135 Beads-lessons batch. Add suggestions in shared typed operation results, then prove CLI and generic MCP parity. Do not add per-host enrichment or command-specific MCP handlers."
     },
     {
       "id": "US-138",
@@ -1869,6 +1865,60 @@
       "priority": 141,
       "passes": false,
       "notes": "P2. Both files are in stryker-config.json mutate globs and currently score ~60% and ~28%; the pre-commit gate runs --break-at 95 for in-scope files, so the next person to touch either is blocked. Leaving them OUT of the globs is not the escape: the same gate fails staged production files that no glob covers. The score is low for one reason — the uncovered mutants all sit behind 'needs a real assembly on disk'. ClassifyAsync was already split out and driven directly (see tests/RoslynTools.Tests/Analysis/ProbeDiClassification.cs), which took ProbeDiService from 30% to ~60% with no assembly at all; what remains genuinely needs one built."
+    },
+    {
+      "id": "US-142",
+      "epicId": "EP-015",
+      "title": "MCP lazily starts the daemon and releases it after an idle window",
+      "description": "As an agent using rt through MCP, I want daemon-owned tools to start the daemon on demand and release it after inactivity, so I benefit from a warm local execution host without leaving an unused background process resident indefinitely.",
+      "acceptanceCriteria": [
+        "The first daemon-owned MCP tool call starts the sibling rt daemon when typed RPC is unavailable and retries the request once",
+        "An MCP-started daemon remains resident for ten minutes after the latest completed request by default, then exits and removes its state file",
+        "The MCP daemon idle period can be overridden with RT_DAEMON_IDLE_TIMEOUT_SECONDS",
+        "A daemon started explicitly with rt daemon start remains resident until stopped",
+        "If daemon startup or the retry fails, MCP preserves the typed in-process fallback",
+        "Daemon stdout and stderr never enter the MCP stdio protocol"
+      ],
+      "priority": 142,
+      "passes": true,
+      "notes": "P1 operational hardening discovered during typed daemon RPC review. Kept separate from US-116 because workspace caching, force-stop, build-interference, and richer readiness diagnostics remain open there. ADR-0006 records the lifecycle decision.",
+      "resolution": "Shipped typed RPC recovery and result/error fixes in 85a6413, then lazy sibling-rt startup, one retry, configurable ten-minute idle expiry, manual-start persistence, detached daemon output, DI activation coverage, and end-to-end MCP verification in 6707c8d. Full local gate passed with 1,624 core/CLI tests and 58 MCP tests; mutation confirmation reported 6 killed, 0 survived, and 1 detected timeout.",
+      "resolvedAt": "2026-08-26"
+    },
+    {
+      "id": "US-143",
+      "epicId": "EP-012",
+      "title": "Land the host-neutral command foundation before application-port fan-out",
+      "description": "As an rt maintainer coordinating parallel command migrations, I want command definitions, schemas, execution placement, daemon recovery, mutation envelopes, and coverage ratchets finalized centrally so conversion groups can work independently without inventing contracts or colliding in shared registries.",
+      "acceptanceCriteria": [
+        "A host-neutral application definition owns identity, RtCommandInfo, request/result types, visibility, safety, execution placement, and suggested tools without System.CommandLine or MCP types",
+        "Application ports return typed Result success/error, expose request and response types, and are discovered automatically without a manual daemon command list",
+        "MCP request schemas derive entirely from request contracts and host-neutral property metadata rather than instantiated CLI commands",
+        "CLI and MCP share daemon startup/recovery and distinguish unavailable-before-dispatch from indeterminate-after-dispatch so mutations are never retried unsafely",
+        "The mutation envelope distinguishes Reviewed, DryRun, Applied, and NoOp and a prepared change-set models multi-file/filesystem writes",
+        "SuggestedFix/FixCatalog and other shared result contracts required by multiple fan-out groups move out of CLI",
+        "Architecture tests validate the 55-row manifest, unique definition/port coverage, schema parity, safety/execution validity, and absence of host types in shared contracts",
+        "One read-only and one mutation tracer pass CLI, MCP, daemon/in-process parity, coverage, and mutation tests against the final pattern"
+      ],
+      "priority": 95,
+      "passes": false,
+      "notes": "P0 serial prerequisite for US-095/096/097. Canonical design: ADR-0007, docs/command-application-port-migration.md, docs/command-port-migration-groups.tsv, and ralph/sessions/2026-08-26-command-port-migration-patterns.md. Integration owner exclusively owns these shared seams."
+    },
+    {
+      "id": "US-144",
+      "epicId": "EP-015",
+      "title": "Keep an explicitly started daemon resident on Linux",
+      "description": "As an rt user, I want `rt daemon start` to detach a resident daemon on Linux so later typed commands can reuse it until I explicitly stop it.",
+      "acceptanceCriteria": [
+        "On Linux, `rt daemon start` returns after readiness while the daemon process remains alive after the launcher exits",
+        "A subsequent daemon-preferred typed command connects successfully instead of reporting the daemon unavailable",
+        "`rt daemon stop` terminates the daemon and removes its state file",
+        "Detached daemon stdout and stderr cannot enter CLI or MCP result streams",
+        "A process-level regression test covers start, launcher exit, typed invocation, and stop"
+      ],
+      "priority": 96,
+      "passes": false,
+      "notes": "P1. Reproduced during the 2026-08-26 command-port design session with the Release apphost. Tracked in docs/issues/open/architecture/rt-014-manual-daemon-start-exits-on-linux.md. This blocks live CLI daemon parity checks but not the contract-design work."
     }
   ]
 }

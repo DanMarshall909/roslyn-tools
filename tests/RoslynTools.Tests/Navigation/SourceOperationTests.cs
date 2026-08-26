@@ -23,7 +23,7 @@ public sealed class SourceOperationTests
         using (workspace)
         {
             var factory = new CapturingSessionFactory(solution);
-            var operation = new SourceOperation(factory, new InspectService());
+            var operation = new SourceOperation(factory, new InspectService(), new SymbolResolutionService());
 
             var result = await operation.ExecuteAsync(new SourceRequest(
                 "App.Calculator.Add", "requested.slnx", "method"));
@@ -31,11 +31,39 @@ public sealed class SourceOperationTests
             operation.CommandName.ShouldBe("source");
             factory.RequestedSolution.ShouldBe("requested.slnx");
             var entry = result.ShouldHaveSingleItem();
-            entry["fqn"].ShouldBe("App.Calculator.Add(int, int)");
-            entry["source"].ShouldBe("""
+            entry.FullyQualifiedName.ShouldBe("App.Calculator.Add(int, int)");
+            entry.Text.ShouldBe("""
                 /// <summary>Adds two values.</summary>
                 public int Add(int left, int right) => left + right;
                 """);
+        }
+    }
+
+    [Fact]
+    public void constructor_requires_symbol_resolution_service()
+    {
+        Should.Throw<ArgumentNullException>(() =>
+            new SourceOperation(
+                new CapturingSessionFactory(null!),
+                new InspectService(),
+                null!));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_honors_cancellation_before_loading_solution()
+    {
+        using var project = new AdhocProjectBuilder("SourceApp");
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            var factory = new CapturingSessionFactory(solution);
+            var operation = new SourceOperation(factory, new InspectService(), new SymbolResolutionService());
+
+            await Should.ThrowAsync<OperationCanceledException>(() => operation.ExecuteAsync(
+                new SourceRequest("App.Missing", "requested.slnx"),
+                new CancellationToken(canceled: true)));
+
+            factory.RequestedSolution.ShouldBeNull();
         }
     }
 

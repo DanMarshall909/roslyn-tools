@@ -94,11 +94,39 @@ internal class AddDependencyService : IRtService
         Solution solution,
         string typeName,
         string depType,
-        string? fieldName)
+        string? fieldName,
+        CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(typeName))
+            return new DependencyInjectionResult(
+                solution,
+                false,
+                null,
+                AddDependencyOutcome.TargetNotFound,
+                "Target type cannot be empty.",
+                []);
+
+        if (string.IsNullOrWhiteSpace(depType))
+            return new DependencyInjectionResult(
+                solution,
+                false,
+                null,
+                AddDependencyOutcome.Unsupported,
+                "Dependency type cannot be empty.",
+                []);
+
+        if (fieldName is not null && string.IsNullOrWhiteSpace(fieldName))
+            return new DependencyInjectionResult(
+                solution,
+                false,
+                null,
+                AddDependencyOutcome.Unsupported,
+                "Field name cannot be empty when supplied.",
+                []);
+
         var resolvedField = fieldName ?? DeriveFieldName(depType);
         var paramName = resolvedField.TrimStart('_');
-        var targets = await FindTargetClassesAsync(solution, typeName);
+        var targets = await FindTargetClassesAsync(solution, typeName, cancellationToken);
 
         if (targets.Count == 0)
             return new DependencyInjectionResult(solution, false, null, AddDependencyOutcome.TargetNotFound,
@@ -182,7 +210,10 @@ internal class AddDependencyService : IRtService
         return matches[0];
     }
 
-    private async Task<List<ResolvedTarget>> FindTargetClassesAsync(Solution solution, string typeName)
+    private async Task<List<ResolvedTarget>> FindTargetClassesAsync(
+        Solution solution,
+        string typeName,
+        CancellationToken cancellationToken = default)
     {
         var normalizedTypeName = NormalizeTypeName(typeName);
         var isQualifiedName = normalizedTypeName.Contains('.', StringComparison.Ordinal);
@@ -191,17 +222,19 @@ internal class AddDependencyService : IRtService
         foreach (var project in solution.Projects)
             foreach (var document in project.Documents)
             {
-                var root = await document.GetSyntaxRootAsync();
+                cancellationToken.ThrowIfCancellationRequested();
+                var root = await document.GetSyntaxRootAsync(cancellationToken);
                 if (root is null)
                     continue;
 
-                var semanticModel = await document.GetSemanticModelAsync();
+                var semanticModel = await document.GetSemanticModelAsync(cancellationToken);
                 if (semanticModel is null)
                     continue;
 
                 foreach (var declaration in root.DescendantNodes().OfType<ClassDeclarationSyntax>())
                 {
-                    if (semanticModel.GetDeclaredSymbol(declaration) is not INamedTypeSymbol symbol)
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (semanticModel.GetDeclaredSymbol(declaration, cancellationToken) is not INamedTypeSymbol symbol)
                         continue;
 
                     if (!IsTypeMatch(symbol, normalizedTypeName, isQualifiedName))

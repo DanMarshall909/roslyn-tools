@@ -30,11 +30,11 @@ public class InspectSource
             var result = await new InspectService().GetSourceAsync(sym);
 
             var entry = Assert.Single(result);
-            ((string)entry["fqn"]!).ShouldBe("TestApp.Calc.Add(int, int)");
-            entry["file"].ShouldNotBeNull();
-            entry["lineFrom"].ShouldNotBeNull();
-            entry["lineTo"].ShouldNotBeNull();
-            ((string)entry["source"]!).ShouldContain("a + b", Case.Sensitive);
+            entry.FullyQualifiedName.ShouldBe("TestApp.Calc.Add(int, int)");
+            entry.FilePath.ShouldNotBeNull();
+            entry.LineFrom.ShouldBeGreaterThan(0);
+            entry.LineTo.ShouldBeGreaterThan(0);
+            entry.Text.ShouldContain("a + b", Case.Sensitive);
         }
     }
 
@@ -58,7 +58,7 @@ public class InspectSource
             var result = await new InspectService().GetSourceAsync(sym);
 
             var entry = Assert.Single(result);
-            ((string)entry["source"]!).ShouldContain("Returns a greeting", Case.Sensitive);
+            entry.Text.ShouldContain("Returns a greeting", Case.Sensitive);
         }
     }
 
@@ -85,8 +85,8 @@ public class InspectSource
             var result = await new InspectService().GetSourceAsync(sym);
 
             var entry = Assert.Single(result);
-            var lineFrom = (int)entry["lineFrom"]!;
-            var lineTo = (int)entry["lineTo"]!;
+            var lineFrom = entry.LineFrom;
+            var lineTo = entry.LineTo;
             Assert.True(lineFrom >= 1, "lineFrom must be 1-based");
             Assert.True(lineTo > lineFrom, "multi-line method must have lineTo > lineFrom");
         }

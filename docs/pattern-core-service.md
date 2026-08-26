@@ -13,30 +13,28 @@ Both patterns mean the second host is a second-class citizen, and changes to eit
 
 The pattern below makes hosts equal-status consumers of a single canonical surface — the **Core service** — and keeps the asymmetries (rendering, CLI flag ergonomics, MCP JSON schemas) inside thin host-specific adapters.
 
-## The five layers
+## The four layers
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│ Host (CLI)                          │ Host (MCP)                │
-│ ┌─────────────────┐                 │ ┌─────────────────┐       │
-│ │  FooCommand     │                 │ │  FooHandler     │       │
-│ │  - parses CLI   │                 │ │  - parses JSON  │       │
-│ │  - renders text │                 │ │  - returns JSON │       │
-│ └────────┬────────┘                 │ └────────┬────────┘       │
-│          │                           │          │                │
-│          ├──────── DI resolves ──────┴──────────┤                │
-│          ▼                                      ▼                │
-│ ┌──────────────────────────────────────────────────────┐         │
-│ │  FooService : IRtService            (Core)            │         │
-│ │  Invoke(FooRequest) → FooResponse                    │         │
-│ │  • No System.CommandLine                              │         │
-│ │  • No Console                                         │         │
-│ │  • No IO except via injected dependencies            │         │
-│ └──────────────────────────────────────────────────────┘         │
+┌─ Host adapters ─────────────────────────────────────────────────┐
+│ CLI: FooCommand parses/renders │ MCP: generic adapter maps JSON │
+└──────────────────────────────┬──────────────────────────────────┘
+                               ▼
+┌─ Application contract ──────────────────────────────────────────┐
+│ FooDefinition + FooRequest + FooResult + FooOperation           │
+│ safety, execution placement, typed success/error                │
+└──────────────────────────────┬──────────────────────────────────┘
+                               ▼
+┌─ Services ──────────────────────────────────────────────────────┐
+│ focused domain algorithms; no host parsing or rendering         │
+└──────────────────────────────┬──────────────────────────────────┘
+                               ▼
+┌─ Core ──────────────────────────────────────────────────────────┐
+│ Roslyn, workspace, symbol, change-writer, Result/RtError        │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Layer 1 — Pure service in Core
+### Layer 1 — Pure domain service
 
 ```
 src/<Project>/Services/Foo/
@@ -50,7 +48,7 @@ src/<Project>/Services/Foo/
 - **Response DTO** carries the *superset* of fields any host might want. Hosts pick what to surface.
 - **Marker interface** (e.g. `IRtService` in roslyn-tools) for DI scanning.
 
-### Layer 2 — DI registration
+### Layer 2 — Host-neutral application operation and DI
 
 ```csharp
 // In Bootstrap.RegisterServices(IServiceCollection):
@@ -61,9 +59,11 @@ services.Scan(scan => scan
     .WithTransientLifetime());
 ```
 
-Both hosts call the same `Bootstrap.RegisterServices(sc)` from their respective `Program.cs`. The service is registered once, available to both.
+Both hosts register the same application operations and services. The service is registered once, available to both.
 
-Anything host-specific (e.g. an `ICommandCatalog` whose source is `App.Commands` in the CLI but might be a different source elsewhere) is registered by each host individually.
+Every ordinary command has a typed `ICommandApplicationPort`. The operation owns
+validation, workspace lifetime, cancellation, and orchestration, then returns
+`Result<TResponse, RtError>`. Anything host-specific is registered by that host.
 
 ### Layer 3 — CLI host adapter
 
@@ -71,8 +71,8 @@ Anything host-specific (e.g. an `ICommandCatalog` whose source is `App.Commands`
 // src/<Project>.Cli/Commands/FooCommand.cs
 internal sealed class FooCommand : IRtCommand
 {
-    private readonly FooService _foo;
-    public FooCommand(FooService foo) => _foo = foo;
+    private readonly CommandExecutionRouter _router;
+    public FooCommand(CommandExecutionRouter router) => _router = router;
 
     public static RtCommandInfo Info { get; } = new("foo", ...);
 
@@ -81,59 +81,37 @@ internal sealed class FooCommand : IRtCommand
         var arg1 = new Argument<string>("arg1", "...");
         var opt1 = new Option<bool>("--opt1", "...");
         var cmd = new Command("foo", "...") { arg1, opt1 };
-        cmd.SetHandler(ctx =>
+        cmd.SetHandler(async ctx =>
         {
-            var request = new FooRequest(
-                Arg1: ctx.ParseResult.GetValueForArgument(arg1),
-                Opt1: ctx.ParseResult.GetValueForOption(opt1));
-            var response = _foo.Invoke(request);
-            Render(response);
+            var request = BindFooRequest(ctx.ParseResult);
+            await _router.ExecuteAsync(FooDefinition.Name, request, ctx);
         });
         return cmd;
     }
 }
 ```
 
-CLI does **only**: arg parsing, calling the service, rendering output. No logic.
+CLI does **only**: argument binding, calling the shared execution router, and terminal
+projection. No domain logic or workspace ownership.
 
-### Layer 4 — MCP host adapter
+### Layer 4 — Generic MCP host adapter
 
-```csharp
-// src/<Project>.Mcp/Handlers/FooHandler.cs
-internal sealed class FooHandler : IMcpHandler
-{
-    private readonly FooService _foo;
-    public FooHandler(FooService foo) => _foo = foo;
+There is no `FooHandler`. The generic MCP adapter resolves `FooDefinition`, builds a
+schema from `FooRequest`, deserializes JSON, applies the shared safety policy, invokes
+the same port through its execution placement, and maps structured success/error into
+`ToolResult`.
 
-    public string ToolName => "foo";
-    public ToolDefinition Definition => new(ToolName, "...", schema);
-
-    public Task<ToolResult> HandleAsync(JsonElement args, CancellationToken ct)
-    {
-        var request = new FooRequest(
-            Arg1: args.GetProperty("arg1").GetString()!,
-            Opt1: args.TryGetProperty("opt1", out var o) && o.GetBoolean());
-        var response = _foo.Invoke(request);
-        return Task.FromResult(new ToolResult(false, JsonSerializer.Serialize(response)));
-    }
-}
-```
-
-MCP does **only**: JSON arg parsing, calling the service, returning structured JSON.
-
-### Layer 5 — Tool registry routing
+### Routing
 
 ```csharp
 // src/<Project>.Mcp/Tools/ToolRegistry.cs
-public Task<ToolResult> InvokeAsync(string toolName, JsonElement args, CancellationToken ct)
-{
-    if (_handlers.TryGetValue(toolName, out var handler))
-        return handler.HandleAsync(args, ct);
-    return _bridge.InvokeAsync(toolName, args, ct);   // fallback to auto-bridge
-}
+public Task<ToolResult> InvokeAsync(string toolName, JsonElement args, CancellationToken ct) =>
+    _adapter.InvokeAsync(toolName, args, ct);
 ```
 
-Handlers register via DI; the registry resolves them by tool name. Commands without an explicit handler keep using whatever bridge exists (in roslyn-tools, a text-capture path through the CLI). The pattern is **additive**: new commands get the full Core-service treatment, existing commands migrate one at a time.
+Definitions and ports register through DI; the registry resolves them by normalized
+tool name. `CliCommandBridge` exists only while the migration is partial and is deleted
+at full coverage. Never add a bespoke MCP handler for an ordinary command.
 
 ## Tests, by layer
 
@@ -141,7 +119,7 @@ Handlers register via DI; the registry resolves them by tool name. Commands with
 | ------------ | --------------------------------------------------- | ---------- |
 | Service      | All logic. Edge cases. Property-based if relevant.  | Bulk       |
 | CLI command  | Arg parsing maps to Request correctly. Output shape.| Thin       |
-| MCP handler  | JSON args map to Request correctly. JSON return shape. | Thin    |
+| MCP adapter  | Request schema, generic binding, structured result/error. | Shared |
 | Integration  | End-to-end: real CLI invocation, real MCP invocation. | Smoke   |
 
 Service tests dominate. Host tests assert wiring only — if the service is right and the wiring is right, the host's job is done.
@@ -151,7 +129,7 @@ Service tests dominate. Host tests assert wiring only — if the service is righ
 Hosts have their own adapter layer for a reason. These differences are **expected**, not leaks:
 
 - **CLI-only**: format flags (`--json` / `--yaml` / `--markdown`), dry-run prompts, decisions YAML files, progress logging to stderr, colour rendering, feedback capture.
-- **MCP-only**: tool name normalisation (`-` → `_`), JSON schemas for inputs, native structured returns, schema discovery via `tools/list`, no dry-run override (the MCP client handles approval UX).
+- **MCP-only**: tool name normalisation (`-` → `_`), JSON schemas for inputs, native structured returns, and schema discovery via `tools/list`. Mutation defaults still come from shared safety metadata.
 - **Per-feature divergence**: some commands return more detail to MCP than CLI shows by default (CLI summarises for terminals; MCP returns the full structure). That's expected — the Response DTO carries the superset and each adapter picks what to surface.
 
 ## Leakage that isn't OK
@@ -171,11 +149,14 @@ You probably won't write everything fresh. To migrate a command that has logic i
 
 1. **Extract a service**. Move the logic into a `FooService` in Core. The CLI command becomes a parser + caller + renderer.
 2. **Add a Request DTO**. Replace ad-hoc parameter lists with a record.
-3. **Add an MCP handler**. New file in `Handlers/`. Wraps the service.
-4. **Wire the handler**. Register it in `McpServiceRegistration`; the registry routes around the auto-bridge for that tool name.
-5. **Compare output**. CLI text + MCP JSON should both reflect the same Response. If they diverge unexpectedly, the divergence is the bug to fix.
+3. **Add an application operation**. Implement `CommandApplicationPort<TRequest,TResponse>` and return typed success/error.
+4. **Thin the CLI command**. Bind the request and call the shared execution router; do not load workspaces or call services directly.
+5. **Use the generic MCP adapter**. No command-specific MCP file or registration is added.
+6. **Compare output**. CLI text and MCP structured data should project the same response. If they diverge unexpectedly, the divergence is the bug to fix.
 
-Migration is one command per commit. The codebase tolerates a mixed state where some commands are migrated and others still go through the auto-bridge.
+Migration can fan out by the groups in
+[command-application-port-migration.md](command-application-port-migration.md). The
+codebase tolerates a mixed state until the bridge-deletion integration slice.
 
 ## Anti-patterns to avoid
 
@@ -186,7 +167,12 @@ Migration is one command per commit. The codebase tolerates a mixed state where 
 
 ## Worked examples in roslyn-tools
 
-- **`suggest` (new feature, all-in)** — `SuggestService` + `SuggestRequest`/`SuggestResponse` in Core; `SuggestCommand` in CLI; `SuggestHandler` in MCP. See `src/RoslynTools/Services/Suggest/` and the two adapter files.
-- **`outline` (existing migration)** — CLI command was already a thin wrapper around `OutlineService`. Migration added `OutlineRequest` and a native `OutlineHandler`. The MCP tool now returns native JSON instead of text-captured CLI output.
+- **`suggest` (in-process meta operation)** — `SuggestOperation` provides a typed port without requiring daemon placement.
+- **`outline` (daemon-preferred inspection)** — `OutlineRequest` and `OutlineOperation` own target dispatch; CLI and MCP both use the same operation through typed routing.
+- **`make-sealed` (review-by-default mutation)** — preparation, dry-run/apply, changed paths, and diagnostics are represented before either host renders them.
+
+See [the migration playbook](command-application-port-migration.md) for the current
+contract and explicit instructions for every command group. ADR-0003 and ADR-0007
+supersede the historical native-handler examples retained in ADR-0001.
 
 When adding a new feature, follow this pattern from the first commit. When touching an existing command's logic, take the opportunity to extract it.

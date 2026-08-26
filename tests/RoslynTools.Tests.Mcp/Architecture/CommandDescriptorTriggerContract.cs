@@ -72,6 +72,7 @@ public sealed class CommandDescriptorTriggerContract
         ["list_imports"] = "Read",
         ["find_callers"] = "Grep",
         ["find_impl"] = "Grep",
+        ["debug"] = "Read",
         ["add_dependency"] = "Edit",
         ["make_sealed"] = "Edit",
         ["semantic_diff"] = "git diff"

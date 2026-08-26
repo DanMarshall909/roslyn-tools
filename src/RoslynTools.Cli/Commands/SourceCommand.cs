@@ -56,7 +56,7 @@ internal sealed class SourceCommand : IRtCommand, IStructuredOutputCommand, IIns
                     request.SolutionPath,
                     request.Kind));
 
-                RtResultRenderer.Write(RtResult<object>.Ok(source));
+                RtResultRenderer.Write(RtResult<IReadOnlyList<SourceDeclaration>>.Ok(source));
             });
 
         return cmd;

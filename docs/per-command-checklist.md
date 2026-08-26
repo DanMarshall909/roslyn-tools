@@ -1,162 +1,109 @@
-# Per-Command Consistency Checklist
+# Per-command consistency checklist
 
-> See [consistency-roadmap.md](consistency-roadmap.md) for **EP-013**, the umbrella plan that sequences the stories making most of this checklist compiler- or architecture-test-enforced. The rows annotated *(enforced — US-NNN)* below will be deleted as that work lands.
+Use this checklist whenever a public `rt` command changes. Architecture tests enforce
+the mechanical rules; this list keeps the remaining human review small and explicit.
 
-When you touch an `rt` command for *any* reason — feature, bug fix, refactor, MCP handler — scan this checklist before opening a PR. The point is to knock several pending stories out in one pass while the file is already open and the test harness already warm.
+Companion documents:
 
-The list is divided into:
+- [Command application-port migration](command-application-port-migration.md)
+- [55-command migration manifest](command-port-migration-groups.tsv)
+- [Target command surface](target-command-surface-architecture.md)
+- [Architecture overview](architecture-overview.md)
 
-1. **Universal checklist** — every command, every change.
-2. **MCP exposure** — native handler conventions (EP-012).
-3. **Test coverage** — quality bar.
-4. **Per-command pending work** — open backlog stories that touch a specific command.
-5. **Cross-cutting work** — not pinned to a command; here so you don't think it's missing.
+## 1. Universal command contract
 
-If an item doesn't apply (e.g. `Info.Mutates` for a read-only command), tick it anyway — the goal is "verified", not "changed".
+- [x] Implements `IRtCommand` and exactly one category contract:
+  `IInspectCommand`, `IAnalyzeCommand`, or `IRefactorCommand` (including derived
+  capability contracts such as `ITraceAnalyzeCommand`).
+- [x] `RtCommandInfo` name, category, mutability, JSON support, and examples agree with
+  the command surface.
+- [ ] Reusable flags come from the central flag catalog/binder where migrated; do not
+  hand-roll a catalog-owned option or parser.
+- [ ] `WhenToUse` names the triggering situation and calls out a built-in action such as
+  Read/Edit/Grep when the command replaces it.
+- [ ] Examples execute against the current syntax and defaults.
+- [ ] `SeeAlso` names the useful next commands.
+- [ ] Diagnostics/progress go to stderr; primary results go to stdout.
+- [ ] Routine user errors produce a non-zero CLI exit and actionable stderr without an
+  unhandled exception.
+- [ ] No process-global `Environment.ExitCode`; use host projection.
 
----
+## 2. Host-neutral application contract
 
-## 1. Universal checklist (every command)
+- [ ] One application definition and exactly one typed `ICommandApplicationPort`.
+- [ ] Request and response are shared typed records with no CLI/MCP types.
+- [ ] Request schema declares required fields and descriptions without instantiating a
+  CLI `Command`.
+- [ ] Operation owns validation, workspace lifetime, cancellation, and service
+  orchestration.
+- [ ] Expected failures return `RtError`; nested `Result` values are never serialized as
+  successful payloads.
+- [ ] Safety is explicitly read-only, apply-default, or review-default.
+- [ ] Execution placement is explicitly daemon-preferred or in-process.
+- [ ] Suggested follow-on actions are typed data, not rendered command prose.
+- [ ] Service/operation contains no `System.CommandLine`, `InvocationContext`,
+  `JsonElement`, `RtConsole`, `RtLog`, `RtResultRenderer`, or exit-code mutation.
 
-> **US-107 has landed.** The category interfaces (`IInspectCommand`, `IAnalyzeCommand`, `IRefactorCommand`) and capability interfaces (`IMutatingCommand`, `IBatchMutationCommand`, `ITraceAnalyzeCommand`) now drive architecture-test ratchets in `tests/RoslynTools.Tests/Architecture/CategoryInterface*.cs` and `tests/RoslynTools.Tests.Mcp/Architecture/McpHandlerNameContract.cs`. Rows marked **(enforced — US-NNN)** below fail the architecture-test suite if violated. Future work removes them from this manual list once the corresponding tracking story lands.
+## 3. Thin adapters
 
-- [x] `IRtCommand` contract satisfied — static `RtCommandInfo Info` + `Command Build()` *(enforced — App.cs static ctor)*
-- [x] Command implements exactly one category interface — `IInspectCommand` / `IAnalyzeCommand` / `IRefactorCommand` (or `ITraceAnalyzeCommand` for trace-scoped analyze) *(enforced — US-107, App.cs static ctor + `CategoryInterfaceCoverage`)*
-- [x] `Info.Category` matches the category interface (`"inspect"`/`"analyze"`/`"refactor"`) *(enforced — US-107, `CategoryInterfaceContracts`; field slated for removal — US-108)*
-- [x] `Info.Mutates` matches the category interface (refactor = true, inspect/analyze = false) *(enforced — US-107, `CategoryInterfaceContracts`; field slated for removal — US-108)*
-- [x] `IRefactorCommand.Build()` registers a `--dry-run` option *(enforced — US-107, `CategoryInterfaceContracts`; known exception `change-signature` tracked by US-112)*
-- [ ] Reusable flags come from the central flag catalog/binder where migrated; do not hand-roll catalog-owned options or parsing (US-114 supersedes the factory-only US-085 direction)
-- [ ] `Info.Examples` reflect actual current invocations (not stale syntax)
-- [ ] `Info.JsonOutput` accurate for inspect/analyze (currently soft-ratcheted via skipped test in `CategoryInterfaceContracts.with_every_inspect_or_analyze_command_jsonoutput_is_true` — owned by US-082 / EP-007 umbrella; unskip once 8 outliers gain JSON output)
-- [ ] `Info.SeeAlso` lists related commands (US-088, US-089)
-- [ ] `RtCommandInfo` metadata in canonical shape (US-084)
-- [ ] File structure follows the playbook (US-086)
-- [ ] If JSON-output: result type uses the shared result contract (US-060, US-100)
-- [ ] Service lives in `src/RoslynTools/Services/` — no `System.CommandLine`, no `Console` in the service layer
-- [ ] Service auto-registered via `Bootstrap.RegisterServices` (implements `IRtService`)
-- [ ] Exit codes flow via `System.CommandLine` middleware, not `Environment.ExitCode` (US-093)
-- [ ] No parameterless service constructor that hand-rolls concrete dependencies (US-103)
-- [ ] Diagnostics/progress → stderr; results → stdout
-- [ ] Routine errors return non-zero exit + stderr (no unhandled exceptions)
+### CLI
 
-## 2. MCP exposure (EP-012)
+- [ ] Owns arguments/options, flag binding, piped-stdin resolution, terminal rendering,
+  and exit-code mapping only.
+- [ ] Does not load a workspace or invoke a domain service directly.
+- [ ] Calls the shared execution router with the typed request.
+- [ ] CLI-only formats, progress, colour, and interactive decisions remain here.
 
-- [ ] Native `IMcpHandler` exists if this is an inspect/analyze read command (US-095, US-096)
-- [ ] If native: schema declares all *required* fields explicitly
-- [ ] If native: response is camelCase JSON via `JsonNamingPolicy.CamelCase`
-- [ ] If native and mutating: `dry-run` defaults to true (or follows the explicit decision in US-097)
-- [x] Native `ToolName` matches the command name with hyphens replaced by underscores (so it overrides the auto-bridge by name) *(enforced — US-107, `McpHandlerNameContract.with_every_imcphandler_the_toolname_matches_a_known_cli_command_name`; documented meta-handler exceptions live in `KnownMetaHandlerNames`)*
-- [x] No two native handlers share a `ToolName` *(enforced — US-107, `McpHandlerNameContract.with_every_imcphandler_the_toolname_is_unique`)*
-- [ ] Registered in `McpServiceRegistration.AddMcpServices`
-- [ ] `tools/list` snapshot test still passes (US-094)
-- [ ] If the CLI command has a hidden-from-auto-bridge alias (meta-commands), the native handler covers the visible name
+### MCP
 
-**Canonical reference**: commit `6d767b1` (feat(mcp): wire find_refs and rename as native MCP handlers). Read those handlers before writing a new one — same pattern, same JSON conventions.
+- [ ] Generic descriptor adapter exposes the port; no command-specific `IMcpHandler`.
+- [ ] Normalized tool name is unique and matches the definition (`-` to `_`).
+- [ ] Schema and structured output come from shared contracts.
+- [ ] Mutation defaults come from shared safety metadata.
+- [ ] `tools/list` and generic `tools/call` tests pass.
 
-## 3. Test coverage
+## 4. Mutation contract
 
-- [ ] Tests under `tests/RoslynTools.Tests/<Category>/` (or `tests/RoslynTools.Tests.Mcp/Handlers/` for MCP)
-- [ ] Test method names: snake_case `with_<scenario>_<outcome>`
-- [ ] Tests resolve dependencies from `Bootstrap.RegisterServices` (no hand-constructed services)
-- [ ] Integration tests use the real `.slnx` fixture, not mocks of the Roslyn API surface
-- [ ] MCP handler tests parse the returned JSON and assert on structured fields (not `string.Contains`)
-- [ ] At least one missing-required-field error test per MCP handler
-- [ ] Line + branch coverage ≥ project thresholds
-- [ ] If file is in `stryker-config.json` `mutate` globs: mutation score ≥ 95
+- [ ] Review, dry-run, apply, and no-op are distinct states where applicable.
+- [ ] Review analyzes only; dry-run prepares the exact transformation without writing.
+- [ ] Response lists every affected path and carries structured diagnostics.
+- [ ] Apply writes once after preparation succeeds.
+- [ ] Multi-file/filesystem work uses the prepared change-set abstraction; cancellation
+  or failure cannot leave a half-applied move/write chain.
+- [ ] A mutation is never retried after dispatch becomes indeterminate.
 
----
+## 5. Tests
 
-## 4. Per-command pending work
+- [ ] Operation tests carry the bulk of behavior and edge cases.
+- [ ] Request binding/schema test covers names, required fields, defaults, arrays, and
+  enums.
+- [ ] Expected invalid/not-found/ambiguous/unsupported error test.
+- [ ] Cancellation propagation test.
+- [ ] Thin CLI exit/rendering test.
+- [ ] Generic MCP structured success/error test.
+- [ ] Daemon/in-process parity for daemon-preferred commands.
+- [ ] Mutations cover all supported review/dry-run/apply/no-op states and prove preview
+  performs no write.
+- [ ] Line/branch coverage and in-scope Stryker threshold pass.
 
-Open stories that touch a specific command. Universal stories (US-060, US-084, US-085, US-086, US-088, US-089, US-093, US-094, US-100, US-103) apply to *every* command and are not duplicated below — see section 1.
+## 6. Fan-out ownership
 
-### `rt inspect` — read-only
+Command conversion agents edit only their assigned command, request/result/operation,
+direct service dependencies, and focused tests. The integration owner edits shared
+definitions/discovery, daemon routing/recovery, schema generation, mutation change-set
+abstractions, architecture ratchets, project references, generated snapshots, and
+documentation.
 
-| Command | Open stories | Notes |
-|---|---|---|
-| `describe` | US-095 | Native MCP handler |
-| `find-callers` | US-095 | Native MCP handler |
-| `find-impl` | US-095 | Native MCP handler |
-| `find-pattern` | US-095 | Native MCP handler |
-| `find-refs` | — | ✓ Native handler in `6d767b1` |
-| `find-undocumented` | US-096 | Native MCP handler (umbrella story includes this) |
-| `find-unused` | US-095 | Native MCP handler |
-| `outline` | — | ✓ Native handler (POC) |
-| `source` | — | None pending |
+Do not edit a central daemon allow-list or descriptor list from every fan-out branch.
+The target contract discovers ports automatically.
 
-### `rt analyze` — cross-cutting scans
+## 7. Remaining cross-cutting stories
 
-| Command | Open stories | Notes |
-|---|---|---|
-| `analyze-interface` | US-096 | Native MCP handler |
-| `circular-deps` | US-096 | Native MCP handler |
-| `complexity` | US-096 | Native MCP handler |
-| `debug` | — | None pending |
-| `dependency-graph` | US-096 | Native MCP handler |
-| `find-duplicates` | US-096 | Native MCP handler |
-| `find-magic-strings` | US-096 | Native MCP handler |
-| `list-imports` | US-096 | Native MCP handler |
-| `list-smells` | US-096 | Native MCP handler |
-| `solid` | US-101 | Decompose `SolidAnalyzer` into per-principle analyzers |
-| `static-class-inventory` | US-096 | Native MCP handler |
-
-### `rt refactor` — mutations
-
-| Command | Open stories | Notes |
-|---|---|---|
-| `add-dependency` | — | None |
-| `add-global-import` | — | None |
-| `add-null-checks` | — | None |
-| `add-static-import` | — | None |
-| `add-test` | — | None |
-| `add-xml-doc` | — | None |
-| `change-signature` | *(new — EP-012)* | Fix MCP schema: today the auto-bridge emits empty `inputSchema`. Convert to native handler. |
-| `convert-console-logging` | — | None |
-| `convert-static-class` | US-081 | Finish interface generation |
-| `convert-to-record` | — | None |
-| `extract-class` | — | None |
-| `extract-interface` | — | None |
-| `extract-method` | US-079 | `MethodExtractor` → `Result<T, RtError>` |
-| `extract-string-constant` | — | None |
-| `fix-namespace` | — | None |
-| `implement-interface` | — | None |
-| `inline-method` | — | None |
-| `make-async` | — | None |
-| `make-instance` | — | None |
-| `make-sealed` | — | None |
-| `make-static` | — | None |
-| `migrate-to-ioptions` | — | None |
-| `move` | *(new — EP-012)* | Fix MCP schema: declare required fields (or one-of `type` vs `namespace`). |
-| `move-method` | — | None |
-| `narrow-dependency` | — | None |
-| `rename` | — | ✓ Native handler in `6d767b1` |
-| `replace-call` | — | None |
-| `replace-datetime` | — | None |
-| `replace-new` | — | None |
-| `replace-xunit-asserts` | — | None |
-| `safe-delete` | — | None |
-| `transform-parameters` | — | None |
-
-### `rt suggest` — meta
-
-| Command | Open stories | Notes |
-|---|---|---|
-| `suggest` | US-087, US-080, *(new — EP-012)* | Build the BM25 top-level command (US-087); replace hand-curated synonyms (US-080); align native MCP `ToolName` from `suggest_command` to `suggest` |
-
----
-
-## 5. Cross-cutting (not pinned to a command)
-
-These don't fit the per-command rows but might land in the same pass:
-
-- **US-067** — `/execute` skill nested-branch pattern revisit
-- **US-073** — Migrate solution to .NET 10
-- **US-078** — `WorkspaceLoader.LoadAsync` → `Result<T, RtError>`
-- **US-083** — Bring `src/RoslynTools.Cli/` and `src/RoslynTools.Mcp/` into Stryker mutation pilot
-- **US-090** — Unknown-command fallback in `App.cs` (BM25 "did you mean")
-- **US-091** — Diff renderer enrichment in `SolutionWriter.PrintDiff`
-- **US-092** — Stable fix IDs + `--apply`/`--skip` for batch mutation commands (affects all batch mutators uniformly via `BatchMutationRunner`)
-- **US-097** — Decide MCP shape for mutating refactor commands (the dry-run-by-default policy)
-- **US-098** — Drop `RoslynTools.Mcp` → `RoslynTools.Cli` project reference
-- **US-099** — Extract `IRtCommand` registry into a new `RoslynTools.Commands` project
-- **US-102** — Complete `IWorkspaceSessionFactory` migration — remove `LoadWorkspaceAsync` compat surface
+- **US-078** — `WorkspaceLoader.LoadAsync` to typed error.
+- **US-083** — expand mutation coverage to CLI and MCP projects.
+- **US-092** — stable fix IDs and apply/skip for batch mutations.
+- **US-093** — shared CLI exit-code routing.
+- **US-098** — remove `RoslynTools.Mcp` to `RoslynTools.Cli` reference after bridge deletion.
+- **US-102** — complete workspace-session ownership migration.
+- **US-114** — central flag catalog, binders, and full capability ratchet.
+- **US-131/US-132** — drain throwing Result bridges and narrow the app error ladder.

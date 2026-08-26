@@ -71,3 +71,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0004](0004-portable-mcp-distribution.md) | Portable MCP distribution | Accepted | 2026-08-16 |
 | [0005](0005-daemon-centred-local-execution.md) | Daemon-centred local execution | Accepted | 2026-08-16 |
 | [0006](0006-mcp-lazy-daemon-lifetime.md) | MCP lazy daemon lifetime | Accepted | 2026-08-26 |
+| [0007](0007-host-neutral-command-contracts.md) | Host-neutral command contracts and complete application-port migration | Accepted | 2026-08-26 |

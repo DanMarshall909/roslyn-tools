@@ -1,3 +1,5 @@
+using RoslynTools.Core;
+using RoslynTools.Models;
 using RoslynTools.Services;
 using Shouldly;
 
@@ -215,6 +217,66 @@ public sealed class Debug
         ]);
 
         exitCode.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task operation_returns_successful_typed_report_when_assertion_fails()
+    {
+        var trace = WriteTrace("{\"event\":\"tool_call\",\"tool\":\"web\"}");
+        var operation = new DebugOperation();
+
+        var result = await operation.ExecuteAsync(new DebugRequest(
+            trace.FullName,
+            Assertions: ["no-tool:web"]));
+
+        result.IsOk.ShouldBeTrue();
+        result.Match(
+            report => Assert.Single(report.Assertions).Passed.ShouldBeFalse(),
+            error => throw new InvalidOperationException(error.Message));
+    }
+
+    [Fact]
+    public async Task operation_returns_typed_not_found_error_for_missing_trace()
+    {
+        var missing = Path.Combine(Path.GetTempPath(), $"missing-{Guid.NewGuid():N}.jsonl");
+        var result = await new DebugOperation().ExecuteAsync(new DebugRequest(missing));
+
+        result.IsErr.ShouldBeTrue();
+        result.Match(
+            _ => throw new InvalidOperationException("Expected a typed error."),
+            error =>
+            {
+                error.Kind.ShouldBe(RtErrorKind.NotFound);
+                error.Message.ShouldContain(missing, Case.Sensitive);
+            });
+    }
+
+    [Fact]
+    public async Task operation_returns_typed_invalid_input_for_malformed_trace()
+    {
+        var trace = WriteTrace("{ not valid json");
+        var result = await new DebugOperation().ExecuteAsync(new DebugRequest(trace.FullName));
+
+        result.IsErr.ShouldBeTrue();
+        result.Match(
+            _ => throw new InvalidOperationException("Expected a typed error."),
+            error =>
+            {
+                error.Kind.ShouldBe(RtErrorKind.InvalidInput);
+                error.Message.ShouldContain("malformed JSON", Case.Sensitive);
+                error.Message.ShouldContain(trace.FullName, Case.Sensitive);
+            });
+    }
+
+    [Fact]
+    public async Task port_keeps_failed_assertions_in_success_value()
+    {
+        var trace = WriteTrace("{\"event\":\"tool_call\",\"tool\":\"web\"}");
+        var result = await ((ICommandApplicationPort)new DebugOperation()).InvokeAsync(
+            new DebugRequest(trace.FullName, Assertions: ["no-tool:web"]));
+
+        result.IsError.ShouldBeFalse();
+        result.Value.ShouldBeOfType<DebugReport>();
     }
 
     // ─── event-level field extraction (tool, event type, trace id) ───────────

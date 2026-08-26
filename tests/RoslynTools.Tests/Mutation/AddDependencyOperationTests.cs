@@ -54,7 +54,7 @@ public sealed class AddDependencyOperationTests
             writer);
 
         var result = await operation.ExecuteAsync(
-            new AddDependencyRequest("AgentService", "IEmailService", DryRun: true));
+            new AddDependencyRequest("AgentService", "IEmailService"));
 
         result.Status.ShouldBe(MutationExecutionStatus.DryRun);
         result.Value!.Outcome.ShouldBe(AddDependencyOutcome.Applied);
@@ -83,6 +83,97 @@ public sealed class AddDependencyOperationTests
         result.IsError.ShouldBeTrue();
         result.Value.ShouldBeNull();
         result.Error!.ShouldContain("ambiguous", Case.Insensitive);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_returns_failure_for_a_missing_target()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Services.cs", "public class ExistingService { }");
+        var (workspace, solution) = project.Build();
+        var writer = new CapturingSolutionChangeWriter();
+        var operation = new AddDependencyOperation(
+            new FixedWorkspaceSessionFactory(workspace, solution),
+            new AddDependencyService(NullLogger<AddDependencyService>.Instance, writer),
+            writer);
+
+        var result = await ((ICommandApplicationPort)operation).InvokeAsync(
+            new AddDependencyRequest("MissingService", "IEmailService"));
+
+        result.IsError.ShouldBeTrue();
+        result.Value.ShouldBeNull();
+        result.Error!.ShouldContain("was not found", Case.Insensitive);
+        writer.Solution.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task InvokeAsync_returns_failure_for_an_unsupported_constructor()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Services.cs", """
+                                         interface IEmailService { }
+                                         class AgentService
+                                         {
+                                             public AgentService() => DoWork();
+                                             private static void DoWork() { }
+                                         }
+                                         """);
+        var (workspace, solution) = project.Build();
+        var writer = new CapturingSolutionChangeWriter();
+        var operation = new AddDependencyOperation(
+            new FixedWorkspaceSessionFactory(workspace, solution),
+            new AddDependencyService(NullLogger<AddDependencyService>.Instance, writer),
+            writer);
+
+        var result = await ((ICommandApplicationPort)operation).InvokeAsync(
+            new AddDependencyRequest("AgentService", "IEmailService"));
+
+        result.IsError.ShouldBeTrue();
+        result.Value.ShouldBeNull();
+        result.Error!.ShouldContain("expression-bodied", Case.Insensitive);
+        writer.Solution.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task InvokeAsync_returns_failure_for_an_empty_dependency()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Services.cs", "public class AgentService { }");
+        var (workspace, solution) = project.Build();
+        var writer = new CapturingSolutionChangeWriter();
+        var operation = new AddDependencyOperation(
+            new FixedWorkspaceSessionFactory(workspace, solution),
+            new AddDependencyService(NullLogger<AddDependencyService>.Instance, writer),
+            writer);
+
+        var result = await ((ICommandApplicationPort)operation).InvokeAsync(
+            new AddDependencyRequest("AgentService", ""));
+
+        result.IsError.ShouldBeTrue();
+        result.Value.ShouldBeNull();
+        result.Error!.ShouldContain("dependency", Case.Insensitive);
+        writer.Solution.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_honours_cancellation_before_loading_the_workspace()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Services.cs", "public class AgentService { }");
+        var (workspace, solution) = project.Build();
+        var writer = new CapturingSolutionChangeWriter();
+        var operation = new AddDependencyOperation(
+            new FixedWorkspaceSessionFactory(workspace, solution),
+            new AddDependencyService(NullLogger<AddDependencyService>.Instance, writer),
+            writer);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Should.ThrowAsync<OperationCanceledException>(() => operation.ExecuteAsync(
+            new AddDependencyRequest("AgentService", "IEmailService"),
+            cancellation.Token));
+
+        writer.Solution.ShouldBeNull();
     }
 
     private sealed class FixedWorkspaceSessionFactory(

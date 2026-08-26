@@ -220,23 +220,21 @@ internal class InspectService : IRtService
     /// <summary>
     /// Gets the source code for a symbol asynchronously
     /// </summary>
-    internal async Task<List<Dictionary<string, object?>>> GetSourceAsync(ISymbol symbol)
+    internal async Task<List<SourceDeclaration>> GetSourceAsync(ISymbol symbol)
     {
-        var results = new List<Dictionary<string, object?>>();
+        var results = new List<SourceDeclaration>();
 
         foreach (var syntaxRef in symbol.DeclaringSyntaxReferences)
         {
             var node = await syntaxRef.GetSyntaxAsync();
             var lineSpan = node.SyntaxTree.GetLineSpan(node.Span);
 
-            results.Add(new Dictionary<string, object?>
-            {
-                ["fqn"] = symbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
-                ["file"] = syntaxRef.SyntaxTree.FilePath,
-                ["lineFrom"] = lineSpan.StartLinePosition.Line + 1,
-                ["lineTo"] = lineSpan.EndLinePosition.Line + 1,
-                ["source"] = node.ToFullString().TrimEnd()
-            });
+            results.Add(new SourceDeclaration(
+                symbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
+                syntaxRef.SyntaxTree.FilePath,
+                lineSpan.StartLinePosition.Line + 1,
+                lineSpan.EndLinePosition.Line + 1,
+                node.ToFullString().TrimEnd()));
         }
 
         return results;

@@ -2,14 +2,14 @@
 
 This is the execution plan for [EP-013](../ralph/backlog-prd.json). The epic owns no stories directly; it sequences existing work under EP-007, EP-009, EP-011, and EP-012 into a coherent landing. The target architecture behind this roadmap is [target-command-surface-architecture.md](target-command-surface-architecture.md).
 
-> **Status (2026-06-18):** Phase 1 has landed — US-100 (renderer collapse + biconditional arch test) shipped 2026-06-17; US-107 (category + capability interfaces) shipped via `CategoryInterfaceContracts.cs` + the `IInspectCommand` / `IAnalyzeCommand` / `IRefactorCommand` markers. Phase 2 (US-108 / US-109 / US-097) is unblocked and ready to start. Phases 3–6 remain in backlog.
+> **Status (2026-08-26):** Phase 1 has landed. ADR-0003 replaced the native-handler direction with generic descriptors and typed application ports; ADR-0007 defines the full 55-command fan-out and physical host decoupling. The sequencing below reflects those decisions.
 
 ## Strategic outcome
 
 When EP-013 closes:
 
 1. **Half the universal [per-command checklist](per-command-checklist.md) is compiler- or architecture-test-enforced.** What survives on the manual list is the genuinely-human content (good `Examples`, accurate `SeeAlso`, behaviour matching the category-implied semantics).
-2. **The per-command pending-work matrix collapses.** Most "native MCP handler" rows resolve in a single inspect/analyze pass.
+2. **Every ordinary command has one host-neutral definition and typed application port.** Command-specific MCP handlers and the CLI compatibility bridge disappear.
 3. **MCP callers get typed responses with declared output schemas** — modern `CallToolResult` shape (`structuredContent`, `outputSchema` per tool in `tools/list`).
 4. **CLI callers get format consistency across all commands** — `--format json|yaml|text` works uniformly, including for refactor/mutating commands.
 
@@ -32,35 +32,35 @@ The two foundational pieces every later phase builds on. They don't depend on ea
 |---|---|---|
 | **US-108** | EP-009 | Delete `RtCommandInfo.Category` and `Info.Mutates`; both are derived from the interface now. |
 | **US-109** | EP-009 | Extend `--format` pipeline to refactor/mutating commands; result type implementing `IRtOutput` for every command; `RtResultRenderer` is the sole stdout path. |
-| **US-097** | EP-012 | Design decision — what shape does a mutating native MCP handler return? `dry-run`-default-true policy; structured change-summary JSON. Unblocks Phase 4 mutating handlers. |
+| **US-097** | EP-012 | Finalize shared review/dry-run/apply/no-op mutation envelopes and safe daemon retry semantics. |
 
-### Phase 3 — MCP modernisation *(after Phase 2)*
+### Phase 3 — Host-neutral application foundation *(after Phase 2)*
 
-Land the protocol shape **before** the bulk of handler conversions, so handlers are written against the new shape and don't need retrofitting.
+Land the generic contract **before** bulk conversion so fan-out agents do not edit central registries or invent incompatible lifecycle behavior.
 
 | Story | Owner epic | What it lands |
 |---|---|---|
-| **US-110** | EP-012 | Audit current wire format; uplift `protocolVersion` from `2024-11-05` if appropriate; native handlers return `structuredContent` + text fallback; `outputSchema` per tool in `tools/list`. |
-| **US-094** | EP-012 | Architectural ratchet test: every `IInspectCommand`/`IAnalyzeCommand` has a registered `IMcpHandler` whose `ToolName` matches the CLI command name. Lock the contract before the bulk rollout. |
+| **US-110** | EP-012 | Generic MCP adapter returns `structuredContent` + text fallback and derives `outputSchema` from typed results. |
+| **US-143** | EP-012 | Host-neutral definitions, automatic discovery, definition/port/schema/execution-policy ratchets, shared daemon recovery, mutation envelope, and 55-command manifest. US-094 is superseded. |
 
-### Phase 4 — Native MCP handler rollout *(parallel after Phase 3)*
+### Phase 4 — Application-port rollout *(parallel after Phase 3)*
 
-All five run in parallel. Each follows the canonical pattern from commit `6d767b1` and the [per-command checklist](per-command-checklist.md).
+Groups run in parallel using the [application-port playbook](command-application-port-migration.md) and its machine-checkable manifest.
 
 | Story | Owner epic | Commands |
 |---|---|---|
-| **US-095** | EP-012 | `describe`, `find-callers`, `find-impl`, `find-pattern`, `find-unused` |
-| **US-096** | EP-012 | `analyze-interface`, `circular-deps`, `complexity`, `dependency-graph`, `find-duplicates`, `find-magic-strings`, `find-undocumented`, `list-imports`, `list-smells`, `static-class-inventory` |
-| **US-104** | EP-012 | `change-signature` (schema-bug fix; native handler is the preferred resolution) |
-| **US-105** | EP-012 | `move` (schema-bug fix; native handler is the preferred resolution) |
-| **US-106** | EP-012 | `suggest` naming alignment (`ToolName` from `suggest_command` to `suggest`) |
+| **US-095** | EP-012 | Inspect groups R0, R1, R4, and the inspect members of R2. |
+| **US-096** | EP-012 | Analyze groups R0, R2, R3, R4, and R5. |
+| **US-097** | EP-012 | Mutation groups M0–M4. |
+| **US-104/105** | EP-012 | `change-signature` and `move` schema bugs close through their typed requests, not handlers. |
+| **US-106** | EP-012 | Align shared definition/tool identity for `suggest`. |
 
-### Phase 5 — Project structure *(independent track, can overlap with any phase)*
+### Phase 5 — Bridge deletion and physical host decoupling *(serial after Phase 4)*
 
 | Story | Owner epic | What it lands |
 |---|---|---|
-| **US-099** | EP-012 | Extract `IRtCommand` registry into a new `RoslynTools.Commands` project. |
-| **US-098** | EP-012 | Drop the `RoslynTools.Mcp → RoslynTools.Cli` project reference (depends on US-099). |
+| **US-098** | EP-012 | Delete `CliCommandBridge`, move shared registration/definitions out of CLI, and remove `RoslynTools.Mcp → RoslynTools.Cli`. |
+| **US-099** | EP-012 | Consolidated into US-098; do not move CLI builders or the bridge into a renamed shared project. |
 
 ### Phase 6 — Universal metadata *(any time; each is a small per-command ratchet)*
 
@@ -85,12 +85,12 @@ Phase 1:  US-100  US-107
                  \/                 \
 Phase 2:        US-108  US-109     US-097
                           \           |
-Phase 3:                  US-110 ──── US-094
+Phase 3:       ADR-0007 / US-143 foundation ─ US-110
                                        |
-Phase 4:    US-095   US-096   US-104   US-105   US-106
-                          (all parallel)
+Phase 4:      R0-R5 read-only groups | M0-M4 mutation groups
+                           (parallel fan-out)
 
-Phase 5:  US-099 → US-098     (independent)
+Phase 5:  bridge deletion → US-098 physical decoupling
 Phase 6:  US-084, US-085, US-114, US-086, US-088, US-089, US-093, US-103
           (parallel, ratcheted alongside Phase 4 commands)
 ```
@@ -98,10 +98,10 @@ Phase 6:  US-084, US-085, US-114, US-086, US-088, US-089, US-093, US-103
 ## Done definition for EP-013
 
 - Every story listed in Phases 1–6 is closed.
-- `tests/RoslynTools.Tests/Architecture/` contains green ratchet tests for: category↔`Info` biconditional (US-107), JSON-output↔`IStructuredOutputCommand` biconditional (US-100), every inspect/analyze command has a native `IMcpHandler` (US-094), `Info.Category` and `Info.Mutates` fields no longer exist on `RtCommandInfo` (US-108).
+- Architecture tests enforce category/metadata parity, exactly one definition and port per ordinary command, request/schema parity, execution/safety validity, and no host-to-host project reference.
 - `docs/per-command-checklist.md` is shrunk: every row labelled `(enforced)` has been deleted, not just struck through. What remains is the genuinely-human list.
-- A manual MCP handshake against the rebuilt `RoslynTools.Mcp.exe` shows: 53+ tools, every native handler declares an `outputSchema`, mutating-handler responses include `dryRun` and `applied` fields, `tools/list` returns `structuredContent` + text-fallback `content[]` on `tools/call`.
+- A manual MCP handshake shows every visible application definition with input/output schemas; mutation responses expose review/dry-run/applied/no-op; `tools/call` returns structured data plus text fallback.
 
 ## Reference
 
-Pattern reference for every Phase-4 story: commit `6d767b1` (`feat(mcp): wire find_refs and rename as native MCP handlers`). Canonical files: `FindReferencesHandler.cs`, `RenameSymbolHandler.cs`, `OutlineHandler.cs`.
+Pattern reference for every Phase-4 story: [ADR-0007](adr/0007-host-neutral-command-contracts.md), [the migration playbook](command-application-port-migration.md), and the [55-command manifest](command-port-migration-groups.tsv).

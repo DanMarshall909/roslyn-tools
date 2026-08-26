@@ -9,9 +9,17 @@ internal sealed record SourceRequest(
     string? Solution = null,
     string? Kind = null);
 
+/// <summary>One source declaration returned for a resolved symbol.</summary>
+internal sealed record SourceDeclaration(
+    [property: JsonPropertyName("fqn")] string FullyQualifiedName,
+    [property: JsonPropertyName("file")] string FilePath,
+    [property: JsonPropertyName("lineFrom")] int LineFrom,
+    [property: JsonPropertyName("lineTo")] int LineTo,
+    [property: JsonPropertyName("source")] string Text);
+
 /// <summary>Shared source operation used by host adapters.</summary>
 internal sealed class SourceOperation
-    : CommandApplicationPort<SourceRequest, List<Dictionary<string, object?>>>, IRtService
+    : CommandApplicationPort<SourceRequest, IReadOnlyList<SourceDeclaration>>, IRtService
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly InspectService _inspect;
@@ -20,16 +28,16 @@ internal sealed class SourceOperation
     public SourceOperation(
         IWorkspaceSessionFactory sessionFactory,
         InspectService inspect,
-        ISymbolResolutionService? symbols = null)
+        ISymbolResolutionService symbols)
     {
         _sessionFactory = sessionFactory;
         _inspect = inspect;
-        _symbols = symbols ?? new SymbolResolutionService();
+        _symbols = symbols ?? throw new ArgumentNullException(nameof(symbols));
     }
 
     public override string CommandName => "source";
 
-    public override async Task<List<Dictionary<string, object?>>> ExecuteAsync(
+    public override async Task<IReadOnlyList<SourceDeclaration>> ExecuteAsync(
         SourceRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -39,11 +47,9 @@ internal sealed class SourceOperation
         var symbol = await _symbols.FindSymbolByFqnAsync(solution, request.Symbol, request.Kind);
         cancellationToken.ThrowIfCancellationRequested();
         var sources = await _inspect.GetSourceAsync(symbol);
-        foreach (var source in sources)
-            if (source.TryGetValue("source", out var value) && value is string text)
-                source["source"] = RemoveDeclarationIndentation(text);
-
-        return sources;
+        return sources
+            .Select(source => source with { Text = RemoveDeclarationIndentation(source.Text) })
+            .ToList();
     }
 
     private static string RemoveDeclarationIndentation(string source)
