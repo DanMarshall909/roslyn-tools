@@ -53,6 +53,13 @@ CLI argument forwarding protocol and direct MCP service host are migration
 paths; new transport work must target typed local RPC.  See
 [ADR-0005](adr/0005-daemon-centred-local-execution.md).
 
+For daemon-owned MCP tools, the stdio adapter lazily starts the sibling `rt`
+daemon when RPC is unavailable, retries once, and retains typed in-process
+recovery if startup fails. MCP-started daemons stop after ten idle minutes by
+default; each request refreshes that deadline. Explicit `rt daemon start`
+instances remain resident. See
+[ADR-0006](adr/0006-mcp-lazy-daemon-lifetime.md).
+
 ## Five contracts that bind the layers
 
 ### 1. `ApplicationCommandDescriptor` + `IRtCommand` — command registration
@@ -149,9 +156,9 @@ The whole tool is its own customer. The architecture exists to make that loop ti
   [ADR-0004](adr/0004-portable-mcp-distribution.md). Official MCP C# SDK hosting, the full spawned protocol matrix, and
   MCP Bundle adoption remain open under rt-012.
 
-- **Daemon-centred execution is a migration.** The daemon currently forwards CLI argument arrays and rendered frames,
-  while MCP hosts services directly.  The target is a typed local-RPC daemon that CLI, MCP, and IDE adapters consume;
-  request draining, retry rules, and cancellation semantics remain to be designed and proven.  See
+- **Daemon-centred execution is a migration.** The daemon still supports CLI argument arrays and rendered frames,
+  while migrated MCP tools use typed local RPC with lazy daemon startup and one retry. Unmigrated tools retain direct
+  hosting, and request draining plus broader cancellation semantics remain to be designed and proven. See
   [ADR-0005](adr/0005-daemon-centred-local-execution.md).
 
 - **EP-009 (capability flags) is the biggest open architectural lift** — US-114 is 20 ACs, multi-week. Until it lands, commands still wire `Option<T>` ad hoc and the catalog is partly notional.

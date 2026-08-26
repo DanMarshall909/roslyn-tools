@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Mcp;
+using RoslynTools.Mcp.Daemon;
 using RoslynTools.Tests;
 
 namespace RoslynTools.Tests.Mcp;
@@ -35,6 +36,15 @@ internal static class McpTestHost
         var services = new ServiceCollection();
         RoslynTools.Bootstrap.RegisterServices(services);
         services.AddMcpServices(new StringReader(string.Empty), new StringWriter());
+        services.AddSingleton<IMcpDaemonLauncher, UnavailableDaemonLauncher>();
         return services.BuildServiceProvider();
+    }
+
+    private sealed class UnavailableDaemonLauncher : IMcpDaemonLauncher
+    {
+        public Task<bool> EnsureStartedAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(false);
+        }
     }
 }

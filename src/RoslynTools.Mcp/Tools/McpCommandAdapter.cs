@@ -4,6 +4,7 @@ using RoslynTools.CommandDescriptors;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Daemon.Rpc;
+using RoslynTools.Mcp.Daemon;
 using RoslynTools.Services;
 
 namespace RoslynTools.Mcp.Tools;
@@ -23,12 +24,12 @@ internal sealed class McpCommandAdapter
 
     private readonly CommandDescriptorRegistry _descriptors;
     private readonly CliCommandBridge _legacyBridge;
-    private readonly DaemonRpcClient _daemonRpc;
+    private readonly DaemonRpcRecovery _daemonRpc;
 
     public McpCommandAdapter(
         CommandDescriptorRegistry descriptors,
         CliCommandBridge legacyBridge,
-        DaemonRpcClient daemonRpc)
+        DaemonRpcRecovery daemonRpc)
     {
         _descriptors = descriptors;
         _legacyBridge = legacyBridge;

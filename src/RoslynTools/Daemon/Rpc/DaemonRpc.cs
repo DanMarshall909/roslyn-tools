@@ -46,8 +46,17 @@ internal static class DaemonTransport
     internal const string PipeName = "rt-daemon";
 }
 
+/// <summary>Transport seam for a typed daemon command invocation.</summary>
+internal interface IDaemonRpcClient
+{
+    Task<DaemonRpcResponse?> TryExecuteAsync(
+        string commandName,
+        JsonElement arguments,
+        CancellationToken cancellationToken = default);
+}
+
 /// <summary>Thin local-RPC client for a typed daemon command invocation.</summary>
-internal sealed class DaemonRpcClient
+internal sealed class DaemonRpcClient : IDaemonRpcClient
 {
     private readonly string _pipeName = DaemonTransport.PipeName;
 
@@ -58,7 +67,7 @@ internal sealed class DaemonRpcClient
         PropertyNameCaseInsensitive = true
     };
 
-    internal async Task<DaemonRpcResponse?> TryExecuteAsync(
+    public async Task<DaemonRpcResponse?> TryExecuteAsync(
         string commandName,
         JsonElement arguments,
         CancellationToken cancellationToken = default)

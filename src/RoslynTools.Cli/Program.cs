@@ -21,7 +21,7 @@ internal static class Program
         // Internal mode: spawned by `rt daemon start`, runs as the background pipe server.
         // The daemon installs DaemonPipeConsole per request, so do not pre-register Spectre.
         if (args.Length > 0 && args[0] == "--daemon-serve")
-            return await DaemonServer.RunAsync();
+            return await DaemonServer.RunAsync(DaemonServer.ParseIdleTimeout(args));
 
         // Install the CLI-side Spectre.Console adapter so every RtConsole call from
         // here on renders with colour + syntax highlighting. The override propagates

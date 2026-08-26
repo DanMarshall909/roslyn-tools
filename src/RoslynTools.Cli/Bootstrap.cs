@@ -30,7 +30,8 @@ internal static class Bootstrap
         services.AddSingleton<GitService>();
         services.AddSingleton<DaemonClient>();
         services.AddSingleton<DaemonRpcClient>();
-        services.AddSingleton<DaemonCommandDispatcher>();
+        services.AddSingleton(provider => new DaemonCommandDispatcher(
+            provider.GetServices<ICommandApplicationPort>()));
         services.AddSingleton<ISymbolResolutionService, SymbolResolutionService>();
         services.AddSingleton<IDocumentLocatorService, DocumentLocatorService>();
         services.AddSingleton<ISolutionChangeWriter, SolutionChangeWriter>();

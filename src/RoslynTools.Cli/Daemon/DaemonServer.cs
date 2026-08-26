@@ -17,10 +17,33 @@ internal static class DaemonServer
 {
     internal const string PipeName = DaemonTransport.PipeName;
 
+    internal static TimeSpan? ParseIdleTimeout(string[] args)
+    {
+        const string option = "--idle-timeout-seconds";
+        for (var index = 1; index < args.Length; index++)
+        {
+            if (!string.Equals(args[index], option, StringComparison.Ordinal))
+                continue;
+
+            if (index + 1 >= args.Length
+                || !double.TryParse(
+                    args[index + 1],
+                    NumberStyles.Float,
+                    CultureInfo.InvariantCulture,
+                    out var seconds)
+                || seconds <= 0)
+                throw new ArgumentException($"{option} requires a positive number.");
+
+            return TimeSpan.FromSeconds(seconds);
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// A method to start the daemon server.
     /// </summary>
-    internal static async Task<int> RunAsync()
+    internal static async Task<int> RunAsync(TimeSpan? idleTimeout = null)
     {
         Directory.CreateDirectory(DaemonState.StateDir);
 
@@ -111,13 +134,26 @@ internal static class DaemonServer
         using (host)
         {
             var services = host.Services;
+            var idleLifetime = idleTimeout is null
+                ? null
+                : new DaemonIdleLifetime(idleTimeout.Value);
 
             var stopping = false;
             while (!stopping && !cts.IsCancellationRequested)
             {
                 try
                 {
-                    await pipe.WaitForConnectionAsync(cts.Token);
+                    var connected = idleLifetime is null
+                        ? await WaitForConnectionAsync(pipe, cts.Token)
+                        : await idleLifetime.WaitForActivityAsync(
+                            token => WaitForConnectionAsync(pipe, token),
+                            cts.Token);
+                    if (!connected)
+                    {
+                        await log.WriteLineAsync(
+                            $"[{Now()}] daemon idle for {idleTimeout}; stopping");
+                        break;
+                    }
                 }
                 catch (OperationCanceledException)
                 {
@@ -143,6 +179,14 @@ internal static class DaemonServer
         await log.WriteLineAsync($"[{Now()}] daemon stopped");
         DaemonState.Remove();
         return 0;
+    }
+
+    private static async Task<bool> WaitForConnectionAsync(
+        NamedPipeServerStream pipe,
+        CancellationToken cancellationToken)
+    {
+        await pipe.WaitForConnectionAsync(cancellationToken);
+        return true;
     }
 
     private static async Task<bool> HandleRequestAsync(NamedPipeServerStream pipe, IServiceProvider services,

@@ -196,6 +196,11 @@ developer-specific paths:
 
 The solution also includes the stdio host source in `src/RoslynTools.Mcp`. It exposes the migrated application ports through the same services and command descriptors used by the CLI.
 
+The first daemon-owned MCP tool call starts the sibling `rt` daemon when needed.
+It remains warm for ten minutes after the latest request, then exits. Override
+the idle period for an installation by setting `RT_DAEMON_IDLE_TIMEOUT_SECONDS`.
+An explicit `rt daemon start` remains resident until `rt daemon stop`.
+
 Build and run it from the repository root:
 
 ```powershell
