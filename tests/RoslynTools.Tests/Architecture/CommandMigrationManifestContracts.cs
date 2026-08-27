@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 using Shouldly;
 
 namespace RoslynTools.Tests.Architecture;
@@ -16,6 +17,8 @@ public sealed class CommandMigrationManifestContracts
         ["daemon-preferred", "in-process"];
     private static readonly HashSet<string> SafetyPolicies =
         ["read-only", "review-default", "apply-default"];
+    private static readonly Type[] HostRenderingContracts =
+        [typeof(IRtOutput), typeof(IRtJsonOutput), typeof(IRtMarkdownOutput), typeof(IRtYamlOutput)];
 
     [Fact]
     public void migration_manifest_freezes_the_complete_public_category_command_inventory()
@@ -125,10 +128,13 @@ public sealed class CommandMigrationManifestContracts
                 continue;
 
             var typeNamespace = type.Namespace ?? string.Empty;
+            var renderingContract = HostRenderingContracts.FirstOrDefault(
+                contract => contract.IsAssignableFrom(type));
             Assert.False(
                 typeNamespace.StartsWith("System.CommandLine", StringComparison.Ordinal)
                 || typeNamespace.StartsWith("ModelContextProtocol", StringComparison.Ordinal)
-                || type.Assembly == typeof(App).Assembly,
+                || type.Assembly == typeof(App).Assembly
+                || renderingContract is not null,
                 $"Host type '{type.FullName}' leaked into contract '{root.FullName}'.");
 
             if (type.Assembly != typeof(ApplicationCommandDefinition).Assembly)

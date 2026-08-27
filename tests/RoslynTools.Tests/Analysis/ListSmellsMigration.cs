@@ -1,7 +1,7 @@
 using System.CommandLine;
 using System.Text.Json;
 using RoslynTools.Commands;
-using RoslynTools.Commands.Results;
+using RoslynTools.Services;
 using RoslynTools.Core.Output;
 using Shouldly;
 
@@ -46,7 +46,7 @@ public class ListSmellsMigration : IDisposable
         var result = BuildResult(("LargeClass", "MyBigClass", "DoWork", "/src/MyBigClass.cs", 42, "310 lines"));
 
         var sw = new StringWriter();
-        result.RenderText(sw);
+        StaticAnalyzerResultAdapters.ListSmells(result).RenderText(sw);
         var actual = sw.ToString();
 
         var member = "  DoWork";
@@ -60,7 +60,7 @@ public class ListSmellsMigration : IDisposable
         var result = BuildResult(("LargeClass", "MyBigClass", null, "/src/MyBigClass.cs", 42, "310 lines"));
 
         var sw = new StringWriter();
-        result.RenderText(sw);
+        StaticAnalyzerResultAdapters.ListSmells(result).RenderText(sw);
         var actual = sw.ToString();
 
         var member = "";
@@ -76,7 +76,7 @@ public class ListSmellsMigration : IDisposable
             ("LongMethod", "Beta", "Run", "/b.cs", 5, "detail2"));
 
         var sw = new StringWriter();
-        result.RenderText(sw);
+        StaticAnalyzerResultAdapters.ListSmells(result).RenderText(sw);
         var lines = sw.ToString().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
         lines.Length.ShouldBe(2);
     }
@@ -92,7 +92,7 @@ public class ListSmellsMigration : IDisposable
 
         var sw = new StringWriter();
         RtContext.Format = OutputFormat.Json;
-        RtSerializer.Write(result, sw);
+        RtSerializer.Write(StaticAnalyzerResultAdapters.ListSmells(result), sw);
 
         var doc = JsonDocument.Parse(sw.ToString());
         var root = doc.RootElement;
@@ -120,7 +120,7 @@ public class ListSmellsMigration : IDisposable
 
         var sw = new StringWriter();
         RtContext.Format = OutputFormat.Markdown;
-        RtSerializer.Write(result, sw);
+        RtSerializer.Write(StaticAnalyzerResultAdapters.ListSmells(result), sw);
         var md = sw.ToString();
 
         md.ShouldContain("# Code Smells", Case.Sensitive);
@@ -137,7 +137,7 @@ public class ListSmellsMigration : IDisposable
 
         var sw = new StringWriter();
         RtContext.Format = OutputFormat.Markdown;
-        RtSerializer.Write(result, sw);
+        RtSerializer.Write(StaticAnalyzerResultAdapters.ListSmells(result), sw);
         var md = sw.ToString();
 
         md.ShouldContain("No code smells found.", Case.Sensitive);
@@ -153,7 +153,7 @@ public class ListSmellsMigration : IDisposable
 
         var sw = new StringWriter();
         RtContext.Format = OutputFormat.Llm;
-        RtSerializer.Write(result, sw);
+        RtSerializer.Write(StaticAnalyzerResultAdapters.ListSmells(result), sw);
         var output = sw.ToString();
 
         output.ShouldContain("LargeClass", Case.Sensitive);
@@ -173,7 +173,7 @@ public class ListSmellsMigration : IDisposable
 
         var sw = new StringWriter();
         RtContext.Format = OutputFormat.Text;
-        RtSerializer.Write(result, sw);
+        RtSerializer.Write(StaticAnalyzerResultAdapters.ListSmells(result), sw);
         var output = sw.ToString();
 
         var member = "";
@@ -198,7 +198,7 @@ public class ListSmellsMigration : IDisposable
     [Fact]
     public void list_smells_command_accepts_top_option()
     {
-        var command = ListSmellsCommand.Build();
+        var command = App.Commands.Single(entry => entry.Info.Name == "list-smells").Build();
 
         var result = command.Parse("--solution RoslynTools.slnx --top 3");
 

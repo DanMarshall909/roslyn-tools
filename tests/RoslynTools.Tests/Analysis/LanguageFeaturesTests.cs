@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
+using RoslynTools.Commands.Results;
 using RoslynTools.Core;
 using RoslynTools.Services;
 using Shouldly;
@@ -576,12 +577,16 @@ public sealed class LanguageFeaturesTests
         var operation = new LanguageFeaturesOperation(sessionFactory, new LanguageFeaturesAnalyzer());
 
         var result = await operation.ExecuteAsync(new LanguageFeaturesRequest("requested.slnx"));
+        var value = result.Match(
+            success => success,
+            error => throw new InvalidOperationException(error.Message));
         using var writer = new StringWriter();
-        result.RenderText(writer);
+        var output = LanguageFeaturesOutput.From(value);
+        output.RenderText(writer);
         using var jsonWriter = new StringWriter();
-        result.RenderJson(jsonWriter);
+        output.RenderJson(jsonWriter);
 
-        operation.CommandName.ShouldBe("language_features");
+        operation.Definition.Name.ShouldBe("language_features");
         sessionFactory.LoadedSolutionPath.ShouldBe("requested.slnx");
         writer.ToString().ShouldContain("C# language features");
         writer.ToString().ShouldContain("record_declaration");

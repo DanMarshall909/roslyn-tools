@@ -1,7 +1,7 @@
 using System.CommandLine;
 using System.Text.Json;
 using RoslynTools.Commands;
-using RoslynTools.Commands.Results;
+using RoslynTools.Services;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using Shouldly;
@@ -262,7 +262,7 @@ public class SolidLspTests
         var result = new SolidResult();
         using var output = new StringWriter();
         RtContext.Format = OutputFormat.Json;
-        RtSerializer.Write(result, output);
+        RtSerializer.Write(StaticAnalyzerResultAdapters.Solid(result), output);
 
         using var doc = JsonDocument.Parse(output.ToString());
         doc.RootElement.TryGetProperty("LSP", out var lsp).ShouldBeTrue();
@@ -286,7 +286,7 @@ public class SolidLspTests
     [Fact]
     public void principle_help_mentions_LSP()
     {
-        var cmd = SolidCommand.Build();
+        var cmd = App.Commands.Single(entry => entry.Info.Name == "solid").Build();
         var principleOpt = cmd.Options.OfType<Option<string>>()
             .First(o => o.Name == "principle");
         Assert.Contains("LSP", principleOpt.Description, StringComparison.Ordinal);

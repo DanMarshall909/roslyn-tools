@@ -1,7 +1,7 @@
 using System.CommandLine;
 using System.Text.Json;
 using RoslynTools.Commands;
-using RoslynTools.Commands.Results;
+using RoslynTools.Services;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using Shouldly;
@@ -368,7 +368,7 @@ public class SolidDipTests
         var result = new SolidResult();
         using var output = new StringWriter();
         RtContext.Format = OutputFormat.Json;
-        RtSerializer.Write(result, output);
+        RtSerializer.Write(StaticAnalyzerResultAdapters.Solid(result), output);
 
         using var doc = JsonDocument.Parse(output.ToString());
         doc.RootElement.TryGetProperty("DIP", out _).ShouldBeTrue();
@@ -380,7 +380,7 @@ public class SolidDipTests
         var result = new SolidResult();
         using var output = new StringWriter();
         RtContext.Format = OutputFormat.Json;
-        RtSerializer.Write(result, output);
+        RtSerializer.Write(StaticAnalyzerResultAdapters.Solid(result), output);
 
         using var doc = JsonDocument.Parse(output.ToString());
         var dip = doc.RootElement.GetProperty("DIP");
@@ -404,7 +404,7 @@ public class SolidDipTests
     [Fact]
     public void principle_help_mentions_DIP()
     {
-        var cmd = SolidCommand.Build();
+        var cmd = App.Commands.Single(entry => entry.Info.Name == "solid").Build();
         var principleOpt = cmd.Options.OfType<Option<string>>()
             .First(o => o.Name == "principle");
         Assert.Contains("DIP", principleOpt.Description, StringComparison.Ordinal);

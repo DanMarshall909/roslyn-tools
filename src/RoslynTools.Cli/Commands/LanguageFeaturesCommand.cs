@@ -1,5 +1,6 @@
 using System.CommandLine;
-using System.Text.Json;
+using RoslynTools.Cli;
+using RoslynTools.Commands.Results;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Daemon.Rpc;
@@ -9,15 +10,10 @@ namespace RoslynTools.Commands;
 
 /// <summary>Inventories C# language-feature usage and comparable refactoring candidates.</summary>
 internal sealed class LanguageFeaturesCommand(
-    DaemonRpcClient daemon,
+    DaemonRpcRecoveryCoordinator daemon,
     LanguageFeaturesOperation operation) : IRtCommand, IAnalyzeCommand, IStructuredOutputCommand
 {
-    private static readonly JsonSerializerOptions ResponseOptions = new()
-    {
-        PropertyNameCaseInsensitive = true
-    };
-
-    private readonly DaemonRpcClient _daemon = daemon;
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
     private readonly LanguageFeaturesOperation _operation = operation;
 
     public static RtCommandInfo Info => LanguageFeaturesCommandDefinition.Info;
@@ -74,46 +70,27 @@ internal sealed class LanguageFeaturesCommand(
                 context.ParseResult.GetValueForOption(includeGeneratedOpt),
                 context.ParseResult.GetValueForOption(refactorableOnlyOpt));
 
-            var result = await ExecuteDaemonPreferredAsync(request);
-            if (result is null)
-            {
-                RtLog.Error("Language-feature analysis returned no result.");
-                context.ExitCode = 1;
-                return;
-            }
-
-            RtResultRenderer.Write(RtResult<LanguageFeaturesResult>.Ok(result));
-            if (result.Diagnostics.Any(diagnostic =>
-                    string.Equals(diagnostic.Severity, "error", StringComparison.OrdinalIgnoreCase)))
-                context.ExitCode = 1;
+            var result = await DaemonCommandExecutor.ExecuteTypedAsync(
+                _daemon,
+                _operation,
+                request,
+                context.GetCancellationToken());
+            result.Match(
+                value =>
+                {
+                    RtResultRenderer.Write(RtResult<LanguageFeaturesOutput>.Ok(
+                        LanguageFeaturesOutput.From(value)));
+                    if (value.Diagnostics.Any(diagnostic =>
+                            string.Equals(
+                                diagnostic.Severity,
+                                "error",
+                                StringComparison.OrdinalIgnoreCase)))
+                        context.ExitCode = 1;
+                },
+                error => RtErrorPresenter.Surface(context, error));
         });
 
         return command;
     }
 
-    private async Task<LanguageFeaturesResult?> ExecuteDaemonPreferredAsync(
-        LanguageFeaturesRequest request)
-    {
-        var attempt = await _daemon.ExecuteAsync(
-            LanguageFeaturesCommandDefinition.Name,
-            JsonSerializer.SerializeToElement(request),
-            CommandSafety.ReadOnly);
-        var response = attempt.Response;
-        if (response is null)
-            return await _operation.ExecuteAsync(request);
-
-        // A resident daemon may be an older rt build. This command is read-only, so a
-        // command-not-found response is safe to recover in process without restart friction.
-        if (response.Error?.Code == DaemonRpcErrorCodes.CommandNotFound)
-            return await _operation.ExecuteAsync(request);
-
-        if (response.Error is not null)
-            throw new InvalidOperationException(response.Error.Message);
-
-        if (response.Result is not { } envelope
-            || !envelope.TryGetProperty("data", out var data))
-            return null;
-
-        return data.Deserialize<LanguageFeaturesResult>(ResponseOptions);
-    }
 }
