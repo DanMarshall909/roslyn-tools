@@ -1,5 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Core;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -7,25 +8,14 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// A command for transforming parameters.
 /// </summary>
-internal sealed class TransformParametersCommand(IWorkspaceSessionFactory sessionFactory, TransformParametersService transform) : IRtCommand, IRefactorCommand
+internal sealed class TransformParametersCommand(
+    DaemonRpcRecoveryCoordinator daemon,
+    TransformParametersOperation operation) : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
-    private readonly TransformParametersService _transform = transform;
-    public static RtCommandInfo Info { get; } = new(
-        "transform-parameters",
-        true,
-        false,
-        "refactor",
-        Aliases: ["tp"],
-        WhenToUse:
-        "Introduce a Parameter Object: extract a method's parameters into a new record and update all call sites. Useful when a method has 3+ parameters that logically belong together.",
-        Examples:
-        [
-            "rt refactor transform-parameters --method OrderService.PlaceOrder --new-type PlaceOrderArgs --solution MySolution.sln",
-            "rt refactor tp --method BookingService.Create --new-type CreateBookingArgs --dry-run",
-            "rt refactor transform-parameters --method Calculator.Add --existing-type MyApp.AddArgs --solution RoslynTools.slnx --dry-run"
-        ]
-    );
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
+    private readonly TransformParametersOperation _operation = operation;
+
+    public static RtCommandInfo Info => TransformParametersCommandDefinition.Info;
 
     public Command Build()
     {
@@ -45,22 +35,19 @@ internal sealed class TransformParametersCommand(IWorkspaceSessionFactory sessio
         };
         cmd.AddAlias("tp");
 
-        cmd.SetHandler(async (method, newType, existingType, solution, dryRun) =>
+        cmd.SetHandler(async context =>
         {
-            var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
-            using (workspace)
-            {
-                try
-                {
-                    await _transform.RunAsync(sln, method, newType, existingType, dryRun);
-                }
-                catch (InvalidOperationException ex)
-                {
-                    RtLog.Error("Error: {Message}", ex.Message);
-                    Environment.ExitCode = 1;
-                }
-            }
-        }, methodOpt, newTypeOpt, existingTypeOpt, solutionOpt, dryRunOpt);
+            await DaemonCommandExecutor.ExecuteAsync(
+                _daemon,
+                _operation,
+                new TransformParametersRequest(
+                    context.ParseResult.GetValueForOption(methodOpt)!,
+                    context.ParseResult.GetValueForOption(newTypeOpt),
+                    context.ParseResult.GetValueForOption(existingTypeOpt),
+                    context.ParseResult.GetValueForOption(solutionOpt),
+                    context.ParseResult.GetValueForOption(dryRunOpt)),
+                context);
+        });
 
         return cmd;
     }

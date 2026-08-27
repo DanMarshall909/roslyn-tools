@@ -57,26 +57,35 @@ internal class TransformParametersService : IRtService
             throw new InvalidOperationException(
                 "You must specify either --new-type (to generate a new record) or --existing-type (to reuse an existing type).");
 
-        if (existingTypeFqn is not null)
-            await RunExistingTypeAsync(sln, methodSpec, existingTypeFqn, dryRun);
-        else
-            await RunNewTypeAsync(sln, methodSpec, newTypeName!, dryRun);
+        var prepared = await PrepareAsync(sln, methodSpec, newTypeName, existingTypeFqn);
+        await _solutionChangeWriter.ApplyChangesAsync(sln, prepared, dryRun);
+    }
+
+    internal async Task<Solution> PrepareAsync(Solution sln, string methodSpec, string? newTypeName, string? existingTypeFqn, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (newTypeName is not null && existingTypeFqn is not null)
+            throw new InvalidOperationException("--new-type and --existing-type are mutually exclusive. Specify only one.");
+        if (newTypeName is null && existingTypeFqn is null)
+            throw new InvalidOperationException("You must specify either --new-type (to generate a new record) or --existing-type (to reuse an existing type).");
+        var prepared = existingTypeFqn is not null
+            ? await PrepareExistingTypeAsync(sln, methodSpec, existingTypeFqn)
+            : await PrepareNewTypeAsync(sln, methodSpec, newTypeName!);
+        cancellationToken.ThrowIfCancellationRequested();
+        return prepared;
     }
 
     // ──────────────────────────────────────────────────────────────────────────
     //  --new-type code path (original behaviour)
     // ──────────────────────────────────────────────────────────────────────────
 
-    private async Task RunNewTypeAsync(
+    private async Task<Solution> PrepareNewTypeAsync(
         Solution sln,
         string methodSpec,
-        string newTypeName,
-        bool dryRun)
+        string newTypeName)
     {
         _logger.RtInfo("Transforming parameters of '{MethodSpec}' → record '{NewTypeName}'...", methodSpec,
             newTypeName);
-        var originalSln = sln;
-
         var (methodSymbol, doc) = await FindMethodAsync(sln, methodSpec);
 
         var unsafeParams = CollectUnsafeParameters(methodSymbol);
@@ -103,23 +112,20 @@ internal class TransformParametersService : IRtService
         (methodSymbol, doc) = await FindMethodAsync(sln, methodSpec);
         sln = await RewriteMethodSignatureAsync(sln, doc, methodSymbol, newTypeName);
 
-        await _solutionChangeWriter.ApplyChangesAsync(originalSln, sln, dryRun);
+        return sln;
     }
 
     // ──────────────────────────────────────────────────────────────────────────
     //  --existing-type code path
     // ──────────────────────────────────────────────────────────────────────────
 
-    private async Task RunExistingTypeAsync(
+    private async Task<Solution> PrepareExistingTypeAsync(
         Solution sln,
         string methodSpec,
-        string existingTypeFqn,
-        bool dryRun)
+        string existingTypeFqn)
     {
         _logger.RtInfo("Transforming parameters of '{MethodSpec}' → existing type '{ExistingTypeFqn}'...", methodSpec,
             existingTypeFqn);
-        var originalSln = sln;
-
         var (methodSymbol, doc) = await FindMethodAsync(sln, methodSpec);
 
         var unsafeParams = CollectUnsafeParameters(methodSymbol);
@@ -145,7 +151,7 @@ internal class TransformParametersService : IRtService
         (methodSymbol, doc) = await FindMethodAsync(sln, methodSpec);
         sln = await RewriteMethodSignatureAsync(sln, doc, methodSymbol, shortName);
 
-        await _solutionChangeWriter.ApplyChangesAsync(originalSln, sln, dryRun);
+        return sln;
     }
 
     private async Task<INamedTypeSymbol> FindExistingTypeAsync(Solution sln, string fqn)

@@ -54,4 +54,4 @@ replace-datetime	refactor	M1	convert	daemon-preferred	apply-default
 replace-new	refactor	M1	convert	daemon-preferred	apply-default
 replace-xunit-asserts	refactor	M3	convert	daemon-preferred	review-default
 safe-delete	refactor	M1	convert	daemon-preferred	apply-default
-transform-parameters	refactor	M2	convert	daemon-preferred	apply-default
+transform-parameters	refactor	M2	complete	daemon-preferred	apply-default
