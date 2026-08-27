@@ -7,16 +7,10 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Moves a method from one location to another in the solution.
 /// </summary>
-internal sealed class MoveMethodCommand : IRtCommand, IRefactorCommand
+internal sealed class MoveMethodCommand(IWorkspaceSessionFactory sessionFactory, MoveMethodService moveMethod) : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly MoveMethodService _moveMethod;
-    public MoveMethodCommand(IWorkspaceSessionFactory sessionFactory, MoveMethodService moveMethod)
-    {
-        _moveMethod = moveMethod;
-        _sessionFactory = sessionFactory;
-    }
-
+    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
+    private readonly MoveMethodService _moveMethod = moveMethod;
     public static RtCommandInfo Info { get; } = new(
         "move-method",
         true,

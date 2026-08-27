@@ -8,14 +8,9 @@ namespace RoslynTools.Mcp.Tools;
 /// <summary>
 /// ToolSchemaBuilder
 /// </summary>
-internal sealed class ToolSchemaBuilder
+internal sealed class ToolSchemaBuilder(CommandDescriptorRegistry descriptors)
 {
-    private readonly CommandDescriptorRegistry _descriptors;
-
-    public ToolSchemaBuilder(CommandDescriptorRegistry descriptors)
-    {
-        _descriptors = descriptors;
-    }
+    private readonly CommandDescriptorRegistry _descriptors = descriptors;
 
     public IReadOnlyList<ToolDefinition> Build()
     {

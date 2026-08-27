@@ -18,14 +18,10 @@ namespace RoslynTools.Tests.Architecture;
 ///     Driven by rt's own <see cref="FindUndocumentedService"/> so the lock and the production
 ///     analyser cannot drift.
 /// </summary>
-public sealed class PublicCoreIsDocumented : IClassFixture<PublicCoreIsDocumented.Fixture>
+public sealed class PublicCoreIsDocumented(PublicCoreIsDocumented.Fixture fixture)
+    : IClassFixture<PublicCoreIsDocumented.Fixture>
 {
-    private readonly Fixture _fixture;
-
-    public PublicCoreIsDocumented(Fixture fixture)
-    {
-        _fixture = fixture;
-    }
+    private readonly Fixture _fixture = fixture;
 
     [Fact(DisplayName = "Every public type and member under src/RoslynTools/Core must have XML docs")]
     public void public_core_has_no_undocumented_symbols()

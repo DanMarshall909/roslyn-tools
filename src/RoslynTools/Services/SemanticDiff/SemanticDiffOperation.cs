@@ -16,24 +16,16 @@ internal sealed record SemanticDiffOperationRequest(
 ///     Shared semantic-diff operation. Source-mode selection, options, move suppression,
 ///     and both output projections live here rather than in either host adapter.
 /// </summary>
-internal sealed class SemanticDiffOperation : ICommandApplicationPort, IRtService
+internal sealed class SemanticDiffOperation(
+    GitSemanticDiffSourceProvider gitSource,
+    FileSemanticDiffSourceProvider fileSource,
+    SemanticDiffService engine,
+    SemanticDiffTextRenderer renderer) : ICommandApplicationPort, IRtService
 {
-    private readonly GitSemanticDiffSourceProvider _gitSource;
-    private readonly FileSemanticDiffSourceProvider _fileSource;
-    private readonly SemanticDiffService _engine;
-    private readonly SemanticDiffTextRenderer _renderer;
-
-    public SemanticDiffOperation(
-        GitSemanticDiffSourceProvider gitSource,
-        FileSemanticDiffSourceProvider fileSource,
-        SemanticDiffService engine,
-        SemanticDiffTextRenderer renderer)
-    {
-        _gitSource = gitSource;
-        _fileSource = fileSource;
-        _engine = engine;
-        _renderer = renderer;
-    }
+    private readonly GitSemanticDiffSourceProvider _gitSource = gitSource;
+    private readonly FileSemanticDiffSourceProvider _fileSource = fileSource;
+    private readonly SemanticDiffService _engine = engine;
+    private readonly SemanticDiffTextRenderer _renderer = renderer;
 
     public string CommandName => "semantic_diff";
     public Type RequestType => typeof(SemanticDiffOperationRequest);

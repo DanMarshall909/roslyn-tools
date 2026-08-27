@@ -8,14 +8,9 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// A command for source-related operations.
 /// </summary>
-internal sealed class SourceCommand : IRtCommand, IStructuredOutputCommand, IInspectCommand
+internal sealed class SourceCommand(SourceOperation operation) : IRtCommand, IStructuredOutputCommand, IInspectCommand
 {
-    private readonly SourceOperation _operation;
-
-    public SourceCommand(SourceOperation operation)
-    {
-        _operation = operation;
-    }
+    private readonly SourceOperation _operation = operation;
 
     public static RtCommandInfo Info { get; } = new(
         "source",

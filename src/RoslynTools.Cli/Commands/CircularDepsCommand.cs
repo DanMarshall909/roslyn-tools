@@ -9,18 +9,12 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Command for detecting and handling circular dependencies.
 /// </summary>
-internal sealed class CircularDepsCommand : IRtCommand, IAnalyzeCommand
+internal sealed class CircularDepsCommand(
+    DaemonRpcClient daemon,
+    CircularDepsService circularDeps) : IRtCommand, IAnalyzeCommand
 {
-    private readonly DaemonRpcClient _daemon;
-    private readonly CircularDepsService _circularDeps;
-
-    public CircularDepsCommand(
-        DaemonRpcClient daemon,
-        CircularDepsService circularDeps)
-    {
-        _daemon = daemon;
-        _circularDeps = circularDeps;
-    }
+    private readonly DaemonRpcClient _daemon = daemon;
+    private readonly CircularDepsService _circularDeps = circularDeps;
 
     public static RtCommandInfo Info => CircularDepsCommandDefinition.Info;
 

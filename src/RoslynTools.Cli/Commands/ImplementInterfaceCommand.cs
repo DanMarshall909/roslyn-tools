@@ -7,16 +7,10 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Implements an interface for a given symbol
 /// </summary>
-internal sealed class ImplementInterfaceCommand : IRtCommand, IRefactorCommand
+internal sealed class ImplementInterfaceCommand(IWorkspaceSessionFactory sessionFactory, ImplementInterfaceService implementInterface) : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly ImplementInterfaceService _implementInterface;
-    public ImplementInterfaceCommand(IWorkspaceSessionFactory sessionFactory, ImplementInterfaceService implementInterface)
-    {
-        _implementInterface = implementInterface;
-        _sessionFactory = sessionFactory;
-    }
-
+    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
+    private readonly ImplementInterfaceService _implementInterface = implementInterface;
     public static RtCommandInfo Info { get; } = new(
         "implement-interface",
         true,

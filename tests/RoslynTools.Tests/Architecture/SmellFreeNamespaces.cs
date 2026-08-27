@@ -37,14 +37,9 @@ public sealed class SmellsFixture : IAsyncLifetime
     }
 }
 
-public sealed class SmellFreeNamespaces : IClassFixture<SmellsFixture>
+public sealed class SmellFreeNamespaces(SmellsFixture fixture) : IClassFixture<SmellsFixture>
 {
-    private readonly SmellsFixture _fixture;
-
-    public SmellFreeNamespaces(SmellsFixture fixture)
-    {
-        _fixture = fixture;
-    }
+    private readonly SmellsFixture _fixture = fixture;
 
     [Fact(DisplayName = "Core/Decisions namespace must have zero code smells")]
     public void decisions_namespace_has_zero_code_smells()

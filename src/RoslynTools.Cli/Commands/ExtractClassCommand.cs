@@ -7,16 +7,10 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Extracts a class from the solution.
 /// </summary>
-internal sealed class ExtractClassCommand : IRtCommand, IRefactorCommand
+internal sealed class ExtractClassCommand(IWorkspaceSessionFactory sessionFactory, ExtractClassService extractClass) : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly ExtractClassService _extractClass;
-    public ExtractClassCommand(IWorkspaceSessionFactory sessionFactory, ExtractClassService extractClass)
-    {
-        _extractClass = extractClass;
-        _sessionFactory = sessionFactory;
-    }
-
+    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
+    private readonly ExtractClassService _extractClass = extractClass;
     public static RtCommandInfo Info { get; } = new(
         "extract-class",
         true,

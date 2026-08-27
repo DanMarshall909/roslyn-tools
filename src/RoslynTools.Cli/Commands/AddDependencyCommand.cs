@@ -9,14 +9,9 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Command for adding dependencies to a solution.
 /// </summary>
-internal sealed class AddDependencyCommand : IRtCommand, IRefactorCommand
+internal sealed class AddDependencyCommand(DaemonRpcClient daemon) : IRtCommand, IRefactorCommand
 {
-    private readonly DaemonRpcClient _daemon;
-
-    public AddDependencyCommand(DaemonRpcClient daemon)
-    {
-        _daemon = daemon;
-    }
+    private readonly DaemonRpcClient _daemon = daemon;
 
     public static RtCommandInfo Info => AddDependencyCommandDefinition.Info;
 

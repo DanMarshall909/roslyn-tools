@@ -10,16 +10,10 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Replaces XUnit assertions with alternative testing methods.
 /// </summary>
-internal sealed class ReplaceXunitAssertsCommand : IRtCommand, IRefactorCommand
+internal sealed class ReplaceXunitAssertsCommand(IWorkspaceSessionFactory sessionFactory, ReplaceXunitAssertsService replace) : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly ReplaceXunitAssertsService _replace;
-    public ReplaceXunitAssertsCommand(IWorkspaceSessionFactory sessionFactory, ReplaceXunitAssertsService replace)
-    {
-        _replace = replace;
-        _sessionFactory = sessionFactory;
-    }
-
+    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
+    private readonly ReplaceXunitAssertsService _replace = replace;
     public static RtCommandInfo Info { get; } = new(
         "replace-xunit-asserts",
         true,

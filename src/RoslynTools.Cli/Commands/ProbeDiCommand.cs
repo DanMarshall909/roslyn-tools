@@ -8,16 +8,10 @@ using RoslynTools.Services;
 namespace RoslynTools.Commands;
 
 /// <summary>Probes one registration method and reports implementations hidden from static analysis.</summary>
-internal sealed class ProbeDiCommand : IRtCommand, IAnalyzeCommand, IStructuredOutputCommand
+internal sealed class ProbeDiCommand(IWorkspaceSessionFactory sessionFactory, ProbeDiService probeDi) : IRtCommand, IAnalyzeCommand, IStructuredOutputCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly ProbeDiService _probeDi;
-
-    public ProbeDiCommand(IWorkspaceSessionFactory sessionFactory, ProbeDiService probeDi)
-    {
-        _sessionFactory = sessionFactory;
-        _probeDi = probeDi;
-    }
+    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
+    private readonly ProbeDiService _probeDi = probeDi;
 
     public static RtCommandInfo Info { get; } = new(
         "probe-di",

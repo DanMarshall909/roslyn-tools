@@ -8,14 +8,9 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Finds all implementations of a given symbol in the current file
 /// </summary>
-internal sealed class FindImplementationsCommand : IRtCommand, IStructuredOutputCommand, IInspectCommand
+internal sealed class FindImplementationsCommand(DaemonRpcClient daemon) : IRtCommand, IStructuredOutputCommand, IInspectCommand
 {
-    private readonly DaemonRpcClient _daemon;
-
-    public FindImplementationsCommand(DaemonRpcClient daemon)
-    {
-        _daemon = daemon;
-    }
+    private readonly DaemonRpcClient _daemon = daemon;
 
     public static RtCommandInfo Info => FindImplementationsCommandDefinition.Info;
 

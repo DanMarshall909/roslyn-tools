@@ -8,18 +8,12 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Command for adding XML documentation to the project.
 /// </summary>
-internal sealed class AddXmlDocCommand : IRtCommand, IRefactorCommand
+internal sealed class AddXmlDocCommand(IWorkspaceSessionFactory sessionFactory, AddXmlDocService addXmlDoc) : IRtCommand, IRefactorCommand
 {
     private static readonly JsonSerializerOptions JsonOptions =
         new() { PropertyNameCaseInsensitive = true };
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly AddXmlDocService _addXmlDoc;
-
-    public AddXmlDocCommand(IWorkspaceSessionFactory sessionFactory, AddXmlDocService addXmlDoc)
-    {
-        _addXmlDoc = addXmlDoc;
-        _sessionFactory = sessionFactory;
-    }
+    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
+    private readonly AddXmlDocService _addXmlDoc = addXmlDoc;
 
     public static RtCommandInfo Info { get; } = new(
         "add-xml-doc",

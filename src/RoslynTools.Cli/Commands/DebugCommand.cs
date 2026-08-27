@@ -7,14 +7,9 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
-internal sealed class DebugCommand : IRtCommand, IStructuredOutputCommand, ITraceAnalyzeCommand
+internal sealed class DebugCommand(DebugOperation operation) : IRtCommand, IStructuredOutputCommand, ITraceAnalyzeCommand
 {
-    private readonly DebugOperation _operation;
-
-    public DebugCommand(DebugOperation operation)
-    {
-        _operation = operation;
-    }
+    private readonly DebugOperation _operation = operation;
 
     public static RtCommandInfo Info { get; } = new(
         "debug",

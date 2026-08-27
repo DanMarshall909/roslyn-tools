@@ -7,16 +7,10 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Moves code elements within the solution.
 /// </summary>
-internal sealed class MoveCommand : IRtCommand, IRefactorCommand
+internal sealed class MoveCommand(IWorkspaceSessionFactory sessionFactory, MoveService moveService) : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly MoveService _moveService;
-    public MoveCommand(IWorkspaceSessionFactory sessionFactory, MoveService moveService)
-    {
-        _moveService = moveService;
-        _sessionFactory = sessionFactory;
-    }
-
+    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
+    private readonly MoveService _moveService = moveService;
     public static RtCommandInfo Info { get; } = new(
         "move",
         true,

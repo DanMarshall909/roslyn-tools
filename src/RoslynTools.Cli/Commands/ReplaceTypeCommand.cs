@@ -7,16 +7,10 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Replaces a type reference with another type.
 /// </summary>
-internal sealed class ReplaceTypeCommand : IRtCommand, IRefactorCommand
+internal sealed class ReplaceTypeCommand(IWorkspaceSessionFactory sessionFactory, ReplaceTypeService replace) : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly ReplaceTypeService _replace;
-    public ReplaceTypeCommand(IWorkspaceSessionFactory sessionFactory, ReplaceTypeService replace)
-    {
-        _replace = replace;
-        _sessionFactory = sessionFactory;
-    }
-
+    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
+    private readonly ReplaceTypeService _replace = replace;
     public static RtCommandInfo Info { get; } = new(
         "replace-datetime",
         true,

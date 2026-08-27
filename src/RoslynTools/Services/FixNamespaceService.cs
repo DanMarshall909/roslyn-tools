@@ -12,18 +12,14 @@ namespace RoslynTools.Services;
 /// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
-internal class FixNamespaceService : IRtService
+internal class FixNamespaceService(
+    ILogger<FixNamespaceService> logger,
+    ISolutionChangeWriter solutionChangeWriter,
+    IWorkspaceSessionFactory sessionFactory) : IRtService
 {
-    private readonly ILogger<FixNamespaceService> _logger;
-    private readonly ISolutionChangeWriter _solutionChangeWriter;
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-
-    public FixNamespaceService(ILogger<FixNamespaceService> logger, ISolutionChangeWriter solutionChangeWriter, IWorkspaceSessionFactory sessionFactory)
-    {
-        _sessionFactory = sessionFactory;
-        _logger = logger;
-        _solutionChangeWriter = solutionChangeWriter;
-    }
+    private readonly ILogger<FixNamespaceService> _logger = logger;
+    private readonly ISolutionChangeWriter _solutionChangeWriter = solutionChangeWriter;
+    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
 
     /// <summary>
     /// Executes a fix for a namespace issue with optional parameters.

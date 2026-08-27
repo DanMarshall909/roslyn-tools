@@ -7,16 +7,10 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Converts a method to be asynchronous
 /// </summary>
-internal sealed class MakeAsyncCommand : IRtCommand, IRefactorCommand
+internal sealed class MakeAsyncCommand(IWorkspaceSessionFactory sessionFactory, MakeAsyncService makeAsync) : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly MakeAsyncService _makeAsync;
-    public MakeAsyncCommand(IWorkspaceSessionFactory sessionFactory, MakeAsyncService makeAsync)
-    {
-        _makeAsync = makeAsync;
-        _sessionFactory = sessionFactory;
-    }
-
+    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
+    private readonly MakeAsyncService _makeAsync = makeAsync;
     public static RtCommandInfo Info { get; } = new(
         "make-async",
         true,

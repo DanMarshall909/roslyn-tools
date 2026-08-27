@@ -7,16 +7,10 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Narrow dependencies in the solution to reduce complexity.
 /// </summary>
-internal sealed class NarrowDependencyCommand : IRtCommand, IRefactorCommand
+internal sealed class NarrowDependencyCommand(IWorkspaceSessionFactory sessionFactory, NarrowDependencyService narrow) : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly NarrowDependencyService _narrow;
-    public NarrowDependencyCommand(IWorkspaceSessionFactory sessionFactory, NarrowDependencyService narrow)
-    {
-        _narrow = narrow;
-        _sessionFactory = sessionFactory;
-    }
-
+    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
+    private readonly NarrowDependencyService _narrow = narrow;
     public static RtCommandInfo Info { get; } = new(
         "narrow-dependency",
         true,

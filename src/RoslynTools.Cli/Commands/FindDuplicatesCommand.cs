@@ -9,16 +9,10 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Identifies duplicate symbols in the current file
 /// </summary>
-internal sealed class FindDuplicatesCommand : IRtCommand, IStructuredOutputCommand, IAnalyzeCommand
+internal sealed class FindDuplicatesCommand(IWorkspaceSessionFactory sessionFactory, FindDuplicatesService findDuplicates) : IRtCommand, IStructuredOutputCommand, IAnalyzeCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly FindDuplicatesService _findDuplicates;
-    public FindDuplicatesCommand(IWorkspaceSessionFactory sessionFactory, FindDuplicatesService findDuplicates)
-    {
-        _findDuplicates = findDuplicates;
-        _sessionFactory = sessionFactory;
-    }
-
+    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
+    private readonly FindDuplicatesService _findDuplicates = findDuplicates;
     public static RtCommandInfo Info { get; } = new(
         "find-duplicates",
         false,

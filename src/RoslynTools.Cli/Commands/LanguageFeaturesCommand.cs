@@ -8,23 +8,17 @@ using RoslynTools.Services;
 namespace RoslynTools.Commands;
 
 /// <summary>Inventories C# language-feature usage and comparable refactoring candidates.</summary>
-internal sealed class LanguageFeaturesCommand : IRtCommand, IAnalyzeCommand, IStructuredOutputCommand
+internal sealed class LanguageFeaturesCommand(
+    DaemonRpcClient daemon,
+    LanguageFeaturesOperation operation) : IRtCommand, IAnalyzeCommand, IStructuredOutputCommand
 {
     private static readonly JsonSerializerOptions ResponseOptions = new()
     {
         PropertyNameCaseInsensitive = true
     };
 
-    private readonly DaemonRpcClient _daemon;
-    private readonly LanguageFeaturesOperation _operation;
-
-    public LanguageFeaturesCommand(
-        DaemonRpcClient daemon,
-        LanguageFeaturesOperation operation)
-    {
-        _daemon = daemon;
-        _operation = operation;
-    }
+    private readonly DaemonRpcClient _daemon = daemon;
+    private readonly LanguageFeaturesOperation _operation = operation;
 
     public static RtCommandInfo Info => LanguageFeaturesCommandDefinition.Info;
 

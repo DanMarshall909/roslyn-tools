@@ -5,18 +5,12 @@ using RoslynTools.Services;
 namespace RoslynTools.Commands;
 
 /// <summary>Adds DynamicDependency annotations for reflectively-created types.</summary>
-internal sealed class AddDynamicDependencyCommand : IRtCommand, IRefactorCommand
+internal sealed class AddDynamicDependencyCommand(
+    IWorkspaceSessionFactory sessionFactory,
+    AddDynamicDependencyService service) : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly AddDynamicDependencyService _service;
-
-    public AddDynamicDependencyCommand(
-        IWorkspaceSessionFactory sessionFactory,
-        AddDynamicDependencyService service)
-    {
-        _sessionFactory = sessionFactory;
-        _service = service;
-    }
+    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
+    private readonly AddDynamicDependencyService _service = service;
 
     public static RtCommandInfo Info { get; } = new(
         "add-dynamic-dependency",

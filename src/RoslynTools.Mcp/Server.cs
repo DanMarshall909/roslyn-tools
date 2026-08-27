@@ -8,7 +8,7 @@ namespace RoslynTools.Mcp;
 /// <summary>
 /// Class for the server component of the Roslyn MCP system.
 /// </summary>
-internal sealed class Server
+internal sealed class Server(ToolRegistry toolRegistry, TextReader input, TextWriter output)
 {
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
@@ -18,17 +18,10 @@ internal sealed class Server
         DefaultIgnoreCondition = JsonIgnoreCondition.Never
     };
 
-    private readonly TextReader _input;
-    private readonly TextWriter _output;
+    private readonly TextReader _input = input;
+    private readonly TextWriter _output = output;
 
-    private readonly ToolRegistry _toolRegistry;
-
-    public Server(ToolRegistry toolRegistry, TextReader input, TextWriter output)
-    {
-        _toolRegistry = toolRegistry;
-        _input = input;
-        _output = output;
-    }
+    private readonly ToolRegistry _toolRegistry = toolRegistry;
 
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {

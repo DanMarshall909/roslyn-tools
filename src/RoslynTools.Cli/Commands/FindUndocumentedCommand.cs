@@ -9,16 +9,10 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Identifies undocumented symbols in the current file
 /// </summary>
-internal sealed class FindUndocumentedCommand : IRtCommand, IInspectCommand
+internal sealed class FindUndocumentedCommand(IWorkspaceSessionFactory sessionFactory, FindUndocumentedService findUndocumented) : IRtCommand, IInspectCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly FindUndocumentedService _findUndocumented;
-    public FindUndocumentedCommand(IWorkspaceSessionFactory sessionFactory, FindUndocumentedService findUndocumented)
-    {
-        _findUndocumented = findUndocumented;
-        _sessionFactory = sessionFactory;
-    }
-
+    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
+    private readonly FindUndocumentedService _findUndocumented = findUndocumented;
     public static RtCommandInfo Info { get; } = new(
         "find-undocumented",
         false,

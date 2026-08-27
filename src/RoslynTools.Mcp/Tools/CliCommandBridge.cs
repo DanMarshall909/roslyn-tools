@@ -11,14 +11,9 @@ namespace RoslynTools.Mcp.Tools;
 /// <see cref="ICommandApplicationPort" />. New commands should provide a port and never
 /// enter this CLI parsing path.
 /// </summary>
-internal sealed class CliCommandBridge
+internal sealed class CliCommandBridge(IServiceProvider services)
 {
-    private readonly IServiceProvider _services;
-
-    public CliCommandBridge(IServiceProvider services)
-    {
-        _services = services;
-    }
+    private readonly IServiceProvider _services = services;
 
     public async Task<ToolResult> InvokeAsync(
         ApplicationCommandDescriptor descriptor,

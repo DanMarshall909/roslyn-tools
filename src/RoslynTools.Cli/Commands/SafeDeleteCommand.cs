@@ -7,16 +7,10 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// A command for safe deletion with asynchronous execution.
 /// </summary>
-internal sealed class SafeDeleteCommand : IRtCommand, IRefactorCommand
+internal sealed class SafeDeleteCommand(IWorkspaceSessionFactory sessionFactory, SafeDeleteService safeDelete) : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly SafeDeleteService _safeDelete;
-    public SafeDeleteCommand(IWorkspaceSessionFactory sessionFactory, SafeDeleteService safeDelete)
-    {
-        _safeDelete = safeDelete;
-        _sessionFactory = sessionFactory;
-    }
-
+    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
+    private readonly SafeDeleteService _safeDelete = safeDelete;
     public static RtCommandInfo Info { get; } = new(
         "safe-delete",
         true,

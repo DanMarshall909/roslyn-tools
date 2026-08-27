@@ -8,14 +8,9 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Identifies magic string literals in the current file
 /// </summary>
-internal sealed class FindMagicStringsCommand : IRtCommand, IAnalyzeCommand
+internal sealed class FindMagicStringsCommand(DaemonRpcClient daemon) : IRtCommand, IAnalyzeCommand
 {
-    private readonly DaemonRpcClient _daemon;
-
-    public FindMagicStringsCommand(DaemonRpcClient daemon)
-    {
-        _daemon = daemon;
-    }
+    private readonly DaemonRpcClient _daemon = daemon;
 
     public static RtCommandInfo Info => FindMagicStringsCommandDefinition.Info;
 

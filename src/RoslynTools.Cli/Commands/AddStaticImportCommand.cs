@@ -7,16 +7,10 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Command for adding static imports to the project.
 /// </summary>
-internal sealed class AddStaticImportCommand : IRtCommand, IRefactorCommand
+internal sealed class AddStaticImportCommand(IWorkspaceSessionFactory sessionFactory, ImportDirectiveService importDirective) : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly ImportDirectiveService _importDirective;
-    public AddStaticImportCommand(IWorkspaceSessionFactory sessionFactory, ImportDirectiveService importDirective)
-    {
-        _importDirective = importDirective;
-        _sessionFactory = sessionFactory;
-    }
-
+    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
+    private readonly ImportDirectiveService _importDirective = importDirective;
     public static RtCommandInfo Info { get; } = new(
         "add-static-import",
         true,

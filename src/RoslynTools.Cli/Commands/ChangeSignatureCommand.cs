@@ -8,18 +8,11 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Command for changing the signature of a command.
 /// </summary>
-internal sealed class ChangeSignatureCommand : IRtCommand, IRefactorCommand
+internal sealed class ChangeSignatureCommand(IWorkspaceSessionFactory sessionFactory, ChangeSignatureService changeSignature, ISolutionChangeWriter solutionChangeWriter) : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly ChangeSignatureService _changeSignature;
-    private readonly ISolutionChangeWriter _solutionChangeWriter;
-    public ChangeSignatureCommand(IWorkspaceSessionFactory sessionFactory, ChangeSignatureService changeSignature, ISolutionChangeWriter solutionChangeWriter)
-    {
-        _solutionChangeWriter = solutionChangeWriter;
-        _changeSignature = changeSignature;
-        _sessionFactory = sessionFactory;
-    }
-
+    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
+    private readonly ChangeSignatureService _changeSignature = changeSignature;
+    private readonly ISolutionChangeWriter _solutionChangeWriter = solutionChangeWriter;
     public static RtCommandInfo Info { get; } = new(
         "change-signature",
         true,

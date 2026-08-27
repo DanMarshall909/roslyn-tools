@@ -19,14 +19,9 @@ namespace RoslynTools.Commands;
 ///         two move together to satisfy the <c>App</c> startup biconditional).
 ///     </para>
 /// </summary>
-internal sealed class SemanticDiffCommand : IRtCommand, IStructuredOutputCommand, IAnalyzeCommand
+internal sealed class SemanticDiffCommand(SemanticDiffOperation operation) : IRtCommand, IStructuredOutputCommand, IAnalyzeCommand
 {
-    private readonly SemanticDiffOperation _operation;
-
-    public SemanticDiffCommand(SemanticDiffOperation operation)
-    {
-        _operation = operation;
-    }
+    private readonly SemanticDiffOperation _operation = operation;
 
     public static RtCommandInfo Info { get; } = new(
         "semantic-diff",

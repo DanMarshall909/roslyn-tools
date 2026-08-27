@@ -10,14 +10,10 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Provides a description of a command or its usage.
 /// </summary>
-internal sealed class DescribeCommand : IRtCommand, IStructuredOutputCommand, IInspectCommand
+internal sealed class DescribeCommand(DescribeOperation operation)
+    : IRtCommand, IStructuredOutputCommand, IInspectCommand
 {
-    private readonly DescribeOperation _operation;
-
-    public DescribeCommand(DescribeOperation operation)
-    {
-        _operation = operation;
-    }
+    private readonly DescribeOperation _operation = operation;
 
     public static RtCommandInfo Info { get; } = new(
         "describe",

@@ -14,7 +14,10 @@ namespace RoslynTools.Mcp.Tools;
 ///     directly to the typed application request; unmigrated commands use the isolated legacy
 ///     CLI adapter until they receive an application port.
 /// </summary>
-internal sealed class McpCommandAdapter
+internal sealed class McpCommandAdapter(
+    CommandDescriptorRegistry descriptors,
+    CliCommandBridge legacyBridge,
+    DaemonRpcRecovery daemonRpc)
 {
     private static readonly JsonSerializerOptions RequestOptions = new()
     {
@@ -22,19 +25,9 @@ internal sealed class McpCommandAdapter
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    private readonly CommandDescriptorRegistry _descriptors;
-    private readonly CliCommandBridge _legacyBridge;
-    private readonly DaemonRpcRecovery _daemonRpc;
-
-    public McpCommandAdapter(
-        CommandDescriptorRegistry descriptors,
-        CliCommandBridge legacyBridge,
-        DaemonRpcRecovery daemonRpc)
-    {
-        _descriptors = descriptors;
-        _legacyBridge = legacyBridge;
-        _daemonRpc = daemonRpc;
-    }
+    private readonly CommandDescriptorRegistry _descriptors = descriptors;
+    private readonly CliCommandBridge _legacyBridge = legacyBridge;
+    private readonly DaemonRpcRecovery _daemonRpc = daemonRpc;
 
     public async Task<ToolResult> InvokeAsync(
         string toolName,

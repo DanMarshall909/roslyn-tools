@@ -7,14 +7,9 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Fixes namespace issues in the current file
 /// </summary>
-internal sealed class FixNamespaceCommand : IRtCommand, IRefactorCommand
+internal sealed class FixNamespaceCommand(FixNamespaceService fixNamespace) : IRtCommand, IRefactorCommand
 {
-    private readonly FixNamespaceService _fixNamespace;
-    public FixNamespaceCommand(FixNamespaceService fixNamespace)
-    {
-        _fixNamespace = fixNamespace;
-    }
-
+    private readonly FixNamespaceService _fixNamespace = fixNamespace;
     public static RtCommandInfo Info { get; } = new(
         "fix-namespace",
         true,

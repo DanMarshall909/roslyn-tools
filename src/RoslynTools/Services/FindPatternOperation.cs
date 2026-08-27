@@ -16,7 +16,8 @@ internal sealed record FindPatternRequest(
 internal sealed record FindPatternResult(IReadOnlyList<PatternMatch> Matches);
 
 /// <summary>Shared structural-pattern operation used by CLI, daemon, and MCP adapters.</summary>
-internal sealed class FindPatternOperation : ICommandApplicationPort, IRtService
+internal sealed class FindPatternOperation(IWorkspaceSessionFactory sessionFactory)
+    : ICommandApplicationPort, IRtService
 {
     private static readonly JsonSerializerOptions ErrorSerializerOptions = new()
     {
@@ -24,12 +25,7 @@ internal sealed class FindPatternOperation : ICommandApplicationPort, IRtService
         Converters = { new JsonStringEnumConverter() }
     };
 
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-
-    public FindPatternOperation(IWorkspaceSessionFactory sessionFactory)
-    {
-        _sessionFactory = sessionFactory;
-    }
+    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
 
     public string CommandName => "find_pattern";
     public Type RequestType => typeof(FindPatternRequest);

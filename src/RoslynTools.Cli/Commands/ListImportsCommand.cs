@@ -8,14 +8,9 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Lists all imported namespaces in the current file
 /// </summary>
-internal sealed class ListImportsCommand : IRtCommand, IAnalyzeCommand
+internal sealed class ListImportsCommand(DaemonRpcClient daemon) : IRtCommand, IAnalyzeCommand
 {
-    private readonly DaemonRpcClient _daemon;
-
-    public ListImportsCommand(DaemonRpcClient daemon)
-    {
-        _daemon = daemon;
-    }
+    private readonly DaemonRpcClient _daemon = daemon;
 
     public static RtCommandInfo Info => ListImportsCommandDefinition.Info;
 

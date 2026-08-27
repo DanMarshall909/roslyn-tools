@@ -8,14 +8,9 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Finds all occurrences of a given pattern in the current file
 /// </summary>
-internal sealed class FindPatternCommand : IRtCommand, IStructuredOutputCommand, IInspectCommand
+internal sealed class FindPatternCommand(DaemonRpcClient daemon) : IRtCommand, IStructuredOutputCommand, IInspectCommand
 {
-    private readonly DaemonRpcClient _daemon;
-
-    public FindPatternCommand(DaemonRpcClient daemon)
-    {
-        _daemon = daemon;
-    }
+    private readonly DaemonRpcClient _daemon = daemon;
 
     public static RtCommandInfo Info => FindPatternCommandDefinition.Info;
 

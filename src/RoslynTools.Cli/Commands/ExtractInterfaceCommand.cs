@@ -7,16 +7,10 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Extracts an interface from the solution.
 /// </summary>
-internal sealed class ExtractInterfaceCommand : IRtCommand, IRefactorCommand
+internal sealed class ExtractInterfaceCommand(IWorkspaceSessionFactory sessionFactory, ExtractInterfaceService extractInterface) : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly ExtractInterfaceService _extractInterface;
-    public ExtractInterfaceCommand(IWorkspaceSessionFactory sessionFactory, ExtractInterfaceService extractInterface)
-    {
-        _extractInterface = extractInterface;
-        _sessionFactory = sessionFactory;
-    }
-
+    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
+    private readonly ExtractInterfaceService _extractInterface = extractInterface;
     public static RtCommandInfo Info { get; } = new(
         "extract-interface",
         true,

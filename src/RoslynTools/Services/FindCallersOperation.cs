@@ -12,7 +12,9 @@ internal sealed record FindCallersRequest(
     [property: JsonPropertyName("include-tests")] bool IncludeTests = false);
 
 /// <summary>Shared find-callers operation used by CLI and protocol adapters.</summary>
-internal sealed class FindCallersOperation
+internal sealed class FindCallersOperation(
+    IWorkspaceSessionFactory sessionFactory,
+    FindCallersService findCallers)
     : ICommandApplicationPort, IRtService
 {
     private static readonly JsonSerializerOptions ErrorSerializerOptions = new()
@@ -21,16 +23,8 @@ internal sealed class FindCallersOperation
         Converters = { new JsonStringEnumConverter() }
     };
 
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly FindCallersService _findCallers;
-
-    public FindCallersOperation(
-        IWorkspaceSessionFactory sessionFactory,
-        FindCallersService findCallers)
-    {
-        _sessionFactory = sessionFactory;
-        _findCallers = findCallers;
-    }
+    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
+    private readonly FindCallersService _findCallers = findCallers;
 
     public string CommandName => "find_callers";
     public Type RequestType => typeof(FindCallersRequest);

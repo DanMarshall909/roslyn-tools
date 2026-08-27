@@ -9,14 +9,9 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Finds all references to a given symbol in the current file
 /// </summary>
-internal sealed class FindRefsCommand : IRtCommand, IInspectCommand
+internal sealed class FindRefsCommand(FindRefsOperation operation) : IRtCommand, IInspectCommand
 {
-    private readonly FindRefsOperation _operation;
-
-    public FindRefsCommand(FindRefsOperation operation)
-    {
-        _operation = operation;
-    }
+    private readonly FindRefsOperation _operation = operation;
 
     public static RtCommandInfo Info { get; } = new(
         "find-refs",

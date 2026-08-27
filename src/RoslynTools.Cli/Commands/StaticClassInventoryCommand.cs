@@ -9,16 +9,10 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// A command for retrieving static class inventory information.
 /// </summary>
-internal sealed class StaticClassInventoryCommand : IRtCommand, IStructuredOutputCommand, IAnalyzeCommand
+internal sealed class StaticClassInventoryCommand(IWorkspaceSessionFactory sessionFactory, StaticClassInventoryService inventory) : IRtCommand, IStructuredOutputCommand, IAnalyzeCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly StaticClassInventoryService _inventory;
-    public StaticClassInventoryCommand(IWorkspaceSessionFactory sessionFactory, StaticClassInventoryService inventory)
-    {
-        _inventory = inventory;
-        _sessionFactory = sessionFactory;
-    }
-
+    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
+    private readonly StaticClassInventoryService _inventory = inventory;
     public static RtCommandInfo Info { get; } = new(
         "static-class-inventory",
         false,

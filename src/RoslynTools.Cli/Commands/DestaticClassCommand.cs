@@ -7,16 +7,10 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Converts a class to a static class.
 /// </summary>
-internal sealed class DestaticClassCommand : IRtCommand, IRefactorCommand
+internal sealed class DestaticClassCommand(IWorkspaceSessionFactory sessionFactory, DestaticClassService destaticClass) : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly DestaticClassService _destaticClass;
-    public DestaticClassCommand(IWorkspaceSessionFactory sessionFactory, DestaticClassService destaticClass)
-    {
-        _destaticClass = destaticClass;
-        _sessionFactory = sessionFactory;
-    }
-
+    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
+    private readonly DestaticClassService _destaticClass = destaticClass;
     public static RtCommandInfo Info { get; } = new(
         "convert-static-class",
         true,

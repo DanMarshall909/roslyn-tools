@@ -11,18 +11,12 @@ internal sealed record DescribeRequest(
     bool WithLocations = false);
 
 /// <summary>Shared describe operation used by CLI and descriptor-driven hosts.</summary>
-internal sealed class DescribeOperation : ICommandApplicationPort, IRtService
+internal sealed class DescribeOperation(
+    IWorkspaceSessionFactory sessionFactory,
+    InspectService inspect) : ICommandApplicationPort, IRtService
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly InspectService _inspect;
-
-    public DescribeOperation(
-        IWorkspaceSessionFactory sessionFactory,
-        InspectService inspect)
-    {
-        _sessionFactory = sessionFactory;
-        _inspect = inspect;
-    }
+    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
+    private readonly InspectService _inspect = inspect;
 
     public string CommandName => "describe";
     public Type RequestType => typeof(DescribeRequest);

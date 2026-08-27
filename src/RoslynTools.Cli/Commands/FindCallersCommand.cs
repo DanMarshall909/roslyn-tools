@@ -10,18 +10,12 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Finds all callers of a given symbol in the current file
 /// </summary>
-internal sealed class FindCallersCommand : IRtCommand, IInspectCommand
+internal sealed class FindCallersCommand(
+    FindCallersOperation operation,
+    DaemonRpcClient daemon) : IRtCommand, IInspectCommand
 {
-    private readonly FindCallersOperation _operation;
-    private readonly DaemonRpcClient _daemon;
-
-    public FindCallersCommand(
-        FindCallersOperation operation,
-        DaemonRpcClient daemon)
-    {
-        _operation = operation;
-        _daemon = daemon;
-    }
+    private readonly FindCallersOperation _operation = operation;
+    private readonly DaemonRpcClient _daemon = daemon;
 
     public static RtCommandInfo Info => FindCallersCommandDefinition.Info;
 

@@ -8,15 +8,10 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Computes code complexity metrics for a solution.
 /// </summary>
-internal sealed class ComplexityCommand : IRtCommand, IStructuredOutputCommand, IAnalyzeCommand
+internal sealed class ComplexityCommand(IWorkspaceSessionFactory sessionFactory) : IRtCommand, IStructuredOutputCommand, IAnalyzeCommand
 {
     internal static readonly string[] ValidSortValues = ["cyclomatic", "cognitive", "loc", "params"];
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-
-    public ComplexityCommand(IWorkspaceSessionFactory sessionFactory)
-    {
-        _sessionFactory = sessionFactory;
-    }
+    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
 
     public static RtCommandInfo Info { get; } = new(
         "complexity",

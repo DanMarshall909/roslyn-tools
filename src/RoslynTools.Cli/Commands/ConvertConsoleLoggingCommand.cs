@@ -10,18 +10,11 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Converts console logging to a more structured format.
 /// </summary>
-internal sealed class ConvertConsoleLoggingCommand : IRtCommand, IRefactorCommand
+internal sealed class ConvertConsoleLoggingCommand(IWorkspaceSessionFactory sessionFactory, AddDependencyService addDependency, ISolutionChangeWriter solutionChangeWriter) : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly AddDependencyService _addDependency;
-    private readonly ISolutionChangeWriter _solutionChangeWriter;
-    public ConvertConsoleLoggingCommand(IWorkspaceSessionFactory sessionFactory, AddDependencyService addDependency, ISolutionChangeWriter solutionChangeWriter)
-    {
-        _solutionChangeWriter = solutionChangeWriter;
-        _addDependency = addDependency;
-        _sessionFactory = sessionFactory;
-    }
-
+    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
+    private readonly AddDependencyService _addDependency = addDependency;
+    private readonly ISolutionChangeWriter _solutionChangeWriter = solutionChangeWriter;
     public static RtCommandInfo Info { get; } = new(
         "convert-console-logging",
         true,

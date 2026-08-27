@@ -7,16 +7,10 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Command for adding global imports to the project.
 /// </summary>
-internal sealed class AddGlobalImportCommand : IRtCommand, IRefactorCommand
+internal sealed class AddGlobalImportCommand(IWorkspaceSessionFactory sessionFactory, ImportDirectiveService importDirective) : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly ImportDirectiveService _importDirective;
-    public AddGlobalImportCommand(IWorkspaceSessionFactory sessionFactory, ImportDirectiveService importDirective)
-    {
-        _importDirective = importDirective;
-        _sessionFactory = sessionFactory;
-    }
-
+    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
+    private readonly ImportDirectiveService _importDirective = importDirective;
     public static RtCommandInfo Info { get; } = new(
         "add-global-import",
         true,

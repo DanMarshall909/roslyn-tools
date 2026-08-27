@@ -7,16 +7,10 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Replaces a call with a new implementation or method.
 /// </summary>
-internal sealed class ReplaceCallCommand : IRtCommand, IRefactorCommand
+internal sealed class ReplaceCallCommand(IWorkspaceSessionFactory sessionFactory, ReplaceCallService replace) : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly ReplaceCallService _replace;
-    public ReplaceCallCommand(IWorkspaceSessionFactory sessionFactory, ReplaceCallService replace)
-    {
-        _replace = replace;
-        _sessionFactory = sessionFactory;
-    }
-
+    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
+    private readonly ReplaceCallService _replace = replace;
     public static RtCommandInfo Info { get; } = new(
         "replace-call",
         true,

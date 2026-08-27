@@ -7,16 +7,10 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Creates an instance of a given type
 /// </summary>
-internal sealed class MakeInstanceCommand : IRtCommand, IRefactorCommand
+internal sealed class MakeInstanceCommand(IWorkspaceSessionFactory sessionFactory, MakeInstanceService makeInstance) : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly MakeInstanceService _makeInstance;
-    public MakeInstanceCommand(IWorkspaceSessionFactory sessionFactory, MakeInstanceService makeInstance)
-    {
-        _makeInstance = makeInstance;
-        _sessionFactory = sessionFactory;
-    }
-
+    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
+    private readonly MakeInstanceService _makeInstance = makeInstance;
     public static RtCommandInfo Info { get; } = new(
         "make-instance",
         true,

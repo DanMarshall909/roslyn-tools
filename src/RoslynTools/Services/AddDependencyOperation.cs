@@ -32,22 +32,15 @@ internal sealed record AddDependencyResult(
     string? Message);
 
 /// <summary>Daemon-owned add-dependency application operation.</summary>
-internal sealed class AddDependencyOperation
+internal sealed class AddDependencyOperation(
+    IWorkspaceSessionFactory sessionFactory,
+    AddDependencyService addDependency,
+    ISolutionChangeWriter solutionChangeWriter)
     : ICommandApplicationPort, IRtService
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory;
-    private readonly AddDependencyService _addDependency;
-    private readonly ISolutionChangeWriter _solutionChangeWriter;
-
-    public AddDependencyOperation(
-        IWorkspaceSessionFactory sessionFactory,
-        AddDependencyService addDependency,
-        ISolutionChangeWriter solutionChangeWriter)
-    {
-        _sessionFactory = sessionFactory;
-        _addDependency = addDependency;
-        _solutionChangeWriter = solutionChangeWriter;
-    }
+    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
+    private readonly AddDependencyService _addDependency = addDependency;
+    private readonly ISolutionChangeWriter _solutionChangeWriter = solutionChangeWriter;
 
     public string CommandName => "add-dependency";
     public Type RequestType => typeof(AddDependencyRequest);
