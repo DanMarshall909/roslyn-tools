@@ -1,5 +1,5 @@
-using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Services;
 using RoslynTools.Tests.Infrastructure;
 using Shouldly;
 
@@ -17,13 +17,13 @@ public class AddTest : IClassFixture<RtServicesFixture>
     [Fact]
     public void creates_valid_test_identifiers()
     {
-        _services.Resolve<AddTestCommand>().AcToMethodName("Returns 404 when order not found").ShouldBe("Returns_404_When_Order_Not_Found");
+        _services.Resolve<AddTestService>().AcToMethodName("Returns 404 when order not found").ShouldBe("Returns_404_When_Order_Not_Found");
     }
 
     [Fact]
     public void strips_punctuation()
     {
-        _services.Resolve<AddTestCommand>().AcToMethodName("It works!").ShouldBe("It_Works");
+        _services.Resolve<AddTestService>().AcToMethodName("It works!").ShouldBe("It_Works");
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -47,15 +47,9 @@ public class AddTest : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<AddTestCommand>().ExecuteAsync(
+            await ExecuteLegacyAsync(
                 "MyTests",
                 "Should_DoSomething",
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
                 null,
                 null,
                 null,
@@ -90,16 +84,10 @@ public class AddTest : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<AddTestCommand>().ExecuteAsync(
+            await ExecuteLegacyAsync(
                 "OrderTests",
                 null,
                 "Returns 404 when not found; Creates order successfully",
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
                 null,
                 null,
                 "ignored",
@@ -133,17 +121,11 @@ public class AddTest : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<AddTestCommand>().ExecuteAsync(
+            await ExecuteLegacyAsync(
                 "OrderTests",
                 null,
                 "Returns 404 when not found",
                 "WhenOrderMissing",
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
                 null,
                 "ignored",
                 false);
@@ -181,20 +163,17 @@ public class AddTest : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<AddTestCommand>().ExecuteAsync(
+            var execution = await ExecuteLegacyAsync(
                 "MyTests",
                 "Should_DoSomething",
                 null,
                 null,
                 null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
                 "ignored",
                 true);
+
+            execution.Status.ShouldBe(MutationExecutionStatus.DryRun);
+            execution.ChangedFiles.ShouldHaveSingleItem().ShouldEndWith("MyTests.cs");
         }
 
         var afterContent = await proj.ReadSourceAsync("MyTests.cs");
@@ -221,15 +200,9 @@ public class AddTest : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<AddTestCommand>().ExecuteAsync(
+            await ExecuteLegacyAsync(
                 "MyTests",
                 "Should_DoSomething",
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
                 null,
                 null,
                 null,
@@ -242,5 +215,27 @@ public class AddTest : IClassFixture<RtServicesFixture>
         content.ShouldContain("using Xunit;", Case.Sensitive);
         content.ShouldContain("using System;", Case.Sensitive);
         content.ShouldContain("public void Should_DoSomething()", Case.Sensitive);
+    }
+
+    private async Task<MutationExecutionResult<AddTestResult>> ExecuteLegacyAsync(
+        string className,
+        string? name,
+        string? acceptanceCriteria,
+        string? nestedClass,
+        string? filePath,
+        string? solution,
+        bool dryRun)
+    {
+        var result = await _services.Resolve<AddTestOperation>().ExecuteAsync(new AddTestRequest(
+            AddTestMode.Legacy,
+            ClassName: className,
+            Name: name,
+            AcceptanceCriteria: acceptanceCriteria,
+            NestedClass: nestedClass,
+            FilePath: filePath,
+            Solution: solution,
+            DryRun: dryRun));
+
+        return result.Unwrap();
     }
 }

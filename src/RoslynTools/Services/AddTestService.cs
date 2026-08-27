@@ -1,56 +1,25 @@
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-/// <summary>
-/// A class for managing test services in the solution.
-/// </summary>
-[SuppressMessage("Performance", "CA1822:Mark members as static",
-    Justification = "Instance class created by rt destatic-class migration.")]
-internal class AddTestService : IRtService
+internal sealed record AddTestPreparation(Solution Solution, string TargetClass);
+
+/// <summary>Prepares test-stub solution changes without applying or rendering them.</summary>
+internal sealed class AddTestService : IRtService
 {
-    private readonly ILogger<AddTestService> _logger;
-    private readonly ISolutionChangeWriter _solutionChangeWriter;
-
-    public AddTestService()
-        : this(new RtConsoleLogger<AddTestService>(), new SolutionChangeWriter())
-    {
-    }
-
-    public AddTestService(ILogger<AddTestService> logger, ISolutionChangeWriter solutionChangeWriter)
-    {
-        _logger = logger;
-        _solutionChangeWriter = solutionChangeWriter;
-    }
-
-    /// <summary>
-    /// An asynchronous method to run test services.
-    /// </summary>
-    internal async Task RunAsync(
+    internal async Task<AddTestPreparation?> PrepareLegacyAsync(
         Solution sln,
         string className,
         string? name,
         string? acs,
         string? nestedClass,
-        string? filePath,
-        bool dryRun)
+        string? filePath)
     {
-        var originalSolution = sln;
         var (found, updatedSln) = await FindClassAndApplyChanges(sln, className, name, acs, nestedClass, filePath);
-
-        if (!found)
-        {
-            _logger.RtError("Class '{ClassName}' not found in solution.", className);
-            Environment.ExitCode = 1;
-            return;
-        }
-
-        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, updatedSln, dryRun);
+        return found ? new AddTestPreparation(updatedSln, className) : null;
     }
 
     private async Task<(bool Found, Solution UpdatedSolution)> FindClassAndApplyChanges(
@@ -78,8 +47,6 @@ internal class AddTestService : IRtService
                     .FirstOrDefault(c => c.Identifier.Text == className);
 
                 if (classDecl == null) continue;
-
-                _logger.RtInfo("Found '{ClassName}' in {FilePath}", className, doc.FilePath);
 
                 var updatedSln = ApplyChangesToDocument(sln, doc, classDecl, className, name, acs, nestedClass);
                 return (true, updatedSln);
@@ -174,21 +141,15 @@ internal class AddTestService : IRtService
     //  Command-based test scaffolding
     // ──────────────────────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// An asynchronous method to run test commands based on command information.
-    /// </summary>
-    internal async Task RunCommandBasedAsync(
+    internal static async Task<AddTestPreparation?> PrepareCommandBasedAsync(
         Solution sln,
         RtCommandInfo commandInfo,
         string? scenario,
         string? outcome,
         string concern,
         string? beforePath,
-        string? afterPath,
-        bool dryRun)
+        string? afterPath)
     {
-        var originalSolution = sln;
-
         // Determine test file path and class name
         var testFilePath = DetermineTestFilePath(commandInfo);
         var className = commandInfo.Name.Split('-')
@@ -207,20 +168,13 @@ internal class AddTestService : IRtService
         var (found, updatedSln) = await FindOrCreateClassAndApplyChanges(
             sln, testFilePath, className, method);
 
-        if (!found)
-        {
-            _logger.RtError("Failed to add test method to class '{ClassName}'.", className);
-            Environment.ExitCode = 1;
-            return;
-        }
-
-        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, updatedSln, dryRun);
+        return found ? new AddTestPreparation(updatedSln, className) : null;
     }
 
     /// <summary>
     /// A method to convert scenario outcomes to method names.
     /// </summary>
-    internal string ScenarioOutcomeToMethodName(string scenario, string outcome)
+    internal static string ScenarioOutcomeToMethodName(string scenario, string outcome)
     {
         // Convert to snake_case with 'with_' prefix
         // "source file as first occurrence" + "updates call site"
@@ -231,7 +185,7 @@ internal class AddTestService : IRtService
         return $"with_{scenarioSnake}_{outcomeSnake}";
     }
 
-    private string ToSnakeCase(string text)
+    private static string ToSnakeCase(string text)
     {
         // Remove non-alphanumeric, split on spaces, join with underscores, lowercase
         var cleaned = new string(text.Where(c => char.IsLetterOrDigit(c) || c == ' ').ToArray());
@@ -239,7 +193,7 @@ internal class AddTestService : IRtService
         return string.Join("_", words).ToLowerInvariant();
     }
 
-    private MemberDeclarationSyntax BuildFactMethodWithTrait(
+    private static MemberDeclarationSyntax BuildFactMethodWithTrait(
         string methodName,
         string concern,
         string? beforePath,
@@ -261,7 +215,7 @@ internal class AddTestService : IRtService
         return SyntaxFactory.ParseMemberDeclaration(text)!;
     }
 
-    private string DetermineTestFilePath(RtCommandInfo commandInfo)
+    private static string DetermineTestFilePath(RtCommandInfo commandInfo)
     {
         // Map category to directory
         var category = commandInfo.Category switch
@@ -280,7 +234,7 @@ internal class AddTestService : IRtService
         return $"tests/RoslynTools.Tests/{category}/{fileName}.cs";
     }
 
-    private async Task<(bool Found, Solution UpdatedSolution)> FindOrCreateClassAndApplyChanges(
+    private static async Task<(bool Found, Solution UpdatedSolution)> FindOrCreateClassAndApplyChanges(
         Solution sln,
         string testFilePath,
         string className,
@@ -304,8 +258,6 @@ internal class AddTestService : IRtService
 
                 if (classDecl == null) continue;
 
-                _logger.RtInfo("Found '{ClassName}' in {FilePath}", className, doc.FilePath);
-
                 var cu = (CompilationUnitSyntax)root;
                 cu = RoslynSyntax.EnsureUsing(cu, "Xunit");
                 cu = RoslynSyntax.EnsureUsing(cu, "System");
@@ -320,9 +272,6 @@ internal class AddTestService : IRtService
                 return (true, sln.WithDocumentSyntaxRoot(doc.Id, cu));
             }
 
-        // File/class not found - log but don't fail (user can manually create if needed)
-        _logger.RtInfo("Test class '{ClassName}' not found at {FilePath}. Create the file manually or use legacy mode.",
-            className, testFilePath);
         return (false, sln);
     }
 }

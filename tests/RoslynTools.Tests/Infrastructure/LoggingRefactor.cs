@@ -104,7 +104,7 @@ public class LoggingRefactor : IClassFixture<RtServicesFixture>
     }
 
     [Fact]
-    public async Task mutation_dry_run_diff_output_remains_on_stdout()
+    public async Task typed_mutation_dry_run_result_remains_on_stdout()
     {
         using var project = new AdhocProjectBuilder("MyApp");
         project.AddSource("Services/AgentService.cs", """
@@ -122,23 +122,24 @@ public class LoggingRefactor : IClassFixture<RtServicesFixture>
         using (WorkspaceLoader.UseOverride(workspace, solution))
         using (Core.RtConsole.UseConsole(console))
         {
-            await _services.Resolve<FixNamespaceCommand>().ExecuteAsync(
+            await _services.Resolve<FixNamespaceCommand>().Build().InvokeAsync(
+            [
+                "--file",
                 Path.Combine(project.ProjectDir, "Services", "AgentService.cs"),
+                "--solution",
                 "ignored",
-                true);
+                "--dry-run"
+            ]);
         }
 
-        var diffOutput = string.Join("\n", console.WriteEntries
-            .Where(e => e.Context.HasFlag(RtOutputContext.Diff))
+        var resultOutput = string.Join("\n", console.WriteEntries
+            .Where(e => e.Context.HasFlag(RtOutputContext.Result))
             .Select(e => e.Message));
 
-        diffOutput.ShouldContain("--- ", Case.Sensitive);
-        diffOutput.ShouldContain("+++ ", Case.Sensitive);
-        diffOutput.ShouldContain("[dry-run]", Case.Sensitive);
-
-        console.LogEntries.ShouldContain(e => e.Level == RtLogLevel.Info &&
-                 e.RenderedMessage.Contains("Fixing namespace", StringComparison.Ordinal));
-        diffOutput.ShouldNotContain("Fixing namespace", Case.Sensitive);
+        resultOutput.ShouldContain("\"changedFiles\"", Case.Sensitive);
+        resultOutput.ShouldContain("AgentService.cs", Case.Sensitive);
+        resultOutput.ShouldContain("Program.cs", Case.Sensitive);
+        console.LogEntries.ShouldBeEmpty();
     }
 
     [Fact]

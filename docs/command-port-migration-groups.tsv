@@ -27,7 +27,7 @@ add-dynamic-dependency	refactor	M1	complete	daemon-preferred	apply-default
 add-global-import	refactor	M1	complete	daemon-preferred	apply-default
 add-null-checks	refactor	M1	complete	daemon-preferred	apply-default
 add-static-import	refactor	M1	complete	daemon-preferred	apply-default
-add-test	refactor	M2	convert	daemon-preferred	apply-default
+add-test	refactor	M2	complete	daemon-preferred	apply-default
 add-xml-doc	refactor	M1	complete	daemon-preferred	apply-default
 change-signature	refactor	M2	complete	daemon-preferred	apply-default
 convert-console-logging	refactor	M3	convert	daemon-preferred	review-default
@@ -36,9 +36,9 @@ convert-to-record	refactor	M1	complete	daemon-preferred	apply-default
 extract-class	refactor	M4	convert	daemon-preferred	apply-default
 extract-interface	refactor	M1	convert	daemon-preferred	apply-default
 extract-method	refactor	M4	convert	daemon-preferred	apply-default
-extract-string-constant	refactor	M1	convert	daemon-preferred	apply-default
-fix-namespace	refactor	M1	convert	daemon-preferred	apply-default
-implement-interface	refactor	M1	convert	daemon-preferred	apply-default
+extract-string-constant	refactor	M1	complete	daemon-preferred	apply-default
+fix-namespace	refactor	M1	complete	daemon-preferred	apply-default
+implement-interface	refactor	M1	complete	daemon-preferred	apply-default
 inline-method	refactor	M1	convert	daemon-preferred	apply-default
 make-async	refactor	M1	convert	daemon-preferred	apply-default
 make-instance	refactor	M1	convert	daemon-preferred	apply-default

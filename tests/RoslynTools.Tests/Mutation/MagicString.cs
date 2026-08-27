@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using RoslynTools.Core;
 using RoslynTools.Services;
 using Shouldly;
 
@@ -101,12 +102,19 @@ public sealed class MagicString
         using (workspace)
         {
             var writer = new CapturingSolutionChangeWriter();
-            var service = new MagicStringService(writer);
             var filePath = Path.Combine(project.ProjectDir, "Messages.cs");
             var line = GetLineNumber(source, "public string First() => \"repeat-me\";");
 
-            await service.ExtractConstantAsync(solution, filePath, line, "RepeatMe", false);
+            var operation = new ExtractStringConstantOperation(
+                new FixedWorkspaceSessionFactory(workspace, solution),
+                new MagicStringService(writer),
+                writer);
+            var execution = (await operation.ExecuteAsync(new ExtractStringConstantRequest(
+                filePath,
+                line,
+                "RepeatMe"))).Unwrap();
 
+            execution.Status.ShouldBe(MutationExecutionStatus.Applied);
             var updatedText = await TestSolutionDocuments.GetTextAsync(writer.NewSolution!, "Messages.cs");
             var root = CSharpSyntaxTree.ParseText(updatedText).GetCompilationUnitRoot();
             var messages = root.DescendantNodes()
@@ -150,14 +158,22 @@ public sealed class MagicString
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var service = new MagicStringService(new CapturingSolutionChangeWriter());
+            var writer = new CapturingSolutionChangeWriter();
+            var operation = new ExtractStringConstantOperation(
+                new FixedWorkspaceSessionFactory(workspace, solution),
+                new MagicStringService(writer),
+                writer);
             var filePath = Path.Combine(project.ProjectDir, "Messages.cs");
             var line = GetLineNumber(source, "public string First() => \"repeat-me\";");
 
-            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                service.ExtractConstantAsync(solution, filePath, line, "RepeatMe", false));
+            var result = await operation.ExecuteAsync(new ExtractStringConstantRequest(
+                filePath,
+                line,
+                "RepeatMe"));
 
-            ex.Message.ShouldContain("already contains a member named 'RepeatMe'", Case.Sensitive);
+            result.IsErr.ShouldBeTrue();
+            result.Match(_ => string.Empty, error => error.Message)
+                .ShouldContain("already contains a member named 'RepeatMe'", Case.Sensitive);
         }
     }
 
@@ -179,5 +195,15 @@ public sealed class MagicString
             .ExpressionBody!
             .Expression
             .ToString();
+    }
+
+    private sealed class FixedWorkspaceSessionFactory(
+        Workspace workspace,
+        Solution solution) : IWorkspaceSessionFactory
+    {
+        public Task<Solution> GetSolutionAsync(string? solutionPath) => Task.FromResult(solution);
+
+        public Task<(Workspace Workspace, Solution Solution)> LoadWorkspaceAsync(string? solutionPath) =>
+            Task.FromResult((workspace, solution));
     }
 }

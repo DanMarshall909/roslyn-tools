@@ -2,7 +2,6 @@ using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
@@ -12,36 +11,12 @@ namespace RoslynTools.Services;
 /// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance class created by rt destatic-class migration.")]
-internal class FixNamespaceService(
-    ILogger<FixNamespaceService> logger,
-    ISolutionChangeWriter solutionChangeWriter,
-    IWorkspaceSessionFactory sessionFactory) : IRtService
+internal class FixNamespaceService : IRtService
 {
-    private readonly ILogger<FixNamespaceService> _logger = logger;
-    private readonly ISolutionChangeWriter _solutionChangeWriter = solutionChangeWriter;
-    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
+    internal sealed record Preparation(Solution Solution, bool Changed, string? Message = null);
 
-    /// <summary>
-    /// Executes a fix for a namespace issue with optional parameters.
-    /// </summary>
-    internal async Task ExecuteAsync(string filePath, string? solutionPath, bool dryRun)
+    internal async Task<Preparation> PrepareAsync(Solution solution, string filePath)
     {
-        filePath = Path.GetFullPath(filePath);
-
-        var (workspace, solution) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
-        using (workspace)
-        {
-            await RunAsync(solution, filePath, dryRun);
-        }
-    }
-
-    /// <summary>
-    /// Runs a fix for a namespace issue on a solution.
-    /// </summary>
-    internal async Task RunAsync(Solution solution, string filePath, bool dryRun)
-    {
-        var originalSolution = solution;
-
         var targetDoc = solution.Projects
                             .SelectMany(p => p.Documents)
                             .FirstOrDefault(d => string.Equals(
@@ -62,22 +37,10 @@ internal class FixNamespaceService(
 
         var currentNamespace = GetDeclaredNamespace(syntaxRoot);
         if (currentNamespace == null)
-        {
-            _logger.RtInfo("No namespace declaration found in '{FilePath}'. Nothing to fix.", filePath);
-            return;
-        }
+            return new Preparation(solution, false, $"No namespace declaration found in '{filePath}'. Nothing to fix.");
 
         if (currentNamespace == expectedNamespace)
-        {
-            RtConsole.WriteLine(RtOutputContext.Diagnostic, $"Namespace already correct: {expectedNamespace}");
-            return;
-        }
-
-        _logger.RtInfo(
-            "Fixing namespace in '{FileName}': '{CurrentNamespace}' -> '{ExpectedNamespace}'",
-            Path.GetFileName(filePath),
-            currentNamespace,
-            expectedNamespace);
+            return new Preparation(solution, false, $"Namespace already correct: {expectedNamespace}");
 
         var nsRewriter = new NamespaceDeclarationRenamer(currentNamespace, expectedNamespace);
         var newRoot = nsRewriter.Visit(syntaxRoot);
@@ -99,7 +62,7 @@ internal class FixNamespaceService(
                     solution = solution.WithDocumentSyntaxRoot(doc.Id, updatedRoot);
             }
 
-        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
+        return new Preparation(solution, true);
     }
 
     /// <summary>

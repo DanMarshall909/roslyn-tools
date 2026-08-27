@@ -96,39 +96,44 @@ internal class MagicStringService : IRtService
         string constantName,
         bool dryRun)
     {
-        var originalSolution = solution;
+        var prepared = await PrepareExtractConstantAsync(solution, filePath, line, constantName);
+        await _solutionChangeWriter.ApplyChangesAsync(solution, prepared.Solution, dryRun);
+    }
+
+    internal async Task<PreparedExtraction> PrepareExtractConstantAsync(
+        Solution solution,
+        string filePath,
+        int line,
+        string constantName)
+    {
         var document = FindDocument(solution, filePath);
         var root = await document.GetSyntaxRootAsync()
-                   ?? throw new InvalidOperationException($"Cannot read syntax root for '{document.FilePath}'.");
-
-        var literal = root.DescendantNodes()
-                          .OfType<LiteralExpressionSyntax>()
-                          .FirstOrDefault(l => l.IsKind(SyntaxKind.StringLiteralExpression)
-                                               && l.GetLocation().GetLineSpan().StartLinePosition.Line + 1 == line)
-                      ?? throw new InvalidOperationException(
-                          $"No string literal found at line {line} in '{filePath}'.");
-
+            ?? throw new InvalidOperationException($"Cannot read syntax root for '{document.FilePath}'.");
+        var literal = root.DescendantNodes().OfType<LiteralExpressionSyntax>().FirstOrDefault(l =>
+            l.IsKind(SyntaxKind.StringLiteralExpression)
+            && l.GetLocation().GetLineSpan().StartLinePosition.Line + 1 == line)
+            ?? throw new InvalidOperationException($"No string literal found at line {line} in '{filePath}'.");
         if (!IsCandidateLiteral(literal, 1))
             throw new InvalidOperationException($"String literal at line {line} is not a candidate for extraction.");
-
         var containingType = literal.Ancestors().OfType<TypeDeclarationSyntax>().FirstOrDefault()
-                             ?? throw new InvalidOperationException(
-                                 "Magic string extraction requires the literal to be inside a type declaration.");
-
-        if (containingType.Members
-            .OfType<FieldDeclarationSyntax>()
-            .Any(f => f.Declaration.Variables.Any(v => v.Identifier.ValueText == constantName)))
+            ?? throw new InvalidOperationException(
+                "Magic string extraction requires the literal to be inside a type declaration.");
+        if (containingType.Members.OfType<FieldDeclarationSyntax>()
+            .Any(field => field.Declaration.Variables
+                .Any(variable => variable.Identifier.ValueText == constantName)))
             throw new InvalidOperationException(
                 $"Type '{containingType.Identifier.Text}' already contains a member named '{constantName}'.");
-
         var value = literal.Token.ValueText;
-        var rewrittenType = ReplaceMatchingLiterals(containingType, value, constantName);
-        rewrittenType = InsertConstant(rewrittenType, constantName, value);
-
-        var newRoot = root.ReplaceNode(containingType, rewrittenType);
-        solution = solution.WithDocumentSyntaxRoot(document.Id, newRoot);
-        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
+        var rewritten = InsertConstant(
+            ReplaceMatchingLiterals(containingType, value, constantName),
+            constantName,
+            value);
+        return new PreparedExtraction(
+            solution.WithDocumentSyntaxRoot(document.Id, root.ReplaceNode(containingType, rewritten)),
+            true);
     }
+
+    internal sealed record PreparedExtraction(Solution Solution, bool Changed);
 
     private TypeDeclarationSyntax ReplaceMatchingLiterals(
         TypeDeclarationSyntax containingType,
