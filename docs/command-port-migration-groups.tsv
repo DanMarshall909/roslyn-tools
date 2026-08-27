@@ -13,11 +13,11 @@ probe-di	analyze	R2	convert	in-process	read-only
 semantic-diff	analyze	R0	complete	in-process	read-only
 solid	analyze	R3	convert	daemon-preferred	read-only
 static-class-inventory	analyze	R1	convert	daemon-preferred	read-only
-describe	inspect	R0	reconcile	daemon-preferred	read-only
-find-callers	inspect	R0	reconcile	daemon-preferred	read-only
-find-impl	inspect	R0	reconcile	daemon-preferred	read-only
+describe	inspect	R0	complete	daemon-preferred	read-only
+find-callers	inspect	R0	complete	daemon-preferred	read-only
+find-impl	inspect	R0	complete	daemon-preferred	read-only
 find-pattern	inspect	R4	complete	daemon-preferred	read-only
-find-refs	inspect	R0	reconcile	daemon-preferred	read-only
+find-refs	inspect	R0	complete	daemon-preferred	read-only
 find-undocumented	inspect	R1	convert	daemon-preferred	read-only
 find-unused	inspect	R1	convert	daemon-preferred	read-only
 outline	inspect	R0	complete	daemon-preferred	read-only

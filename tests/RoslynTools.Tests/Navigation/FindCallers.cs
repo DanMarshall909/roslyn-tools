@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Services;
 using RoslynTools.Tests.Infrastructure;
 using Shouldly;
 
@@ -128,7 +129,7 @@ public class FindCallers : IClassFixture<RtServicesFixture>
                     .OfType<InvocationExpressionSyntax>()
                     .FirstOrDefault();
 
-                if (invocation is null || _services.Resolve<FindCallersCommand>().IsNameofExpression(invocation))
+                if (invocation is null || _services.Resolve<FindCallersService>().IsNameofExpression(invocation))
                     continue;
 
                 var lineSpan = loc.Location.GetLineSpan();

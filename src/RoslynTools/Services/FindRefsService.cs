@@ -17,16 +17,11 @@ internal class FindRefsService : IRtService
     private readonly ILogger<FindRefsService> _logger;
     private readonly ISymbolResolutionService _symbols;
 
-    public FindRefsService()
-        : this(new RtConsoleLogger<FindRefsService>())
+    public FindRefsService(
+        ILogger<FindRefsService> logger,
+        ISymbolResolutionService symbols)
     {
-    }
-
-    public FindRefsService(ILogger<FindRefsService> logger,
-        ISymbolResolutionService? symbols = null)
-    {
-        _symbols = symbols ?? new SymbolResolutionService();
-
+        _symbols = symbols;
         _logger = logger;
     }
 

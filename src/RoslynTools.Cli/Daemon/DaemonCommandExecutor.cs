@@ -17,7 +17,8 @@ internal static class DaemonCommandExecutor
         where TRequest : class
         where TResponse : class
     {
-        if (port.Definition.ExecutionPlacement == CommandExecutionPlacement.InProcess)
+        if (port.Definition.ExecutionPlacement == CommandExecutionPlacement.InProcess
+            || WorkspaceLoader.Override.Value is not null)
             return await port.ExecuteAsync(request, cancellationToken);
 
         var recoveryResult = await recovery.ExecuteAsync(

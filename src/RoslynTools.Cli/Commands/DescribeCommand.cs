@@ -1,36 +1,25 @@
 using System.CommandLine;
+using System.Text.Json;
 using RoslynTools.Cli;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
-using RoslynTools.Services.Suggest;
 
 namespace RoslynTools.Commands;
 
 /// <summary>
 /// Provides a description of a command or its usage.
 /// </summary>
-internal sealed class DescribeCommand(DescribeOperation operation)
+internal sealed class DescribeCommand(
+    DaemonRpcRecoveryCoordinator daemon,
+    DescribeOperation operation)
     : IRtCommand, IStructuredOutputCommand, IInspectCommand
 {
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
     private readonly DescribeOperation _operation = operation;
 
-    public static RtCommandInfo Info { get; } = new(
-        "describe",
-        false,
-        true,
-        "inspect",
-        Aliases: null,
-        WhenToUse:
-        "Getting a type's surface area as a compact JSON signature array { fqn, kind, signatures: [...] } — one canonical signature per member, no line numbers (stable across edits). Prefer this over Read when you need one type's or member's signature rather than the whole file. Drill into a single member by passing its signature ('Type.Method(paramType, ...)') for full detail. Add --with-locations for the legacy verbose shape (per-member line numbers + locations).",
-        Examples:
-        [
-            "rt inspect describe BookingService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt inspect describe \"RoslynTools.Core.SymbolFormatter.ExtractMembers(INamedTypeSymbol, bool)\" --solution RoslynTools.slnx",
-            "rt inspect describe IRtCommand --solution RoslynTools.slnx --with-locations"
-        ],
-        SupportedFormats: [OutputFormat.Text, OutputFormat.Json]
-    );
+    public static RtCommandInfo Info => DescribeApplicationDefinition.Info;
 
     public Command Build()
     {
@@ -50,29 +39,45 @@ internal sealed class DescribeCommand(DescribeOperation operation)
         binder.AddTo(cmd);
 
         cmd.SetHandler(async ctx =>
-            {
-                var symbol = ctx.ParseResult.GetValueForArgument(symbolArg);
-                var withLocations = ctx.ParseResult.GetValueForOption(withLocationsOpt);
-                var req = binder.Bind(ctx.ParseResult,
-                    f => new DescribeCliRequest(symbol, f.SolutionPath, f.Kind, withLocations));
+        {
+            var symbol = ctx.ParseResult.GetValueForArgument(symbolArg);
+            var withLocations = ctx.ParseResult.GetValueForOption(withLocationsOpt);
+            var req = binder.Bind(ctx.ParseResult,
+                f => new DescribeCliRequest(symbol, f.SolutionPath, f.Kind, withLocations));
 
-                var inspection = await _operation.ExecuteAsync(new DescribeRequest(
+            var inspection = await DaemonCommandExecutor.ExecuteTypedAsync(
+                _daemon,
+                _operation,
+                new DescribeRequest(
                     req.Symbol,
                     req.SolutionPath,
                     req.Kind,
-                    req.WithLocations));
+                    req.WithLocations),
+                ctx.GetCancellationToken());
 
-                inspection.Match(
-                    result =>
-                    {
-                        if (result is CompactDescription cd)
-                            result = cd with { Suggestions = SuggestionHelper.ForDescribe(cd, req.SolutionPath) };
-                        RtResultRenderer.Write(RtResult<object>.Ok(result));
-                    },
-                    error => RtErrorPresenter.Surface(ctx, error));
-            });
+            inspection.Match(
+                Render,
+                error => RtErrorPresenter.Surface(ctx, error));
+        });
 
         return cmd;
+    }
+
+    private static void Render(DescribeResult result)
+    {
+        if (result.Kind == DescribeResultKind.Compact && result.Compact is not null)
+        {
+            RtResultRenderer.Write(RtResult<CompactDescription>.Ok(result.Compact));
+            return;
+        }
+
+        if (result.Kind == DescribeResultKind.Verbose && result.Verbose is { } verbose)
+        {
+            RtResultRenderer.Write(RtResult<JsonElement>.Ok(verbose));
+            return;
+        }
+
+        throw new InvalidOperationException("The describe result did not contain its declared value.");
     }
 
     private sealed record DescribeCliRequest(

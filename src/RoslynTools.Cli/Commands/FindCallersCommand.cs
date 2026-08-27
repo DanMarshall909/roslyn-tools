@@ -1,9 +1,10 @@
 using System.CommandLine;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using RoslynTools.Cli;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
+using RoslynTools.Services.Results;
 
 namespace RoslynTools.Commands;
 
@@ -12,10 +13,10 @@ namespace RoslynTools.Commands;
 /// </summary>
 internal sealed class FindCallersCommand(
     FindCallersOperation operation,
-    DaemonRpcClient daemon) : IRtCommand, IInspectCommand
+    DaemonRpcRecoveryCoordinator daemon) : IRtCommand, IInspectCommand
 {
     private readonly FindCallersOperation _operation = operation;
-    private readonly DaemonRpcClient _daemon = daemon;
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
 
     public static RtCommandInfo Info => FindCallersCommandDefinition.Info;
 
@@ -36,19 +37,32 @@ internal sealed class FindCallersCommand(
             var request = flags.Bind(ctx.ParseResult, FindCallersCliRequest.FromFlags);
             var includeTests = ctx.ParseResult.GetValueForOption(includeTestsOpt);
 
-            await DaemonCommandExecutor.ExecuteAsync(
+            var result = await DaemonCommandExecutor.ExecuteTypedAsync(
                 _daemon,
-                FindCallersCommandDefinition.Name,
+                _operation,
                 new FindCallersRequest(request.Symbol!, request.SolutionPath, includeTests),
-                ctx);
+                ctx.GetCancellationToken());
+            result.Match(
+                value => RtResultRenderer.Write(RtResult<FindCallersResult>.Ok(ToOutput(value))),
+                error => RtErrorPresenter.Surface(ctx, error));
         });
 
         return cmd;
     }
 
-    internal bool IsNameofExpression(InvocationExpressionSyntax invocation)
+    private static FindCallersResult ToOutput(FindCallersOperationResult result)
     {
-        return _operation.IsNameofExpression(invocation);
+        return new FindCallersResult
+        {
+            SymbolName = result.SymbolName,
+            Callers = result.Callers.Select(static caller => new CallerResult
+            {
+                FilePath = caller.FilePath,
+                Line = caller.Line,
+                ContainingMethod = caller.ContainingMethod,
+                SourceLine = caller.SourceLine
+            }).ToList()
+        };
     }
 
     private sealed record FindCallersCliRequest(

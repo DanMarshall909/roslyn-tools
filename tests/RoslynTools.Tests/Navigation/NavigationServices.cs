@@ -119,7 +119,7 @@ public class NavigationServices
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await new FindRefsService().FindAsync(sln, "Greeter", "type");
+            var result = await CreateFindRefsService().FindAsync(sln, "Greeter", "type");
             result.SymbolName.ShouldBe("Greeter");
             result.References.ShouldNotBeEmpty();
         }
@@ -143,7 +143,7 @@ public class NavigationServices
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await new FindRefsService().FindAsync(sln, "SupportedFormats", null);
+            var result = await CreateFindRefsService().FindAsync(sln, "SupportedFormats", null);
 
             result.SymbolName.ShouldBe("SupportedFormats");
             result.References.ShouldNotBeEmpty();
@@ -171,7 +171,7 @@ public class NavigationServices
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await new FindRefsService().FindAsync(sln, "App.FeedbackStore.MarkProcessed", null);
+            var result = await CreateFindRefsService().FindAsync(sln, "App.FeedbackStore.MarkProcessed", null);
 
             result.SymbolName.ShouldBe("MarkProcessed");
             Assert.Single(result.References);
@@ -199,7 +199,7 @@ public class NavigationServices
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await new FindRefsService().FindAsync(sln, "PatternMatcher.FindMatchesAsync", null);
+            var result = await CreateFindRefsService().FindAsync(sln, "PatternMatcher.FindMatchesAsync", null);
 
             result.SymbolName.ShouldBe("FindMatchesAsync");
             Assert.Single(result.References);
@@ -207,6 +207,13 @@ public class NavigationServices
     }
 
     // ── FindImplementationsService ────────────────────────────────────────
+
+    private static FindRefsService CreateFindRefsService()
+    {
+        return new FindRefsService(
+            new RtConsoleLogger<FindRefsService>(),
+            new SymbolResolutionService());
+    }
 
     [Fact]
     public async Task finds_implementations_returns_concrete_implementors()
@@ -223,7 +230,7 @@ public class NavigationServices
             var sym = await SymbolLocator.FindSymbolByFqnAsync(sln, "App.IWorker", "type");
             var typeSymbol = (INamedTypeSymbol)sym;
             var results = await new FindImplementationsService().FindAsync(sln, typeSymbol);
-            Assert.Contains(results, r => r["name"]?.ToString() == "ConcreteWorker");
+            Assert.Contains(results, result => result.Name == "ConcreteWorker");
         }
     }
 

@@ -1,7 +1,5 @@
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using RoslynTools.Core;
-using RoslynTools.Services.Results;
 
 namespace RoslynTools.Services;
 
@@ -11,52 +9,45 @@ internal sealed record FindCallersRequest(
     string? Solution = null,
     [property: JsonPropertyName("include-tests")] bool IncludeTests = false);
 
+internal sealed record CallerOperationResult(
+    string FilePath,
+    int Line,
+    string ContainingMethod,
+    string SourceLine);
+
+internal sealed record FindCallersOperationResult(
+    string SymbolName,
+    IReadOnlyList<CallerOperationResult> Callers);
+
 /// <summary>Shared find-callers operation used by CLI and protocol adapters.</summary>
 internal sealed class FindCallersOperation(
     IWorkspaceSessionFactory sessionFactory,
     FindCallersService findCallers)
-    : LegacyCommandApplicationPort, IRtService
+    : CommandApplicationPort<FindCallersRequest, FindCallersOperationResult>, IRtService
 {
-    private static readonly JsonSerializerOptions ErrorSerializerOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        Converters = { new JsonStringEnumConverter() }
-    };
-
     private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
     private readonly FindCallersService _findCallers = findCallers;
 
-    public override string CommandName => "find_callers";
-    public override Type RequestType => typeof(FindCallersRequest);
-    public override Type ResponseType => typeof(FindCallersResult);
+    public override ApplicationCommandDefinition Definition => FindCallersCommandDefinition.Definition;
 
-    internal async Task<Result<FindCallersResult, RtError>> ExecuteAsync(
+    public override async Task<Result<FindCallersOperationResult, RtError>> ExecuteAsync(
         FindCallersRequest request,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var solution = await _sessionFactory.GetSolutionAsync(request.Solution);
-        cancellationToken.ThrowIfCancellationRequested();
-        return await _findCallers.FindAsync(solution, request.Symbol, request.IncludeTests);
-    }
-
-    protected override async Task<CommandPortResult> InvokeLegacyAsync(
-        object request,
-        CancellationToken cancellationToken)
-    {
-        if (request is not FindCallersRequest typedRequest)
-            throw new ArgumentException("Invalid find-callers request.", nameof(request));
-
-        var result = await ExecuteAsync(typedRequest, cancellationToken);
-        return result.Match(
-            CommandPortResult.Success,
-            error => CommandPortResult.Failure(
-                error,
-                JsonSerializer.Serialize(error, ErrorSerializerOptions)));
-    }
-
-    internal bool IsNameofExpression(Microsoft.CodeAnalysis.CSharp.Syntax.InvocationExpressionSyntax invocation)
-    {
-        return _findCallers.IsNameofExpression(invocation);
+        var (workspace, solution) = await _sessionFactory.LoadWorkspaceAsync(request.Solution);
+        using (workspace)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var result = await _findCallers.FindAsync(solution, request.Symbol, request.IncludeTests);
+            cancellationToken.ThrowIfCancellationRequested();
+            return result.Map(value => new FindCallersOperationResult(
+                value.SymbolName,
+                value.Callers.Select(static caller => new CallerOperationResult(
+                    caller.FilePath,
+                    caller.Line,
+                    caller.ContainingMethod,
+                    caller.SourceLine)).ToList()));
+        }
     }
 }

@@ -129,7 +129,7 @@ internal static class DaemonOwnedCommands
             FindCallersCommandDefinition.Info,
             CommandSafety.ReadOnly,
             typeof(FindCallersRequest),
-            typeof(FindCallersResult),
+            typeof(FindCallersOperationResult),
             []),
         new DaemonCommandDefinition(
             FindImplementationsCommandDefinition.Name,
@@ -429,6 +429,15 @@ internal static class FindCallersCommandDefinition
         ],
         SeeAlso: ["find-refs", "find-impl", "change-signature"],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]);
+
+    internal static ApplicationCommandDefinition Definition { get; } = new(
+        Info,
+        typeof(FindCallersRequest),
+        typeof(FindCallersOperationResult),
+        true,
+        CommandSafety.ReadOnly,
+        CommandExecutionPlacement.DaemonPreferred,
+        []);
 }
 
 /// <summary>Canonical daemon metadata for implementation discovery.</summary>
@@ -452,4 +461,13 @@ internal static class FindImplementationsCommandDefinition
         ],
         SeeAlso: ["find-refs", "find-callers", "implement-interface", "extract-interface"],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json]);
+
+    internal static ApplicationCommandDefinition Definition { get; } = new(
+        Info,
+        typeof(FindImplementationsRequest),
+        typeof(FindImplementationsResult),
+        true,
+        CommandSafety.ReadOnly,
+        CommandExecutionPlacement.DaemonPreferred,
+        []);
 }

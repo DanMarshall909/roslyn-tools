@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using RoslynTools.Core;
 using RoslynTools.Services.Suggest;
@@ -10,51 +11,55 @@ internal sealed record DescribeRequest(
     string? Kind = null,
     bool WithLocations = false);
 
+internal enum DescribeResultKind
+{
+    Compact,
+    Verbose
+}
+
+/// <summary>Explicit compact-or-verbose result returned by the shared describe operation.</summary>
+internal sealed record DescribeResult(
+    DescribeResultKind Kind,
+    CompactDescription? Compact,
+    JsonElement? Verbose);
+
 /// <summary>Shared describe operation used by CLI and descriptor-driven hosts.</summary>
 internal sealed class DescribeOperation(
     IWorkspaceSessionFactory sessionFactory,
-    InspectService inspect) : LegacyCommandApplicationPort, IRtService
+    InspectService inspect) : CommandApplicationPort<DescribeRequest, DescribeResult>, IRtService
 {
     private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
     private readonly InspectService _inspect = inspect;
 
-    public override string CommandName => "describe";
-    public override Type RequestType => typeof(DescribeRequest);
-    public override Type ResponseType => typeof(object);
+    public override ApplicationCommandDefinition Definition => DescribeApplicationDefinition.Definition;
 
-    internal async Task<Result<object, RtError>> ExecuteAsync(
+    public override async Task<Result<DescribeResult, RtError>> ExecuteAsync(
         DescribeRequest request,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var solution = await _sessionFactory.GetSolutionAsync(request.Solution);
-        var inspection = await _inspect.Describe(
-            solution,
-            request.Symbol,
-            request.Kind,
-            request.WithLocations);
-
-        return inspection.Map(result =>
+        var (workspace, solution) = await _sessionFactory.LoadWorkspaceAsync(request.Solution);
+        using (workspace)
         {
-            if (result is CompactDescription compact)
-                return (object)(compact with
-                {
-                    Suggestions = SuggestionHelper.ForDescribe(compact, request.Solution)
-                });
-            return result;
-        });
-    }
+            cancellationToken.ThrowIfCancellationRequested();
+            var inspection = await _inspect.Describe(
+                solution,
+                request.Symbol,
+                request.Kind,
+                request.WithLocations);
 
-    protected override async Task<CommandPortResult> InvokeLegacyAsync(
-        object request,
-        CancellationToken cancellationToken)
-    {
-        if (request is not DescribeRequest typedRequest)
-            throw new ArgumentException("Invalid describe request.", nameof(request));
-
-        var result = await ExecuteAsync(typedRequest, cancellationToken);
-        return result.Match(
-            CommandPortResult.Success,
-            error => CommandPortResult.Failure(error, error.Message));
+            return inspection.Map(result => result is CompactDescription compact
+                ? new DescribeResult(
+                    DescribeResultKind.Compact,
+                    compact with
+                    {
+                        Suggestions = SuggestionHelper.ForDescribe(compact, request.Solution)
+                    },
+                    null)
+                : new DescribeResult(
+                    DescribeResultKind.Verbose,
+                    null,
+                    JsonSerializer.SerializeToElement(result, SymbolFormatter.DefaultJsonOptions)));
+        }
     }
 }
