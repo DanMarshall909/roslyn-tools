@@ -7,6 +7,23 @@ namespace RoslynTools.Tests.Architecture;
 public sealed class MutationExecutionContractTests
 {
     [Fact]
+    public void reviewed_is_distinct_and_carries_typed_value_and_structured_diagnostics()
+    {
+        var diagnostic = new MutationDiagnostic(
+            MutationDiagnosticSeverity.Warning,
+            "Review before preparing changes.",
+            "RT2001",
+            new Dictionary<string, string> { ["symbol"] = "Example.Service" });
+
+        var result = MutationExecutionResult<string>.Reviewed("analysis", [diagnostic]);
+
+        result.Status.ShouldBe(MutationExecutionStatus.Reviewed);
+        result.Value.ShouldBe("analysis");
+        result.AffectedPaths.ShouldBeEmpty();
+        result.Diagnostics.ShouldBe([diagnostic]);
+    }
+
+    [Fact]
     public void dry_run_preserves_planned_files_value_and_diagnostics()
     {
         var diagnostic = new MutationDiagnostic(
@@ -22,7 +39,7 @@ public sealed class MutationExecutionContractTests
 
         result.Status.ShouldBe(MutationExecutionStatus.DryRun);
         result.Value.ShouldBe("plan");
-        result.ChangedFiles.ShouldBe(["src/Example/Service.cs"]);
+        result.AffectedPaths.ShouldBe(["src/Example/Service.cs"]);
         result.Diagnostics.ShouldBe([diagnostic]);
     }
 
@@ -34,8 +51,28 @@ public sealed class MutationExecutionContractTests
             ["src/Example/Service.cs"]);
 
         result.Status.ShouldBe(MutationExecutionStatus.Applied);
-        result.ChangedFiles.ShouldBe(["src/Example/Service.cs"]);
+        result.AffectedPaths.ShouldBe(["src/Example/Service.cs"]);
         result.Diagnostics.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void mutation_envelope_defensively_copies_collection_inputs()
+    {
+        var affectedPaths = new List<string> { "src/Example/Service.cs" };
+        var diagnostics = new List<MutationDiagnostic>
+        {
+            new(MutationDiagnosticSeverity.Warning, "Review this change.")
+        };
+        var result = MutationExecutionResult<string>.DryRun(
+            "plan",
+            affectedPaths,
+            diagnostics);
+
+        affectedPaths.Clear();
+        diagnostics.Clear();
+
+        result.AffectedPaths.ShouldBe(["src/Example/Service.cs"]);
+        result.Diagnostics.ShouldHaveSingleItem();
     }
 
     [Fact]
@@ -48,7 +85,7 @@ public sealed class MutationExecutionContractTests
         var result = MutationExecutionResult<object>.NoOp(diagnostics: [diagnostic]);
 
         result.Status.ShouldBe(MutationExecutionStatus.NoOp);
-        result.ChangedFiles.ShouldBeEmpty();
+        result.AffectedPaths.ShouldBeEmpty();
         result.Diagnostics.ShouldBe([diagnostic]);
     }
 
@@ -61,12 +98,14 @@ public sealed class MutationExecutionContractTests
             [new MutationDiagnostic(MutationDiagnosticSeverity.Warning, "Review this change.")]);
 
         var json = JsonSerializer.Serialize(original);
+        json.ShouldContain("\"changedFiles\"");
+        json.ShouldNotContain("affectedPaths", Case.Insensitive);
         var roundTripped = JsonSerializer.Deserialize<MutationExecutionResult<string>>(json);
 
         roundTripped.ShouldNotBeNull();
         roundTripped!.Status.ShouldBe(original.Status);
         roundTripped.Value.ShouldBe(original.Value);
-        roundTripped.ChangedFiles.ShouldBe(original.ChangedFiles);
+        roundTripped.AffectedPaths.ShouldBe(original.AffectedPaths);
         roundTripped.Diagnostics.ShouldBe(original.Diagnostics);
     }
 
@@ -78,8 +117,8 @@ public sealed class MutationExecutionContractTests
         var appliedException = Should.Throw<ArgumentException>(() =>
             MutationExecutionResult<object>.Applied(null, []));
 
-        dryRunException.ParamName.ShouldBe("changedFiles");
-        appliedException.ParamName.ShouldBe("changedFiles");
+        dryRunException.ParamName.ShouldBe("affectedPaths");
+        appliedException.ParamName.ShouldBe("affectedPaths");
     }
 
     [Fact]
@@ -91,7 +130,7 @@ public sealed class MutationExecutionContractTests
             ["src/Example/Service.cs"],
             []));
 
-        exception.ParamName.ShouldBe("changedFiles");
+        exception.ParamName.ShouldBe("affectedPaths");
     }
 
     [Fact]

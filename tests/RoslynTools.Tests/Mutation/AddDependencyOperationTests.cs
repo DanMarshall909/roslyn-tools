@@ -58,8 +58,32 @@ public sealed class AddDependencyOperationTests
 
         result.Status.ShouldBe(MutationExecutionStatus.DryRun);
         result.Value!.Outcome.ShouldBe(AddDependencyOutcome.Applied);
-        result.ChangedFiles.ShouldHaveSingleItem().ShouldEndWith("AgentService.cs");
-        writer.DryRun.ShouldBe(true);
+        result.AffectedPaths.ShouldHaveSingleItem().ShouldEndWith("AgentService.cs");
+        writer.Solution.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_applies_the_prepared_change_when_requested()
+    {
+        using var project = new AdhocProjectBuilder("DependencyApp");
+        project.AddSource("AgentService.cs", """
+                                             interface IEmailService { }
+                                             class AgentService { }
+                                             """);
+        var (workspace, solution) = project.Build();
+        var writer = new CapturingSolutionChangeWriter();
+        var operation = new AddDependencyOperation(
+            new FixedWorkspaceSessionFactory(workspace, solution),
+            new AddDependencyService(NullLogger<AddDependencyService>.Instance, writer),
+            writer);
+
+        var result = (await operation.ExecuteAsync(
+            new AddDependencyRequest("AgentService", "IEmailService", DryRun: false))).Unwrap();
+
+        result.Status.ShouldBe(MutationExecutionStatus.Applied);
+        result.AffectedPaths.ShouldHaveSingleItem().ShouldEndWith("AgentService.cs");
+        writer.Solution.ShouldNotBeNull();
+        writer.DryRun.ShouldBe(false);
     }
 
     [Fact]

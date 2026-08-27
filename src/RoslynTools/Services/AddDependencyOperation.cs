@@ -44,7 +44,8 @@ internal sealed class AddDependencyOperation(
 {
     private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
     private readonly AddDependencyService _addDependency = addDependency;
-    private readonly ISolutionChangeWriter _solutionChangeWriter = solutionChangeWriter;
+    private readonly PreparedChangeSetExecutor _changeSetExecutor = new(
+        new SolutionPreparedChangeSetWriter(solutionChangeWriter));
 
     public override ApplicationCommandDefinition Definition => AddDependencyCommandDefinition.Definition;
 
@@ -67,7 +68,12 @@ internal sealed class AddDependencyOperation(
 
             if (prepared.Changed)
                 return Result<MutationExecutionResult<AddDependencyResult>, RtError>.Ok(
-                    await WriteAndCreateResultAsync(solution, prepared, request.DryRun, result));
+                    await ExecutePreparedChangeAsync(
+                        solution,
+                        prepared,
+                        request.DryRun,
+                        result,
+                        cancellationToken));
 
             var diagnostic = CreateDiagnostic(prepared);
             if (diagnostic.Severity == MutationDiagnosticSeverity.Error)
@@ -79,17 +85,17 @@ internal sealed class AddDependencyOperation(
         }
     }
 
-    private async Task<MutationExecutionResult<AddDependencyResult>> WriteAndCreateResultAsync(
+    private async Task<MutationExecutionResult<AddDependencyResult>> ExecutePreparedChangeAsync(
         Solution originalSolution,
         AddDependencyService.DependencyInjectionResult prepared,
         bool dryRun,
-        AddDependencyResult result)
+        AddDependencyResult result,
+        CancellationToken cancellationToken)
     {
-        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, prepared.Solution, dryRun);
-        var changedFiles = prepared.ChangedFiles ?? [];
+        var changeSet = new PreparedChangeSet(originalSolution, prepared.Solution);
         return dryRun
-            ? MutationExecutionResult<AddDependencyResult>.DryRun(result, changedFiles)
-            : MutationExecutionResult<AddDependencyResult>.Applied(result, changedFiles);
+            ? _changeSetExecutor.Preview(result, changeSet)
+            : await _changeSetExecutor.ApplyAsync(result, changeSet, cancellationToken: cancellationToken);
     }
 
     private static MutationDiagnostic CreateDiagnostic(AddDependencyService.DependencyInjectionResult result)

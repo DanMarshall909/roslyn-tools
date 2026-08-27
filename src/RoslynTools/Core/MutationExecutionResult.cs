@@ -4,7 +4,7 @@ namespace RoslynTools.Core;
 
 /// <summary>
 ///     Structured result of a daemon-owned mutation before any adapter renders it.
-///     For a dry run, <see cref="ChangedFiles" /> contains the files that would change.
+///     For a dry run, <see cref="AffectedPaths" /> contains the paths that would change.
 /// </summary>
 internal sealed record MutationExecutionResult<T>
 {
@@ -12,52 +12,73 @@ internal sealed record MutationExecutionResult<T>
     internal MutationExecutionResult(
         MutationExecutionStatus status,
         T? value,
-        IReadOnlyList<string> changedFiles,
+        IReadOnlyList<string> affectedPaths,
         IReadOnlyList<MutationDiagnostic> diagnostics)
     {
-        ArgumentNullException.ThrowIfNull(changedFiles);
+        ArgumentNullException.ThrowIfNull(affectedPaths);
         ArgumentNullException.ThrowIfNull(diagnostics);
 
-        if (status == MutationExecutionStatus.NoOp && changedFiles.Count != 0)
-            throw new ArgumentException("A no-op mutation cannot contain changed files.", nameof(changedFiles));
-
-        if (status != MutationExecutionStatus.NoOp && changedFiles.Count == 0)
+        if ((status is MutationExecutionStatus.Reviewed or MutationExecutionStatus.NoOp)
+            && affectedPaths.Count != 0)
             throw new ArgumentException(
-                "A dry-run or applied mutation must identify at least one changed file.",
-                nameof(changedFiles));
+                "A reviewed or no-op mutation cannot contain affected paths.",
+                nameof(affectedPaths));
+
+        if ((status is MutationExecutionStatus.DryRun or MutationExecutionStatus.Applied)
+            && affectedPaths.Count == 0)
+            throw new ArgumentException(
+                "A dry-run or applied mutation must identify at least one affected path.",
+                nameof(affectedPaths));
 
         Status = status;
         Value = value;
-        ChangedFiles = changedFiles;
-        Diagnostics = diagnostics;
+        AffectedPaths = affectedPaths.ToArray();
+        Diagnostics = diagnostics.ToArray();
     }
 
     public MutationExecutionStatus Status { get; }
 
     public T? Value { get; }
 
-    public IReadOnlyList<string> ChangedFiles { get; }
+    [JsonPropertyName("changedFiles")]
+    public IReadOnlyList<string> AffectedPaths { get; }
+
+    /// <summary>
+    ///     Compatibility alias for callers that have not yet migrated to the broader
+    ///     affected-path contract. The wire property remains <c>changedFiles</c>.
+    /// </summary>
+    [JsonIgnore]
+    public IReadOnlyList<string> ChangedFiles => AffectedPaths;
 
     public IReadOnlyList<MutationDiagnostic> Diagnostics { get; }
 
+    internal static MutationExecutionResult<T> Reviewed(
+        T? value,
+        IReadOnlyList<MutationDiagnostic>? diagnostics = null) =>
+        new(
+            MutationExecutionStatus.Reviewed,
+            value,
+            [],
+            diagnostics ?? []);
+
     internal static MutationExecutionResult<T> DryRun(
         T? value,
-        IReadOnlyList<string> changedFiles,
+        IReadOnlyList<string> affectedPaths,
         IReadOnlyList<MutationDiagnostic>? diagnostics = null) =>
         new(
             MutationExecutionStatus.DryRun,
             value,
-            changedFiles,
+            affectedPaths,
             diagnostics ?? []);
 
     internal static MutationExecutionResult<T> Applied(
         T? value,
-        IReadOnlyList<string> changedFiles,
+        IReadOnlyList<string> affectedPaths,
         IReadOnlyList<MutationDiagnostic>? diagnostics = null) =>
         new(
             MutationExecutionStatus.Applied,
             value,
-            changedFiles,
+            affectedPaths,
             diagnostics ?? []);
 
     internal static MutationExecutionResult<T> NoOp(
@@ -72,6 +93,7 @@ internal sealed record MutationExecutionResult<T>
 
 internal enum MutationExecutionStatus
 {
+    Reviewed,
     DryRun,
     Applied,
     NoOp
