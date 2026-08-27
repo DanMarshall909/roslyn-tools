@@ -14,31 +14,23 @@ namespace RoslynTools.Services;
 internal class AddNullChecksService : IRtService
 {
     private readonly IDocumentLocatorService _documents;
-    private readonly ISolutionChangeWriter _solutionChangeWriter;
     private readonly ISymbolResolutionService _symbols;
 
-    public AddNullChecksService()
-        : this(new SolutionChangeWriter())
+    public AddNullChecksService(
+        ISymbolResolutionService symbols,
+        IDocumentLocatorService documents)
     {
-    }
-
-    public AddNullChecksService(ISolutionChangeWriter solutionChangeWriter,
-        ISymbolResolutionService? symbols = null,
-        IDocumentLocatorService? documents = null)
-    {
-        _symbols = symbols ?? new SymbolResolutionService();
-        _documents = documents ?? new DocumentLocatorService();
-
-        _solutionChangeWriter = solutionChangeWriter;
+        _symbols = symbols;
+        _documents = documents;
     }
 
     /// <summary>
     /// An asynchronous method to run null checks.
     /// </summary>
-    internal async Task RunAsync(Solution sln, string typeName, string methodName, bool dryRun)
-    {
-        var originalSolution = sln;
+    internal sealed record Preparation(Solution Solution, bool Changed, string? Message = null);
 
+    internal async Task<Preparation> PrepareAsync(Solution sln, string typeName, string methodName)
+    {
         var methodSymbol = await _symbols.FindMethodInTypeAsync(sln, typeName, methodName);
         if (methodSymbol == null)
             throw new InvalidOperationException($"Method '{methodName}' not found in type '{typeName}'.");
@@ -50,8 +42,7 @@ internal class AddNullChecksService : IRtService
         var methodSyntax = (MethodDeclarationSyntax)await syntaxRef.GetSyntaxAsync();
         if (methodSyntax.Body == null)
         {
-            RtConsole.WriteLine(RtOutputContext.Diagnostic, "Method has no block body — skipped.");
-            return;
+            return new Preparation(sln, false, "Method has no block body — skipped.");
         }
 
         var eligibleParams = methodSymbol.Parameters
@@ -62,8 +53,7 @@ internal class AddNullChecksService : IRtService
 
         if (eligibleParams.Count == 0)
         {
-            RtConsole.WriteLine(RtOutputContext.Diagnostic, "No null checks needed.");
-            return;
+            return new Preparation(sln, false, "No null checks needed.");
         }
 
         var newStatements = eligibleParams
@@ -94,7 +84,7 @@ internal class AddNullChecksService : IRtService
         root = RoslynSyntax.EnsureUsing(root, "System");
 
         sln = sln.WithDocumentSyntaxRoot(docId, root);
-        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
+        return new Preparation(sln, true);
     }
 
     /// <summary>

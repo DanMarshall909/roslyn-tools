@@ -1,5 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Core;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -7,25 +8,14 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Command for adding null checks to the project.
 /// </summary>
-internal sealed class AddNullChecksCommand(IWorkspaceSessionFactory sessionFactory, AddNullChecksService addNullChecks) : IRtCommand, IRefactorCommand
+internal sealed class AddNullChecksCommand(
+    DaemonRpcRecoveryCoordinator daemon,
+    AddNullChecksOperation operation) : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
-    private readonly AddNullChecksService _addNullChecks = addNullChecks;
-    public static RtCommandInfo Info { get; } = new(
-        "add-null-checks",
-        true,
-        false,
-        "refactor",
-        Aliases: ["anc"],
-        WhenToUse:
-        "Retrofitting ArgumentNullException.ThrowIfNull guards onto reference-type parameters in an existing method. Prefer this over a manual edit when a method has several parameters and you want to skip any that are already guarded or are nullable (annotated with ?).",
-        Examples:
-        [
-            "rt refactor add-null-checks --type BookingService --method CreateBooking --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt refactor anc --type OrderProcessor --method Process --dry-run",
-            "rt refactor add-null-checks --type ReportController --method Generate --solution RoslynTools.slnx"
-        ]
-    );
+    private readonly AddNullChecksOperation _operation = operation;
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
+
+    public static RtCommandInfo Info => AddNullChecksCommandDefinition.Info;
 
     public Command Build()
     {
@@ -39,22 +29,19 @@ internal sealed class AddNullChecksCommand(IWorkspaceSessionFactory sessionFacto
         cmd.AddAlias("anc");
         cmd.AddAll(typeOpt, methodOpt, solutionOpt, dryRunOpt);
 
-        cmd.SetHandler(
-            async (type, method, solution, dryRun) => { await ExecuteAsync(type, method, solution, dryRun); }, typeOpt,
-            methodOpt, solutionOpt, dryRunOpt);
+        cmd.SetHandler(async context =>
+        {
+            await DaemonCommandExecutor.ExecuteAsync(
+                _daemon,
+                _operation,
+                new AddNullChecksRequest(
+                    context.ParseResult.GetValueForOption(typeOpt)!,
+                    context.ParseResult.GetValueForOption(methodOpt)!,
+                    context.ParseResult.GetValueForOption(solutionOpt),
+                    context.ParseResult.GetValueForOption(dryRunOpt)),
+                context);
+        });
 
         return cmd;
-    }
-
-    /// <summary>
-    /// Executes the add null checks command asynchronously.
-    /// </summary>
-    internal async Task ExecuteAsync(string typeName, string methodName, string? solutionPath, bool dryRun)
-    {
-        var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
-        using (workspace)
-        {
-            await _addNullChecks.RunAsync(sln, typeName, methodName, dryRun);
-        }
     }
 }

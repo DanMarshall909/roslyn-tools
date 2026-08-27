@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
-using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Services;
 using RoslynTools.Tests.Infrastructure;
 using Shouldly;
 
@@ -55,7 +55,7 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<AddNullChecksCommand>().ExecuteAsync("OrderService", "Process", "ignored", false);
+            await ExecuteAsync("OrderService", "Process", false);
         }
 
         var content = await proj.ReadSourceAsync("OrderService.cs");
@@ -85,7 +85,7 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<AddNullChecksCommand>().ExecuteAsync("OrderService", "Process", "ignored", false);
+            await ExecuteAsync("OrderService", "Process", false);
         }
 
         var content = await proj.ReadSourceAsync("OrderService.cs");
@@ -109,7 +109,7 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<AddNullChecksCommand>().ExecuteAsync("OrderService", "Process", "ignored", false);
+            await ExecuteAsync("OrderService", "Process", false);
         }
 
         var content = await proj.ReadSourceAsync("OrderService.cs");
@@ -132,7 +132,7 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<AddNullChecksCommand>().ExecuteAsync("OrderService", "Process", "ignored", false);
+            await ExecuteAsync("OrderService", "Process", false);
         }
 
         var content = await proj.ReadSourceAsync("OrderService.cs");
@@ -154,7 +154,7 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<AddNullChecksCommand>().ExecuteAsync("OrderService", "Process", "ignored", true);
+            await ExecuteAsync("OrderService", "Process", true);
         }
 
         var after = await proj.ReadSourceAsync("OrderService.cs");
@@ -181,7 +181,7 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<AddNullChecksCommand>().ExecuteAsync("OrderService", "Process", "ignored", false);
+            await ExecuteAsync("OrderService", "Process", false);
         }
 
         var after = await proj.ReadSourceAsync("OrderService.cs");
@@ -211,7 +211,7 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<AddNullChecksCommand>().ExecuteAsync("OrderService", "Process", "ignored", false);
+            await ExecuteAsync("OrderService", "Process", false);
         }
 
         var content = await proj.ReadSourceAsync("OrderService.cs");
@@ -235,7 +235,7 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<AddNullChecksCommand>().ExecuteAsync("OrderService", "Process", "ignored", false);
+            await ExecuteAsync("OrderService", "Process", false);
         }
 
         var content = await proj.ReadSourceAsync("OrderService.cs");
@@ -259,7 +259,7 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<AddNullChecksCommand>().ExecuteAsync("OrderService", "Process", "ignored", false);
+            await ExecuteAsync("OrderService", "Process", false);
         }
 
         var content = await proj.ReadSourceAsync("OrderService.cs");
@@ -283,7 +283,7 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<AddNullChecksCommand>().ExecuteAsync("OrderService", "Process", "ignored", false);
+            await ExecuteAsync("OrderService", "Process", false);
         }
 
         var content = await proj.ReadSourceAsync("OrderService.cs");
@@ -303,8 +303,19 @@ public class AddNullChecks : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                _services.Resolve<AddNullChecksCommand>().ExecuteAsync("OrderService", "NonExistent", "ignored", false));
+            var result = await _services.Resolve<AddNullChecksOperation>().ExecuteAsync(
+                new AddNullChecksRequest("OrderService", "NonExistent", "ignored"));
+
+            result.IsErr.ShouldBeTrue();
+            result.Match(_ => string.Empty, error => error.Message)
+                .ShouldContain("NonExistent", Case.Sensitive);
         }
+    }
+
+    private async Task ExecuteAsync(string typeName, string methodName, bool dryRun)
+    {
+        var result = await _services.Resolve<AddNullChecksOperation>().ExecuteAsync(
+            new AddNullChecksRequest(typeName, methodName, "ignored", dryRun));
+        result.IsOk.ShouldBeTrue(result.Match(_ => string.Empty, error => error.Message));
     }
 }

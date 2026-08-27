@@ -1,6 +1,6 @@
 using System.CommandLine;
-using System.Text.Json;
 using RoslynTools.Core;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -8,29 +8,14 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Command for adding XML documentation to the project.
 /// </summary>
-internal sealed class AddXmlDocCommand(IWorkspaceSessionFactory sessionFactory, AddXmlDocService addXmlDoc) : IRtCommand, IRefactorCommand
+internal sealed class AddXmlDocCommand(
+    DaemonRpcRecoveryCoordinator daemon,
+    AddXmlDocOperation operation) : IRtCommand, IRefactorCommand
 {
-    private static readonly JsonSerializerOptions JsonOptions =
-        new() { PropertyNameCaseInsensitive = true };
-    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
-    private readonly AddXmlDocService _addXmlDoc = addXmlDoc;
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
+    private readonly AddXmlDocOperation _operation = operation;
 
-    public static RtCommandInfo Info { get; } = new(
-        "add-xml-doc",
-        true,
-        false,
-        "refactor",
-        Aliases: ["xmldoc"],
-        WhenToUse:
-        "Bulk-inserting XML <summary> doc comments from an LLM-generated JSON map. " +
-        "The JSON file must be a flat object mapping fully-qualified type/member names to summary strings. " +
-        "Skips symbols that already have a doc comment. Pair with `rt inspect find-undocumented` to generate the input list.",
-        Examples:
-        [
-            "rt refactor add-xml-doc --from-json docs.json --solution RoslynTools.slnx --dry-run",
-            "rt refactor xmldoc --from-json docs.json --solution RoslynTools.slnx"
-        ]
-    );
+    public static RtCommandInfo Info => AddXmlDocCommandDefinition.Info;
 
     public Command Build()
     {
@@ -42,23 +27,20 @@ internal sealed class AddXmlDocCommand(IWorkspaceSessionFactory sessionFactory, 
         cmd.AddAlias("xmldoc");
         cmd.AddAll(fromJsonOpt, solutionOpt, dryRunOpt);
 
-        cmd.SetHandler(async (fromJson, solution, dryRun) =>
+        cmd.SetHandler(async context =>
         {
-            if (!fromJson.Exists)
-                throw new InvalidOperationException($"JSON file not found: {fromJson.FullName}");
-
-            var json = await File.ReadAllTextAsync(fromJson.FullName);
-            var docs = JsonSerializer.Deserialize<Dictionary<string, string>>(json, JsonOptions);
-
-            if (docs is null || docs.Count == 0)
-                throw new InvalidOperationException("No entries found in the JSON file.");
-
-            var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
-            using (workspace)
-            {
-                await _addXmlDoc.RunAsync(sln, docs, dryRun);
-            }
-        }, fromJsonOpt, solutionOpt, dryRunOpt);
+            var fromJson = context.ParseResult.GetValueForOption(fromJsonOpt)!;
+            var request = new AddXmlDocRequest(
+                fromJson.FullName,
+                context.ParseResult.GetValueForOption(solutionOpt),
+                context.ParseResult.GetValueForOption(dryRunOpt),
+                Directory.GetCurrentDirectory());
+            await DaemonCommandExecutor.ExecuteAsync(
+                _daemon,
+                _operation,
+                request,
+                context);
+        });
 
         return cmd;
     }
