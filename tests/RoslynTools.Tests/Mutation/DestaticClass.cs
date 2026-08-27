@@ -1,4 +1,5 @@
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.CodeAnalysis;
+using RoslynTools.Core;
 using RoslynTools.Services;
 using Shouldly;
 
@@ -27,14 +28,10 @@ public sealed class DestaticClass
                                          }
                                          """);
 
-        var (_, solution) = project.Build();
+        var (workspace, solution) = project.Build();
         var writer = new CapturingSolutionChangeWriter();
 
-        await new DestaticClassService(
-            NullLogger<DestaticClassService>.Instance,
-            new SymbolResolutionService(),
-            new DocumentLocatorService(),
-            writer).RunAsync(solution, "TestApp.Helper", false);
+        (await ExecuteAsync(workspace, solution, writer)).IsOk.ShouldBeTrue();
 
         var consumerText = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "Consumer.cs");
 
@@ -66,14 +63,10 @@ public sealed class DestaticClass
                                          }
                                          """);
 
-        var (_, solution) = project.Build();
+        var (workspace, solution) = project.Build();
         var writer = new CapturingSolutionChangeWriter();
 
-        await new DestaticClassService(
-            NullLogger<DestaticClassService>.Instance,
-            new SymbolResolutionService(),
-            new DocumentLocatorService(),
-            writer).RunAsync(solution, "TestApp.Helper", false);
+        (await ExecuteAsync(workspace, solution, writer)).IsOk.ShouldBeTrue();
 
         var consumerText = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "Consumer.cs");
 
@@ -96,14 +89,10 @@ public sealed class DestaticClass
                                        }
                                        """);
 
-        var (_, solution) = project.Build();
+        var (workspace, solution) = project.Build();
         var writer = new CapturingSolutionChangeWriter();
 
-        await new DestaticClassService(
-            NullLogger<DestaticClassService>.Instance,
-            new SymbolResolutionService(),
-            new DocumentLocatorService(),
-            writer).RunAsync(solution, "TestApp.Helper", false);
+        var execution = (await ExecuteAsync(workspace, solution, writer)).Unwrap();
 
         var helperText = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "Helper.cs");
 
@@ -115,6 +104,7 @@ public sealed class DestaticClass
         helperText.ShouldContain("public string Format(string value)", Case.Sensitive);
         helperText.ShouldNotContain("public static class Helper", Case.Sensitive);
         writer.DryRun.ShouldBe(false);
+        execution.Status.ShouldBe(MutationExecutionStatus.Applied);
     }
 
     [Fact]
@@ -129,17 +119,14 @@ public sealed class DestaticClass
                                        }
                                        """);
 
-        var (_, solution) = project.Build();
+        var (workspace, solution) = project.Build();
         var writer = new CapturingSolutionChangeWriter();
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            new DestaticClassService(
-                NullLogger<DestaticClassService>.Instance,
-                new SymbolResolutionService(),
-                new DocumentLocatorService(),
-                writer).RunAsync(solution, "TestApp.Helper", false));
+        var result = await ExecuteAsync(workspace, solution, writer);
 
-        exception.Message.ShouldContain("is not a static class", Case.Sensitive);
+        result.IsErr.ShouldBeTrue();
+        result.Match(_ => string.Empty, error => error.Message)
+            .ShouldContain("is not a static class", Case.Sensitive);
         writer.Solution.ShouldBeNull();
     }
 
@@ -171,14 +158,10 @@ public sealed class DestaticClass
                                          }
                                          """);
 
-        var (_, solution) = project.Build();
+        var (workspace, solution) = project.Build();
         var writer = new CapturingSolutionChangeWriter();
 
-        await new DestaticClassService(
-            NullLogger<DestaticClassService>.Instance,
-            new SymbolResolutionService(),
-            new DocumentLocatorService(),
-            writer).RunAsync(solution, "TestApp.Helper", false);
+        (await ExecuteAsync(workspace, solution, writer)).IsOk.ShouldBeTrue();
 
         var consumerText = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "Consumer.cs");
 
@@ -210,14 +193,10 @@ public sealed class DestaticClass
                                          }
                                          """);
 
-        var (_, solution) = project.Build();
+        var (workspace, solution) = project.Build();
         var writer = new CapturingSolutionChangeWriter();
 
-        await new DestaticClassService(
-            NullLogger<DestaticClassService>.Instance,
-            new SymbolResolutionService(),
-            new DocumentLocatorService(),
-            writer).RunAsync(solution, "TestApp.Helper", false);
+        (await ExecuteAsync(workspace, solution, writer)).IsOk.ShouldBeTrue();
 
         var consumerText = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "Consumer.cs");
         var lines = consumerText.Split('\n');
@@ -250,18 +229,38 @@ public sealed class DestaticClass
                                          }
                                          """);
 
-        var (_, solution) = project.Build();
+        var (workspace, solution) = project.Build();
         var writer = new CapturingSolutionChangeWriter();
 
-        await new DestaticClassService(
-            NullLogger<DestaticClassService>.Instance,
-            new SymbolResolutionService(),
-            new DocumentLocatorService(),
-            writer).RunAsync(solution, "TestApp.Helper", false);
+        (await ExecuteAsync(workspace, solution, writer)).IsOk.ShouldBeTrue();
 
         var consumerText = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "Consumer.cs");
 
         consumerText.ShouldContain("private readonly string _value = new Helper().Format(\"x\");", Case.Sensitive);
         consumerText.ShouldNotContain("private readonly Helper _helper;", Case.Sensitive);
+    }
+
+    private static Task<Result<MutationExecutionResult<DestaticClassResult>, RtError>> ExecuteAsync(
+        Workspace workspace,
+        Solution solution,
+        CapturingSolutionChangeWriter writer)
+    {
+        var operation = new DestaticClassOperation(
+            new FixedWorkspaceSessionFactory(workspace, solution),
+            new DestaticClassService(
+                new SymbolResolutionService(),
+                new DocumentLocatorService()),
+            writer);
+        return operation.ExecuteAsync(new DestaticClassRequest("TestApp.Helper"));
+    }
+
+    private sealed class FixedWorkspaceSessionFactory(
+        Workspace workspace,
+        Solution solution) : IWorkspaceSessionFactory
+    {
+        public Task<Solution> GetSolutionAsync(string? solutionPath) => Task.FromResult(solution);
+
+        public Task<(Workspace Workspace, Solution Solution)> LoadWorkspaceAsync(string? solutionPath) =>
+            Task.FromResult((workspace, solution));
     }
 }

@@ -1,3 +1,5 @@
+using Microsoft.CodeAnalysis;
+using RoslynTools.Core;
 using RoslynTools.Services;
 using Shouldly;
 
@@ -34,17 +36,21 @@ public class AddDynamicDependency
         project.AddSource("Bootstrap.cs", CompositionRoot);
 
         var (workspace, solution) = project.Build();
-        using (workspace)
-        {
-            var writer = new CapturingSolutionChangeWriter();
-            await new AddDynamicDependencyService(writer).RunAsync(
-                solution, typeNames, "App.Bootstrap.RegisterServices", dryRun: false);
+        var writer = new CapturingSolutionChangeWriter();
+        var operation = new AddDynamicDependencyOperation(
+            new FixedWorkspaceSessionFactory(workspace, solution),
+            new AddDynamicDependencyService(),
+            writer);
 
-            var document = writer.NewSolution!.Projects
-                .SelectMany(p => p.Documents)
-                .Single(d => d.Name == "Bootstrap.cs");
-            return (await document.GetTextAsync()).ToString();
-        }
+        var execution = (await operation.ExecuteAsync(new AddDynamicDependencyRequest(
+            typeNames,
+            "App.Bootstrap.RegisterServices"))).Unwrap();
+
+        execution.Status.ShouldBe(MutationExecutionStatus.Applied);
+        var document = writer.NewSolution!.Projects
+            .SelectMany(p => p.Documents)
+            .Single(d => d.Name == "Bootstrap.cs");
+        return (await document.GetTextAsync()).ToString();
     }
 
     [Fact]
@@ -100,5 +106,15 @@ public class AddDynamicDependency
 
         var occurrences = text.Split("DynamicDependency").Length - 1;
         occurrences.ShouldBe(1, "a repeated --type must not duplicate the annotation");
+    }
+
+    private sealed class FixedWorkspaceSessionFactory(
+        Workspace workspace,
+        Solution solution) : IWorkspaceSessionFactory
+    {
+        public Task<Solution> GetSolutionAsync(string? solutionPath) => Task.FromResult(solution);
+
+        public Task<(Workspace Workspace, Solution Solution)> LoadWorkspaceAsync(string? solutionPath) =>
+            Task.FromResult((workspace, solution));
     }
 }

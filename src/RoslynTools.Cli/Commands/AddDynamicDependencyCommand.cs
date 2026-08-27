@@ -1,30 +1,19 @@
 using System.CommandLine;
 using RoslynTools.Core;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
 /// <summary>Adds DynamicDependency annotations for reflectively-created types.</summary>
 internal sealed class AddDynamicDependencyCommand(
-    IWorkspaceSessionFactory sessionFactory,
-    AddDynamicDependencyService service) : IRtCommand, IRefactorCommand
+    DaemonRpcRecoveryCoordinator daemon,
+    AddDynamicDependencyOperation operation) : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
-    private readonly AddDynamicDependencyService _service = service;
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
+    private readonly AddDynamicDependencyOperation _operation = operation;
 
-    public static RtCommandInfo Info { get; } = new(
-        "add-dynamic-dependency",
-        true,
-        false,
-        "refactor",
-        WhenToUse:
-        "Recording a durable static reference for types instantiated through reflection or assembly-scanning dependency injection, after reviewing probe-di findings.",
-        Examples:
-        [
-            "rt refactor add-dynamic-dependency --type MyApp.Services.EmailSender --root Bootstrap.RegisterServices --solution MyApp.slnx",
-            "rt refactor add-dynamic-dependency --type ServiceA --type ServiceB --root Bootstrap.RegisterServices --dry-run"
-        ],
-        SeeAlso: ["probe-di", "find-unused"]);
+    public static RtCommandInfo Info => AddDynamicDependencyCommandDefinition.Info;
 
     public Command Build()
     {
@@ -56,9 +45,15 @@ internal sealed class AddDynamicDependencyCommand(
                 flags.SolutionPath,
                 flags.DryRun));
 
-            var (workspace, solution) = await _sessionFactory.LoadWorkspaceAsync(request.SolutionPath);
-            using (workspace)
-                await _service.RunAsync(solution, request.Types, request.Root, request.DryRun);
+            await DaemonCommandExecutor.ExecuteAsync(
+                _daemon,
+                _operation,
+                new AddDynamicDependencyRequest(
+                    request.Types.ToArray(),
+                    request.Root,
+                    request.SolutionPath,
+                    request.DryRun),
+                context);
         });
 
         return command;

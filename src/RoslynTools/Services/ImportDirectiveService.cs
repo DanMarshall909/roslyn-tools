@@ -262,6 +262,42 @@ internal class ImportDirectiveService : IRtService
         bool Changed,
         string? Message);
 
+    internal async Task<PreparedGlobalUsing> PrepareStaticUsingAsync(
+        Solution solution,
+        string filePath,
+        string typeName,
+        bool simplify,
+        bool simplifyAllStaticImports)
+    {
+        var originalSolution = solution;
+        var document = FindDocument(solution, filePath);
+        var root = await GetCompilationUnitAsync(document);
+        var exists = root.Usings.Any(u => u.StaticKeyword.IsKind(SyntaxKind.StaticKeyword)
+                                          && u.Name?.ToString() == typeName);
+        if (!exists)
+        {
+            solution = solution.WithDocumentSyntaxRoot(document.Id,
+                AddUsingDirective(root, ParseUsingDirective($"using static {typeName};")));
+        }
+
+        if (simplify || simplifyAllStaticImports)
+        {
+            var refreshed = solution.GetDocument(document.Id)
+                            ?? throw new InvalidOperationException(
+                                $"Document for '{filePath}' could not be re-resolved after edit.");
+            solution = await SimplifyStaticReferencesAsync(refreshed, typeName, simplifyAllStaticImports);
+        }
+
+        var changed = solution.GetChanges(originalSolution)
+            .GetProjectChanges()
+            .SelectMany(change => change.GetChangedDocuments())
+            .Any();
+        return new PreparedGlobalUsing(
+            solution,
+            changed,
+            !changed && exists ? "Static using already exists." : null);
+    }
+
     private Document FindDocument(Solution solution, string filePath)
     {
         var fullPath = Path.GetFullPath(filePath);
