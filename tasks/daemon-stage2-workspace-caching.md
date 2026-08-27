@@ -1,5 +1,13 @@
 # Daemon Stage 2 — Workspace Caching
 
+**Status: Parked — superseded for the current hardening phase by [ADR-0008](../docs/adr/0008-daemon-transparent-passthrough-phase.md) and the [critical platform hardening OpenSpec](../openspec/changes/critical-platform-hardening/proposal.md).**
+
+> Do not implement this task while the current OpenSpec is active. The daemon is deliberately limited to transparent transport passthrough: no workspace caching, session ownership, mutation ownership, or semantic divergence from in-process execution. Reconsider caching only in a separately approved change after the mutation safety kernel and canonical operation spine are proven.
+
+---
+
+# Daemon Stage 2 — Workspace Caching
+
 **Priority: High**
 
 ## Goal
