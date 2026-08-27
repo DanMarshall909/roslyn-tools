@@ -50,20 +50,18 @@ Companion documents:
 
 **Rule of thumb when adding code:** "Could I unit-test this without any host references in scope?" If no, it's in the wrong layer.
 
-The daemon-centred execution boundary is the target architecture for
-workspace-backed commands. File-only and lightweight meta operations may declare
-in-process placement. CLI and MCP use the same host-neutral command definition,
-application port, and recovery policy; new transport work targets typed local RPC or
-the explicitly declared in-process path. See
-[ADR-0005](adr/0005-daemon-centred-local-execution.md) and
-[ADR-0007](adr/0007-host-neutral-command-contracts.md).
+For the current hardening phase, the daemon is an optional **transparent
+transport adapter**, not the execution or workspace owner. CLI and MCP bind a
+host-neutral typed request and invoke the same canonical application operation.
+The daemon may forward that request only when it can preserve the request ID,
+cancellation, typed result, diagnostics, safety policy, confidence, and provenance
+without semantic divergence. File-only and lightweight meta operations may execute
+in-process directly. See [ADR-0008](adr/0008-daemon-transparent-passthrough-phase.md).
 
-For daemon-owned MCP tools, the stdio adapter lazily starts the sibling `rt`
-daemon when RPC is unavailable, retries once, and retains typed in-process
-recovery if startup fails. MCP-started daemons stop after ten idle minutes by
-default; each request refreshes that deadline. Explicit `rt daemon start`
-instances remain resident. See
-[ADR-0006](adr/0006-mcp-lazy-daemon-lifetime.md).
+Workspace caching, daemon-owned mutation semantics, and in-process fallback after
+indeterminate mutation dispatch are explicitly parked. A failed connection may select
+in-process execution only before dispatch; any later ambiguity is returned as an
+indeterminate operation result and is never retried automatically.
 
 ## Five contracts that bind the layers
 
