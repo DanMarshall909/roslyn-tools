@@ -2,6 +2,7 @@ using System.Text.Json;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
+using RoslynTools.Services.Results;
 
 namespace RoslynTools.Commands.Results;
 
@@ -203,8 +204,8 @@ internal sealed record FindDuplicatesResult : IRtOutput, IRtMarkdownOutput, IRtJ
                 writer.WriteLine();
                 foreach (var fix in g.SuggestedFixes)
                 {
-                    if (fix.CommandLine is not null)
-                        writer.WriteLine($"- `{fix.Tool}`: `{fix.CommandLine}`");
+                    if (fix.Command is not null)
+                        writer.WriteLine($"- `{fix.Tool}`: `{fix.CommandLine()}`");
                     else
                         writer.WriteLine($"- `{fix.Tool}`: {fix.Ref} — {fix.Description}");
                 }

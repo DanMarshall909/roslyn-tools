@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
+using RoslynTools.Services.Results;
 
 namespace RoslynTools.Commands;
 

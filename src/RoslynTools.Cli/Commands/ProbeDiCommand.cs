@@ -4,6 +4,7 @@ using RoslynTools.Commands.Results;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
+using RoslynTools.Services.Results;
 
 namespace RoslynTools.Commands;
 
@@ -86,15 +87,10 @@ internal sealed record ProbeDiFinding
             ImplementationType = registration.ImplementationType,
             Status = registration.Status,
             Reason = InvisibleReason,
-            SuggestedFix = new SuggestedFix
-            {
-                Tool = "rt",
-                Ref = "add-dynamic-dependency",
-                Description = "Add a durable static reference at the composition root.",
-                CommandLine =
-                    $"rt refactor add-dynamic-dependency --type \"{registration.ImplementationType}\" "
-                    + $"--root \"{root}\" --solution \"{solutionPath}\""
-            }
+            SuggestedFix = FixCatalog.ForDynamicDependency(
+                registration.ImplementationType,
+                root,
+                solutionPath)
         };
     }
 }

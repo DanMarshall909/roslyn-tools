@@ -2,6 +2,7 @@ using System.Text.Json;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
+using RoslynTools.Services.Results;
 
 namespace RoslynTools.Commands.Results;
 
