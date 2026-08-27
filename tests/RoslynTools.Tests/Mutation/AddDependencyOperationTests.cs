@@ -87,6 +87,41 @@ public sealed class AddDependencyOperationTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_returns_an_informational_no_op_when_the_dependency_already_exists()
+    {
+        using var project = new AdhocProjectBuilder("DependencyApp");
+        project.AddSource("AgentService.cs", """
+                                             interface IEmailService { }
+                                             class AgentService
+                                             {
+                                                 private readonly IEmailService _emailService;
+
+                                                 public AgentService(IEmailService emailService)
+                                                 {
+                                                     _emailService = emailService;
+                                                 }
+                                             }
+                                             """);
+        var (workspace, solution) = project.Build();
+        var writer = new CapturingSolutionChangeWriter();
+        var operation = new AddDependencyOperation(
+            new FixedWorkspaceSessionFactory(workspace, solution),
+            new AddDependencyService(NullLogger<AddDependencyService>.Instance, writer),
+            writer);
+
+        var result = (await operation.ExecuteAsync(
+            new AddDependencyRequest("AgentService", "IEmailService"))).Unwrap();
+
+        result.Status.ShouldBe(MutationExecutionStatus.NoOp);
+        result.Value!.Outcome.ShouldBe(AddDependencyOutcome.AlreadyInjected);
+        var diagnostic = result.Diagnostics.ShouldHaveSingleItem();
+        diagnostic.Severity.ShouldBe(MutationDiagnosticSeverity.Information);
+        diagnostic.Message.ShouldBe(
+            "Dependency 'IEmailService' is already injected into 'AgentService'.");
+        writer.Solution.ShouldBeNull();
+    }
+
+    [Fact]
     public async Task InvokeAsync_returns_failure_for_an_ambiguous_target()
     {
         using var project = new AdhocProjectBuilder();
@@ -129,6 +164,7 @@ public sealed class AddDependencyOperationTests
         result.Value.ShouldBeNull();
         result.Error!.Kind.ShouldBe(RtErrorKind.NotFound);
         result.Error.Message.ShouldContain("was not found", Case.Insensitive);
+        result.Error.Context.ShouldBeNull();
         writer.Solution.ShouldBeNull();
     }
 
@@ -158,6 +194,9 @@ public sealed class AddDependencyOperationTests
         result.Value.ShouldBeNull();
         result.Error!.Kind.ShouldBe(RtErrorKind.InvalidInput);
         result.Error.Message.ShouldContain("expression-bodied", Case.Insensitive);
+        result.Error.Context.ShouldNotBeNull();
+        result.Error.Context.ShouldHaveSingleItem().ShouldBe(
+            new KeyValuePair<string, string>("targetType", "AgentService"));
         writer.Solution.ShouldBeNull();
     }
 
@@ -186,12 +225,9 @@ public sealed class AddDependencyOperationTests
     [Fact]
     public async Task ExecuteAsync_honours_cancellation_before_loading_the_workspace()
     {
-        using var project = new AdhocProjectBuilder();
-        project.AddSource("Services.cs", "public class AgentService { }");
-        var (workspace, solution) = project.Build();
         var writer = new CapturingSolutionChangeWriter();
         var operation = new AddDependencyOperation(
-            new FixedWorkspaceSessionFactory(workspace, solution),
+            new ThrowingWorkspaceSessionFactory(),
             new AddDependencyService(NullLogger<AddDependencyService>.Instance, writer),
             writer);
         using var cancellation = new CancellationTokenSource();
@@ -199,6 +235,26 @@ public sealed class AddDependencyOperationTests
 
         await Should.ThrowAsync<OperationCanceledException>(() => operation.ExecuteAsync(
             new AddDependencyRequest("AgentService", "IEmailService"),
+            cancellation.Token));
+
+        writer.Solution.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_honours_cancellation_after_loading_before_validation()
+    {
+        using var project = new AdhocProjectBuilder();
+        project.AddSource("Services.cs", "public class AgentService { }");
+        var (workspace, solution) = project.Build();
+        var writer = new CapturingSolutionChangeWriter();
+        using var cancellation = new CancellationTokenSource();
+        var operation = new AddDependencyOperation(
+            new CancellingWorkspaceSessionFactory(workspace, solution, cancellation),
+            new AddDependencyService(NullLogger<AddDependencyService>.Instance, writer),
+            writer);
+
+        await Should.ThrowAsync<OperationCanceledException>(() => operation.ExecuteAsync(
+            new AddDependencyRequest("", "IEmailService"),
             cancellation.Token));
 
         writer.Solution.ShouldBeNull();
@@ -214,5 +270,31 @@ public sealed class AddDependencyOperationTests
         public Task<(Microsoft.CodeAnalysis.Workspace Workspace, Microsoft.CodeAnalysis.Solution Solution)>
             LoadWorkspaceAsync(string? solutionPath) =>
             Task.FromResult((workspace, solution));
+    }
+
+    private sealed class ThrowingWorkspaceSessionFactory : IWorkspaceSessionFactory
+    {
+        public Task<Microsoft.CodeAnalysis.Solution> GetSolutionAsync(string? solutionPath) =>
+            throw new InvalidOperationException("Workspace loading must not start after cancellation.");
+
+        public Task<(Microsoft.CodeAnalysis.Workspace Workspace, Microsoft.CodeAnalysis.Solution Solution)>
+            LoadWorkspaceAsync(string? solutionPath) =>
+            throw new InvalidOperationException("Workspace loading must not start after cancellation.");
+    }
+
+    private sealed class CancellingWorkspaceSessionFactory(
+        Microsoft.CodeAnalysis.Workspace workspace,
+        Microsoft.CodeAnalysis.Solution solution,
+        CancellationTokenSource cancellation) : IWorkspaceSessionFactory
+    {
+        public Task<Microsoft.CodeAnalysis.Solution> GetSolutionAsync(string? solutionPath) =>
+            Task.FromResult(solution);
+
+        public Task<(Microsoft.CodeAnalysis.Workspace Workspace, Microsoft.CodeAnalysis.Solution Solution)>
+            LoadWorkspaceAsync(string? solutionPath)
+        {
+            cancellation.Cancel();
+            return Task.FromResult((workspace, solution));
+        }
     }
 }

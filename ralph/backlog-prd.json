@@ -1901,8 +1901,10 @@
         "One read-only and one mutation tracer pass CLI, MCP, daemon/in-process parity, coverage, and mutation tests against the final pattern"
       ],
       "priority": 95,
-      "passes": false,
-      "notes": "P0 serial prerequisite for US-095/096/097. Canonical design: ADR-0007, docs/command-application-port-migration.md, docs/command-port-migration-groups.tsv, and ralph/sessions/2026-08-26-command-port-migration-patterns.md. Integration owner exclusively owns these shared seams."
+      "passes": true,
+      "notes": "P0 serial prerequisite for US-095/096/097. Canonical design: ADR-0007, docs/command-application-port-migration.md, docs/command-port-migration-groups.tsv, and ralph/sessions/2026-08-26-command-port-migration-patterns.md. Integration owner exclusively owns these shared seams.",
+      "resolution": "Shipped the host-neutral typed command foundation across 0489aa7, 04ced97, 46131cc, c8cc2a9, and c266816: automatic typed ports and definitions, request-owned MCP schemas, shared safe daemon recovery, prepared mutation envelopes, shared suggested actions, and 56-command architecture ratchets. Final verification passed 1,717 core/CLI tests with 9 expected skips, 78 MCP tests, formatting, and a targeted AddDependencyOperation Stryker run with 17 killed, 0 survived, and a 100.00% score.",
+      "resolvedAt": "2026-08-28"
     },
     {
       "id": "US-144",
