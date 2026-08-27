@@ -33,6 +33,8 @@ StrykerOutput/
 !.claude/scripts/**
 !.claude/commands/
 !.claude/commands/**
+!.claude/skills/
+!.claude/skills/**
 
 ## Auto-generated command reference (view via: rt dump-help)
 docs/COMMANDS.md

@@ -5,6 +5,7 @@ Guidance for agentic coding tools working in this repository.
 ## Project skills
 
 @C:\code\roslyn-tools\.agents\skills\session-log\SKILL.md
+@.agents/skills/refactoring-slices/SKILL.md
 
 ---
 
