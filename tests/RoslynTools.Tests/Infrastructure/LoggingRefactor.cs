@@ -1,3 +1,4 @@
+using System.CommandLine;
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using Shouldly;
@@ -29,7 +30,8 @@ public class LoggingRefactor : IClassFixture<RtServicesFixture>
             using (recordWorkspace)
             using (WorkspaceLoader.UseOverride(recordWorkspace, recordSolution))
             {
-                await _services.Resolve<ConvertToRecordCommand>().ExecuteAsync("WithMutableProp", "ignored", false);
+                await _services.Resolve<ConvertToRecordCommand>().Build().InvokeAsync(
+                    ["--type", "WithMutableProp", "--solution", "ignored"]);
             }
 
             using var staticProject = new AdhocProjectBuilder("StaticApp");
