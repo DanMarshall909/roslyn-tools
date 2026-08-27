@@ -1,6 +1,6 @@
 ---
 name: refactoring-slices
-description: Deliver a broad refactor as small, independently verifiable, behavior-preserving slices. Use when planning or implementing architecture migrations, repeated command conversions, structural cleanup, or parallel refactoring work; use the general refactor skill for a read-only quality sweep.
+description: Deliver a broad refactor as small, independently verifiable, behavior-preserving slices. Use when planning or implementing architecture migrations, repeated command conversions, detector-guided language modernization, structural cleanup, or parallel refactoring work; use the general refactor skill for a read-only quality sweep.
 ---
 
 # Refactoring Slices
@@ -29,6 +29,12 @@ Examples: rename, move, make sealed, or delete a proven-unused symbol.
 2. Run the relevant `rt refactor` command with `--dry-run`.
 3. Review the complete diff, then apply only the confirmed operation.
 4. Build and run the narrow owning tests.
+
+### Detector-guided language modernization
+
+Examples: convert eligible classes to primary constructors or adopt another language feature across a solution.
+
+Read [references/language-modernization.md](references/language-modernization.md). Freeze the detector's candidate inventory, prove one representative conversion per architectural category, and distinguish hand-reviewed exceptions from uniform mechanical application. Prefer a Roslyn syntax transformation when the rewrite spans many files; text-generated patches must be atomic, source-order-aware, and applied in reviewable batches.
 
 ### Behavior-preserving structural change
 
@@ -78,6 +84,8 @@ For a mutation, inspect a dry-run diff before applying it. For a serialization o
 
 Before handoff, run the repository's documented local gate when practical. If the full gate is blocked, report the exact blocker and distinguish it from the checks that passed.
 
+For detector-guided work, rerun the same analysis after the build and report both adoption and remaining eligible exceptions. The refactor is not closed merely because the edited files compile.
+
 ## Completion
 
 A slice is done when:
@@ -87,6 +95,7 @@ A slice is done when:
 - cancellation and working-directory behavior are preserved where relevant;
 - no host-specific dependencies leaked into the operation or service layer;
 - task-relevant documentation and tracking state match the implementation;
+- the originating detector reports the intended closure criterion;
 - the working tree contains no unexplained files from the slice.
 
-Report the outcome, verification evidence, and the next independent slice. Keep commits logically scoped; do not mix unrelated cleanup into the slice.
+Report the outcome, verification evidence, manual-versus-mechanical edit split, and the next independent slice. Keep commits logically scoped; do not mix unrelated cleanup into the slice.
