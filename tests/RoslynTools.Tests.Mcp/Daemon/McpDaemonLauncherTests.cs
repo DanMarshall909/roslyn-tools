@@ -1,4 +1,4 @@
-using RoslynTools.Mcp.Daemon;
+using RoslynTools.Daemon.Rpc;
 using Shouldly;
 
 namespace RoslynTools.Tests.Mcp.Daemon;
@@ -8,15 +8,15 @@ public sealed class McpDaemonLauncherTests
     [Fact]
     public void Default_idle_timeout_is_ten_minutes()
     {
-        McpDaemonLaunchOptions.FromEnvironment(_ => null).IdleTimeout
+        DaemonLaunchOptions.FromEnvironment(_ => null).IdleTimeout
             .ShouldBe(TimeSpan.FromMinutes(10));
     }
 
     [Fact]
     public void Idle_timeout_can_be_configured_for_installations()
     {
-        McpDaemonLaunchOptions.FromEnvironment(
-                name => name == McpDaemonLaunchOptions.IdleTimeoutEnvironmentVariable ? "45" : null)
+        DaemonLaunchOptions.FromEnvironment(
+                name => name == DaemonLaunchOptions.IdleTimeoutEnvironmentVariable ? "45" : null)
             .IdleTimeout.ShouldBe(TimeSpan.FromSeconds(45));
     }
 
@@ -27,7 +27,7 @@ public sealed class McpDaemonLauncherTests
         var executable = Path.Combine(directory.Path, "rt");
         File.WriteAllText(executable, string.Empty);
 
-        var command = McpDaemonLauncher.ResolveLaunchCommand(
+        var command = DaemonLauncher.ResolveLaunchCommand(
             directory.Path,
             isWindows: false,
             TimeSpan.FromMinutes(10));
@@ -47,7 +47,7 @@ public sealed class McpDaemonLauncherTests
         var assembly = Path.Combine(directory.Path, "rt.dll");
         File.WriteAllText(assembly, string.Empty);
 
-        var command = McpDaemonLauncher.ResolveLaunchCommand(
+        var command = DaemonLauncher.ResolveLaunchCommand(
             directory.Path,
             isWindows: false,
             TimeSpan.FromSeconds(5));

@@ -1,6 +1,6 @@
 using System.Text.Json;
+using RoslynTools.Core;
 using RoslynTools.Daemon.Rpc;
-using RoslynTools.Mcp.Daemon;
 using Shouldly;
 
 namespace RoslynTools.Tests.Mcp.Daemon;
@@ -14,15 +14,17 @@ public sealed class DaemonRpcRecoveryTests
             DaemonRpcProtocol.CurrentVersion,
             "request",
             JsonSerializer.SerializeToElement(new { value = 42 }));
-        var rpc = new StubRpcClient(null, expected);
+        var rpc = new StubRpcClient(Unavailable(), Completed(expected));
         var launcher = new StubLauncher(started: true);
-        var recovery = new DaemonRpcRecovery(rpc, launcher);
+        var recovery = new DaemonRpcRecoveryCoordinator(rpc, launcher);
 
-        var response = await recovery.TryExecuteAsync(
+        var result = await recovery.ExecuteLegacyAsync(
             "find_callers",
-            JsonSerializer.SerializeToElement(new { symbol = "Run" }));
+            JsonSerializer.SerializeToElement(new { symbol = "Run" }),
+            CommandSafety.ReadOnly);
 
-        response.ShouldBeSameAs(expected);
+        result.Response.ShouldBeSameAs(expected);
+        result.ShouldFallback.ShouldBeFalse();
         rpc.CallCount.ShouldBe(2);
         launcher.CallCount.ShouldBe(1);
     }
@@ -30,15 +32,17 @@ public sealed class DaemonRpcRecoveryTests
     [Fact]
     public async Task Failed_startup_returns_null_for_the_existing_in_process_fallback()
     {
-        var rpc = new StubRpcClient((DaemonRpcResponse?)null);
+        var rpc = new StubRpcClient(Unavailable());
         var launcher = new StubLauncher(started: false);
-        var recovery = new DaemonRpcRecovery(rpc, launcher);
+        var recovery = new DaemonRpcRecoveryCoordinator(rpc, launcher);
 
-        var response = await recovery.TryExecuteAsync(
+        var result = await recovery.ExecuteLegacyAsync(
             "find_callers",
-            JsonSerializer.SerializeToElement(new { symbol = "Run" }));
+            JsonSerializer.SerializeToElement(new { symbol = "Run" }),
+            CommandSafety.ReadOnly);
 
-        response.ShouldBeNull();
+        result.Response.ShouldBeNull();
+        result.ShouldFallback.ShouldBeTrue();
         rpc.CallCount.ShouldBe(1);
         launcher.CallCount.ShouldBe(1);
     }
@@ -46,28 +50,41 @@ public sealed class DaemonRpcRecoveryTests
     [Fact]
     public async Task Failed_retry_returns_null_for_the_existing_in_process_fallback()
     {
-        var rpc = new StubRpcClient(null, null);
+        var rpc = new StubRpcClient(Unavailable(), Unavailable());
         var launcher = new StubLauncher(started: true);
-        var recovery = new DaemonRpcRecovery(rpc, launcher);
+        var recovery = new DaemonRpcRecoveryCoordinator(rpc, launcher);
 
-        var response = await recovery.TryExecuteAsync(
+        var result = await recovery.ExecuteLegacyAsync(
             "find_callers",
-            JsonSerializer.SerializeToElement(new { symbol = "Run" }));
+            JsonSerializer.SerializeToElement(new { symbol = "Run" }),
+            CommandSafety.ReadOnly);
 
-        response.ShouldBeNull();
+        result.Response.ShouldBeNull();
+        result.ShouldFallback.ShouldBeTrue();
         rpc.CallCount.ShouldBe(2);
         launcher.CallCount.ShouldBe(1);
     }
 
-    private sealed class StubRpcClient(params DaemonRpcResponse?[] responses) : IDaemonRpcClient
+    private static DaemonRpcAttempt Unavailable() => new(
+        DaemonRpcAttemptState.UnavailableBeforeDispatch,
+        null,
+        DispatchStarted: false);
+
+    private static DaemonRpcAttempt Completed(DaemonRpcResponse response) => new(
+        DaemonRpcAttemptState.Completed,
+        response,
+        DispatchStarted: true);
+
+    private sealed class StubRpcClient(params DaemonRpcAttempt[] responses) : IDaemonRpcClient
     {
-        private readonly Queue<DaemonRpcResponse?> _responses = new(responses);
+        private readonly Queue<DaemonRpcAttempt> _responses = new(responses);
 
         internal int CallCount { get; private set; }
 
-        public Task<DaemonRpcResponse?> TryExecuteAsync(
+        public Task<DaemonRpcAttempt> ExecuteAsync(
             string commandName,
             JsonElement arguments,
+            CommandSafety safety,
             CancellationToken cancellationToken = default)
         {
             CallCount++;
@@ -75,7 +92,7 @@ public sealed class DaemonRpcRecoveryTests
         }
     }
 
-    private sealed class StubLauncher(bool started) : IMcpDaemonLauncher
+    private sealed class StubLauncher(bool started) : IDaemonLauncher
     {
         internal int CallCount { get; private set; }
 

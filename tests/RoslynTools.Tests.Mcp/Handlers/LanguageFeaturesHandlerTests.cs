@@ -3,7 +3,6 @@ using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.CommandDescriptors;
 using RoslynTools.Core;
 using RoslynTools.Daemon.Rpc;
-using RoslynTools.Mcp.Daemon;
 using RoslynTools.Mcp.Tools;
 using RoslynTools.Services;
 using Shouldly;
@@ -59,7 +58,7 @@ public sealed class LanguageFeaturesHandlerTests
             var adapter = new McpCommandAdapter(
                 provider.GetRequiredService<CommandDescriptorRegistry>(),
                 provider.GetRequiredService<CliCommandBridge>(),
-                new DaemonRpcRecovery(new UnavailableRpcClient(), new UnavailableLauncher()));
+                new DaemonRpcRecoveryCoordinator(new UnavailableRpcClient(), new UnavailableLauncher()));
 
             var result = await adapter.InvokeAsync(
                 LanguageFeaturesCommandDefinition.Name,
@@ -117,13 +116,17 @@ public sealed class LanguageFeaturesHandlerTests
 
     private sealed class UnavailableRpcClient : IDaemonRpcClient
     {
-        public Task<DaemonRpcResponse?> TryExecuteAsync(
+        public Task<DaemonRpcAttempt> ExecuteAsync(
             string commandName,
             JsonElement arguments,
-            CancellationToken cancellationToken = default) => Task.FromResult<DaemonRpcResponse?>(null);
+            CommandSafety safety,
+            CancellationToken cancellationToken = default) => Task.FromResult(new DaemonRpcAttempt(
+                DaemonRpcAttemptState.UnavailableBeforeDispatch,
+                null,
+                DispatchStarted: false));
     }
 
-    private sealed class UnavailableLauncher : IMcpDaemonLauncher
+    private sealed class UnavailableLauncher : IDaemonLauncher
     {
         public Task<bool> EnsureStartedAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(false);

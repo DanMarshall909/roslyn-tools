@@ -36,6 +36,18 @@ internal static class DaemonRpcProtocol
     internal const string ExecuteCommandMethod = "commands/execute";
 }
 
+internal static class DaemonRpcJson
+{
+    internal static JsonSerializerOptions Options { get; } = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true
+    };
+
+    internal static JsonElement SerializeExecution(CommandExecutionResult execution) =>
+        JsonSerializer.SerializeToElement(execution, Options);
+}
+
 internal static class DaemonRpcErrorCodes
 {
     internal const string IncompatibleProtocol = "incompatible_protocol";
@@ -54,35 +66,144 @@ internal static class DaemonTransport
 /// <summary>Transport seam for a typed daemon command invocation.</summary>
 internal interface IDaemonRpcClient
 {
-    Task<DaemonRpcResponse?> TryExecuteAsync(
+    Task<DaemonRpcAttempt> ExecuteAsync(
         string commandName,
         JsonElement arguments,
+        CommandSafety safety,
         CancellationToken cancellationToken = default);
+}
+
+/// <summary>What the client can prove about one daemon RPC transport attempt.</summary>
+internal enum DaemonRpcAttemptState
+{
+    Completed,
+    UnavailableBeforeDispatch,
+    IndeterminateAfterDispatch
+}
+
+/// <summary>
+///     One structured transport attempt. <see cref="DispatchStarted" /> becomes true before
+///     writing begins because a partial/flush failure cannot prove the server received nothing.
+/// </summary>
+internal sealed record DaemonRpcAttempt
+{
+    internal DaemonRpcAttempt(
+        DaemonRpcAttemptState state,
+        DaemonRpcResponse? response,
+        bool DispatchStarted)
+    {
+        if (state == DaemonRpcAttemptState.Completed && (response is null || !DispatchStarted))
+            throw new ArgumentException("A completed RPC attempt requires a sent request and response.");
+        if (state == DaemonRpcAttemptState.UnavailableBeforeDispatch && (response is not null || DispatchStarted))
+            throw new ArgumentException("An unavailable RPC attempt cannot have dispatched a request.");
+        if (state == DaemonRpcAttemptState.IndeterminateAfterDispatch && (response is not null || !DispatchStarted))
+            throw new ArgumentException("An indeterminate RPC attempt requires a sent request without a response.");
+
+        State = state;
+        Response = response;
+        this.DispatchStarted = DispatchStarted;
+    }
+
+    public DaemonRpcAttemptState State { get; }
+    public DaemonRpcResponse? Response { get; }
+    public bool DispatchStarted { get; }
+}
+
+/// <summary>Starts or confirms reachability of the shared local daemon.</summary>
+internal interface IDaemonLauncher
+{
+    Task<bool> EnsureStartedAsync(CancellationToken cancellationToken = default);
+}
+
+/// <summary>The shared recovery decision consumed by CLI and MCP host adapters.</summary>
+internal sealed record DaemonRpcRecoveryResult(
+    DaemonRpcResponse? Response,
+    bool ShouldFallback,
+    DaemonRpcAttempt LastAttempt);
+
+/// <summary>Applies the single safe start, retry, and in-process fallback policy.</summary>
+internal sealed class DaemonRpcRecoveryCoordinator(
+    IDaemonRpcClient daemonRpc,
+    IDaemonLauncher daemonLauncher)
+{
+    private readonly IDaemonRpcClient _daemonRpc = daemonRpc;
+    private readonly IDaemonLauncher _daemonLauncher = daemonLauncher;
+
+    internal async Task<DaemonRpcRecoveryResult> ExecuteAsync(
+        ApplicationCommandDefinition definition,
+        JsonElement arguments,
+        CancellationToken cancellationToken = default) =>
+        await ExecuteLegacyAsync(
+            definition.Name,
+            arguments,
+            definition.Safety,
+            cancellationToken);
+
+    internal async Task<DaemonRpcRecoveryResult> ExecuteLegacyAsync(
+        string commandName,
+        JsonElement arguments,
+        CommandSafety safety,
+        CancellationToken cancellationToken = default)
+    {
+        var attempt = await _daemonRpc.ExecuteAsync(
+            commandName,
+            arguments,
+            safety,
+            cancellationToken);
+        if (attempt.State == DaemonRpcAttemptState.Completed)
+            return new DaemonRpcRecoveryResult(attempt.Response, false, attempt);
+
+        if (IsIndeterminateMutation(attempt, safety))
+            return new DaemonRpcRecoveryResult(null, false, attempt);
+
+        if (!await _daemonLauncher.EnsureStartedAsync(cancellationToken))
+            return new DaemonRpcRecoveryResult(null, true, attempt);
+
+        var retry = await _daemonRpc.ExecuteAsync(
+            commandName,
+            arguments,
+            safety,
+            cancellationToken);
+        if (retry.State == DaemonRpcAttemptState.Completed)
+            return new DaemonRpcRecoveryResult(retry.Response, false, retry);
+
+        return new DaemonRpcRecoveryResult(
+            null,
+            !IsIndeterminateMutation(retry, safety),
+            retry);
+    }
+
+    private static bool IsIndeterminateMutation(
+        DaemonRpcAttempt attempt,
+        CommandSafety safety) =>
+        attempt.State == DaemonRpcAttemptState.IndeterminateAfterDispatch
+        && safety.Effect == CommandEffect.Mutation;
 }
 
 /// <summary>Thin local-RPC client for a typed daemon command invocation.</summary>
 internal sealed class DaemonRpcClient : IDaemonRpcClient
 {
-    private readonly string _pipeName = DaemonTransport.PipeName;
+    private readonly string _pipeName;
 
     private static readonly UTF8Encoding NoBom = new(false, true);
-    private static readonly JsonSerializerOptions SerializerOptions = new()
+    public DaemonRpcClient()
+        : this(DaemonTransport.PipeName)
     {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true
-    };
+    }
 
-    public async Task<DaemonRpcResponse?> TryExecuteAsync(
+    internal DaemonRpcClient(string pipeName)
+    {
+        _pipeName = pipeName;
+    }
+
+    public async Task<DaemonRpcAttempt> ExecuteAsync(
         string commandName,
         JsonElement arguments,
+        CommandSafety safety,
         CancellationToken cancellationToken = default)
     {
-        var waitForTerminalResponse = DaemonOwnedCommands.All
-            .FirstOrDefault(command => string.Equals(
-                command.Name,
-                NormalizeCommandName(commandName),
-                StringComparison.Ordinal))
-            ?.Safety.Effect == CommandEffect.Mutation;
+        var waitForTerminalResponse = safety.Effect == CommandEffect.Mutation;
+        var dispatchStarted = false;
 
         await using var pipe = new NamedPipeClientStream(
             ".", _pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
@@ -111,24 +232,50 @@ internal sealed class DaemonRpcClient : IDaemonRpcClient
                 arguments.Clone(),
                 Directory.GetCurrentDirectory());
             await using var writer = new StreamWriter(pipe, NoBom, 1024, true) { AutoFlush = true };
+            dispatchStarted = true;
             await writer.WriteLineAsync(
-                JsonSerializer.Serialize(request, SerializerOptions).AsMemory(),
-                responseToken);
+                JsonSerializer.Serialize(request, DaemonRpcJson.Options).AsMemory(),
+                deadline.Token);
 
             using var reader = new StreamReader(pipe, NoBom, false, 1024, true);
             var line = await reader.ReadLineAsync(responseToken);
-            return line is null
+            var response = line is null
                 ? null
-                : JsonSerializer.Deserialize<DaemonRpcResponse>(line, SerializerOptions);
+                : JsonSerializer.Deserialize<DaemonRpcResponse>(line, DaemonRpcJson.Options);
+            return response is null
+                ? new DaemonRpcAttempt(
+                    DaemonRpcAttemptState.IndeterminateAfterDispatch,
+                    null,
+                    DispatchStarted: true)
+                : new DaemonRpcAttempt(
+                    DaemonRpcAttemptState.Completed,
+                    response,
+                    DispatchStarted: true);
         }
-        catch (Exception ex) when (ex is IOException or OperationCanceledException or ObjectDisposedException)
+        catch (OperationCanceledException) when (
+            cancellationToken.IsCancellationRequested
+            && ShouldPreserveCallerCancellation(dispatchStarted, safety))
         {
-            return null;
+            throw;
+        }
+        catch (Exception ex) when (ex is IOException
+                                   or JsonException
+                                   or OperationCanceledException
+                                   or ObjectDisposedException)
+        {
+            return new DaemonRpcAttempt(
+                dispatchStarted
+                    ? DaemonRpcAttemptState.IndeterminateAfterDispatch
+                    : DaemonRpcAttemptState.UnavailableBeforeDispatch,
+                null,
+                dispatchStarted);
         }
     }
 
-    private static string NormalizeCommandName(string commandName) =>
-        commandName.Replace('-', '_');
+    internal static bool ShouldPreserveCallerCancellation(
+        bool dispatchStarted,
+        CommandSafety safety) =>
+        !dispatchStarted || safety.Effect == CommandEffect.ReadOnly;
 }
 
 /// <summary>
@@ -137,12 +284,6 @@ internal sealed class DaemonRpcClient : IDaemonRpcClient
 internal sealed class DaemonCommandDispatcher
 {
     private static readonly SemaphoreSlim WorkingDirectoryGate = new(1, 1);
-
-    private static readonly JsonSerializerOptions SerializerOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true
-    };
 
     private readonly Dictionary<string, ICommandApplicationPort> _ports;
 
@@ -169,7 +310,10 @@ internal sealed class DaemonCommandDispatcher
         object? typedRequest;
         try
         {
-            typedRequest = JsonSerializer.Deserialize(request.Arguments.GetRawText(), port.RequestType, SerializerOptions);
+            typedRequest = JsonSerializer.Deserialize(
+                request.Arguments.GetRawText(),
+                port.RequestType,
+                DaemonRpcJson.Options);
         }
         catch (JsonException ex)
         {
@@ -213,7 +357,7 @@ internal sealed class DaemonCommandDispatcher
             return new DaemonRpcResponse(
                 DaemonRpcProtocol.CurrentVersion,
                 request.RequestId,
-                JsonSerializer.SerializeToElement(execution, SerializerOptions));
+                DaemonRpcJson.SerializeExecution(execution));
         }
         catch (Exception ex) when (ex is ArgumentException
                                    or InvalidOperationException

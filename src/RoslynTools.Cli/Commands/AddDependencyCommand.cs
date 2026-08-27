@@ -9,9 +9,12 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Command for adding dependencies to a solution.
 /// </summary>
-internal sealed class AddDependencyCommand(DaemonRpcClient daemon) : IRtCommand, IRefactorCommand
+internal sealed class AddDependencyCommand(
+    DaemonRpcRecoveryCoordinator daemon,
+    AddDependencyOperation operation) : IRtCommand, IRefactorCommand
 {
-    private readonly DaemonRpcClient _daemon = daemon;
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
+    private readonly AddDependencyOperation _operation = operation;
 
     public static RtCommandInfo Info => AddDependencyCommandDefinition.Info;
 
@@ -48,7 +51,7 @@ internal sealed class AddDependencyCommand(DaemonRpcClient daemon) : IRtCommand,
     {
         await DaemonCommandExecutor.ExecuteAsync(
             _daemon,
-            AddDependencyCommandDefinition.Name,
+            _operation,
             request,
             context);
     }

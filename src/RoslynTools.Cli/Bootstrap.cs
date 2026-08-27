@@ -31,6 +31,9 @@ internal static class Bootstrap
         services.AddSingleton<GitService>();
         services.AddSingleton<DaemonClient>();
         services.AddSingleton<DaemonRpcClient>();
+        services.AddSingleton<IDaemonRpcClient>(provider => provider.GetRequiredService<DaemonRpcClient>());
+        services.AddSingleton<IDaemonLauncher>(_ => new DaemonLauncher());
+        services.AddSingleton<DaemonRpcRecoveryCoordinator>();
         services.AddSingleton(provider => new DaemonCommandDispatcher(
             provider.GetServices<ICommandApplicationPort>()));
         services.AddSingleton<ISymbolResolutionService, SymbolResolutionService>();

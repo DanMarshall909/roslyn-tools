@@ -1,15 +1,15 @@
 using System.Diagnostics;
 using System.Globalization;
-using RoslynTools.Daemon;
+using System.IO.Pipes;
 
-namespace RoslynTools.Mcp.Daemon;
+namespace RoslynTools.Daemon.Rpc;
 
-internal sealed record McpDaemonLaunchOptions(TimeSpan IdleTimeout)
+internal sealed record DaemonLaunchOptions(TimeSpan IdleTimeout)
 {
     internal const string IdleTimeoutEnvironmentVariable = "RT_DAEMON_IDLE_TIMEOUT_SECONDS";
     internal static readonly TimeSpan DefaultIdleTimeout = TimeSpan.FromMinutes(10);
 
-    internal static McpDaemonLaunchOptions FromEnvironment(
+    internal static DaemonLaunchOptions FromEnvironment(
         Func<string, string?> getEnvironmentVariable)
     {
         var configured = getEnvironmentVariable(IdleTimeoutEnvironmentVariable);
@@ -19,43 +19,38 @@ internal sealed record McpDaemonLaunchOptions(TimeSpan IdleTimeout)
                    CultureInfo.InvariantCulture,
                    out var seconds)
                && seconds > 0
-            ? new McpDaemonLaunchOptions(TimeSpan.FromSeconds(seconds))
-            : new McpDaemonLaunchOptions(DefaultIdleTimeout);
+            ? new DaemonLaunchOptions(TimeSpan.FromSeconds(seconds))
+            : new DaemonLaunchOptions(DefaultIdleTimeout);
     }
 }
 
 internal sealed record DaemonLaunchCommand(string FileName, IReadOnlyList<string> Arguments);
 
-internal interface IMcpDaemonLauncher
-{
-    Task<bool> EnsureStartedAsync(CancellationToken cancellationToken = default);
-}
-
-/// <summary>Starts the CLI daemon without allowing its output to enter the MCP stdio protocol.</summary>
-internal sealed class McpDaemonLauncher : IMcpDaemonLauncher
+/// <summary>Starts the sibling rt daemon without allowing its output into a host protocol.</summary>
+internal sealed class DaemonLauncher : IDaemonLauncher
 {
     private static readonly SemaphoreSlim StartGate = new(1, 1);
-    private readonly McpDaemonLaunchOptions _options;
+    private readonly DaemonLaunchOptions _options;
 
-    internal McpDaemonLauncher()
-        : this(McpDaemonLaunchOptions.FromEnvironment(Environment.GetEnvironmentVariable))
+    internal DaemonLauncher()
+        : this(DaemonLaunchOptions.FromEnvironment(Environment.GetEnvironmentVariable))
     {
     }
 
-    internal McpDaemonLauncher(McpDaemonLaunchOptions options)
+    internal DaemonLauncher(DaemonLaunchOptions options)
     {
         _options = options;
     }
 
     public async Task<bool> EnsureStartedAsync(CancellationToken cancellationToken = default)
     {
-        if (await DaemonClient.IsPipeReachableAsync(cancellationToken))
+        if (await IsPipeReachableAsync(cancellationToken))
             return true;
 
         await StartGate.WaitAsync(cancellationToken);
         try
         {
-            if (await DaemonClient.IsPipeReachableAsync(cancellationToken))
+            if (await IsPipeReachableAsync(cancellationToken))
                 return true;
 
             DaemonLaunchCommand command;
@@ -101,7 +96,7 @@ internal sealed class McpDaemonLauncher : IMcpDaemonLauncher
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 await Task.Delay(100, cancellationToken);
-                if (await DaemonClient.IsPipeReachableAsync(cancellationToken))
+                if (await IsPipeReachableAsync(cancellationToken))
                     return true;
             }
 
@@ -133,8 +128,31 @@ internal sealed class McpDaemonLauncher : IMcpDaemonLauncher
         if (File.Exists(assembly))
             return new DaemonLaunchCommand("dotnet", [assembly, .. daemonArguments]);
 
-        throw new InvalidOperationException(
-            "Cannot locate the rt daemon executable beside roslyn-tools-mcp.");
+        throw new InvalidOperationException("Cannot locate the rt daemon executable beside this host.");
+    }
+
+    private static async Task<bool> IsPipeReachableAsync(CancellationToken cancellationToken)
+    {
+        await using var pipe = new NamedPipeClientStream(
+            ".",
+            DaemonTransport.PipeName,
+            PipeDirection.InOut,
+            PipeOptions.Asynchronous);
+        try
+        {
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            deadline.CancelAfter(TimeSpan.FromSeconds(1));
+            await pipe.ConnectAsync(deadline.Token);
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is IOException or OperationCanceledException)
+        {
+            return false;
+        }
     }
 
     private static async Task DrainProcessAsync(Process process)
@@ -150,7 +168,7 @@ internal sealed class McpDaemonLauncher : IMcpDaemonLauncher
             }
             catch (Exception ex) when (ex is InvalidOperationException or IOException)
             {
-                // Startup/retry decides availability; process observation is best effort.
+                // Recovery decides availability; detached process observation is best effort.
             }
         }
     }

@@ -8,9 +8,12 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Provides an outline of the solution's structure and elements.
 /// </summary>
-internal sealed class OutlineCommand(DaemonRpcClient daemon) : IRtCommand, IStructuredOutputCommand, IInspectCommand
+internal sealed class OutlineCommand(
+    DaemonRpcRecoveryCoordinator daemon,
+    OutlineOperation operation) : IRtCommand, IStructuredOutputCommand, IInspectCommand
 {
-    private readonly DaemonRpcClient _daemon = daemon;
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
+    private readonly OutlineOperation _operation = operation;
 
     public static RtCommandInfo Info => OutlineCommandDefinition.Info;
 
@@ -48,7 +51,7 @@ internal sealed class OutlineCommand(DaemonRpcClient daemon) : IRtCommand, IStru
                 withLocations);
             await DaemonCommandExecutor.ExecuteAsync(
                 _daemon,
-                OutlineCommandDefinition.Name,
+                _operation,
                 request,
                 context);
         });

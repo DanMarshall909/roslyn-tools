@@ -5,7 +5,6 @@ using RoslynTools.CommandDescriptors;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Daemon.Rpc;
-using RoslynTools.Mcp.Daemon;
 using RoslynTools.Services;
 
 namespace RoslynTools.Mcp.Tools;
@@ -18,7 +17,7 @@ namespace RoslynTools.Mcp.Tools;
 internal sealed class McpCommandAdapter(
     CommandDescriptorRegistry descriptors,
     CliCommandBridge legacyBridge,
-    DaemonRpcRecovery daemonRpc)
+    DaemonRpcRecoveryCoordinator daemonRpc)
 {
     private static readonly JsonSerializerOptions RequestOptions = new()
     {
@@ -28,7 +27,7 @@ internal sealed class McpCommandAdapter(
 
     private readonly CommandDescriptorRegistry _descriptors = descriptors;
     private readonly CliCommandBridge _legacyBridge = legacyBridge;
-    private readonly DaemonRpcRecovery _daemonRpc = daemonRpc;
+    private readonly DaemonRpcRecoveryCoordinator _daemonRpc = daemonRpc;
 
     public async Task<ToolResult> InvokeAsync(
         string toolName,
@@ -45,9 +44,22 @@ internal sealed class McpCommandAdapter(
             && (descriptor.Definition?.ExecutionPlacement == CommandExecutionPlacement.DaemonPreferred
                 || descriptor.Definition is null && DaemonOwnedCommands.Contains(toolName)))
         {
-            var remote = await _daemonRpc.TryExecuteAsync(toolName, safeArguments, cancellationToken);
-            if (remote is not null)
-                return ToToolResult(remote);
+            var recovery = descriptor.Definition is not null
+                ? await _daemonRpc.ExecuteAsync(
+                    descriptor.Definition,
+                    safeArguments,
+                    cancellationToken)
+                : await _daemonRpc.ExecuteLegacyAsync(
+                    toolName,
+                    safeArguments,
+                    ResolveSafety(descriptor),
+                    cancellationToken);
+            if (recovery.Response is not null)
+                return ToToolResult(recovery.Response);
+            if (!recovery.ShouldFallback)
+                return new ToolResult(
+                    true,
+                    "The daemon accepted this mutation but its result is indeterminate; inspect the target before retrying.");
 
             // The portable stdio host must remain usable before a daemon has been started,
             // and while a stale daemon is being replaced. The same typed port is the narrow
@@ -132,6 +144,14 @@ internal sealed class McpCommandAdapter(
         options.Converters.Add(new JsonStringEnumConverter());
         return JsonSerializer.Serialize(error, options);
     }
+
+    private static CommandSafety ResolveSafety(ApplicationCommandDescriptor descriptor) =>
+        descriptor.Definition?.Safety
+        ?? DaemonOwnedCommands.All.FirstOrDefault(command =>
+            string.Equals(command.Name, descriptor.ToolName, StringComparison.Ordinal))?.Safety
+        ?? (descriptor.Safety == CommandSafetyPolicy.DryRunByDefault
+            ? CommandSafety.ReviewByDefault
+            : CommandSafety.ReadOnly);
 
     internal static JsonElement ApplySafetyPolicy(
         ApplicationCommandDescriptor descriptor,

@@ -94,9 +94,11 @@ internal sealed class LanguageFeaturesCommand(
     private async Task<LanguageFeaturesResult?> ExecuteDaemonPreferredAsync(
         LanguageFeaturesRequest request)
     {
-        var response = await _daemon.TryExecuteAsync(
+        var attempt = await _daemon.ExecuteAsync(
             LanguageFeaturesCommandDefinition.Name,
-            JsonSerializer.SerializeToElement(request));
+            JsonSerializer.SerializeToElement(request),
+            CommandSafety.ReadOnly);
+        var response = attempt.Response;
         if (response is null)
             return await _operation.ExecuteAsync(request);
 
