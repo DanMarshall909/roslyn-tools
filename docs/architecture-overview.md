@@ -8,7 +8,7 @@ Companion documents:
 - [target-command-surface-architecture.md](target-command-surface-architecture.md) — target shape for command wiring (catalog, capabilities, binders).
 - [consistency-roadmap.md](consistency-roadmap.md) — EP-013 execution plan sequencing the EP-007/009/011/012 work that lands this architecture.
 - [command-application-port-migration.md](command-application-port-migration.md) — explicit R0-R5/M0-M4 conversion instructions for the complete command catalog.
-- [command-port-migration-groups.tsv](command-port-migration-groups.tsv) — machine-readable 55-command fan-out manifest.
+- [command-port-migration-groups.tsv](command-port-migration-groups.tsv) — machine-readable 56-command fan-out manifest.
 - [per-command-checklist.md](per-command-checklist.md) — the per-command checklist; about half is architecture-test-enforced today, the rest is human-judgement.
 - [adr/](adr/) — Architecture Decision Records.
 
@@ -174,10 +174,10 @@ The whole tool is its own customer. The architecture exists to make that loop ti
   [ADR-0007](adr/0007-host-neutral-command-contracts.md).
 
 - **EP-009 (capability flags) is the biggest open architectural lift** — US-114 is 20 ACs, multi-week. Until it lands, commands still wire `Option<T>` ad hoc and the catalog is partly notional.
-- **Application-port migration is incremental.** Fourteen of the 55 category commands are port-backed, with `rename`
+- **Application-port migration is incremental.** Fifteen of the 56 category commands are port-backed, with `rename`
   still partial; 41 conversion/completion slices remain. `suggest` and feedback are additional typed meta operations.
   Descriptors without ports still enter `CliCommandBridge`. rt-007 and the
-  [55-row migration manifest](command-port-migration-groups.tsv) track draining it.
+  [56-row migration manifest](command-port-migration-groups.tsv) track draining it.
 - **The Result/Throw bridges are designed to persist** across stories. Don't drain the SymbolLocator bridges all at once — `one caller/tool at a time`, then delete the bridge.
 - **`CompactDescription` vs verbose dict** for describe stays two-shape (JSON key order is irreducible). Outline has been unified. Trade-off accepted in US-135.
 - **`_suggestions` fan-out is incomplete.** Only `describe` (CLI+MCP) and `find-refs` (MCP) carry suggestions today. Remaining inspect/analyze commands are tracked in US-136 (outline envelope) and US-137 (fan-out). Body-call related-symbol extraction and frequency ranking are deferred in US-135.

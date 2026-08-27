@@ -48,7 +48,7 @@
     {
       "id": "EP-012",
       "title": "Complete thin-host-adapter migration",
-      "description": "Give every ordinary command one host-neutral application definition and typed application port so CLI, MCP, daemon, and future hosts invoke the same validated operation. Complete the 55-command rollout, delete CliCommandBridge, and remove the RoslynTools.Mcp → RoslynTools.Cli project reference.",
+      "description": "Give every ordinary command one host-neutral application definition and typed application port so CLI, MCP, daemon, and future hosts invoke the same validated operation. Complete the 56-command rollout, delete CliCommandBridge, and remove the RoslynTools.Mcp → RoslynTools.Cli project reference.",
       "notes": "ADR-0003 and ADR-0007 supersede the original native-MCP-handler direction. Canonical execution plan: docs/command-application-port-migration.md plus docs/command-port-migration-groups.tsv. Sequence: serial shared foundation (US-143), parallel read-only groups (US-095/096) and mutation groups (US-097), serial bridge deletion and physical decoupling (US-098). US-099 is consolidated into US-098; do not promote CLI builders or CliCommandBridge into a renamed shared project."
     },
     {
@@ -1223,7 +1223,7 @@
     {
       "id": "US-094",
       "title": "Superseded: architectural ratchet for command application-port coverage",
-      "description": "[DISPOSITION: SUPERSEDED-BY US-143] The original native-handler allow-list direction was rejected by ADR-0003 and ADR-0007. Its useful invariant is retained as definition/port/schema/routing coverage over the 55-command manifest.",
+      "description": "[DISPOSITION: SUPERSEDED-BY US-143] The original native-handler allow-list direction was rejected by ADR-0003 and ADR-0007. Its useful invariant is retained as definition/port/schema/routing coverage over the 56-command manifest.",
       "acceptanceCriteria": [
         "ADR-0007 records why per-command MCP handlers and their allow-list are rejected",
         "US-143 owns replacement definition/port/schema/routing ratchets over docs/command-port-migration-groups.tsv",
@@ -1897,7 +1897,7 @@
         "CLI and MCP share daemon startup/recovery and distinguish unavailable-before-dispatch from indeterminate-after-dispatch so mutations are never retried unsafely",
         "The mutation envelope distinguishes Reviewed, DryRun, Applied, and NoOp and a prepared change-set models multi-file/filesystem writes",
         "SuggestedFix/FixCatalog and other shared result contracts required by multiple fan-out groups move out of CLI",
-        "Architecture tests validate the 55-row manifest, unique definition/port coverage, schema parity, safety/execution validity, and absence of host types in shared contracts",
+        "Architecture tests validate the 56-row manifest, unique definition/port coverage, schema parity, safety/execution validity, and absence of host types in shared contracts",
         "One read-only and one mutation tracer pass CLI, MCP, daemon/in-process parity, coverage, and mutation tests against the final pattern"
       ],
       "priority": 95,
@@ -1919,6 +1919,27 @@
       "priority": 96,
       "passes": false,
       "notes": "P1. Reproduced during the 2026-08-26 command-port design session with the Release apphost. Tracked in docs/issues/open/architecture/rt-014-manual-daemon-start-exits-on-linux.md. This blocks live CLI daemon parity checks but not the contract-design work."
+    },
+    {
+      "id": "US-145",
+      "epicId": "EP-014",
+      "title": "rt analyze language-features: inventory C# feature usage and density",
+      "description": "As a maintainer planning modernization or consistency refactors, I want a solution-wide inventory of the C# language features in use with normalized density and defensible adoption denominators, so I can distinguish established local conventions from isolated usage without relying on token searches.",
+      "acceptanceCriteria": [
+        "rt analyze language-features is a read-only, daemon-preferred command with one host-neutral definition and typed application port projected through generic CLI and MCP adapters",
+        "The result identifies its versioned feature catalogue and reports stable feature ID, category, first C# version, detector kind, counting basis, occurrence count, file count, occurrences per KLOC, and file percentage",
+        "Solution totals and per-project rollups include analyzed file/source-line counts and configured/effective language versions",
+        "Opportunity-based adoption is present only where the detector has a mechanically valid denominator; other features return no adoption metric",
+        "Generated/intermediate and auto-generated sources are excluded by default, with an explicit opt-in and policy field in the result",
+        "Filters for feature, category, introduced-since, and top are deterministic; source locations are opt-in and include project, relative path, line, and column",
+        "Syntax, semantic, and project-option detectors are distinguished, and compiler/load failures produce typed partial-analysis diagnostics instead of false zero counts",
+        "Catalogue contract tests pin IDs and counting rules, detector tests cover representative C# versions, and CLI/MCP/daemon parity tests return the same typed data"
+      ],
+      "priority": 145,
+      "passes": true,
+      "notes": "P2. Requested 2026-08-27 and captured as FB-374 / rt-015. Protocol: ralph/sessions/2026-08-27-language-feature-density.md. Extend the R3 static-analyzer pattern, but implement only after US-143 so this new command does not enter the transitional manual daemon catalogue. First delivery should prove syntax, semantic, project-option, opportunity-denominator, and preview-syntax detector shapes before expanding csharp-v1 catalogue coverage. No automatic rewrites or value judgement about feature usage in this story.",
+      "resolution": "Implemented a 60-entry csharp-v1 catalogue and typed R3 operation shared by CLI, daemon RPC, and generic MCP projection. Added deterministic filters, bounded source locations, generated-code policy, project rollups, adoption metrics, partial-analysis diagnostics, and an advisory --refactorable-only view. Release build, format, 1,643 passing core/CLI tests plus 9 skips, and 61 MCP tests passed. Scoped coverage was 82.33% line / 78.99% branch / 97.18% method; no mutation score is claimed because repository Stryker globs selected unrelated MethodExtractor mutants and safe-mode compilation failed.",
+      "resolvedAt": "2026-08-27"
     }
   ]
 }

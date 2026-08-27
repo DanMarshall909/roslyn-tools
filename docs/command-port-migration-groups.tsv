@@ -6,6 +6,7 @@ debug	analyze	R5	reconcile	in-process	read-only
 dependency-graph	analyze	R4	convert	daemon-preferred	read-only
 find-duplicates	analyze	R2	convert	daemon-preferred	read-only
 find-magic-strings	analyze	R0	reconcile	daemon-preferred	read-only
+language-features	analyze	R3	complete	daemon-preferred	read-only
 list-imports	analyze	R0	reconcile	daemon-preferred	read-only
 list-smells	analyze	R3	convert	daemon-preferred	read-only
 probe-di	analyze	R2	convert	in-process	read-only

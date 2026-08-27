@@ -90,7 +90,8 @@ public sealed class CommandDescriptorTriggerContract
         "feedback_list",
         "feedback_process",
         "circular_deps", // Specialized graph analysis; no built-in has solution-wide namespace semantics.
-        "find_magic_strings" // Specialized literal grouping; no built-in performs this semantic filter.
+        "find_magic_strings", // Specialized literal grouping; no built-in performs this semantic filter.
+        "language_features" // Catalog-backed syntax/semantic density has no built-in solution-wide equivalent.
     };
 
     [Fact]

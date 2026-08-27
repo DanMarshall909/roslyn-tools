@@ -7188,6 +7188,17 @@
       "status": "processed",
       "processedAt": "2026-07-30T07:12:47.6772223Z",
       "resolution": "Implemented first-class feedback_add and feedback_list MCP handlers with structured schemas and results. Both handlers reuse FeedbackStore.AddUserFeedback and FeedbackStore.ListByStatus, and focused MCP discovery, add, and list regression tests pass."
+    },
+    {
+      "id": "FB-374",
+      "type": "user-feedback",
+      "timestamp": "2026-08-26T22:32:11.2184650\u002B00:00",
+      "commandLine": "rt analyze language-features --solution RoslynTools.slnx --json",
+      "description": "rt: analyze language-features \u2014 inventory the versioned C# language features used across a solution and report normalized density, file coverage, opportunity-based adoption, and source locations for refactoring decisions",
+      "expectedResult": "A typed CLI/MCP report with stable feature IDs, C# version metadata, occurrences per 1,000 non-generated source lines, percentage of files, optional opportunity denominators, project rollups, and opt-in locations.",
+      "status": "processed",
+      "processedAt": "2026-08-26T22:33:54.8531027\u002B00:00",
+      "resolution": "Implemented US-145 / rt-015 as the typed analyze language-features command, including the csharp-v1 catalogue, density and adoption metrics, refactoring drill-down, CLI/daemon/MCP parity, and focused verification."
     }
   ]
 }

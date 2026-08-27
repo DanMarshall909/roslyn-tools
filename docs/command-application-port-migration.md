@@ -6,17 +6,17 @@ to the host-neutral application-port architecture in
 
 ## Scope and baseline
 
-The machine-readable catalog currently contains 55 category commands:
+The machine-readable catalog currently contains 56 category commands:
 
 | Category | Total | Port-backed | Remaining |
 |---|---:|---:|---:|
 | Inspect | 9 | 6 | 3 |
-| Analyze | 13 | 5 | 8 |
+| Analyze | 14 | 6 | 8 |
 | Refactor | 33 | 3, including partial `rename` | 30 plus `rename` completion |
-| **Total** | **55** | **14** | **41 conversion/completion slices** |
+| **Total** | **56** | **15** | **41 conversion/completion slices** |
 
 `suggest` and the feedback leaves are already typed meta operations but are outside
-the 55 category commands. Operational commands such as `daemon`, `prime`, and
+the 56 category commands. Operational commands such as `daemon`, `prime`, and
 `dump-help` remain host-owned.
 
 ## Target flow
@@ -71,7 +71,7 @@ local substitutes.
    - Keep suggestions as data. Rendering command lines is an adapter concern.
 
 7. **Ratchets**
-   - Freeze the 55-command inventory.
+   - Freeze the 56-command inventory.
    - Assert one definition and one port for each migrated command.
    - Assert unique normalized names, safety consistency, request schema parity, and no
      host types in request/result contracts.
@@ -223,7 +223,7 @@ Execution:
 
 ### R3 — static analyzer reports
 
-Commands: `complexity`, `list-smells`, `solid`.
+Commands: `complexity`, `language-features`, `list-smells`, `solid`.
 
 Requests:
 
@@ -437,7 +437,7 @@ snapshot, or project file in parallel.
 
 ## Definition of done
 
-- Every one of the 55 category commands appears in exactly one group above.
+- Every one of the 56 category commands appears in exactly one group above.
 - Every MCP-visible ordinary definition has exactly one typed port.
 - `CliCommandBridge`, `CapturingConsole`, native-handler override routing, nullable-port
   branches, and the manual daemon command list are deleted.

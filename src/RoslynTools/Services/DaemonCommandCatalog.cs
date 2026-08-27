@@ -93,6 +93,20 @@ internal static class DaemonOwnedCommands
             typeof(FindMagicStringsResult),
             []),
         new DaemonCommandDefinition(
+            LanguageFeaturesCommandDefinition.Name,
+            LanguageFeaturesCommandDefinition.Info,
+            CommandSafety.ReadOnly,
+            typeof(LanguageFeaturesRequest),
+            typeof(LanguageFeaturesResult),
+            [
+                new CommandFollowOn(
+                    "source",
+                    "Use after a location drill-down to inspect the declaration around a refactoring candidate."),
+                new CommandFollowOn(
+                    "suggest_command",
+                    "Use when a reported convention exception needs a matching rt refactoring command.")
+            ]),
+        new DaemonCommandDefinition(
             ListImportsCommandDefinition.Name,
             ListImportsCommandDefinition.Info,
             CommandSafety.ReadOnly,
@@ -247,6 +261,30 @@ internal static class FindMagicStringsCommandDefinition
             "rt analyze find-magic-strings --json --solution RoslynTools.slnx"
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]);
+}
+
+/// <summary>Canonical daemon metadata for language-feature density analysis.</summary>
+internal static class LanguageFeaturesCommandDefinition
+{
+    internal const string Name = "language_features";
+
+    internal static RtCommandInfo Info { get; } = new(
+        "language-features",
+        false,
+        true,
+        "analyze",
+        Aliases: ["lang-features"],
+        WhenToUse:
+        "Use this when planning C# modernization or consistency refactors and you need to know which language features are established conventions, how dense their usage is, and where mechanically comparable exceptions remain. Prefer it over Grep because it counts Roslyn syntax and semantic constructs, reports stable feature IDs and valid denominators, and distinguishes unsupported compiler features from zero usage.",
+        Examples:
+        [
+            "rt analyze language-features --solution RoslynTools.slnx",
+            "rt analyze language-features --introduced-since 12 --solution RoslynTools.slnx --json",
+            "rt analyze language-features --refactorable-only --include-locations --solution RoslynTools.slnx",
+            "rt analyze lang-features --feature collection_expression --include-locations --solution C:\\code\\app\\App.slnx --json"
+        ],
+        SeeAlso: ["complexity", "list-smells", "source", "find-pattern"],
+        SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Yaml, OutputFormat.Llm]);
 }
 
 /// <summary>Canonical daemon metadata for import-directive analysis.</summary>

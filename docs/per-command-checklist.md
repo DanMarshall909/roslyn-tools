@@ -6,7 +6,7 @@ the mechanical rules; this list keeps the remaining human review small and expli
 Companion documents:
 
 - [Command application-port migration](command-application-port-migration.md)
-- [55-command migration manifest](command-port-migration-groups.tsv)
+- [56-command migration manifest](command-port-migration-groups.tsv)
 - [Target command surface](target-command-surface-architecture.md)
 - [Architecture overview](architecture-overview.md)
 

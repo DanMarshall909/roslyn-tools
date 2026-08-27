@@ -37,7 +37,7 @@ definition is host-neutral and does not retain the CLI builder.
 - [x] Duplicated native handlers and the native-handler override path are removed.
 - [ ] Shared definitions no longer contain `System.CommandLine.Command` builders or other host types.
 - [ ] Request contracts are the sole source for MCP input schemas and required fields.
-- [ ] The 55-command manifest has unique definition/port coverage and routing ratchets.
+- [ ] The 56-command manifest has unique definition/port coverage and routing ratchets.
 - [ ] Every MCP-visible descriptor has a typed application port and `CliCommandBridge` is deleted.
 - [ ] MCP no longer references the CLI project; both hosts depend only on `RoslynTools`.
 

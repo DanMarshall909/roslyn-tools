@@ -2,7 +2,7 @@
 
 This is the execution plan for [EP-013](../ralph/backlog-prd.json). The epic owns no stories directly; it sequences existing work under EP-007, EP-009, EP-011, and EP-012 into a coherent landing. The target architecture behind this roadmap is [target-command-surface-architecture.md](target-command-surface-architecture.md).
 
-> **Status (2026-08-26):** Phase 1 has landed. ADR-0003 replaced the native-handler direction with generic descriptors and typed application ports; ADR-0007 defines the full 55-command fan-out and physical host decoupling. The sequencing below reflects those decisions.
+> **Status (2026-08-27):** Phase 1 has landed. ADR-0003 replaced the native-handler direction with generic descriptors and typed application ports; ADR-0007 defines the full 56-command fan-out and physical host decoupling. The sequencing below reflects those decisions.
 
 ## Strategic outcome
 
@@ -41,7 +41,7 @@ Land the generic contract **before** bulk conversion so fan-out agents do not ed
 | Story | Owner epic | What it lands |
 |---|---|---|
 | **US-110** | EP-012 | Generic MCP adapter returns `structuredContent` + text fallback and derives `outputSchema` from typed results. |
-| **US-143** | EP-012 | Host-neutral definitions, automatic discovery, definition/port/schema/execution-policy ratchets, shared daemon recovery, mutation envelope, and 55-command manifest. US-094 is superseded. |
+| **US-143** | EP-012 | Host-neutral definitions, automatic discovery, definition/port/schema/execution-policy ratchets, shared daemon recovery, mutation envelope, and 56-command manifest. US-094 is superseded. |
 
 ### Phase 4 — Application-port rollout *(parallel after Phase 3)*
 
@@ -104,4 +104,4 @@ Phase 6:  US-084, US-085, US-114, US-086, US-088, US-089, US-093, US-103
 
 ## Reference
 
-Pattern reference for every Phase-4 story: [ADR-0007](adr/0007-host-neutral-command-contracts.md), [the migration playbook](command-application-port-migration.md), and the [55-command manifest](command-port-migration-groups.tsv).
+Pattern reference for every Phase-4 story: [ADR-0007](adr/0007-host-neutral-command-contracts.md), [the migration playbook](command-application-port-migration.md), and the [56-command manifest](command-port-migration-groups.tsv).
