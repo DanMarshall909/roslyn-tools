@@ -1,5 +1,5 @@
-using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Services;
 using RoslynTools.Tests.Infrastructure;
 using Shouldly;
 
@@ -39,7 +39,7 @@ public class MakeInstance : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<MakeInstanceCommand>().ExecuteAsync("Calculator.Add", "ignored", false);
+            await ExecuteAsync("Calculator.Add", false);
         }
 
         var content = await proj.ReadSourceAsync("Calc.cs");
@@ -81,7 +81,7 @@ public class MakeInstance : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<MakeInstanceCommand>().ExecuteAsync("Formatter.Format", "ignored", false);
+            await ExecuteAsync("Formatter.Format", false);
         }
 
         var content = await proj.ReadSourceAsync("Fmt.cs");
@@ -121,7 +121,7 @@ public class MakeInstance : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<MakeInstanceCommand>().ExecuteAsync("Parser.Parse", "ignored", false);
+            await ExecuteAsync("Parser.Parse", false);
         }
 
         var after = await proj.ReadSourceAsync("Parser.cs");
@@ -159,7 +159,7 @@ public class MakeInstance : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<MakeInstanceCommand>().ExecuteAsync("Service.Sanitize", "ignored", false);
+            await ExecuteAsync("Service.Sanitize", false);
         }
 
         var content = await proj.ReadSourceAsync("Service.cs");
@@ -194,7 +194,7 @@ public class MakeInstance : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<MakeInstanceCommand>().ExecuteAsync("Helper.Double", "ignored", false);
+            await ExecuteAsync("Helper.Double", false);
         }
 
         var content = await proj.ReadSourceAsync("Helper.cs");
@@ -236,7 +236,9 @@ public class MakeInstance : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<MakeInstanceCommand>().ExecuteAsync("Greeter.Hello", "ignored", true);
+            var execution = await ExecuteAsync("Greeter.Hello", true);
+            execution.Status.ShouldBe(MutationExecutionStatus.DryRun);
+            execution.ChangedFiles.ShouldHaveSingleItem().ShouldEndWith("Greeter.cs");
         }
 
         var after = await proj.ReadSourceAsync("Greeter.cs");
@@ -278,7 +280,7 @@ public class MakeInstance : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<MakeInstanceCommand>().ExecuteAsync("MathUtil.Square", "ignored", false);
+            await ExecuteAsync("MathUtil.Square", false);
         }
 
         var utilContent = await proj.ReadSourceAsync("MathUtil.cs");
@@ -320,26 +322,26 @@ public class MakeInstance : IClassFixture<RtServicesFixture>
         proj.AddSource("Utility.cs", source);
         var (workspace, sln) = proj.Build();
 
-        var previousError = Console.Error;
-        using var errorCapture = new StringWriter();
-        Console.SetError(errorCapture);
-        try
+        MutationExecutionResult<MakeInstanceResult> execution;
+        using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            using (WorkspaceLoader.UseOverride(workspace, sln))
-            {
-                await _services.Resolve<MakeInstanceCommand>().ExecuteAsync("Utility.Ping", "ignored", false);
-            }
-        }
-        finally
-        {
-            Console.SetError(previousError);
+            execution = await ExecuteAsync("Utility.Ping", false);
         }
 
         var content = await proj.ReadSourceAsync("Utility.cs");
         content.ShouldContain("Utility.Ping();", Case.Sensitive);
         content.ShouldContain("utility.Ping();", Case.Sensitive);
 
-        var stderr = errorCapture.ToString();
-        stderr.ShouldContain("ambiguous reachable instance", Case.Sensitive);
+        execution.Diagnostics.ShouldContain(diagnostic =>
+            diagnostic.Message.Contains("ambiguous reachable instance", StringComparison.Ordinal));
+    }
+
+    private async Task<MutationExecutionResult<MakeInstanceResult>> ExecuteAsync(
+        string method,
+        bool dryRun)
+    {
+        var result = await _services.Resolve<MakeInstanceOperation>().ExecuteAsync(
+            new MakeInstanceRequest(method, "ignored", dryRun));
+        return result.Unwrap();
     }
 }

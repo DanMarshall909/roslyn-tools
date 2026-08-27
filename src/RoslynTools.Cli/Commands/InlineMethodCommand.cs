@@ -1,5 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Core;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -7,25 +8,20 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Inlines a method into its calling context
 /// </summary>
-internal sealed class InlineMethodCommand(IWorkspaceSessionFactory sessionFactory, InlineMethodService inlineMethod) : IRtCommand, IRefactorCommand
+internal sealed class InlineMethodCommand : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
-    private readonly InlineMethodService _inlineMethod = inlineMethod;
-    public static RtCommandInfo Info { get; } = new(
-        "inline-method",
-        true,
-        false,
-        "refactor",
-        Aliases: ["im"],
-        WhenToUse:
-        "Inlining a trivial helper method (expression-bodied or single-return block) at every call site and removing the method declaration. Best for one-liner wrappers that add no clarity — over-extracted private methods that obscure intent.",
-        Examples:
-        [
-            "rt refactor inline-method --type MathHelper --method Double --solution RoslynTools.slnx",
-            "rt refactor im --type OrderService --method GetTotal --dry-run --solution C:\\code\\libraries\\ProjectX.Libraries.sln"
-        ],
-        SeeAlso: ["extract-method", "find-callers"]
-    );
+    private readonly DaemonRpcRecoveryCoordinator _daemon;
+    private readonly InlineMethodOperation _operation;
+
+    public InlineMethodCommand(
+        DaemonRpcRecoveryCoordinator daemon,
+        InlineMethodOperation operation)
+    {
+        _daemon = daemon;
+        _operation = operation;
+    }
+
+    public static RtCommandInfo Info => InlineMethodCommandDefinition.Info;
 
     public Command Build()
     {
@@ -41,22 +37,20 @@ internal sealed class InlineMethodCommand(IWorkspaceSessionFactory sessionFactor
         cmd.Add(solutionOpt);
         cmd.Add(dryRunOpt);
 
-        cmd.SetHandler(
-            async (type, method, solution, dryRun) => { await ExecuteAsync(type, method, solution, dryRun); }, typeOpt,
-            methodOpt, solutionOpt, dryRunOpt);
+        cmd.SetHandler(async context =>
+        {
+            await DaemonCommandExecutor.ExecuteAsync(
+                _daemon,
+                _operation,
+                new InlineMethodRequest(
+                    context.ParseResult.GetValueForOption(typeOpt)!,
+                    context.ParseResult.GetValueForOption(methodOpt)!,
+                    context.ParseResult.GetValueForOption(solutionOpt),
+                    context.ParseResult.GetValueForOption(dryRunOpt)),
+                context);
+        });
 
         return cmd;
     }
 
-    /// <summary>
-    /// Executes the InlineMethodCommand with async parameters
-    /// </summary>
-    internal async Task ExecuteAsync(string typeName, string methodName, string? solutionPath, bool dryRun)
-    {
-        var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
-        using (workspace)
-        {
-            await _inlineMethod.RunAsync(sln, typeName, methodName, dryRun);
-        }
-    }
 }

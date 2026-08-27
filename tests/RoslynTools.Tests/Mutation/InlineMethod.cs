@@ -1,5 +1,5 @@
-using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Services;
 using RoslynTools.Tests.Infrastructure;
 using Shouldly;
 
@@ -37,7 +37,7 @@ public class InlineMethod : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<InlineMethodCommand>().ExecuteAsync("MathHelper", "Double", "ignored", false);
+            await ExecuteAsync("MathHelper", "Double");
         }
 
         var content = await project.ReadSourceAsync("MathHelper.cs");
@@ -69,7 +69,7 @@ public class InlineMethod : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<InlineMethodCommand>().ExecuteAsync("MathHelper", "Triple", "ignored", false);
+            await ExecuteAsync("MathHelper", "Triple");
         }
 
         var content = await project.ReadSourceAsync("MathHelper.cs");
@@ -85,7 +85,7 @@ public class InlineMethod : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<InlineMethodCommand>().ExecuteAsync("MathHelper", "Double", "ignored", false);
+            await ExecuteAsync("MathHelper", "Double");
         }
 
         var content = await project.ReadSourceAsync("MathHelper.cs");
@@ -118,7 +118,7 @@ public class InlineMethod : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<InlineMethodCommand>().ExecuteAsync("MathHelper", "Square", "ignored", false);
+            await ExecuteAsync("MathHelper", "Square");
         }
 
         var content = await project.ReadSourceAsync("MathHelper.cs");
@@ -139,7 +139,9 @@ public class InlineMethod : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<InlineMethodCommand>().ExecuteAsync("MathHelper", "Double", "ignored", true);
+            var execution = await ExecuteAsync("MathHelper", "Double", dryRun: true);
+            execution.Status.ShouldBe(MutationExecutionStatus.DryRun);
+            execution.ChangedFiles.ShouldHaveSingleItem().ShouldEndWith("MathHelper.cs");
         }
 
         var afterContent = await project.ReadSourceAsync("MathHelper.cs");
@@ -173,7 +175,8 @@ public class InlineMethod : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<InlineMethodCommand>().ExecuteAsync("MathHelper", "Complex", "ignored", false);
+            var result = await ExecuteResultAsync("MathHelper", "Complex");
+            result.IsErr.ShouldBeTrue();
         }
 
         var afterContent = await project.ReadSourceAsync("MathHelper.cs");
@@ -192,7 +195,8 @@ public class InlineMethod : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<InlineMethodCommand>().ExecuteAsync("MathHelper", "NonExistent", "ignored", false);
+            var result = await ExecuteResultAsync("MathHelper", "NonExistent");
+            result.IsErr.ShouldBeTrue();
         }
 
         var afterContent = await project.ReadSourceAsync("MathHelper.cs");
@@ -227,7 +231,7 @@ public class InlineMethod : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<InlineMethodCommand>().ExecuteAsync("MathHelper", "Double", "ignored", false);
+            await ExecuteAsync("MathHelper", "Double");
         }
 
         var content = await project.ReadSourceAsync("MathHelper.cs");
@@ -258,10 +262,27 @@ public class InlineMethod : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<InlineMethodCommand>().ExecuteAsync("MathHelper", "Double", "ignored", false);
+            await ExecuteAsync("MathHelper", "Double");
         }
 
         var content = await project.ReadSourceAsync("MathHelper.cs");
         content.ShouldContain("(3 + 4) * 2", Case.Sensitive);
+    }
+
+    private async Task<MutationExecutionResult<InlineMethodResult>> ExecuteAsync(
+        string type,
+        string method,
+        bool dryRun = false)
+    {
+        return (await ExecuteResultAsync(type, method, dryRun)).Unwrap();
+    }
+
+    private Task<Result<MutationExecutionResult<InlineMethodResult>, RtError>> ExecuteResultAsync(
+        string type,
+        string method,
+        bool dryRun = false)
+    {
+        return _services.Resolve<InlineMethodOperation>().ExecuteAsync(
+            new InlineMethodRequest(type, method, "ignored", dryRun));
     }
 }

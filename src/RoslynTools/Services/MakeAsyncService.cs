@@ -15,6 +15,7 @@ namespace RoslynTools.Services;
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class MakeAsyncService : IRtService
 {
+    internal sealed record Preparation(Solution Solution, string MethodName);
     private readonly IDocumentLocatorService _documents;
     private readonly ISolutionChangeWriter _solutionChangeWriter;
     private readonly ISymbolResolutionService _symbols;
@@ -40,6 +41,13 @@ internal class MakeAsyncService : IRtService
     internal async Task RunAsync(Solution sln, string typeName, string methodName, bool noRename, bool dryRun)
     {
         var originalSolution = sln;
+        var prepared = await PrepareAsync(sln, typeName, methodName, noRename);
+        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, prepared.Solution, dryRun);
+    }
+
+    internal async Task<Preparation> PrepareAsync(Solution sln, string typeName, string methodName, bool noRename, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
 
         var methodSymbol = await _symbols.FindMethodInTypeAsync(sln, typeName, methodName);
         if (methodSymbol == null)
@@ -47,8 +55,7 @@ internal class MakeAsyncService : IRtService
 
         if (methodSymbol.IsAsync)
         {
-            RtConsole.WriteLine(RtOutputContext.Diagnostic, "Method is already async.");
-            return;
+            return new Preparation(sln, methodName);
         }
 
         var newMethodName = noRename ? methodName : methodName + "Async";
@@ -57,7 +64,7 @@ internal class MakeAsyncService : IRtService
         if (targetDocId == null)
             throw new InvalidOperationException("Cannot locate source document for the target method.");
 
-        var refs = await SymbolFinder.FindReferencesAsync(methodSymbol, sln);
+        var refs = await SymbolFinder.FindReferencesAsync(methodSymbol, sln, cancellationToken: cancellationToken);
         var declarationSpan = methodSymbol.Locations.FirstOrDefault(l => l.IsInSource)?.SourceSpan;
         var callSitesByDoc = refs
             .SelectMany(r => r.Locations)
@@ -75,7 +82,7 @@ internal class MakeAsyncService : IRtService
         foreach (var docId in allDocIds)
         {
             var doc = sln.GetDocument(docId)!;
-            var root = (await doc.GetSyntaxRootAsync())!;
+            var root = (await doc.GetSyntaxRootAsync(cancellationToken))!;
 
             callSitesByDoc.TryGetValue(docId, out var callSpans);
 
@@ -93,7 +100,7 @@ internal class MakeAsyncService : IRtService
             sln = sln.WithDocumentSyntaxRoot(docId, root);
         }
 
-        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
+        return new Preparation(sln, newMethodName);
     }
 
     /// <summary>
