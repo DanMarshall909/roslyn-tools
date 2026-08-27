@@ -1,34 +1,154 @@
 # Tasks: critical platform hardening
 
-## P0 safety kernel
+The typed RPC recovery coordinator, initial `PreparedChangeSet`, host-neutral follow-on metadata, and command-migration ratchet on `main` are foundations. None of the P0 sections below is complete until its failure, recovery, and cross-host acceptance tests pass.
 
-- [ ] Define `PreparedChangeSet`, plan expiry, revision/hash preconditions, verification plan, and terminal apply result.
-- [ ] Implement staged write, atomic replacement, rollback journal, stale-plan rejection, and cancellation tests.
-- [ ] Add caller-generated operation IDs, idempotency records, status lookup, and `NotDispatched | Completed | Indeterminate` transport outcomes.
-- [ ] Block automatic mutation retry and in-process fallback after indeterminate dispatch.
-- [ ] Disable apply-capable bridged MCP mutations until they use the kernel.
-- [ ] Define and enforce workspace completeness/provenance; downgrade partial findings and suppress deletion/mutation advice.
+## P0.0 containment before further mutation work
 
-## P1 canonical spine and contracts
+- [ ] Disable daemon routing for every apply-capable command that still uses the legacy argument-array protocol.
+- [ ] Hide every apply-capable CLI-bridge tool from the stable MCP surface; expose it only as explicitly experimental review/dry-run where safe.
+- [ ] Make all remaining mutation commands review/dry-run by default and correct documentation that implies transactional or exactly-once apply.
+- [ ] Add an architecture gate that rejects a new apply-capable command without a typed operation, declared safety policy, and mutation-kernel integration.
+- [ ] Add regression tests proving a timeout, malformed response, disconnect, or cancelled response cannot cause a second mutation execution.
 
-- [ ] Convert outline, find-refs, find-unused, rename, and safe-delete to one request/operation/result contract.
-- [ ] Remove CLI bridge paths for each converted command and prove CLI/MCP/in-process/passthrough parity.
-- [ ] Replace stringly validated options with typed validation; invalid input must be a structured error.
-- [ ] Generate primer, metadata, schemas, aliases/defaults, and examples from one catalogue.
-- [ ] Implement stable MCP schemas, structured response envelope, cancellation, bounded input/output, pagination/field projection, lifecycle/protocol negotiation.
-- [ ] Classify tool maturity and hide bridge-backed mutations by default.
+## P0.1 repository trust and workspace isolation
 
-## Daemon boundary
+- [ ] Write a threat model covering MSBuild imports/targets/tasks, analyzers, generators, repository executables, environment inheritance, source/log leakage, symlinks, and long-lived hosts.
+- [ ] Define canonical repository identity and persisted `Trusted | Isolated | Untrusted` decisions, including inspect, grant, revoke, and non-interactive behaviour.
+- [ ] Introduce `WorkspaceRequest` and `WorkspaceProvenance` with absolute context, trust/evaluator mode, configuration, SDK/compiler identity, source revision, diagnostics, and resource budget.
+- [ ] Ensure CLI, MCP, and daemon operations do not use or mutate process current directory, global exit code, global console state, or arbitrary inherited environment as request context.
+- [ ] Refuse MSBuild-backed semantic loading for untrusted repositories until an isolated worker exists.
+- [ ] Implement a constrained evaluator worker with a narrow filesystem view, secret-free environment allow-list, bounded CPU/memory/time, and network disabled by default.
+- [ ] Define analyzer/generator execution modes and prove untrusted code is not loaded into a long-lived privileged host.
+- [ ] Add adversarial fixtures containing custom build logic, imported targets, analyzers/generators, symlink escapes, large output, hangs, and attempted secret/network access.
 
-- [ ] Mark workspace caching/session ownership as parked and superseded for this phase.
-- [ ] Make the daemon a transparent typed transport only; remove global-CWD request semantics and any semantic fallback.
-- [ ] Add tests proving no cache, no mutation ownership, no indeterminate retry, and exact observable parity.
-- [ ] Require a separate approved OpenSpec change before proposing daemon workspace caching.
+## P0.2 durable operation identity and transport safety
 
-## CI, distribution, and admission
+- [ ] Add caller-generated `OperationId` to every apply request before dispatch; keep request-attempt correlation separate.
+- [ ] Implement a durable operation ledger written before side effects, with `Prepared | Applying | Applied | RolledBack | RecoveryRequired | RejectedStale | RejectedConflict | Expired` states.
+- [ ] Define canonical request hashing so identical operation-ID replay returns the existing result and differing replay returns `OperationConflict`.
+- [ ] Add `GetOperation` status lookup and stable recovery guidance available after client/server restart.
+- [ ] Preserve operation ID and status semantics across CLI, MCP, in-process, and daemon adapters.
+- [ ] Retain `NotDispatched | Completed | Indeterminate` as transport knowledge and prohibit mutation retry/fallback after `Indeterminate`.
+- [ ] Test lost first response, process termination before/after ledger write, malformed response, duplicate request, concurrent duplicate request, stale daemon, and client cancellation.
 
-- [ ] Execute every published command example against fixtures.
-- [ ] Add fault-injection tests for write failure, rename conflict, cancellation, lost response, and partial workspace.
-- [ ] Add spawned CLI/MCP/daemon protocol matrix, portable install/SDK/runtime checks, and release smoke tests.
-- [ ] Add architecture tests that reject new stable commands lacking the admission evidence.
-- [ ] Document evidence and residual risks in release notes.
+## P0.3 complete prepared-change-set model
+
+- [ ] Extend `PreparedChangeSet` with plan ID, repository identity/revision, expiry, canonical operation list, exact diff, diagnostics, assumptions, confidence, verification, cleanup, and recovery policy.
+- [ ] Model creates, replacements, deletes, moves, project edits, normal Roslyn documents, additional documents, and analyzer-config documents.
+- [ ] Record expected existence/hash/type for every affected path and expected post-apply hashes.
+- [ ] Preserve or explicitly change encoding, BOM, newline, file mode/permissions, and executable bit.
+- [ ] Define case-sensitivity, long-path, read-only, hard-link, and symlink policy across supported operating systems.
+- [ ] Enforce canonical root containment for source, destination, staging, backup, and symlink-resolved paths.
+- [ ] Generate preview and apply from the same immutable plan; apply must not recompute from command arguments.
+- [ ] Reject pathless, duplicate, conflicting, non-verifiable, expired, or drifted plans before writes.
+
+## P0.4 staged apply, rollback, and recovery
+
+- [ ] Implement a general filesystem writer with same-volume staging, atomic per-path replacement where supported, deterministic ordering, and durable journal/backups.
+- [ ] Preflight all hashes, existence, permissions, destinations, symlinks, path boundaries, and required free space before side effects.
+- [ ] Verify expected postconditions before recording `Applied`.
+- [ ] Implement rollback and verification for every supported operation type.
+- [ ] Add `RecoveryRequired` result, retained journal/backups, affected-path state, and deterministic recovery actions when rollback is incomplete.
+- [ ] Make recovery-critical rollback non-interruptible after side effects begin while recording the caller's cancellation request.
+- [ ] Add `rt recover status|resume|rollback|acknowledge <operation-id>` or equivalent host-neutral operations.
+- [ ] Add fault injection for each operation boundary: stage/write/flush/replace/move/delete/permission/verification/journal/rollback/cleanup/process termination.
+- [ ] Test encoding/BOM/newlines, executable bits, locked/read-only files, disk-full simulation, case-only moves, symlinks, cross-volume moves, and rollback failure on Windows, Linux, and macOS.
+
+## P0.5 workspace completeness and proof policy
+
+- [ ] Replace tuple workspace results with `Complete | Partial | Failed` plus requested/loaded/failed project identities and full diagnostics.
+- [ ] Keep complete diagnostics in structured provenance even when a text renderer suppresses warnings.
+- [ ] Make partial/failed state flow through every operation and result envelope.
+- [ ] Block proof confidence, safe-delete advice, and automatic mutation suggestions from partial workspaces.
+- [ ] Add a shared `Confidence { level, basis, evidence, limitations }` model and policy service.
+- [ ] Define the closed-world premises required before a publicly or externally visible symbol can be classified as proven unused.
+- [ ] Cover interface/override dispatch, extension use, reflection, DI/framework activation, serialization, route binding, markup, source generation, external consumers, and unsupported mechanisms.
+- [ ] Add partial-project, failed-reference, generator/analyzer-disabled, and external-public-API fixtures.
+
+## P1.1 five-command canonical spine
+
+- [ ] Convert `outline`, `find-refs`, `find-unused`, `rename`, and `safe-delete` to one typed request/operation/result/provenance contract.
+- [ ] Delete CLI reconstruction, rendered-output parsing, direct service shortcuts, and compatibility bridges for each converted command.
+- [ ] Prove CLI, MCP, in-process, and transparent-daemon parity for success, expected error, cancellation, partial workspace, and bounded-output cases.
+- [ ] Require absolute request context and the same safety/confidence/resource policy in every host.
+- [ ] Do not fan out broad command migration until all five pass the admission matrix.
+
+## P1.2 `find-unused` correctness and performance
+
+- [ ] Replace string scope with a validated enum; split symbol-kind filtering from namespace/path filtering.
+- [ ] Return `InvalidInput` for unsupported values instead of an empty successful result.
+- [ ] Make externally visible/public symbols non-proof by default unless a declared closed-world policy is satisfied.
+- [ ] Include evidence and limitations for every finding and suppress safe-delete follow-ons unless shared policy permits them.
+- [ ] Thread cancellation through syntax, semantic-model, and reference searches.
+- [ ] Replace candidate-by-candidate whole-solution scanning where possible with indexed/batched analysis and bounded concurrency.
+- [ ] Add performance fixtures and budgets for small, medium, and large solutions; record candidate count, projects, documents, elapsed time, and peak memory.
+
+## P1.3 MCP conformance and structured contract
+
+- [ ] Adopt the official C# MCP SDK, or document why not and build an equivalent spawned-process conformance suite.
+- [ ] Define the supported protocol-version matrix and remove hard-coded version claims not exercised in CI.
+- [ ] Correct JSON-RPC parse/invalid-request handling, request IDs, notification no-response behaviour, and lifecycle/version negotiation.
+- [ ] Keep reading the protocol stream while operations execute so cancellation and other allowed messages can be processed.
+- [ ] Implement per-request cancellation, long-operation progress, deterministic paging, and bounded concurrency.
+- [ ] Return schema-valid `structuredContent` for structured tools plus an equivalent text view.
+- [ ] Generate complete JSON Schema for enums, bounds, nullability, arrays, nested objects, unions, and `additionalProperties` policy.
+- [ ] Enforce request/output/item/time/memory limits and explicit continuation/limitation metadata.
+- [ ] Classify tools as stable/preview/experimental and hide bridge-backed mutations from stable discovery.
+- [ ] Add spawned tests for malformed JSON, notifications, unsupported versions, cancellation, large payloads, client disconnects, schema validation, and server recovery.
+
+## P1.4 capability catalogue and executable documentation
+
+- [ ] Generate or verify names, categories, aliases, defaults, validation, safety, formats, maturity, request/result types, examples, primer text, and follow-on actions from one catalogue.
+- [ ] Remove command-local known-option objects and raw parser access after shared binders exist.
+- [ ] Execute every published CLI and MCP example against deterministic fixtures in CI.
+- [ ] Add architecture tests that reject drift between CLI help, MCP schema, server manifest, `prime`, and generated command documentation.
+- [ ] Make known limitations and confidence/resource constraints machine-readable.
+
+## P1.5 daemon passthrough boundary
+
+- [ ] Mark workspace caching/session ownership as parked and superseded for this phase in all active architecture documents.
+- [ ] Remove legacy CLI argument-array routing for mutations and eventually for every converted spine command.
+- [ ] Use a per-user, collision-resistant, access-controlled endpoint rather than one global well-known pipe/socket name.
+- [ ] Remove request use of process current directory, global environment/exit code, and console capture.
+- [ ] Replace raw request/piped-input logging with bounded structured, redacted diagnostics and retention controls.
+- [ ] Add tests proving no cache, no operation ownership, no mutation retry, no global-state leakage, and exact observable parity.
+- [ ] Require a separate approved OpenSpec change and ADR before daemon workspace caching or semantic ownership is proposed.
+
+## P1.6 hermetic build and developer workflow
+
+- [ ] Remove formatting, generated-document writes, and user-profile skill deployment from normal Debug build targets.
+- [ ] Provide explicit `format`, `generate-docs`, `deploy-skill`, `dogfood`, and `mutation-test` scripts/targets with predictable inputs and outputs.
+- [ ] Add a clean-tree build test that fails if restore/build/test modifies the checkout or user profile.
+- [ ] Make generated files reproducible and verify them in CI without rewriting them.
+- [ ] Remove committed debug logs and move durable project status from overlapping `tasks/`, `ralph/`, issues, and OpenSpecs into one authoritative workflow.
+
+## P1.7 dependency and supply-chain hygiene
+
+- [ ] Upgrade from the historical System.CommandLine beta to a supported stable release and update shared binder/parser tests.
+- [ ] Align Microsoft.Extensions/System.Text.Json package versions with the target framework or document intentional version skew.
+- [ ] Add lock files and locked restore for release builds.
+- [ ] Add automated dependency updates, transitive vulnerability scanning, dependency review, and CodeQL/static security analysis.
+- [ ] Pin or policy-control GitHub Actions and document the trusted release action chain.
+- [ ] Remove unused direct package references and keep host/protocol dependencies out of the core project.
+
+## P1.8 CI, distribution, and release admission
+
+- [ ] Run build, tests, spawned CLI/MCP checks, and filesystem-sensitive suites on Windows, Linux, and macOS.
+- [ ] Collect and enforce meaningful coverage for the safety kernel and protocol boundary; make mutation-test scope and thresholds executable rather than documentary.
+- [ ] Replace static grep-only distribution checks with native publish/install/launch/fixture/upgrade/rollback/uninstall smoke tests for every supported RID.
+- [ ] Make POSIX installer checksum verification portable to macOS and preserve an ownership manifest for safe uninstall.
+- [ ] Make install/upgrade switch versions atomically and retain the previous version until health checks pass.
+- [ ] Derive assembly, NuGet, MCP manifest, archive, and release versions from one source.
+- [ ] Keep the product pre-1.0 until stable admission gates pass, or explicitly document the compatibility policy represented by `1.0.0`.
+- [ ] Publish the documented NuGet tool in the release workflow or remove the NuGet installation claim.
+- [ ] Verify checksums, provenance attestations, server manifest, archive contents, and native execution before attaching release artifacts.
+- [ ] Document verification evidence and residual risks in release notes.
+
+## P2 product excellence after the safety spine
+
+- [ ] Define measured startup, warm-operation, large-solution, output-size, and memory budgets; benchmark regressions in CI where stable.
+- [ ] Add a capabilities/doctor command that reports SDK selection, trust mode, evaluator policy, workspace completeness, protocol versions, limits, and installation health.
+- [ ] Add deterministic diagnostic bundles with explicit user consent and source/secret redaction; no telemetry by default.
+- [ ] Curate a smaller stable command surface around complete workflows rather than exposing every experimental transformation equally.
+- [ ] Improve errors with structured causes, evidence, recovery commands, and copy-pasteable next actions.
+- [ ] Reconsider a revision-aware workspace daemon only after P0/P1 gates are complete and measured cold-start cost justifies its complexity.
