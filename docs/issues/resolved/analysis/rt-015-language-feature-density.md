@@ -100,7 +100,23 @@ typed `unsupported_detector` diagnostics instead of false zero counts.
 
 The refactoring view is available through `--refactorable-only --include-locations`.
 It reports explicit, non-automatic review candidates for block-scoped namespaces,
-set accessors, and switch statements while retaining the aggregate adoption metrics.
+set accessors, switch statements, and conservatively eligible primary-constructor
+shapes while retaining the aggregate adoption metrics.
+
+Primary-constructor candidates deliberately favor false negatives. A candidate must
+come from a C# 12 or newer project and be a non-abstract, non-static, non-partial class
+with exactly one public instance constructor. Every constructor parameter must map
+directly and exactly once to a distinct, uninitialized readonly field. The suggested
+shape retains those fields and moves only their assignments to field initializers; it
+does not replace field uses with captured primary-constructor parameters.
+
+The detector excludes structs, records, non-`object` class inheritance, alternate or
+chained constructors, constructor or parameter metadata, defaults and parameter
+modifiers, constructor documentation/directives, required members, existing instance
+initializers, mutable fields and properties, validation or other observable body logic,
+partial declarations, and parameter/member name conflicts. These exclusions avoid
+accessibility changes, hidden or duplicate storage, initializer-order changes, lost
+metadata, and primary-parameter shadowing surprises.
 
 Verification on 2026-08-27:
 
@@ -111,3 +127,10 @@ Verification on 2026-08-27:
 - No mutation score is claimed: the repository Stryker mutate globs combined with the
   scoped CLI filter and selected unrelated `MethodExtractor` mutants, whose safe-mode
   compile failure prevented a valid feature-specific report.
+
+Primary-constructor opportunity follow-up verification on 2026-08-27:
+
+- Focused language-feature tests: 36 passed.
+- Full Release solution tests: 1,749 passed and 9 skipped.
+- Detector coverage: 95.93% line, 88.46% branch, and 100% method.
+- Local build/test/format gate and focused MCP adapter tests passed.

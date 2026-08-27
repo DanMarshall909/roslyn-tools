@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
 using RoslynTools.Core;
 using RoslynTools.Services;
@@ -8,6 +9,110 @@ namespace RoslynTools.Tests.Analysis;
 
 public sealed class LanguageFeaturesTests
 {
+    public static TheoryData<string, string> UnsafePrimaryConstructorCandidates => new()
+    {
+        {
+            "struct",
+            "public struct Candidate { private readonly int _value; public Candidate(int value) { _value = value; } }"
+        },
+        {
+            "record",
+            "public record Candidate { private readonly int _value; public Candidate(int value) { _value = value; } }"
+        },
+        {
+            "abstract class",
+            "public abstract class Candidate { private readonly int _value; public Candidate(int value) { _value = value; } }"
+        },
+        {
+            "partial class",
+            "public partial class Candidate { private readonly int _value; public Candidate(int value) { _value = value; } }"
+        },
+        {
+            "zero parameters",
+            "public class Candidate { public Candidate() { } }"
+        },
+        {
+            "multiple constructors",
+            "public class Candidate { private readonly int _value; public Candidate(int value) { _value = value; } public Candidate(string value) { _value = value.Length; } }"
+        },
+        {
+            "constructor initializer",
+            "public class Candidate { private readonly int _value; public Candidate(int value) : base() { _value = value; } }"
+        },
+        {
+            "constructor attribute",
+            "public class Candidate { private readonly int _value; [System.Obsolete] public Candidate(int value) { _value = value; } }"
+        },
+        {
+            "constructor documentation",
+            "public class Candidate { private readonly int _value; /// <summary>Creates it.</summary>\n public Candidate(int value) { _value = value; } }"
+        },
+        {
+            "non-public constructor",
+            "public class Candidate { private readonly int _value; internal Candidate(int value) { _value = value; } }"
+        },
+        {
+            "constructor modifier",
+            "public class Candidate { private readonly int _value; public unsafe Candidate(int value) { _value = value; } }"
+        },
+        {
+            "parameter attribute",
+            "public class Candidate { private readonly int _value; public Candidate([System.Runtime.InteropServices.In] int value) { _value = value; } }"
+        },
+        {
+            "parameter modifier",
+            "public class Candidate { private readonly int _value; public Candidate(in int value) { _value = value; } }"
+        },
+        {
+            "parameter default",
+            "public class Candidate { private readonly int _value; public Candidate(int value = 1) { _value = value; } }"
+        },
+        {
+            "non-object base class",
+            "public class Base { } public class Candidate : Base { private readonly int _value; public Candidate(int value) { _value = value; } }"
+        },
+        {
+            "observable body",
+            "public class Candidate { private readonly int _value; public Candidate(int value) { System.Console.WriteLine(value); _value = value; } }"
+        },
+        {
+            "transformed assignment",
+            "public class Candidate { private readonly string _value; public Candidate(string value) { _value = value ?? throw new System.ArgumentNullException(nameof(value)); } }"
+        },
+        {
+            "parameter reassignment",
+            "public class Candidate { private readonly int _value; public Candidate(int value) { value = 1; _value = value; } }"
+        },
+        {
+            "instance initializer",
+            "public class Candidate { private readonly int _value; private readonly int _other = 1; public Candidate(int value) { _value = value; } }"
+        },
+        {
+            "required member",
+            "public class Candidate { private readonly int _value; public required string Name { get; init; } public Candidate(int value) { _value = value; } }"
+        },
+        {
+            "member name conflict",
+            "public class Candidate { private readonly int _value; private int value; public Candidate(int value) { _value = value; } }"
+        },
+        {
+            "property target",
+            "public class Candidate { public int Value { get; } public Candidate(int value) { Value = value; } }"
+        },
+        {
+            "mutable field target",
+            "public class Candidate { private int _value; public Candidate(int value) { _value = value; } }"
+        },
+        {
+            "unused parameter",
+            "public class Candidate { private readonly int _value; public Candidate(int value, int unused) { _value = value; } }"
+        },
+        {
+            "constructor directive",
+            "public class Candidate { private readonly int _value;\n#if DEBUG\n public Candidate(int value) { _value = value; }\n#endif\n }"
+        }
+    };
+
     [Fact]
     public void Catalogue_has_stable_unique_ids_and_complete_metadata()
     {
@@ -112,6 +217,132 @@ public sealed class LanguageFeaturesTests
         projectResult.EffectiveLanguageVersion.ShouldNotBeNullOrWhiteSpace();
         projectResult.Features.Single(feature => feature.Id == "file_scoped_namespace")
             .Occurrences.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task AnalyzeAsync_reports_conservative_primary_constructor_adoption_and_candidates()
+    {
+        using var project = new AdhocProjectBuilder("PrimaryConstructors");
+        project.AddSource("PrimaryConstructors.cs", """
+            public interface IDependency { }
+
+            public sealed class ExistingPrimary(IDependency dependency) { }
+
+            public sealed class Candidate : System.IDisposable
+            {
+                private readonly IDependency _dependency;
+                private readonly string _name;
+
+                public Candidate(IDependency dependency, string name)
+                {
+                    _dependency = dependency;
+                    this._name = name;
+                }
+
+                public void Dispose() { }
+            }
+            """);
+        project.AddProject("OtherProject").AddSource("OtherCandidate.cs", """
+            public sealed class OtherCandidate
+            {
+                private readonly int _value;
+                public OtherCandidate(int value) { _value = value; }
+            }
+            """);
+        var (_, solution) = project.Build();
+
+        var result = await new LanguageFeaturesAnalyzer().AnalyzeAsync(
+            solution,
+            new LanguageFeaturesRequest(
+                Feature: "primary_constructor",
+                IncludeLocations: true));
+
+        var feature = result.Features.ShouldHaveSingleItem();
+        feature.Occurrences.ShouldBe(1);
+        feature.Adoption.ShouldNotBeNull();
+        feature.Adoption.Numerator.ShouldBe(1);
+        feature.Adoption.Denominator.ShouldBe(3);
+        feature.Adoption.Opportunity.ShouldBe(
+            "existing non-record primary constructors and conservatively eligible class constructor shapes");
+        feature.Adoption.Percent.ShouldBe(33.333d);
+        feature.Adoption.Exceptions.ShouldBe(2);
+        feature.Adoption.ExceptionLocations!.Count.ShouldBe(2);
+        feature.Adoption.ExceptionLocations.ShouldContain(location =>
+            location.Project == "PrimaryConstructors" && location.Line == 10);
+        feature.Adoption.ExceptionLocations.ShouldContain(location =>
+            location.Project == "OtherProject" && location.Line == 4);
+        feature.Refactoring.ShouldNotBeNull();
+        feature.Refactoring.IsAutomatic.ShouldBeFalse();
+        feature.Refactoring.ReviewCandidates.ShouldBe(2);
+        feature.Refactoring.Description.ShouldContain("retain readonly fields");
+        feature.Refactoring.Description.ShouldContain("Do not replace field uses");
+        feature.Refactoring.CandidateLocations!.Count.ShouldBe(2);
+
+        var projectFeature = result.Projects.Single(project => project.Name == "PrimaryConstructors")
+            .Features.ShouldHaveSingleItem();
+        projectFeature.Id.ShouldBe("primary_constructor");
+        projectFeature.Adoption.ShouldNotBeNull();
+        projectFeature.Adoption.Denominator.ShouldBe(2);
+        projectFeature.Adoption.Exceptions.ShouldBe(1);
+        projectFeature.Adoption.ExceptionLocations.ShouldHaveSingleItem().Line.ShouldBe(10);
+        var otherProjectFeature = result.Projects.Single(project => project.Name == "OtherProject")
+            .Features.ShouldHaveSingleItem();
+        otherProjectFeature.Occurrences.ShouldBe(0);
+        otherProjectFeature.Adoption!.Denominator.ShouldBe(1);
+        otherProjectFeature.Adoption.Exceptions.ShouldBe(1);
+
+        var bounded = await new LanguageFeaturesAnalyzer().AnalyzeAsync(
+            solution,
+            new LanguageFeaturesRequest(
+                Feature: "primary_constructor",
+                RefactorableOnly: true));
+        bounded.Features.ShouldHaveSingleItem().Locations.ShouldBeNull();
+        bounded.Features[0].Adoption!.ExceptionLocations.ShouldBeNull();
+        bounded.Features[0].Refactoring!.CandidateLocations.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task AnalyzeAsync_does_not_offer_primary_constructors_before_csharp_12()
+    {
+        using var project = new AdhocProjectBuilder("CSharp11");
+        project.AddSource("Candidate.cs", """
+            public sealed class Candidate
+            {
+                private readonly int _value;
+                public Candidate(int value) { _value = value; }
+            }
+            """);
+        var (_, solution) = project.Build();
+        var projectId = solution.Projects.ShouldHaveSingleItem().Id;
+        var parseOptions = (CSharpParseOptions)solution.GetProject(projectId)!.ParseOptions!;
+        solution = solution.WithProjectParseOptions(
+            projectId,
+            parseOptions.WithLanguageVersion(LanguageVersion.CSharp11));
+
+        var result = await new LanguageFeaturesAnalyzer().AnalyzeAsync(
+            solution,
+            new LanguageFeaturesRequest(Feature: "primary_constructor"));
+
+        result.Features.ShouldBeEmpty();
+        result.Projects.ShouldHaveSingleItem().LanguageVersion.ShouldBe("11.0");
+    }
+
+    [Theory]
+    [MemberData(nameof(UnsafePrimaryConstructorCandidates))]
+    public async Task AnalyzeAsync_excludes_unsafe_primary_constructor_candidates(
+        string reason,
+        string source)
+    {
+        using var project = new AdhocProjectBuilder("UnsafePrimaryConstructor");
+        project.AddSource(reason.Replace(' ', '_') + ".cs", source);
+        var (_, solution) = project.Build();
+
+        var result = await new LanguageFeaturesAnalyzer().AnalyzeAsync(
+            solution,
+            new LanguageFeaturesRequest(Feature: "primary_constructor"));
+
+        result.Diagnostics.ShouldNotContain(diagnostic => diagnostic.Code == "parse_error", reason);
+        result.Features.ShouldBeEmpty(reason);
     }
 
     [Fact]

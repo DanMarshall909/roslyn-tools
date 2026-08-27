@@ -196,6 +196,7 @@ internal sealed class LanguageFeaturesAnalyzer : IRtService
                 case TypeDeclarationSyntax typeDeclaration
                     when typeDeclaration is not RecordDeclarationSyntax && typeDeclaration.ParameterList is not null:
                     accumulators["primary_constructor"].Add(location, path);
+                    accumulators["primary_constructor"].AddOpportunity();
                     break;
                 case AccessorDeclarationSyntax accessor when accessor.IsKind(SyntaxKind.InitAccessorDeclaration):
                     accumulators["init_accessor"].Add(location, path);
@@ -439,7 +440,15 @@ internal sealed class LanguageFeaturesAnalyzer : IRtService
         CancellationToken cancellationToken)
     {
         var invocations = root.DescendantNodes().OfType<InvocationExpressionSyntax>().ToList();
-        if (invocations.Count == 0)
+        var effectiveLanguageVersion = document.Project.ParseOptions is CSharpParseOptions parseOptions
+            ? LanguageVersionFacts.MapSpecifiedToEffectiveVersion(parseOptions.LanguageVersion)
+            : LanguageVersion.Default;
+        var classes = effectiveLanguageVersion >= LanguageVersion.CSharp12
+            ? root.DescendantNodes().OfType<ClassDeclarationSyntax>()
+                .Where(PrimaryConstructorOpportunityDetector.HasPotentialShape)
+                .ToList()
+            : [];
+        if (invocations.Count == 0 && classes.Count == 0)
             return;
 
         var semanticModel = await document.GetSemanticModelAsync(cancellationToken);
@@ -464,6 +473,22 @@ internal sealed class LanguageFeaturesAnalyzer : IRtService
             accumulators["extension_method_invocation"].Add(
                 CreateLocation(project, path, invocation.GetLocation()),
                 path);
+        }
+
+        foreach (var declaration in classes)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!PrimaryConstructorOpportunityDetector.TryGetCandidate(
+                    declaration,
+                    semanticModel,
+                    cancellationToken,
+                    out var constructor))
+            {
+                continue;
+            }
+
+            accumulators["primary_constructor"].AddOpportunity(
+                CreateLocation(project, path, constructor.GetLocation()));
         }
     }
 
@@ -632,6 +657,8 @@ internal sealed class LanguageFeaturesAnalyzer : IRtService
         {
             "file_scoped_namespace" => "namespace declarations",
             "init_accessor" => "set or init accessors",
+            "primary_constructor" =>
+                "existing non-record primary constructors and conservatively eligible class constructor shapes",
             "switch_expression" => "switch constructs",
             _ => null
         };
@@ -661,6 +688,8 @@ internal sealed class LanguageFeaturesAnalyzer : IRtService
                 "Review block-scoped namespace declarations for consistency; candidates are not proven safe for automatic conversion.",
             "init_accessor" =>
                 "Review set accessors for init-only adoption; changing mutability requires API and usage analysis.",
+            "primary_constructor" =>
+                "Review moving public constructor parameters to the class header and direct assignments to readonly-field initializers; retain readonly fields. Do not replace field uses with captured primary parameters.",
             "switch_expression" =>
                 "Review switch statements for expression form; control flow and side effects require semantic review.",
             _ => null
