@@ -19,7 +19,7 @@ internal sealed record SourceDeclaration(
 
 /// <summary>Shared source operation used by host adapters.</summary>
 internal sealed class SourceOperation
-    : LegacyCommandApplicationPort<SourceRequest, IReadOnlyList<SourceDeclaration>>, IRtService
+    : CommandApplicationPort<SourceRequest, IReadOnlyList<SourceDeclaration>>, IRtService
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly InspectService _inspect;
@@ -35,21 +35,31 @@ internal sealed class SourceOperation
         _symbols = symbols ?? throw new ArgumentNullException(nameof(symbols));
     }
 
-    public override string CommandName => "source";
+    public override ApplicationCommandDefinition Definition => SourceApplicationDefinition.Definition;
 
-    public override async Task<IReadOnlyList<SourceDeclaration>> ExecuteAsync(
+    public override async Task<Result<IReadOnlyList<SourceDeclaration>, RtError>> ExecuteAsync(
         SourceRequest request,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var solution = await _sessionFactory.GetSolutionAsync(request.Solution);
-        cancellationToken.ThrowIfCancellationRequested();
-        var symbol = await _symbols.FindSymbolByFqnAsync(solution, request.Symbol, request.Kind);
-        cancellationToken.ThrowIfCancellationRequested();
-        var sources = await _inspect.GetSourceAsync(symbol);
-        return sources
-            .Select(source => source with { Text = RemoveDeclarationIndentation(source.Text) })
-            .ToList();
+        var (workspace, solution) = await _sessionFactory.LoadWorkspaceAsync(request.Solution);
+        using (workspace)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var resolved = await _symbols.TryFindSymbolByFqnAsync(
+                solution,
+                request.Symbol,
+                request.Kind);
+            if (resolved.IsErr)
+                return resolved.Map(_ => default(IReadOnlyList<SourceDeclaration>)!);
+
+            var symbol = resolved.Match(value => value, _ => default!);
+            cancellationToken.ThrowIfCancellationRequested();
+            var sources = await _inspect.GetSourceAsync(symbol);
+            return Result<IReadOnlyList<SourceDeclaration>, RtError>.Ok(sources
+                .Select(source => source with { Text = RemoveDeclarationIndentation(source.Text) })
+                .ToList());
+        }
     }
 
     private static string RemoveDeclarationIndentation(string source)

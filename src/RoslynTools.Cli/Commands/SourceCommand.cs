@@ -1,6 +1,8 @@
 using System.CommandLine;
+using RoslynTools.Cli;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -8,26 +10,14 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// A command for source-related operations.
 /// </summary>
-internal sealed class SourceCommand(SourceOperation operation) : IRtCommand, IStructuredOutputCommand, IInspectCommand
+internal sealed class SourceCommand(
+    DaemonRpcRecoveryCoordinator daemon,
+    SourceOperation operation) : IRtCommand, IStructuredOutputCommand, IInspectCommand
 {
     private readonly SourceOperation _operation = operation;
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
 
-    public static RtCommandInfo Info { get; } = new(
-        "source",
-        false,
-        true,
-        "inspect",
-        Aliases: null,
-        WhenToUse:
-        "Reading the full source of a specific method, property, type, or field by FQN without opening the file. Returns the declaration including XML doc comments, with file path and line numbers. Prefer this over Read when you know the exact member you need.",
-        Examples:
-        [
-            "rt inspect source RoslynTools.Services.OutlineService.BuildTypeSummary --solution RoslynTools.slnx",
-            "rt inspect source RoslynTools.Core.WorkspaceLoader --solution RoslynTools.slnx",
-            "rt inspect source ProjectX.Core.Services.BookingService.CreateBookingAsync --kind method --solution C:\\code\\libraries\\ProjectX.Libraries.sln"
-        ],
-        SupportedFormats: [OutputFormat.Text, OutputFormat.Json]
-    );
+    public static RtCommandInfo Info => SourceApplicationDefinition.Info;
 
     public Command Build()
     {
@@ -43,16 +33,22 @@ internal sealed class SourceCommand(SourceOperation operation) : IRtCommand, ISt
         flags.AddTo(cmd);
 
         cmd.SetHandler(async ctx =>
-            {
-                var symbol = ctx.ParseResult.GetValueForArgument(symbolArg);
-                var request = flags.Bind(ctx.ParseResult, f => SourceCliRequest.FromFlags(f, symbol));
-                var source = await _operation.ExecuteAsync(new SourceRequest(
+        {
+            var symbol = ctx.ParseResult.GetValueForArgument(symbolArg);
+            var request = flags.Bind(ctx.ParseResult, f => SourceCliRequest.FromFlags(f, symbol));
+            var source = await DaemonCommandExecutor.ExecuteTypedAsync(
+                _daemon,
+                _operation,
+                new SourceRequest(
                     request.Symbol,
                     request.SolutionPath,
-                    request.Kind));
+                    request.Kind),
+                ctx.GetCancellationToken());
 
-                RtResultRenderer.Write(RtResult<IReadOnlyList<SourceDeclaration>>.Ok(source));
-            });
+            source.Match(
+                value => RtResultRenderer.Write(RtResult<IReadOnlyList<SourceDeclaration>>.Ok(value)),
+                error => RtErrorPresenter.Surface(ctx, error));
+        });
 
         return cmd;
     }

@@ -237,6 +237,31 @@ internal class ImportDirectiveService : IRtService
         await _solutionChangeWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
     }
 
+    internal async Task<PreparedGlobalUsing> PrepareGlobalUsingAsync(
+        Solution solution,
+        string filePath,
+        string namespaceName)
+    {
+        var document = FindDocument(solution, filePath);
+        var root = await GetCompilationUnitAsync(document);
+        if (root.Usings.Any(usingDirective =>
+                usingDirective.GlobalKeyword.IsKind(SyntaxKind.GlobalKeyword)
+                && !usingDirective.StaticKeyword.IsKind(SyntaxKind.StaticKeyword)
+                && usingDirective.Name?.ToString() == namespaceName))
+            return new PreparedGlobalUsing(solution, false, "Global using already exists.");
+
+        var newRoot = AddUsingDirective(root, ParseUsingDirective($"global using {namespaceName};"));
+        return new PreparedGlobalUsing(
+            solution.WithDocumentSyntaxRoot(document.Id, newRoot),
+            true,
+            null);
+    }
+
+    internal sealed record PreparedGlobalUsing(
+        Solution Solution,
+        bool Changed,
+        string? Message);
+
     private Document FindDocument(Solution solution, string filePath)
     {
         var fullPath = Path.GetFullPath(filePath);
