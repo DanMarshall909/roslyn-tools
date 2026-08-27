@@ -4,7 +4,7 @@
 - Priority: P0/P1
 - Decision owner: architecture
 - Supersedes for this phase: daemon workspace-caching work
-- Reviewed implementation baseline: `main` at `c266816f54351c0620aab27e8dcdf23aaaad07f8`
+- Reviewed implementation baseline: `main` at `079847be9c23de3ea670df3ab1f1f3c63a92487d`
 
 ## Why
 
@@ -19,7 +19,7 @@ The most serious gaps are:
 - the handwritten MCP host does not conform to the lifecycle and message rules of the versions it advertises, and does not expose real structured results;
 - Debug builds mutate the working tree and user profile, while release metadata advertises `1.0.0` despite no corresponding release.
 
-The typed RPC recovery coordinator, `PreparedChangeSet` tracer, host-neutral follow-on metadata, and command-migration ratchet now on `main` are useful foundations. They reduce risk for migrated paths, but they are scaffolding rather than completion of the safety kernel.
+The typed RPC recovery coordinator, `PreparedChangeSet` tracer, host-neutral follow-on metadata, command-migration ratchet, and final mutation-tracer test/mutation evidence now on `main` are useful foundations. They reduce risk for migrated paths, but they are scaffolding rather than completion of the safety kernel.
 
 ## Scope
 
