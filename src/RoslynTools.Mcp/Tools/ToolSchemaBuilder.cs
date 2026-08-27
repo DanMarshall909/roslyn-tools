@@ -73,6 +73,9 @@ internal sealed class ToolSchemaBuilder(CommandDescriptorRegistry descriptors)
 
         foreach (var property in requestType.GetProperties(BindingFlags.Instance | BindingFlags.Public))
         {
+            if (IsAlwaysIgnored(property))
+                continue;
+
             var name = property.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name
                        ?? char.ToLowerInvariant(property.Name[0]) + property.Name[1..];
             var schema = BuildPropertySchema(property.PropertyType);
@@ -111,6 +114,9 @@ internal sealed class ToolSchemaBuilder(CommandDescriptorRegistry descriptors)
 
         foreach (var property in requestType.GetProperties(BindingFlags.Instance | BindingFlags.Public))
         {
+            if (IsAlwaysIgnored(property))
+                continue;
+
             var name = property.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name
                        ?? char.ToLowerInvariant(property.Name[0]) + property.Name[1..];
             var schema = BuildPropertySchema(property.PropertyType);
@@ -141,6 +147,10 @@ internal sealed class ToolSchemaBuilder(CommandDescriptorRegistry descriptors)
 
         return new Dictionary<string, object> { ["type"] = ToJsonType(type) };
     }
+
+    private static bool IsAlwaysIgnored(PropertyInfo property) =>
+        property.GetCustomAttribute<JsonIgnoreAttribute>()?.Condition
+        == JsonIgnoreCondition.Always;
 
     private static string ToJsonType(Type type)
     {

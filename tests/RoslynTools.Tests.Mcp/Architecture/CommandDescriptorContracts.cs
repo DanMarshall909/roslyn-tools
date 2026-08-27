@@ -1,4 +1,6 @@
+using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.CommandDescriptors;
 using RoslynTools.Core;
@@ -10,6 +12,50 @@ namespace RoslynTools.Tests.Mcp.Architecture;
 
 public sealed class CommandDescriptorContracts
 {
+    [Fact]
+    public void every_migrated_descriptor_has_one_port_and_request_schema_parity()
+    {
+        using var provider = McpTestHost.CreateProvider();
+        var descriptors = provider.GetRequiredService<CommandDescriptorRegistry>().All
+            .Where(descriptor => descriptor.Definition is not null)
+            .ToList();
+
+        descriptors.Select(descriptor => descriptor.ToolName).ShouldBeUnique();
+        descriptors.ShouldNotBeEmpty();
+
+        foreach (var descriptor in descriptors)
+        {
+            descriptor.Port.ShouldNotBeNull();
+            descriptor.Port.ShouldNotBeAssignableTo<ILegacyCommandApplicationPort>();
+            descriptor.Port.Definition.ShouldBeSameAs(descriptor.Definition);
+
+            var tool = ToolSchemaBuilder.Build(descriptor);
+            var properties = tool.inputSchema.TryGetValue("properties", out var rawProperties)
+                ? (Dictionary<string, Dictionary<string, object>>)rawProperties
+                : new Dictionary<string, Dictionary<string, object>>(StringComparer.Ordinal);
+            var required = tool.inputSchema.TryGetValue("required", out var rawRequired)
+                ? ((string[])rawRequired).OrderBy(name => name, StringComparer.Ordinal).ToArray()
+                : [];
+            var requestProperties = descriptor.Definition!.RequestType
+                .GetProperties()
+                .Where(property => property.GetCustomAttribute<JsonIgnoreAttribute>()?.Condition
+                    != JsonIgnoreCondition.Always)
+                .ToList();
+            var expectedNames = requestProperties
+                .Select(JsonPropertyName)
+                .OrderBy(name => name, StringComparer.Ordinal)
+                .ToArray();
+            var expectedRequired = requestProperties
+                .Where(property => property.GetCustomAttributes(typeof(JsonRequiredAttribute), true).Length != 0)
+                .Select(JsonPropertyName)
+                .OrderBy(name => name, StringComparer.Ordinal)
+                .ToArray();
+
+            properties.Keys.OrderBy(name => name, StringComparer.Ordinal).ShouldBe(expectedNames);
+            required.ShouldBe(expectedRequired);
+        }
+    }
+
     [Fact]
     public void every_mcp_visible_descriptor_has_a_unique_tool_and_generated_schema()
     {
@@ -102,6 +148,43 @@ public sealed class CommandDescriptorContracts
     }
 
     [Fact]
+    public void migrated_port_schemas_exclude_transport_ignored_request_properties()
+    {
+        var info = new RtCommandInfo(
+            "schema-probe",
+            Mutates: false,
+            JsonOutput: true,
+            "inspect",
+            "Probe request schema generation.",
+            []);
+        var definition = new ApplicationCommandDefinition(
+            info,
+            typeof(SchemaProbeRequest),
+            typeof(string),
+            mcpVisible: true,
+            CommandSafety.ReadOnly,
+            CommandExecutionPlacement.InProcess,
+            []);
+        var descriptor = new ApplicationCommandDescriptor(
+            ["inspect", "schema-probe"],
+            definition.Name,
+            "Probe request schema generation.",
+            info.WhenToUse,
+            () => throw new InvalidOperationException("The CLI builder must not run."),
+            McpVisible: true,
+            CommandSafetyPolicy.ReadOnly,
+            Structured: true,
+            Port: null,
+            definition);
+
+        var tool = ToolSchemaBuilder.Build(descriptor);
+        var properties = (Dictionary<string, Dictionary<string, object>>)tool.inputSchema["properties"];
+
+        properties.Keys.ShouldContain("visible");
+        properties.Keys.ShouldNotContain("internalState");
+    }
+
+    [Fact]
     public void outline_schema_uses_host_neutral_property_descriptions()
     {
         using var provider = McpTestHost.CreateProvider();
@@ -152,4 +235,14 @@ public sealed class CommandDescriptorContracts
         using var payload = JsonDocument.Parse(result.content);
         payload.RootElement.ValueKind.ShouldBe(JsonValueKind.Array);
     }
+
+    private static string JsonPropertyName(System.Reflection.PropertyInfo property) =>
+        property.GetCustomAttributes(typeof(JsonPropertyNameAttribute), true)
+            .Cast<JsonPropertyNameAttribute>()
+            .SingleOrDefault()?.Name
+        ?? char.ToLowerInvariant(property.Name[0]) + property.Name[1..];
+
+    private sealed record SchemaProbeRequest(
+        string Visible,
+        [property: JsonIgnore] string InternalState);
 }
