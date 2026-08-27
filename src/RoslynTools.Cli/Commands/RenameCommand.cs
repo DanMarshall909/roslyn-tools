@@ -1,7 +1,6 @@
 using System.CommandLine;
-using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
-using RoslynTools.Models;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -10,31 +9,13 @@ namespace RoslynTools.Commands;
 /// Renames symbols within the solution.
 /// </summary>
 internal sealed class RenameCommand(
-    IWorkspaceSessionFactory sessionFactory,
-    RenameService rename,
+    DaemonRpcRecoveryCoordinator daemon,
     RenameOperation operation) : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
-    private readonly RenameService _rename = rename;
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
     private readonly RenameOperation _operation = operation;
 
-    public static RtCommandInfo Info { get; } = new(
-        "rename",
-        true,
-        false,
-        "refactor",
-        Aliases: ["ren"],
-        WhenToUse:
-        "Renaming a C# symbol (type, method, property, field, namespace) and updating every reference across the solution. Prefer this over Edit or a manual grep+sed: rt uses Roslyn semantic rename so references that only bind by type inference are also updated, and string literals/comments are not accidentally rewritten. Use --csv to batch-apply a curated rename mapping file.",
-        Examples:
-        [
-            "rt refactor rename OldTypeName NewTypeName --solution MySolution.sln",
-            "rt refactor rename MyNs.MyType.OldProp NewProp --kind property --dry-run",
-            "rt refactor rename --csv scripts/renames.csv --solution MySolution.sln --dry-run",
-            "rt refactor ren FooService BarService              # short alias, auto-detect solution",
-            "rt inspect find-refs --symbol Foo --json | rt refactor rename --new-name Bar --dry-run   # symbol piped from stdin"
-        ]
-    );
+    public static RtCommandInfo Info => RenameCommandDefinition.Info;
 
     public Command Build()
     {
@@ -77,65 +58,28 @@ internal sealed class RenameCommand(
                 if (string.IsNullOrWhiteSpace(csv))
                     symbol = await PipedSymbolReader.ResolveAsync(symbol, RtConsole.IsInputRedirected, RtConsole.In);
                 var request = flags.Bind(ctx.ParseResult, f => RenameCliRequest.FromFlags(f, symbol, newName, csv));
-                if (!string.IsNullOrWhiteSpace(request.CsvPath))
-                {
-                    var (workspace, solution) =
-                        await _sessionFactory.LoadWorkspaceAsync(request.SolutionPath);
-                    using (workspace)
-                    {
-                        await _rename.ExecuteBatchAsync(
-                            solution,
-                            request.CsvPath,
-                            request.DryRun);
-                    }
-                    return;
-                }
-
-                if (string.IsNullOrWhiteSpace(request.Symbol)
-                    || string.IsNullOrWhiteSpace(request.NewName))
-                    throw new InvalidOperationException(
-                        "Provide either <symbol> <new-name> or --csv <path>.");
-
-                var result = await _operation.ExecuteAsync(new RenameOperationRequest(
-                    request.Symbol,
-                    request.NewName,
-                    request.Kind,
-                    request.SolutionPath,
-                    request.DryRun,
-                    relatedEditIds));
-                WriteRelatedRenamePlan(result);
+                var mode = string.IsNullOrWhiteSpace(request.CsvPath)
+                    ? RenameOperationMode.Single
+                    : RenameOperationMode.Batch;
+                await DaemonCommandExecutor.ExecuteAsync(
+                    _daemon,
+                    _operation,
+                    new RenameOperationRequest(
+                        mode,
+                        request.Symbol,
+                        request.NewName,
+                        request.CsvPath,
+                        request.Kind,
+                        request.SolutionPath,
+                        request.DryRun,
+                        relatedEditIds,
+                        Directory.GetCurrentDirectory()),
+                    ctx);
             });
 
         cmd.AddAlias("ren");
 
         return cmd;
-    }
-
-    private static void WriteRelatedRenamePlan(RenameResult result)
-    {
-        if (result.RelatedRenamePlan.Count == 0)
-            return;
-
-        RtConsole.WriteLine(RtOutputContext.Diagnostic, "Related rename plan (opt-in):");
-        foreach (var edit in result.RelatedRenamePlan)
-        {
-            var selected = result.SelectedRelatedEdits.Contains(edit.Id, StringComparer.Ordinal)
-                ? "selected"
-                : "not selected";
-            var prose = edit.Prose ? ", prose" : string.Empty;
-            RtConsole.WriteLine(
-                RtOutputContext.Diagnostic,
-                $"  [{selected}{prose}] {edit.Id}: {edit.OldText} -> {edit.NewText}");
-        }
-    }
-
-    /// <summary>
-    /// Asynchronously renames multiple symbols in the solution.
-    /// </summary>
-    internal Task ExecuteBatchAsync(
-        Solution sln, string csvPath, bool dryRun)
-    {
-        return _rename.ExecuteBatchAsync(sln, csvPath, dryRun);
     }
 
     private sealed record RenameCliRequest(

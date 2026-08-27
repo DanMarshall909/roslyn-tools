@@ -115,6 +115,34 @@ public sealed class PreparedChangeSetContractTests
     }
 
     [Fact]
+    public void a_solution_edit_can_be_followed_by_a_move_of_the_changed_document()
+    {
+        using var workspace = new AdhocWorkspace();
+        var projectId = ProjectId.CreateNewId();
+        var documentId = DocumentId.CreateNewId(projectId);
+        var original = workspace.CurrentSolution
+            .AddProject(ProjectInfo.Create(
+                projectId,
+                VersionStamp.Create(),
+                "PreparedChanges",
+                "PreparedChanges",
+                LanguageNames.CSharp))
+            .AddDocument(
+                documentId,
+                "Before.cs",
+                SourceText.From("class Before;"),
+                filePath: "src/Before.cs");
+        var changed = original.WithDocumentText(documentId, SourceText.From("class After;"));
+
+        var changeSet = new PreparedChangeSet(
+            original,
+            changed,
+            movedFiles: [new PreparedFileMove("src/Before.cs", "src/After.cs")]);
+
+        changeSet.AffectedPaths.ShouldBe(["src/After.cs", "src/Before.cs"]);
+    }
+
+    [Fact]
     public async Task preview_returns_exact_paths_without_applying_and_apply_writes_exactly_once()
     {
         var changeSet = new PreparedChangeSet(
@@ -191,6 +219,62 @@ public sealed class PreparedChangeSetContractTests
 
         writer.ApplyCount.ShouldBe(2);
         writer.LastChangeSet.ShouldBeSameAs(second);
+    }
+
+    [Fact]
+    public async Task full_writer_applies_text_and_move_effects_after_preflight()
+    {
+        var directory = Directory.CreateTempSubdirectory("rt-prepared-");
+        try
+        {
+            var sourcePath = Path.Combine(directory.FullName, "Before.cs");
+            var destinationPath = Path.Combine(directory.FullName, "After.cs");
+            var textPath = Path.Combine(directory.FullName, "notes.txt");
+            await File.WriteAllTextAsync(sourcePath, "class Before;");
+            await File.WriteAllTextAsync(textPath, "before");
+            var writer = new PreparedChangeSetWriter(new CapturingSolutionChangeWriter());
+            var changeSet = new PreparedChangeSet(
+                movedFiles: [new PreparedFileMove(sourcePath, destinationPath)],
+                textEdits: [new PreparedFileWrite(textPath, "after")]);
+
+            await writer.ApplyAsync(changeSet);
+
+            File.Exists(sourcePath).ShouldBeFalse();
+            (await File.ReadAllTextAsync(destinationPath)).ShouldBe("class Before;");
+            (await File.ReadAllTextAsync(textPath)).ShouldBe("after");
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task full_writer_rejects_a_move_conflict_before_any_write()
+    {
+        var directory = Directory.CreateTempSubdirectory("rt-prepared-");
+        try
+        {
+            var sourcePath = Path.Combine(directory.FullName, "Before.cs");
+            var destinationPath = Path.Combine(directory.FullName, "After.cs");
+            var textPath = Path.Combine(directory.FullName, "notes.txt");
+            await File.WriteAllTextAsync(sourcePath, "class Before;");
+            await File.WriteAllTextAsync(destinationPath, "class After;");
+            await File.WriteAllTextAsync(textPath, "before");
+            var writer = new PreparedChangeSetWriter(new CapturingSolutionChangeWriter());
+            var changeSet = new PreparedChangeSet(
+                movedFiles: [new PreparedFileMove(sourcePath, destinationPath)],
+                textEdits: [new PreparedFileWrite(textPath, "after")]);
+
+            await Should.ThrowAsync<IOException>(() => writer.ApplyAsync(changeSet));
+
+            (await File.ReadAllTextAsync(textPath)).ShouldBe("before");
+            File.Exists(sourcePath).ShouldBeTrue();
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
     }
 
     private sealed class RecordingPreparedChangeSetWriter : IPreparedChangeSetWriter

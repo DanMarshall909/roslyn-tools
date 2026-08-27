@@ -72,8 +72,8 @@ internal sealed class PreparedChangeSet
             AddUnique(paths, file);
         foreach (var move in MovedFiles)
         {
-            AddUnique(paths, move.SourcePath);
-            AddUnique(paths, move.DestinationPath);
+            AddUnique(paths, move.SourcePath, allowExisting: OriginalSolution is not null);
+            AddUnique(paths, move.DestinationPath, allowExisting: OriginalSolution is not null);
         }
         foreach (var edit in ProjectFileEdits)
             AddUnique(paths, edit.Path);
@@ -123,12 +123,15 @@ internal sealed class PreparedChangeSet
                 AddUnique(paths, document.FilePath);
     }
 
-    private static void AddUnique(IDictionary<string, string> paths, string path)
+    private static void AddUnique(
+        IDictionary<string, string> paths,
+        string path,
+        bool allowExisting = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         var displayPath = NormalizeDisplayPath(path);
         var comparisonPath = Path.GetFullPath(displayPath);
-        if (!paths.TryAdd(comparisonPath, displayPath))
+        if (!paths.TryAdd(comparisonPath, displayPath) && !allowExisting)
             throw new ArgumentException($"Path '{displayPath}' is affected more than once.", nameof(path));
     }
 
@@ -232,6 +235,64 @@ internal sealed class SolutionPreparedChangeSetWriter(ISolutionChangeWriter solu
             changeSet.OriginalSolution,
             changeSet.ChangedSolution,
             dryRun: false);
+    }
+}
+
+/// <summary>Applies a prepared Roslyn and filesystem change set after validating its paths.</summary>
+internal sealed class PreparedChangeSetWriter : IPreparedChangeSetWriter
+{
+    private readonly ISolutionChangeWriter _solutionChangeWriter;
+
+    internal PreparedChangeSetWriter(ISolutionChangeWriter solutionChangeWriter)
+    {
+        _solutionChangeWriter = solutionChangeWriter;
+    }
+
+    public async Task ApplyAsync(
+        PreparedChangeSet changeSet,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(changeSet);
+        cancellationToken.ThrowIfCancellationRequested();
+        ValidateFileSystemChanges(changeSet);
+
+        if (changeSet.OriginalSolution is not null && changeSet.ChangedSolution is not null)
+            await _solutionChangeWriter.ApplyChangesAsync(
+                changeSet.OriginalSolution,
+                changeSet.ChangedSolution,
+                dryRun: false);
+
+        foreach (var file in changeSet.NewFiles
+                     .Concat(changeSet.ProjectFileEdits)
+                     .Concat(changeSet.TextEdits))
+        {
+            var directory = Path.GetDirectoryName(Path.GetFullPath(file.Path));
+            if (!string.IsNullOrEmpty(directory))
+                Directory.CreateDirectory(directory);
+            await File.WriteAllTextAsync(file.Path, file.Content, CancellationToken.None);
+        }
+
+        foreach (var move in changeSet.MovedFiles)
+            File.Move(move.SourcePath, move.DestinationPath);
+
+        foreach (var path in changeSet.DeletedFiles)
+            File.Delete(path);
+    }
+
+    private static void ValidateFileSystemChanges(PreparedChangeSet changeSet)
+    {
+        foreach (var file in changeSet.NewFiles)
+            if (File.Exists(file.Path))
+                throw new IOException($"Cannot create '{file.Path}' because it already exists.");
+
+        foreach (var move in changeSet.MovedFiles)
+        {
+            if (!File.Exists(move.SourcePath))
+                throw new FileNotFoundException("Prepared move source was not found.", move.SourcePath);
+            if (File.Exists(move.DestinationPath))
+                throw new IOException(
+                    $"Cannot move '{move.SourcePath}' to '{move.DestinationPath}' because the destination already exists.");
+        }
     }
 }
 

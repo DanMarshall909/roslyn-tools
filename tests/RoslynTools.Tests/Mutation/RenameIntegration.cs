@@ -1,3 +1,5 @@
+using Microsoft.CodeAnalysis;
+using RoslynTools.Core;
 using RoslynTools.Services;
 using Shouldly;
 
@@ -27,7 +29,7 @@ public class RenameIntegration
         var (workspace, solution) = project.Build();
         using (workspace)
         {
-            var service = new RenameService();
+            var service = new RenameService(new SymbolResolutionService());
             var plan = await service.BuildRelatedRenamePlanAsync(solution, "Foo.OldType", "NewType", "type");
             var identifier = plan.Edits.Single(edit => edit.OldText == "OldTypeTests");
             var literal = plan.Edits.Single(edit => edit.Kind == "string");
@@ -62,12 +64,12 @@ public class RenameIntegration
 
         var (workspace, solution) = project.Build();
 
-        await new RenameService().ExecuteSingleAsync(
-            solution,
+        var operation = CreateOperation(workspace, solution);
+        (await operation.ExecuteAsync(new RenameOperationRequest(
+            RenameOperationMode.Single,
             "Foo.OldType",
             "NewType",
-            "type",
-            false);
+            Kind: "type"))).IsOk.ShouldBeTrue();
 
         Assert.True(project.SourceExists("OldType.cs"), "unselected file rename should not be applied");
         Assert.False(project.SourceExists("NewType.cs"), "unselected target file should not be created");
@@ -92,12 +94,15 @@ public class RenameIntegration
             .AddSource("OldA.cs", sourceA)
             .AddSource("OldB.cs", sourceB);
 
-        var (_, solution) = project.Build();
+        var (workspace, solution) = project.Build();
 
         var csvPath = Path.Combine(project.ProjectDir, "rename.csv");
         File.WriteAllText(csvPath, "source_symbol,target_name\nFoo.OldA,NewA\nFoo.OldB,NewB\n");
 
-        await new RenameService().ExecuteBatchAsync(solution, csvPath, false);
+        var operation = CreateOperation(workspace, solution);
+        (await operation.ExecuteAsync(new RenameOperationRequest(
+            RenameOperationMode.Batch,
+            CsvPath: csvPath))).IsOk.ShouldBeTrue();
 
         Assert.False(project.SourceExists("OldA.cs"), "old file A should be gone");
         Assert.True(project.SourceExists("NewA.cs"), "new file A should exist");
@@ -127,7 +132,7 @@ public class RenameIntegration
             .AddSource("NewA.cs", sourceA)
             .AddSource("OldB.cs", sourceB);
 
-        var (_, solution) = project.Build();
+        var (workspace, solution) = project.Build();
 
         var csvPath = Path.Combine(project.ProjectDir, "rename.csv");
         File.WriteAllText(
@@ -139,7 +144,10 @@ public class RenameIntegration
 
             """);
 
-        await new RenameService().ExecuteBatchAsync(solution, csvPath, false);
+        var operation = CreateOperation(workspace, solution);
+        (await operation.ExecuteAsync(new RenameOperationRequest(
+            RenameOperationMode.Batch,
+            CsvPath: csvPath))).IsOk.ShouldBeTrue();
 
         Assert.True(project.SourceExists("NewA.cs"), "already-renamed file should remain");
         Assert.False(project.SourceExists("OldB.cs"), "pending old file should be gone");
@@ -148,5 +156,23 @@ public class RenameIntegration
         var renamed = await project.ReadSourceAsync("NewB.cs");
         renamed.ShouldContain("class NewB", Case.Sensitive);
         renamed.ShouldContain("void pending()", Case.Sensitive);
+    }
+
+    private static RenameOperation CreateOperation(Workspace workspace, Solution solution)
+    {
+        return new RenameOperation(
+            new FixedWorkspaceSessionFactory(workspace, solution),
+            new RenameService(new SymbolResolutionService()),
+            new SolutionChangeWriter());
+    }
+
+    private sealed class FixedWorkspaceSessionFactory(
+        Workspace workspace,
+        Solution solution) : IWorkspaceSessionFactory
+    {
+        public Task<Solution> GetSolutionAsync(string? solutionPath) => Task.FromResult(solution);
+
+        public Task<(Workspace Workspace, Solution Solution)> LoadWorkspaceAsync(string? solutionPath) =>
+            Task.FromResult((workspace, solution));
     }
 }
