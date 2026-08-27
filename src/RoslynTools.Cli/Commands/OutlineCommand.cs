@@ -1,5 +1,7 @@
 using System.CommandLine;
+using RoslynTools.Cli;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
@@ -49,14 +51,25 @@ internal sealed class OutlineCommand(
                 flags.SolutionPath,
                 summary,
                 withLocations);
-            await DaemonCommandExecutor.ExecuteAsync(
+            var result = await DaemonCommandExecutor.ExecuteTypedAsync(
                 _daemon,
                 _operation,
                 request,
-                context);
+                context.GetCancellationToken());
+            result.Match(
+                value => Render(value),
+                error => RtErrorPresenter.Surface(context, error));
         });
 
         return cmd;
+    }
+
+    private static void Render(OutlineResult result)
+    {
+        if (result.Summaries is not null)
+            RtResultRenderer.Write(RtResult<IReadOnlyList<OutlineSummaryResult>>.Ok(result.Summaries));
+        else
+            RtResultRenderer.Write(RtResult<IReadOnlyList<OutlineTypeResult>>.Ok(result.Types ?? []));
     }
 
     private sealed record OutlineCliRequest(string? SolutionPath) : ISupportsSolutionOption;

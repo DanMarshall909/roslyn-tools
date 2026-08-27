@@ -1,4 +1,5 @@
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 
 namespace RoslynTools.Services;
 
@@ -20,7 +21,7 @@ internal sealed record FindMagicStringsResult(
 /// bind their inputs and render this typed result.
 /// </summary>
 internal sealed class FindMagicStringsOperation
-    : LegacyCommandApplicationPort<FindMagicStringsRequest, FindMagicStringsResult>, IRtService
+    : CommandApplicationPort<FindMagicStringsRequest, FindMagicStringsResult>, IRtService
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly MagicStringService _magicStrings;
@@ -33,9 +34,16 @@ internal sealed class FindMagicStringsOperation
         _magicStrings = magicStrings;
     }
 
-    public override string CommandName => "find_magic_strings";
+    public override ApplicationCommandDefinition Definition => new(
+        FindMagicStringsCommandDefinition.Info,
+        typeof(FindMagicStringsRequest),
+        typeof(FindMagicStringsResult),
+        true,
+        CommandSafety.ReadOnly,
+        CommandExecutionPlacement.DaemonPreferred,
+        []);
 
-    public override async Task<FindMagicStringsResult> ExecuteAsync(
+    public override async Task<Result<FindMagicStringsResult, RtError>> ExecuteAsync(
         FindMagicStringsRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -49,7 +57,7 @@ internal sealed class FindMagicStringsOperation
                 request.MinLength,
                 request.MinOccurrences);
 
-            return new FindMagicStringsResult(solution.FilePath, groups);
+            return Result<FindMagicStringsResult, RtError>.Ok(new FindMagicStringsResult(solution.FilePath, groups));
         }
     }
 }

@@ -45,7 +45,7 @@ public sealed class FindPatternOperationTests
                 7,
                 "requested.slnx"));
 
-            operation.CommandName.ShouldBe("find_pattern");
+            operation.Definition.Name.ShouldBe("find_pattern");
             factory.RequestedSolution.ShouldBe("requested.slnx");
             var response = result.Match(
                 value => value,
@@ -122,7 +122,10 @@ public sealed class FindPatternOperationTests
             return Task.FromResult(solution);
         }
 
-        public Task<(Workspace Workspace, Solution Solution)> LoadWorkspaceAsync(string? solutionPath) =>
-            throw new NotSupportedException();
+        public Task<(Workspace Workspace, Solution Solution)> LoadWorkspaceAsync(string? solutionPath)
+        {
+            RequestedSolution = solutionPath;
+            return Task.FromResult((solution.Workspace, solution));
+        }
     }
 }

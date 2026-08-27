@@ -1,6 +1,7 @@
 using System.CommandLine;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
+using RoslynTools.Cli;
 using RoslynTools.Services.SemanticDiff;
 
 namespace RoslynTools.Commands;
@@ -101,14 +102,17 @@ internal sealed class SemanticDiffCommand(SemanticDiffOperation operation) : IRt
 
         cmd.SetHandler(async context =>
         {
-            var output = await _operation.ExecuteAsync(new SemanticDiffOperationRequest(
+            var result = await _operation.ExecuteAsync(new SemanticDiffOperationRequest(
                 context.ParseResult.GetValueForArgument(filesArg),
                 context.ParseResult.GetValueForOption(fromOpt),
                 context.ParseResult.GetValueForOption(toOpt),
                 context.ParseResult.GetValueForOption(ignoreAccessibilityOpt),
                 !context.ParseResult.GetValueForOption(noDetectRenamesOpt),
-                context.ParseResult.GetValueForOption(directoryOpt)));
-            RtResultRenderer.Write(RtResult<SemanticDiffOutput>.Ok(output));
+                context.ParseResult.GetValueForOption(directoryOpt)), context.GetCancellationToken());
+            result.Match(
+                output => RtResultRenderer.Write(RtResult<SemanticDiffOutput>.Ok(
+                    new SemanticDiffOutput(output.Deltas, output.Text))),
+                error => RtErrorPresenter.Surface(context, error));
         });
 
         return cmd;

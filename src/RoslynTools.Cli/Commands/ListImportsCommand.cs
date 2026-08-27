@@ -1,5 +1,7 @@
 using System.CommandLine;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
+using RoslynTools.Cli;
 using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
@@ -8,9 +10,12 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Lists all imported namespaces in the current file
 /// </summary>
-internal sealed class ListImportsCommand(DaemonRpcClient daemon) : IRtCommand, IAnalyzeCommand
+internal sealed class ListImportsCommand(
+    DaemonRpcRecoveryCoordinator daemon,
+    ListImportsOperation operation) : IRtCommand, IAnalyzeCommand
 {
-    private readonly DaemonRpcClient _daemon = daemon;
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
+    private readonly ListImportsOperation _operation = operation;
 
     public static RtCommandInfo Info => ListImportsCommandDefinition.Info;
 
@@ -29,11 +34,14 @@ internal sealed class ListImportsCommand(DaemonRpcClient daemon) : IRtCommand, I
         {
             var kind = ctx.ParseResult.GetValueForOption(kindOpt);
             var req = binder.Bind(ctx.ParseResult, f => new ListImportsCliRequest(f.SolutionPath, kind!));
-            await DaemonCommandExecutor.ExecuteAsync(
+            var result = await DaemonCommandExecutor.ExecuteTypedAsync(
                 _daemon,
-                ListImportsCommandDefinition.Name,
+                _operation,
                 new ListImportsRequest(req.SolutionPath, req.ImportKind),
-                ctx);
+                ctx.GetCancellationToken());
+            result.Match(
+                value => RtResultRenderer.Write(RtResult<ListImportsResult>.Ok(value)),
+                error => RtErrorPresenter.Surface(ctx, error));
         });
 
         return cmd;

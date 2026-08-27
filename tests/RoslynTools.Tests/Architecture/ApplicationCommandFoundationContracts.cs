@@ -94,7 +94,7 @@ public sealed class ApplicationCommandFoundationContracts
         var outline = OutlineCommandDefinition.Definition;
         outline.Name.ShouldBe("outline");
         outline.RequestType.ShouldBe(typeof(OutlineRequest));
-        outline.ResponseType.ShouldBe(typeof(List<object>));
+        outline.ResponseType.ShouldBe(typeof(OutlineResult));
         outline.McpVisible.ShouldBeTrue();
         outline.Safety.ShouldBe(CommandSafety.ReadOnly);
         outline.ExecutionPlacement.ShouldBe(CommandExecutionPlacement.DaemonPreferred);

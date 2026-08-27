@@ -20,12 +20,13 @@ public sealed class MakeSealedOperationTests
 
         var result = await operation.ExecuteAsync(
             new MakeSealedRequest("Standalone", "ignored", DryRun: true));
+        var execution = result.Unwrap();
 
-        operation.CommandName.ShouldBe("make-sealed");
-        result.Status.ShouldBe(MutationExecutionStatus.DryRun);
-        result.Value!.Outcome.ShouldBe(MakeSealedOutcome.Sealed);
-        result.ChangedFiles.ShouldHaveSingleItem().ShouldEndWith("Types.cs");
-        writer.NewSolution.ShouldNotBeNull();
+        operation.Definition.Name.ShouldBe("make_sealed");
+        execution.Status.ShouldBe(MutationExecutionStatus.DryRun);
+        execution.Value!.Outcome.ShouldBe(MakeSealedOutcome.Sealed);
+        execution.ChangedFiles.ShouldHaveSingleItem().ShouldEndWith("Types.cs");
+        writer.NewSolution.ShouldBeNull("preview must not cross the write boundary");
     }
 
     [Fact]

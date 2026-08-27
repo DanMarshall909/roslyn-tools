@@ -1,4 +1,5 @@
 using RoslynTools.Commands;
+using RoslynTools.Services;
 using RoslynTools.Tests.Infrastructure;
 using Shouldly;
 
@@ -39,7 +40,7 @@ public class CircularDeps : IClassFixture<RtServicesFixture>
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var result = await _services.Resolve<CircularDepsCommand>().AnalyzeAsync(sln, null);
+            var result = await _services.Resolve<CircularDepsService>().AnalyzeAsync(sln, null);
 
             result.ShouldContain("CycleApp.A", Case.Sensitive);
             result.ShouldContain("CycleApp.B", Case.Sensitive);
@@ -58,7 +59,7 @@ public class CircularDeps : IClassFixture<RtServicesFixture>
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var result = await _services.Resolve<CircularDepsCommand>().AnalyzeAsync(sln, null);
+            var result = await _services.Resolve<CircularDepsService>().AnalyzeAsync(sln, null);
 
             result.ShouldContain("->", Case.Sensitive);
         }
@@ -75,7 +76,7 @@ public class CircularDeps : IClassFixture<RtServicesFixture>
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var result = await _services.Resolve<CircularDepsCommand>().AnalyzeAsync(sln, null);
+            var result = await _services.Resolve<CircularDepsService>().AnalyzeAsync(sln, null);
 
             Assert.Contains("No circular", result, StringComparison.OrdinalIgnoreCase);
         }
@@ -98,7 +99,7 @@ public class CircularDeps : IClassFixture<RtServicesFixture>
         {
             using (workspace)
             {
-                var result = await _services.Resolve<CircularDepsCommand>().AnalyzeAsync(sln, null);
+                var result = await _services.Resolve<CircularDepsService>().AnalyzeAsync(sln, null);
                 Console.WriteLine(result);
             }
         }
@@ -132,7 +133,7 @@ public class CircularDeps : IClassFixture<RtServicesFixture>
             var (workspace, sln) = proj.Build();
             using (workspace)
             {
-                var result = await _services.Resolve<CircularDepsCommand>().AnalyzeAsync(sln, "CycleApp");
+                var result = await _services.Resolve<CircularDepsService>().AnalyzeAsync(sln, "CycleApp");
                 result.ShouldContain("CycleApp", Case.Sensitive);
                 result.ShouldNotContain("External", Case.Sensitive);
             }
@@ -153,7 +154,7 @@ public class CircularDeps : IClassFixture<RtServicesFixture>
             var (workspace, sln) = proj.Build();
             using (workspace)
             {
-                var result = await _services.Resolve<CircularDepsCommand>().AnalyzeAsync(sln, "Clean");
+                var result = await _services.Resolve<CircularDepsService>().AnalyzeAsync(sln, "Clean");
                 Assert.Contains("No circular", result, StringComparison.OrdinalIgnoreCase);
             }
         }
@@ -175,7 +176,7 @@ public class CircularDeps : IClassFixture<RtServicesFixture>
             var (workspace, sln) = proj.Build();
             using (workspace)
             {
-                var result = await _services.Resolve<CircularDepsCommand>().AnalyzeAsync(sln, null);
+                var result = await _services.Resolve<CircularDepsService>().AnalyzeAsync(sln, null);
                 result.ShouldContain("Fs.P", Case.Sensitive);
                 result.ShouldContain("Fs.Q", Case.Sensitive);
             }

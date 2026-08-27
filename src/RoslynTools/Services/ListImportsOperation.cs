@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 
 namespace RoslynTools.Services;
 
@@ -25,7 +26,7 @@ internal sealed record ListImportsResult(IReadOnlyList<ListImportsEntry> Imports
 /// Shared list-imports operation. Hosts bind their own inputs and render the typed result.
 /// </summary>
 internal sealed class ListImportsOperation
-    : LegacyCommandApplicationPort<ListImportsRequest, ListImportsResult>, IRtService
+    : CommandApplicationPort<ListImportsRequest, ListImportsResult>, IRtService
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly ImportDirectiveService _importDirective;
@@ -38,9 +39,16 @@ internal sealed class ListImportsOperation
         _importDirective = importDirective;
     }
 
-    public override string CommandName => "list_imports";
+    public override ApplicationCommandDefinition Definition => new(
+        ListImportsCommandDefinition.Info,
+        typeof(ListImportsRequest),
+        typeof(ListImportsResult),
+        true,
+        CommandSafety.ReadOnly,
+        CommandExecutionPlacement.DaemonPreferred,
+        []);
 
-    public override async Task<ListImportsResult> ExecuteAsync(
+    public override async Task<Result<ListImportsResult, RtError>> ExecuteAsync(
         ListImportsRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -50,14 +58,14 @@ internal sealed class ListImportsOperation
         {
             cancellationToken.ThrowIfCancellationRequested();
             var imports = await _importDirective.AnalyzeAsync(solution, request.ImportKind);
-            return new ListImportsResult(imports.Select(importDirective => new ListImportsEntry(
+            return Result<ListImportsResult, RtError>.Ok(new ListImportsResult(imports.Select(importDirective => new ListImportsEntry(
                 importDirective.Kind,
                 importDirective.Name,
                 importDirective.FilePath,
                 importDirective.Line,
                 importDirective.IsGlobal,
                 importDirective.IsStatic,
-                importDirective.Alias)).ToList());
+                importDirective.Alias)).ToList()));
         }
     }
 }

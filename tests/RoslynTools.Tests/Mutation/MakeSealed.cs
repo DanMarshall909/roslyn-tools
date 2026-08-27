@@ -35,9 +35,10 @@ public class MakeSealedCommandTests : IClassFixture<RtServicesFixture>
         {
             var result = await _services.Resolve<MakeSealedOperation>()
                 .ExecuteAsync(new MakeSealedRequest("Standalone", "ignored", DryRun: false));
+            var execution = result.Unwrap();
 
-            result.Status.ShouldBe(MutationExecutionStatus.Applied);
-            result.ChangedFiles.ShouldHaveSingleItem().ShouldEndWith("Types.cs");
+            execution.Status.ShouldBe(MutationExecutionStatus.Applied);
+            execution.ChangedFiles.ShouldHaveSingleItem().ShouldEndWith("Types.cs");
         }
 
         var content = await proj.ReadSourceAsync("Types.cs");
@@ -57,11 +58,12 @@ public class MakeSealedCommandTests : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                _services.Resolve<MakeSealedOperation>()
-                    .ExecuteAsync(new MakeSealedRequest("Animal", "ignored", DryRun: false)));
+            var result = await _services.Resolve<MakeSealedOperation>()
+                .ExecuteAsync(new MakeSealedRequest("Animal", "ignored", DryRun: false));
 
-            ex.Message.ShouldContain("Dog", Case.Sensitive);
+            result.Match(
+                _ => throw new ShouldAssertException("Expected the derived type to reject sealing."),
+                error => error.Message.ShouldContain("Dog", Case.Sensitive));
         }
     }
 

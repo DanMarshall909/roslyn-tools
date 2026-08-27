@@ -1,5 +1,5 @@
 using System.Text.Json;
-using RoslynTools.Commands;
+using RoslynTools.Services;
 using RoslynTools.Tests.Infrastructure;
 using Shouldly;
 
@@ -38,7 +38,7 @@ public class DependencyGraph : IClassFixture<RtServicesFixture>
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var json = await _services.Resolve<DependencyGraphCommand>().BuildGraphAsync(sln, null, null, "json", null);
+            var json = await _services.Resolve<DependencyGraphService>().BuildGraphAsync(sln, null, null, "json", null);
 
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
@@ -63,7 +63,7 @@ public class DependencyGraph : IClassFixture<RtServicesFixture>
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var json = await _services.Resolve<DependencyGraphCommand>().BuildGraphAsync(sln, null, null, "json", null);
+            var json = await _services.Resolve<DependencyGraphService>().BuildGraphAsync(sln, null, null, "json", null);
 
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
@@ -89,7 +89,7 @@ public class DependencyGraph : IClassFixture<RtServicesFixture>
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var dot = await _services.Resolve<DependencyGraphCommand>().BuildGraphAsync(sln, null, null, "dot", null);
+            var dot = await _services.Resolve<DependencyGraphService>().BuildGraphAsync(sln, null, null, "dot", null);
 
             Assert.StartsWith("digraph", dot, StringComparison.OrdinalIgnoreCase);
             dot.ShouldContain("->", Case.Sensitive);
@@ -107,7 +107,7 @@ public class DependencyGraph : IClassFixture<RtServicesFixture>
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var json = await _services.Resolve<DependencyGraphCommand>().BuildGraphAsync(sln, "A", 1, "json", null);
+            var json = await _services.Resolve<DependencyGraphService>().BuildGraphAsync(sln, "A", 1, "json", null);
 
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
@@ -140,7 +140,7 @@ public class DependencyGraph : IClassFixture<RtServicesFixture>
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var json = await _services.Resolve<DependencyGraphCommand>().BuildGraphAsync(
+            var json = await _services.Resolve<DependencyGraphService>().BuildGraphAsync(
                 sln, null, null, "json", null);
 
             using var doc = JsonDocument.Parse(json);
@@ -160,7 +160,7 @@ public class DependencyGraph : IClassFixture<RtServicesFixture>
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var json = await _services.Resolve<DependencyGraphCommand>().BuildGraphAsync(sln, "NoSuchType", null, "json", null);
+            var json = await _services.Resolve<DependencyGraphService>().BuildGraphAsync(sln, "NoSuchType", null, "json", null);
 
             using var doc = JsonDocument.Parse(json);
             var nodes = doc.RootElement.GetProperty("nodes").EnumerateArray().ToList();
@@ -178,7 +178,7 @@ public class DependencyGraph : IClassFixture<RtServicesFixture>
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var dot = await _services.Resolve<DependencyGraphCommand>().BuildGraphAsync(sln, "NoSuchType", null, "dot", null);
+            var dot = await _services.Resolve<DependencyGraphService>().BuildGraphAsync(sln, "NoSuchType", null, "dot", null);
 
             Assert.Contains("digraph", dot, StringComparison.OrdinalIgnoreCase);
             dot.ShouldNotContain("->", Case.Sensitive);
@@ -196,7 +196,7 @@ public class DependencyGraph : IClassFixture<RtServicesFixture>
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var json = await _services.Resolve<DependencyGraphCommand>().BuildGraphAsync(sln, null, null, "json", "Foo");
+            var json = await _services.Resolve<DependencyGraphService>().BuildGraphAsync(sln, null, null, "json", "Foo");
 
             using var doc = JsonDocument.Parse(json);
             var nodeNames = doc.RootElement.GetProperty("nodes")

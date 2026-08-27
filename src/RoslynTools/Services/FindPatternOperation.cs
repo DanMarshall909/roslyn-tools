@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using RoslynTools.Core;
 
@@ -17,21 +16,13 @@ internal sealed record FindPatternResult(IReadOnlyList<PatternMatch> Matches);
 
 /// <summary>Shared structural-pattern operation used by CLI, daemon, and MCP adapters.</summary>
 internal sealed class FindPatternOperation(IWorkspaceSessionFactory sessionFactory)
-    : LegacyCommandApplicationPort, IRtService
+    : CommandApplicationPort<FindPatternRequest, FindPatternResult>, IRtService
 {
-    private static readonly JsonSerializerOptions ErrorSerializerOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        Converters = { new JsonStringEnumConverter() }
-    };
-
     private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
 
-    public override string CommandName => "find_pattern";
-    public override Type RequestType => typeof(FindPatternRequest);
-    public override Type ResponseType => typeof(FindPatternResult);
+    public override ApplicationCommandDefinition Definition => FindPatternCommandDefinition.Definition;
 
-    internal async Task<Result<FindPatternResult, RtError>> ExecuteAsync(
+    public override async Task<Result<FindPatternResult, RtError>> ExecuteAsync(
         FindPatternRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -40,54 +31,41 @@ internal sealed class FindPatternOperation(IWorkspaceSessionFactory sessionFacto
         if (validationError is not null)
             return Result<FindPatternResult, RtError>.Err(validationError);
 
-        var solution = await _sessionFactory.GetSolutionAsync(request.Solution);
-        cancellationToken.ThrowIfCancellationRequested();
-
-        try
+        var (workspace, solution) = await _sessionFactory.LoadWorkspaceAsync(request.Solution);
+        using (workspace)
         {
-            var matches = await PatternMatcher.FindMatchesAsync(
-                solution,
-                request.File,
-                request.StartLine,
-                request.EndLine,
-                request.Scope);
             cancellationToken.ThrowIfCancellationRequested();
-            return Result<FindPatternResult, RtError>.Ok(new FindPatternResult(matches));
-        }
-        catch (InvalidOperationException exception)
-        {
-            var context = new Dictionary<string, string>
+            try
             {
-                ["file"] = request.File,
-                ["lineRange"] = $"{request.StartLine}-{request.EndLine}"
-            };
-            var error = exception.Message.StartsWith("File not found", StringComparison.Ordinal)
-                ? RtError.NotFound(exception.Message, context)
-                : new RtError(RtErrorKind.InvalidInput, exception.Message, context);
-            return Result<FindPatternResult, RtError>.Err(error);
+                var matches = await PatternMatcher.FindMatchesAsync(
+                    solution,
+                    request.File,
+                    request.StartLine,
+                    request.EndLine,
+                    request.Scope);
+                cancellationToken.ThrowIfCancellationRequested();
+                return Result<FindPatternResult, RtError>.Ok(new FindPatternResult(matches));
+            }
+            catch (InvalidOperationException exception)
+            {
+                var context = new Dictionary<string, string>
+                {
+                    ["file"] = request.File,
+                    ["lineRange"] = $"{request.StartLine}-{request.EndLine}"
+                };
+                var error = exception.Message.StartsWith("File not found", StringComparison.Ordinal)
+                    ? RtError.NotFound(exception.Message, context)
+                    : new RtError(RtErrorKind.InvalidInput, exception.Message, context);
+                return Result<FindPatternResult, RtError>.Err(error);
+            }
+            catch (Exception exception) when (exception is ArgumentException or NotSupportedException)
+            {
+                return Result<FindPatternResult, RtError>.Err(new RtError(
+                    RtErrorKind.InvalidInput,
+                    $"Pattern file path is invalid: {exception.Message}",
+                    new Dictionary<string, string> { ["file"] = request.File }));
+            }
         }
-        catch (Exception exception) when (exception is ArgumentException or NotSupportedException)
-        {
-            return Result<FindPatternResult, RtError>.Err(new RtError(
-                RtErrorKind.InvalidInput,
-                $"Pattern file path is invalid: {exception.Message}",
-                new Dictionary<string, string> { ["file"] = request.File }));
-        }
-    }
-
-    protected override async Task<CommandPortResult> InvokeLegacyAsync(
-        object request,
-        CancellationToken cancellationToken)
-    {
-        if (request is not FindPatternRequest typedRequest)
-            throw new ArgumentException("Invalid find-pattern request.", nameof(request));
-
-        var result = await ExecuteAsync(typedRequest, cancellationToken);
-        return result.Match(
-            CommandPortResult.Success,
-            error => CommandPortResult.Failure(
-                error,
-                JsonSerializer.Serialize(error, ErrorSerializerOptions)));
     }
 
     private static RtError? Validate(FindPatternRequest request)

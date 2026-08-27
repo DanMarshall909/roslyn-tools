@@ -11,18 +11,7 @@ internal sealed class DebugCommand(DebugOperation operation) : IRtCommand, IStru
 {
     private readonly DebugOperation _operation = operation;
 
-    public static RtCommandInfo Info { get; } = new(
-        "debug",
-        false,
-        true,
-        "analyze",
-        "Use this when diagnosing a recorded LLM or agent trace as a debugger timeline. Prefer this over Read when you need event, tool, text, or file breakpoints and assertions. This does not attach to a live .NET process yet.",
-        [
-            "rt analyze debug trace.jsonl",
-            "rt analyze debug trace.jsonl --break tool:apply_patch --break event:model_call",
-            "rt analyze debug trace.jsonl --from 5 --assert no-tool:web --assert requires-event:final_response --json"
-        ],
-        SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]);
+    public static RtCommandInfo Info => DebugCommandDefinition.Info;
 
     public Command Build()
     {
@@ -64,7 +53,7 @@ internal sealed class DebugCommand(DebugOperation operation) : IRtCommand, IStru
                 limit,
                 breakpoints,
                 assertions,
-                breakOnly));
+                breakOnly), ctx.GetCancellationToken());
 
             result.Match(
                 report =>
