@@ -29,7 +29,7 @@ add-null-checks	refactor	M1	complete	daemon-preferred	apply-default
 add-static-import	refactor	M1	complete	daemon-preferred	apply-default
 add-test	refactor	M2	convert	daemon-preferred	apply-default
 add-xml-doc	refactor	M1	complete	daemon-preferred	apply-default
-change-signature	refactor	M2	convert	daemon-preferred	apply-default
+change-signature	refactor	M2	complete	daemon-preferred	apply-default
 convert-console-logging	refactor	M3	convert	daemon-preferred	review-default
 convert-static-class	refactor	M1	complete	daemon-preferred	apply-default
 convert-to-record	refactor	M1	complete	daemon-preferred	apply-default

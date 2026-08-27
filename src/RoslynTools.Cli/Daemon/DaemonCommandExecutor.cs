@@ -71,6 +71,13 @@ internal static class DaemonCommandExecutor
         where TRequest : class
     {
         var cancellationToken = context.GetCancellationToken();
+
+        if (WorkspaceLoader.Override.Value is not null)
+        {
+            await ExecuteLocalAsync(port, request, context, cancellationToken);
+            return;
+        }
+
         var result = await recovery.ExecuteAsync(
             port.Definition,
             JsonSerializer.SerializeToElement(request),
@@ -89,6 +96,16 @@ internal static class DaemonCommandExecutor
             return;
         }
 
+        await ExecuteLocalAsync(port, request, context, cancellationToken);
+    }
+
+    private static async Task ExecuteLocalAsync<TRequest>(
+        ICommandApplicationPort port,
+        TRequest request,
+        InvocationContext context,
+        CancellationToken cancellationToken)
+        where TRequest : class
+    {
         var local = await port.InvokeAsync(request, cancellationToken);
         if (local.IsError)
         {
