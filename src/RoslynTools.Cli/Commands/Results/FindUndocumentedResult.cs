@@ -92,4 +92,17 @@ internal sealed record FindUndocumentedResult : IRtOutput, IRtJsonOutput
             SuggestedFixes = FixCatalog.ForUndocumented(solutionPath)
         };
     }
+
+    internal static FindUndocumentedResult FromAnalysis(FindUndocumentedAnalysisResult result) => new()
+    {
+        Symbols = result.Symbols.Select(s => new UndocumentedSymbolResult
+        {
+            Fqn = s.Fqn,
+            Signature = s.Signature,
+            Kind = s.Kind,
+            FilePath = s.FilePath,
+            Line = s.Line
+        }).ToList(),
+        SuggestedFixes = result.SuggestedFixes
+    };
 }

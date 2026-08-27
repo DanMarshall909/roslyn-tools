@@ -1,7 +1,9 @@
 using System.CommandLine;
+using RoslynTools.Cli;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -9,28 +11,13 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Identifies unused commands in the current file
 /// </summary>
-internal sealed class FindUnusedCommand(IWorkspaceSessionFactory sessionFactory, FindUnusedService findUnused) : IRtCommand, IInspectCommand
+internal sealed class FindUnusedCommand(
+    DaemonRpcRecoveryCoordinator daemon,
+    FindUnusedOperation operation) : IRtCommand, IInspectCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
-    private readonly FindUnusedService _findUnused = findUnused;
-    public static RtCommandInfo Info { get; } = new(
-        "find-unused",
-        false,
-        false,
-        "inspect",
-        Aliases: ["unused"],
-        WhenToUse:
-        "Identifying dead code — types and methods with zero references in the solution — before a safe-delete pass or ahead of a major refactor. Use --scope to focus on a specific namespace and filter noise from generated or test code.",
-        Examples:
-        [
-            "rt inspect find-unused --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt inspect unused --scope ProjectX.Core --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt inspect find-unused --scope types --solution RoslynTools.slnx"
-        ],
-        SeeAlso: ["safe-delete", "find-refs"],
-        SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
-    );
-
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
+    private readonly FindUnusedOperation _operation = operation;
+    public static RtCommandInfo Info => FindUnusedCommandDefinition.Info;
     public Command Build()
     {
         var binder = RtCommandFlagBinder.Create()
@@ -47,10 +34,15 @@ internal sealed class FindUnusedCommand(IWorkspaceSessionFactory sessionFactory,
             var scope = ctx.ParseResult.GetValueForOption(scopeOpt);
             var req = binder.Bind(ctx.ParseResult, f => new FindUnusedCliRequest(f.SolutionPath, scope));
 
-            var sln = await _sessionFactory.GetSolutionAsync(req.SolutionPath);
-            var symbols = await _findUnused.AnalyzeAsync(sln, req.Scope ?? "all");
-            var result = FindUnusedResult.FromSymbols(symbols, sln.FilePath);
-            RtResultRenderer.Write(RtResult<FindUnusedResult>.Ok(result));
+            var result = await DaemonCommandExecutor.ExecuteTypedAsync(
+                _daemon,
+                _operation,
+                new FindUnusedRequest(req.SolutionPath, req.Scope ?? "all"),
+                ctx.GetCancellationToken());
+            result.Match(
+                value => RtResultRenderer.Write(RtResult<FindUnusedResult>.Ok(
+                    FindUnusedResult.FromAnalysis(value))),
+                error => RtErrorPresenter.Surface(ctx, error));
         });
 
         return cmd;

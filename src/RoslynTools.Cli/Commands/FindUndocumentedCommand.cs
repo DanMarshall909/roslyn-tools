@@ -1,7 +1,9 @@
 using System.CommandLine;
+using RoslynTools.Cli;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -9,28 +11,13 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Identifies undocumented symbols in the current file
 /// </summary>
-internal sealed class FindUndocumentedCommand(IWorkspaceSessionFactory sessionFactory, FindUndocumentedService findUndocumented) : IRtCommand, IInspectCommand
+internal sealed class FindUndocumentedCommand(
+    DaemonRpcRecoveryCoordinator daemon,
+    FindUndocumentedOperation operation) : IRtCommand, IInspectCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
-    private readonly FindUndocumentedService _findUndocumented = findUndocumented;
-    public static RtCommandInfo Info { get; } = new(
-        "find-undocumented",
-        false,
-        false,
-        "inspect",
-        Aliases: ["undoc"],
-        WhenToUse:
-        "Finding types and members that have no XML documentation comment — the first step before bulk-generating docs with an LLM. Use --members to include methods and properties, not just types. Use --level to control which accessibility levels are checked (default: public).",
-        Examples:
-        [
-            "rt inspect find-undocumented --solution RoslynTools.slnx",
-            "rt inspect undoc --members --level internal --solution RoslynTools.slnx",
-            "rt inspect undoc --members --level public,internal --scope RoslynTools.Core --solution RoslynTools.slnx",
-            "rt inspect find-undocumented --level all --json --solution RoslynTools.slnx"
-        ],
-        SupportedFormats: [OutputFormat.Text, OutputFormat.Json]
-    );
-
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
+    private readonly FindUndocumentedOperation _operation = operation;
+    public static RtCommandInfo Info => FindUndocumentedCommandDefinition.Info;
     public Command Build()
     {
         var binder = RtCommandFlagBinder.Create()
@@ -54,17 +41,16 @@ internal sealed class FindUndocumentedCommand(IWorkspaceSessionFactory sessionFa
         {
             var members = ctx.ParseResult.GetValueForOption(membersOpt);
             var level = ctx.ParseResult.GetValueForOption(levelOpt);
-            var levels = level!.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            var accessibilityKinds = FindUndocumentedService.ParseAccessibilityLevels(levels);
             var req = binder.Bind(ctx.ParseResult, f => new FindUndocumentedCliRequest(f.SolutionPath, f.Scope));
-
-            var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(req.SolutionPath);
-            using (workspace)
-            {
-                var symbols = await _findUndocumented
-                    .AnalyzeAsync(sln, members, req.Scope, accessibilityKinds);
-                RtResultRenderer.Write(RtResult<FindUndocumentedResult>.Ok(FindUndocumentedResult.From(symbols, sln.FilePath)));
-            }
+            var result = await DaemonCommandExecutor.ExecuteTypedAsync(
+                _daemon,
+                _operation,
+                new FindUndocumentedRequest(req.SolutionPath, members, req.Scope, level!),
+                ctx.GetCancellationToken());
+            result.Match(
+                value => RtResultRenderer.Write(RtResult<FindUndocumentedResult>.Ok(
+                    FindUndocumentedResult.FromAnalysis(value))),
+                error => RtErrorPresenter.Surface(ctx, error));
         });
 
         return cmd;

@@ -1,7 +1,9 @@
 using System.CommandLine;
+using RoslynTools.Cli;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -9,23 +11,13 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// A command for retrieving static class inventory information.
 /// </summary>
-internal sealed class StaticClassInventoryCommand(IWorkspaceSessionFactory sessionFactory, StaticClassInventoryService inventory) : IRtCommand, IStructuredOutputCommand, IAnalyzeCommand
+internal sealed class StaticClassInventoryCommand(
+    DaemonRpcRecoveryCoordinator daemon,
+    StaticClassInventoryOperation operation) : IRtCommand, IStructuredOutputCommand, IAnalyzeCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
-    private readonly StaticClassInventoryService _inventory = inventory;
-    public static RtCommandInfo Info { get; } = new(
-        "static-class-inventory",
-        false,
-        true,
-        "analyze",
-        "Planning a static-to-instance migration by listing every static class with its call-site count, member count, and inbound static coupling. Results are sorted leaf-first so the safest classes to de-static appear at the top.",
-        [
-            "rt analyze static-class-inventory --solution RoslynTools.slnx",
-            "rt analyze static-class-inventory --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt static-class-inventory --solution RoslynTools.slnx --json"
-        ],
-        SupportedFormats: [OutputFormat.Text, OutputFormat.Json]);
-
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
+    private readonly StaticClassInventoryOperation _operation = operation;
+    public static RtCommandInfo Info => StaticClassInventoryCommandDefinition.Info;
     public Command Build()
     {
         var binder = RtCommandFlagBinder.Create()
@@ -39,11 +31,15 @@ internal sealed class StaticClassInventoryCommand(IWorkspaceSessionFactory sessi
         {
             var req = binder.Bind(ctx.ParseResult, f => new StaticClassInventoryCliRequest(f.SolutionPath));
 
-            var sln = await _sessionFactory.GetSolutionAsync(req.SolutionPath);
-            var report = await _inventory.AnalyzeAsync(sln);
-            var result = StaticClassInventoryResult.FromReport(report);
-
-            RtResultRenderer.Write(RtResult<StaticClassInventoryResult>.Ok(result));
+            var result = await DaemonCommandExecutor.ExecuteTypedAsync(
+                _daemon,
+                _operation,
+                new StaticClassInventoryRequest(req.SolutionPath),
+                ctx.GetCancellationToken());
+            result.Match(
+                value => RtResultRenderer.Write(RtResult<StaticClassInventoryResult>.Ok(
+                    StaticClassInventoryResult.FromAnalysis(value))),
+                error => RtErrorPresenter.Surface(ctx, error));
         });
 
         return cmd;
