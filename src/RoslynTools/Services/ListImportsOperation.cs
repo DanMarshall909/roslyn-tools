@@ -25,7 +25,7 @@ internal sealed record ListImportsResult(IReadOnlyList<ListImportsEntry> Imports
 /// Shared list-imports operation. Hosts bind their own inputs and render the typed result.
 /// </summary>
 internal sealed class ListImportsOperation
-    : CommandApplicationPort<ListImportsRequest, ListImportsResult>, IRtService
+    : LegacyCommandApplicationPort<ListImportsRequest, ListImportsResult>, IRtService
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly ImportDirectiveService _importDirective;

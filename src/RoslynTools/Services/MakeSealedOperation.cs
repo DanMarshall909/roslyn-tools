@@ -37,7 +37,7 @@ internal sealed record MakeSealedPreparation(
 
 /// <summary>Shared make-sealed operation used by future CLI and MCP adapters.</summary>
 internal sealed class MakeSealedOperation
-    : CommandApplicationPort<MakeSealedRequest, MutationExecutionResult<MakeSealedResult>>, IRtService
+    : LegacyCommandApplicationPort<MakeSealedRequest, MutationExecutionResult<MakeSealedResult>>, IRtService
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly MakeSealedService _makeSealed;

@@ -6,11 +6,15 @@ namespace RoslynTools.Services;
 
 /// <summary>Transport-neutral input for constructor dependency injection.</summary>
 internal sealed record AddDependencyRequest(
-    [property: JsonRequired] string Type,
-    [property: JsonRequired, JsonPropertyName("dependency")] string Dependency,
+    [property: JsonRequired, CommandPropertyDescription("Target class name")] string Type,
+    [property: JsonRequired, JsonPropertyName("dependency"), CommandPropertyDescription("Dependency type to inject (e.g. IEmailService)")]
+    string Dependency,
+    [property: CommandPropertyDescription("Field name override (default: derived from type)")]
     string? Field = null,
+    [property: CommandPropertyDescription("Path to .sln/.slnx")]
     string? Solution = null,
-    [property: JsonPropertyName("dry-run")] bool DryRun = true);
+    [property: JsonPropertyName("dry-run"), CommandPropertyDescription("Preview without writing (default)")]
+    bool DryRun = true);
 
 /// <summary>One of the domain outcomes for an add-dependency request.</summary>
 internal enum AddDependencyOutcome
@@ -36,16 +40,15 @@ internal sealed class AddDependencyOperation(
     IWorkspaceSessionFactory sessionFactory,
     AddDependencyService addDependency,
     ISolutionChangeWriter solutionChangeWriter)
-    : ICommandApplicationPort, IRtService
+    : CommandApplicationPort<AddDependencyRequest, MutationExecutionResult<AddDependencyResult>>, IRtService
 {
     private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
     private readonly AddDependencyService _addDependency = addDependency;
     private readonly ISolutionChangeWriter _solutionChangeWriter = solutionChangeWriter;
 
-    public string CommandName => "add-dependency";
-    public Type RequestType => typeof(AddDependencyRequest);
+    public override ApplicationCommandDefinition Definition => AddDependencyCommandDefinition.Definition;
 
-    internal async Task<MutationExecutionResult<AddDependencyResult>> ExecuteAsync(
+    public override async Task<Result<MutationExecutionResult<AddDependencyResult>, RtError>> ExecuteAsync(
         AddDependencyRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -57,36 +60,23 @@ internal sealed class AddDependencyOperation(
             var prepared = await _addDependency.PrepareAsync(
                 solution, request.Type, request.Dependency, request.Field, cancellationToken);
 
-            return new AddDependencyResult(
+            var result = new AddDependencyResult(
                 prepared.Outcome,
                 prepared.TargetType,
-                prepared.Message) switch
-            {
-                var result when prepared.Changed => await WriteAndCreateResultAsync(
-                    solution, prepared, request.DryRun, result),
-                var result => MutationExecutionResult<AddDependencyResult>.NoOp(
-                    result,
-                    [CreateDiagnostic(prepared)])
-            };
+                prepared.Message);
+
+            if (prepared.Changed)
+                return Result<MutationExecutionResult<AddDependencyResult>, RtError>.Ok(
+                    await WriteAndCreateResultAsync(solution, prepared, request.DryRun, result));
+
+            var diagnostic = CreateDiagnostic(prepared);
+            if (diagnostic.Severity == MutationDiagnosticSeverity.Error)
+                return Result<MutationExecutionResult<AddDependencyResult>, RtError>.Err(
+                    CreateError(prepared));
+
+            return Result<MutationExecutionResult<AddDependencyResult>, RtError>.Ok(
+                MutationExecutionResult<AddDependencyResult>.NoOp(result, [diagnostic]));
         }
-    }
-
-    async Task<CommandPortResult> ICommandApplicationPort.InvokeAsync(
-        object request,
-        CancellationToken cancellationToken)
-    {
-        if (request is not AddDependencyRequest typedRequest)
-            throw new ArgumentException("Invalid add-dependency request.", nameof(request));
-
-        var result = await ExecuteAsync(typedRequest, cancellationToken);
-        var errors = result.Diagnostics
-            .Where(diagnostic => diagnostic.Severity == MutationDiagnosticSeverity.Error)
-            .Select(diagnostic => diagnostic.Message)
-            .ToArray();
-
-        return errors.Length == 0
-            ? CommandPortResult.Success(result)
-            : CommandPortResult.Failure(string.Join(Environment.NewLine, errors));
     }
 
     private async Task<MutationExecutionResult<AddDependencyResult>> WriteAndCreateResultAsync(
@@ -110,5 +100,19 @@ internal sealed class AddDependencyOperation(
             ? MutationDiagnosticSeverity.Error
             : MutationDiagnosticSeverity.Information;
         return new MutationDiagnostic(severity, result.Message ?? result.Outcome.ToString());
+    }
+
+    private static RtError CreateError(AddDependencyService.DependencyInjectionResult result)
+    {
+        var message = result.Message ?? result.Outcome.ToString();
+        var context = result.TargetType is null
+            ? null
+            : new Dictionary<string, string> { ["targetType"] = result.TargetType };
+        return result.Outcome switch
+        {
+            AddDependencyOutcome.TargetNotFound => RtError.NotFound(message, context),
+            AddDependencyOutcome.TargetAmbiguous => RtError.AmbiguousMatch(message, context),
+            _ => new RtError(RtErrorKind.InvalidInput, message, context)
+        };
     }
 }

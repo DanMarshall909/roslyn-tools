@@ -17,7 +17,7 @@ internal sealed record FindPatternResult(IReadOnlyList<PatternMatch> Matches);
 
 /// <summary>Shared structural-pattern operation used by CLI, daemon, and MCP adapters.</summary>
 internal sealed class FindPatternOperation(IWorkspaceSessionFactory sessionFactory)
-    : ICommandApplicationPort, IRtService
+    : LegacyCommandApplicationPort, IRtService
 {
     private static readonly JsonSerializerOptions ErrorSerializerOptions = new()
     {
@@ -27,8 +27,9 @@ internal sealed class FindPatternOperation(IWorkspaceSessionFactory sessionFacto
 
     private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
 
-    public string CommandName => "find_pattern";
-    public Type RequestType => typeof(FindPatternRequest);
+    public override string CommandName => "find_pattern";
+    public override Type RequestType => typeof(FindPatternRequest);
+    public override Type ResponseType => typeof(FindPatternResult);
 
     internal async Task<Result<FindPatternResult, RtError>> ExecuteAsync(
         FindPatternRequest request,
@@ -74,7 +75,7 @@ internal sealed class FindPatternOperation(IWorkspaceSessionFactory sessionFacto
         }
     }
 
-    async Task<CommandPortResult> ICommandApplicationPort.InvokeAsync(
+    protected override async Task<CommandPortResult> InvokeLegacyAsync(
         object request,
         CancellationToken cancellationToken)
     {
@@ -85,6 +86,7 @@ internal sealed class FindPatternOperation(IWorkspaceSessionFactory sessionFacto
         return result.Match(
             CommandPortResult.Success,
             error => CommandPortResult.Failure(
+                error,
                 JsonSerializer.Serialize(error, ErrorSerializerOptions)));
     }
 

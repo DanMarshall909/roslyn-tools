@@ -21,7 +21,7 @@ internal sealed record FindImplementationsResult(
 
 /// <summary>Shared find-implementations operation used by host adapters.</summary>
 internal sealed class FindImplementationsOperation
-    : CommandApplicationPort<FindImplementationsRequest, FindImplementationsResult>, IRtService
+    : LegacyCommandApplicationPort<FindImplementationsRequest, FindImplementationsResult>, IRtService
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly FindImplementationsService _findImplementations;

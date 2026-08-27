@@ -27,7 +27,8 @@ internal sealed record ApplicationCommandDescriptor(
     bool McpVisible,
     CommandSafetyPolicy Safety,
     bool Structured,
-    ICommandApplicationPort? Port);
+    ICommandApplicationPort? Port,
+    ApplicationCommandDefinition? Definition = null);
 
 /// <summary>
 ///     Projects the reflection-discovered CLI catalog and explicit meta-command leaves into
@@ -48,26 +49,35 @@ internal sealed class CommandDescriptorRegistry
         IGitClient git)
     {
         var portsByName = ports.ToDictionary(
-            port => NormalizeToolName(port.CommandName),
+            port => port.Definition.Name,
             StringComparer.Ordinal);
         var descriptors = App.Commands.Select(entry =>
         {
             var toolName = NormalizeToolName(entry.Info.Name);
             portsByName.TryGetValue(toolName, out var port);
+            var applicationDefinition = port is null or ILegacyCommandApplicationPort
+                ? null
+                : port.Definition;
             var daemonDefinition = DaemonOwnedCommands.All.SingleOrDefault(
                 definition => string.Equals(definition.Name, toolName, StringComparison.Ordinal));
+            var info = applicationDefinition?.Info ?? entry.Info;
             return new ApplicationCommandDescriptor(
-                [entry.Info.Category, entry.Info.Name],
-                toolName,
-                entry.Build().Description ?? entry.Info.WhenToUse,
-                entry.Info.WhenToUse,
+                [info.Category, info.Name],
+                applicationDefinition?.Name ?? toolName,
+                applicationDefinition?.Info.WhenToUse
+                ?? entry.Build().Description
+                ?? entry.Info.WhenToUse,
+                info.WhenToUse,
                 entry.Build,
-                McpVisible: true,
-                ToDescriptorSafety(daemonDefinition?.Safety, entry.Info.Mutates),
-                entry.Info.JsonOutput
-                || entry.Info.SupportedFormats?.Contains(OutputFormat.Json) == true
+                applicationDefinition?.McpVisible ?? true,
+                ToDescriptorSafety(
+                    applicationDefinition?.Safety ?? daemonDefinition?.Safety,
+                    info.Mutates),
+                info.JsonOutput
+                || info.SupportedFormats?.Contains(OutputFormat.Json) == true
                 || port is not null,
-                port);
+                port,
+                applicationDefinition);
         }).ToList();
 
         descriptors.Add(new ApplicationCommandDescriptor(

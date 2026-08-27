@@ -18,7 +18,7 @@ internal sealed record DebugRequest(
 /// Shared trace-analysis operation. It returns the typed report or an actionable routine
 /// error; hosts own binding, rendering, and exit-code projection.
 /// </summary>
-internal sealed class DebugOperation : ICommandApplicationPort, IRtService
+internal sealed class DebugOperation : LegacyCommandApplicationPort, IRtService
 {
     private static readonly JsonSerializerOptions ErrorSerializerOptions = new()
     {
@@ -35,8 +35,9 @@ internal sealed class DebugOperation : ICommandApplicationPort, IRtService
         bool,
         Result<DebugReport, RtError>> _analyze = DebugTraceAnalyzerService.Analyze;
 
-    public string CommandName => "debug";
-    public Type RequestType => typeof(DebugRequest);
+    public override string CommandName => "debug";
+    public override Type RequestType => typeof(DebugRequest);
+    public override Type ResponseType => typeof(DebugReport);
 
     internal Task<Result<DebugReport, RtError>> ExecuteAsync(
         DebugRequest request,
@@ -54,7 +55,7 @@ internal sealed class DebugOperation : ICommandApplicationPort, IRtService
             request.BreakOnly));
     }
 
-    async Task<CommandPortResult> ICommandApplicationPort.InvokeAsync(
+    protected override async Task<CommandPortResult> InvokeLegacyAsync(
         object request,
         CancellationToken cancellationToken)
     {
@@ -64,6 +65,8 @@ internal sealed class DebugOperation : ICommandApplicationPort, IRtService
         var result = await ExecuteAsync(typedRequest, cancellationToken);
         return result.Match(
             CommandPortResult.Success,
-            error => CommandPortResult.Failure(JsonSerializer.Serialize(error, ErrorSerializerOptions)));
+            error => CommandPortResult.Failure(
+                error,
+                JsonSerializer.Serialize(error, ErrorSerializerOptions)));
     }
 }

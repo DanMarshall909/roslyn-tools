@@ -119,7 +119,7 @@ public sealed class FindPatternHandlerTests
         response.Result.ShouldBeNull();
         response.Error.ShouldNotBeNull();
         response.Error.Code.ShouldBe(DaemonRpcErrorCodes.CommandFailed);
-        response.Error.Message.ShouldContain("InvalidInput");
+        response.Error.Kind.ShouldBe(RtErrorKind.InvalidInput);
         response.Error.Message.ShouldContain("line range");
     }
 

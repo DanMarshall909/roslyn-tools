@@ -12,7 +12,7 @@ internal sealed record FindRefsRequest(
 
 /// <summary>Shared find-references operation used by CLI and MCP.</summary>
 internal sealed class FindRefsOperation
-    : CommandApplicationPort<FindRefsRequest, FindRefsResult>, IRtService
+    : LegacyCommandApplicationPort<FindRefsRequest, FindRefsResult>, IRtService
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly FindRefsService _findRefs;

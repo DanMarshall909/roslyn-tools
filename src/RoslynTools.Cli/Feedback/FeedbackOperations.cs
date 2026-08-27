@@ -16,7 +16,7 @@ internal sealed record FeedbackAddRequest(
 internal sealed record FeedbackAddResult(string Id, string Status);
 
 internal sealed class FeedbackAddOperation
-    : CommandApplicationPort<FeedbackAddRequest, FeedbackAddResult>, IRtService
+    : LegacyCommandApplicationPort<FeedbackAddRequest, FeedbackAddResult>, IRtService
 {
     private readonly Func<string, string?, string?, string?, FeedbackEntry> _add;
 
@@ -54,7 +54,7 @@ internal sealed class FeedbackAddOperation
 internal sealed record FeedbackListRequest(string? Status = "pending");
 
 internal sealed class FeedbackListOperation
-    : CommandApplicationPort<FeedbackListRequest, List<FeedbackEntry>>, IRtService
+    : LegacyCommandApplicationPort<FeedbackListRequest, List<FeedbackEntry>>, IRtService
 {
     private readonly Func<string, List<FeedbackEntry>> _list;
 
@@ -90,7 +90,7 @@ internal sealed record FeedbackProcessResult(
     string Resolution);
 
 internal sealed class FeedbackProcessOperation
-    : CommandApplicationPort<FeedbackProcessRequest, FeedbackProcessResult>, IRtService
+    : LegacyCommandApplicationPort<FeedbackProcessRequest, FeedbackProcessResult>, IRtService
 {
     private readonly Func<string, string, FeedbackEntry> _process;
 
@@ -150,7 +150,7 @@ internal sealed record FeedbackReportResult(
     IReadOnlyList<FeedbackReportIssueCandidate> PossibleDuplicates);
 
 /// <summary>Promotes one local feedback entry to a GitHub issue through a typed port.</summary>
-internal sealed class FeedbackReportOperation : ICommandApplicationPort, IRtService
+internal sealed class FeedbackReportOperation : LegacyCommandApplicationPort, IRtService
 {
     private const int SearchLimit = 20;
     private const int MaxCandidates = 5;
@@ -174,8 +174,9 @@ internal sealed class FeedbackReportOperation : ICommandApplicationPort, IRtServ
         _markReported = markReported;
     }
 
-    public string CommandName => "feedback_report";
-    public Type RequestType => typeof(FeedbackReportRequest);
+    public override string CommandName => "feedback_report";
+    public override Type RequestType => typeof(FeedbackReportRequest);
+    public override Type ResponseType => typeof(FeedbackReportResult);
 
     internal async Task<Result<FeedbackReportResult, RtError>> ExecuteAsync(
         FeedbackReportRequest request,
@@ -235,7 +236,7 @@ internal sealed class FeedbackReportOperation : ICommandApplicationPort, IRtServ
         }
     }
 
-    async Task<CommandPortResult> ICommandApplicationPort.InvokeAsync(
+    protected override async Task<CommandPortResult> InvokeLegacyAsync(
         object request,
         CancellationToken cancellationToken)
     {
@@ -245,7 +246,7 @@ internal sealed class FeedbackReportOperation : ICommandApplicationPort, IRtServ
         var result = await ExecuteAsync(typedRequest, cancellationToken);
         return result.Match(
             CommandPortResult.Success,
-            error => CommandPortResult.Failure(error.Message));
+            error => CommandPortResult.Failure(error, error.Message));
     }
 
     private async Task<FeedbackReportResult> AttachAsync(

@@ -275,7 +275,7 @@ public sealed class SemanticDiffHandlerTests
             var content = result.Value is JsonElement json
                 ? json.GetRawText()
                 : JsonSerializer.Serialize(result.Value);
-            return new ToolResult(result.IsError, result.Error ?? content);
+            return new ToolResult(result.IsError, result.Error?.Message ?? content);
         }
         catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
         {

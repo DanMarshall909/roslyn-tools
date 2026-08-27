@@ -18,17 +18,18 @@ internal sealed class OutlineOperation
         _outline = outline;
     }
 
-    public override string CommandName => "outline";
+    public override ApplicationCommandDefinition Definition => OutlineCommandDefinition.Definition;
 
-    public override async Task<List<object>> ExecuteAsync(
+    public override async Task<Result<List<object>, RtError>> ExecuteAsync(
         OutlineRequest request,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         if (request.Target is null && request.Regex is null)
-            throw new ArgumentException(
-                "Specify a target (file, directory, glob, or namespace) or regex pattern.");
+            return Result<List<object>, RtError>.Err(new RtError(
+                RtErrorKind.InvalidInput,
+                "Specify a target (file, directory, glob, or namespace) or regex pattern."));
 
         var (workspace, solution) =
             await _sessionFactory.LoadWorkspaceAsync(request.Solution);
@@ -37,49 +38,49 @@ internal sealed class OutlineOperation
             cancellationToken.ThrowIfCancellationRequested();
 
             if (request.Regex is not null)
-                return await _outline.OutlineRegexAsync(
+                return Result<List<object>, RtError>.Ok(await _outline.OutlineRegexAsync(
                     solution,
                     request.Regex,
                     request.Summary,
-                    request.WithLocations);
+                    request.WithLocations));
 
             var target = request.Target!;
             if (target.EndsWith(".*", StringComparison.Ordinal)
                 && !target.Contains('/')
                 && !target.Contains('\\'))
-                return await _outline.OutlineNamespaceAsync(
+                return Result<List<object>, RtError>.Ok(await _outline.OutlineNamespaceAsync(
                     solution,
                     target,
                     request.Summary,
-                    request.WithLocations);
+                    request.WithLocations));
 
             if (target.Contains('*') || target.Contains('?'))
-                return await _outline.OutlineGlobAsync(
+                return Result<List<object>, RtError>.Ok(await _outline.OutlineGlobAsync(
                     solution,
                     target,
                     request.Summary,
-                    request.WithLocations);
+                    request.WithLocations));
 
             if (Directory.Exists(target))
-                return await _outline.OutlineDirectoryAsync(
+                return Result<List<object>, RtError>.Ok(await _outline.OutlineDirectoryAsync(
                     solution,
                     target,
                     request.Summary,
-                    request.WithLocations);
+                    request.WithLocations));
 
             if (target.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)
                 || Path.Exists(target))
-                return await _outline.OutlineFileAsync(
+                return Result<List<object>, RtError>.Ok(await _outline.OutlineFileAsync(
                     solution,
                     target,
                     request.Summary,
-                    request.WithLocations);
+                    request.WithLocations));
 
-            return await _outline.OutlineNamespaceAsync(
+            return Result<List<object>, RtError>.Ok(await _outline.OutlineNamespaceAsync(
                 solution,
                 target,
                 request.Summary,
-                request.WithLocations);
+                request.WithLocations));
         }
     }
 }

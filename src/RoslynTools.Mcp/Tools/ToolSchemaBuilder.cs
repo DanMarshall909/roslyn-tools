@@ -2,6 +2,7 @@ using System.CommandLine;
 using System.Reflection;
 using System.Text.Json.Serialization;
 using RoslynTools.CommandDescriptors;
+using RoslynTools.Core;
 
 namespace RoslynTools.Mcp.Tools;
 
@@ -16,21 +17,23 @@ internal sealed class ToolSchemaBuilder(CommandDescriptorRegistry descriptors)
     {
         return _descriptors.All
             .Where(descriptor => descriptor.McpVisible)
-            .Select(descriptor =>
-            {
-                var cmd = descriptor.BuildCliCommand();
-                return new ToolDefinition(
-                    descriptor.ToolName,
-                    descriptor.WhenToUse,
-                    descriptor.Port is null
-                        ? BuildCliSchema(cmd)
-                        : BuildPortSchema(cmd, descriptor.Port.RequestType),
-                    descriptor.Structured
-                        ? JsonSchemaBuilder.StructuredOutput()
-                        : null);
-            })
+            .Select(Build)
             .ToList();
     }
+
+    internal static ToolDefinition Build(ApplicationCommandDescriptor descriptor) => new(
+        descriptor.ToolName,
+        descriptor.WhenToUse,
+        descriptor.Definition is not null
+            ? BuildPortSchema(descriptor.Definition.RequestType)
+            : descriptor.Port is not null
+                ? BuildLegacyPortSchema(
+                    descriptor.BuildCliCommand(),
+                    descriptor.Port.RequestType)
+                : BuildCliSchema(descriptor.BuildCliCommand()),
+        descriptor.Structured
+            ? JsonSchemaBuilder.StructuredOutput()
+            : null);
 
     private static Dictionary<string, object> BuildCliSchema(Command cmd)
     {
@@ -62,7 +65,32 @@ internal sealed class ToolSchemaBuilder(CommandDescriptorRegistry descriptors)
             properties.Count > 0 ? properties : null);
     }
 
-    private static Dictionary<string, object> BuildPortSchema(
+    private static Dictionary<string, object> BuildPortSchema(Type requestType)
+    {
+        var properties = new Dictionary<string, Dictionary<string, object>>(
+            StringComparer.Ordinal);
+        var required = new List<string>();
+
+        foreach (var property in requestType.GetProperties(BindingFlags.Instance | BindingFlags.Public))
+        {
+            var name = property.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name
+                       ?? char.ToLowerInvariant(property.Name[0]) + property.Name[1..];
+            var schema = BuildPropertySchema(property.PropertyType);
+            var description = property.GetCustomAttribute<CommandPropertyDescriptionAttribute>();
+            if (description is not null)
+                schema["description"] = description.Description;
+            properties[name] = schema;
+
+            if (property.GetCustomAttribute<JsonRequiredAttribute>() is not null)
+                required.Add(name);
+        }
+
+        return JsonSchemaBuilder.Object(
+            required.Count > 0 ? [.. required] : null,
+            properties.Count > 0 ? properties : null);
+    }
+
+    private static Dictionary<string, object> BuildLegacyPortSchema(
         Command command,
         Type requestType)
     {

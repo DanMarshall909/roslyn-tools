@@ -20,15 +20,16 @@ internal sealed class SemanticDiffOperation(
     GitSemanticDiffSourceProvider gitSource,
     FileSemanticDiffSourceProvider fileSource,
     SemanticDiffService engine,
-    SemanticDiffTextRenderer renderer) : ICommandApplicationPort, IRtService
+    SemanticDiffTextRenderer renderer) : LegacyCommandApplicationPort, IRtService
 {
     private readonly GitSemanticDiffSourceProvider _gitSource = gitSource;
     private readonly FileSemanticDiffSourceProvider _fileSource = fileSource;
     private readonly SemanticDiffService _engine = engine;
     private readonly SemanticDiffTextRenderer _renderer = renderer;
 
-    public string CommandName => "semantic_diff";
-    public Type RequestType => typeof(SemanticDiffOperationRequest);
+    public override string CommandName => "semantic_diff";
+    public override Type RequestType => typeof(SemanticDiffOperationRequest);
+    public override Type ResponseType => typeof(JsonElement);
 
     internal Task<SemanticDiffOutput> ExecuteAsync(
         SemanticDiffOperationRequest request,
@@ -52,7 +53,7 @@ internal sealed class SemanticDiffOperation(
         return Task.FromResult(new SemanticDiffOutput(result.Deltas, text));
     }
 
-    async Task<CommandPortResult> ICommandApplicationPort.InvokeAsync(
+    protected override async Task<CommandPortResult> InvokeLegacyAsync(
         object request,
         CancellationToken cancellationToken)
     {

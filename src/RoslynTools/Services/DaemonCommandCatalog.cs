@@ -13,9 +13,6 @@ internal sealed record CommandExecutionResult(
     object? Data,
     IReadOnlyList<CommandFollowOn> SuggestedTools);
 
-/// <summary>One transport-neutral recommended next command.</summary>
-internal sealed record CommandFollowOn(string ToolName, string WhenToUse);
-
 /// <summary>
 ///     Application-owned command facts used by the daemon and projected by adapters. This contains
 ///     no command-line parser, MCP schema, or renderer concept.
@@ -169,10 +166,8 @@ internal static class DaemonOwnedCommands
 /// <summary>Canonical, transport-neutral definition for the first migrated command.</summary>
 internal static class OutlineCommandDefinition
 {
-    internal const string Name = "outline";
-
-    internal static RtCommandInfo Info { get; } = new(
-        Name,
+    private static RtCommandInfo Metadata { get; } = new(
+        "outline",
         false,
         true,
         "inspect",
@@ -189,14 +184,31 @@ internal static class OutlineCommandDefinition
             "rt inspect outline src/RoslynTools/Core/WorkspaceLoader.cs --solution RoslynTools.slnx --with-locations"
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json]);
+
+    internal static ApplicationCommandDefinition Definition { get; } = new(
+        Metadata,
+        typeof(OutlineRequest),
+        typeof(List<object>),
+        mcpVisible: true,
+        CommandSafety.ReadOnly,
+        CommandExecutionPlacement.DaemonPreferred,
+        [
+            new CommandFollowOn(
+                "describe",
+                "Use after outline when a returned type or member needs a focused signature view."),
+            new CommandFollowOn(
+                "find_refs",
+                "Use after outline when you need to trace references to a symbol it identified.")
+        ]);
+
+    internal static string Name => Definition.Name;
+    internal static RtCommandInfo Info => Definition.Info;
 }
 
 /// <summary>Canonical daemon metadata for constructor dependency injection.</summary>
 internal static class AddDependencyCommandDefinition
 {
-    internal const string Name = "add_dependency";
-
-    internal static RtCommandInfo Info { get; } = new(
+    private static RtCommandInfo Metadata { get; } = new(
         "add-dependency",
         true,
         false,
@@ -210,6 +222,25 @@ internal static class AddDependencyCommandDefinition
             "rt refactor ad --type OrderController --dependency IPaymentGateway --field _payment --dry-run",
             "rt refactor add-dependency --type ReportGenerator --dependency IRepository --solution RoslynTools.slnx"
         ]);
+
+    internal static ApplicationCommandDefinition Definition { get; } = new(
+        Metadata,
+        typeof(AddDependencyRequest),
+        typeof(MutationExecutionResult<AddDependencyResult>),
+        mcpVisible: true,
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.DaemonPreferred,
+        [
+            new CommandFollowOn(
+                "describe",
+                "Use after the preview or change to review the target constructor and injected field."),
+            new CommandFollowOn(
+                "find_refs",
+                "Use after the change to find call sites that can now use the injected dependency.")
+        ]);
+
+    internal static string Name => Definition.Name;
+    internal static RtCommandInfo Info => Definition.Info;
 }
 
 /// <summary>Canonical daemon metadata for sealing a class with no derived types.</summary>

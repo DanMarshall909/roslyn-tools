@@ -149,6 +149,41 @@ public sealed class DaemonCommandDispatcherTests
     }
 
     [Fact]
+    public async Task Typed_port_rejects_the_wrong_request_as_a_structured_boundary_error()
+    {
+        ICommandApplicationPort port = new EchoPort();
+
+        var result = await port.InvokeAsync(new object());
+
+        result.IsError.ShouldBeTrue();
+        result.Value.ShouldBeNull();
+        object error = result.Error.ShouldNotBeNull();
+        var structuredError = error.ShouldBeOfType<RtError>();
+        structuredError.Kind.ShouldBe(RtErrorKind.InvalidInput);
+        structuredError.Message.ShouldContain(typeof(EchoRequest).FullName!);
+    }
+
+    [Fact]
+    public async Task Legacy_ports_preserve_catalogued_follow_on_tools_until_they_migrate()
+    {
+        var dispatcher = new DaemonCommandDispatcher(
+            [new LegacyEchoPort("make-sealed")]);
+        using var payload = JsonDocument.Parse("""{"value":"hello"}""");
+
+        var response = await dispatcher.ExecuteAsync(new DaemonRpcRequest(
+            DaemonRpcProtocol.CurrentVersion,
+            "legacy-follow-ons",
+            DaemonRpcProtocol.ExecuteCommandMethod,
+            MakeSealedCommandDefinition.Name,
+            payload.RootElement.Clone()));
+
+        response.Error.ShouldBeNull();
+        response.Result!.Value.GetProperty("suggestedTools").GetArrayLength().ShouldBe(2);
+        response.Result.Value.GetProperty("suggestedTools")[0]
+            .GetProperty("toolName").GetString().ShouldBe("describe");
+    }
+
+    [Fact]
     public void Mutation_definitions_publish_their_typed_transport_contracts()
     {
         var addDependency = DaemonOwnedCommands.All
@@ -178,14 +213,15 @@ public sealed class DaemonCommandDispatcherTests
     {
         public int InvocationCount { get; private set; }
 
-        public override string CommandName => commandName;
+        public override ApplicationCommandDefinition Definition { get; } = CreateDefinition(commandName);
 
-        public override Task<EchoResponse> ExecuteAsync(
+        public override Task<Result<EchoResponse, RtError>> ExecuteAsync(
             EchoRequest request,
             CancellationToken cancellationToken = default)
         {
             InvocationCount++;
-            return Task.FromResult(new EchoResponse(request.Value.ToUpperInvariant()));
+            return Task.FromResult(Result<EchoResponse, RtError>.Ok(
+                new EchoResponse(request.Value.ToUpperInvariant())));
         }
     }
 
@@ -194,27 +230,59 @@ public sealed class DaemonCommandDispatcherTests
     {
         public string? ObservedWorkingDirectory { get; private set; }
 
-        public override string CommandName => "working-directory";
+        public override ApplicationCommandDefinition Definition { get; } = CreateDefinition("working-directory");
 
-        public override Task<EchoResponse> ExecuteAsync(
+        public override Task<Result<EchoResponse, RtError>> ExecuteAsync(
             EchoRequest request,
             CancellationToken cancellationToken = default)
         {
             ObservedWorkingDirectory = Directory.GetCurrentDirectory();
-            return Task.FromResult(new EchoResponse(ObservedWorkingDirectory));
+            return Task.FromResult(Result<EchoResponse, RtError>.Ok(
+                new EchoResponse(ObservedWorkingDirectory)));
         }
     }
 
     private sealed class IoFailurePort
         : CommandApplicationPort<EchoRequest, EchoResponse>
     {
-        public override string CommandName => "io-failure";
+        public override ApplicationCommandDefinition Definition { get; } = CreateDefinition("io-failure");
 
-        public override Task<EchoResponse> ExecuteAsync(
+        public override Task<Result<EchoResponse, RtError>> ExecuteAsync(
             EchoRequest request,
             CancellationToken cancellationToken = default)
         {
             throw new FileNotFoundException("missing solution");
         }
     }
+
+    private sealed class LegacyEchoPort(string commandName)
+        : LegacyCommandApplicationPort<EchoRequest, EchoResponse>
+    {
+        public override string CommandName => commandName;
+
+        public override Task<EchoResponse> ExecuteAsync(
+            EchoRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new EchoResponse(request.Value.ToUpperInvariant()));
+    }
+
+    private static ApplicationCommandDefinition CreateDefinition(string commandName) => new(
+        new RtCommandInfo(
+            commandName,
+            false,
+            true,
+            "test",
+            "Test command.",
+            []),
+        typeof(EchoRequest),
+        typeof(EchoResponse),
+        mcpVisible: false,
+        CommandSafety.ReadOnly,
+        CommandExecutionPlacement.InProcess,
+        commandName.Replace('-', '_') is "outline" or "add_dependency"
+            ? [
+                new CommandFollowOn("describe", "Inspect the result."),
+                new CommandFollowOn("find_refs", "Find references.")
+            ]
+            : []);
 }

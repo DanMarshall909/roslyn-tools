@@ -20,7 +20,7 @@ internal sealed record FindMagicStringsResult(
 /// bind their inputs and render this typed result.
 /// </summary>
 internal sealed class FindMagicStringsOperation
-    : CommandApplicationPort<FindMagicStringsRequest, FindMagicStringsResult>, IRtService
+    : LegacyCommandApplicationPort<FindMagicStringsRequest, FindMagicStringsResult>, IRtService
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly MagicStringService _magicStrings;

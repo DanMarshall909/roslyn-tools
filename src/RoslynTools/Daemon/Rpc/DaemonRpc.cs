@@ -16,7 +16,12 @@ internal sealed record DaemonRpcRequest(
     string? WorkingDirectory = null);
 
 /// <summary>Transport-neutral error returned by the daemon RPC boundary.</summary>
-internal sealed record DaemonRpcError(string Code, string Message);
+internal sealed record DaemonRpcError(
+    string Code,
+    string Message,
+    RtErrorKind? Kind = null,
+    IReadOnlyDictionary<string, string>? Context = null,
+    string? LegacyErrorPayload = null);
 
 /// <summary>Terminal response for one typed daemon request.</summary>
 internal sealed record DaemonRpcResponse(
@@ -143,7 +148,7 @@ internal sealed class DaemonCommandDispatcher
 
     internal DaemonCommandDispatcher(IEnumerable<ICommandApplicationPort> ports)
     {
-        _ports = ports.ToDictionary(port => NormalizeCommandName(port.CommandName), StringComparer.Ordinal);
+        _ports = ports.ToDictionary(port => port.Definition.Name, StringComparer.Ordinal);
     }
 
     internal async Task<DaemonRpcResponse> ExecuteAsync(
@@ -193,11 +198,18 @@ internal sealed class DaemonCommandDispatcher
             }
 
             if (result.IsError)
-                return Failure(request, DaemonRpcErrorCodes.CommandFailed, result.Error ?? "Command failed.");
+                return result.Error is null
+                    ? Failure(request, DaemonRpcErrorCodes.CommandFailed, "Command failed.")
+                    : Failure(
+                        request,
+                        DaemonRpcErrorCodes.CommandFailed,
+                        result.Error,
+                        result.LegacyErrorPayload);
 
-            var execution = new CommandExecutionResult(
-                result.Value,
-                DaemonOwnedCommands.SuggestedToolsFor(request.CommandName));
+            var suggestedTools = port is ILegacyCommandApplicationPort
+                ? DaemonOwnedCommands.SuggestedToolsFor(port.Definition.Name)
+                : port.Definition.SuggestedTools;
+            var execution = new CommandExecutionResult(result.Value, suggestedTools);
             return new DaemonRpcResponse(
                 DaemonRpcProtocol.CurrentVersion,
                 request.RequestId,
@@ -215,6 +227,21 @@ internal sealed class DaemonCommandDispatcher
 
     private static DaemonRpcResponse Failure(DaemonRpcRequest request, string code, string message) =>
         new(DaemonRpcProtocol.CurrentVersion, request.RequestId, Error: new DaemonRpcError(code, message));
+
+    private static DaemonRpcResponse Failure(
+        DaemonRpcRequest request,
+        string code,
+        RtError error,
+        string? legacyErrorPayload = null) =>
+        new(
+            DaemonRpcProtocol.CurrentVersion,
+            request.RequestId,
+            Error: new DaemonRpcError(
+                code,
+                legacyErrorPayload ?? error.Message,
+                error.Kind,
+                error.Context,
+                legacyErrorPayload));
 
     private static string NormalizeCommandName(string commandName) =>
         commandName.Replace('-', '_');

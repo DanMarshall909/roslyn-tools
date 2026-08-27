@@ -15,7 +15,7 @@ internal sealed record FindCallersRequest(
 internal sealed class FindCallersOperation(
     IWorkspaceSessionFactory sessionFactory,
     FindCallersService findCallers)
-    : ICommandApplicationPort, IRtService
+    : LegacyCommandApplicationPort, IRtService
 {
     private static readonly JsonSerializerOptions ErrorSerializerOptions = new()
     {
@@ -26,8 +26,9 @@ internal sealed class FindCallersOperation(
     private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
     private readonly FindCallersService _findCallers = findCallers;
 
-    public string CommandName => "find_callers";
-    public Type RequestType => typeof(FindCallersRequest);
+    public override string CommandName => "find_callers";
+    public override Type RequestType => typeof(FindCallersRequest);
+    public override Type ResponseType => typeof(FindCallersResult);
 
     internal async Task<Result<FindCallersResult, RtError>> ExecuteAsync(
         FindCallersRequest request,
@@ -39,7 +40,7 @@ internal sealed class FindCallersOperation(
         return await _findCallers.FindAsync(solution, request.Symbol, request.IncludeTests);
     }
 
-    async Task<CommandPortResult> ICommandApplicationPort.InvokeAsync(
+    protected override async Task<CommandPortResult> InvokeLegacyAsync(
         object request,
         CancellationToken cancellationToken)
     {
@@ -50,6 +51,7 @@ internal sealed class FindCallersOperation(
         return result.Match(
             CommandPortResult.Success,
             error => CommandPortResult.Failure(
+                error,
                 JsonSerializer.Serialize(error, ErrorSerializerOptions)));
     }
 

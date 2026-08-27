@@ -9,7 +9,7 @@ internal sealed record SuggestOperationRequest(
 
 /// <summary>Shared catalog-suggestion operation used by CLI and MCP.</summary>
 internal sealed class SuggestOperation
-    : CommandApplicationPort<SuggestOperationRequest, SuggestResponse>, IRtService
+    : LegacyCommandApplicationPort<SuggestOperationRequest, SuggestResponse>, IRtService
 {
     private readonly SuggestService _suggest;
 

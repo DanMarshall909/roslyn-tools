@@ -27,7 +27,7 @@ internal sealed record CircularDepsAnalysisResult(IReadOnlyList<CircularDependen
 ///     daemon, and MCP adapters use the same solution-loading and scope behavior.
 /// </summary>
 internal sealed class CircularDepsOperation
-    : CommandApplicationPort<CircularDepsRequest, CircularDepsAnalysisResult>, IRtService
+    : LegacyCommandApplicationPort<CircularDepsRequest, CircularDepsAnalysisResult>, IRtService
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly CircularDepsService _circularDeps;

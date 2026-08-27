@@ -67,10 +67,52 @@ public sealed class CommandDescriptorContracts
 
         descriptor.WhenToUse.ShouldBe(definition.Info.WhenToUse);
         descriptor.Port.ShouldNotBeNull();
+        descriptor.Definition.ShouldBe(OutlineCommandDefinition.Definition);
         descriptor.Port.RequestType.ShouldBe(definition.RequestType);
+        descriptor.Port.ResponseType.ShouldBe(definition.ResponseType);
         definition.Safety.ShouldBe(CommandSafety.ReadOnly);
         descriptor.Safety.ShouldBe(CommandSafetyPolicy.ReadOnly);
         DaemonOwnedCommands.Contains(descriptor.ToolName).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void migrated_port_schemas_use_request_metadata_without_instantiating_a_cli_command()
+    {
+        var descriptor = new ApplicationCommandDescriptor(
+            ["refactor", "add-dependency"],
+            AddDependencyCommandDefinition.Name,
+            "Inject a dependency.",
+            AddDependencyCommandDefinition.Info.WhenToUse,
+            () => throw new InvalidOperationException("The CLI builder must not run."),
+            McpVisible: true,
+            CommandSafetyPolicy.DryRunByDefault,
+            Structured: true,
+            Port: null,
+            AddDependencyCommandDefinition.Definition);
+
+        var tool = ToolSchemaBuilder.Build(descriptor);
+
+        var properties = (Dictionary<string, Dictionary<string, object>>)tool.inputSchema["properties"];
+        var required = (string[])tool.inputSchema["required"];
+        required.ShouldBe(["type", "dependency"], ignoreOrder: true);
+        properties.Keys.ShouldContain("dry-run");
+        properties["type"]["description"].ShouldBe("Target class name");
+        properties["dependency"]["description"].ShouldBe(
+            "Dependency type to inject (e.g. IEmailService)");
+    }
+
+    [Fact]
+    public void outline_schema_uses_host_neutral_property_descriptions()
+    {
+        using var provider = McpTestHost.CreateProvider();
+        var tool = provider.GetRequiredService<ToolSchemaBuilder>().Build()
+            .Single(candidate => candidate.name == OutlineCommandDefinition.Name);
+
+        var properties = (Dictionary<string, Dictionary<string, object>>)tool.inputSchema["properties"];
+        properties["target"]["description"].ShouldBe(
+            "File path, directory, glob pattern, or namespace to outline");
+        properties["withLocations"]["description"].ShouldBe(
+            "Include grouped members with per-member line ranges");
     }
 
     [Fact]

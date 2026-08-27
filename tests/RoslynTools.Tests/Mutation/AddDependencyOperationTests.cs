@@ -53,8 +53,8 @@ public sealed class AddDependencyOperationTests
             new AddDependencyService(NullLogger<AddDependencyService>.Instance, writer),
             writer);
 
-        var result = await operation.ExecuteAsync(
-            new AddDependencyRequest("AgentService", "IEmailService"));
+        var result = (await operation.ExecuteAsync(
+            new AddDependencyRequest("AgentService", "IEmailService"))).Unwrap();
 
         result.Status.ShouldBe(MutationExecutionStatus.DryRun);
         result.Value!.Outcome.ShouldBe(AddDependencyOutcome.Applied);
@@ -82,7 +82,8 @@ public sealed class AddDependencyOperationTests
 
         result.IsError.ShouldBeTrue();
         result.Value.ShouldBeNull();
-        result.Error!.ShouldContain("ambiguous", Case.Insensitive);
+        result.Error!.Kind.ShouldBe(RtErrorKind.AmbiguousMatch);
+        result.Error.Message.ShouldContain("ambiguous", Case.Insensitive);
     }
 
     [Fact]
@@ -102,7 +103,8 @@ public sealed class AddDependencyOperationTests
 
         result.IsError.ShouldBeTrue();
         result.Value.ShouldBeNull();
-        result.Error!.ShouldContain("was not found", Case.Insensitive);
+        result.Error!.Kind.ShouldBe(RtErrorKind.NotFound);
+        result.Error.Message.ShouldContain("was not found", Case.Insensitive);
         writer.Solution.ShouldBeNull();
     }
 
@@ -130,7 +132,8 @@ public sealed class AddDependencyOperationTests
 
         result.IsError.ShouldBeTrue();
         result.Value.ShouldBeNull();
-        result.Error!.ShouldContain("expression-bodied", Case.Insensitive);
+        result.Error!.Kind.ShouldBe(RtErrorKind.InvalidInput);
+        result.Error.Message.ShouldContain("expression-bodied", Case.Insensitive);
         writer.Solution.ShouldBeNull();
     }
 
@@ -151,7 +154,8 @@ public sealed class AddDependencyOperationTests
 
         result.IsError.ShouldBeTrue();
         result.Value.ShouldBeNull();
-        result.Error!.ShouldContain("dependency", Case.Insensitive);
+        result.Error!.Kind.ShouldBe(RtErrorKind.InvalidInput);
+        result.Error.Message.ShouldContain("dependency", Case.Insensitive);
         writer.Solution.ShouldBeNull();
     }
 

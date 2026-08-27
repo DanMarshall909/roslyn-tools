@@ -183,7 +183,7 @@ internal sealed record LanguageFeaturesResult(
 
 /// <summary>Shared typed application operation for CLI, daemon, and MCP adapters.</summary>
 internal sealed class LanguageFeaturesOperation
-    : CommandApplicationPort<LanguageFeaturesRequest, LanguageFeaturesResult>, IRtService
+    : LegacyCommandApplicationPort<LanguageFeaturesRequest, LanguageFeaturesResult>, IRtService
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly LanguageFeaturesAnalyzer _analyzer;

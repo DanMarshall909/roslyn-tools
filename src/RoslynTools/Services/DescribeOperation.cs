@@ -13,13 +13,14 @@ internal sealed record DescribeRequest(
 /// <summary>Shared describe operation used by CLI and descriptor-driven hosts.</summary>
 internal sealed class DescribeOperation(
     IWorkspaceSessionFactory sessionFactory,
-    InspectService inspect) : ICommandApplicationPort, IRtService
+    InspectService inspect) : LegacyCommandApplicationPort, IRtService
 {
     private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
     private readonly InspectService _inspect = inspect;
 
-    public string CommandName => "describe";
-    public Type RequestType => typeof(DescribeRequest);
+    public override string CommandName => "describe";
+    public override Type RequestType => typeof(DescribeRequest);
+    public override Type ResponseType => typeof(object);
 
     internal async Task<Result<object, RtError>> ExecuteAsync(
         DescribeRequest request,
@@ -44,7 +45,7 @@ internal sealed class DescribeOperation(
         });
     }
 
-    async Task<CommandPortResult> ICommandApplicationPort.InvokeAsync(
+    protected override async Task<CommandPortResult> InvokeLegacyAsync(
         object request,
         CancellationToken cancellationToken)
     {
@@ -54,6 +55,6 @@ internal sealed class DescribeOperation(
         var result = await ExecuteAsync(typedRequest, cancellationToken);
         return result.Match(
             CommandPortResult.Success,
-            error => CommandPortResult.Failure(error.Message));
+            error => CommandPortResult.Failure(error, error.Message));
     }
 }

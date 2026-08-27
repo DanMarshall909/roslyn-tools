@@ -87,10 +87,9 @@ public sealed class FindCallersOperationTests
 
             result.IsError.ShouldBeTrue();
             result.Value.ShouldBeNull();
-            using var error = JsonDocument.Parse(result.Error!);
-            error.RootElement.GetProperty("kind").GetString().ShouldBe("AmbiguousMatch");
-            error.RootElement.GetProperty("context").GetProperty("candidates")
-                .GetString()!.ShouldContain("App.First.Work()", Case.Sensitive);
+            result.Error!.Kind.ShouldBe(RtErrorKind.AmbiguousMatch);
+            result.Error.Context!["candidates"]
+                .ShouldContain("App.First.Work()", Case.Sensitive);
         }
     }
 

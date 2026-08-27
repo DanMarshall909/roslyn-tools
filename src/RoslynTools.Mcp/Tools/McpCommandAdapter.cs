@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using RoslynTools.CommandDescriptors;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
@@ -41,7 +42,8 @@ internal sealed class McpCommandAdapter(
         var safeArguments = ApplySafetyPolicy(descriptor, arguments);
 
         if (descriptor.Port is not null
-            && DaemonOwnedCommands.Contains(toolName))
+            && (descriptor.Definition?.ExecutionPlacement == CommandExecutionPlacement.DaemonPreferred
+                || descriptor.Definition is null && DaemonOwnedCommands.Contains(toolName)))
         {
             var remote = await _daemonRpc.TryExecuteAsync(toolName, safeArguments, cancellationToken);
             if (remote is not null)
@@ -78,7 +80,12 @@ internal sealed class McpCommandAdapter(
 
             var result = await descriptor.Port.InvokeAsync(request, cancellationToken);
             if (result.IsError)
-                return new ToolResult(true, result.Error ?? "Command failed.");
+                return new ToolResult(
+                    true,
+                    result.LegacyErrorPayload
+                    ?? (result.Error is null
+                        ? "Command failed."
+                        : SerializeError(result.Error)));
 
             var json = JsonSerializer.Serialize(
                 result.Value,
@@ -98,7 +105,15 @@ internal sealed class McpCommandAdapter(
     private static ToolResult ToToolResult(DaemonRpcResponse response)
     {
         if (response.Error is not null)
-            return new ToolResult(true, response.Error.Message);
+            return new ToolResult(
+                true,
+                response.Error.LegacyErrorPayload
+                ?? (response.Error.Kind is null
+                    ? response.Error.Message
+                    : SerializeError(new RtError(
+                        response.Error.Kind.Value,
+                        response.Error.Message,
+                        response.Error.Context))));
 
         return new ToolResult(false, response.Result?.GetRawText() ?? "null");
     }
@@ -109,6 +124,13 @@ internal sealed class McpCommandAdapter(
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
+    }
+
+    private static string SerializeError(RtError error)
+    {
+        var options = CreateResponseOptions();
+        options.Converters.Add(new JsonStringEnumConverter());
+        return JsonSerializer.Serialize(error, options);
     }
 
     internal static JsonElement ApplySafetyPolicy(

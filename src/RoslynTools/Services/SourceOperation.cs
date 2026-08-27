@@ -19,7 +19,7 @@ internal sealed record SourceDeclaration(
 
 /// <summary>Shared source operation used by host adapters.</summary>
 internal sealed class SourceOperation
-    : CommandApplicationPort<SourceRequest, IReadOnlyList<SourceDeclaration>>, IRtService
+    : LegacyCommandApplicationPort<SourceRequest, IReadOnlyList<SourceDeclaration>>, IRtService
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly InspectService _inspect;

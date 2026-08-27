@@ -1,3 +1,5 @@
+using RoslynTools.Core;
+
 namespace RoslynTools.Services;
 
 /// <summary>
@@ -11,8 +13,13 @@ namespace RoslynTools.Services;
 /// <param name="Summary">Compact mode: one entry per top-level type, no member detail.</param>
 /// <param name="WithLocations">Legacy verbose mode: grouped members with per-member line ranges.</param>
 internal sealed record OutlineRequest(
+    [property: CommandPropertyDescription("File path, directory, glob pattern, or namespace to outline")]
     string? Target = null,
+    [property: CommandPropertyDescription("Regex pattern matched against solution file paths")]
     string? Regex = null,
+    [property: CommandPropertyDescription("Path to the .sln/.slnx file")]
     string? Solution = null,
+    [property: CommandPropertyDescription("Compact mode: one entry per top-level type with no member detail")]
     bool Summary = false,
+    [property: CommandPropertyDescription("Include grouped members with per-member line ranges")]
     bool WithLocations = false);

@@ -14,7 +14,7 @@ internal sealed record RenameOperationRequest(
 
 /// <summary>Shared semantic rename operation used by CLI and MCP.</summary>
 internal sealed class RenameOperation
-    : CommandApplicationPort<RenameOperationRequest, RenameResult>, IRtService
+    : LegacyCommandApplicationPort<RenameOperationRequest, RenameResult>, IRtService
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly RenameService _rename;
