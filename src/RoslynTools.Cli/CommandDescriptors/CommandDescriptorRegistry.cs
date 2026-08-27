@@ -43,6 +43,7 @@ internal sealed class CommandDescriptorRegistry
         FeedbackAddOperation feedbackAdd,
         FeedbackListOperation feedbackList,
         FeedbackProcessOperation feedbackProcess,
+        FeedbackReportOperation feedbackReport,
         SuggestOperation suggest,
         IGitClient git)
     {
@@ -99,6 +100,16 @@ internal sealed class CommandDescriptorRegistry
             CommandSafetyPolicy.ReadOnly,
             Structured: true,
             feedbackProcess));
+        descriptors.Add(new ApplicationCommandDescriptor(
+            ["feedback", "report"],
+            "feedback_report",
+            "Review duplicate GitHub issues, then explicitly link feedback or create an issue.",
+            "Call this when a human explicitly asks to promote locally recorded rt feedback to GitHub — it previews by default and requires an explicit apply choice before changing GitHub.",
+            () => FeedbackCommand.BuildReport(feedbackReport),
+            McpVisible: true,
+            CommandSafetyPolicy.DryRunByDefault,
+            Structured: true,
+            feedbackReport));
         descriptors.Add(new ApplicationCommandDescriptor(
             ["suggest"],
             "suggest_command",

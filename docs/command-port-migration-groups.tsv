@@ -16,7 +16,7 @@ static-class-inventory	analyze	R1	convert	daemon-preferred	read-only
 describe	inspect	R0	reconcile	daemon-preferred	read-only
 find-callers	inspect	R0	reconcile	daemon-preferred	read-only
 find-impl	inspect	R0	reconcile	daemon-preferred	read-only
-find-pattern	inspect	R4	convert	daemon-preferred	read-only
+find-pattern	inspect	R4	complete	daemon-preferred	read-only
 find-refs	inspect	R0	reconcile	daemon-preferred	read-only
 find-undocumented	inspect	R1	convert	daemon-preferred	read-only
 find-unused	inspect	R1	convert	daemon-preferred	read-only

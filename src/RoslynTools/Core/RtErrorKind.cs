@@ -17,5 +17,8 @@ internal enum RtErrorKind
     AmbiguousMatch,
 
     /// <summary>The solution/workspace failed to load (missing or malformed).</summary>
-    WorkspaceLoadFailure
+    WorkspaceLoadFailure,
+
+    /// <summary>An external executable or service was unavailable or rejected the operation.</summary>
+    ExternalToolFailure
 }

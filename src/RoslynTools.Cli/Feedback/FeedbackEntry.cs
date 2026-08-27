@@ -15,6 +15,10 @@ internal sealed class FeedbackEntry
     public string? ProcessedAt { get; set; }
     public string? Resolution { get; set; }
 
+    // Populated once `rt feedback report` files or links the entry on GitHub.
+    public int? GitHubIssueNumber { get; set; }
+    public string? GitHubIssueUrl { get; set; }
+
     // Diagnostic context — populated for exception entries to support fix-it triage.
     public string? Cwd { get; set; }
     public string? RtVersion { get; set; }

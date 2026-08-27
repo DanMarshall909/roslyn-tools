@@ -22,7 +22,7 @@ namespace RoslynTools.Tests.Mcp.Architecture;
 ///     <para>
 ///         Scoped to commands with a typed <see cref="ApplicationCommandDescriptor.Port" />
 ///         (find_refs, outline, describe, rename, semantic_diff, suggest_command, and the
-///         feedback trio) — the commands that received bespoke MCP treatment, the modern
+///         feedback operations) — the commands that received bespoke MCP treatment, the modern
 ///         equivalent of what used to be a curated set of native <c>IMcpHandler</c>
 ///         instances before the CLI/MCP descriptor unification. Every other command
 ///         replays generic CLI-argument schemas and is out of scope here.
@@ -72,6 +72,7 @@ public sealed class CommandDescriptorTriggerContract
         ["list_imports"] = "Read",
         ["find_callers"] = "Grep",
         ["find_impl"] = "Grep",
+        ["find_pattern"] = "Grep",
         ["debug"] = "Read",
         ["add_dependency"] = "Edit",
         ["make_sealed"] = "Edit",
@@ -89,6 +90,7 @@ public sealed class CommandDescriptorTriggerContract
         "feedback_add", // rt's own dogfood-feedback loop; no built-in tracks it.
         "feedback_list",
         "feedback_process",
+        "feedback_report", // Explicit bridge from local dogfood feedback to GitHub issues.
         "circular_deps", // Specialized graph analysis; no built-in has solution-wide namespace semantics.
         "find_magic_strings", // Specialized literal grouping; no built-in performs this semantic filter.
         "language_features" // Catalog-backed syntax/semantic density has no built-in solution-wide equivalent.

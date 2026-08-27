@@ -7,6 +7,7 @@ using RoslynTools.Daemon;
 using RoslynTools.Daemon.Rpc;
 using RoslynTools.Feedback;
 using RoslynTools.Services;
+using RoslynTools.Services.GitHub;
 using RoslynTools.Services.SemanticDiff;
 using RoslynTools.Services.SemanticDiff.Git;
 using RoslynTools.Services.Suggest;
@@ -39,12 +40,16 @@ internal static class Bootstrap
         services.AddSingleton<FeedbackAddOperation>();
         services.AddSingleton<FeedbackListOperation>();
         services.AddSingleton<FeedbackProcessOperation>();
+        services.AddSingleton<IGitHubIssueClient, GitHubIssueClient>();
+        services.AddSingleton<FeedbackReportOperation>();
         services.AddSingleton<ICommandApplicationPort>(
             sp => sp.GetRequiredService<FeedbackAddOperation>());
         services.AddSingleton<ICommandApplicationPort>(
             sp => sp.GetRequiredService<FeedbackListOperation>());
         services.AddSingleton<ICommandApplicationPort>(
             sp => sp.GetRequiredService<FeedbackProcessOperation>());
+        services.AddSingleton<ICommandApplicationPort>(
+            sp => sp.GetRequiredService<FeedbackReportOperation>());
         services.AddSingleton<CommandDescriptorRegistry>();
 
         // GitSemanticDiffSourceProvider (an IRtService, so auto-scanned below) depends on

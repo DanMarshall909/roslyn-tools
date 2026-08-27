@@ -45,6 +45,8 @@ public sealed class CommandDescriptorContracts
             .Path.ShouldBe(["feedback", "list"]);
         descriptors.Single(descriptor => descriptor.ToolName == "feedback_process")
             .Path.ShouldBe(["feedback", "process"]);
+        descriptors.Single(descriptor => descriptor.ToolName == "feedback_report")
+            .Path.ShouldBe(["feedback", "report"]);
 
         descriptors.Select(descriptor => descriptor.ToolName)
             .ShouldNotContain("daemon");

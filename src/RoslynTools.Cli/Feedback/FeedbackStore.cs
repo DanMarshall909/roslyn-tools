@@ -102,6 +102,36 @@ internal static class FeedbackStore
         return entry;
     }
 
+    internal static FeedbackEntry? TryGetById(string id) =>
+        LoadAll().SingleOrDefault(entry =>
+            string.Equals(entry.Id, id, StringComparison.OrdinalIgnoreCase));
+
+    internal static FeedbackEntry MarkReported(string id, int issueNumber, string issueUrl)
+    {
+        Lock.Wait();
+        try
+        {
+            using var storeLock = AcquireStoreLock();
+            var all = ReadExisting();
+            var entry = all.SingleOrDefault(candidate =>
+                string.Equals(candidate.Id, id, StringComparison.OrdinalIgnoreCase));
+            if (entry is null)
+                throw new ArgumentException($"Feedback item '{id}' was not found.", nameof(id));
+
+            entry.GitHubIssueNumber = issueNumber;
+            entry.GitHubIssueUrl = issueUrl;
+            entry.Status = "processed";
+            entry.ProcessedAt = DateTimeOffset.UtcNow.ToString("O");
+            entry.Resolution = $"Reported as GitHub issue #{issueNumber}: {issueUrl}";
+            WriteAll(all);
+            return entry;
+        }
+        finally
+        {
+            Lock.Release();
+        }
+    }
+
     internal static List<FeedbackEntry> ListByStatus(string status)
     {
         var all = LoadAll();

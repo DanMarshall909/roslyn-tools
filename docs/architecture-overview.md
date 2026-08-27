@@ -144,10 +144,10 @@ If two surfaces describe the same flag, the catalog wins.
 Agent runs rt on a real refactor
   → rt hits a gap or bug
     → rt feedback add captures it (mutex-safe)
-      → /execute Phase 4 triages feedback.json
-        → bug? → /task logs a backlog story
+      → rt feedback report previews duplicate GitHub issues
+        → human approves create or attach
         → already-handled? → status: processed, discard
-      → backlog story executes via /execute → /tdd
+      → GitHub issue executes via the repository workflow → /tdd
         → red → green → refactor → coverage → mutation
           → commit + push
             → Stryker gate enforces
@@ -174,8 +174,8 @@ The whole tool is its own customer. The architecture exists to make that loop ti
   [ADR-0007](adr/0007-host-neutral-command-contracts.md).
 
 - **EP-009 (capability flags) is the biggest open architectural lift** — US-114 is 20 ACs, multi-week. Until it lands, commands still wire `Option<T>` ad hoc and the catalog is partly notional.
-- **Application-port migration is incremental.** Fifteen of the 56 category commands are port-backed, with `rename`
-  still partial; 41 conversion/completion slices remain. `suggest` and feedback are additional typed meta operations.
+- **Application-port migration is incremental.** Sixteen of the 56 category commands are port-backed, with `rename`
+  still partial; 40 conversion/completion slices remain. `suggest` and feedback are additional typed meta operations.
   Descriptors without ports still enter `CliCommandBridge`. rt-007 and the
   [56-row migration manifest](command-port-migration-groups.tsv) track draining it.
 - **The Result/Throw bridges are designed to persist** across stories. Don't drain the SymbolLocator bridges all at once — `one caller/tool at a time`, then delete the bridge.

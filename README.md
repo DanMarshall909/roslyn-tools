@@ -221,6 +221,13 @@ rt feedback list --status all
 rt feedback add `
   --description "replace-new should support multi-argument drops" `
   --command-line "rt refactor replace-new --type Option<string> ..."
+
+# Preview possible duplicate GitHub issues; this does not write anything.
+rt feedback report --id FB-001 --dry-run
+
+# After review, explicitly create a new issue or link an existing one.
+rt feedback report --id FB-001 --yes
+rt feedback report --id FB-001 --attach-to 123
 ```
 
 Inside a checkout containing a `ralph` directory, feedback is stored in `ralph/feedback.json`. Elsewhere it falls back to `~/.rt/feedback.json`.

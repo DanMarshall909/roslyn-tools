@@ -71,6 +71,31 @@ public class FeedbackStoreTests
         }
     }
 
+    [Fact]
+    public void mark_reported_persists_the_github_link_and_is_discoverable_by_id()
+    {
+        using var workspace = new FeedbackWorkspace();
+        using (workspace.UseCurrentDirectory())
+        {
+            FeedbackStore.Append(new FeedbackEntry
+            {
+                Type = "user-feedback",
+                Description = "promote me"
+            });
+
+            var reported = FeedbackStore.MarkReported(
+                "FB-001",
+                72,
+                "https://github.com/example/repository/issues/72");
+
+            reported.Status.ShouldBe("processed");
+            reported.GitHubIssueNumber.ShouldBe(72);
+            reported.GitHubIssueUrl.ShouldBe("https://github.com/example/repository/issues/72");
+            reported.Resolution!.ShouldContain("#72");
+            FeedbackStore.TryGetById("fb-001")!.GitHubIssueNumber.ShouldBe(72);
+        }
+    }
+
     private sealed class FeedbackWorkspace : IDisposable
     {
         private readonly string _previousDirectory;

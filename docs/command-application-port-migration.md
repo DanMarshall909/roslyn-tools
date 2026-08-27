@@ -10,10 +10,10 @@ The machine-readable catalog currently contains 56 category commands:
 
 | Category | Total | Port-backed | Remaining |
 |---|---:|---:|---:|
-| Inspect | 9 | 6 | 3 |
+| Inspect | 9 | 7 | 2 |
 | Analyze | 14 | 6 | 8 |
 | Refactor | 33 | 3, including partial `rename` | 30 plus `rename` completion |
-| **Total** | **56** | **15** | **41 conversion/completion slices** |
+| **Total** | **56** | **16** | **40 conversion/completion slices** |
 
 `suggest` and the feedback leaves are already typed meta operations but are outside
 the 56 category commands. Operational commands such as `daemon`, `prime`, and

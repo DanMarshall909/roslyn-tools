@@ -93,6 +93,20 @@ internal static class DaemonOwnedCommands
             typeof(FindMagicStringsResult),
             []),
         new DaemonCommandDefinition(
+            FindPatternCommandDefinition.Name,
+            FindPatternCommandDefinition.Info,
+            CommandSafety.ReadOnly,
+            typeof(FindPatternRequest),
+            typeof(FindPatternResult),
+            [
+                new CommandFollowOn(
+                    "source",
+                    "Use after a match to inspect the complete declaration containing that location."),
+                new CommandFollowOn(
+                    "find_duplicates",
+                    "Use when structural matches suggest a wider solution-level duplication problem.")
+            ]),
+        new DaemonCommandDefinition(
             LanguageFeaturesCommandDefinition.Name,
             LanguageFeaturesCommandDefinition.Info,
             CommandSafety.ReadOnly,
@@ -261,6 +275,28 @@ internal static class FindMagicStringsCommandDefinition
             "rt analyze find-magic-strings --json --solution RoslynTools.slnx"
         ],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]);
+}
+
+/// <summary>Canonical daemon metadata for structural source-pattern analysis.</summary>
+internal static class FindPatternCommandDefinition
+{
+    internal const string Name = "find_pattern";
+
+    internal static RtCommandInfo Info { get; } = new(
+        "find-pattern",
+        false,
+        true,
+        "inspect",
+        Aliases: ["fp"],
+        WhenToUse:
+        "Use this when a known statement sequence may be duplicated elsewhere with different identifiers or literal values. Prefer it over Grep because it compares Roslyn syntax structure rather than source text.",
+        Examples:
+        [
+            "rt inspect find-pattern --file src/Services/BookingService.cs --start-line 42 --end-line 50 --solution RoslynTools.slnx",
+            "rt inspect fp --file src/Controllers/AdminController.cs --start-line 110 --end-line 125 --scope RoslynTools.Core --solution RoslynTools.slnx"
+        ],
+        SeeAlso: ["find-duplicates", "source", "complexity"],
+        SupportedFormats: [OutputFormat.Text, OutputFormat.Json]);
 }
 
 /// <summary>Canonical daemon metadata for language-feature density analysis.</summary>

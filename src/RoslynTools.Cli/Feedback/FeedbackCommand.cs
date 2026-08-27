@@ -1,7 +1,9 @@
 using System.CommandLine;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using RoslynTools.Cli;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 
 namespace RoslynTools.Feedback;
 
@@ -17,12 +19,15 @@ internal static class FeedbackCommand
     internal static Command Build(
         FeedbackAddOperation addOperation,
         FeedbackListOperation listOperation,
-        FeedbackProcessOperation processOperation)
+        FeedbackProcessOperation processOperation,
+        FeedbackReportOperation? reportOperation = null)
     {
         var cmd = new Command("feedback", "Log and list feedback items for rt improvement");
         cmd.AddCommand(BuildAdd(addOperation));
         cmd.AddCommand(BuildList(listOperation));
         cmd.AddCommand(BuildProcess(processOperation));
+        if (reportOperation is not null)
+            cmd.AddCommand(BuildReport(reportOperation));
         return cmd;
     }
 
@@ -97,5 +102,97 @@ internal static class FeedbackCommand
         }, idOpt, resolutionOpt);
 
         return cmd;
+    }
+
+    internal static Command BuildReport(FeedbackReportOperation operation)
+    {
+        var idOpt = new Option<string>("--id", "Feedback ID to report on GitHub")
+        {
+            IsRequired = true
+        };
+        var yesOpt = new Option<bool>("--yes", "Create a new issue after reviewing duplicates");
+        var attachToOpt = new Option<int?>(
+            "--attach-to",
+            "Link this feedback to an existing GitHub issue instead of creating one");
+        var dryRunOpt = new Option<bool>(
+            "--dry-run",
+            "Preview duplicate suggestions and the intended action without persisting anything");
+
+        var cmd = new Command(
+            "report",
+            "Report local feedback to GitHub through gh. Requires explicit --yes or --attach-to to persist.");
+        cmd.AddOption(idOpt);
+        cmd.AddOption(yesOpt);
+        cmd.AddOption(attachToOpt);
+        cmd.AddOption(dryRunOpt);
+        cmd.SetHandler(async context =>
+        {
+            var parse = context.ParseResult;
+            var result = await operation.ExecuteAsync(new FeedbackReportRequest(
+                parse.GetValueForOption(idOpt),
+                parse.GetValueForOption(yesOpt),
+                parse.GetValueForOption(attachToOpt),
+                parse.GetValueForOption(dryRunOpt)));
+            result.Match(
+                Render,
+                error => RtErrorPresenter.Surface(context, error));
+        });
+        return cmd;
+    }
+
+    private static void Render(FeedbackReportResult result)
+    {
+        if (RtContext.Format == OutputFormat.Json)
+        {
+            RtConsole.WriteLine(
+                RtOutputContext.Result,
+                JsonSerializer.Serialize(result, JsonOpts));
+            return;
+        }
+
+        switch (result.Status)
+        {
+            case "reported":
+                RtConsole.WriteLine(
+                    RtOutputContext.Result,
+                    $"Filed GitHub issue #{result.IssueNumber}: {result.IssueUrl}");
+                return;
+            case "attached":
+                RtConsole.WriteLine(
+                    RtOutputContext.Result,
+                    $"Linked {result.Id} to GitHub issue #{result.IssueNumber}: {result.IssueUrl}");
+                return;
+            case "already-reported":
+                RtConsole.WriteLine(
+                    RtOutputContext.Result,
+                    $"{result.Id} is already linked to GitHub issue #{result.IssueNumber}: {result.IssueUrl}");
+                return;
+            case "dry-run":
+                RtConsole.WriteLine(
+                    RtOutputContext.Result,
+                    $"Dry run: nothing changed; {result.PossibleDuplicates.Count} possible duplicate(s).");
+                RenderDuplicates(result);
+                return;
+            case "duplicates-found":
+                RtConsole.WriteLine(RtOutputContext.Result, "Possible duplicates found:");
+                RenderDuplicates(result);
+                RtConsole.WriteLine(
+                    RtOutputContext.Result,
+                    $"Use --attach-to <number> or `rt feedback report --id {result.Id} --yes`.");
+                return;
+            default:
+                RtConsole.WriteLine(
+                    RtOutputContext.Result,
+                    $"No likely duplicates found. Re-run `rt feedback report --id {result.Id} --yes` to create the issue.");
+                return;
+        }
+    }
+
+    private static void RenderDuplicates(FeedbackReportResult result)
+    {
+        foreach (var duplicate in result.PossibleDuplicates)
+            RtConsole.WriteLine(
+                RtOutputContext.Result,
+                $"  #{duplicate.Number} {duplicate.Title} ({duplicate.Score:F1}) {duplicate.Url}");
     }
 }

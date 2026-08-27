@@ -31,9 +31,22 @@ Each item should be classified as one of:
 
 Do not turn exception text directly into a backlog item without checking the command, source state, and current behaviour.
 
-## Add accepted work to the backlog
+## Promote accepted work to GitHub Issues
 
-For a genuine defect or sufficiently concrete feature request, add a user story to `ralph/backlog-prd.json` using the repository's normal backlog tooling. Include:
+For a genuine defect or sufficiently concrete feature request, preview duplicate candidates first:
+
+```powershell
+rt feedback report --id FB-001 --dry-run
+```
+
+After reviewing the candidates, either link an existing issue or explicitly create one:
+
+```powershell
+rt feedback report --id FB-001 --attach-to 123
+rt feedback report --id FB-001 --yes
+```
+
+The command records the GitHub issue number and URL on the local feedback entry, so retries do not create duplicates. The generated issue includes:
 
 - the observed behaviour;
 - the expected behaviour;
@@ -41,14 +54,14 @@ For a genuine defect or sufficiently concrete feature request, add a user story 
 - acceptance criteria;
 - the original feedback ID.
 
-Avoid storing machine-specific absolute paths in repository documentation or backlog entries.
+It deliberately omits machine-specific working directories, solution paths, and stack traces. GitHub mutation requires `--yes` or `--attach-to`; MCP and CLI calls preview by default.
 
 ## Mark an item processed
 
 After triage, record the outcome through the CLI:
 
 ```powershell
-rt feedback process --id FB-001 --resolution "Added backlog story US-123"
+rt feedback process --id FB-001 --resolution "Reported as GitHub issue #123"
 ```
 
 Use a specific resolution, for example:
@@ -64,15 +77,15 @@ rt feedback process --id FB-004 --resolution "Not actionable: no command line or
 Claude Code can perform this triage periodically while it is running. Configure the schedule in a repository session with a prompt similar to:
 
 ```text
-Schedule a durable daily cron to triage rt feedback. Read the pending items from
-ralph/feedback.json, verify each report against the current repository, add genuine
-defects and concrete feature requests to ralph/backlog-prd.json using the configured
-backlog tooling, and mark every reviewed item processed with a specific resolution.
+Schedule a durable daily cron to triage rt feedback. Read pending items through
+rt feedback list, verify each report against the current repository, preview duplicate
+GitHub issues with rt feedback report --dry-run, and present proposed issue actions for
+human approval. Mark reviewed items processed with a specific resolution.
 ```
 
 Keep these constraints explicit:
 
 - The job must verify feedback rather than blindly promoting every item.
-- The job must use the backlog tooling configured on that machine; do not embed a personal absolute path in shared documentation.
+- The job must not create or link GitHub issues without explicit human approval.
 - Durable Claude Code cron jobs are machine-scoped and run only while Claude Code is active.
 - Recreate or renew the schedule when its configured lifetime expires.
