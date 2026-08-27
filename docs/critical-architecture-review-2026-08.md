@@ -1,110 +1,449 @@
-# Critical architecture review — execution safety and agent contract
+# Critical repository review — making `rt` an excellent tool
 
-- Status: adopted as a planning baseline
-- Reviewed baseline: `main` at `488888439ab9e75663d43c50db1b6f4e764f1960`
-- Scope: static review of the CLI, MCP host, daemon, workspace loading, mutations, architecture docs, tests, CI, distribution, and representative analyses/refactorings. It is not a fault-injection or runtime reliability certification.
+- Status: adopted as the critical planning baseline
+- Review date: 2026-08-28
+- Reviewed implementation baseline: `main` at `c266816f54351c0620aab27e8dcdf23aaaad07f8`
+- Scope: static and architectural review of CLI, MCP, daemon, workspace loading, analysis/refactoring services, tests, CI, packaging, installers, documentation, and recent hardening commits
+- Limitation: this review did not execute the full repository, hostile MSBuild fixtures, filesystem fault injection, packaged MCP clients, or native installers. Passing commit-reported test totals are useful evidence, not independent certification.
 
-## Executive assessment
+## Executive verdict
 
-The product idea is unusually strong: compact semantic C# operations such as outline, describe, reference tracing, implementation discovery, and solution-wide refactoring can give people and coding agents evidence that raw text search cannot. The repository also has valuable strengths: dogfooding, conservative `find-unused` confidence work, deterministic command suggestion, strict build discipline, and unusually candid migration documentation.
+`rt` has the core of an unusually valuable product: compact, semantic, solution-wide C# operations are substantially more useful to developers and coding agents than repeated text search and raw file reading. The repository demonstrates real engineering discipline through dogfooding, architecture tests, typed-result migration, conservative analysis work, cross-platform intent, and a large automated test suite.
 
-The central problem is sequencing. The repository describes a safe, shared, typed platform, but important runtime invariants are still migration goals. Treat read-only semantic commands as productivity aids; treat mutations as review-first operations until the safety kernel is complete. Do not allow unattended MCP mutation application in the current state.
+It is not yet a trustworthy stable platform for unattended mutation, arbitrary checkout analysis, or general MCP distribution.
 
-## Priorities
+The central issue is not a lack of features. It is that feature breadth and architecture migration have outrun a small set of platform guarantees:
 
-### P0 — block unsafe mutation claims and paths
+1. **Repository evaluation has no explicit trust boundary.** MSBuild-backed loading can evaluate repository-controlled build logic, but CLI/MCP/daemon are treated as safe long-lived hosts.
+2. **Legacy daemon mutation replay remains possible.** Typed recovery protects migrated operations, while non-migrated CLI commands can still time out after dispatch and then run in-process.
+3. **Mutation writes are not recoverable transactions.** The current writer performs sequential direct writes; the prepared-change-set work is a useful model scaffold, not a durable apply/rollback kernel.
+4. **Workspace completeness is not part of the result contract.** Partial semantic input can still produce proof-like findings and deletion follow-ons.
+5. **The MCP host is protocol-incomplete.** It is a handwritten single-message loop with notification, lifecycle, cancellation, schema, structured-result, and version-claim gaps.
+6. **Build and release behaviour is not hermetic or credible enough for `1.0.0`.** Debug builds modify the checkout and user profile, while manifests and packages claim a stable version without a corresponding release.
 
-1. **Indeterminate daemon dispatch can duplicate a mutation.** Recovery/fallback paths can resend a request after the daemon may already have applied it. A new request ID and no durable idempotency record make this a double-apply window.
-2. **Mutation application is not failure-atomic.** Direct, sequential writes and follow-up filesystem moves can leave a partially modified tree. A rename can report applied even when an explicitly requested filesystem move failed.
-3. **A partial workspace can produce proof-like deletion advice.** If some projects fail to load, missing references are invisible while diagnostics may be suppressed. A high-confidence unused result or safe-delete suggestion is not sound.
+The correct strategy is to stop broadening the command catalogue temporarily and finish one narrow, testable platform spine. A smaller surface that agents can trust will be far more valuable than a larger surface with divergent safety semantics.
 
-Until P0 is complete:
+## Recommended operating posture now
 
-- mutation tools must default to review/dry-run;
-- a daemon transport must never retry or fall back after indeterminate mutation dispatch;
-- automatic deletion suggestions require a complete workspace;
-- documentation must not imply transaction safety or exactly-once application.
+| Area | Posture on the reviewed baseline |
+|---|---|
+| Read-only CLI inspection | Useful, but results must be treated as conditional on workspace load quality |
+| Broad analyses such as `find-unused` | Advisory only; do not treat high confidence as proof without completeness and closed-world premises |
+| Mutation commands | Review/dry-run first; no unattended apply until the mutation kernel and legacy-route containment land |
+| Untrusted or newly cloned repositories | Do not run MSBuild-backed semantic operations in a privileged long-lived host |
+| MCP host | Experimental integration surface, not a stable protocol implementation |
+| Daemon | Transitional transport experiment; no workspace or mutation ownership |
+| Portable installers/releases | Pre-release engineering; current stable installation claims are premature |
 
-### P1 — complete the platform spine before broad migration
+## What improved on `main` since the first review
 
-1. **One canonical execution path.** CLI handlers, legacy argument-array daemon transport, typed RPC, direct MCP ports, an MCP CLI bridge, and in-process fallbacks have different cancellation, output, diagnostic, and mutation semantics.
-2. **A mature agent/MCP contract.** The handwritten line-oriented server lacks stable structured schemas, lifecycle/cancellation/progress/pagination discipline, robust input limits, and protocol negotiation.
-3. **Daemon complexity without current semantic value.** It adds global process state, cross-repository risk, serialisation, and recovery complexity before it owns a revision-aware workspace service.
-4. **Metadata drift is a correctness defect.** Invalid `find-unused --scope` input can silently return empty results; `prime` overclaims suggestion availability. Agent-facing help is an executable contract.
-5. **Analysis confidence and performance need a universal provenance model.** Confidence is promising in `find-unused`, but proof strength cannot be command-local.
-6. **Command-surface, distribution, and CI gaps remain.** The command catalogue, schemas, examples, packaging, protocol matrix, and spawned-host tests need to be measured and gated.
+Recent commits moved the repository in the right direction:
+
+- **Typed daemon recovery classification** distinguishes completed, unavailable-before-dispatch, and indeterminate-after-dispatch attempts for migrated operations and shares policy across CLI and MCP.
+- **`PreparedChangeSet` and mutation envelopes** create a common vocabulary for Roslyn and filesystem effects and enforce in-memory at-most-once application for the tracer path.
+- **Host-neutral follow-on actions** reduce renderer-specific suggestion drift.
+- **Command-migration architecture ratchets** make it harder to add new CLI/MCP divergence.
+- The reported full test suites remain substantial and architecture-oriented.
+
+These changes reduce risk and establish useful seams. They do not close the P0 guarantees:
+
+- operation identity is still generated inside the RPC client rather than caller-known and durable before dispatch;
+- legacy daemon routing still has timeout-to-in-process fallback;
+- prepared plans have no durable identity, status lookup, precondition hashes, journal, rollback, or recovery state;
+- workspace completeness and repository trust remain absent;
+- MCP and release contracts remain transitional.
+
+## P0 findings
+
+### 1. Untrusted repository evaluation is an unmodelled code-execution boundary
+
+`WorkspaceLoader` creates `MSBuildWorkspace` and opens a supplied `.sln` or `.slnx`. That is necessary for full semantic fidelity, but project evaluation is not equivalent to parsing inert source files. Repository-controlled imports, targets, tasks, analyzers, and generators can cross into executable behaviour depending on the load/build path and configuration.
+
+The current design has no threat model, trust decision, worker boundary, environment allow-list, network policy, or explicit analyzer/generator mode. This is especially serious for an MCP tool because an agent may invoke it automatically on a freshly cloned repository.
+
+**Required correction**
+
+- Add `Trusted | Isolated | Untrusted` workspace policy.
+- Refuse untrusted MSBuild-backed evaluation until a constrained worker is available.
+- Keep untrusted evaluation out of long-lived CLI, MCP, and daemon hosts.
+- Pass absolute request context rather than relying on current directory/environment.
+- Strip inherited secrets, disable network by default, bound CPU/memory/time, and narrow filesystem access in isolated mode.
+- Record trust/evaluator mode and analyzer/generator policy in provenance.
+- Test hostile targets, analyzers/generators, hangs, output floods, symlink escapes, environment reads, and network attempts.
+
+This should be treated as a product security boundary, not an optional enterprise feature.
+
+### 2. Legacy daemon fallback can still duplicate a mutation
+
+`Program.cs` routes non-daemon and non-typed-daemon-owned commands through `DaemonClient.TrySendAsync`. `DaemonClient` returns `null` after timeout, disconnect, or several pipe failures and the caller then executes the command in-process.
+
+For a legacy mutating command, `null` does not prove the daemon received nothing. The daemon may have applied some or all of the command before the response disappeared. Running it again creates a duplicate-application window.
+
+The newer `DaemonRpcRecoveryCoordinator` correctly treats indeterminate migrated mutations conservatively. That protection does not make the legacy path safe.
+
+**Required correction**
+
+- Immediately remove every apply-capable command from legacy daemon routing.
+- Hide apply-capable bridge tools from stable MCP discovery.
+- Add an architecture gate preventing any new mutator from entering a bridge or rendered-output route.
+- Generate `OperationId` in the caller before dispatch.
+- Persist operation state before side effects and support status lookup after lost response or process restart.
+- Test timeout/disconnect/malformed-response/cancellation at every dispatch boundary and assert exactly one apply attempt.
+
+### 3. Mutation application is sequential direct I/O, not a recoverable operation
+
+`SolutionWriter.ApplyChangesAsync` loops changed and added documents and calls `File.WriteAllText` directly. It does not stage all outputs, preflight all paths, journal prior state, roll back completed writes, verify final hashes, model removed documents/project edits, or surface partial application. It has no cancellation contract and can alter encoding/BOM or file metadata.
+
+`PreparedChangeSet` improves the domain model, but the current solution-backed writer delegates to this legacy seam. An integer flag prevents invoking one in-memory object twice; it does not provide durable idempotency across hosts, retries, crashes, or process restarts.
+
+**Required correction**
+
+- Prepare one immutable plan containing every create/replace/delete/move/project/additional/analyzer-config change.
+- Record expected existence/hash/type, encoding/BOM/newlines, permissions/mode, symlink policy, repository revision, exact diff, expiry, verification, and recovery data.
+- Assign caller-known operation identity and persist its ledger before writes.
+- Preflight every condition and stage data, preferably on the same volume.
+- Journal and apply deterministically with atomic per-file replacement where supported.
+- Verify postconditions before `Applied`.
+- Roll back and verify after failure.
+- Return `RecoveryRequired` and retain journal/backups when rollback cannot restore every path.
+- Add explicit recovery operations rather than telling users to inspect the tree manually.
+
+Do not promise global filesystem atomicity. Promise truthful state, deterministic recovery, and no silent replay.
+
+### 4. Partial workspaces can support unsound proof claims
+
+`WorkspaceLoader` captures diagnostics but only fails when there are no projects and at least one failure diagnostic. Otherwise it can return a solution after partial project load. Workspace warnings are normally suppressed from human output, and the return type does not carry completeness or failed-project identities.
+
+An analysis cannot prove absence of references it was unable to load. This is most dangerous for `find-unused` and `safe-delete`.
+
+**Required correction**
+
+- Return `Complete | Partial | Failed` and full provenance from workspace acquisition.
+- Preserve every diagnostic in structured output even when text output suppresses warnings.
+- Downgrade all affected findings from partial input.
+- Suppress safe-delete and other destructive follow-ons unless completeness and shared confidence policy permit them.
+- Make trust, SDK/configuration, source revision, analyzer/generator policy, requested/loaded/failed projects, and limitations visible to agents.
+
+### 5. MCP protocol behaviour is not stable enough to advertise as a product surface
+
+The handwritten MCP server:
+
+- requires every inbound message to contain an ID, so valid notifications are treated as invalid requests and receive responses;
+- checks only for the presence of `jsonrpc`, not its value;
+- converts malformed JSON into a generic internal error rather than the correct parse-error path;
+- accepts Boolean IDs despite the protocol's ID constraints;
+- hard-codes one old protocol version and `1.0.0` without real negotiation or a tested compatibility matrix;
+- executes a tool while blocking the read loop, so it cannot process cancellation while work is in flight;
+- has no request registry, progress model, pagination, bounded concurrency, or protocol lifecycle discipline;
+- returns machine JSON as escaped text rather than a true structured result; and
+- publishes weak schemas where most complex CLR types degrade to strings and output is merely `object | array`.
+
+These are interoperability defects, not cosmetic SDK preferences.
+
+**Required correction**
+
+- Adopt the official C# MCP SDK unless there is a measured reason not to.
+- Otherwise build an equivalent spawned-process conformance suite for every claimed protocol version.
+- Correct notification, parse, ID, lifecycle/version, cancellation, and continued-availability behaviour.
+- Return schema-valid `structuredContent` plus equivalent text.
+- Generate complete schemas including enums, bounds, nullability, nested values, unions, and additional-property policy.
+- Keep reading messages while operations run and route cancellation by request ID.
+- Bound input, output, item count, time, concurrency, and memory; paginate deterministically.
+- Class tools as stable/preview/experimental and remove apply-capable bridges from the stable surface.
+
+## High-impact correctness findings
+
+### `find-unused` silently accepts invalid scope and overstates confidence
+
+`FindUnusedCommand` describes `--scope` as `types | methods | all`, but its help/examples also imply namespace filtering. It passes the raw string to `FindUnusedService`. The service executes candidate loops only for the three recognised strings, so an invalid value can return an empty successful result.
+
+The service contains thoughtful heuristics for xUnit, controllers, extension containers, assembly scanning, and reflection. Those heuristics are useful risk reductions, not proof. High confidence still means only that no supported source reference was found in the loaded solution. Public APIs, external consumers, interface/override dispatch, framework conventions, markup, generators, reflection variants, and incomplete workspace input remain material limitations.
+
+The implementation also performs whole-solution reference search candidate by candidate and does not thread cancellation through the main analysis path.
+
+**Improve it by**
+
+- replacing raw scope strings with validated enums;
+- separating symbol-kind selection from namespace/path filtering;
+- returning `InvalidInput` on unsupported values;
+- making public/external symbols non-proof by default unless a declared closed world is verified;
+- attaching evidence and limitations to every finding;
+- using shared completeness/confidence policy for suggestions;
+- adding cancellation and bounded concurrency; and
+- investigating indexed/batched reference analysis with performance budgets.
+
+### The daemon has global-state, privacy, and concurrency debt
+
+`DaemonServer` uses a fixed well-known endpoint and a single-client request loop. Legacy handling can call `Directory.SetCurrentDirectory` without restoring it and uses global exit/console state. It logs the first part of each raw request, which may contain repository paths, source-bearing arguments, or piped content.
+
+Even as a passthrough, it should use explicit request context, per-user collision-resistant endpoint identity, redacted structured logs, input limits, and no process-global semantics. Its single-connection serial model also removes much of the performance rationale for introducing a daemon before workspace caching is safely designed.
+
+### Dry-run output is not yet the reviewed plan contract
+
+A text diff generated from recomputed Roslyn snapshots is helpful but insufficient for a safe apply workflow. An excellent tool lets a user or agent review one stable plan, then applies exactly that plan against explicit preconditions. The plan needs a machine-readable change list and stable ID, not only console diff text.
+
+### Error and result contracts are still split by migration state
+
+The repository has good typed `Result<T, RtError>` and `RtResult<T>` direction, but compatibility paths still capture console output, convert exceptions to strings, and reconstruct host-specific behaviour. Do not widen those bridges. Delete them vertically for the five spine commands, including all tests and docs that permit divergent paths.
+
+## Build, packaging, and release findings
+
+### Normal Debug builds have side effects outside build outputs
+
+The CLI project runs post-build targets that:
+
+- format changed files;
+- regenerate `docs/COMMANDS.md`; and
+- deploy a skill into the user's profile.
+
+That makes an ordinary build non-hermetic, can dirty a checkout, can create cross-worktree races, and can modify user state unexpectedly. Build should compile. Formatting, generation, deployment, dogfooding, and mutation testing should be explicit commands or opt-in targets.
+
+Add a clean-tree/user-profile test around restore/build/test.
+
+### Stable version and installation claims are ahead of reality
+
+The CLI package and MCP manifest claim `1.0.0`, while the repository has no corresponding tag/release artifacts. The README advertises release installers and a global .NET tool. The release workflow builds archives but does not publish the documented NuGet package.
+
+This damages trust precisely where an agent tool needs strong installation confidence.
+
+**Required correction**
+
+- derive all versions from one release source;
+- remain pre-1.0 until stable admission gates pass, or explicitly define the compatibility promise represented by 1.0;
+- publish the NuGet tool or remove that path from documentation;
+- test every supported RID natively through publish, archive, install, launch, fixture operation, MCP handshake, upgrade, rollback, and uninstall;
+- retain the prior installed version until health checks pass; and
+- preserve an ownership manifest so uninstall never removes unowned files.
+
+### Distribution tests are mostly static presence checks
+
+`scripts/test-distribution.sh` verifies files and a few project properties using `grep`; it does not prove the archive launches or the installers work. The POSIX installer depends on `sha256sum`, which is not a portable macOS assumption. Both installers replace targets before a post-install health check and need stronger interrupted-upgrade recovery.
+
+### CI is Linux-heavy for a filesystem and installer product
+
+The main CI runs on Ubuntu, with a .NET preview compatibility build. That is useful but insufficient for Windows named pipes, PowerShell installers, case-insensitive paths, file locks, read-only attributes, executable bits, symlinks, macOS checksum tooling, and native release archives.
+
+Add Windows/Linux/macOS matrices for the safety kernel, MCP spawn, installer, and filesystem suites.
+
+## Dependency and supply-chain findings
+
+Central package management and warnings-as-errors are strengths. The dependency posture still needs release-grade controls:
+
+- `System.CommandLine` is pinned to an old beta while the project builds a large public CLI surface;
+- framework packages are version-skewed against the .NET 10 target;
+- no package lock/locked release restore was found;
+- no automated transitive vulnerability gate, dependency review, or CodeQL workflow was found; and
+- the core project still references command-line infrastructure, while MCP references the CLI executable project.
+
+Upgrade to supported package lines, add locked restore for releases, automate dependency updates/scanning, control action dependencies, remove unused/direct references, and complete the physical host decoupling.
+
+## Testing and engineering quality
+
+### Strengths to preserve
+
+- A large xUnit suite with architecture tests rather than only happy-path unit tests.
+- Warnings and code style enforced in build.
+- Strong preference for typed application ports and shared result/error contracts.
+- Dogfooding and feedback capture.
+- Tests around daemon recovery and host parity direction.
+- Conservative improvements to reflection/framework blind spots in unused analysis.
+- Cross-platform release intent and provenance attestations.
+
+### Gaps to close
+
+- Coverage packages are present, but the main CI does not visibly collect and enforce safety-critical coverage.
+- Documentation claims a Stryker gate, but mutation-test configuration/evidence is not an obvious CI contract.
+- Fault injection is not yet the central mutation quality gate.
+- Spawned MCP/daemon/installer behaviour is under-tested compared with in-process classes.
+- Known-defect tests remain skipped, including an extract-method source-call-site case; placeholder skipped tests also exist for an unimplemented add-test command.
+- Some debug/regression tests assert implementation artefacts rather than stable public behaviour.
+- No hostile repository trust suite exists.
+
+For safety-critical code, measure branch/condition coverage and mutation score at the kernel boundary, but do not chase one repository-wide percentage. A smaller, strongly tested kernel is better than broad superficial coverage.
+
+## Performance and scalability
+
+Performance needs a product contract, not only a future daemon cache.
+
+Current concerns include:
+
+- solution loads are guarded by a static process-wide semaphore;
+- the daemon is serial and does not own a safe revision-aware workspace cache;
+- `find-unused` can perform whole-solution reference search per candidate;
+- many operations lack end-to-end cancellation;
+- MCP output has no item/byte paging contract; and
+- no stable startup, warm-operation, large-solution, memory, or output-size budgets are enforced.
+
+Measure first. Add representative small/medium/large fixtures and record cold load, repeated operation, project/document count, candidate count, elapsed time, allocations/peak memory, result count, and output bytes. Optimise the canonical operations before adding stateful daemon caching.
+
+Useful likely improvements after measurement:
+
+- one trust-aware workspace session per explicit request scope;
+- shared immutable semantic indexes for related read-only operations;
+- batched/bounded reference searches;
+- deterministic pagination and field projection;
+- cancellation at every safe Roslyn and filesystem boundary; and
+- command-level cost classifications so agents can avoid unexpectedly expensive operations.
+
+## Product and developer experience
+
+A truly excellent tool should feel predictable before it feels clever.
+
+### Stable workflows, not a flat catalogue
+
+Curate a smaller stable surface around workflows:
+
+1. orient: `prime`, `outline`, `describe`;
+2. navigate: references, callers, implementations, source;
+3. assess: bounded analysis with evidence/confidence;
+4. prepare: immutable reviewed change set;
+5. apply/recover: explicit operation identity and status;
+6. verify: compile/tests/semantic follow-ons.
+
+Experimental transformations can remain discoverable under preview/experimental maturity without carrying the same stability promise.
+
+### Errors should answer four questions
+
+Every failure should tell the user or agent:
+
+1. what operation failed;
+2. what evidence or precondition caused it;
+3. what repository state is known now; and
+4. the exact safe next action.
+
+For mutations, always include operation ID, state, affected paths, journal/recovery status, and copy-pasteable status/recovery commands.
+
+### `doctor` and capabilities should expose reality
+
+Add a machine-readable `rt doctor`/capabilities view showing:
+
+- installed/version/source and available updates;
+- supported CLI/MCP protocol versions;
+- selected SDK/MSBuild/compiler;
+- repository trust/evaluator mode;
+- workspace completeness and diagnostics;
+- stable/preview/experimental tool counts;
+- resource limits and timeout policy;
+- daemon endpoint/status without implying workspace ownership; and
+- installer/manifest health.
+
+### One authoritative planning workflow
+
+The repository has useful but overlapping architecture docs, ADRs, task files, Ralph state, issue docs, and OpenSpecs. Reduce duplication. OpenSpec/ADR should own accepted change contracts; GitHub issues/PRs should own execution; generated status should link rather than repeat narrative state in several locations.
 
 ## Target architecture
 
-The target is a canonical typed operation model:
-
 ```text
-CLI / MCP / future IDE adapters
-  -> typed request binding and rendering only
-  -> shared operation router
-  -> typed application operation
-  -> workspace/session boundary + safety policy
-  -> services/core
+CLI / MCP / future IDE
+  -> typed binding + explicit request context
+  -> shared application definition/router
+  -> typed operation
+       -> trust-aware complete/partial/failed workspace acquisition
+       -> shared safety/confidence/resource policy
+       -> services/Core
+       -> mutation prepare/apply/status/recover kernel where applicable
+  -> typed result/error/provenance envelope
+  -> host projection
+
+Optional daemon:
+  transparent typed transport around the operation boundary only
 ```
 
-Every command admitted to the stable surface has one typed request, one operation, one result/error envelope, one safety classification, and one provenance model. CLI, MCP, and the optional daemon transport project the same result; no host rebuilds CLI arguments or scrapes rendered text.
+Core and application assemblies should not reference CLI/parser or MCP protocol libraries. MCP should not reference the CLI executable. The daemon should not reinterpret semantics. Each stable command should have one operation and one set of contract tests.
 
-The initial vertical slice is intentionally small: `outline`, `find-refs`, `find-unused`, `rename`, and `safe-delete`. Delete legacy execution paths for each slice before fanning out to the remaining commands.
+## Recommended execution order
 
-## Mutation safety kernel
+### Phase 0 — contain unsafe paths
 
-Replace a boolean dry-run/apply model with explicit domain operations:
+1. Remove legacy daemon routing from all apply-capable commands.
+2. Hide bridge-backed mutators from stable MCP discovery.
+3. Force review/dry-run defaults and correct safety claims.
+4. Add architecture tests preventing new unsafe bridge routes.
+5. Remove normal-build side effects that mutate source or user state.
 
-```text
-Prepare(request) -> PreparedChangeSet
-Apply(preparedChangeSetId, expectedRevision, idempotencyKey) -> ApplyResult
-```
+### Phase 1 — establish trust and mutation truth
 
-A prepared change set contains a stable plan ID, workspace/repository revision, expected hashes, all creates/updates/deletes/moves/project edits, an exact diff, diagnostics/assumptions, verification plan, and expiry rules. Apply preflights every condition, stages content, detects staleness, uses atomic per-file replacement where possible, journals multi-file rollback, and reports either complete success or complete rollback.
+1. Write the repository-evaluation threat model and trusted/isolated/untrusted policy.
+2. Refuse untrusted semantic loading until the worker boundary exists.
+3. Add caller-generated operation IDs and durable status ledger.
+4. Complete prepared-plan metadata and stale-plan preflight.
+5. Implement staged writes, journal, verification, rollback, `RecoveryRequired`, and recovery commands.
+6. Add hostile workspace and filesystem fault-injection suites across operating systems.
 
-Transport classification is mandatory:
+### Phase 2 — complete the five-command spine
 
-- `NotDispatched`: retry may be safe.
-- `Completed`: a terminal result is known.
-- `Indeterminate`: the caller must not retry, fall back, or claim failure; it must surface the operation ID and allow status lookup.
+Convert and delete all bridges for:
 
-## Workspace completeness, provenance, and confidence
+- `outline`;
+- `find-refs`;
+- `find-unused`;
+- `rename`; and
+- `safe-delete`.
 
-Workspace loading returns completeness (`complete | partial | failed`), requested/loaded/failed projects, diagnostics, solution revision, SDK/configuration, and source identity. Read-only operations may return partial data, but top-level status and every affected finding must say so. Partial workspaces cannot produce proof-strength findings, deletion advice, or automatic mutation suggestions.
+Require CLI/MCP/direct/passthrough parity, cancellation, completeness, confidence, bounded output, executable examples, and failure injection. Do not fan out to the remaining catalogue until this spine is demonstrably boring and reliable.
 
-Every structured response carries schema version, request ID, diagnostics, provenance, confidence level/basis/limitations, next actions, and pagination state. Confidence becomes a shared policy, not an analyser-specific adjective.
+### Phase 3 — make MCP a real product surface
 
-## AI and MCP contract
+1. Adopt the official SDK or equivalent conformance harness.
+2. Implement supported-version matrix and protocol-correct lifecycle/notifications/errors.
+3. Add concurrent request/cancellation handling.
+4. Return real structured content with complete schemas.
+5. Add progress, pagination, limits, and maturity classification.
+6. Spawn and test the packaged binary, not only in-process server methods.
 
-Expose a curated stable subset, classified as stable/preview/experimental. Stable MCP tools use real request and response schemas, structured content first, bounded input/output, cancellation, progress, pagination/field projection, lifecycle handling, and negotiated protocol support. Text is an additional human view. Never use a generic untyped `execute_command` bag; keep discoverable, constrained tools.
+### Phase 4 — release engineering
 
-Agent primers and examples must be generated from the capability catalogue. CI executes every published example and asserts metadata, aliases, defaults, binding, schemas, and runtime behaviour agree.
+1. Make build/test hermetic.
+2. Unify version source and return to a truthful pre-release version until gates pass.
+3. Upgrade and lock dependencies; add vulnerability/dependency/code scanning.
+4. Test native RID archives/installers end to end.
+5. Publish the NuGet tool or remove the claim.
+6. Add ownership-aware atomic upgrade/rollback/uninstall.
+7. Produce evidence-rich release notes.
 
-## Command-surface and admission policy
+### Phase 5 — measured excellence
 
-Do not add commands while the vertical spine is incomplete. A new stable command requires:
+1. Establish startup/operation/memory/output budgets.
+2. Optimise canonical read operations and indexes.
+3. Add `doctor`, capability introspection, and redacted diagnostic bundles.
+4. Curate the stable workflow surface and demote incomplete commands.
+5. Reconsider a real workspace daemon only when measured benefit exceeds its isolation/cache/invalidation cost.
 
-- a typed request/result and a canonical operation;
-- validated input (invalid values are errors, never empty success);
-- declared safety, completeness, confidence, provenance, and cost limits;
-- CLI/MCP/in-process parity and, if transported, daemon parity;
-- cancellation and structured expected failures;
-- review/dry-run/apply/no-op tests for mutations;
-- executable help/examples and discoverable follow-on actions;
-- coverage, fault-injection, and distribution gates proportional to impact.
+## Definition of an excellent stable release
 
-## Daemon decision: transparent passthrough for now
+Do not call the tool stable merely because tests pass or every command has a port. A stable release should demonstrate:
 
-The full daemon workspace-service implementation is explicitly parked. For this phase the daemon is only an optional transparent transport adapter over the same in-process canonical operation. It must have no workspace cache, revision/session ownership, retry after indeterminate mutation dispatch, mutation ownership, fallback that changes semantics, or command-specific semantic logic. It must preserve request ID, cancellation, typed result, diagnostics, and provenance exactly. If transparency cannot be demonstrated, execute in-process.
+- explicit repository trust and safe evaluator behaviour;
+- no automatic replay after ambiguous mutation dispatch;
+- durable idempotency/status/recovery across process restart;
+- truthful `Applied | RolledBack | RecoveryRequired` mutation state;
+- complete/partial/failed workspace provenance;
+- no destructive advice from incomplete or unsupported proof premises;
+- five-command host parity with bridge deletion;
+- MCP conformance, cancellation, structured schemas/results, and resource bounds;
+- hermetic builds and clean checkouts;
+- native cross-platform installer/release smoke tests;
+- one truthful version and installation story;
+- locked/scanned dependencies and controlled release provenance; and
+- documented performance budgets and residual limitations.
 
-A future daemon service is a separate proposal, only after the safety kernel and canonical spine are proven.
+## What not to do
 
-## Staged remediation
+- Do not add more public commands while the platform spine is incomplete.
+- Do not build daemon workspace caching now.
+- Do not add a generic untyped `execute_command` MCP escape hatch.
+- Do not treat more reflection/framework name heuristics as proof of unused code.
+- Do not paper over partial mutation with a generic failure status.
+- Do not keep a stable `1.0.0` claim merely because changing it is inconvenient.
+- Do not let normal builds deploy or rewrite user/repository state.
+- Do not optimise around a compatibility bridge that should be deleted.
 
-1. Land this planning baseline and make safety claims accurate.
-2. Implement workspace completeness/provenance and the prepared-change-set/idempotency kernel.
-3. Build and test the five-command canonical vertical spine; remove its bridges.
-4. Stabilise the MCP contract, metadata catalogue, examples, and agent primer.
-5. Fan out command migrations in bounded groups only after the spine passes parity and fault-injection gates.
-6. Improve distribution: SDK/runtime checks, portable install verification, protocol matrix, spawned-host integration tests, release smoke tests, and telemetry-free diagnostic bundles.
-7. Reconsider a real daemon workspace service in a new, explicitly approved proposal.
+## Final assessment
+
+The repository does not need a rewrite. Its best parts already point at the right product: typed semantic operations, thin adapters, structured evidence, conservative automation, and dogfooding.
+
+It needs ruthless sequencing.
+
+Finish repository trust, mutation recovery, workspace completeness, and one canonical five-command spine. Replace the handwritten MCP assumptions with conformance evidence. Make builds and releases boring. Then expand.
+
+That path can make `rt` genuinely excellent: not just a broad Roslyn command collection, but a semantic C# operation platform that a developer or coding agent can trust with consequential work.
