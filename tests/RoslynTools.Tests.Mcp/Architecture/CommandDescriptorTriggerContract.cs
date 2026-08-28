@@ -77,6 +77,7 @@ public sealed class CommandDescriptorTriggerContract
         ["add_dependency"] = "Edit",
         ["make_sealed"] = "Edit",
         ["replace_xunit_asserts"] = "Edit",
+        ["safe_delete"] = "Edit",
         ["semantic_diff"] = "git diff"
     };
 

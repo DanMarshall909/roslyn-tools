@@ -1,141 +1,182 @@
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Editing;
 using Microsoft.CodeAnalysis.FindSymbols;
-using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
-/// <summary>
-/// A class used to safely delete code elements in a solution.
-/// </summary>
-[SuppressMessage("Performance", "CA1822:Mark members as static",
-    Justification = "Instance class created by rt destatic-class migration.")]
-internal class SafeDeleteService : IRtService
+/// <summary>Prepares safe symbol deletions without rendering or writing changes.</summary>
+internal sealed class SafeDeleteService(ISymbolResolutionService symbols) : IRtService
 {
-    private readonly ILogger<SafeDeleteService> _logger;
-    private readonly ISolutionChangeWriter _solutionChangeWriter;
-    private readonly ISymbolResolutionService _symbols;
+    private readonly ISymbolResolutionService _symbols = symbols;
 
-    public SafeDeleteService()
-        : this(new RtConsoleLogger<SafeDeleteService>(), new SolutionChangeWriter())
+    internal sealed record Preparation(
+        Solution Solution,
+        string Symbol,
+        string Kind,
+        string DeclarationPath,
+        int IgnoredNameofReferenceCount,
+        IReadOnlyList<SafeDeleteReferenceEvidence> References);
+
+    internal async Task<Result<Preparation, RtError>> PrepareAsync(
+        Solution solution,
+        string symbol,
+        string? kind,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        var resolved = await ResolveSymbolAsync(solution, symbol, kind);
+        return await resolved.Match(
+            value => PrepareResolvedAsync(solution, value, cancellationToken),
+            error => Task.FromResult(Result<Preparation, RtError>.Err(error)));
     }
 
-    public SafeDeleteService(ILogger<SafeDeleteService> logger, ISolutionChangeWriter solutionChangeWriter,
-        ISymbolResolutionService? symbols = null)
+    private static async Task<Result<Preparation, RtError>> PrepareResolvedAsync(
+        Solution solution,
+        ISymbol symbol,
+        CancellationToken cancellationToken)
     {
-        _symbols = symbols ?? new SymbolResolutionService();
-
-        _logger = logger;
-        _solutionChangeWriter = solutionChangeWriter;
-    }
-
-    /// <summary>
-    /// Runs an asynchronous method to safely delete code elements in a solution with specified parameters.
-    /// </summary>
-    internal async Task RunAsync(Solution sln, string symbol, string? kind, bool dryRun)
-    {
-        var sym = await ResolveSymbolAsync(sln, symbol, kind);
-
-        _logger.RtInfo("Checking references for '{Symbol}'...", sym.ToDisplayString());
-
-        var referencedSymbols = await SymbolFinder.FindReferencesAsync(sym, sln);
-
-        var trueRefs = new List<(string FilePath, int Line, string LineText)>();
+        cancellationToken.ThrowIfCancellationRequested();
+        var referencedSymbols = await SymbolFinder.FindReferencesAsync(
+            symbol,
+            solution,
+            cancellationToken: cancellationToken);
+        var references = new List<SafeDeleteReferenceEvidence>();
+        var ignoredNameofReferenceCount = 0;
 
         foreach (var referencedSymbol in referencedSymbols)
-            foreach (var loc in referencedSymbol.Locations)
+            foreach (var location in referencedSymbol.Locations)
             {
-                var span = loc.Location.SourceSpan;
-                var filePath = loc.Document.FilePath ?? string.Empty;
+                cancellationToken.ThrowIfCancellationRequested();
+                var span = location.Location.SourceSpan;
+                var filePath = location.Document.FilePath ?? string.Empty;
 
-                var declSyntaxRef = sym.DeclaringSyntaxReferences.FirstOrDefault(r =>
-                    string.Equals(r.SyntaxTree.FilePath, filePath, StringComparison.OrdinalIgnoreCase)
-                    && r.Span.Contains(span));
-                if (declSyntaxRef != null)
+                var declaration = symbol.DeclaringSyntaxReferences.FirstOrDefault(reference =>
+                    string.Equals(
+                        reference.SyntaxTree.FilePath,
+                        filePath,
+                        StringComparison.OrdinalIgnoreCase)
+                    && reference.Span.Contains(span));
+                if (declaration is not null)
                     continue;
 
-                var syntaxNode = loc.Location.SourceTree is not null
-                    ? (await loc.Location.SourceTree.GetRootAsync())
-                    .FindNode(span)
+                var syntaxNode = location.Location.SourceTree is not null
+                    ? (await location.Location.SourceTree.GetRootAsync(cancellationToken)).FindNode(span)
                     : null;
 
-                if (syntaxNode != null && IsInsideNameOf(syntaxNode))
+                if (syntaxNode is not null && IsInsideNameOf(syntaxNode))
+                {
+                    ignoredNameofReferenceCount++;
                     continue;
+                }
 
-                var text = await loc.Document.GetTextAsync();
-                var linePos = text.Lines.GetLineFromPosition(span.Start);
-                var lineNumber = linePos.LineNumber + 1;
-                var lineText = linePos.ToString().TrimStart();
-
-                trueRefs.Add((filePath, lineNumber, lineText));
+                var text = await location.Document.GetTextAsync(cancellationToken);
+                var line = text.Lines.GetLineFromPosition(span.Start);
+                references.Add(new SafeDeleteReferenceEvidence(
+                    filePath,
+                    line.LineNumber + 1,
+                    line.ToString().TrimStart()));
             }
 
-        if (trueRefs.Count > 0)
-        {
-            foreach (var (filePath, line, lineText) in trueRefs)
-                RtConsole.WriteLine(RtOutputContext.Diagnostic, $"{filePath}({line}): {lineText}");
+        var orderedReferences = references
+            .OrderBy(reference => reference.FilePath, StringComparer.Ordinal)
+            .ThenBy(reference => reference.Line)
+            .ThenBy(reference => reference.LineText, StringComparer.Ordinal)
+            .ToArray();
+        var syntaxReference = symbol.DeclaringSyntaxReferences.FirstOrDefault();
+        var declarationPath = syntaxReference?.SyntaxTree.FilePath ?? string.Empty;
+        var symbolDisplay = symbol.ToDisplayString();
+        var symbolKind = GetSymbolKind(symbol);
 
-            throw new InvalidOperationException(
-                $"Cannot delete '{sym.Name}': it has {trueRefs.Count} reference(s).");
-        }
+        if (orderedReferences.Length != 0)
+            return Result<Preparation, RtError>.Ok(new Preparation(
+                solution,
+                symbolDisplay,
+                symbolKind,
+                declarationPath,
+                ignoredNameofReferenceCount,
+                orderedReferences));
 
-        if (sym.DeclaringSyntaxReferences.Length == 0)
-            throw new InvalidOperationException($"No declaring syntax found for '{sym.Name}'.");
+        if (syntaxReference is null)
+            return Result<Preparation, RtError>.Err(new RtError(
+                RtErrorKind.InvalidInput,
+                $"No declaring syntax found for '{symbol.Name}'.",
+                new Dictionary<string, string> { ["symbol"] = symbolDisplay }));
 
-        var syntaxRef = sym.DeclaringSyntaxReferences[0];
-        var declaringNode = await syntaxRef.GetSyntaxAsync();
-
+        var declaringNode = await syntaxReference.GetSyntaxAsync(cancellationToken);
         var nodeToRemove = FindDeclarationNode(declaringNode);
-        if (nodeToRemove == null)
-            throw new InvalidOperationException(
-                $"Cannot remove '{sym.Name}': unsupported syntax node type ({declaringNode.GetType().Name}).");
+        if (nodeToRemove is null)
+            return Result<Preparation, RtError>.Err(new RtError(
+                RtErrorKind.InvalidInput,
+                $"Cannot remove '{symbol.Name}': unsupported syntax node type ({declaringNode.GetType().Name}).",
+                new Dictionary<string, string>
+                {
+                    ["symbol"] = symbolDisplay,
+                    ["syntaxNodeType"] = declaringNode.GetType().Name
+                }));
 
-        var syntaxTree = declaringNode.SyntaxTree;
-        var doc = sln.Projects
-            .SelectMany(p => p.Documents)
-            .FirstOrDefault(d => d.FilePath != null &&
-                                 string.Equals(d.FilePath, syntaxTree.FilePath, StringComparison.OrdinalIgnoreCase));
+        var document = solution.Projects
+            .SelectMany(project => project.Documents)
+            .FirstOrDefault(candidate => candidate.FilePath is not null
+                                         && string.Equals(
+                                             candidate.FilePath,
+                                             declaringNode.SyntaxTree.FilePath,
+                                             StringComparison.OrdinalIgnoreCase));
+        if (document is null)
+            return Result<Preparation, RtError>.Err(RtError.NotFound(
+                $"Cannot find document for '{symbol.Name}'.",
+                new Dictionary<string, string>
+                {
+                    ["symbol"] = symbolDisplay,
+                    ["declarationPath"] = declarationPath
+                }));
 
-        if (doc == null)
-            throw new InvalidOperationException($"Cannot find document for '{sym.Name}'.");
-
-        _logger.RtInfo("Deleting '{Symbol}' from {FilePath}...", sym.ToDisplayString(), doc.FilePath);
-
-        var editor = await DocumentEditor.CreateAsync(doc);
+        var editor = await DocumentEditor.CreateAsync(document, cancellationToken);
         editor.RemoveNode(nodeToRemove);
-        var newDoc = editor.GetChangedDocument();
-        var newSln = newDoc.Project.Solution;
-
-        await _solutionChangeWriter.ApplyChangesAsync(sln, newSln, dryRun);
+        var changedSolution = editor.GetChangedDocument().Project.Solution;
+        return Result<Preparation, RtError>.Ok(new Preparation(
+            changedSolution,
+            symbolDisplay,
+            symbolKind,
+            document.FilePath ?? document.Name,
+            ignoredNameofReferenceCount,
+            []));
     }
 
-    private async Task<ISymbol> ResolveSymbolAsync(Solution sln, string symbol, string? kind)
+    private async Task<Result<ISymbol, RtError>> ResolveSymbolAsync(
+        Solution solution,
+        string symbol,
+        string? kind)
     {
         if (symbol.Contains('.'))
-            return await _symbols.FindSymbolByFqnAsync(sln, symbol, kind);
+            return await _symbols.TryFindSymbolByFqnAsync(solution, symbol, kind);
 
-        if (kind is null)
-            try
-            {
-                return await _symbols.FindSymbolAsync(sln, symbol, "type");
-            }
-            catch (InvalidOperationException ex)
-                when (ex.Message.StartsWith($"No symbol named '{symbol}'", StringComparison.Ordinal))
-            {
-                // Fall back to the broader lookup so explicit member-like simple names keep working.
-            }
+        if (kind is not null)
+            return await _symbols.TryFindSymbolAsync(solution, symbol, kind);
 
-        return await _symbols.FindSymbolAsync(sln, symbol, kind);
+        var typeResult = await _symbols.TryFindSymbolAsync(solution, symbol, "type");
+        return await typeResult.Match(
+            value => Task.FromResult(Result<ISymbol, RtError>.Ok(value)),
+            error => error.Kind == RtErrorKind.NotFound
+                ? _symbols.TryFindSymbolAsync(solution, symbol, null)
+                : Task.FromResult(Result<ISymbol, RtError>.Err(error)));
     }
 
-    /// <summary>
-    /// Finds the declaration node for a syntax element in a solution.
-    /// </summary>
-    internal SyntaxNode? FindDeclarationNode(SyntaxNode node)
+    private static string GetSymbolKind(ISymbol symbol)
+    {
+        return symbol.Kind switch
+        {
+            SymbolKind.NamedType => "type",
+            SymbolKind.Method => "method",
+            SymbolKind.Property => "property",
+            SymbolKind.Field => "field",
+            SymbolKind.Event => "event",
+            _ => symbol.Kind.ToString().ToLowerInvariant()
+        };
+    }
+
+    internal static SyntaxNode? FindDeclarationNode(SyntaxNode node)
     {
         return node switch
         {
@@ -153,18 +194,15 @@ internal class SafeDeleteService : IRtService
         };
     }
 
-    /// <summary>
-    /// Checks if a syntax element is inside the name of another symbol in a solution.
-    /// </summary>
-    internal bool IsInsideNameOf(SyntaxNode node)
+    internal static bool IsInsideNameOf(SyntaxNode node)
     {
         var current = node.Parent;
-        while (current != null)
+        while (current is not null)
         {
-            if (current is InvocationExpressionSyntax invocation)
-                if (invocation.Expression is IdentifierNameSyntax id &&
-                    id.Identifier.ValueText == "nameof")
-                    return true;
+            if (current is InvocationExpressionSyntax invocation
+                && invocation.Expression is IdentifierNameSyntax identifier
+                && identifier.Identifier.ValueText == "nameof")
+                return true;
 
             if (current is StatementSyntax or MemberDeclarationSyntax)
                 break;

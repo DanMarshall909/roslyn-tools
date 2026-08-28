@@ -199,6 +199,25 @@ public sealed class CommandDescriptorContracts
     }
 
     [Fact]
+    public void safe_delete_schema_requires_the_symbol_and_projects_the_typed_port()
+    {
+        using var provider = McpTestHost.CreateProvider();
+        var descriptor = provider.GetRequiredService<CommandDescriptorRegistry>()
+            .All.Single(candidate => candidate.ToolName == SafeDeleteCommandDefinition.Definition.Name);
+        var tool = ToolSchemaBuilder.Build(descriptor);
+
+        descriptor.Port.ShouldBeOfType<SafeDeleteOperation>();
+        descriptor.Definition.ShouldBeSameAs(SafeDeleteCommandDefinition.Definition);
+        descriptor.WhenToUse.ShouldContain("Use this", Case.Sensitive);
+        descriptor.WhenToUse.ShouldContain("Edit", Case.Sensitive);
+        ((string[])tool.inputSchema["required"]).ShouldBe(["symbol"]);
+        var properties = (Dictionary<string, Dictionary<string, object>>)tool.inputSchema["properties"];
+        properties.Keys.ShouldBe(["symbol", "kind", "solution", "dry-run"], ignoreOrder: true);
+        properties["symbol"]["description"].ShouldBe(
+            "Type or member FQN or simple name to delete");
+    }
+
+    [Fact]
     public void mutation_safety_adds_dry_run_unless_the_caller_made_an_explicit_choice()
     {
         var descriptor = new ApplicationCommandDescriptor(

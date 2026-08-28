@@ -53,5 +53,5 @@ replace-call	refactor	M1	complete	daemon-preferred	apply-default
 replace-datetime	refactor	M1	complete	daemon-preferred	apply-default
 replace-new	refactor	M1	complete	daemon-preferred	apply-default
 replace-xunit-asserts	refactor	M3	complete	daemon-preferred	review-default
-safe-delete	refactor	M1	convert	daemon-preferred	apply-default
+safe-delete	refactor	M1	complete	daemon-preferred	apply-default
 transform-parameters	refactor	M2	complete	daemon-preferred	apply-default
