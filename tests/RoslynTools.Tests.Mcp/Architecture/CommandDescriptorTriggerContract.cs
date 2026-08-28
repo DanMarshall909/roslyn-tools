@@ -76,6 +76,7 @@ public sealed class CommandDescriptorTriggerContract
         ["debug"] = "Read",
         ["add_dependency"] = "Edit",
         ["convert_console_logging"] = "Edit",
+        ["extract_interface"] = "Edit",
         ["make_sealed"] = "Edit",
         ["replace_xunit_asserts"] = "Edit",
         ["safe_delete"] = "Edit",

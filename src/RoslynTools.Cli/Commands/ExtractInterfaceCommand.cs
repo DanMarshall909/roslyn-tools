@@ -1,5 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Core;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -7,25 +8,13 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Extracts an interface from the solution.
 /// </summary>
-internal sealed class ExtractInterfaceCommand(IWorkspaceSessionFactory sessionFactory, ExtractInterfaceService extractInterface) : IRtCommand, IRefactorCommand
+internal sealed class ExtractInterfaceCommand(
+    DaemonRpcRecoveryCoordinator daemon,
+    ExtractInterfaceOperation operation) : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
-    private readonly ExtractInterfaceService _extractInterface = extractInterface;
-    public static RtCommandInfo Info { get; } = new(
-        "extract-interface",
-        true,
-        false,
-        "refactor",
-        Aliases: ["ei"],
-        WhenToUse:
-        "Generating an IXxx interface from an existing class's public members and updating the class declaration to implement it. Use this before injecting a service as a dependency, or when introducing a seam for testing.",
-        Examples:
-        [
-            "rt refactor extract-interface --type BookingService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt refactor ei --type EmailSender --output-dir src/Interfaces --dry-run",
-            "rt refactor extract-interface --type HeroApiClient --namespace ProjectX.Core.Abstractions --solution RoslynTools.slnx"
-        ]
-    );
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
+    private readonly ExtractInterfaceOperation _operation = operation;
+    public static RtCommandInfo Info => ExtractInterfaceCommandDefinition.Info;
 
     public Command Build()
     {
@@ -39,29 +28,20 @@ internal sealed class ExtractInterfaceCommand(IWorkspaceSessionFactory sessionFa
         cmd.AddAlias("ei");
         cmd.AddAll(typeOpt, solutionOpt, outputDirOpt, namespaceOpt, dryRunOpt);
 
-        cmd.SetHandler(
-            async (type, solution, outputDir, ns, dryRun) =>
-            {
-                await ExecuteAsync(type, solution, outputDir, ns, dryRun);
-            }, typeOpt, solutionOpt, outputDirOpt, namespaceOpt, dryRunOpt);
+        cmd.SetHandler(async context =>
+        {
+            await DaemonCommandExecutor.ExecuteAsync(
+                _daemon,
+                _operation,
+                new ExtractInterfaceRequest(
+                    context.ParseResult.GetValueForOption(typeOpt)!,
+                    context.ParseResult.GetValueForOption(outputDirOpt),
+                    context.ParseResult.GetValueForOption(namespaceOpt),
+                    context.ParseResult.GetValueForOption(solutionOpt),
+                    context.ParseResult.GetValueForOption(dryRunOpt)),
+                context);
+        });
 
         return cmd;
-    }
-
-    /// <summary>
-    /// Executes the extraction of an interface with optional parameters.
-    /// </summary>
-    internal async Task ExecuteAsync(
-        string typeName,
-        string? solutionPath,
-        string? outputDir,
-        string? ns,
-        bool dryRun)
-    {
-        var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
-        using (workspace)
-        {
-            await _extractInterface.RunAsync(sln, typeName, outputDir, ns, dryRun);
-        }
     }
 }

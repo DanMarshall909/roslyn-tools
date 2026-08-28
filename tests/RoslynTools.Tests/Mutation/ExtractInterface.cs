@@ -1,7 +1,4 @@
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
-using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Services;
 using RoslynTools.Tests.Infrastructure;
@@ -32,7 +29,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<ExtractInterfaceCommand>().ExecuteAsync(
+            await ExecuteAsync(
                 "AgentService",
                 "ignored",
                 null,
@@ -62,7 +59,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<ExtractInterfaceCommand>().ExecuteAsync(
+            await ExecuteAsync(
                 "AgentService",
                 "ignored",
                 null,
@@ -94,7 +91,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<ExtractInterfaceCommand>().ExecuteAsync(
+            await ExecuteAsync(
                 "AgentService",
                 "ignored",
                 null,
@@ -124,7 +121,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<ExtractInterfaceCommand>().ExecuteAsync(
+            await ExecuteAsync(
                 "AgentService",
                 "ignored",
                 null,
@@ -146,13 +143,12 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
                                       """);
         var (_, sln) = project.Build();
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            new ExtractInterfaceService(
-                    NullLogger<ExtractInterfaceService>.Instance,
-                    new CapturingSolutionChangeWriter())
-                .RunAsync(sln, "Point", null, null, false));
+        var result = await new ExtractInterfaceService(new SymbolResolutionService())
+            .PrepareAsync(sln, "Point", null, null);
 
-        ex.Message.ShouldContain("must be a class", Case.Sensitive);
+        var error = GetError(result);
+        error.Kind.ShouldBe(RtErrorKind.InvalidInput);
+        error.Message.ShouldContain("must be a class", Case.Sensitive);
     }
 
     [Fact]
@@ -171,7 +167,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<ExtractInterfaceCommand>().ExecuteAsync("Widget", "ignored", null, null, false);
+            await ExecuteAsync("Widget", "ignored", null, null, false);
         }
 
         var content = await project.ReadSourceAsync("Widget.cs");
@@ -195,7 +191,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<ExtractInterfaceCommand>().ExecuteAsync("Widget", "ignored", null, null, false);
+            await ExecuteAsync("Widget", "ignored", null, null, false);
         }
 
         var content = await project.ReadSourceAsync("Widget.cs");
@@ -219,7 +215,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<ExtractInterfaceCommand>().ExecuteAsync("Secret", "ignored", null, null, false);
+            await ExecuteAsync("Secret", "ignored", null, null, false);
         }
 
         var content = await project.ReadSourceAsync("ISecret.cs");
@@ -246,7 +242,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<ExtractInterfaceCommand>().ExecuteAsync("Secret", "ignored", null, null, false);
+            await ExecuteAsync("Secret", "ignored", null, null, false);
         }
 
         var content = await project.ReadSourceAsync("ISecret.cs");
@@ -276,7 +272,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<ExtractInterfaceCommand>().ExecuteAsync("Repo", "ignored", null, null, false);
+            await ExecuteAsync("Repo", "ignored", null, null, false);
         }
 
         var content = await project.ReadSourceAsync("IRepo.cs");
@@ -302,7 +298,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<ExtractInterfaceCommand>().ExecuteAsync("Widget", "ignored", null, "MyApp.Contracts", false);
+            await ExecuteAsync("Widget", "ignored", null, "MyApp.Contracts", false);
         }
 
         var content = await project.ReadSourceAsync("IWidget.cs");
@@ -324,7 +320,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<ExtractInterfaceCommand>().ExecuteAsync("Calculator", "ignored", null, null, false);
+            await ExecuteAsync("Calculator", "ignored", null, null, false);
         }
 
         var content = await project.ReadSourceAsync("ICalculator.cs");
@@ -332,12 +328,9 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
     }
 
     [Fact]
-    public async Task throws_when_symbol_is_not_a_named_type()
+    public async Task returns_typed_not_found_when_symbol_is_not_a_named_type()
     {
-        // A real class exists in the solution, but the resolver hands back null. This pins the
-        // null-coalescing throw (L49 remove-right) and its message (L50). If the `?? throw` were
-        // removed, `as INamedTypeSymbol` of null would NRE with a different message; if the fake
-        // were bypassed (L31 ?? remove-left), the real class would resolve and no throw occurs.
+        // A real class exists in the solution, but the resolver returns its typed not-found result.
         using var project = new AdhocProjectBuilder();
         project.AddSource("Foo.cs", """
                                     namespace MyApp;
@@ -345,24 +338,18 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
                                     """);
         var (_, sln) = project.Build();
 
-        var service = new ExtractInterfaceService(
-            NullLogger<ExtractInterfaceService>.Instance,
-            new CapturingSolutionChangeWriter(),
-            new StubSymbolResolutionService(_ => null));
+        var service = new ExtractInterfaceService(new StubSymbolResolutionService(_ => null));
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.RunAsync(sln, "Foo", null, null, false));
-
-        ex.Message.ShouldContain("is not a named type", Case.Sensitive);
+        var error = GetError(await service.PrepareAsync(sln, "Foo", null, null));
+        error.Kind.ShouldBe(RtErrorKind.NotFound);
+        error.Message.ShouldContain("No symbol named 'Foo'", Case.Sensitive);
     }
 
     [Fact]
     public async Task constructor_uses_injected_resolver_not_a_fresh_one()
     {
-        // Kills L31 null-coalescing (remove-left): `_symbols = symbols ?? new SymbolResolutionService()`.
-        // If the mutant replaces the expression with `new SymbolResolutionService()`, the real
-        // resolver would FIND the class `Foo` and extraction would succeed — but our stub returns
-        // null, so the only way this throws "is not a named type" is if the injected stub is used.
+        // The stub returns not-found while the concrete resolver would find Foo, proving preparation
+        // uses the injected resolver.
         using var project = new AdhocProjectBuilder();
         project.AddSource("Foo.cs", """
                                     namespace MyApp;
@@ -370,13 +357,10 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
                                     """);
         var (_, sln) = project.Build();
 
-        var service = new ExtractInterfaceService(
-            NullLogger<ExtractInterfaceService>.Instance,
-            new CapturingSolutionChangeWriter(),
-            new StubSymbolResolutionService(_ => null));
+        var service = new ExtractInterfaceService(new StubSymbolResolutionService(_ => null));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.RunAsync(sln, "Foo", null, null, false));
+        GetError(await service.PrepareAsync(sln, "Foo", null, null))
+            .Message.ShouldContain("No symbol named 'Foo'", Case.Sensitive);
     }
 
     [Fact]
@@ -396,7 +380,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<ExtractInterfaceCommand>().ExecuteAsync("Widget", "ignored", null, null, false);
+            await ExecuteAsync("Widget", "ignored", null, null, false);
         }
 
         Assert.True(project.SourceExists("IWidget.cs"),
@@ -417,7 +401,7 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<ExtractInterfaceCommand>().ExecuteAsync("Widget", "ignored", null, null, false);
+            await ExecuteAsync("Widget", "ignored", null, null, false);
         }
 
         var content = await project.ReadSourceAsync("IWidget.cs");
@@ -437,26 +421,21 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
         var (workspace, sln) = project.Build();
 
         var outputDir = Path.Combine(project.Directory, "Contracts");
-        var capturing = new CapturingSolutionChangeWriter();
-        var service = new ExtractInterfaceService(
-            NullLogger<ExtractInterfaceService>.Instance,
-            capturing);
+        var service = new ExtractInterfaceService(new SymbolResolutionService());
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await service.RunAsync(sln, "Widget", outputDir, null, false);
+            var preparation = (await service.PrepareAsync(sln, "Widget", outputDir, null)).Unwrap();
+            var addedDoc = AddedDocument(preparation.Solution, "IWidget.cs");
+            Path.GetDirectoryName(addedDoc.FilePath).ShouldBe(outputDir);
         }
-
-        var addedDoc = AddedDocument(capturing, "IWidget.cs");
-        Path.GetDirectoryName(addedDoc.FilePath).ShouldBe(outputDir);
     }
 
     [Fact]
-    public async Task throws_when_type_has_no_source_location()
+    public async Task returns_typed_rejection_when_type_has_no_source_location()
     {
-        // Kills L58 (FirstOrDefault->First would throw "Sequence contains no elements"), L63
-        // statement, and L64 message: a metadata-only type symbol has no in-source location, so the
-        // service must throw OUR "Cannot determine source file" message.
+        // A metadata-only type has no source location, so preparation must return the actionable
+        // source-path rejection rather than leaking a LINQ exception.
         using var project = new AdhocProjectBuilder();
         project.AddSource("Anchor.cs", """
                                        namespace MyApp;
@@ -467,15 +446,10 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
         var compilation = await sln.Projects.First().GetCompilationAsync();
         var metadataType = compilation!.GetSpecialType(SpecialType.System_String);
 
-        var service = new ExtractInterfaceService(
-            NullLogger<ExtractInterfaceService>.Instance,
-            new CapturingSolutionChangeWriter(),
-            new StubSymbolResolutionService(_ => metadataType));
+        var service = new ExtractInterfaceService(new StubSymbolResolutionService(_ => metadataType));
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.RunAsync(sln, "String", null, null, false));
-
-        ex.Message.ShouldContain("Cannot determine source file", Case.Sensitive);
+        GetError(await service.PrepareAsync(sln, "String", null, null))
+            .Message.ShouldContain("Cannot determine source file", Case.Sensitive);
     }
 
     [Fact]
@@ -498,39 +472,35 @@ public class ExtractInterface : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<ExtractInterfaceCommand>().ExecuteAsync("Widget", "ignored", null, null, false);
+            await ExecuteAsync("Widget", "ignored", null, null, false);
         }
 
         Assert.True(project.SourceExists("IWidget.cs"),
             "Extraction must succeed even when the project contains other source files.");
     }
 
-    [Fact]
-    public async Task logs_the_extraction_with_interface_and_class_names()
+    private async Task ExecuteAsync(
+        string type,
+        string? solution,
+        string? outputDir,
+        string? ns,
+        bool dryRun)
     {
-        // Kills L117 Statement (drops the RtInfo call) and String (empties the template): a capturing
-        // logger must receive a message that names both the interface and the source class.
-        using var project = new AdhocProjectBuilder();
-        project.AddSource("Widget.cs", """
-                                       namespace MyApp;
-                                       public class Widget { public void Run() { } }
-                                       """);
-        var (workspace, sln) = project.Build();
-
-        var logger = new CapturingLogger<ExtractInterfaceService>();
-        var service = new ExtractInterfaceService(logger, new CapturingSolutionChangeWriter());
-
-        using (WorkspaceLoader.UseOverride(workspace, sln))
-        {
-            await service.RunAsync(sln, "Widget", null, null, false);
-        }
-
-        logger.Messages.ShouldContain(m => m.Contains("IWidget") && m.Contains("Widget"));
+        var result = await _services.Resolve<ExtractInterfaceOperation>().ExecuteAsync(
+            new ExtractInterfaceRequest(type, outputDir, ns, solution, dryRun));
+        result.Unwrap();
     }
 
-    private static Document AddedDocument(CapturingSolutionChangeWriter capturing, string fileName)
+    private static RtError GetError(Result<ExtractInterfaceService.Preparation, RtError> result)
     {
-        var doc = capturing.NewSolution!.Projects
+        return result.Match(
+            _ => throw new ShouldAssertException("Expected interface extraction to fail."),
+            error => error);
+    }
+
+    private static Document AddedDocument(Solution solution, string fileName)
+    {
+        var doc = solution.Projects
             .SelectMany(p => p.Documents)
             .FirstOrDefault(d => string.Equals(d.Name, fileName, StringComparison.Ordinal));
         doc.ShouldNotBeNull();
@@ -576,29 +546,4 @@ internal sealed class StubSymbolResolutionService : ISymbolResolutionService
 
     public Task<IMethodSymbol?> FindMethodInTypeAsync(Solution solution, string typeName, string methodName) =>
         throw new NotImplementedException();
-}
-
-/// <summary>
-///     Captures rendered log messages so tests can assert a diagnostic was emitted with the
-///     expected content. Reports <see cref="IsEnabled" /> as true so the production formatter runs.
-/// </summary>
-internal sealed class CapturingLogger<T> : ILogger<T>
-{
-    public List<string> Messages { get; } = new();
-
-    public IDisposable BeginScope<TState>(TState state) where TState : notnull => NullScope.Instance;
-
-    public bool IsEnabled(LogLevel logLevel) => true;
-
-    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
-        Func<TState, Exception?, string> formatter)
-    {
-        Messages.Add(formatter(state, exception));
-    }
-
-    private sealed class NullScope : IDisposable
-    {
-        public static readonly NullScope Instance = new();
-        public void Dispose() { }
-    }
 }
