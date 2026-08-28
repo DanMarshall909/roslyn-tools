@@ -5,7 +5,6 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
-using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
@@ -18,41 +17,32 @@ namespace RoslynTools.Services;
 internal class MoveMethodService : IRtService
 {
     private readonly IDocumentLocatorService _documents;
-    private readonly ILogger<MoveMethodService> _logger;
-    private readonly ISolutionChangeWriter _solutionChangeWriter;
     private readonly ISymbolResolutionService _symbols;
 
     public MoveMethodService()
-        : this(new RtConsoleLogger<MoveMethodService>(), new SolutionChangeWriter())
+        : this(new SymbolResolutionService(), new DocumentLocatorService())
     {
     }
 
-    public MoveMethodService(ILogger<MoveMethodService> logger, ISolutionChangeWriter solutionChangeWriter,
-        ISymbolResolutionService? symbols = null,
-        IDocumentLocatorService? documents = null)
+    public MoveMethodService(
+        ISymbolResolutionService symbols,
+        IDocumentLocatorService documents)
     {
-        _symbols = symbols ?? new SymbolResolutionService();
-        _documents = documents ?? new DocumentLocatorService();
-
-        _logger = logger;
-        _solutionChangeWriter = solutionChangeWriter;
+        _symbols = symbols;
+        _documents = documents;
     }
 
     /// <summary>
-    ///     Move a static method from its current type to <paramref name="targetTypeFqn" />,
-    ///     rewriting all call sites across the solution.
-    ///     Returns <c>false</c> (and logs to stderr) on validation failure; throws on
-    ///     unexpected lookup failure (method/type not found in index).
+    /// Calculates a static-method move without writing or rendering a result.
     /// </summary>
-    internal async Task<bool> RunAsync(
+    internal async Task<Result<Preparation, RtError>> PrepareAsync(
         Solution sln,
         string methodFqn,
         string targetTypeFqn,
         bool createFile,
-        bool dryRun)
+        CancellationToken cancellationToken = default)
     {
-        var originalSolution = sln;
-
+        cancellationToken.ThrowIfCancellationRequested();
         // ── 1. Locate source method ───────────────────────────────────────────
         IMethodSymbol methodSymbol;
         try
@@ -61,19 +51,18 @@ internal class MoveMethodService : IRtService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.RtError("Error: {Message}", ex.Message);
-            Environment.ExitCode = 1;
-            return false;
+            return Result<Preparation, RtError>.Err(RtError.NotFound(
+                ex.Message,
+                new Dictionary<string, string> { ["method-fqn"] = methodFqn }));
         }
 
         // ── 2. Validate: must be static ───────────────────────────────────────
         if (!methodSymbol.IsStatic)
         {
-            _logger.RtError(
-                "Error: '{MethodFqn}' is not static. move-method only supports static methods.",
-                methodFqn);
-            Environment.ExitCode = 1;
-            return false;
+            return Result<Preparation, RtError>.Err(new RtError(
+                RtErrorKind.InvalidInput,
+                $"'{methodFqn}' is not static. move-method only supports static methods.",
+                new Dictionary<string, string> { ["method-fqn"] = methodFqn }));
         }
 
         // ── 3. Locate target type ─────────────────────────────────────────────
@@ -86,11 +75,9 @@ internal class MoveMethodService : IRtService
         {
             if (!createFile)
             {
-                _logger.RtError(
-                    "Error: Target type '{TargetType}' not found. Pass --create-file to create it.",
-                    targetTypeFqn);
-                Environment.ExitCode = 1;
-                return false;
+                return Result<Preparation, RtError>.Err(RtError.NotFound(
+                    $"Target type '{targetTypeFqn}' not found. Pass --create-file to create it.",
+                    new Dictionary<string, string> { ["to-type"] = targetTypeFqn }));
             }
             // createFile == true: proceed with targetType == null; new file will be created in step 9.
         }
@@ -103,12 +90,14 @@ internal class MoveMethodService : IRtService
                 .Any();
             if (collision)
             {
-                _logger.RtError(
-                    "Error: Target type '{TargetType}' already has a method named '{MethodName}'.",
-                    targetTypeFqn,
-                    methodSymbol.Name);
-                Environment.ExitCode = 1;
-                return false;
+                return Result<Preparation, RtError>.Err(new RtError(
+                    RtErrorKind.InvalidInput,
+                    $"Target type '{targetTypeFqn}' already has a method named '{methodSymbol.Name}'.",
+                    new Dictionary<string, string>
+                    {
+                        ["to-type"] = targetTypeFqn,
+                        ["method"] = methodSymbol.Name
+                    }));
             }
         }
 
@@ -116,32 +105,39 @@ internal class MoveMethodService : IRtService
         var declLocation = methodSymbol.Locations.FirstOrDefault(l => l.IsInSource);
         if (declLocation?.SourceTree == null)
         {
-            _logger.RtError("Error: Cannot locate source for '{MethodFqn}'.", methodFqn);
-            Environment.ExitCode = 1;
-            return false;
+            return Result<Preparation, RtError>.Err(new RtError(
+                RtErrorKind.InvalidInput,
+                $"Cannot locate source for '{methodFqn}'.",
+                new Dictionary<string, string> { ["method-fqn"] = methodFqn }));
         }
 
         var declDocId = _documents.FindDocumentId(sln, methodSymbol);
         if (declDocId == null)
         {
-            _logger.RtError("Error: Cannot locate document for '{MethodFqn}'.", methodFqn);
-            Environment.ExitCode = 1;
-            return false;
+            return Result<Preparation, RtError>.Err(new RtError(
+                RtErrorKind.InvalidInput,
+                $"Cannot locate document for '{methodFqn}'.",
+                new Dictionary<string, string> { ["method-fqn"] = methodFqn }));
         }
 
         var declDoc = sln.GetDocument(declDocId)!;
-        var declRoot = (await declDoc.GetSyntaxRootAsync())!;
+        var declRoot = (await declDoc.GetSyntaxRootAsync(cancellationToken))!;
         var declNode = declRoot.FindNode(declLocation.SourceSpan);
         var methodDecl = declNode.AncestorsAndSelf().OfType<MethodDeclarationSyntax>().FirstOrDefault();
         if (methodDecl == null)
         {
-            _logger.RtError("Error: Cannot extract method syntax for '{MethodFqn}'.", methodFqn);
-            Environment.ExitCode = 1;
-            return false;
+            return Result<Preparation, RtError>.Err(new RtError(
+                RtErrorKind.InvalidInput,
+                $"Cannot extract method syntax for '{methodFqn}'.",
+                new Dictionary<string, string> { ["method-fqn"] = methodFqn }));
         }
 
         // ── 6. Collect all call-site reference locations ──────────────────────
-        var refs = await SymbolFinder.FindReferencesAsync(methodSymbol, sln);
+        cancellationToken.ThrowIfCancellationRequested();
+        var refs = await SymbolFinder.FindReferencesAsync(
+            methodSymbol,
+            sln,
+            cancellationToken: cancellationToken);
         var callSitesByDoc = refs
             .SelectMany(r => r.Locations)
             .GroupBy(loc => loc.Document.Id)
@@ -175,8 +171,9 @@ internal class MoveMethodService : IRtService
 
         foreach (var docId in allDocIds)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var doc = sln.GetDocument(docId)!;
-            var root = (await doc.GetSyntaxRootAsync())!;
+            var root = (await doc.GetSyntaxRootAsync(cancellationToken))!;
 
             var isSourceDoc = docId == declDocId;
             var isTargetDoc = targetDocId != null && docId == targetDocId;
@@ -223,8 +220,14 @@ internal class MoveMethodService : IRtService
             sln = sln.AddDocument(newDocInfo);
         }
 
-        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
-        return true;
+        return Result<Preparation, RtError>.Ok(new Preparation(
+            sln,
+            methodFqn,
+            targetTypeFqn,
+            methodSymbol.Name,
+            callSitesByDoc.Sum(group => group.Value.Count),
+            targetType is null,
+            targetType is null ? targetClassName + ".cs" : null));
     }
 
     // ── Syntax transformation ─────────────────────────────────────────────────
@@ -368,4 +371,13 @@ internal class MoveMethodService : IRtService
                  }
                  """;
     }
+
+    internal sealed record Preparation(
+        Solution Solution,
+        string MethodFqn,
+        string TargetTypeFqn,
+        string MethodName,
+        int CallSiteCount,
+        bool CreatedTargetFile,
+        string? CreatedTargetFileName);
 }

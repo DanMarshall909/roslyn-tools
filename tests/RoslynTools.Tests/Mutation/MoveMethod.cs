@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using RoslynTools.Core;
 using RoslynTools.Services;
 using Shouldly;
 
@@ -35,8 +36,8 @@ public class MoveMethod
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await new MoveMethodService().RunAsync(
-                sln, "App.Source.Add", "App.Target", false, false);
+            var result = await ExecuteAsync(
+                workspace, sln, "App.Source.Add", "App.Target", false, false);
 
             result.ShouldBeTrue();
         }
@@ -85,8 +86,8 @@ public class MoveMethod
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await new MoveMethodService().RunAsync(
-                sln, "App.Source.Greet", "App.Target", false, false);
+            var result = await ExecuteAsync(
+                workspace, sln, "App.Source.Greet", "App.Target", false, false);
 
             result.ShouldBeTrue();
         }
@@ -118,8 +119,8 @@ public class MoveMethod
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await new MoveMethodService().RunAsync(
-                sln, "App.Source.Double", "App.Target", false, false);
+            var result = await ExecuteAsync(
+                workspace, sln, "App.Source.Double", "App.Target", false, false);
 
             result.ShouldBeTrue();
         }
@@ -151,8 +152,8 @@ public class MoveMethod
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await new MoveMethodService().RunAsync(
-                sln, "App.Source.Compute", "App.Target", false, false);
+            var result = await ExecuteAsync(
+                workspace, sln, "App.Source.Compute", "App.Target", false, false);
 
             result.ShouldBeFalse();
         }
@@ -176,8 +177,8 @@ public class MoveMethod
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await new MoveMethodService().RunAsync(
-                sln, "App.Source.Missing", "App.Target", false, false);
+            var result = await ExecuteAsync(
+                workspace, sln, "App.Source.Missing", "App.Target", false, false);
 
             result.ShouldBeFalse();
         }
@@ -200,8 +201,8 @@ public class MoveMethod
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await new MoveMethodService().RunAsync(
-                sln, "App.Source.Add", "App.NonExistent", false, false);
+            var result = await ExecuteAsync(
+                workspace, sln, "App.Source.Add", "App.NonExistent", false, false);
 
             result.ShouldBeFalse();
         }
@@ -228,8 +229,8 @@ public class MoveMethod
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await new MoveMethodService().RunAsync(
-                sln, "App.Source.Add", "App.NewUtils", true, false);
+            var result = await ExecuteAsync(
+                workspace, sln, "App.Source.Add", "App.NewUtils", true, false);
 
             result.ShouldBeTrue();
         }
@@ -275,8 +276,8 @@ public class MoveMethod
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await new MoveMethodService().RunAsync(
-                sln, "App.Source.Add", "App.Target", false, false);
+            var result = await ExecuteAsync(
+                workspace, sln, "App.Source.Add", "App.Target", false, false);
 
             result.ShouldBeFalse();
         }
@@ -313,8 +314,8 @@ public class MoveMethod
 
         using (workspace)
         {
-            var result = await new MoveMethodService().RunAsync(
-                sln, "App.Source.Add", "App.Target", false, true);
+            var result = await ExecuteAsync(
+                workspace, sln, "App.Source.Add", "App.Target", false, true);
 
             result.ShouldBeTrue();
         }
@@ -346,8 +347,8 @@ public class MoveMethod
         var (workspace, sln) = project.Build();
         using (workspace)
         {
-            var result = await new MoveMethodService().RunAsync(
-                sln, "App.Source.Add", "App.Target", false, false);
+            var result = await ExecuteAsync(
+                workspace, sln, "App.Source.Add", "App.Target", false, false);
 
             result.ShouldBeTrue();
         }
@@ -368,5 +369,35 @@ public class MoveMethod
         }
 
         return count;
+    }
+
+    private static async Task<bool> ExecuteAsync(
+        Workspace workspace,
+        Solution solution,
+        string methodFqn,
+        string toType,
+        bool createFile,
+        bool dryRun)
+    {
+        var operation = new MoveMethodOperation(
+            new FixedWorkspaceSessionFactory(workspace, solution),
+            new MoveMethodService(),
+            new SolutionChangeWriter());
+        var result = await operation.ExecuteAsync(new MoveMethodRequest(
+            methodFqn,
+            toType,
+            createFile,
+            DryRun: dryRun));
+        return result.Match(_ => true, _ => false);
+    }
+
+    private sealed class FixedWorkspaceSessionFactory(
+        Workspace workspace,
+        Solution solution) : IWorkspaceSessionFactory
+    {
+        public Task<Solution> GetSolutionAsync(string? solutionPath) => Task.FromResult(solution);
+
+        public Task<(Workspace Workspace, Solution Solution)> LoadWorkspaceAsync(string? solutionPath) =>
+            Task.FromResult((workspace, solution));
     }
 }
