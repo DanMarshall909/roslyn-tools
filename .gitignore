@@ -10,6 +10,9 @@ nupkg/
 *.pdb
 *.exe
 
+## Repository-local .NET tool installation
+.tools/
+
 ## IDE
 .vs/
 .idea/
