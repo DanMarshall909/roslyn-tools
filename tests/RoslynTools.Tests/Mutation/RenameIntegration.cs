@@ -163,7 +163,8 @@ public class RenameIntegration
         return new RenameOperation(
             new FixedWorkspaceSessionFactory(workspace, solution),
             new RenameService(new SymbolResolutionService()),
-            new SolutionChangeWriter());
+            new PreparedChangeSetExecutor(
+                new PreparedChangeSetWriter(new PhysicalPreparedFileSystem())));
     }
 
     private sealed class FixedWorkspaceSessionFactory(

@@ -38,11 +38,11 @@ internal sealed class RenameOperation
     public RenameOperation(
         IWorkspaceSessionFactory sessions,
         RenameService rename,
-        ISolutionChangeWriter writer)
+        PreparedChangeSetExecutor executor)
     {
         _sessions = sessions;
         _rename = rename;
-        _executor = new PreparedChangeSetExecutor(new SolutionPreparedChangeSetWriter(writer));
+        _executor = executor;
     }
 
     public override ApplicationCommandDefinition Definition => RenameCommandDefinition.Definition;
