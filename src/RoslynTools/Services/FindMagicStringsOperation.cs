@@ -34,7 +34,7 @@ internal sealed class FindMagicStringsOperation
         _magicStrings = magicStrings;
     }
 
-    public override ApplicationCommandDefinition Definition => new(
+    public override ApplicationCommandDefinition Definition { get; } = new(
         FindMagicStringsCommandDefinition.Info,
         typeof(FindMagicStringsRequest),
         typeof(FindMagicStringsResult),

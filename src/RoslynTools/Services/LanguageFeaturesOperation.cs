@@ -112,7 +112,7 @@ internal sealed class LanguageFeaturesOperation
         _analyzer = analyzer;
     }
 
-    public override ApplicationCommandDefinition Definition => new(
+    public override ApplicationCommandDefinition Definition { get; } = new(
         LanguageFeaturesCommandDefinition.Info,
         typeof(LanguageFeaturesRequest), typeof(LanguageFeaturesResult), true,
         CommandSafety.ReadOnly, CommandExecutionPlacement.DaemonPreferred, []);

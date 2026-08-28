@@ -31,7 +31,7 @@ internal sealed class SemanticDiffOperation(
     private readonly SemanticDiffService _engine = engine;
     private readonly SemanticDiffTextRenderer _renderer = renderer;
 
-    public override ApplicationCommandDefinition Definition => new(
+    public override ApplicationCommandDefinition Definition { get; } = new(
         new RtCommandInfo("semantic-diff", false, true, "analyze", Aliases: ["sdiff"],
             WhenToUse: "Semantic C# diff between two git versions or two files on disc.", Examples: [],
             SupportedFormats: [Core.Output.OutputFormat.Text, Core.Output.OutputFormat.Json]),

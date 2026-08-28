@@ -39,7 +39,7 @@ internal sealed class ListImportsOperation
         _importDirective = importDirective;
     }
 
-    public override ApplicationCommandDefinition Definition => new(
+    public override ApplicationCommandDefinition Definition { get; } = new(
         ListImportsCommandDefinition.Info,
         typeof(ListImportsRequest),
         typeof(ListImportsResult),

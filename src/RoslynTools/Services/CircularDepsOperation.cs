@@ -41,7 +41,7 @@ internal sealed class CircularDepsOperation
         _circularDeps = circularDeps;
     }
 
-    public override ApplicationCommandDefinition Definition => new(
+    public override ApplicationCommandDefinition Definition { get; } = new(
         CircularDepsCommandDefinition.Info,
         typeof(CircularDepsRequest),
         typeof(CircularDepsAnalysisResult),

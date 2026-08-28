@@ -28,7 +28,7 @@ internal sealed class AddNullChecksOperation
         _executor = new PreparedChangeSetExecutor(new SolutionPreparedChangeSetWriter(writer));
     }
 
-    public override ApplicationCommandDefinition Definition => new(
+    public override ApplicationCommandDefinition Definition { get; } = new(
         AddNullChecksCommandDefinition.Info,
         typeof(AddNullChecksRequest),
         typeof(MutationExecutionResult<AddNullChecksResult>),
