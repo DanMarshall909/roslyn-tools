@@ -47,7 +47,7 @@ make-static	refactor	M1	complete	daemon-preferred	apply-default
 migrate-to-ioptions	refactor	M4	convert	daemon-preferred	apply-default
 move	refactor	M4	convert	daemon-preferred	apply-default
 move-method	refactor	M4	complete	daemon-preferred	apply-default
-narrow-dependency	refactor	M4	convert	daemon-preferred	apply-default
+narrow-dependency	refactor	M4	complete	daemon-preferred	apply-default
 rename	refactor	M0	complete	daemon-preferred	apply-default
 replace-call	refactor	M1	complete	daemon-preferred	apply-default
 replace-datetime	refactor	M1	complete	daemon-preferred	apply-default

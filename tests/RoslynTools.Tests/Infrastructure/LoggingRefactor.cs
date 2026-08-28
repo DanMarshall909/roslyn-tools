@@ -195,21 +195,23 @@ public class LoggingRefactor : IClassFixture<RtServicesFixture>
         using (WorkspaceLoader.UseOverride(workspace, solution))
         using (Core.RtConsole.UseConsole(console))
         {
-            await _services.Resolve<NarrowDependencyCommand>().ExecuteAsync(
+            var exitCode = await _services.Resolve<NarrowDependencyCommand>().Build().InvokeAsync(
+            [
                 "IWideFacade",
-                ["Send"],
-                "ISender",
-                "ignored",
-                false);
+                "--members", "Send",
+                "--new-name", "ISender",
+                "--solution", "ignored"
+            ]);
+            exitCode.ShouldBe(0);
         }
 
         var allOutput = string.Join("", console.WriteEntries.Select(e => e.Message));
-        allOutput.ShouldContain("Narrowed 1 consumer(s)", Case.Sensitive);
+        allOutput.ShouldContain("\"narrowedConsumers\"", Case.Sensitive);
         allOutput.ShouldContain("SenderOnlyConsumer", Case.Sensitive);
-        Assert.Contains("MixedConsumer: skipped", allOutput, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("DI registration", allOutput, StringComparison.OrdinalIgnoreCase);
+        allOutput.ShouldContain("MixedConsumer", Case.Sensitive);
+        allOutput.ShouldContain("DI registration", Case.Insensitive);
 
-        console.LogEntries.ShouldNotContain(e => e.RenderedMessage.Contains("Narrowed 1 consumer(s)", StringComparison.Ordinal));
+        console.LogEntries.ShouldNotContain(e => e.RenderedMessage.Contains("SenderOnlyConsumer", StringComparison.Ordinal));
         console.LogEntries.ShouldNotContain(e => e.RenderedMessage.Contains("DI registration", StringComparison.OrdinalIgnoreCase));
         console.LogEntries.ShouldNotContain(e => e.RenderedMessage.Contains("MixedConsumer", StringComparison.Ordinal));
     }
