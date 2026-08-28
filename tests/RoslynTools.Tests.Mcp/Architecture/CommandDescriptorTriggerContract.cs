@@ -75,6 +75,7 @@ public sealed class CommandDescriptorTriggerContract
         ["find_pattern"] = "Grep",
         ["debug"] = "Read",
         ["add_dependency"] = "Edit",
+        ["convert_console_logging"] = "Edit",
         ["make_sealed"] = "Edit",
         ["replace_xunit_asserts"] = "Edit",
         ["safe_delete"] = "Edit",
