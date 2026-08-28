@@ -28,6 +28,7 @@ public sealed class ExtractClassToolTests
         properties.Keys.ShouldBe(
             ["type", "members", "new-type", "static", "output-dir", "solution", "dry-run"],
             ignoreOrder: true);
+        properties["members"]["type"].ShouldBe("array");
     }
 
     [Fact]
@@ -40,7 +41,7 @@ public sealed class ExtractClassToolTests
         using (WorkspaceLoader.UseOverride(workspace, solution))
         using (var provider = McpTestHost.CreateProvider())
         using (var arguments = JsonDocument.Parse("""
-                                                   {"type":"Widget","members":"Format","new-type":"WidgetFormatter","solution":"ignored.slnx"}
+                                                   {"type":"Widget","members":["Format"],"new-type":"WidgetFormatter","solution":"ignored.slnx"}
                                                    """))
         {
             var result = await CreateAdapter(provider).InvokeAsync("extract_class", arguments.RootElement);
@@ -66,7 +67,7 @@ public sealed class ExtractClassToolTests
         using (WorkspaceLoader.UseOverride(workspace, solution))
         using (var provider = McpTestHost.CreateProvider())
         using (var arguments = JsonDocument.Parse("""
-                                                   {"type":"Widget","members":"Missing","new-type":"WidgetFormatter","solution":"ignored.slnx"}
+                                                   {"type":"Widget","members":["Missing"],"new-type":"WidgetFormatter","solution":"ignored.slnx"}
                                                    """))
         {
             var result = await CreateAdapter(provider).InvokeAsync("extract_class", arguments.RootElement);

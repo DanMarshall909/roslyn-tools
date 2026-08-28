@@ -8,8 +8,8 @@ internal sealed record ExtractClassRequest(
     [property: CommandPropertyDescription("Source class containing the members to extract")]
     string Type,
     [property: JsonRequired]
-    [property: CommandPropertyDescription("Comma-separated member names to extract")]
-    string Members,
+    [property: CommandPropertyDescription("Member names to extract")]
+    string[] Members,
     [property: JsonRequired]
     [property: JsonPropertyName("new-type")]
     [property: CommandPropertyDescription("Name for the extracted class")]
@@ -21,7 +21,27 @@ internal sealed record ExtractClassRequest(
     [property: CommandPropertyDescription("Directory for the new class file")]
     string? OutputDir = null,
     string? Solution = null,
-    [property: JsonPropertyName("dry-run")] bool DryRun = false);
+    [property: JsonPropertyName("dry-run")] bool DryRun = false)
+{
+    internal ExtractClassRequest(
+        string Type,
+        string Members,
+        string NewType,
+        bool IsStatic = false,
+        string? OutputDir = null,
+        string? Solution = null,
+        bool DryRun = false)
+        : this(
+            Type,
+            Members.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+            NewType,
+            IsStatic,
+            OutputDir,
+            Solution,
+            DryRun)
+    {
+    }
+}
 
 internal sealed record ExtractClassResult(
     string Type,

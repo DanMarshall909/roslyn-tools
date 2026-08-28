@@ -38,7 +38,8 @@ internal sealed class ExtractClassCommand(
                 _operation,
                 new ExtractClassRequest(
                     context.ParseResult.GetValueForOption(typeOpt)!,
-                    context.ParseResult.GetValueForOption(membersOpt)!,
+                    context.ParseResult.GetValueForOption(membersOpt)!
+                        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
                     context.ParseResult.GetValueForOption(newTypeOpt)!,
                     context.ParseResult.GetValueForOption(staticOpt),
                     context.ParseResult.GetValueForOption(outputDirOpt),

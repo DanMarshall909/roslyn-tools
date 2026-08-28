@@ -28,7 +28,7 @@ internal class ExtractClassService : IRtService
     internal async Task<Result<Preparation, RtError>> PrepareAsync(
         Solution solution,
         string typeName,
-        string members,
+        IReadOnlyList<string> members,
         string newTypeName,
         bool isStatic,
         string? outputDir,
@@ -43,7 +43,7 @@ internal class ExtractClassService : IRtService
             return Result<Preparation, RtError>.Err(targetError);
 
         var resolvedTarget = target!;
-        var memberNames = members.Split(',')
+        var memberNames = members
             .Select(m => m.Trim())
             .Where(m => !string.IsNullOrEmpty(m))
             .ToHashSet(StringComparer.Ordinal);
@@ -57,7 +57,10 @@ internal class ExtractClassService : IRtService
 
         var validationError = ValidateSelectedMembers(resolvedTarget, selection!);
         if (validationError is not null)
-            return Result<Preparation, RtError>.Err(InvalidInput(validationError, typeName, members));
+            return Result<Preparation, RtError>.Err(InvalidInput(
+                validationError,
+                typeName,
+                string.Join(",", members)));
 
         if (!isStatic)
         {
@@ -79,7 +82,7 @@ internal class ExtractClassService : IRtService
                     preflight.ValidationError ??
                     $"Cannot inject '{newTypeName}' into '{resolvedTarget.Symbol.ToDisplayString(TypeDisplayFormat)}'.",
                     typeName,
-                    members));
+                    string.Join(",", members)));
             }
         }
 
