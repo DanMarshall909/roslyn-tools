@@ -61,6 +61,7 @@ internal sealed class PreparedChangeSet
 
     private string[] BuildAffectedPaths()
     {
+        ValidateMoveRoles();
         var paths = new Dictionary<string, string>(PathComparer);
 
         if (OriginalSolution is not null && ChangedSolution is not null)
@@ -81,6 +82,31 @@ internal sealed class PreparedChangeSet
             AddUnique(paths, edit.Path);
 
         return paths.Values.OrderBy(path => path, StringComparer.Ordinal).ToArray();
+    }
+
+    private void ValidateMoveRoles()
+    {
+        var sources = new HashSet<string>(PathComparer);
+        var destinations = new HashSet<string>(PathComparer);
+
+        foreach (var move in MovedFiles)
+        {
+            var source = Path.GetFullPath(move.SourcePath);
+            var destination = Path.GetFullPath(move.DestinationPath);
+            if (!sources.Add(source))
+                throw new ArgumentException(
+                    $"Move source '{move.SourcePath}' is used more than once.",
+                    nameof(MovedFiles));
+            if (!destinations.Add(destination))
+                throw new ArgumentException(
+                    $"Move destination '{move.DestinationPath}' is targeted more than once.",
+                    nameof(MovedFiles));
+        }
+
+        if (sources.Overlaps(destinations))
+            throw new ArgumentException(
+                "Prepared file moves cannot form chains or cycles.",
+                nameof(MovedFiles));
     }
 
     private static void AddSolutionPaths(
@@ -140,7 +166,8 @@ internal sealed class PreparedChangeSet
         var fullPath = Path.GetFullPath(path);
         return Path.IsPathFullyQualified(path)
             ? fullPath
-            : Path.GetRelativePath(Directory.GetCurrentDirectory(), fullPath);
+            : Path.GetRelativePath(Directory.GetCurrentDirectory(), fullPath)
+                .Replace(Path.DirectorySeparatorChar, '/');
     }
 
     private static StringComparer PathComparer => OperatingSystem.IsWindows()
@@ -151,17 +178,20 @@ internal sealed class PreparedChangeSet
 /// <summary>Content for a new file or an edit to an existing text/project file.</summary>
 internal sealed record PreparedFileWrite
 {
-    internal PreparedFileWrite(string path, string content)
+    internal PreparedFileWrite(string path, string content, string? expectedContent = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentNullException.ThrowIfNull(content);
         Path = path;
         Content = content;
+        ExpectedContent = expectedContent;
     }
 
     internal string Path { get; }
 
     internal string Content { get; }
+
+    internal string? ExpectedContent { get; }
 }
 
 /// <summary>A filesystem move whose source and destination are both affected paths.</summary>
@@ -235,64 +265,6 @@ internal sealed class SolutionPreparedChangeSetWriter(ISolutionChangeWriter solu
             changeSet.OriginalSolution,
             changeSet.ChangedSolution,
             dryRun: false);
-    }
-}
-
-/// <summary>Applies a prepared Roslyn and filesystem change set after validating its paths.</summary>
-internal sealed class PreparedChangeSetWriter : IPreparedChangeSetWriter
-{
-    private readonly ISolutionChangeWriter _solutionChangeWriter;
-
-    internal PreparedChangeSetWriter(ISolutionChangeWriter solutionChangeWriter)
-    {
-        _solutionChangeWriter = solutionChangeWriter;
-    }
-
-    public async Task ApplyAsync(
-        PreparedChangeSet changeSet,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(changeSet);
-        cancellationToken.ThrowIfCancellationRequested();
-        ValidateFileSystemChanges(changeSet);
-
-        if (changeSet.OriginalSolution is not null && changeSet.ChangedSolution is not null)
-            await _solutionChangeWriter.ApplyChangesAsync(
-                changeSet.OriginalSolution,
-                changeSet.ChangedSolution,
-                dryRun: false);
-
-        foreach (var file in changeSet.NewFiles
-                     .Concat(changeSet.ProjectFileEdits)
-                     .Concat(changeSet.TextEdits))
-        {
-            var directory = Path.GetDirectoryName(Path.GetFullPath(file.Path));
-            if (!string.IsNullOrEmpty(directory))
-                Directory.CreateDirectory(directory);
-            await File.WriteAllTextAsync(file.Path, file.Content, CancellationToken.None);
-        }
-
-        foreach (var move in changeSet.MovedFiles)
-            File.Move(move.SourcePath, move.DestinationPath);
-
-        foreach (var path in changeSet.DeletedFiles)
-            File.Delete(path);
-    }
-
-    private static void ValidateFileSystemChanges(PreparedChangeSet changeSet)
-    {
-        foreach (var file in changeSet.NewFiles)
-            if (File.Exists(file.Path))
-                throw new IOException($"Cannot create '{file.Path}' because it already exists.");
-
-        foreach (var move in changeSet.MovedFiles)
-        {
-            if (!File.Exists(move.SourcePath))
-                throw new FileNotFoundException("Prepared move source was not found.", move.SourcePath);
-            if (File.Exists(move.DestinationPath))
-                throw new IOException(
-                    $"Cannot move '{move.SourcePath}' to '{move.DestinationPath}' because the destination already exists.");
-        }
     }
 }
 

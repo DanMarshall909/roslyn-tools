@@ -42,7 +42,7 @@ internal sealed class RenameOperation
     {
         _sessions = sessions;
         _rename = rename;
-        _executor = new PreparedChangeSetExecutor(new PreparedChangeSetWriter(writer));
+        _executor = new PreparedChangeSetExecutor(new SolutionPreparedChangeSetWriter(writer));
     }
 
     public override ApplicationCommandDefinition Definition => RenameCommandDefinition.Definition;
