@@ -82,6 +82,7 @@ public sealed class CommandDescriptorTriggerContract
         ["extract_method"] = "Edit",
         ["make_sealed"] = "Edit",
         ["migrate_to_ioptions"] = "Edit",
+        ["move"] = "Edit",
         ["move_method"] = "Edit",
         ["narrow_dependency"] = "Edit",
         ["replace_xunit_asserts"] = "Edit",

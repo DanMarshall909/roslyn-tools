@@ -264,6 +264,22 @@ public sealed class CommandDescriptorContracts
     }
 
     [Fact]
+    public void move_schema_projects_the_explicit_mode_enum()
+    {
+        using var provider = McpTestHost.CreateProvider();
+        var descriptor = provider.GetRequiredService<CommandDescriptorRegistry>()
+            .All.Single(candidate => candidate.ToolName == MoveCommandDefinition.Definition.Name);
+        var tool = ToolSchemaBuilder.Build(descriptor);
+        var properties = (Dictionary<string, Dictionary<string, object>>)tool.inputSchema["properties"];
+
+        descriptor.Port.ShouldBeOfType<MoveOperation>();
+        descriptor.Definition.ShouldBeSameAs(MoveCommandDefinition.Definition);
+        ((string[])properties["mode"]["enum"]).ShouldBe(
+            ["TypeToNamespace", "NamespaceToNamespace", "TypeToProject"],
+            ignoreOrder: true);
+    }
+
+    [Fact]
     public async Task feedback_list_uses_the_generic_port_instead_of_a_native_handler()
     {
         using var provider = McpTestHost.CreateProvider();
