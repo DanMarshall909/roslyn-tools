@@ -14,64 +14,59 @@ namespace RoslynTools.Services;
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class ReplaceXunitAssertsService : IRtService
 {
-    private readonly ISolutionChangeWriter _solutionChangeWriter;
-
-    public ReplaceXunitAssertsService()
-        : this(new SolutionChangeWriter())
-    {
-    }
-
-    public ReplaceXunitAssertsService(ISolutionChangeWriter solutionChangeWriter)
-    {
-        _solutionChangeWriter = solutionChangeWriter;
-    }
-
     /// <summary>
     /// Analyzes a solution to identify XUnit assert replacements.
     /// </summary>
-    internal async Task<ReplaceXunitAssertsReview> AnalyzeAsync(Solution solution)
+    internal async Task<ReplaceXunitAssertsReview> AnalyzeAsync(
+        Solution solution,
+        CancellationToken cancellationToken = default)
     {
         var review = new ReplaceXunitAssertsReview();
 
         foreach (var project in solution.Projects)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
             foreach (var document in project.Documents)
             {
-                var root = await document.GetSyntaxRootAsync();
+                cancellationToken.ThrowIfCancellationRequested();
+                var root = await document.GetSyntaxRootAsync(cancellationToken);
                 if (root is null)
                     continue;
 
-                var semanticModel = await document.GetSemanticModelAsync();
+                var semanticModel = await document.GetSemanticModelAsync(cancellationToken);
                 var analyzer = new ReplaceXunitAssertsAnalyzer(document.FilePath ?? document.Name, this, semanticModel);
                 analyzer.Visit(root);
                 review.AddRange(analyzer.Entries);
             }
+        }
 
         return review;
     }
 
-    /// <summary>
-    /// Runs an asynchronous method to replace XUnit asserts in a solution with a boolean parameter.
-    /// </summary>
-    internal async Task RunAsync(Solution solution, bool dryRun)
+    internal async Task<Solution> PrepareAsync(Solution solution, CancellationToken cancellationToken = default)
     {
-        var originalSolution = solution;
-        var newSolution = await ApplyAsync(solution);
-        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, newSolution, dryRun);
+        cancellationToken.ThrowIfCancellationRequested();
+        return await ApplyAsync(solution, cancellationToken);
     }
 
     /// <summary>
     /// Applies XUnit assert replacements to a solution asynchronously.
     /// </summary>
-    internal async Task<Solution> ApplyAsync(Solution solution)
+    internal async Task<Solution> ApplyAsync(
+        Solution solution,
+        CancellationToken cancellationToken = default)
     {
         foreach (var project in solution.Projects)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
             foreach (var document in project.Documents)
             {
-                var root = await document.GetSyntaxRootAsync();
+                cancellationToken.ThrowIfCancellationRequested();
+                var root = await document.GetSyntaxRootAsync(cancellationToken);
                 if (root is null)
                     continue;
 
-                var semanticModel = await document.GetSemanticModelAsync();
+                var semanticModel = await document.GetSemanticModelAsync(cancellationToken);
                 var rewriter = new ReplaceXunitAssertsRewriter(this, semanticModel);
                 var rewritten = rewriter.Visit(root);
                 if (rewritten is null || rewriter.ReplacementCount == 0)
@@ -82,6 +77,7 @@ internal class ReplaceXunitAssertsService : IRtService
 
                 solution = solution.WithDocumentSyntaxRoot(document.Id, rewritten);
             }
+        }
 
         return solution;
     }

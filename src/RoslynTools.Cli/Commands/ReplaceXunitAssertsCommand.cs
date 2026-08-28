@@ -1,8 +1,6 @@
 using System.CommandLine;
-using System.Text;
-using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
-using RoslynTools.Core.Output;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -10,31 +8,14 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Replaces XUnit assertions with alternative testing methods.
 /// </summary>
-internal sealed class ReplaceXunitAssertsCommand(IWorkspaceSessionFactory sessionFactory, ReplaceXunitAssertsService replace) : IRtCommand, IRefactorCommand
+internal sealed class ReplaceXunitAssertsCommand(
+    DaemonRpcRecoveryCoordinator daemon,
+    ReplaceXunitAssertsOperation operation) : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
-    private readonly ReplaceXunitAssertsService _replace = replace;
-    public static RtCommandInfo Info { get; } = new(
-        "replace-xunit-asserts",
-        true,
-        false,
-        "refactor",
-        Aliases: ["rxa"],
-        WhenToUse:
-        "Migrating Xunit Assert calls in tests to Shouldly's fluent assertion style. Defaults to review mode; pass --apply to write changes.",
-        Examples:
-        [
-            "rt refactor replace-xunit-asserts --solution RoslynTools.slnx",
-            "rt refactor rxa --apply --solution C:\\code\\app\\App.sln",
-            "rt refactor replace-xunit-asserts --dry-run --solution C:\\code\\app\\App.sln"
-        ],
-        KnownIssues:
-        [
-            "Only common Assert calls are converted automatically; unsupported assertions are left unchanged.",
-            "Assert overloads that include comparers, precision, inspectors, or custom messages are left unchanged.",
-            "The command adds `using Shouldly;` to files with replacements and leaves existing Xunit imports in place for attributes such as [Fact]."
-        ]
-    );
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
+    private readonly ReplaceXunitAssertsOperation _operation = operation;
+
+    public static RtCommandInfo Info => ReplaceXunitAssertsCommandDefinition.Info;
 
     public Command Build()
     {
@@ -49,59 +30,16 @@ internal sealed class ReplaceXunitAssertsCommand(IWorkspaceSessionFactory sessio
         cmd.AddAlias("rxa");
         cmd.AddAll(solutionOpt, dryRunOpt, applyOpt, reviewOpt);
 
-        cmd.SetHandler(
-            async (solution, dryRun, apply, review) => { await ExecuteAsync(solution, dryRun, apply, review); },
-            solutionOpt, dryRunOpt, applyOpt, reviewOpt);
+        cmd.SetHandler(async context =>
+        {
+            var request = new ReplaceXunitAssertsRequest(
+                context.ParseResult.GetValueForOption(solutionOpt),
+                context.ParseResult.GetValueForOption(dryRunOpt),
+                context.ParseResult.GetValueForOption(applyOpt),
+                context.ParseResult.GetValueForOption(reviewOpt));
+            await DaemonCommandExecutor.ExecuteAsync(_daemon, _operation, request, context);
+        });
 
         return cmd;
-    }
-
-    /// <summary>
-    /// Asynchronously replaces XUnit assertions with alternative testing methods.
-    /// </summary>
-    internal async Task ExecuteAsync(string? solutionPath, bool dryRun, bool apply, bool review)
-    {
-        var (workspace, solution) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
-        using (workspace)
-        {
-            await ExecuteCoreAsync(solution, dryRun, apply, review);
-        }
-    }
-
-    /// <summary>
-    /// Asynchronously replaces XUnit assertions with alternative testing methods using core analysis.
-    /// </summary>
-    internal async Task ExecuteCoreAsync(
-        Solution solution,
-        bool dryRun,
-        bool apply = false,
-        bool review = false)
-    {
-        if (review || (!apply && !dryRun))
-        {
-            await ReviewAsync(solution);
-            return;
-        }
-
-        await _replace.RunAsync(solution, dryRun);
-    }
-
-    private async Task ReviewAsync(Solution solution)
-    {
-        var review = await _replace.AnalyzeAsync(solution);
-        var entries = review.Entries;
-        var output = new StringBuilder();
-
-        output.AppendLine(FormattableString.Invariant($"xunit assert review: {entries.Count} call site(s)"));
-
-        foreach (var group in entries.GroupBy(e => e.FilePath).OrderBy(g => g.Key, StringComparer.Ordinal).Take(20))
-        {
-            output.AppendLine(FormattableString.Invariant($"  {group.Key}: {group.Count()}"));
-            foreach (var entry in group.Take(5))
-                output.AppendLine(
-                    FormattableString.Invariant($"    line {entry.Line}: {entry.Original} -> {entry.Replacement}"));
-        }
-
-        RtResultRenderer.WriteText(RtResult<string>.Ok(output.ToString()));
     }
 }
