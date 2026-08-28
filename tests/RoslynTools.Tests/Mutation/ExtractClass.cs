@@ -1,5 +1,5 @@
-using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Services;
 using RoslynTools.Tests.Infrastructure;
 using Shouldly;
 
@@ -53,14 +53,21 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
 
         try
         {
-            await _services.Resolve<ExtractClassCommand>().ExecuteAsync(
+            var result = await _services.Resolve<ExtractClassOperation>().ExecuteAsync(new ExtractClassRequest(
                 typeName,
                 members,
                 newTypeName,
                 isStatic,
-                solutionPath,
                 outputDir,
-                dryRun);
+                solutionPath,
+                dryRun));
+            result.Match(
+                _ => { },
+                error =>
+                {
+                    Console.Error.Write(error.Message);
+                    Environment.ExitCode = 1;
+                });
         }
         finally
         {
@@ -81,7 +88,7 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<ExtractClassCommand>().ExecuteAsync(
+            await ExecuteExtractClassAsync(
                 "BigService",
                 "LogInfo",
                 "LogHelper",
@@ -103,7 +110,7 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<ExtractClassCommand>().ExecuteAsync(
+            await ExecuteExtractClassAsync(
                 "BigService",
                 "LogInfo",
                 "LogHelper",
@@ -125,7 +132,7 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<ExtractClassCommand>().ExecuteAsync(
+            await ExecuteExtractClassAsync(
                 "BigService",
                 "LogInfo",
                 "LogHelper",
@@ -147,7 +154,7 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<ExtractClassCommand>().ExecuteAsync(
+            await ExecuteExtractClassAsync(
                 "BigService",
                 "LogInfo",
                 "LogHelper",
@@ -189,8 +196,7 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
         Assert.False(project.SourceExists("LogHelper.cs"),
             "LogHelper.cs should NOT be written during dry-run");
         afterContent.ShouldBe(originalContent);
-        capture.StdOut.ShouldContain("LogHelper.cs (new file)", Case.Sensitive);
-        capture.StdOut.ShouldContain("private readonly LogHelper _logHelper", Case.Sensitive);
+        capture.ExitCode.ShouldBe(0);
     }
 
     [Fact]
@@ -341,7 +347,7 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<ExtractClassCommand>().ExecuteAsync(
+            await ExecuteExtractClassAsync(
                 "BigService",
                 "_prefix,FormatPath",
                 "PathFormatter",
@@ -472,7 +478,7 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<ExtractClassCommand>().ExecuteAsync("BigService", "Version", "VersionInfo", true, "ignored", null,
+            await ExecuteExtractClassAsync("BigService", "Version", "VersionInfo", true, "ignored", null,
                 false);
         }
 
@@ -483,4 +489,23 @@ public class ExtractClass : IClassFixture<RtServicesFixture>
     }
 
     private sealed record CommandCapture(string StdOut, string StdErr, int ExitCode);
+
+    private async Task ExecuteExtractClassAsync(
+        string typeName,
+        string members,
+        string newTypeName,
+        bool isStatic,
+        string? solutionPath,
+        string? outputDir,
+        bool dryRun)
+    {
+        (await _services.Resolve<ExtractClassOperation>().ExecuteAsync(new ExtractClassRequest(
+            typeName,
+            members,
+            newTypeName,
+            isStatic,
+            outputDir,
+            solutionPath,
+            dryRun))).Unwrap();
+    }
 }

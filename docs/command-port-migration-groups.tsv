@@ -33,7 +33,7 @@ change-signature	refactor	M2	complete	daemon-preferred	apply-default
 convert-console-logging	refactor	M3	complete	daemon-preferred	review-default
 convert-static-class	refactor	M1	complete	daemon-preferred	apply-default
 convert-to-record	refactor	M1	complete	daemon-preferred	apply-default
-extract-class	refactor	M4	convert	daemon-preferred	apply-default
+extract-class	refactor	M4	complete	daemon-preferred	apply-default
 extract-interface	refactor	M1	complete	daemon-preferred	apply-default
 extract-method	refactor	M4	complete	daemon-preferred	apply-default
 extract-string-constant	refactor	M1	complete	daemon-preferred	apply-default

@@ -6,111 +6,112 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Formatting;
 using Microsoft.CodeAnalysis.Text;
-using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
 
 /// <summary>
-/// Extracts classes from a method's source code.
+/// Prepares class extraction changes without applying or rendering them.
 /// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
-    Justification = "Instance class created by rt destatic-class migration.")]
+    Justification = "Instance service keeps helper tests and preparation APIs together.")]
 internal class ExtractClassService : IRtService
 {
-    private readonly ILogger<ExtractClassService> _logger;
-    private readonly ISolutionChangeWriter _solutionChangeWriter;
-
     private readonly SymbolDisplayFormat TypeDisplayFormat = new(
         SymbolDisplayGlobalNamespaceStyle.Omitted,
         SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
         SymbolDisplayGenericsOptions.IncludeTypeParameters);
 
-    public ExtractClassService(ILogger<ExtractClassService> logger, ISolutionChangeWriter solutionChangeWriter)
-    {
-        _logger = logger;
-        _solutionChangeWriter = solutionChangeWriter;
-    }
-
     /// <summary>
-    /// Executes the extraction process for a class from a method.
+    /// Calculates the extracted document and source-type update without writing files.
     /// </summary>
-    internal async Task ExecuteAsync(
+    internal async Task<Result<Preparation, RtError>> PrepareAsync(
         Solution solution,
         string typeName,
         string members,
         string newTypeName,
         bool isStatic,
         string? outputDir,
-        bool dryRun)
+        CancellationToken cancellationToken = default)
     {
-        var originalSolution = solution;
-        var target = await ResolveSourceTypeAsync(solution, typeName);
-        if (target is null)
-            return;
+        cancellationToken.ThrowIfCancellationRequested();
+        var targetResult = await ResolveSourceTypeAsync(solution, typeName, cancellationToken);
+        ResolvedSourceType? target = null;
+        RtError? targetError = null;
+        targetResult.Match(value => target = value, error => targetError = error);
+        if (targetError is not null)
+            return Result<Preparation, RtError>.Err(targetError);
 
+        var resolvedTarget = target!;
         var memberNames = members.Split(',')
             .Select(m => m.Trim())
             .Where(m => !string.IsNullOrEmpty(m))
             .ToHashSet(StringComparer.Ordinal);
 
-        var selection = CollectSelectedMembers(target, memberNames);
-        if (selection is null)
-            return;
+        var selectionResult = CollectSelectedMembers(resolvedTarget, memberNames);
+        SelectedMembers? selection = null;
+        RtError? selectionError = null;
+        selectionResult.Match(value => selection = value, error => selectionError = error);
+        if (selectionError is not null)
+            return Result<Preparation, RtError>.Err(selectionError);
 
-        var validationError = ValidateSelectedMembers(target, selection);
+        var validationError = ValidateSelectedMembers(resolvedTarget, selection!);
         if (validationError is not null)
-        {
-            ReportValidationError(validationError);
-            return;
-        }
+            return Result<Preparation, RtError>.Err(InvalidInput(validationError, typeName, members));
 
         if (!isStatic)
         {
             var fieldName = DeriveFieldName(newTypeName);
             var paramName = fieldName.TrimStart('_');
             var preflight = new DependencyInjector(
-                target.Symbol.Name,
+                resolvedTarget.Symbol.Name,
                 newTypeName,
                 fieldName,
                 paramName,
-                target.SemanticModel,
+                resolvedTarget.SemanticModel,
                 null,
-                target.Symbol);
+                resolvedTarget.Symbol);
 
-            preflight.Visit(target.Root);
+            preflight.Visit(resolvedTarget.Root);
             if (preflight.Status == DependencyInjectionStatus.Unsupported)
             {
-                ReportValidationError(preflight.ValidationError ??
-                                      $"Cannot inject '{newTypeName}' into '{target.Symbol.ToDisplayString(TypeDisplayFormat)}'.");
-                return;
+                return Result<Preparation, RtError>.Err(InvalidInput(
+                    preflight.ValidationError ??
+                    $"Cannot inject '{newTypeName}' into '{resolvedTarget.Symbol.ToDisplayString(TypeDisplayFormat)}'.",
+                    typeName,
+                    members));
             }
         }
 
-        var namespaceName = target.Symbol.ContainingNamespace?.IsGlobalNamespace == false
-            ? target.Symbol.ContainingNamespace.ToDisplayString()
+        var namespaceName = resolvedTarget.Symbol.ContainingNamespace?.IsGlobalNamespace == false
+            ? resolvedTarget.Symbol.ContainingNamespace.ToDisplayString()
             : string.Empty;
 
-        var membersToEmit = PromoteMembersReferencedFromOrigin(target, selection);
+        cancellationToken.ThrowIfCancellationRequested();
+        var membersToEmit = PromoteMembersReferencedFromOrigin(resolvedTarget, selection!);
         var newClassText = BuildNewClassText(namespaceName, newTypeName, isStatic, membersToEmit);
 
         var updatedClassDecl =
-            target.Declaration.RemoveNodes(selection.Declarations, SyntaxRemoveOptions.KeepNoTrivia)!;
-        var updatedRoot = target.Root.ReplaceNode(target.Declaration, updatedClassDecl);
-        solution = solution.WithDocumentSyntaxRoot(target.Document.Id, updatedRoot);
+            resolvedTarget.Declaration.RemoveNodes(selection!.Declarations, SyntaxRemoveOptions.KeepNoTrivia)!;
+        var updatedRoot = resolvedTarget.Root.ReplaceNode(resolvedTarget.Declaration, updatedClassDecl);
+        solution = solution.WithDocumentSyntaxRoot(resolvedTarget.Document.Id, updatedRoot);
 
         if (!isStatic)
         {
-            var updatedDocument = solution.GetDocument(target.Document.Id)
+            var updatedDocument = solution.GetDocument(resolvedTarget.Document.Id)
                                   ?? throw new InvalidOperationException("Updated source document could not be found.");
-            var injectedRoot = await InjectExtractedTypeAsync(updatedDocument, target.Symbol, newTypeName);
-            solution = solution.WithDocumentSyntaxRoot(target.Document.Id, injectedRoot);
+            var injectedRoot = await InjectExtractedTypeAsync(
+                updatedDocument,
+                resolvedTarget.Symbol,
+                newTypeName,
+                cancellationToken);
+            solution = solution.WithDocumentSyntaxRoot(resolvedTarget.Document.Id, injectedRoot);
         }
 
-        var sourceDir = outputDir ?? Path.GetDirectoryName(target.Document.FilePath)!;
+        var sourceDir = outputDir ?? Path.GetDirectoryName(resolvedTarget.Document.FilePath)!;
         var newFileName = newTypeName + ".cs";
         var newFilePath = Path.Combine(sourceDir, newFileName);
-        var owningProject = solution.GetProject(target.Document.Project.Id)
+        var owningProject = solution.GetProject(resolvedTarget.Document.Project.Id)
                             ?? throw new InvalidOperationException("Cannot find project containing the class.");
 
         var newSourceText = SourceText.From(newClassText, Encoding.UTF8);
@@ -120,16 +121,22 @@ internal class ExtractClassService : IRtService
             newSourceText,
             filePath: newFilePath);
 
-        _logger.RtInfo("Extracting '{MemberNames}' from '{TargetType}' into '{NewTypeName}'...",
-            string.Join(", ", selection.Names.OrderBy(n => n, StringComparer.Ordinal)),
-            target.Symbol.ToDisplayString(TypeDisplayFormat), newTypeName);
-        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, finalSolution, dryRun);
+        return Result<Preparation, RtError>.Ok(new Preparation(
+            finalSolution,
+            resolvedTarget.Symbol.ToDisplayString(TypeDisplayFormat),
+            selection.Declarations.Select(GetMemberName).ToList(),
+            newTypeName,
+            isStatic,
+            newFilePath));
     }
 
     /// <summary>
     /// Resolves the source type for a method.
     /// </summary>
-    internal async Task<ResolvedSourceType?> ResolveSourceTypeAsync(Solution solution, string typeName)
+    internal async Task<Result<ResolvedSourceType, RtError>> ResolveSourceTypeAsync(
+        Solution solution,
+        string typeName,
+        CancellationToken cancellationToken = default)
     {
         var normalizedTypeName = NormalizeTypeName(typeName);
         var isQualifiedName = normalizedTypeName.Contains('.', StringComparison.Ordinal);
@@ -138,15 +145,16 @@ internal class ExtractClassService : IRtService
         foreach (var project in solution.Projects)
             foreach (var document in project.Documents)
             {
-                var root = await document.GetSyntaxRootAsync();
+                cancellationToken.ThrowIfCancellationRequested();
+                var root = await document.GetSyntaxRootAsync(cancellationToken);
                 if (root is null) continue;
 
-                var semanticModel = await document.GetSemanticModelAsync();
+                var semanticModel = await document.GetSemanticModelAsync(cancellationToken);
                 if (semanticModel is null) continue;
 
                 foreach (var declaration in root.DescendantNodes().OfType<ClassDeclarationSyntax>())
                 {
-                    if (semanticModel.GetDeclaredSymbol(declaration) is not INamedTypeSymbol symbol)
+                    if (semanticModel.GetDeclaredSymbol(declaration, cancellationToken) is not INamedTypeSymbol symbol)
                         continue;
 
                     if (!IsTypeMatch(symbol, normalizedTypeName, isQualifiedName))
@@ -158,8 +166,9 @@ internal class ExtractClassService : IRtService
 
         if (matches.Count == 0)
         {
-            ReportValidationError($"Class '{typeName}' not found in solution.");
-            return null;
+            return Result<ResolvedSourceType, RtError>.Err(RtError.NotFound(
+                $"Class '{typeName}' not found in solution.",
+                new Dictionary<string, string> { ["type"] = typeName }));
         }
 
         if (matches.Count > 1)
@@ -167,18 +176,20 @@ internal class ExtractClassService : IRtService
             var candidateList = string.Join(", ", matches
                 .Select(m => m.Symbol.ToDisplayString(TypeDisplayFormat))
                 .Distinct(StringComparer.Ordinal));
-            ReportValidationError(
-                $"Class '{typeName}' is ambiguous across the loaded solution: {candidateList}. Pass a fully qualified type name.");
-            return null;
+            return Result<ResolvedSourceType, RtError>.Err(InvalidInput(
+                $"Class '{typeName}' is ambiguous across the loaded solution: {candidateList}. Pass a fully qualified type name.",
+                typeName));
         }
 
-        return matches[0];
+        return Result<ResolvedSourceType, RtError>.Ok(matches[0]);
     }
 
     /// <summary>
     /// Collects selected members based on resolved source type.
     /// </summary>
-    internal SelectedMembers? CollectSelectedMembers(ResolvedSourceType target, HashSet<string> memberNames)
+    internal Result<SelectedMembers, RtError> CollectSelectedMembers(
+        ResolvedSourceType target,
+        HashSet<string> memberNames)
     {
         var declarations = new List<MemberDeclarationSyntax>();
         var symbols = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
@@ -217,9 +228,9 @@ internal class ExtractClassService : IRtService
                     if (field.Declaration.Variables.Count > 1 &&
                         selectedVariables.Count != field.Declaration.Variables.Count)
                     {
-                        ReportValidationError(
-                            $"Cannot extract field '{selectedVariables[0].Identifier.Text}' from '{target.Symbol.ToDisplayString(TypeDisplayFormat)}' because declaration '{field.Declaration}' contains multiple variables. Split the declaration first.");
-                        return null;
+                        return Result<SelectedMembers, RtError>.Err(InvalidInput(
+                            $"Cannot extract field '{selectedVariables[0].Identifier.Text}' from '{target.Symbol.ToDisplayString(TypeDisplayFormat)}' because declaration '{field.Declaration}' contains multiple variables. Split the declaration first.",
+                            target.Symbol.ToDisplayString(TypeDisplayFormat)));
                     }
 
                     declarations.Add(field);
@@ -234,21 +245,21 @@ internal class ExtractClassService : IRtService
 
         if (foundNames.Count == 0)
         {
-            ReportValidationError(
-                $"None of the specified members ({string.Join(", ", memberNames.OrderBy(n => n, StringComparer.Ordinal))}) were found in '{target.Symbol.ToDisplayString(TypeDisplayFormat)}'.");
-            return null;
+            return Result<SelectedMembers, RtError>.Err(InvalidInput(
+                $"None of the specified members ({string.Join(", ", memberNames.OrderBy(n => n, StringComparer.Ordinal))}) were found in '{target.Symbol.ToDisplayString(TypeDisplayFormat)}'.",
+                target.Symbol.ToDisplayString(TypeDisplayFormat)));
         }
 
         var missing = memberNames.Except(foundNames, StringComparer.Ordinal).OrderBy(n => n, StringComparer.Ordinal)
             .ToList();
         if (missing.Count > 0)
         {
-            ReportValidationError(
-                $"Cannot extract from '{target.Symbol.ToDisplayString(TypeDisplayFormat)}' because these members were not found: {string.Join(", ", missing)}.");
-            return null;
+            return Result<SelectedMembers, RtError>.Err(InvalidInput(
+                $"Cannot extract from '{target.Symbol.ToDisplayString(TypeDisplayFormat)}' because these members were not found: {string.Join(", ", missing)}.",
+                target.Symbol.ToDisplayString(TypeDisplayFormat)));
         }
 
-        return new SelectedMembers(declarations, symbols, foundNames);
+        return Result<SelectedMembers, RtError>.Ok(new SelectedMembers(declarations, symbols, foundNames));
     }
 
     /// <summary>
@@ -390,23 +401,24 @@ internal class ExtractClassService : IRtService
     private async Task<SyntaxNode> InjectExtractedTypeAsync(
         Document updatedDocument,
         INamedTypeSymbol targetSymbol,
-        string newTypeName)
+        string newTypeName,
+        CancellationToken cancellationToken)
     {
-        var updatedRoot = await updatedDocument.GetSyntaxRootAsync()
+        var updatedRoot = await updatedDocument.GetSyntaxRootAsync(cancellationToken)
                           ?? throw new InvalidOperationException("Updated source syntax root could not be loaded.");
-        var updatedSemanticModel = await updatedDocument.GetSemanticModelAsync()
+        var updatedSemanticModel = await updatedDocument.GetSemanticModelAsync(cancellationToken)
                                    ?? throw new InvalidOperationException(
                                        "Updated source semantic model could not be loaded.");
         var targetDisplayName = targetSymbol.ToDisplayString(TypeDisplayFormat);
         var updatedTargetDeclaration = updatedRoot.DescendantNodes()
                                            .OfType<ClassDeclarationSyntax>()
                                            .FirstOrDefault(declaration =>
-                                               updatedSemanticModel.GetDeclaredSymbol(declaration) is INamedTypeSymbol
+                                               updatedSemanticModel.GetDeclaredSymbol(declaration, cancellationToken) is INamedTypeSymbol
                                                    candidate &&
                                                candidate.ToDisplayString(TypeDisplayFormat) == targetDisplayName)
                                        ?? throw new InvalidOperationException(
                                            $"Cannot locate '{targetDisplayName}' after extraction.");
-        var updatedTargetSymbol = updatedSemanticModel.GetDeclaredSymbol(updatedTargetDeclaration) as INamedTypeSymbol
+        var updatedTargetSymbol = updatedSemanticModel.GetDeclaredSymbol(updatedTargetDeclaration, cancellationToken) as INamedTypeSymbol
                                   ?? throw new InvalidOperationException(
                                       $"Cannot resolve '{targetDisplayName}' after extraction.");
 
@@ -515,15 +527,6 @@ internal class ExtractClassService : IRtService
     }
 
     /// <summary>
-    /// Reports an error based on the provided string input.
-    /// </summary>
-    internal void ReportValidationError(string message)
-    {
-        _logger.RtError("{Message}", message);
-        Environment.ExitCode = 1;
-    }
-
-    /// <summary>
     /// Derives a field name from a given string.
     /// </summary>
     internal string DeriveFieldName(string typeName)
@@ -552,4 +555,20 @@ internal class ExtractClassService : IRtService
         List<MemberDeclarationSyntax> Declarations,
         HashSet<ISymbol> Symbols,
         HashSet<string> Names);
+
+    internal sealed record Preparation(
+        Solution Solution,
+        string Type,
+        IReadOnlyList<string> Members,
+        string NewType,
+        bool IsStatic,
+        string NewFilePath);
+
+    private static RtError InvalidInput(string message, string type, string? members = null)
+    {
+        var context = new Dictionary<string, string> { ["type"] = type };
+        if (members is not null)
+            context["members"] = members;
+        return new RtError(RtErrorKind.InvalidInput, message, context);
+    }
 }

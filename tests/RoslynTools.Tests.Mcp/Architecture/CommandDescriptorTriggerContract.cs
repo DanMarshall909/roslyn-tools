@@ -76,6 +76,7 @@ public sealed class CommandDescriptorTriggerContract
         ["debug"] = "Read",
         ["add_dependency"] = "Edit",
         ["convert_console_logging"] = "Edit",
+        ["extract_class"] = "Edit",
         ["extract_interface"] = "Edit",
         ["extract_method"] = "Edit",
         ["make_sealed"] = "Edit",

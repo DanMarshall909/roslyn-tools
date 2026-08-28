@@ -1,5 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Core;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -7,25 +8,13 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Extracts a class from the solution.
 /// </summary>
-internal sealed class ExtractClassCommand(IWorkspaceSessionFactory sessionFactory, ExtractClassService extractClass) : IRtCommand, IRefactorCommand
+internal sealed class ExtractClassCommand(
+    DaemonRpcRecoveryCoordinator daemon,
+    ExtractClassOperation operation) : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
-    private readonly ExtractClassService _extractClass = extractClass;
-    public static RtCommandInfo Info { get; } = new(
-        "extract-class",
-        true,
-        false,
-        "refactor",
-        Aliases: ["ec"],
-        WhenToUse:
-        "Moving a named set of members out of an oversized class into a new dedicated class file. When --static is not set, the command also wires the new class into the source class as a constructor-injected dependency, making it immediately usable without manual plumbing.",
-        Examples:
-        [
-            "rt refactor extract-class --type AdminController --members ExportCsv,ImportCsv --new-type CsvController --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt refactor ec --type ReportService --members BuildReport,FormatReport --new-type ReportFormatter --static --dry-run",
-            "rt refactor extract-class --type ProductService --members ValidateProduct --new-type ProductValidator --solution RoslynTools.slnx --output-dir src/Validators"
-        ]
-    );
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
+    private readonly ExtractClassOperation _operation = operation;
+    public static RtCommandInfo Info => ExtractClassCommandDefinition.Info;
 
     public Command Build()
     {
@@ -42,32 +31,22 @@ internal sealed class ExtractClassCommand(IWorkspaceSessionFactory sessionFactor
         cmd.AddAlias("ec");
         cmd.AddAll(typeOpt, membersOpt, newTypeOpt, staticOpt, solutionOpt, outputDirOpt, dryRunOpt);
 
-        cmd.SetHandler(
-            async (type, members, newType, isStatic, solution, outputDir, dryRun) =>
-            {
-                await ExecuteAsync(type, members, newType, isStatic, solution, outputDir, dryRun);
-            }, typeOpt, membersOpt, newTypeOpt, staticOpt, solutionOpt, outputDirOpt, dryRunOpt);
+        cmd.SetHandler(async context =>
+        {
+            await DaemonCommandExecutor.ExecuteAsync(
+                _daemon,
+                _operation,
+                new ExtractClassRequest(
+                    context.ParseResult.GetValueForOption(typeOpt)!,
+                    context.ParseResult.GetValueForOption(membersOpt)!,
+                    context.ParseResult.GetValueForOption(newTypeOpt)!,
+                    context.ParseResult.GetValueForOption(staticOpt),
+                    context.ParseResult.GetValueForOption(outputDirOpt),
+                    context.ParseResult.GetValueForOption(solutionOpt),
+                    context.ParseResult.GetValueForOption(dryRunOpt)),
+                context);
+        });
 
         return cmd;
-    }
-
-    /// <summary>
-    /// Executes the extraction of a class with optional parameters.
-    /// </summary>
-    internal async Task ExecuteAsync(
-        string typeName,
-        string members,
-        string newTypeName,
-        bool isStatic,
-        string? solutionPath,
-        string? outputDir,
-        bool dryRun)
-    {
-        var (workspace, solution) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
-        using (workspace)
-        {
-            await _extractClass.ExecuteAsync(solution, typeName, members, newTypeName,
-                isStatic, outputDir, dryRun);
-        }
     }
 }
