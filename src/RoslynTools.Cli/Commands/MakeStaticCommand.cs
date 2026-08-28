@@ -1,5 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Core;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -7,26 +8,20 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Creates a static command for executing code changes.
 /// </summary>
-internal sealed class MakeStaticCommand(IWorkspaceSessionFactory sessionFactory, MakeStaticService makeStatic) : IRtCommand, IRefactorCommand
+internal sealed class MakeStaticCommand : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
-    private readonly MakeStaticService _makeStatic = makeStatic;
-    public static RtCommandInfo Info { get; } = new(
-        "make-static",
-        true,
-        false,
-        "refactor",
-        Aliases: ["mst"],
-        WhenToUse: "Converting an instance method to static when it has no instance-state dependencies. "
-                   + "Validates safety (no 'this', no instance field/property access, not virtual/override/abstract) "
-                   + "before modifying and rewrites all call sites from instance.Method() to Type.Method().",
-        Examples:
-        [
-            "rt refactor make-static --method OrderValidator.Validate --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt refactor mst --method MathHelper.Clamp --dry-run",
-            "rt refactor make-static --method SymbolLocator.ParseSpec --solution RoslynTools.slnx"
-        ]
-    );
+    private readonly DaemonRpcRecoveryCoordinator _daemon;
+    private readonly MakeStaticOperation _operation;
+
+    public MakeStaticCommand(
+        DaemonRpcRecoveryCoordinator daemon,
+        MakeStaticOperation operation)
+    {
+        _daemon = daemon;
+        _operation = operation;
+    }
+
+    public static RtCommandInfo Info => MakeStaticCommandDefinition.Info;
 
     public Command Build()
     {
@@ -39,23 +34,19 @@ internal sealed class MakeStaticCommand(IWorkspaceSessionFactory sessionFactory,
         cmd.AddAlias("mst");
         cmd.AddAll(methodOpt, solutionOpt, dryRunOpt);
 
-        cmd.SetHandler(async (method, solution, dryRun) => { await ExecuteAsync(method, solution, dryRun); }, methodOpt,
-            solutionOpt, dryRunOpt);
+        cmd.SetHandler(async context =>
+        {
+            await DaemonCommandExecutor.ExecuteAsync(
+                _daemon,
+                _operation,
+                new MakeStaticRequest(
+                    context.ParseResult.GetValueForOption(methodOpt)!,
+                    context.ParseResult.GetValueForOption(solutionOpt),
+                    context.ParseResult.GetValueForOption(dryRunOpt)),
+                context);
+        });
 
         return cmd;
     }
 
-    /// <summary>
-    /// Asynchronously executes a static command with provided parameters.
-    /// </summary>
-    internal async Task ExecuteAsync(string methodSpec, string? solutionPath, bool dryRun)
-    {
-        var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
-        using (workspace)
-        {
-            var exitCode = await _makeStatic.RunAsync(sln, methodSpec, dryRun);
-            if (exitCode != 0)
-                Environment.ExitCode = exitCode;
-        }
-    }
 }

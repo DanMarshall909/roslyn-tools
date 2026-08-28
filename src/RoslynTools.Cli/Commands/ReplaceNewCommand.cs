@@ -1,5 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Core;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -7,25 +8,20 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Replaces an old call with a new implementation or method.
 /// </summary>
-internal sealed class ReplaceNewCommand(IWorkspaceSessionFactory sessionFactory, ReplaceNewService replace) : IRtCommand, IRefactorCommand
+internal sealed class ReplaceNewCommand : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
-    private readonly ReplaceNewService _replace = replace;
-    public static RtCommandInfo Info { get; } = new(
-        "replace-new",
-        true,
-        false,
-        "refactor",
-        Aliases: ["rn"],
-        WhenToUse:
-        "Replacing all constructor invocations of a type with a method call or different constructor. Use when consolidating option construction patterns into factory methods.",
-        Examples:
-        [
-            "rt refactor replace-new --type \"Option<string>\" --with \"Factory.CreateStringOption\" --solution RoslynTools.slnx --dry-run",
-            "rt refactor rn --type \"Option<string?>\" --with \"CreateFieldOption\" --if-arg 0 --if-arg-literal \"--field\" --solution RoslynTools.slnx",
-            "rt refactor replace-new --type \"Option<string?>\" --with \"Factory.CreateSolutionOption\" --if-arg 0 --if-arg-literal \"--solution\" --drop-matched-arg --solution RoslynTools.slnx --dry-run"
-        ]
-    );
+    private readonly DaemonRpcRecoveryCoordinator _daemon;
+    private readonly ReplaceNewOperation _operation;
+
+    public ReplaceNewCommand(
+        DaemonRpcRecoveryCoordinator daemon,
+        ReplaceNewOperation operation)
+    {
+        _daemon = daemon;
+        _operation = operation;
+    }
+
+    public static RtCommandInfo Info => ReplaceNewCommandDefinition.Info;
 
     public Command Build()
     {
@@ -46,26 +42,23 @@ internal sealed class ReplaceNewCommand(IWorkspaceSessionFactory sessionFactory,
         };
         cmd.AddAlias("rn");
 
-        cmd.SetHandler(
-            async (type, with_method, solution, dryRun, ifArgIndex, ifArgLiteral, dropMatchedArg) =>
-            {
-                await ExecuteAsync(type, with_method, solution, dryRun, ifArgIndex, ifArgLiteral, dropMatchedArg);
-            },
-            typeOpt, withOpt, solutionOpt, dryRunOpt, ifArgIndexOpt, ifArgLiteralOpt, dropMatchedArgOpt);
+        cmd.SetHandler(async context =>
+        {
+            await DaemonCommandExecutor.ExecuteAsync(
+                _daemon,
+                _operation,
+                new ReplaceNewRequest(
+                    context.ParseResult.GetValueForOption(typeOpt)!,
+                    context.ParseResult.GetValueForOption(withOpt)!,
+                    context.ParseResult.GetValueForOption(ifArgIndexOpt),
+                    context.ParseResult.GetValueForOption(ifArgLiteralOpt),
+                    context.ParseResult.GetValueForOption(dropMatchedArgOpt),
+                    context.ParseResult.GetValueForOption(solutionOpt),
+                    context.ParseResult.GetValueForOption(dryRunOpt)),
+                context);
+        });
 
         return cmd;
     }
 
-    /// <summary>
-    /// Asynchronously replaces an old call with new parameters.
-    /// </summary>
-    internal async Task ExecuteAsync(string type, string with_method, string? solutionPath, bool dryRun,
-        int? ifArgIndex = null, string? ifArgLiteral = null, bool dropMatchedArg = false)
-    {
-        var (workspace, solution) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
-        using (workspace)
-        {
-            await _replace.RunAsync(solution, type, with_method, dryRun, ifArgIndex, ifArgLiteral, dropMatchedArg);
-        }
-    }
 }

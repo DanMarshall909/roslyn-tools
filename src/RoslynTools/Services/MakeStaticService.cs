@@ -36,7 +36,7 @@ internal class MakeStaticService : IRtService
     /// <summary>
     /// Runs asynchronous static class transformation operations
     /// </summary>
-    internal async Task<int> RunAsync(Solution sln, string methodSpec, bool dryRun)
+    internal async Task<PreparedMakeStatic> PrepareAsync(Solution sln, string methodSpec)
     {
         var (typeName, methodName) = ParseMethodSpec(methodSpec);
 
@@ -45,15 +45,22 @@ internal class MakeStaticService : IRtService
         var blockingReason = await CheckSafetyAsync(methodSymbol);
         if (blockingReason != null)
         {
-            _logger.RtError("Cannot make static: {BlockingReason}", blockingReason);
-            return 1;
+            throw new InvalidOperationException($"Cannot make static: {blockingReason}");
         }
 
         var originalSolution = sln;
         sln = await AddStaticModifierAsync(sln, methodSymbol, docId);
         sln = await RewriteCallSitesAsync(sln, methodSymbol, typeName, originalSolution);
 
-        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
+        return new PreparedMakeStatic(originalSolution, sln, true);
+    }
+
+    internal sealed record PreparedMakeStatic(Solution OriginalSolution, Solution Solution, bool Changed);
+
+    internal async Task<int> RunAsync(Solution sln, string methodSpec, bool dryRun)
+    {
+        var prepared = await PrepareAsync(sln, methodSpec);
+        await _solutionChangeWriter.ApplyChangesAsync(prepared.OriginalSolution, prepared.Solution, dryRun);
         return 0;
     }
 

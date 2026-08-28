@@ -1,4 +1,6 @@
 using System.CommandLine;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Services;
 using Shouldly;
@@ -183,8 +185,12 @@ public sealed class AppRegistration
             .Where(path =>
             {
                 var text = File.ReadAllText(path);
-                return text.Contains("SymbolLocator.", StringComparison.Ordinal)
-                       || text.Contains("SymbolDocumentLocator.", StringComparison.Ordinal);
+                return CSharpSyntaxTree.ParseText(text)
+                    .GetRoot()
+                    .DescendantNodes()
+                    .OfType<MemberAccessExpressionSyntax>()
+                    .Any(access => access.Expression.ToString()
+                        is "SymbolLocator" or "SymbolDocumentLocator");
             })
             .Select(path => Path.GetRelativePath(repoRoot, path))
             .OrderBy(path => path, StringComparer.Ordinal)

@@ -47,10 +47,9 @@ public class LoggingRefactor : IClassFixture<RtServicesFixture>
             using (staticWorkspace)
             using (WorkspaceLoader.UseOverride(staticWorkspace, staticSolution))
             {
-                Environment.ExitCode = 0;
-                await _services.Resolve<MakeStaticCommand>().ExecuteAsync("Service.GetValue", "ignored", false);
-                Environment.ExitCode.ShouldBe(1);
-                Environment.ExitCode = 0;
+                var exitCode = await _services.Resolve<MakeStaticCommand>().Build().InvokeAsync(
+                    ["--method", "Service.GetValue", "--solution", "ignored"]);
+                exitCode.ShouldBe(1);
             }
         }
 

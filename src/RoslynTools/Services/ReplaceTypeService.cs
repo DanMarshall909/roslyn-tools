@@ -14,6 +14,7 @@ namespace RoslynTools.Services;
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class ReplaceTypeService : IRtService
 {
+    internal sealed record Preparation(Solution Solution, int ChangedFiles, int ClassCount);
     private readonly ILogger<ReplaceTypeService> _logger;
     private readonly ISolutionChangeWriter _solutionChangeWriter;
 
@@ -34,6 +35,13 @@ internal class ReplaceTypeService : IRtService
     internal async Task RunAsync(Solution solution, bool dryRun)
     {
         var originalSolution = solution;
+        var prepared = await PrepareAsync(solution);
+        if (prepared.ChangedFiles == 0) { RtConsole.WriteLine(RtOutputContext.Diagnostic, "No DateTime.UtcNow or DateTime.Now usage found."); return; }
+        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, prepared.Solution, dryRun);
+    }
+
+    internal async Task<Preparation> PrepareAsync(Solution solution, CancellationToken cancellationToken = default)
+    {
         var changedFiles = 0;
         var classesNeedingInjection = new List<string>();
 
@@ -42,7 +50,8 @@ internal class ReplaceTypeService : IRtService
             {
                 if (doc.FilePath == null) continue;
 
-                var root = await doc.GetSyntaxRootAsync();
+                cancellationToken.ThrowIfCancellationRequested();
+                var root = await doc.GetSyntaxRootAsync(cancellationToken);
                 if (root == null) continue;
 
                 var rewriter = new DateTimeRewriter();
@@ -63,20 +72,10 @@ internal class ReplaceTypeService : IRtService
 
         if (changedFiles == 0)
         {
-            RtConsole.WriteLine(RtOutputContext.Diagnostic, "No DateTime.UtcNow or DateTime.Now usage found.");
-            return;
+            return new Preparation(solution, 0, 0);
         }
 
-        _logger.RtInfo(
-            "Replaced DateTime.UtcNow/Now in {ChangedFileCount} file(s). Classes needing TimeProvider injection: {ClassCount}",
-            changedFiles,
-            classesNeedingInjection.Distinct().Count());
-
-        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
-
-        _logger.RtWarning("\n--- Manual review needed ---");
-        _logger.RtWarning("Verify constructor injection was added correctly in each class.");
-        _logger.RtWarning("Static classes and top-level statements need manual wiring.");
+        return new Preparation(solution, changedFiles, classesNeedingInjection.Distinct().Count());
     }
 
     /// <summary>
