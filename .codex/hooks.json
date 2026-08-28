@@ -1,0 +1,45 @@
+{
+  "description": "Repository issue, ticket, and atomic-commit discipline",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/repo_automation.py\" session-start",
+            "timeout": 10,
+            "statusMessage": "Loading prioritized GitHub issues",
+            "additionalContextLimit": 1200
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^Bash$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/repo_automation.py\" post-tool-use",
+            "timeout": 5,
+            "statusMessage": "Checking ticket follow-up",
+            "additionalContextLimit": 500
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/repo_automation.py\" stop",
+            "timeout": 5,
+            "statusMessage": "Checking completion discipline"
+          }
+        ]
+      }
+    ]
+  }
+}

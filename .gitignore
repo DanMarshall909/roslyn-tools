@@ -16,7 +16,11 @@ nupkg/
 *.swp
 
 ## Codex CLI local state (per-user tool dir, like .claude)
-.codex/
+## Repository hook configuration and implementation are shared automation.
+.codex/*
+!.codex/hooks.json
+!.codex/hooks/
+!.codex/hooks/**
 
 ## Test output
 **/TestOutput/
