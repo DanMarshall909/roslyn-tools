@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.CommandDescriptors;
+using RoslynTools.Core.CommandDescriptors;
 
 namespace RoslynTools.Tests.Mcp.Architecture;
 

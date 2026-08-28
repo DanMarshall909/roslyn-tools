@@ -1,6 +1,7 @@
 using System.CommandLine;
 using RoslynTools.Cli.Suggest;
 using RoslynTools.Core;
+using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Core.Output;
 using RoslynTools.Feedback;
 using RoslynTools.Services;
@@ -9,30 +10,9 @@ using RoslynTools.Services.Suggest;
 
 namespace RoslynTools.CommandDescriptors;
 
-internal enum CommandSafetyPolicy
-{
-    ReadOnly,
-    DryRunByDefault
-}
-
 /// <summary>
-///     One authoritative description of a command leaf shared by CLI discovery and MCP.
-/// </summary>
-internal sealed record ApplicationCommandDescriptor(
-    IReadOnlyList<string> Path,
-    string ToolName,
-    string Description,
-    string WhenToUse,
-    Func<Command> BuildCliCommand,
-    bool McpVisible,
-    CommandSafetyPolicy Safety,
-    bool Structured,
-    ICommandApplicationPort? Port,
-    ApplicationCommandDefinition? Definition = null);
-
-/// <summary>
-///     Projects the reflection-discovered CLI catalog and explicit meta-command leaves into
-///     one descriptor registry. Operational commands are absent unless explicitly added.
+///     Projects CLI commands into host-neutral application descriptors. CLI command factories
+///     stay private to this adapter so shared descriptors contain no parser concepts.
 /// </summary>
 internal sealed class CommandDescriptorRegistry
 {
@@ -61,14 +41,15 @@ internal sealed class CommandDescriptorRegistry
             var daemonDefinition = DaemonOwnedCommands.All.SingleOrDefault(
                 definition => string.Equals(definition.Name, toolName, StringComparison.Ordinal));
             var info = applicationDefinition?.Info ?? entry.Info;
+            var command = entry.Build();
             return new ApplicationCommandDescriptor(
                 [info.Category, info.Name],
                 applicationDefinition?.Name ?? toolName,
                 applicationDefinition?.Info.WhenToUse
-                ?? entry.Build().Description
+                ?? command.Description
                 ?? entry.Info.WhenToUse,
                 info.WhenToUse,
-                entry.Build,
+                DescribeInput(command),
                 applicationDefinition?.McpVisible ?? true,
                 ToDescriptorSafety(
                     applicationDefinition?.Safety ?? daemonDefinition?.Safety,
@@ -80,59 +61,77 @@ internal sealed class CommandDescriptorRegistry
                 applicationDefinition);
         }).ToList();
 
-        descriptors.Add(new ApplicationCommandDescriptor(
-            ["feedback", "add"],
+        AddMetaCommand(
             "feedback_add",
+            () => FeedbackCommand.BuildAdd(feedbackAdd),
+            ["feedback", "add"],
             "Record rt dogfood feedback, a bug, a missing feature, or unexpected command behavior.",
             "Call this when you hit friction using rt and want to log it for later triage — records a bug, missing feature, or unexpected behavior and returns the allocated feedback ID.",
-            () => FeedbackCommand.BuildAdd(feedbackAdd),
-            McpVisible: true,
             CommandSafetyPolicy.ReadOnly,
-            Structured: true,
-            feedbackAdd));
-        descriptors.Add(new ApplicationCommandDescriptor(
-            ["feedback", "list"],
+            true,
+            feedbackAdd);
+        AddMetaCommand(
             "feedback_list",
+            () => FeedbackCommand.BuildList(feedbackList),
+            ["feedback", "list"],
             "List rt feedback as structured entries, filtered by pending, processed, or all.",
             "Call this when you want to review previously logged rt feedback — lists pending or processed entries as structured JSON.",
-            () => FeedbackCommand.BuildList(feedbackList),
-            McpVisible: true,
             CommandSafetyPolicy.ReadOnly,
-            Structured: true,
-            feedbackList));
-        descriptors.Add(new ApplicationCommandDescriptor(
-            ["feedback", "process"],
+            true,
+            feedbackList);
+        AddMetaCommand(
             "feedback_process",
+            () => FeedbackCommand.BuildProcess(feedbackProcess),
+            ["feedback", "process"],
             "Mark an rt feedback item as processed with a resolution.",
             "Call this when a pending feedback item has been verified and resolved — marks it processed so pending work only contains unresolved items.",
-            () => FeedbackCommand.BuildProcess(feedbackProcess),
-            McpVisible: true,
             CommandSafetyPolicy.ReadOnly,
-            Structured: true,
-            feedbackProcess));
-        descriptors.Add(new ApplicationCommandDescriptor(
-            ["feedback", "report"],
+            true,
+            feedbackProcess);
+        AddMetaCommand(
             "feedback_report",
+            () => FeedbackCommand.BuildReport(feedbackReport),
+            ["feedback", "report"],
             "Review duplicate GitHub issues, then explicitly link feedback or create an issue.",
             "Call this when a human explicitly asks to promote locally recorded rt feedback to GitHub — it previews by default and requires an explicit apply choice before changing GitHub.",
-            () => FeedbackCommand.BuildReport(feedbackReport),
-            McpVisible: true,
             CommandSafetyPolicy.DryRunByDefault,
-            Structured: true,
-            feedbackReport));
-        descriptors.Add(new ApplicationCommandDescriptor(
-            ["suggest"],
+            true,
+            feedbackReport);
+        AddMetaCommand(
             "suggest_command",
+            () => SuggestCommand.Build(suggest, git),
+            ["suggest"],
             "Find the right rt command by describing what you want to do in natural language.",
             "Call this when you know what you want to do to C# code but aren't sure which rt command does it — describe the task in natural language and get ranked candidates back before falling back to a manual edit. Returns ranked candidates with name, score, when-to-use, and example invocation.",
-            () => SuggestCommand.Build(suggest, git),
-            McpVisible: true,
             CommandSafetyPolicy.ReadOnly,
-            Structured: true,
-            suggest));
+            true,
+            suggest);
 
         _descriptors = [.. descriptors];
         _byToolName = _descriptors.ToDictionary(d => d.ToolName, StringComparer.Ordinal);
+
+        void AddMetaCommand(
+            string toolName,
+            Func<Command> build,
+            IReadOnlyList<string> path,
+            string description,
+            string whenToUse,
+            CommandSafetyPolicy safety,
+            bool structured,
+            ICommandApplicationPort port)
+        {
+            var command = build();
+            descriptors.Add(new ApplicationCommandDescriptor(
+                path,
+                toolName,
+                description,
+                whenToUse,
+                DescribeInput(command),
+                McpVisible: true,
+                safety,
+                structured,
+                port));
+        }
     }
 
     private static CommandSafetyPolicy ToDescriptorSafety(
@@ -155,6 +154,30 @@ internal sealed class CommandDescriptorRegistry
         out ApplicationCommandDescriptor descriptor)
     {
         return _byToolName.TryGetValue(toolName, out descriptor!);
+    }
+
+    private static ApplicationCommandInput DescribeInput(Command command)
+    {
+        return new ApplicationCommandInput(
+            command.Arguments.Select(argument => new ApplicationCommandParameter(
+                argument.Name,
+                FriendlyTypeName(argument.ValueType),
+                argument.Arity.MinimumNumberOfValues > 0,
+                argument.Description)).ToList(),
+            command.Options.Select(option => new ApplicationCommandParameter(
+                option.Name,
+                FriendlyTypeName(option.ValueType),
+                option.IsRequired,
+                option.Description)).ToList());
+    }
+
+    private static string FriendlyTypeName(Type type)
+    {
+        var valueType = Nullable.GetUnderlyingType(type) ?? type;
+        if (valueType == typeof(bool)) return "boolean";
+        if (valueType == typeof(int) || valueType == typeof(long)) return "integer";
+        if (valueType.IsArray) return FriendlyTypeName(valueType.GetElementType()!) + "[]";
+        return "string";
     }
 
     private static string NormalizeToolName(string commandName) =>

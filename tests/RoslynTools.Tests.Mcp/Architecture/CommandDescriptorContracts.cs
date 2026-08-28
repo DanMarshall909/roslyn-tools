@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.CommandDescriptors;
 using RoslynTools.Core;
+using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Mcp.Tools;
 using RoslynTools.Services;
 using Shouldly;
@@ -54,6 +55,26 @@ public sealed class CommandDescriptorContracts
             properties.Keys.OrderBy(name => name, StringComparer.Ordinal).ShouldBe(expectedNames);
             required.ShouldBe(expectedRequired);
         }
+    }
+
+    [Fact]
+    public void application_descriptor_contract_contains_no_command_line_types()
+    {
+        var descriptorTypes = new[]
+        {
+            typeof(ApplicationCommandDescriptor),
+            typeof(ApplicationCommandInput),
+            typeof(ApplicationCommandParameter)
+        };
+
+        var members = descriptorTypes.SelectMany(type => type
+            .GetMembers(BindingFlags.Instance | BindingFlags.Public)
+            .OfType<PropertyInfo>()
+            .Select(property => property.PropertyType));
+
+        members.ShouldNotContain(type =>
+            type.Namespace != null
+            && type.Namespace.StartsWith("System.CommandLine", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -129,7 +150,7 @@ public sealed class CommandDescriptorContracts
             AddDependencyCommandDefinition.Name,
             "Inject a dependency.",
             AddDependencyCommandDefinition.Info.WhenToUse,
-            () => throw new InvalidOperationException("The CLI builder must not run."),
+            new ApplicationCommandInput([], []),
             McpVisible: true,
             CommandSafetyPolicy.DryRunByDefault,
             Structured: true,
@@ -170,7 +191,7 @@ public sealed class CommandDescriptorContracts
             definition.Name,
             "Probe request schema generation.",
             info.WhenToUse,
-            () => throw new InvalidOperationException("The CLI builder must not run."),
+            new ApplicationCommandInput([], []),
             McpVisible: true,
             CommandSafetyPolicy.ReadOnly,
             Structured: true,
@@ -225,7 +246,7 @@ public sealed class CommandDescriptorContracts
             "sample",
             "sample",
             "sample",
-            () => new System.CommandLine.Command("sample"),
+            new ApplicationCommandInput([], []),
             McpVisible: true,
             CommandSafetyPolicy.DryRunByDefault,
             Structured: true,
