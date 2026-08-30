@@ -1,12 +1,13 @@
 # ADR-0008: Transparent daemon passthrough phase
 
-- Status: Superseded in part by [ADR-0009](0009-authenticated-daemon-endpoints.md) for endpoint authentication and [ADR-0013](0013-fenced-plan-unavailability-resolution.md) for dispatch-plan resolution
+- Status: Superseded in part by [ADR-0009](0009-authenticated-daemon-endpoints.md) for endpoint authentication, [ADR-0013](0013-fenced-plan-unavailability-resolution.md) for dispatch-plan resolution, and [ADR-0015](0015-operation-lifecycle-authorization.md) for lifecycle authorization
 - Date: 2026-08-27
 - Updated: 2026-08-30
 - Supersedes: the daemon-execution portions of [ADR-0005](0005-daemon-centred-local-execution.md), the warm-workspace and fallback portions of [ADR-0006](0006-mcp-lazy-daemon-lifetime.md), and daemon placement guidance in [ADR-0007](0007-host-neutral-command-contracts.md) for the current hardening phase
 - Related OpenSpec: [critical platform hardening](../../openspec/changes/critical-platform-hardening/proposal.md)
 - Endpoint authentication: [ADR-0009](0009-authenticated-daemon-endpoints.md)
 - Dispatch-plan resolution: [ADR-0013](0013-fenced-plan-unavailability-resolution.md)
+- Operation lifecycle authorization: [ADR-0015](0015-operation-lifecycle-authorization.md)
 
 ## Context
 
@@ -30,8 +31,10 @@ authorization. The token is repository/principal-bound and is presented on apply
 Canonical repository ID plus operation ID is the composite durable
 idempotency, operation-status, and recovery handle; the operation ID need only be
 unique within that repository. Every status, recovery, acknowledgement, and
-retention lookup carries both values. A separate request-attempt ID may be used for
-protocol correlation.
+retention lookup carries both values, but the pair is not authorization. Under
+ADR-0015 every lifecycle call also carries protected authenticated-principal context
+and passes current action-scoped repository authorization before disclosure or state
+change. A separate request-attempt ID may be used for protocol correlation.
 
 When dispatch is indeterminate, the host returns the existing repository/operation identity and
 status-lookup guidance. The execution authority durably records a typed intake

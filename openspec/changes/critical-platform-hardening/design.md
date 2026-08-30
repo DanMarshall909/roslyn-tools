@@ -56,6 +56,7 @@ A canonical request context contains absolute, normalised values rather than amb
 - configuration, target framework selection, SDK identity, and environment allow-list;
 - trust state and evaluator mode;
 - cancellation and resource budget; and
+- protected authenticated-principal and action context for authorization; and
 - client/host identity for diagnostics, not authorisation.
 
 Operations do not read or mutate process current directory, global console state, `Environment.ExitCode`, or arbitrary process environment as request context.
@@ -390,6 +391,43 @@ and defaults use one host-neutral canonicalizer shared by every adapter; adapter
 never hash their transport JSON directly. A transport request-attempt ID may be
 separate.
 
+The composite ID is an address, not an authorization capability. Every lifecycle API
+declares one of `ResolveDispatch | Replay | ReadStatus | Cancel | Resume | Rollback |
+AcknowledgeRecovery | Cleanup | Reconcile` and receives the authenticated principal
+from a protected host or transport context. The coordination authority evaluates
+current policy or validates a short-lived `LifecycleAuthorization` bound to that
+principal, audience, repository/operation scope, action, coordination generation,
+authorization generation, and expiry. Repository/request-supplied identities or roles
+and self-asserted authorization data have no authority. Every adapter reauthorizes before operation-specific disclosure,
+fence acquisition, replay, artifact release, or state/barrier mutation; transfer and
+role/generation changes invalidate stale proof.
+
+The action policy is deliberately narrower than generic mutation access:
+
+- dispatch resolution/replay is the matching submitter with original request/token
+  proof and current mutation permission, or a narrowly scoped authority reconciler;
+- status is a currently permitted submitter with `ReadOwnOperation`, an
+  `OperationReader`, `RecoveryOperator`, or `RepositoryLifecycleAdministrator`;
+- cancellation is a matching submitter with `CancelOwnOperation`, an
+  `OperationCanceller`, or the lifecycle administrator;
+- resume/rollback requires `RecoveryOperator` or the lifecycle administrator;
+- acknowledgement requires distinct `RecoveryAcknowledger` or lifecycle-administrator
+  authority, deliberate invocation, and a reason;
+- cleanup requires recovery/lifecycle administration or a constrained cleanup service;
+  and reconciliation is limited to the authenticated authority service identity.
+
+An authorized status read may schedule deterministic reconciliation or cleanup under
+those constrained service identities, but it does not delegate their roles to the
+caller. The authority derives the internal inputs, reauthorizes the result before
+disclosure, and never lets an unauthorized lookup trigger work as a confused deputy.
+
+Failure returns `OperationAccessDenied` without distinguishing absent from existing
+operation state and without disclosing paths, hashes, actors, or evidence. It changes
+no ledger, pin, artifact, reservation, replay authority, or barrier. Other mutation
+principals may see only generic `RepositoryRecoveryBlocked` state needed to reject new
+work. Successful lifecycle changes record bounded actor/role/action/generation audit
+evidence; denial telemetry is rate-limited and compacted outside the operation ledger.
+
 Before sending any mutation request bytes, the caller atomically registers a bounded
 `DispatchPlanLease` in the protected coordination/plan authority under the same
 repository and operation ID. Registration validates the epoch token and claims,
@@ -414,7 +452,8 @@ validates the operation-epoch token, its claims hash, and its binding to the cur
 authenticated principal. It also validates the matching `DispatchPlanLease` and exact
 plan availability. The epoch-open check, quota debit/capacity reservation, lease-pin
 adoption, and receipt creation are one authority transaction under that fence. It then durably
-records `Received(OperationId, RequestHash, CanonicalRequest)`. The canonical request is stored in the protected coordination
+records `Received(OperationId, RequestHash, CanonicalRequest, SubmittingPrincipal,
+AuthorizationGeneration)`. The canonical request is stored in the protected coordination
 control plane, not daemon logs. The operation ledger is then created before side effects
 begin. Startup and status lookup reconcile a `Received` receipt that has no operation
 record, so accepted work cannot disappear between transport intake and ledger
@@ -423,7 +462,8 @@ creation.
 If indeterminate dispatch is followed by a status lookup and neither a receipt nor
 an operation exists, `GetOperation` requires the original operation-epoch token plus
 an `OperationRequestIdentity` containing request hash, plan ID/hash, expected
-revision, and operation-epoch claims hash. It validates the token/request identity,
+revision, and operation-epoch claims hash. Before existence resolution it authorizes
+the authenticated principal for `ResolveDispatch`; it then validates the token/request identity,
 looks up the matching `DispatchPlanLease`, acquires the same cross-process intake fence, and first proves
 that no receiver for that operation ID remains in flight. The epoch-open check and
 record creation are atomic with sealing. If the exact plan remains readable and
@@ -446,13 +486,15 @@ identity, and never revives if the plan later reappears. After observing this te
 outcome, a caller may re-prepare against current inputs and use a new current-epoch
 operation ID; it does not retry the unavailable plan.
 
-While its live or retained record exists, reusing an `OperationId` with the same
-canonical request returns the existing receipt, operation state, or result. Reusing
-such an ID with a different plan, revision, request hash, or payload returns
+After authenticating the matching submitting principal and authorizing `Replay`, while
+its live or retained record exists, reusing an `OperationId` with the same canonical
+request returns the existing receipt, operation state, or result. Reusing such an ID
+with a different plan, revision, request hash, or payload returns
 `OperationConflict` to that incoming attempt and performs no work. Conflict is a
 response, not a canonical-ledger transition: the existing receipt/state/history,
 owner, reservations, plan pins, and eventual result remain unchanged, so an exact
-replay still observes the original operation. Pre-receipt `DispatchPlanLease` and
+replay still observes the original operation. A different principal receives only
+`OperationAccessDenied`, not an existing result or conflict distinction. Pre-receipt `DispatchPlanLease` and
 `NotRecorded` records are bounded: they pin the referenced plan until receipt adoption,
 authoritative resolution, explicit replay, or durable lease/replay expiry, and none can
 remain unresolved indefinitely. `Received` atomically transfers that pin to the
@@ -702,7 +744,8 @@ resolution close effect and pre-effect admission and advance the control generat
 the same authority transaction. Already admitted activity drains; stale generations
 cannot create or journal another artifact or acquire a guard.
 
-After `Received`, cancellation targets the canonical repository/operation identity
+After `Received`, an authenticated caller first passes the action-specific `Cancel`
+authorization above; cancellation then targets the canonical repository/operation identity
 and is durably appended to the intake receipt or ledger. If the durable receipt has
 not yet been promoted, cancellation acquires the same cross-process intake fence and
 atomically materializes the terminal ledger; receipt promotion checks that same
@@ -784,7 +827,8 @@ are rejected before final validation until the operation reaches a verified reco
 state or an authorized user explicitly acknowledges the unresolved condition.
 
 `resume` and `rollback` resolve the operation by canonical repository ID plus
-operation ID, then acquire the same exclusive repository transaction
+operation ID only after authorizing the current principal as `RecoveryOperator` or
+`RepositoryLifecycleAdministrator`, then acquire the same exclusive repository transaction
 reservation and complete external-write/conditional-effect protection, compare-and-swap the current
 state to `Recovering`, and claim a new owner lease and fencing epoch before touching
 the repository. They operate only from
@@ -815,7 +859,9 @@ restore. This is logically append-only even though old individual attempt rows a
 removed: sequence values are never reused and authenticated history cannot be silently
 rewritten or reordered.
 
-`acknowledge` performs no repository effect. It appends `RecoveryAcknowledged` with
+`acknowledge` requires the distinct `RecoveryAcknowledger` role or
+`RepositoryLifecycleAdministrator`, deliberate invocation, and a reason. It performs
+no repository effect and appends `RecoveryAcknowledged` with
 the actor, time, reason, affected paths, last observed hashes, unresolved warnings,
 and an explicit statement that repository cleanliness was not verified. Only that
 explicit action lifts the recovery barrier without verification; every later plan
@@ -944,7 +990,7 @@ receiver treats transport cancellation as cancellation of the response wait, not
 permission to abandon the intake critical section silently.
 
 The caller retains the same operation ID, sends no new apply, and resolves status
-through `GetOperation`. The receiver's receipt creation and the resolver's
+through `GetOperation` under current `ResolveDispatch`/`ReadStatus` authorization. The receiver's receipt creation and the resolver's
 authoritative `NotRecorded` transition contend under the same intake fence: if
 `Received` wins, status exposes that canonical operation; if `NotRecorded` wins, the
 delayed receiver is rejected. While a receiver lease remains in flight, status remains

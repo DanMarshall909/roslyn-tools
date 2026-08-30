@@ -97,6 +97,7 @@ The newer `DaemonRpcRecoveryCoordinator` correctly treats indeterminate migrated
 - Hide apply-capable bridge tools from stable MCP discovery.
 - Add an architecture gate preventing any new mutator from entering a bridge or rendered-output route.
 - Obtain a bounded repository-scoped operation-epoch token before dispatch, construct `OperationId` from its authenticated monotonic epoch plus a caller nonce, and key intake, status, recovery, acknowledgement, and retention by canonical `(RepositoryId, OperationId)`.
+- Treat that composite value only as an address: reauthorize every status, dispatch-resolution, replay, cancellation, recovery, acknowledgement, cleanup, and reconciliation action for the protected authenticated principal and current repository role/generation; deny cross-principal knowledge without disclosing operation evidence or changing its barrier.
 - Compute `RequestHash` from one versioned host-neutral semantic serialization that includes the structured operation ID and canonical public token-claims hash but omits token authentication proof, the hash field itself, replay data, and transport-only metadata; share conformance vectors across adapters.
 - Persist an intake receipt before execution enqueue and operation state before side effects; reconcile the gap after lost response or process restart.
 - Classify cancellation after any request-byte acceptance as `Indeterminate`, retain the same operation ID, and resolve receipt creation versus `NotRecorded` under the intake fence before canonical cancellation or guarded replay.

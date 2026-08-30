@@ -60,6 +60,17 @@ idempotency, status, and recovery handle. A separate request-attempt ID may be u
 for transport correlation, but an operation ID first returned by the server after
 dispatch is insufficient.
 
+That composite handle is an address, not authorization. Every status, dispatch
+resolution, replay, cancellation, recovery, acknowledgement, cleanup, and
+reconciliation request is reauthorized for the authenticated principal and specific
+action against the current repository coordination/authorization generation.
+Submitters may receive explicitly granted own-operation status/cancel rights; recovery
+effects require `RecoveryOperator`, and non-clean acknowledgement requires the separate
+`RecoveryAcknowledger` or lifecycle-administrator role. Unauthorized callers receive
+no existence-specific operation data and cannot alter state, pins, artifacts, replay,
+or barriers; other writers see only the generic repository recovery block needed to
+deny new mutation.
+
 Prepare computes plan hash over a versioned host-neutral canonical payload with the
 hash field omitted entirely, then atomically persists that exact payload and claimed
 hash in protected storage outside the target repository. It returns the repository
@@ -202,7 +213,7 @@ results or diagnostics.
 ## Success measures
 
 - No apply-capable legacy daemon or MCP bridge can automatically replay a mutation after dispatch ambiguity.
-- A caller obtains an authenticated bounded operation epoch and constructs the operation ID before dispatch; after a lost response it can query a durable receipt/current outcome, obtain authoritative `NotRecorded` replay only while that epoch remains open, or receive a non-replayable sealed/retired result once it closes.
+- An authorized caller obtains an authenticated bounded operation epoch and constructs the operation ID before dispatch; after a lost response it can query a durable receipt/current outcome under current lifecycle authorization, obtain authoritative `NotRecorded` replay only while that epoch remains open, or receive a non-replayable sealed/retired result once it closes.
 - Operation retention is bounded by epoch/time/count/byte and pinned-exception quotas; compaction advances one monotonic rejection watermark/accumulator before deleting individual outcomes, so aged-out work cannot execute and the store does not grow one permanent record per operation.
 - Repository retirement preserves status and recovery until every active, recovery, cleanup, pinned, and retained record is resolved and compacted; only a fully quiescent identity can become a reject-only marker.
 - A shared writable checkout either has one enforced cross-principal/cross-host coordination authority or remains inspect-only; no second OS user or host can bypass `RecoveryRequired` through separate private state.

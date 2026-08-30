@@ -87,6 +87,7 @@ Every operation receives explicit, absolute request context:
 - configuration and SDK/target-framework selection;
 - requested trust constraint, authority-derived effective repository trust, and evaluator mode/policy;
 - cancellation and resource budget; and
+- protected authenticated-principal and action context for authorization;
 - source/revision identity where applicable.
 
 Operations do not infer repository identity from process current directory and do not use global console, `Environment.ExitCode`, or arbitrary process environment as mutable request state. This is required for concurrent repositories, host parity, reproducibility, and future isolation.
@@ -464,7 +465,20 @@ sealing. Failure occurs before dispatch;
 the lease alone does not mean the request was accepted.
 Canonical repository ID plus operation ID is the composite key for every receipt,
 ledger, status, recovery, acknowledgement, and retention lookup; the same operation
-ID in another repository is independent.
+ID in another repository is independent. It is not an authorization capability.
+
+Lifecycle access follows [ADR-0015](adr/0015-operation-lifecycle-authorization.md).
+Every dispatch resolution, replay, status, cancellation, resume, rollback,
+acknowledgement, cleanup, and reconciliation request is reauthorized for the protected
+authenticated principal, declared action, current repository coordination generation,
+and authorization generation. Submitters need explicit current own-operation
+read/cancel rights; recovery effects require a recovery operator, and non-clean
+acknowledgement requires a distinct acknowledger or lifecycle administrator. A stale
+role/proof or another principal's known operation ID returns `OperationAccessDenied`
+without existence-specific evidence and changes no state. Other authorized writers see
+only the generic recovery barrier needed to block new work. Endpoint authentication
+does not replace this application-level decision, and internal reconciliation uses a
+narrow authority-service identity rather than a bypass.
 Before accepted work enters an execution queue, a cross-process, store-enforced
 intake fence keyed by repository and operation ID protects a durable `Received`
 receipt containing the canonical request. Intake validates the token, claims hash,
@@ -472,10 +486,11 @@ principal binding, matching dispatch lease, exact plan availability, and reserve
 outcome capacity first; token/quota validation, plan-pin adoption, and receipt
 creation are atomic with epoch sealing. Startup and status
 lookup reconcile any receipt not yet promoted into the operation ledger. While a live
-or retained record exists, repeating the same operation ID and request returns the
+or retained record exists, an authorized matching submitter repeating the same operation ID and request returns the
 existing receipt/state/result and reusing it for different work returns conflict to the
 incoming attempt without changing the canonical receipt, ledger, pins, or outcome;
-conflict is not a terminal operation state.
+conflict is not a terminal operation state. Another principal receives access denied
+without the existing/conflict distinction.
 
 Terminal outcomes remain individually addressable for a bounded replay window. The
 authority caps dispatch leases/pinned plan bytes, open operations, simultaneously

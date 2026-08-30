@@ -289,7 +289,7 @@ boundary SHALL run inside the allow-listed `IsolatedWorker` namespace or be refu
 
 ### Requirement: request context is explicit and host-neutral
 
-Repository root, solution path, configuration, trust state, evaluator mode, resource budget, request ID, and operation ID SHALL travel as explicit request context. An operation SHALL NOT depend on or mutate process current directory, arbitrary process environment, global console state, or `Environment.ExitCode` as request context.
+Repository root, solution path, configuration, trust state, evaluator mode, resource budget, request ID, operation ID, and protected authenticated-principal/action context SHALL travel as explicit request context. Client/host diagnostic metadata SHALL NOT substitute for authenticated-principal context. An operation SHALL NOT depend on or mutate process current directory, arbitrary process environment, global console state, or `Environment.ExitCode` as request context.
 
 #### Scenario: two repositories execute concurrently
 
@@ -635,14 +635,58 @@ matching lease. Receipt creation SHALL atomically adopt the lease's plan pin.
 Canonical repository ID plus operation ID SHALL be the composite durable identity
 for intake, idempotency, status, recovery, acknowledgement, and retention; operation
 IDs may repeat across repositories. Every operation lookup or mutation SHALL carry
-both values. Before accepted work can enter an execution queue, the receiver SHALL
+both values, but the pair SHALL be an address and SHALL NOT confer authority.
+
+Every lifecycle request (`ResolveDispatch`, `Replay`, `ReadStatus`, `Cancel`, `Resume`,
+`Rollback`, `AcknowledgeRecovery`, `Cleanup`, or `Reconcile`) SHALL carry an
+`AuthenticatedPrincipalId` derived from a protected host/transport context and declare
+one action. The authority SHALL evaluate current policy directly or validate a
+short-lived principal-, audience-, repository-, operation-scope-, action-,
+`CoordinationGeneration`-, authorization-generation-, and expiry-bound
+`LifecycleAuthorization`. Roles, principal identity, or self-asserted authorization
+data supplied by repository content or an ordinary request field SHALL NOT grant authority. Every
+adapter SHALL reauthorize before returning existence-specific data, acquiring a fence,
+issuing replay, releasing artifacts, or changing ledger/barrier state. Transfer, role
+revocation, or authorization-generation rotation SHALL invalidate stale proof.
+
+`ResolveDispatch` and `Replay` SHALL require the matching submitting principal and
+original request/token proof with current mutation permission, or the narrowly scoped
+authority reconciler. `ReadStatus` SHALL require a currently permitted submitter with
+`ReadOwnOperation`, `OperationReader`, `RecoveryOperator`, or
+`RepositoryLifecycleAdministrator`. `Cancel` SHALL require the matching submitter with
+`CancelOwnOperation`, `OperationCanceller`, or the lifecycle administrator. `Resume`
+and `Rollback` SHALL require `RecoveryOperator` or the lifecycle administrator.
+`AcknowledgeRecovery` SHALL require the distinct `RecoveryAcknowledger` role or the
+lifecycle administrator plus deliberate invocation and a reason; ordinary mutation or
+recovery permission SHALL be insufficient. `Cleanup` SHALL require recovery/lifecycle
+administration or the narrowly scoped cleanup service identity. `Reconcile` SHALL be
+limited to the authenticated coordination-authority service identity and deterministic
+fenced reconciliation.
+
+An authorized `ReadStatus` request MAY cause the authority to schedule required
+reconciliation or cleanup, but the caller SHALL NOT inherit those service roles. The
+internal action SHALL run under its constrained service identity with authority-derived
+inputs for that operation, and the result SHALL be reauthorized for `ReadStatus` before
+disclosure. An unauthorized lookup SHALL NOT trigger reconciliation or cleanup as a
+confused-deputy side effect.
+
+An unauthorized lifecycle request SHALL return typed `OperationAccessDenied` before
+disclosing whether the operation exists or returning its state, hashes, paths, actor,
+or evidence, and SHALL NOT mutate its ledger, pins, artifacts, reservations, or barrier.
+A principal otherwise allowed to propose mutation MAY receive only generic
+`RepositoryRecoveryBlocked` state needed to reject new work, without the protected
+operation ID or evidence. Successful lifecycle changes SHALL record the authenticated
+actor, effective role/action, and authorization generation in bounded audit evidence;
+denial telemetry SHALL be rate-limited and compacted outside the operation ledger.
+
+Before accepted work can enter an execution queue, the receiver SHALL
 acquire a cross-process, store-enforced intake fence keyed by repository and operation
 ID; validate the token, claims hash, epoch/ID match, and authenticated-principal
 binding; validate the matching dispatch lease and exact plan availability; reserve
 bounded worst-case receipt/ledger/outcome/recovery-metadata capacity, including the
 recovery-attempt structures and next truthful transition defined below;
 and durably record a `Received` receipt containing the repository ID, operation ID,
-request hash, and canonical request. The operation ledger SHALL then be recorded
+request hash, canonical request, submitting principal, and authorization generation. The operation ledger SHALL then be recorded
 before repository side effects begin. A `Received` receipt without an operation
 record SHALL be reconciled on startup and status lookup. Token validation, the
 epoch-open/quota check, capacity reservation, and receipt creation SHALL be atomic
@@ -814,13 +858,13 @@ without removing status/recovery access.
 
 #### Scenario: an identical operation is repeated
 
-- **WHEN** the same operation ID is submitted with the same canonical plan, request hash, and expected revision while its live or retained outcome record exists
+- **WHEN** the matching authenticated submitting principal, currently authorized for replay, submits the same operation ID with the same canonical plan, request hash, and expected revision while its live or retained outcome record exists
 - **THEN** the existing intake receipt, operation state, or terminal result is returned
 - **AND THEN** repository side effects are not applied again
 
 #### Scenario: an operation ID is reused for different work
 
-- **WHEN** a live or retained operation ID is submitted with a different plan, payload, or expected revision
+- **WHEN** the matching authenticated submitting principal, currently authorized for replay, submits a live or retained operation ID with a different plan, payload, or expected revision
 - **THEN** the request returns `OperationConflict`
 - **AND THEN** no repository path is written
 - **AND THEN** the canonical receipt, ledger state/history, owner, reservations, plan pins, and outcome remain unchanged, so an exact replay continues to observe the original operation
@@ -835,7 +879,25 @@ without removing status/recovery access.
 
 - **WHEN** two canonical repositories submit different work under the same epoch/nonce value authenticated by their respective repository-scoped tokens
 - **THEN** their composite repository/operation identities address independent receipts, ledgers, status, recovery, and retention
-- **AND THEN** status, resume, rollback, and acknowledgement require the canonical repository ID and cannot observe or mutate the other repository's operation
+- **AND THEN** status, resume, rollback, and acknowledgement require the canonical repository ID plus current action-specific authorization and cannot observe or mutate the other repository's operation
+
+#### Scenario: another principal learns an operation identity
+
+- **WHEN** a principal in the same shared authority knows another principal's repository and operation IDs but lacks the action-specific lifecycle role
+- **THEN** identical or conflicting resubmission, status, dispatch resolution, replay, cancellation, resume, rollback, acknowledgement, cleanup, and reconciliation each return `OperationAccessDenied` without operation-specific existence or evidence disclosure
+- **AND THEN** no ledger state, owner, fence, reservation, pin, artifact, replay permission, or recovery barrier changes
+- **AND THEN** if the caller is otherwise allowed to propose mutation, it receives only generic `RepositoryRecoveryBlocked` when a barrier must prevent new work
+
+#### Scenario: lifecycle authorization becomes stale
+
+- **WHEN** repository ownership transfers, a role is revoked, or the coordination or authorization generation advances after a lifecycle authorization was issued
+- **THEN** every adapter rejects that stale authorization before lookup disclosure or mutation and requires a current action-scoped decision
+- **AND THEN** an operation ID, prior endpoint authentication, submitting-principal record, or former role does not preserve access by itself
+
+#### Scenario: a recovery operator attempts acknowledgement
+
+- **WHEN** an authenticated `RecoveryOperator` without `RecoveryAcknowledger` or lifecycle-administrator authority attempts to acknowledge unresolved recovery
+- **THEN** the authority returns `OperationAccessDenied`, discloses no additional recovery evidence, and leaves `RecoveryRequired` and every pinned artifact unchanged
 
 ### Requirement: reviewed mutations are failure-aware and recoverable
 
@@ -929,7 +991,7 @@ evidence in `RecoveryRequired`.
 
 #### Scenario: an accepted apply is cancelled before its first repository effect
 
-- **WHEN** an operation with a durable `Received` receipt is cancelled before `FirstEffectStarted`, including while awaiting the repository reservation, staging, acquiring external-write protection, or running final preflight
+- **WHEN** an authenticated caller authorized for `Cancel` targets an operation with a durable `Received` receipt before `FirstEffectStarted`, including while awaiting the repository reservation, staging, acquiring external-write protection, or running final preflight
 - **THEN** cancellation uses the same cross-process intake fence when receipt-to-ledger promotion is still pending, and one store-enforced compare-and-swap records `CancelledNoEffect`, closes effect and pre-effect activity admission, and advances the control generation under the same repository ID, operation ID, and request hash
 - **AND THEN** neither receipt promotion nor the current owner can enqueue or start an effect, create or journal a control artifact, or acquire a guard after cancellation wins
 - **AND THEN** the terminal record contains cancellation timing, journal sequence, proof that no first-effect permit exists, staged-artifact inventory, and cleanup status
@@ -991,7 +1053,7 @@ evidence in `RecoveryRequired`.
 
 #### Scenario: manual recovery succeeds
 
-- **WHEN** an authorized caller resumes or rolls back an operation in `RecoveryRequired`
+- **WHEN** an authenticated `RecoveryOperator` or `RepositoryLifecycleAdministrator` resumes or rolls back an operation in `RecoveryRequired`
 - **THEN** recovery acquires the same exclusive repository reservation and complete external-write/conditional-effect protection, advances the fencing epoch, and appends `Recovering` before any repository effect
 - **AND THEN** successful verified resume terminates as `RecoveredApplied` and successful verified rollback terminates as `RecoveredRolledBack`
 - **AND THEN** the original `RecoveryRequired` event and terminal recovery evidence remain in logical append-only history, with only eligible older attempt detail subject to authenticated bounded compaction
@@ -1005,7 +1067,7 @@ evidence in `RecoveryRequired`.
 
 #### Scenario: repeated incomplete recovery attempts exceed the hot-history window
 
-- **WHEN** an authorized caller requests another recovery after enough fully quiesced inconclusive attempts to fill the per-operation hot count/byte window
+- **WHEN** an authenticated recovery-authorized caller requests another recovery after enough fully quiesced inconclusive attempts to fill the per-operation hot count/byte window
 - **THEN** before any new effect the authority folds eligible old attempt digests into `RecoveryAttemptAccumulator`, advances `CompactedThroughRecoveryAttempt`, and reuses only the pre-reserved attempt slot
 - **AND THEN** it retains `CurrentRecoveryCheckpoint`, the bounded active recovery-artifact set, the original plan/base journal/backups, and every unresolved intent or unquiesced attempt needed for subsequent recovery
 - **AND THEN** failure to prove compaction or checkpoint continuity returns `RecoveryAttemptUnavailable` with the recovery barrier intact and no repository effect
@@ -1013,7 +1075,7 @@ evidence in `RecoveryRequired`.
 
 #### Scenario: unresolved recovery is explicitly acknowledged
 
-- **WHEN** an authorized caller acknowledges an operation in `RecoveryRequired` without verified recovery
+- **WHEN** an authenticated `RecoveryAcknowledger` or `RepositoryLifecycleAdministrator` deliberately acknowledges an operation in `RecoveryRequired` without verified recovery and supplies a reason
 - **THEN** the operation appends terminal state `RecoveryAcknowledged` without performing a repository effect
 - **AND THEN** it records actor, time, reason, affected paths, last observed hashes, unresolved warnings, and that repository cleanliness was not verified
 - **AND THEN** bulky recovery artifacts follow the caller's explicit retention choice while an immutable audit summary remains for terminal-history retention
@@ -1025,7 +1087,7 @@ evidence in `RecoveryRequired`.
 
 #### Scenario: cancellation arrives after side effects begin
 
-- **WHEN** cancellation is requested after apply has begun modifying repository state
+- **WHEN** an authenticated caller authorized for `Cancel` requests cancellation after apply has begun modifying repository state
 - **THEN** the request records cancellation but continues recovery-critical verification or rollback
 - **AND THEN** the terminal state truthfully reports the observed repository condition
 
@@ -1208,9 +1270,10 @@ The MCP host SHALL either use the official C# SDK or pass spawned-process confor
 
 #### Scenario: a request is cancelled
 
-- **WHEN** the client cancels an in-flight cancellable operation
+- **WHEN** the authenticated client cancels an in-flight request it owns or is currently authorized to cancel
 - **THEN** cancellation reaches the canonical operation
 - **AND THEN** the server remains able to receive and process protocol messages while that operation unwinds
+- **AND THEN** the same request ID on another connection or an unauthorized principal cannot cancel or learn the operation
 
 ### Requirement: resource consumption is bounded and observable
 
