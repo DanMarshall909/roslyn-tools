@@ -101,8 +101,9 @@ The newer `DaemonRpcRecoveryCoordinator` correctly treats indeterminate migrated
 - Classify cancellation after any request-byte acceptance as `Indeterminate`, retain the same operation ID, and resolve receipt creation versus `NotRecorded` under the intake fence before canonical cancellation or guarded replay.
 - Bound operation epochs, replay duration, terminal bytes, and pinned exceptions; after the replay window, advance a durable monotonic retirement watermark before deleting individual outcomes so every delayed ID is rejected without permanent per-operation state.
 - Prohibit repository-identity retirement while any intake, active operation, recovery, cleanup, pinned record, or retained replay outcome can still require status; preserve routing until complete quiescence and compaction are proven.
+- Bound repository enrollment and retired-identity storage authority-wide and per principal; reserve one fixed-size retirement-index entry before assigning each repository sequence, compact bulky retirement detail into a fixed-size authenticated accumulator plus domain-separated keyed repository/binding digests, and reject new enrollment with `RepositoryCapacityExceeded` on saturation or ambiguous membership rather than grow without limit, forget a retired binding, or strand an admitted repository's retirement.
 - Resolve a genuinely absent receipt under the same intake fence as durable `NotRecorded`, and require its replay epoch for explicit same-operation resubmission before the operation epoch seals.
-- Test timeout/disconnect/malformed-response/cancellation before and after intake receipt and ledger creation, including delayed originals, and assert exactly one apply attempt.
+- Test timeout/disconnect/malformed-response/cancellation before and after intake receipt and ledger creation, including delayed originals, plus repeated enroll/retire cycles, quota saturation, digest ambiguity, and accumulator restore; assert exactly one apply attempt and no retired-binding false negatives.
 
 ### 3. Mutation application is staged and compensating, but not durable
 

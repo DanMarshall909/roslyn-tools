@@ -114,6 +114,16 @@ checkout remains inspect-only. This authority is a safety primitive of the canon
 application operation; it does not give the transparent daemon workspace, execution,
 or mutation-policy ownership.
 
+Enrollment is bounded authority-wide and per principal by live count/bytes,
+rate/concurrency, and retired-binding index count/bytes. It reserves one fixed-size
+retirement entry before advancing the repository sequence. Retirement consumes that
+reservation, retains domain-separated keyed repository/binding digests in a
+continuity-protected bounded index, and folds bulky final detail into a fixed-size
+authenticated cumulative accumulator.
+Capacity exhaustion returns `RepositoryCapacityExceeded` for new enrollment while
+existing status/recovery/transfer/retirement remain available; the authority never
+forgets a retired binding or grows the hot coordination store without limit.
+
 Ownership transfer preserves repository identity and runs under an authority-wide
 `TransferPending` fence. New intake stops while every live owner completes or is
 fenced and reconciled under the existing reservation only after its effect fence is

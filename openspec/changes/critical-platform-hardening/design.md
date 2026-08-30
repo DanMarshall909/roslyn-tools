@@ -247,6 +247,26 @@ OS/service namespace backed by a non-rollback continuity anchor; it is not repos
 enrollment. If the platform cannot prove fresh provisioning or later continuity, it
 does not qualify as a mutation coordination authority.
 
+Authority storage has configured authority-wide and per-principal limits for live
+repository count/bytes, concurrent enrollment/retirement work, enrollment rate, and
+retired-binding index count/bytes. Enrollment reserves its live record, audit update,
+and one eventual fixed-size retirement entry before advancing `RepositorySequence`.
+Failure returns `RepositoryCapacityExceeded`; it cannot strand existing status,
+recovery, transfer, or retirement. Capacity changes are separate authenticated audited
+administrator operations, never implicit reprovisioning.
+
+Retirement replaces the bulky live/final marker with a reserved fixed-size entry in a
+protected `RetiredBindingIndex`. That entry contains domain-separated keyed digests of
+repository ID and canonical physical binding, final generations/watermarks, and final
+audit root; bulky detail folds into a fixed-size cumulative authenticated
+`RetiredRepositoryAccumulator`. The
+sequence high-water mark, index, and accumulator are continuity protected and never
+roll back or delete safety membership. Hash ambiguity conservatively rejects
+enrollment. When the reserved index is full, new enrollment stops rather than growing
+the coordination store; retirement of every admitted repository remains possible.
+Older bulky audit detail leaves the coordination store only after both compact commits
+and is either removed or placed in a separately quota-bound audit archive.
+
 `EnrollRepository` opens verified handles for the checkout root and Git common
 directory without evaluating repository code, derives their stable physical identity,
 authenticates an actor allowed to establish the declared coordination mode/writer set,
@@ -505,9 +525,10 @@ window must elapse and its record must be compacted so `RetiredThroughEpoch` cov
 every issued epoch.
 
 Only after those preconditions are durably proven does one transaction replace the
-live mapping with a permanent retired-repository marker carrying the final watermark,
-accumulator, physical binding, maximum repository/operation generation, retirement
-actor/reason/time, and final audit root (including any acknowledgement summaries).
+live mapping with its enrollment-reserved fixed-size `RetiredBindingIndex` entry and
+fold the final watermark, operation accumulator, physical binding digest, maximum
+repository/operation generation, retirement actor/reason/time, and final audit root
+(including acknowledgement summaries) into `RetiredRepositoryAccumulator`.
 After commit there is no operation that can still require status or recovery, so every
 later request carrying the retired repository ID is rejected before intake. If
 quiescence or cleanup cannot be proven, retirement remains pending or fails without

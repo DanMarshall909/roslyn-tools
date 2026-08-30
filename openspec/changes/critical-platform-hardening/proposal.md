@@ -101,6 +101,15 @@ resolves/acknowledges all recoverable barriers, treats `OwnerQuiescencePending` 
 non-acknowledgeable, proves the repository quiescent, then atomically rotates ownership,
 credentials, and `CoordinationGeneration`. A crash never exposes two writer domains.
 
+Repository enrollment is authority-wide and per-principal quota-bound by live
+count/bytes, rate/concurrency, and retired-binding index count/bytes. It reserves one
+eventual fixed-size retirement entry before assigning a repository sequence; exhaustion
+returns `RepositoryCapacityExceeded` without blocking existing lifecycle work.
+Retirement consumes that reservation, keeps domain-separated keyed repository/binding
+digests in a continuity-protected bounded index, and folds bulky detail into a
+fixed-size cumulative authenticated retired-repository accumulator. Index saturation
+rejects new enrollment rather than grow without limit or forget a retired binding.
+
 The authority caps open and unretired epochs, issuance rate, accepted operations and
 bytes, live and retained records, and pinned exceptions. Admission reserves bounded
 worst-case ledger, outcome, and recovery-metadata space, then returns
@@ -144,8 +153,10 @@ blocked while status/recovery remain available, all epochs seal, active operatio
 and effect fences quiesce, `OwnerQuiescencePending` clears, recovery finishes or is
 acknowledged, cleanup verifies, pinned records release, and
 retained outcomes compact through the final issued epoch. Only then can the live
-mapping become a permanent retired marker. Retirement can never strand an operation's
-only status/recovery key.
+mapping become the enrollment-reserved fixed-size retired-binding entry. Retirement
+can never strand an operation's only status/recovery key. Bulky final detail is
+authenticated by the fixed-size retired-repository accumulator rather than retained
+without bound in the coordination store.
 
 A failed or interrupted rollback is never reported as clean rollback. The operation enters durable intervention state `RecoveryRequired`; its journal, backups, diagnostics, and deterministic recovery guidance are retained until recovery or explicit acknowledgement. Recovery appends `Recovering` and ends as `RecoveredApplied`, `RecoveredRolledBack`, or another evidence-bearing `RecoveryRequired`. `RecoveryAcknowledged` is an explicit administrative handoff and never claims the repository is clean.
 

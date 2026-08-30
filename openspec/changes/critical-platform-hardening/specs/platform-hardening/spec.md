@@ -426,6 +426,28 @@ fresh OS/service namespace backed by a non-rollback continuity anchor; it SHALL 
 be repository enrollment. A platform unable to prove fresh provisioning or later
 continuity SHALL NOT qualify as a mutation coordination authority.
 
+The authority SHALL bound, both authority-wide and per authenticated principal, live
+repository count/bytes, concurrent enrollment/retirement work, enrollment rate, and
+retired-binding index count/bytes. Before advancing `RepositorySequence`, enrollment
+SHALL atomically reserve capacity for the live mapping, audit update, and one eventual
+fixed-size retired-binding entry so retirement of an admitted repository cannot later
+fail for quota. Exhaustion SHALL return typed `RepositoryCapacityExceeded` without a
+mapping or implicit authority expansion; existing mutation status, cleanup, recovery,
+transfer, and retirement SHALL remain available. Capacity changes SHALL be explicit,
+authenticated, audited administrator operations.
+
+Retirement SHALL fold the bulky final marker and audit detail into a fixed-size
+cumulative authenticated `RetiredRepositoryAccumulator` and retain a fixed-size protected
+`RetiredBindingIndex` entry containing domain-separated keyed digests of repository ID and canonical
+physical binding, final generations/watermarks, and the final audit root. The monotonic
+repository-sequence high-water mark and index SHALL never roll back, delete an entry,
+or produce a false negative within an authority lifetime; a digest collision or
+ambiguous proof SHALL conservatively reject enrollment. Bounded recent audit proofs MAY
+remain hot; older bulky detail MAY move to a separately quota-bound audit archive or be
+deleted from the coordination store only after the accumulator and index commit. Once
+all reserved entries are consumed, new enrollment SHALL fail rather than grow the
+coordination store or reuse a retired identity.
+
 Enrollment SHALL open verified handles for the checkout root and Git common directory
 without evaluating repository code, derive their stable physical identity,
 authenticate an actor authorized for the declared coordination mode and writer set,
@@ -491,6 +513,13 @@ transfer.
 - **THEN** the authority verifies handle-based checkout/Git-common-dir identity and the requested coordination mode under the enrollment fence
 - **AND THEN** it proves no live or retired binding exists, advances the durable repository sequence, and atomically persists the complete mapping and audit entry before returning
 - **AND THEN** every concurrent enrollment receives that same repository identity and no mutation path performs enrollment implicitly
+
+#### Scenario: repository enrollment capacity is exhausted
+
+- **WHEN** an authority-wide or per-principal live-mapping, rate, byte, or reserved retired-binding limit is reached
+- **THEN** enrollment returns `RepositoryCapacityExceeded` before advancing the repository sequence or persisting a mapping
+- **AND THEN** it does not bypass the limit by reprovisioning the authority or omitting the eventual retirement reservation
+- **AND THEN** existing status, cleanup, recovery, transfer, and retirement remain available
 
 #### Scenario: an unenrolled checkout reaches mutation
 
@@ -623,9 +652,10 @@ plan/recovery/cleanup record SHALL remain pinned; and every retained terminal re
 window SHALL elapse and compact so `RetiredThroughEpoch` covers every issued epoch.
 
 Only after those preconditions are durably proven SHALL one transaction replace the
-live mapping with a permanent retired-repository marker carrying the final watermark,
-accumulator, physical binding, maximum repository/operation generation, retirement
-actor/reason/time, and final audit root including acknowledgement summaries. After
+live mapping with its reserved fixed-size `RetiredBindingIndex` entry and atomically
+fold the final watermark, operation accumulator, physical binding digest, maximum
+repository/operation generation, retirement actor/reason/time, and audit root including
+acknowledgement summaries into `RetiredRepositoryAccumulator`. After
 commit no operation may remain that requires status or recovery, and every later
 request carrying the retired repository ID SHALL be rejected before intake. If
 quiescence or cleanup cannot be proven, retirement SHALL remain pending or fail
@@ -672,13 +702,20 @@ without removing status/recovery access.
 - **WHEN** an administrator retires a canonical repository identity
 - **THEN** the authority enters `RetirementPending`, blocks new mutation admission/transfer, and keeps status, cleanup, acknowledgement, and recovery available
 - **AND THEN** it seals epochs and proves every dispatch-lease/intake/reservation/owner/nonterminal state is quiescent, every recovery or cleanup record is resolved, no record remains pinned, and every retained outcome is compacted through the final issued epoch
-- **AND THEN** it atomically commits the permanent marker with final watermark, accumulator, physical binding, generations, actor/reason/time, and audit root
+- **AND THEN** it consumes the enrollment-reserved fixed-size retired-binding entry and atomically folds the final marker into the authenticated retired-repository accumulator
 - **AND THEN** only after no operation can require status or recovery does every later request carrying the never-reused repository ID reject before intake
+
+#### Scenario: retired binding detail is compacted
+
+- **WHEN** a retired repository's bulky marker or old audit detail leaves its bounded hot-retention window
+- **THEN** the authority retains its fixed-size keyed repository/binding digest entry and cumulative authenticated accumulator root before deleting bulky detail
+- **AND THEN** later enrollment of that physical binding is rejected without reviving or reusing the retired repository ID
+- **AND THEN** collision, missing proof, index saturation, or continuity failure rejects new enrollment rather than create a false absence
 
 #### Scenario: retirement encounters pinned recovery work
 
 - **WHEN** retirement finds a nonterminal, `RecoveryRequired`, cleanup-pending, retained replay-window, or otherwise pinned record
-- **THEN** it does not commit the retired-repository marker or remove status/recovery access
+- **THEN** it does not commit the retired-binding index entry or remove status/recovery access
 - **AND THEN** it waits for verified terminal cleanup/recovery/compaction or fails with the blocking identities and required action
 
 #### Scenario: the first response is lost

@@ -271,7 +271,20 @@ enrollment cannot reprovision it. A
 healthy absent mapping returns `RepositoryNotEnrolled`; missing, inconsistent,
 rolled-back, or unreachable authority state blocks both enrollment and mutation as
 `RejectedUnsafeCoordination` instead of treating the registry as empty. Normal
-retention never removes an active barrier. Every apply plan records a
+retention never removes an active barrier.
+
+Repository admission is bounded authority-wide and per principal by live count/bytes,
+enrollment rate/concurrency, and retired-binding index count/bytes. Before sequence
+advancement, enrollment reserves its live/audit capacity and one eventual fixed-size
+retired-binding entry; exhaustion returns `RepositoryCapacityExceeded` without
+stranding existing status, recovery, transfer, or retirement. Retirement folds bulky
+detail into a fixed-size cumulative authenticated `RetiredRepositoryAccumulator` and consumes the
+reserved protected index entry containing domain-separated keyed repository/binding digests, final
+generations/watermarks, and audit root. The continuity-protected index has no deletion
+or false-negative path; ambiguity rejects enrollment, and a full index blocks new
+enrollment rather than allowing unbounded growth or identity reuse.
+
+Every apply plan records a
 `CoordinationDomainId` and proves either `ExclusivePrincipal` ownership (no other
 non-administrative principal or host in the threat model can write/replace the
 checkout, Git common directory, and their
@@ -462,8 +475,8 @@ quiesce, every effect fence closes/drains or its worker termination is verified,
 `OwnerQuiescencePending` clears, and recovery and cleanup
 finish (or recovery is explicitly acknowledged), pinned records release, and retained outcomes compact
 through the final issued epoch. Only then does one transaction replace the live
-mapping with a permanent marker containing the final watermark/accumulator, physical
-binding, generations, actor/reason/time, and audit root. A pinned operation therefore
+mapping with the enrollment-reserved fixed-size retired-binding entry and fold the full
+marker into the retired-repository accumulator. A pinned operation therefore
 can never lose its only status or recovery key.
 
 ### 7. Transport contract
