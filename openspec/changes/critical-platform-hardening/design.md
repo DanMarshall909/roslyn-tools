@@ -171,6 +171,7 @@ A prepared change set contains:
 - exact operation list for creates, replacements, deletes, moves, project edits, Roslyn documents, additional documents, and analyzer-config documents;
 - expected existence and content hash for every read or modified path;
 - expected file type, platform file identity, link count, known hard-link aliases, and symlink/hard-link policy;
+- the OS/filesystem conditional-effect or exclusive-guard capability required for every read dependency, affected path, and destination directory entry;
 - encoding, BOM, newline, and file-mode/permission preservation policy;
 - root-containment proof for every source, destination, staging, and backup path;
 - exact diff and machine-readable change model;
@@ -233,14 +234,15 @@ The implementation:
 1. loads and verifies the exact persisted plan;
 2. creates or reads the durable operation record;
 3. acquires an exclusive transaction reservation keyed by canonical repository identity, then validates replay semantics and claims a renewable owner lease plus fencing epoch;
-4. while holding the reservation, performs final whole-plan preflight of every revision, read dependency, path, hash, permission, link, destination, and free-space condition;
-5. stages replacement content, preferably on the same volume;
-6. durably writes a journal and recovery metadata;
-7. while continuously holding the reservation, revalidates ledger state, fencing epoch, lease, the expected intermediate repository state, all prior effect outcomes, and every still-relevant plan dependency before each operation, then journals intent, performs the side effect, and durably records its observed outcome;
-8. orders those reserved operation boundaries deterministically and uses atomic per-path replacement where supported;
-9. verifies expected postconditions;
-10. commits the terminal result and cleans staging before releasing the reservation only after durable success; or
-11. performs rollback from the journal.
+4. stages replacement content, preferably on the same volume;
+5. proves that every read dependency, affected path, and source/destination directory entry supports an OS-enforced conditional effect or exclusive external-write guard;
+6. establishes complete transaction protection by acquiring that guard set in deterministic order or recording immutable version tokens that every conditional effect checks atomically, and retains it with the repository reservation through final status or explicit recovery handoff;
+7. while holding both boundaries, performs final whole-plan preflight of every revision, read dependency, path, hash, permission, link, destination, and free-space condition;
+8. durably writes a journal and recovery metadata;
+9. revalidates the guard tokens, ledger state, fencing epoch, lease, expected intermediate repository state, all prior effect outcomes, and every still-relevant plan dependency before each operation, then journals intent, performs the guarded conditional side effect, and durably records its observed outcome;
+10. orders operation boundaries deterministically and uses atomic per-path replacement where supported;
+11. while still holding the complete guard set, verifies expected postconditions and durably records the terminal result; then cleans staging and releases the guards and reservation; or
+12. performs guarded rollback from the journal.
 
 Rollback is best-effort across platform/filesystem constraints and is not falsely described as atomic. Once side effects begin, cancellation requests are recorded but do not interrupt recovery-critical rollback. If rollback cannot restore every verified precondition, the operation enters the durable intervention state `RecoveryRequired`, not `RolledBack` or `Failed`. Journals, backups, affected paths, observed hashes, and deterministic recovery instructions are retained until successful recovery or explicit acknowledgement.
 
@@ -252,6 +254,31 @@ verified rollback path. Complete verified restoration ends as `RolledBack`; any
 unrestored or ambiguous path ends as `RecoveryRequired`. A mid-apply drift is never
 reported as `RejectedStale` or `Applied`.
 
+### External-writer exclusion at commit time
+
+The repository transaction reservation serializes Roslyn Tools operations only; it
+does not by itself exclude an editor, build, script, or other process. Final preflight
+therefore runs only after an external-write guard set covers every reviewed read
+dependency, affected object, and relevant source/destination directory entry. Each
+guard must either prevent non-cooperating processes from changing the validated
+identity, content, metadata, or directory entry until durable outcome, or provide an
+atomic conditional filesystem effect that commits only while all reviewed version
+tokens still match. Advisory locks, a check followed by ordinary rename, and atomic
+replacement without a compare condition do not satisfy this requirement.
+
+The guard set is acquired in deterministic path order and is held through journal
+intent, apply, rollback/recovery effects, final verification, and durable outcome.
+Creates use exclusive name reservation; replace, delete, move, permission, and
+restore operations bind validation to the exact guarded object and directory entry.
+If a guard cannot be acquired, is lost, or reports drift, no unguarded effect occurs:
+before the first effect the operation rejects stale/unsupported input, and afterward
+it follows guarded rollback to `RolledBack` or `RecoveryRequired`.
+
+A platform/filesystem combination that cannot exclude or condition on external
+writers for the complete plan blocks unattended apply during preflight. Any future
+explicit degraded interactive mode requires a separate reviewed contract and cannot
+be exposed as stable apply-capable MCP behaviour.
+
 ### Manual recovery and acknowledgement
 
 `RecoveryRequired` is not terminal. It is a durable recovery barrier for the
@@ -260,8 +287,9 @@ until the operation reaches a verified recovered state or an authorized user
 explicitly acknowledges the unresolved condition.
 
 `resume` and `rollback` acquire the same exclusive repository transaction
-reservation, compare-and-swap the current state to `Recovering`, and claim a new
-owner lease and fencing epoch before touching the repository. They operate only from
+reservation and complete external-write/conditional-effect protection, compare-and-swap the current
+state to `Recovering`, and claim a new owner lease and fencing epoch before touching
+the repository. They operate only from
 a declared journal boundary and revalidate the retained plan, evidence, paths, file
 identities, and expected intermediate state at every effect. Successful resume ends
 as `RecoveredApplied`; successful rollback ends as `RecoveredRolledBack`. A failed
@@ -285,7 +313,8 @@ summary remains for the configured terminal-history retention period.
 
 ### Filesystem containment at side-effect time
 
-String normalisation and preflight checks are necessary but insufficient. Every
+String normalisation, ordinary revalidation, and advisory locks are necessary but
+insufficient. Every
 create, open, stage, replace, move, delete, backup, and restore is performed relative
 to verified directory handles with no-follow/reparse-point-safe semantics where the
 operating system provides them. The implementation revalidates the root handle,
@@ -337,6 +366,11 @@ release is proven. After takeover, a resumed old owner cannot reacquire the
 reservation with its stale token and must stop before journalling or performing
 another side effect. Fault injection suspends owners before and after reservation,
 epoch, and effect boundaries to prove this property.
+
+Before a reconciler performs any repository effect, it also reacquires and validates
+the complete external-write/conditional-effect protection from the persisted plan.
+If that protection cannot be re-established, it records `RecoveryRequired` and performs no unguarded resume,
+rollback, replace, move, delete, or restore.
 
 The reconciler verifies the plan hash, journal, backups, staged files, affected-path
 identities, and observed pre/post hashes. It then deterministically completes a

@@ -90,6 +90,7 @@ remain outside the namespace.
 - Plan retention cannot remove bytes still referenced by a nonterminal (including recovering) or recovery-required operation.
 - A symlink/reparse swap after preflight cannot redirect any write, move, delete, backup, or restore outside the verified root.
 - A hard-linked path cannot mutate an undeclared shared inode or silently lose a reviewed link relationship.
+- A non-`rt` writer cannot change a reviewed dependency or target between validation and effect; apply uses an OS-enforced guard or atomic conditional effect and blocks unattended execution where neither exists.
 - Killing the apply owner after any journal boundary leads through lease-based reconciliation to a verified terminal state rather than indefinite `Applying`.
 - A superseded owner resumed after lease takeover is fenced from every further repository side effect.
 - Pre-effect drift is rejected without writes; drift after a journalled effect stops the remaining plan and produces verified rollback or `RecoveryRequired`, never stale rejection or applied success.

@@ -69,7 +69,7 @@ Repository root, solution path, configuration, trust state, evaluator mode, reso
 
 ### Requirement: prepared mutation plans are complete and immutable
 
-A mutation SHALL prepare an immutable change set before apply. The plan SHALL describe every create, replacement, delete, move, project edit, Roslyn document, additional document, and analyzer-config document it can affect, including exact path preconditions, expected hashes/existence, platform file identity, link count, known hard-link aliases, encoding/newline/file-mode policy, symlink/hard-link policy, diff, verification plan, expiry, and repository revision. Before prepare succeeds, the exact canonical plan bytes SHALL be atomically persisted in a user-private durable store scoped by canonical repository identity. Apply SHALL identify those bytes by repository ID, plan ID, and plan hash and SHALL NOT recompute them from command arguments or a newer workspace snapshot. Once an operation record references a plan, the store SHALL pin its exact bytes through all nonterminal states and through `RecoveryRequired` until verified terminal cleanup or explicit recovery acknowledgement.
+A mutation SHALL prepare an immutable change set before apply. The plan SHALL describe every create, replacement, delete, move, project edit, Roslyn document, additional document, and analyzer-config document it can affect, including exact path preconditions, expected hashes/existence, platform file identity, link count, known hard-link aliases, encoding/newline/file-mode policy, symlink/hard-link policy, OS/filesystem conditional-effect or external-write-guard requirements, diff, verification plan, expiry, and repository revision. Before prepare succeeds, the exact canonical plan bytes SHALL be atomically persisted in a user-private durable store scoped by canonical repository identity. Apply SHALL identify those bytes by repository ID, plan ID, and plan hash and SHALL NOT recompute them from command arguments or a newer workspace snapshot. Once an operation record references a plan, the store SHALL pin its exact bytes through all nonterminal states and through `RecoveryRequired` until verified terminal cleanup or explicit recovery acknowledgement.
 
 #### Scenario: preview and apply use the same plan
 
@@ -102,6 +102,15 @@ A mutation SHALL prepare an immutable change set before apply. The plan SHALL de
 - **AND THEN** it performs no write through the changed component
 - **AND THEN** unsupported platform/filesystem combinations block unattended apply instead of relying on string-only or check-then-open validation
 - **AND THEN** a race detected after earlier side effects enters verified rollback and terminates as `RolledBack` or `RecoveryRequired`
+
+#### Scenario: an external process edits after validation
+
+- **WHEN** an editor, build, script, or other non-cooperating process could change a reviewed dependency, affected object, or directory entry between validation and a filesystem effect
+- **THEN** apply acquires an OS-enforced guard set or uses an atomic conditional effect that couples the reviewed identity/content/metadata/version tokens to that effect
+- **AND THEN** it holds or revalidates that protection through journal intent, guarded apply or rollback, final verification, and durable outcome
+- **AND THEN** an advisory lock, ordinary check-then-rename, or unconditional atomic replacement is insufficient
+- **AND THEN** unsupported platform/filesystem combinations block unattended apply before the first effect
+- **AND THEN** a lost guard or mismatch after an earlier effect stops the plan and terminates through guarded rollback as `RolledBack` or `RecoveryRequired`
 
 #### Scenario: an affected file has hard-link aliases
 
@@ -149,7 +158,7 @@ Every apply request SHALL include a caller-generated operation ID and canonical 
 
 ### Requirement: reviewed mutations are failure-aware and recoverable
 
-Apply SHALL verify every precondition before writes, stage replacement data, durably journal side effects, apply changes deterministically, verify postconditions, and attempt rollback after an apply failure. Before final whole-plan preflight, each apply/recovery SHALL acquire an exclusive OS-enforced transaction reservation keyed by canonical repository identity and SHALL hold it through durable terminal completion or explicit recovery handoff. Each `Applying` or `Recovering` record SHALL carry a renewable owner lease and monotonically increasing fencing epoch. Every side effect and every expired-owner takeover SHALL validate the reservation, current ledger state, epoch, lease, expected intermediate repository state, prior effects, remaining plan dependencies, platform file identity, and link count. An expired owner SHALL be reconciled from durable evidence. The ledger SHALL retain an append-only transition history. Direct terminal states SHALL distinguish `Applied` and `RolledBack`; verified post-recovery terminal states SHALL distinguish `RecoveredApplied` and `RecoveredRolledBack`; `RecoveryAcknowledged` SHALL be an administrative terminal state that makes no repository-cleanliness claim. `RejectedStale`, `RejectedConflict`, and `Expired` SHALL remain no-effect terminal outcomes. `RecoveryRequired` SHALL be a durable intervention state, while `Received`, `NotRecorded`, `Prepared`, `Applying`, `Recovering`, and `Reconciling` are nonterminal or dormant resolution states.
+Apply SHALL verify every precondition before writes, stage replacement data, durably journal side effects, apply changes deterministically, verify postconditions, and attempt rollback after an apply failure. Before final whole-plan preflight, each apply/recovery SHALL acquire an exclusive OS-enforced transaction reservation keyed by canonical repository identity and SHALL establish complete external-write protection by either acquiring a deterministic guard set over every reviewed dependency, affected object, and directory entry or recording immutable version tokens that every effect checks atomically. It SHALL retain both boundaries through durable terminal completion or explicit recovery handoff. Each `Applying` or `Recovering` record SHALL carry a renewable owner lease and monotonically increasing fencing epoch. Every side effect and every expired-owner takeover SHALL validate the reservation, external-write guards or conditional-effect tokens, current ledger state, epoch, lease, expected intermediate repository state, prior effects, remaining plan dependencies, platform file identity, and link count. An expired owner SHALL be reconciled from durable evidence. The ledger SHALL retain an append-only transition history. Direct terminal states SHALL distinguish `Applied` and `RolledBack`; verified post-recovery terminal states SHALL distinguish `RecoveredApplied` and `RecoveredRolledBack`; `RecoveryAcknowledged` SHALL be an administrative terminal state that makes no repository-cleanliness claim. `RejectedStale`, `RejectedConflict`, and `Expired` SHALL remain no-effect terminal outcomes. `RecoveryRequired` SHALL be a durable intervention state, while `Received`, `NotRecorded`, `Prepared`, `Applying`, `Recovering`, and `Reconciling` are nonterminal or dormant resolution states.
 
 #### Scenario: two apply plans target the same repository
 
@@ -188,7 +197,7 @@ Apply SHALL verify every precondition before writes, stage replacement data, dur
 #### Scenario: manual recovery succeeds
 
 - **WHEN** an authorized caller resumes or rolls back an operation in `RecoveryRequired`
-- **THEN** recovery acquires the same exclusive repository reservation, advances the fencing epoch, and appends `Recovering` before any repository effect
+- **THEN** recovery acquires the same exclusive repository reservation and complete external-write/conditional-effect protection, advances the fencing epoch, and appends `Recovering` before any repository effect
 - **AND THEN** successful verified resume terminates as `RecoveredApplied` and successful verified rollback terminates as `RecoveredRolledBack`
 - **AND THEN** the original `RecoveryRequired` event and the recovery attempt remain in append-only history
 - **AND THEN** the plan and recovery bundle are released only after verified cleanup
@@ -228,12 +237,13 @@ Apply SHALL verify every precondition before writes, stage replacement data, dur
 #### Scenario: a manual recovery owner exits after a side effect
 
 - **WHEN** an operation record remains `Recovering` after its owner lease expires
-- **THEN** the reconciler acquires the same repository reservation, advances the fencing epoch, and preserves the requested recovery action
+- **THEN** the reconciler acquires the same repository reservation and complete external-write/conditional-effect protection, advances the fencing epoch, and preserves the requested recovery action
 - **AND THEN** it reaches `RecoveredApplied`, `RecoveredRolledBack`, or `RecoveryRequired` from the durable journal rather than replaying an unproven effect
 
 #### Scenario: an expired apply owner resumes after reconciliation starts
 
 - **WHEN** a reconciler acquires the exclusive repository transaction reservation and advances the fencing epoch for an expired owner
+- **AND WHEN** it reacquires the persisted plan's complete external-write/conditional-effect protection before any repository effect
 - **AND WHEN** the original owner later resumes with its stale epoch
 - **THEN** the original owner cannot reacquire the reservation or append a journalled effect
 - **AND THEN** it performs no replace, move, delete, backup, restore, or other repository write

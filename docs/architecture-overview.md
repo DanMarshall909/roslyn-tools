@@ -204,7 +204,13 @@ rules and ends as `RecoveredApplied`, `RecoveredRolledBack`, or
 `RecoveryRequired`.
 
 The reservation is acquired before final whole-plan preflight and held through the
-durable terminal result, verified rollback, or explicit recovery handoff. No second
+durable terminal result, verified rollback, or explicit recovery handoff. Because it
+does not exclude editors/builds, apply also acquires a deterministic OS-enforced
+guard set over every reviewed dependency, affected object, and directory entry, or
+uses equivalent atomic conditional effects. Both boundaries remain held through
+final verification and durable outcome; advisory locks and unconditional atomic
+replacement are insufficient, and unsupported platforms block unattended apply.
+No second
 apply or recovery transaction for the repository can enter final validation while
 it is held. At every journalled effect, the owner verifies the reservation, ledger
 state, fencing epoch, lease, prior effect outcomes, and every still-relevant plan
