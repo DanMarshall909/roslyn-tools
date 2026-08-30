@@ -38,7 +38,23 @@ snapshot view; evaluator startup SHALL NOT re-resolve an ambient path that can n
 replacement checkout. The actual solution/build open boundary SHALL consume that
 capability and revalidate its identity before marking evaluation started. A platform
 or evaluator API that cannot preserve the binding through that open SHALL refuse
-`InProcess` and use `IsolatedWorker` or fail safely. A prior read of `Trusted` SHALL
+`InProcess` and use `IsolatedWorker` or fail safely.
+
+Before `InProcess` admission, an external supervisor that executes no repository code
+SHALL place the evaluator host and every process it can create in a non-breakaway,
+OS-enforced descendant domain and acquire a generation-bound containment lease. The
+host, evaluated code, and descendants SHALL NOT detach, daemonize, re-parent, create a
+process outside, disable, or move out of that domain. The supervisor SHALL retain an
+out-of-domain kill capability and durable status path. Revocation SHALL first request
+cooperative cancellation and then terminate the per-admission domain or, when safe
+per-admission attribution is unavailable, the entire containing host domain. It SHALL
+remain `RevocationPending` until the OS proves the revoked generation has no live
+descendant. Other operations interrupted by whole-host termination SHALL receive their
+typed interrupted/indeterminate outcomes; they SHALL NOT justify leaving a descendant
+running. A platform that cannot prove non-escape, external termination, and empty-domain
+quiescence SHALL refuse `InProcess`.
+
+A prior read of `Trusted` SHALL
 confer no admission authority. Revocation SHALL
 atomically close new `InProcess` admission, advance the trust generation, persist
 `Untrusted`, and durably audit that transition. A request that observed the former
@@ -221,6 +237,13 @@ boundary SHALL run inside the allow-listed `IsolatedWorker` namespace or be refu
 - **WHEN** `InProcess` admission acquires its trust lease and the canonical checkout directory entry is replaced before MSBuild opens the solution
 - **THEN** evaluator startup reads only through the held verified-root capability or its immutable snapshot and never opens the replacement under the old grant
 - **AND THEN** the request either evaluates the exact granted physical repository with matching provenance or fails with a typed stale-binding safety outcome before repository-controlled code starts
+
+#### Scenario: trusted in-process evaluation launches a detached child
+
+- **WHEN** repository-controlled code admitted to `InProcess` forks, daemonizes, re-parents, or otherwise attempts to leave a background descendant and repository trust is revoked
+- **THEN** the OS-enforced non-breakaway descendant domain keeps the host and every child under the external supervisor's kill capability
+- **AND THEN** cooperative cancellation is followed by termination of the per-admission domain or the whole containing host when attribution is not provable
+- **AND THEN** revocation completes only after the OS proves the revoked generation's domain empty; a platform unable to prove this refuses `InProcess`
 
 ### Requirement: request context is explicit and host-neutral
 

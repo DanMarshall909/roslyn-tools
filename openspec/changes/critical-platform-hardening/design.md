@@ -101,6 +101,17 @@ untrusted, and both new in-process admission and a replacement grant stay fenced
 Missing or unreachable lease state fails closed and is resolved through status and
 reconciliation rather than being assumed quiescent.
 
+`InProcess` does not mean uncontained descendants. Before admission, an external
+supervisor that executes no repository code places the evaluator host and every process
+it can create inside a non-breakaway OS job/cgroup/process domain and issues a
+generation-bound containment lease. Evaluated code cannot detach, re-parent, disable,
+or escape the domain; the supervisor retains an out-of-domain kill capability and
+durable status. Revocation requests cooperative cancellation, then terminates the
+per-admission domain or the entire containing host when descendant attribution cannot
+be proven, and remains pending until the OS reports the revoked domain empty. Whole-host
+termination truthfully interrupts other requests. A platform without non-escape,
+external kill, and empty-domain proof refuses `InProcess`.
+
 The isolated worker runs as a distinct least-privilege security identity inside
 OS-enforced process/PID, process-handle, IPC, filesystem, and network namespaces or
 equivalent sandbox boundaries. It cannot authenticate as or impersonate the host user,
@@ -167,6 +178,8 @@ Workspace provenance records:
 - canonical repository and solution identity;
 - verified physical-root capability and immutable snapshot identity consumed at
   evaluator startup;
+- in-process descendant-domain identity, external supervisor, and containment
+  generation where applicable;
 - trust state and evaluator mode;
 - requested, loaded, and failed projects;
 - SDK/MSBuild/compiler versions and configuration;

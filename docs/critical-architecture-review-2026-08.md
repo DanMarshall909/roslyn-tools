@@ -69,6 +69,9 @@ The current design has no threat model, trust decision, worker boundary, environ
   admission to a generation-scoped lease plus a held verified-root capability consumed
   at the actual evaluator open; never re-resolve a replaceable checkout path under an
   earlier grant.
+- Place every trusted in-process evaluator host and possible descendant in an
+  external-supervisor-owned non-breakaway OS process domain; revocation terminates the
+  per-admission domain or whole host and completes only after the OS proves it empty.
 - Refuse untrusted MSBuild-backed evaluation until a constrained worker is available.
 - Keep untrusted evaluation out of long-lived CLI, MCP, and daemon hosts.
 - Treat `NoEvaluation` as code-execution-free, not read-unrestricted: require verified-root handle-relative/no-follow reads or route the operation through the allow-listed worker.

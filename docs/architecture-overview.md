@@ -115,6 +115,14 @@ and descendants. It reports completion only after verified quiescence; otherwise
 durable state is `RevocationPending`, new in-process admissions and replacement grants
 remain fenced, and missing lease state fails closed into reconciliation.
 
+Every in-process evaluator host and process it can create is placed before admission in
+a non-breakaway OS descendant domain owned by an external supervisor that executes no
+repository code. Repository code cannot detach, re-parent, disable, or escape it. On
+revocation the supervisor cancels cooperatively, then terminates the per-admission
+domain or the whole containing host if attribution is not provable; durable revocation
+status completes only after the OS reports the revoked generation empty. Platforms
+without non-escape, external kill, and empty-domain proof refuse `InProcess`.
+
 Workspace acquisition and provenance carry two independent values. Effective
 repository trust is **Trusted** after an authoritative explicit scoped decision or
 **Untrusted** when that decision is absent or revoked. Evaluator mode is one of:

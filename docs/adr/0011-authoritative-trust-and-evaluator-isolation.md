@@ -42,6 +42,14 @@ evaluations and descendants. It completes only after their quiescence is verifie
 until then it is durably `RevocationPending` and replacement grants remain fenced.
 Missing lease state fails closed and requires reconciliation.
 
+Every `InProcess` host and process it can create is pre-contained in a non-breakaway OS
+descendant domain owned by an external supervisor that executes no repository code.
+The supervisor retains the kill capability and durable status. Revocation terminates a
+per-admission domain when attribution is proven, otherwise the whole containing host,
+and completes only after the OS proves the revoked generation has no live descendant.
+Platforms unable to prove containment, external termination, and empty-domain
+quiescence refuse `InProcess`.
+
 `Trusted | Untrusted` remains independent from `NoEvaluation | InProcess |
 IsolatedWorker`. Untrusted repositories cannot select `InProcess`. An isolated worker
 runs under a distinct least-privilege identity with OS-enforced process/PID,
@@ -75,6 +83,8 @@ the separate root-contained handle-relative safe-reader contract.
 - Trust grants are explicit security decisions rather than transport parameters.
 - Revocation is linearizable with evaluator admission and has an explicit quiescence
   contract for work admitted before the revocation fence.
+- Trusted in-process execution still requires non-escapable descendant containment;
+  revocation may terminate the containing host to make its quiescence claim truthful.
 - Worker implementations need platform-specific isolation proof and fail-closed
   capability detection.
 - Read-only checkout views cannot preserve unproven host inode aliases, and process,
