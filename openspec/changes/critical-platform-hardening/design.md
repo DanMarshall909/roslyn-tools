@@ -114,8 +114,14 @@ Workspace provenance records:
 ### Identity
 
 `Prepare` returns an immutable `PreparedChangeSet` with a stable `PlanId` and
-`PlanHash`. Before prepare succeeds, the canonical serialized plan is atomically
-persisted in a protected durable plan store outside the target repository:
+`PlanHash`. `PlanHash` is SHA-256 over a versioned host-neutral
+`CanonicalPlanPayload` serialization in which the `PlanHash` field is omitted
+entirely; it is never hashed as an empty, zero, or provisional value. Every host uses
+the same path/string normalization, property ordering, explicit-null, default-value,
+and byte-encoding rules plus shared conformance vectors. The persisted plan envelope
+contains that payload and its claimed hash; verification reserializes the payload
+without the hash field and compares the digest in constant time. Before prepare
+succeeds, the exact envelope is atomically persisted in a protected durable plan store outside the target repository:
 user-private
 under proven `ExclusivePrincipal`, or authority-owned/access-controlled under
 `SharedAuthority`. The store is logically scoped by canonical repository identity and
@@ -313,7 +319,7 @@ and accumulator; repository IDs and operation epoch numbers are never reused.
 
 A prepared change set contains:
 
-- plan ID, plan hash, schema version, creation time, expiry, repository identity, and expected repository revision;
+- plan ID, plan hash (excluded from its own canonical payload digest), schema version, creation time, expiry, repository identity, and expected repository revision;
 - coordination domain ID/mode, stable cross-principal repository identity, declared mutation principal/writer set, and OS ownership or shared-authority proof;
 - exact operation list for creates, replacements, deletes, moves, project edits, Roslyn documents, additional documents, and analyzer-config documents;
 - expected existence and content hash for every read or modified path;

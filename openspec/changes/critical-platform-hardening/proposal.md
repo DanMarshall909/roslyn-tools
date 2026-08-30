@@ -60,8 +60,10 @@ idempotency, status, and recovery handle. A separate request-attempt ID may be u
 for transport correlation, but an operation ID first returned by the server after
 dispatch is insufficient.
 
-Prepare atomically persists the exact canonical plan in protected storage outside
-the target repository and returns its repository ID, plan ID, and plan hash. Storage
+Prepare computes plan hash over a versioned host-neutral canonical payload with the
+hash field omitted entirely, then atomically persists that exact payload and claimed
+hash in protected storage outside the target repository. It returns the repository
+ID, plan ID, and plan hash. Storage
 is user-private only when `ExclusivePrincipal` ownership is proven; shared writable
 repositories require an authority-owned coordination domain. Apply
 loads those exact bytes across process restart; it never recomputes the reviewed work
@@ -151,6 +153,7 @@ results or diagnostics.
 - An untrusted file-only operation cannot use a repository symlink, reparse point, mount, hard link, alternate stream, or special file to read undeclared host content in a privileged process.
 - Cancellation after durable intake either proves `CancelledNoEffect` before the first-effect permit or records the request while recovery-critical work reaches a truthful repository outcome; replay never restarts a cancelled operation.
 - Review and apply can run in separate processes and still consume byte-identical, hash-verified plan data from outside repository control.
+- `PlanHash` has one cross-adapter canonical representation and never hashes itself.
 - Plan retention cannot remove bytes still referenced by a nonterminal (including recovering) or recovery-required operation.
 - A symlink/reparse swap after preflight cannot redirect any write, move, delete, backup, or restore outside the verified root.
 - A hard-linked path cannot mutate an undeclared shared inode or silently lose a reviewed link relationship.

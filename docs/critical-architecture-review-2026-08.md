@@ -114,7 +114,7 @@ retries, crashes, or process restarts.
 **Required correction**
 
 - Prepare one immutable plan containing every create/replace/delete/move/project/additional/analyzer-config change.
-- Persist its canonical bytes in protected storage outside repository control and require repository ID, plan ID, and plan hash at apply.
+- Compute plan hash from a versioned host-neutral canonical payload with the hash field omitted, persist the payload and claimed hash in protected storage outside repository control, and require repository ID, plan ID, and plan hash at apply.
 - Resolve one OS/service-protected cross-principal/cross-host repository identity and barrier registry, then prove no other non-administrative principal or host can write the checkout or require one shared coordination authority; otherwise keep it inspect-only.
 - Record expected existence/hash/type, platform identity/link count, encoding/BOM/newlines, permissions/mode, symlink/hard-link policy, repository revision, exact diff, expiry, verification, and recovery data.
 - Pin the exact plan and recovery bundle while an operation is nonterminal (including `Recovering`) or `RecoveryRequired`.

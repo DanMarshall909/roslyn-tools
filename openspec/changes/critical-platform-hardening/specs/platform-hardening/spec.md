@@ -100,20 +100,35 @@ hashes/existence, platform file identity, link count, known hard-link aliases,
 encoding/newline/file-mode policy, symlink/hard-link policy, operation-scoped
 staging/backup roots outside the repository, OS/filesystem conditional-effect or
 external-write-guard requirements, diff, verification plan, expiry, and repository
-revision. Before prepare succeeds, the exact canonical plan bytes SHALL be atomically
+revision. Before prepare succeeds, the exact canonical plan envelope SHALL be atomically
 persisted in protected durable storage outside repository control: user-private for
 proven `ExclusivePrincipal`, or authority-owned/access-controlled for
-`SharedAuthority`. Apply SHALL identify those bytes by repository ID, plan ID, and
+`SharedAuthority`. Apply SHALL identify that payload and envelope by repository ID, plan ID, and
 plan hash and SHALL NOT recompute them from command arguments or a newer workspace
 snapshot. Once an operation record references a plan, the store SHALL pin its exact
 bytes through all nonterminal states and through `RecoveryRequired` until verified
 terminal cleanup or explicit recovery acknowledgement.
+
+`PlanHash` SHALL be the SHA-256 digest of a versioned host-neutral
+`CanonicalPlanPayload` serialization that omits the `PlanHash` field entirely rather
+than encoding an empty, zero, or provisional value. The persisted envelope MAY carry
+the claimed hash beside that payload. Every adapter SHALL use the same path/string
+normalization, property ordering, explicit-null, default-value, and byte-encoding
+rules and shared conformance vectors. Verification SHALL reserialize the payload with
+the hash field omitted and compare the resulting digest in constant time.
 
 #### Scenario: preview and apply use the same plan
 
 - **WHEN** a prepared mutation is reviewed and then applied without drift
 - **THEN** apply consumes the reviewed immutable plan
 - **AND THEN** it does not recompute a semantically different mutation from the original command arguments
+
+#### Scenario: a plan hash is computed without self-reference
+
+- **WHEN** prepare computes or apply verifies `PlanHash`
+- **THEN** the canonicalizer omits the `PlanHash` field from the hashed payload
+- **AND THEN** CLI, MCP, in-process, and daemon adapters produce the same SHA-256 digest for the same semantic plan
+- **AND THEN** changing any included plan field changes verification, while changing only a claimed `PlanHash` cannot alter the bytes being hashed
 
 #### Scenario: review and apply use separate processes
 
