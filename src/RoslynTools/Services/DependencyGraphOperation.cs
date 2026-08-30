@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 
@@ -10,8 +11,13 @@ internal sealed record DependencyGraphRequest(
     int? Depth = null,
     string? Scope = null);
 
-internal sealed record DependencyGraphEdge(string From, string To);
-internal sealed record DependencyGraphResult(IReadOnlyList<string> Nodes, IReadOnlyList<DependencyGraphEdge> Edges);
+internal sealed record DependencyGraphEdge(
+    [property: JsonPropertyName("from")] string From,
+    [property: JsonPropertyName("to")] string To);
+
+internal sealed record DependencyGraphResult(
+    [property: JsonPropertyName("nodes")] IReadOnlyList<string> Nodes,
+    [property: JsonPropertyName("edges")] IReadOnlyList<DependencyGraphEdge> Edges);
 
 internal sealed class DependencyGraphOperation
     : CommandApplicationPort<DependencyGraphRequest, DependencyGraphResult>, IRtService

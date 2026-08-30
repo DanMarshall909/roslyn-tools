@@ -57,6 +57,7 @@ internal static class Program
         if (!IsDaemonCommand(args)
             && !DaemonOwnedCommands.IsInvocation(args)
             && !TypedCommandInvocation.IsMatch(args, typedDefinitions)
+            && !IsInformationalInvocation(args)
             && !NoDaemon)
         {
             var client = host.Services.GetRequiredService<DaemonClient>();
@@ -81,5 +82,10 @@ internal static class Program
     private static bool IsDaemonCommand(string[] args)
     {
         return args.Length > 0 && args[0] == "daemon";
+    }
+
+    private static bool IsInformationalInvocation(string[] args)
+    {
+        return args.Any(arg => arg is "-h" or "--help" or "--version");
     }
 }

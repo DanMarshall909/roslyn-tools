@@ -18,7 +18,7 @@ internal static class DaemonCommandExecutor
         where TResponse : class
     {
         if (port.Definition.ExecutionPlacement == CommandExecutionPlacement.InProcess
-            || WorkspaceLoader.Override.Value is not null)
+            || IWorkspaceSessionFactory.HasAmbientOverride)
             return await port.ExecuteAsync(request, cancellationToken);
 
         var recoveryResult = await recovery.ExecuteAsync(
@@ -72,7 +72,7 @@ internal static class DaemonCommandExecutor
     {
         var cancellationToken = context.GetCancellationToken();
 
-        if (WorkspaceLoader.Override.Value is not null)
+        if (IWorkspaceSessionFactory.HasAmbientOverride)
         {
             await ExecuteLocalAsync(port, request, context, cancellationToken);
             return;
