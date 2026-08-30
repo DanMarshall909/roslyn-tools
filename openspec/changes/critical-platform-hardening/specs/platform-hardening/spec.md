@@ -152,12 +152,36 @@ ID, request hash, and canonical request. The operation ledger SHALL then be reco
 before repository side effects begin. A `Received` receipt without an operation
 record SHALL be reconciled on startup and status lookup.
 
+Every terminal transition, including durable expiry, SHALL atomically retain a
+compact idempotency tombstone keyed by canonical repository ID and operation ID. The
+tombstone SHALL preserve request and plan hashes, terminal state, canonical outcome,
+completion time, final evidence digest, and required cleanup/recovery summary. The
+intake fence SHALL consult active records and tombstones before creating `Received`
+or `NotRecorded`. Normal retention MAY compact detailed history and safely releasable
+artifacts but SHALL NOT delete the tombstone during the canonical repository
+identity's lifetime. Repository IDs SHALL NOT be reused; explicit identity retirement
+MAY collapse operation tombstones only after a permanent retired-repository marker
+will reject every request carrying the old repository ID.
+
 #### Scenario: a caller constructs the canonical request hash
 
 - **WHEN** a caller prepares an apply request for dispatch
 - **THEN** it serializes the semantic request with the shared schema version, path/string normalization, property ordering, explicit-null, and default-value rules
 - **AND THEN** `RequestHash`, replay epoch, transport metadata, cancellation state, and authentication material are absent from the hashed bytes
 - **AND THEN** CLI, MCP, in-process, and daemon adapters produce the same SHA-256 digest for the same semantic request
+
+#### Scenario: terminal history reaches its retention limit
+
+- **WHEN** detailed history and safely releasable artifacts for a terminal operation are compacted
+- **THEN** the compact tombstone retains its composite identity, request and plan hashes, terminal state, canonical outcome, evidence digest, and required cleanup/recovery summary
+- **AND THEN** an identical delayed submission returns that outcome without execution, while a different request hash returns `OperationConflict`
+- **AND THEN** intake cannot create a new `Received` or `NotRecorded` record for the tombstoned operation ID
+
+#### Scenario: a repository identity is explicitly retired
+
+- **WHEN** an administrator retires a canonical repository identity and compacts its per-operation tombstones
+- **THEN** the store first commits a permanent retired-repository marker
+- **AND THEN** the retired repository ID is never reused and every later request carrying it is rejected before intake
 
 #### Scenario: the first response is lost
 

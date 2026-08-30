@@ -153,6 +153,8 @@ operation state, or result. Reusing it with a different plan, revision, request 
 or payload returns `OperationConflict` and performs no work. `Received` and
 `NotRecorded` records are bounded: they pin the referenced plan until promotion,
 explicit replay, or durable expiry, and neither can remain unresolved indefinitely.
+Expiry retires the operation ID into the same compact idempotency tombstone used by
+other terminal outcomes; it does not make that ID reusable.
 
 Apply loads the exact persisted plan bytes identified by repository ID, plan ID, and
 plan hash. A missing, expired, unreadable, schema-incompatible, or hash-mismatched plan
@@ -162,8 +164,9 @@ owner-only access where supported, bounded retention for unreferenced plans and
 safely cleaned terminal history, atomic writes, and crash-safe cleanup;
 repositories cannot supply or replace its control metadata.
 
-Bounded retention applies only to unreferenced prepared plans and safely cleaned
-terminal history. Creating an operation record pins its canonical plan bytes by
+Bounded retention applies only to unreferenced prepared plans, safely cleaned bulky
+recovery data, and detailed terminal transition history; it never removes the compact
+idempotency record. Creating an operation record pins its canonical plan bytes by
 durable ledger reference. Garbage collection cannot remove a plan while an
 associated operation is `Received`, `NotRecorded`, `Prepared`, `Applying`,
 `Reconciling`, `Recovering`, or `RecoveryRequired`, and cannot remove a
@@ -171,6 +174,25 @@ associated operation is `Received`, `NotRecorded`, `Prepared`, `Applying`,
 releases the plan only after verified terminal cleanup, durable expiry, or explicit
 recovery acknowledgement. Recovery evidence and its plan are retained as one
 referentially complete bundle.
+
+### Durable idempotency tombstones
+
+Every terminal transition atomically writes a compact tombstone keyed by canonical
+`(RepositoryId, OperationId)` before the terminal outcome is reported. The tombstone
+retains the request hash, plan hash, terminal state, canonical outcome envelope,
+completion time, final repository revision/evidence digest, and any recovery,
+acknowledgement, or cleanup summary required by status. Its identity, request hash,
+and outcome are immutable; later cleanup may only advance its compact cleanup status.
+
+The operation-intake fence checks active records and tombstones before it can create
+`Received` or `NotRecorded`. An identical request returns the tombstoned outcome and
+performs no work; a different request hash returns `OperationConflict`. Compaction
+may replace detailed journal/transition history and safely releasable artifacts with
+this record, but normal retention never deletes it for the lifetime of the canonical
+repository identity. Explicit repository-identity retirement may collapse its
+operation tombstones only after atomically writing a permanent retired-repository
+marker; repository IDs are never reused, and every later request carrying a retired
+ID is rejected before intake.
 
 ### Prepared plan contents
 

@@ -252,6 +252,15 @@ lookup reconcile any receipt not yet promoted into the operation ledger. Repeati
 the same operation ID and request returns the existing receipt/state/result; reusing
 it for different work returns conflict.
 
+Terminal-history compaction never makes an operation ID reusable. Every terminal
+transition atomically retains a compact tombstone with the composite identity,
+request/plan hashes, canonical outcome, completion time, final evidence digest, and
+required cleanup/recovery summary. Intake checks tombstones under the same fence:
+identical delayed work returns the stored outcome and differing work conflicts.
+Tombstones survive normal retention for the canonical repository identity's lifetime.
+Explicit identity retirement first writes a permanent retired-repository marker;
+repository IDs are never reused and old requests are rejected before intake.
+
 ### 7. Transport contract
 
 Transport outcome describes only what the caller can prove:

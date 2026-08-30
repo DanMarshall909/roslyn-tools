@@ -90,6 +90,7 @@ The newer `DaemonRpcRecoveryCoordinator` correctly treats indeterminate migrated
 - Generate `OperationId` in the caller before dispatch and key intake, status, recovery, acknowledgement, and retention by canonical `(RepositoryId, OperationId)`.
 - Compute `RequestHash` from one versioned host-neutral semantic serialization that omits the hash field itself plus replay and transport-only metadata; share conformance vectors across adapters.
 - Persist an intake receipt before execution enqueue and operation state before side effects; reconcile the gap after lost response or process restart.
+- Retain a compact idempotency tombstone after terminal-history cleanup so normal retention can never make a repository/operation identity reusable.
 - Resolve a genuinely absent receipt under the same intake fence as durable `NotRecorded`, and require its replay epoch for explicit same-operation resubmission.
 - Test timeout/disconnect/malformed-response/cancellation before and after intake receipt and ledger creation, including delayed originals, and assert exactly one apply attempt.
 

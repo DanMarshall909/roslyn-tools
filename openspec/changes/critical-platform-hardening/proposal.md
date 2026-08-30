@@ -73,6 +73,12 @@ Exact replay returns the cancellation outcome without restarting work. Once the
 first-effect permit wins, cancellation is recorded but recovery-critical verification
 and rollback continue to a truthful repository outcome.
 
+Detailed terminal history may be compacted only after a terminal transition has
+atomically retained a durable idempotency tombstone. The tombstone preserves the
+composite operation identity, request/plan hashes, canonical outcome, and final
+evidence/cleanup summary for the canonical repository identity's lifetime, so delayed
+requests can never make an aged-out operation execute again.
+
 A failed or interrupted rollback is never reported as clean rollback. The operation enters durable intervention state `RecoveryRequired`; its journal, backups, diagnostics, and deterministic recovery guidance are retained until recovery or explicit acknowledgement. Recovery appends `Recovering` and ends as `RecoveredApplied`, `RecoveredRolledBack`, or another evidence-bearing `RecoveryRequired`. `RecoveryAcknowledged` is an explicit administrative handoff and never claims the repository is clean.
 
 Every `Applying` record has a renewable owner lease. Expired owners transition
@@ -102,6 +108,7 @@ remain outside the namespace.
 
 - No apply-capable legacy daemon or MCP bridge can automatically replay a mutation after dispatch ambiguity.
 - A caller can retain the composite repository/operation identity even when the first response is lost, query a durable intake receipt or authoritative `NotRecorded` state, and receive the same outcome for repeated identical requests; explicit replay after `NotRecorded` uses the same repository ID, operation ID, request hash, and replay epoch.
+- Terminal-history compaction retains a lifetime idempotency tombstone, so an aged-out identical operation returns its stored outcome and an operation ID never becomes reusable.
 - Cancellation after durable intake either proves `CancelledNoEffect` before the first-effect permit or records the request while recovery-critical work reaches a truthful repository outcome; replay never restarts a cancelled operation.
 - Review and apply can run in separate processes and still consume byte-identical, hash-verified plan data from outside repository control.
 - Plan retention cannot remove bytes still referenced by a nonterminal (including recovering) or recovery-required operation.
