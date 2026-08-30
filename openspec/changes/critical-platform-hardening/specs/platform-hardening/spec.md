@@ -127,7 +127,7 @@ A mutation SHALL prepare an immutable change set before apply. The plan SHALL de
 
 ### Requirement: apply operations have caller-known durable identity
 
-Every apply request SHALL include a caller-generated operation ID and canonical request hash before dispatch. The operation ID SHALL be the durable idempotency and status-lookup handle. Before accepted work can enter an execution queue, the receiver SHALL acquire a cross-process, store-enforced intake fence keyed by repository and operation ID and durably record a `Received` receipt containing the operation ID, request hash, and canonical request. The operation ledger SHALL then be recorded before repository side effects begin. A `Received` receipt without an operation record SHALL be reconciled on startup and status lookup.
+Every apply request SHALL include a caller-generated operation ID and canonical request hash before dispatch. Canonical repository ID plus operation ID SHALL be the composite durable identity for intake, idempotency, status, recovery, acknowledgement, and retention; operation IDs may repeat across repositories. Every operation lookup or mutation SHALL carry both values. Before accepted work can enter an execution queue, the receiver SHALL acquire a cross-process, store-enforced intake fence keyed by repository and operation ID and durably record a `Received` receipt containing the repository ID, operation ID, request hash, and canonical request. The operation ledger SHALL then be recorded before repository side effects begin. A `Received` receipt without an operation record SHALL be reconciled on startup and status lookup.
 
 #### Scenario: the first response is lost
 
@@ -155,6 +155,12 @@ Every apply request SHALL include a caller-generated operation ID and canonical 
 - **WHEN** an existing operation ID is submitted with a different plan, payload, or expected revision
 - **THEN** the request returns `OperationConflict`
 - **AND THEN** no repository path is written
+
+#### Scenario: two repositories use the same operation ID
+
+- **WHEN** two canonical repositories submit different work under the same caller-generated operation ID
+- **THEN** their composite repository/operation identities address independent receipts, ledgers, status, recovery, and retention
+- **AND THEN** status, resume, rollback, and acknowledgement require the canonical repository ID and cannot observe or mutate the other repository's operation
 
 ### Requirement: reviewed mutations are failure-aware and recoverable
 
@@ -263,7 +269,7 @@ Mutation transport SHALL classify caller knowledge as `NotDispatched`, `Complete
 #### Scenario: daemon response is lost after dispatch
 
 - **WHEN** a mutation request reaches or may have reached the daemon but its response is unavailable
-- **THEN** the client returns an indeterminate transport result with the caller-known operation ID and status lookup guidance
+- **THEN** the client returns an indeterminate transport result with the caller-known repository/operation identity and status lookup guidance
 - **AND THEN** it sends no second apply request and uses no in-process fallback while status remains indeterminate
 - **AND THEN** it may explicitly resubmit only after authoritative `NotRecorded`, using the same operation ID, request hash, and returned replay epoch
 

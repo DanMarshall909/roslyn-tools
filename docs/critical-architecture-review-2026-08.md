@@ -87,7 +87,7 @@ The newer `DaemonRpcRecoveryCoordinator` correctly treats indeterminate migrated
 - Immediately remove every apply-capable command from legacy daemon routing.
 - Hide apply-capable bridge tools from stable MCP discovery.
 - Add an architecture gate preventing any new mutator from entering a bridge or rendered-output route.
-- Generate `OperationId` in the caller before dispatch.
+- Generate `OperationId` in the caller before dispatch and key intake, status, recovery, acknowledgement, and retention by canonical `(RepositoryId, OperationId)`.
 - Persist an intake receipt before execution enqueue and operation state before side effects; reconcile the gap after lost response or process restart.
 - Resolve a genuinely absent receipt under the same intake fence as durable `NotRecorded`, and require its replay epoch for explicit same-operation resubmission.
 - Test timeout/disconnect/malformed-response/cancellation before and after intake receipt and ledger creation, including delayed originals, and assert exactly one apply attempt.
@@ -331,7 +331,7 @@ Every failure should tell the user or agent:
 3. what repository state is known now; and
 4. the exact safe next action.
 
-For mutations, always include operation ID, state, affected paths, journal/recovery status, and copy-pasteable status/recovery commands.
+For mutations, always include canonical repository ID, operation ID, state, affected paths, journal/recovery status, and copy-pasteable status/recovery commands.
 
 ### `doctor` and capabilities should expose reality
 
@@ -385,7 +385,7 @@ Core and application assemblies should not reference CLI/parser or MCP protocol 
 
 1. Write the repository-evaluation threat model with independent trust-state and evaluator-mode policy.
 2. Refuse untrusted semantic loading until the worker boundary exists.
-3. Add caller-generated operation IDs and durable status ledger.
+3. Add caller-generated operation IDs, canonical repository scoping, and a durable status ledger.
 4. Complete prepared-plan metadata and stale-plan preflight.
 5. Complete the staged writer with durable plans, journal, verification, restart reconciliation, handle-safe containment, `RecoveryRequired`, and recovery commands.
 6. Add hostile workspace and filesystem fault-injection suites across operating systems.

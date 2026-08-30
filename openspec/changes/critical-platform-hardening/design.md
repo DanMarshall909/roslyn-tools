@@ -113,10 +113,13 @@ caller-generated `OperationId` before any transport dispatch:
 Prepare(request) -> PreparedChangeSet
 Apply(repositoryId, planId, planHash, operationId, requestHash, expectedRevision, replayEpoch?) -> ApplyResult
 GetOperation(repositoryId, operationId, requestHash) -> OperationStatus
-Recover(operationId, recoveryAction) -> RecoveryResult
+Recover(repositoryId, operationId, recoveryAction) -> RecoveryResult
 ```
 
-`OperationId` is both the idempotency and status-lookup handle. `RequestHash` is
+`(RepositoryId, OperationId)` is the composite durable identity for intake,
+idempotency, status, recovery, acknowledgement, and retention. `OperationId` need
+only be unique within its canonical repository; every API and durable-store lookup
+that can observe or change an operation carries both values. `RequestHash` is
 the canonical hash of the complete apply request except transport-attempt and replay
 fields. A transport request-attempt ID may be separate.
 
@@ -286,7 +289,8 @@ canonical repository: new apply operations are rejected before final validation
 until the operation reaches a verified recovered state or an authorized user
 explicitly acknowledges the unresolved condition.
 
-`resume` and `rollback` acquire the same exclusive repository transaction
+`resume` and `rollback` resolve the operation by canonical repository ID plus
+operation ID, then acquire the same exclusive repository transaction
 reservation and complete external-write/conditional-effect protection, compare-and-swap the current
 state to `Recovering`, and claim a new owner lease and fencing epoch before touching
 the repository. They operate only from

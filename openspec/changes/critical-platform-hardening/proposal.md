@@ -51,7 +51,7 @@ This change establishes:
 
 The daemon is not an execution authority in this change. It is an optional transport adapter that forwards a typed canonical request and returns the canonical result without semantic change. It must not own workspace state or mutations, retry after indeterminate mutation dispatch, manufacture fallback execution, use process-global request context, log raw payloads, or change diagnostics, result shape, cancellation, provenance, or safety policy.
 
-Every apply-capable request is assigned a caller-generated operation ID before dispatch. That ID is the durable idempotency and status-lookup handle. A separate request-attempt ID may be used for transport correlation, but a server-generated ID that can be lost with the response is insufficient.
+Every apply-capable request is assigned a caller-generated operation ID before dispatch. Canonical repository ID plus operation ID is the durable idempotency, status, and recovery handle. A separate request-attempt ID may be used for transport correlation, but a server-generated ID that can be lost with the response is insufficient.
 
 Prepare atomically persists the exact canonical plan in a user-private store outside
 the target repository and returns its repository ID, plan ID, and plan hash. Apply
@@ -85,7 +85,7 @@ remain outside the namespace.
 ## Success measures
 
 - No apply-capable legacy daemon or MCP bridge can automatically replay a mutation after dispatch ambiguity.
-- A caller can recover the operation ID even when the first response is lost, query a durable intake receipt or authoritative `NotRecorded` state, and receive the same outcome for repeated identical requests; explicit replay after `NotRecorded` uses the same request hash and replay epoch.
+- A caller can retain the composite repository/operation identity even when the first response is lost, query a durable intake receipt or authoritative `NotRecorded` state, and receive the same outcome for repeated identical requests; explicit replay after `NotRecorded` uses the same repository ID, operation ID, request hash, and replay epoch.
 - Review and apply can run in separate processes and still consume byte-identical, hash-verified plan data from outside repository control.
 - Plan retention cannot remove bytes still referenced by a nonterminal (including recovering) or recovery-required operation.
 - A symlink/reparse swap after preflight cannot redirect any write, move, delete, backup, or restore outside the verified root.

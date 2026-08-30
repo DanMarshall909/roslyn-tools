@@ -20,9 +20,9 @@ For the current phase, the daemon is an optional **transparent typed transport a
 
 ### Caller-known identity
 
-Every apply request receives a caller-generated `OperationId` before transport dispatch. That identifier is the durable idempotency and operation-status handle. A separate request-attempt ID may be used for protocol correlation.
+Every apply request receives a caller-generated `OperationId` before transport dispatch. Canonical repository ID plus operation ID is the composite durable idempotency, operation-status, and recovery handle; the operation ID need only be unique within that repository. Every status, recovery, acknowledgement, and retention lookup carries both values. A separate request-attempt ID may be used for protocol correlation.
 
-When dispatch is indeterminate, the host returns the existing operation ID and
+When dispatch is indeterminate, the host returns the existing repository/operation identity and
 status-lookup guidance. The execution authority durably records a typed intake
 receipt before execution enqueue and operation state before repository side effects.
 Status lookup reconciles a receipt without an operation record. If neither exists, it

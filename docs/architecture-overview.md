@@ -159,7 +159,7 @@ Expected failures are typed and total. Host adapters project them through shared
 Every structured operation response carries, where applicable:
 
 - schema version and request ID;
-- operation ID and operation/transport status;
+- canonical repository ID, operation ID, and operation/transport status;
 - typed data;
 - typed diagnostics;
 - workspace and source provenance;
@@ -176,7 +176,7 @@ A boolean `dryRun` branch is not a mutation safety model. Stable mutations use:
 Prepare(request) -> PreparedChangeSet
 Apply(repositoryId, planId, planHash, operationId, requestHash, expectedRevision, replayEpoch?) -> ApplyResult
 GetOperation(repositoryId, operationId, requestHash) -> OperationStatus
-Recover(operationId, action) -> RecoveryResult
+Recover(repositoryId, operationId, action) -> RecoveryResult
 ```
 
 The immutable prepared plan contains all path and project operations, expected revision and hashes, encoding/newline/file-mode policy, symlink/hard-link/root-containment policy, exact diff, diagnostics, assumptions, verification, expiry, and recovery data. Before prepare returns, its canonical bytes are atomically persisted in a user-private store outside repository control. Preview and apply consume that same repository-scoped, hash-verified plan across process restart. Once an intake receipt or operation ledger references a plan, garbage collection pins its exact bytes through every nonterminal state, including `Recovering`, and through `RecoveryRequired`; it releases them only after verified terminal cleanup, durable expiry, or explicit recovery acknowledgement.
@@ -225,6 +225,9 @@ acknowledgement follows the recorded retention choice and preserves an immutable
 audit summary.
 
 The caller generates `OperationId` and the canonical request hash before dispatch.
+Canonical repository ID plus operation ID is the composite key for every receipt,
+ledger, status, recovery, acknowledgement, and retention lookup; the same operation
+ID in another repository is independent.
 Before accepted work enters an execution queue, a cross-process, store-enforced
 intake fence keyed by repository and operation ID protects a durable `Received`
 receipt containing the canonical request. Startup and status
@@ -241,7 +244,7 @@ Transport outcome describes only what the caller can prove:
 - **Indeterminate** — dispatch may have occurred but no valid response is available.
 
 An indeterminate mutation is never automatically retried or executed in-process. The
-host already knows the operation ID and queries status. If no receipt or operation
+host already knows the repository/operation identity and queries status. If no receipt or operation
 exists, status lookup uses the intake fence to exclude a still-arriving request and
 durably records `NotRecorded` with a replay epoch. Only then may the caller explicitly
 resubmit the identical request with the same operation ID, hash, and epoch; a delayed
