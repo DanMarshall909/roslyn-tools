@@ -864,10 +864,11 @@ Stable operations SHALL declare and enforce applicable limits for request size, 
 - **THEN** the response is deterministically paged or truncated with an explicit continuation/limitation marker
 - **AND THEN** the host does not silently allocate or emit an unbounded payload
 
-#### Scenario: a long analysis is cancelled
+#### Scenario: a long operation is cancelled safely
 
-- **WHEN** cancellation is requested before mutation side effects begin
-- **THEN** the operation stops promptly and returns a structured cancellation outcome
+- **WHEN** cancellation is requested during a cancellable non-mutating analysis, or after a mutation has a durable `Received` receipt but before its first repository effect
+- **THEN** the non-mutating analysis stops promptly, while the accepted mutation uses the canonical cancellation arbitration and returns a structured cancellation outcome only after that outcome is durable
+- **AND THEN** if mutation request bytes were accepted but durable `Received` is not yet proven, transport instead returns `Indeterminate` and the caller resolves the same repository/operation identity through status or authoritative `NotRecorded` without dispatching new work
 
 ### Requirement: the daemon is transparent and locally isolated in this phase
 
