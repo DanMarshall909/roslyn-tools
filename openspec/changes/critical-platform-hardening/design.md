@@ -81,6 +81,21 @@ trusted surface with deliberate user action can change the record; ordinary CLI,
 or daemon requests, repository content, and evaluator output cannot. The record is
 durably audited, and non-interactive callers cannot bootstrap trust.
 
+Grant, revoke, and `InProcess` evaluator admission use one linearizable trust gate per
+authenticated principal, canonical repository identity, and verified physical binding.
+Admission atomically re-reads the grant and acquires a revocable evaluator lease bound
+to the current monotonic `TrustGeneration` before repository-controlled code can run;
+an earlier trust read is not an admission token. Revoke atomically closes admission,
+increments that generation, persists `Untrusted`, and records the audit event, so a
+request paused before lease acquisition cannot start afterward. Evaluations whose
+leases linearized first are already admitted: the authority cancels or terminates them
+and their descendants through an enforceable supervisor and reports successful
+revocation only after verified quiescence. While any old-generation lease is not
+proven quiescent, revocation is durably `RevocationPending`, the repository remains
+untrusted, and both new in-process admission and a replacement grant stay fenced.
+Missing or unreachable lease state fails closed and is resolved through status and
+reconciliation rather than being assumed quiescent.
+
 The isolated worker runs as a distinct least-privilege security identity inside
 OS-enforced process/PID, process-handle, IPC, filesystem, and network namespaces or
 equivalent sandbox boundaries. It cannot authenticate as or impersonate the host user,

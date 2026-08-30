@@ -103,6 +103,15 @@ invoked authenticated grant/revoke operations through a trusted surface change t
 audited record; absent, revoked, unreadable, mismatched, stale-binding, or
 non-interactively bootstrapped decisions are `Untrusted`.
 
+Grant, revoke, and `InProcess` evaluator admission share a linearizable authority gate
+for the principal and verified repository binding. Admission atomically revalidates
+the grant and acquires a revocable lease for the current monotonic trust generation
+before repository-controlled code can run. Revocation closes admission, advances the
+generation, persists `Untrusted`, and cancels or terminates old-generation evaluations
+and descendants. It reports completion only after verified quiescence; otherwise its
+durable state is `RevocationPending`, new in-process admissions and replacement grants
+remain fenced, and missing lease state fails closed into reconciliation.
+
 Workspace acquisition and provenance carry two independent values. Effective
 repository trust is **Trusted** after an authoritative explicit scoped decision or
 **Untrusted** when that decision is absent or revoked. Evaluator mode is one of:

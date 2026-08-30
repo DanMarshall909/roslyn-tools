@@ -24,8 +24,27 @@ Only explicit authenticated `GrantRepositoryTrust` and `RevokeRepositoryTrust`
 operations backed by deliberate user action through a trusted surface SHALL mutate the
 registry; repository content, an evaluator, an ordinary workspace request, or an
 adapter SHALL NOT synthesize that authority. Grant/revoke SHALL be durably audited,
-revocation SHALL take effect before a later evaluator admission, and non-interactive
-operation without a pre-existing valid grant SHALL default to `Untrusted`. An
+and non-interactive operation without a pre-existing valid grant SHALL default to
+`Untrusted`.
+
+Grant, revoke, and every admission capable of starting repository-controlled code in
+`InProcess` SHALL share one linearizable trust gate keyed by authenticated principal,
+canonical repository identity, and verified physical binding. Evaluator admission
+SHALL atomically re-read the current grant and acquire a revocable evaluation lease
+bound to its monotonic trust generation before any repository-controlled code starts;
+a prior read of `Trusted` SHALL confer no admission authority. Revocation SHALL
+atomically close new `InProcess` admission, advance the trust generation, persist
+`Untrusted`, and durably audit that transition. A request that observed the former
+grant but had not acquired its lease before that transition SHALL be denied.
+
+An evaluation whose lease linearized first is already admitted. Revocation SHALL
+cancel or terminate every such old-generation in-process evaluation and its
+descendants, and SHALL NOT report completion until the authority verifies that they
+are quiescent and cannot execute more repository-controlled code. Until then the
+repository remains `Untrusted`, new `InProcess` admissions and grants remain fenced,
+and the revoke operation SHALL expose a typed `RevocationPending` outcome recoverable
+through status/reconciliation. Missing or unreachable lease state SHALL fail closed;
+it SHALL NOT be treated as quiescence. An
 untrusted request SHALL NOT select `InProcess`, while a trusted request MAY still
 select `IsolatedWorker`. The long-lived CLI, MCP, and daemon hosts SHALL NOT evaluate
 repository-controlled MSBuild logic, analyzers, generators, or repository executables
@@ -141,6 +160,19 @@ boundary SHALL run inside the allow-listed `IsolatedWorker` namespace or be refu
 - **WHEN** a workspace request or host adapter supplies `Trusted` but the authenticated principal's protected registry has no matching current grant for the verified repository binding
 - **THEN** the application boundary derives `Untrusted` and refuses `InProcess` evaluation
 - **AND THEN** no ordinary request, repository file, or evaluator output can create the missing grant
+
+#### Scenario: revocation races evaluator admission
+
+- **WHEN** an `InProcess` request reads a valid grant and pauses before lease acquisition while `RevokeRepositoryTrust` advances the trust generation
+- **THEN** the request cannot acquire an evaluation lease and no repository-controlled code starts
+- **AND THEN** all later admissions derive `Untrusted` until a new deliberate grant is allowed after revocation quiescence
+
+#### Scenario: revocation encounters already admitted evaluation
+
+- **WHEN** an in-process evaluation acquired an old-generation lease before `RevokeRepositoryTrust` closed admission
+- **THEN** revocation cancels or terminates that evaluation and every descendant under the enforceable supervisor boundary
+- **AND THEN** revocation remains `RevocationPending`, keeps the repository untrusted, and fences new admissions and grants until verified quiescence
+- **AND THEN** successful revocation means no old-generation repository-controlled code can execute afterward
 
 ### Requirement: request context is explicit and host-neutral
 

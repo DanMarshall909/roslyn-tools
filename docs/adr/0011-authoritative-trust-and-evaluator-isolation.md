@@ -27,9 +27,17 @@ stale-binding records resolve to `Untrusted`.
 
 Only authenticated `GrantRepositoryTrust` and `RevokeRepositoryTrust` operations
 backed by deliberate user action through a trusted surface can change a record. The
-authority audits those changes, applies revocation before later evaluator admission,
-and does not allow repository content, evaluator output, ordinary requests, or
-non-interactive callers to bootstrap trust.
+authority audits those changes and does not allow repository content, evaluator
+output, ordinary requests, or non-interactive callers to bootstrap trust.
+
+Grant, revoke, and `InProcess` evaluator admission share one linearizable gate for the
+principal and verified repository binding. Admission atomically revalidates the grant
+and acquires a revocable lease for the current monotonic trust generation before any
+repository-controlled code runs. Revoke closes admission, advances the generation,
+persists `Untrusted`, and then cancels or terminates already admitted old-generation
+evaluations and descendants. It completes only after their quiescence is verified;
+until then it is durably `RevocationPending` and replacement grants remain fenced.
+Missing lease state fails closed and requires reconciliation.
 
 `Trusted | Untrusted` remains independent from `NoEvaluation | InProcess |
 IsolatedWorker`. Untrusted repositories cannot select `InProcess`. An isolated worker
@@ -49,10 +57,13 @@ the separate root-contained handle-relative safe-reader contract.
 - All hosts report the same authority-derived effective trust and evaluator mode in
   provenance.
 - Trust grants are explicit security decisions rather than transport parameters.
+- Revocation is linearizable with evaluator admission and has an explicit quiescence
+  contract for work admitted before the revocation fence.
 - Worker implementations need platform-specific isolation proof and fail-closed
   capability detection.
-- Adversarial tests cover forged trust claims, stale bindings, grant/revoke behavior,
-  host-process access, undeclared IPC, host-file access, writes, and network egress.
+- Adversarial tests cover forged trust claims, stale bindings, grant/revoke admission
+  races and lost-lease reconciliation, host-process access, undeclared IPC, host-file
+  access, writes, and network egress.
 
 ## Alternatives considered
 
