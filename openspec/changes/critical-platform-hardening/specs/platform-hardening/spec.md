@@ -51,6 +51,15 @@ repository-controlled MSBuild logic, analyzers, generators, or repository execut
 in-process for an untrusted repository. `IsolatedWorker` SHALL use an OS-enforced
 allow-listed filesystem namespace that exposes only declared read-only inputs and
 disposable writable outputs; it SHALL NOT expose ambient host paths or credentials.
+Before exposure, the supervisor SHALL open checkout inputs relative to the verified
+root with no-follow/reparse-safe primitives, validate final-handle identity and type,
+and construct an immutable per-operation view. A multiply linked regular file SHALL
+be rejected without reading its contents unless every alias is proven inside the
+declared roots. Accepted inputs SHALL be materialized onto private inodes that cannot
+alias host filesystem objects, or mounted only when the platform proves equivalent
+alias containment for the snapshot lifetime. An unresolved live checkout inode SHALL
+NOT be bind-mounted into the worker, and bytes from a rejected external alias SHALL
+NOT enter results, diagnostics, logs, or caches.
 
 Every `IsolatedWorker` phase capable of executing untrusted repository-controlled code
 SHALL run under a distinct least-privilege security identity that cannot authenticate
@@ -61,6 +70,18 @@ same-machine processes. The worker SHALL inherit no ambient handles and SHALL ex
 only bounded schema-validated supervisor channels created specifically for that
 operation; child processes SHALL remain inside the same containment and resource
 limits.
+
+The supervisor SHALL reserve aggregate host capacity before admission and enforce
+per-operation OS limits inherited by every descendant for live and total process/task
+creation, threads, process-table entries, open handles/file descriptors, CPU, memory,
+wall-clock time, and IPC/result bytes. Every disposable output, intermediate, cache,
+and temporary filesystem SHALL have enforced byte and inode/file-count quotas; quota
+exhaustion SHALL stop the evaluation with a typed resource-limit outcome rather than
+consume unbounded host capacity. On success, failure, cancellation, timeout, or host
+reconciliation, the supervisor SHALL terminate all descendants, revoke channels, and
+destroy or quarantine every writable namespace within a bounded cleanup deadline.
+Unverified cleanup SHALL block reuse of its reserved capacity and SHALL NOT be counted
+as successful isolation.
 
 The worker SHALL also run in an OS-enforced networkless namespace with no DNS, socket,
 loopback, proxy, or external egress; policy SHALL NOT enable networking inside that
@@ -109,6 +130,20 @@ boundary SHALL run inside the allow-listed `IsolatedWorker` namespace or be refu
 - **THEN** the OS-enforced filesystem namespace makes that path unavailable and denies the read
 - **AND THEN** only the read-only checkout, declared read-only SDK/package/tool inputs, and disposable writable output/cache/temp locations are visible
 - **AND THEN** evaluation is refused on a platform that cannot establish this namespace
+
+#### Scenario: isolated checkout input aliases an ambient host file
+
+- **WHEN** an untrusted checkout path is a hard link whose aliases cannot all be proven inside the declared input roots
+- **THEN** snapshot construction rejects the file before reading or exposing its contents to the worker
+- **AND THEN** accepted checkout inputs use private non-host-aliasing inodes or an equivalently proven alias-contained immutable snapshot
+- **AND THEN** ambient target bytes do not enter the worker, results, diagnostics, logs, or caches
+
+#### Scenario: isolated code exhausts process or writable-filesystem resources
+
+- **WHEN** repository-controlled code forks descendants, opens descriptors, or creates output/cache/temp files until an operation or aggregate quota is reached
+- **THEN** inherited OS-enforced process/task, descriptor, CPU, memory, time, byte, and inode limits stop the evaluation with a typed resource-limit outcome
+- **AND THEN** the supervisor terminates every descendant and destroys or quarantines all disposable writable namespaces within the bounded cleanup contract
+- **AND THEN** capacity with unverified cleanup is not reused or admitted as available
 
 #### Scenario: isolated repository code attempts network egress
 

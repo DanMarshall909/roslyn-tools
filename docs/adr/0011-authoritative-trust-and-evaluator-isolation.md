@@ -48,6 +48,19 @@ undeclared host paths, write the checkout, or use network egress. Only bounded
 schema-validated operation-scoped supervisor channels and declared read-only inputs
 are exposed; descendants remain contained.
 
+Checkout inputs are opened relative to a verified root and validated by final handle
+before content is consumed. Multiply linked files are rejected unless every alias is
+proven inside declared roots. Accepted content is materialized onto private inodes, or
+the platform must prove equivalent alias containment for an immutable mount, so a
+repository hard link cannot expose an ambient host file.
+
+Worker admission reserves aggregate capacity. OS-enforced descendant-inherited limits
+cover process/task and thread creation, process-table entries, handles/file
+descriptors, CPU, memory, wall-clock time, and IPC/result bytes. Disposable writable
+filesystems have byte and inode/file-count quotas. Terminal and reconciliation paths
+terminate descendants and destroy or quarantine writable namespaces within a bounded
+deadline; capacity is unavailable until cleanup is verified.
+
 If any required identity, process/handle/IPC, filesystem, or egress boundary cannot be
 proven, untrusted evaluation is refused. `NoEvaluation` file reads remain subject to
 the separate root-contained handle-relative safe-reader contract.
@@ -61,9 +74,12 @@ the separate root-contained handle-relative safe-reader contract.
   contract for work admitted before the revocation fence.
 - Worker implementations need platform-specific isolation proof and fail-closed
   capability detection.
+- Read-only checkout views cannot preserve unproven host inode aliases, and process,
+  descriptor, writable-byte, inode, and teardown budgets are containment properties.
 - Adversarial tests cover forged trust claims, stale bindings, grant/revoke admission
-  races and lost-lease reconciliation, host-process access, undeclared IPC, host-file
-  access, writes, and network egress.
+  races and lost-lease reconciliation, hard-linked host files, fork/descriptor and
+  disk/inode exhaustion, cleanup failure, host-process access, undeclared IPC,
+  host-file access, writes, and network egress.
 
 ## Alternatives considered
 

@@ -131,7 +131,11 @@ The worker also receives an OS-enforced allow-listed filesystem namespace contai
 only the read-only repository, declared read-only SDK/package/tool inputs, and separate
 disposable writable output, cache, and temporary locations outside the checkout. Host roots,
 user profiles, credentials, SSH material, undeclared package caches, and devices are
-not visible. The worker has bounded resources, no inherited secrets, and no network
+not visible. Checkout inputs are opened relative to the verified root with no-follow
+and final-handle identity/link checks; unproven multiply linked files are rejected
+before reading, and accepted content uses private non-host-aliasing inodes or an
+equivalently proven immutable alias-contained mount. The worker has bounded resources,
+no inherited secrets, and no network
 during any phase that executes untrusted repository code. Required packages and tools
 are acquired beforehand by a separate trusted broker that executes no repository code,
 accepts only reviewed lockfile-pinned coordinates from allow-listed registries, and
@@ -139,6 +143,12 @@ verifies hashes/signatures before mounting them read-only. Missing inputs never 
 restore inside the worker. Repository write attempts, undeclared host reads, and all
 network egress are denied and recorded; platforms that cannot prove identity,
 process/handle/IPC, filesystem, and egress isolation refuse untrusted evaluation.
+Admission also reserves aggregate host capacity. Descendant-inherited OS limits cap
+process/task and thread creation, process-table entries, handles/descriptors, CPU,
+memory, time, and IPC/result bytes, while disposable filesystems enforce byte and
+inode/file-count quotas. Every terminal or reconciliation path performs bounded
+descendant termination and writable-namespace teardown; unverified cleanup quarantines
+the namespace and its capacity rather than making either reusable.
 
 Long-lived CLI, MCP, and daemon hosts never evaluate an untrusted repository in-process.
 

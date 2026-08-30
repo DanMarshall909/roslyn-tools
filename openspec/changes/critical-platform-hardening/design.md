@@ -120,6 +120,25 @@ inputs. Missing inputs stop evaluation with a typed diagnostic; they do not trig
 restore from inside the worker. If the platform cannot prove identity separation,
 process/handle/IPC isolation, filesystem containment, and network egress denial,
 `IsolatedWorker` evaluation is refused.
+
+The checkout view is not a blind bind mount. The supervisor opens declared inputs
+relative to the verified root with no-follow/reparse-safe primitives and validates
+final-handle identity, type, and link metadata before content is consumed. Multiply
+linked files are rejected unless every alias is proven within declared roots. Accepted
+content is materialized into an immutable per-operation filesystem with private inodes
+that cannot alias host objects, unless the platform proves equivalent alias containment
+for the mounted snapshot lifetime. Rejected external-alias bytes never enter worker or
+host-visible output, diagnostics, logs, or caches.
+
+Admission reserves both per-operation and aggregate host capacity. OS-enforced limits
+inherited by every descendant cap live and total process/task creation, threads,
+process-table entries, open handles/file descriptors, CPU, memory, wall-clock time,
+and IPC/result bytes. Separate disposable filesystems enforce byte and inode/file-count
+quotas for outputs, intermediates, caches, and temporary data. Exceeding a limit stops
+evaluation with a typed resource outcome. Every terminal path and restart
+reconciliation terminates descendants, revokes channels, and destroys or quarantines
+writable namespaces within a bounded deadline; capacity is not reusable until cleanup
+is verified.
 Repository-controlled tasks, analyzers, or generators that attempt repository
 writes or undeclared host reads are denied and audited; evaluator completion never
 copies undeclared writes back into the checkout. If the platform cannot establish
