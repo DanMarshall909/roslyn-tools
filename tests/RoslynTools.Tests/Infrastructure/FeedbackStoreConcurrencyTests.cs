@@ -154,6 +154,14 @@ public class FeedbackStoreConcurrencyTests
         }
     }
 
+    [Fact]
+    public void missing_store_directory_is_not_treated_as_lock_contention()
+    {
+        var exception = new DirectoryNotFoundException("The feedback directory disappeared.");
+
+        FeedbackStore.IsStoreLockContention(exception).ShouldBeFalse();
+    }
+
     private sealed class ConcurrencyWorkspace : IDisposable
     {
         private readonly string _previousDirectory;

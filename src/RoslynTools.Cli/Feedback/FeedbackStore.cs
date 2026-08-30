@@ -7,6 +7,11 @@ namespace RoslynTools.Feedback;
 
 internal static class FeedbackStore
 {
+    private const int WindowsSharingViolation = 32;
+    private const int WindowsLockViolation = 33;
+    private const int LinuxWouldBlock = 11;
+    private const int BsdWouldBlock = 35;
+
     private static readonly TimeSpan StoreLockRetryDelay = TimeSpan.FromMilliseconds(20);
     private static readonly SemaphoreSlim Lock = new(1, 1);
 
@@ -39,22 +44,7 @@ internal static class FeedbackStore
         return Path.Combine(fallback, "feedback.json");
     }
 
-    internal static List<FeedbackEntry> LoadAll()
-    {
-        var path = ResolveStorePath();
-        if (!File.Exists(path)) return [];
-
-        try
-        {
-            var json = File.ReadAllText(path);
-            var doc = JsonSerializer.Deserialize<FeedbackFile>(json, ReadOpts);
-            return doc?.FeedbackItems ?? [];
-        }
-        catch
-        {
-            return [];
-        }
-    }
+    internal static List<FeedbackEntry> LoadAll() => ReadExisting();
 
     internal static string NextId(List<FeedbackEntry> existing)
     {
@@ -272,7 +262,7 @@ internal static class FeedbackStore
             {
                 return OpenStoreLock(lockPath);
             }
-            catch (IOException)
+            catch (IOException ex) when (IsStoreLockContention(ex))
             {
                 Thread.Sleep(StoreLockRetryDelay);
             }
@@ -289,11 +279,19 @@ internal static class FeedbackStore
             {
                 return OpenStoreLock(lockPath);
             }
-            catch (IOException)
+            catch (IOException ex) when (IsStoreLockContention(ex))
             {
                 await Task.Delay(StoreLockRetryDelay, cancellationToken);
             }
         }
+    }
+
+    internal static bool IsStoreLockContention(IOException exception)
+    {
+        var errorCode = exception.HResult & 0xFFFF;
+        return OperatingSystem.IsWindows()
+            ? errorCode is WindowsSharingViolation or WindowsLockViolation
+            : errorCode is LinuxWouldBlock or BsdWouldBlock;
     }
 
     private static string ResolveStoreLockPath()
@@ -319,8 +317,12 @@ internal static class FeedbackStore
 
         try
         {
-            var json = File.ReadAllText(path);
-            return JsonSerializer.Deserialize<FeedbackFile>(json, ReadOpts)?.FeedbackItems ?? [];
+            using var stream = new FileStream(
+                path,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            return JsonSerializer.Deserialize<FeedbackFile>(stream, ReadOpts)?.FeedbackItems ?? [];
         }
         catch
         {
