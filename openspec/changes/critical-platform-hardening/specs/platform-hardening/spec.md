@@ -60,7 +60,7 @@ Repository root, solution path, configuration, trust state, evaluator mode, reso
 
 ## Requirement: prepared mutation plans are complete and immutable
 
-A mutation SHALL prepare an immutable change set before apply. The plan SHALL describe every create, replacement, delete, move, project edit, Roslyn document, additional document, and analyzer-config document it can affect, including exact path preconditions, expected hashes/existence, encoding/newline/file-mode policy, symlink policy, diff, verification plan, expiry, and repository revision. Before prepare succeeds, the exact canonical plan bytes SHALL be atomically persisted in a user-private durable store scoped by canonical repository identity. Apply SHALL identify those bytes by repository ID, plan ID, and plan hash and SHALL NOT recompute them from command arguments or a newer workspace snapshot. Once an operation record references a plan, the store SHALL pin its exact bytes through all nonterminal states and through `RecoveryRequired` until verified terminal cleanup or explicit recovery acknowledgement.
+A mutation SHALL prepare an immutable change set before apply. The plan SHALL describe every create, replacement, delete, move, project edit, Roslyn document, additional document, and analyzer-config document it can affect, including exact path preconditions, expected hashes/existence, platform file identity, link count, known hard-link aliases, encoding/newline/file-mode policy, symlink/hard-link policy, diff, verification plan, expiry, and repository revision. Before prepare succeeds, the exact canonical plan bytes SHALL be atomically persisted in a user-private durable store scoped by canonical repository identity. Apply SHALL identify those bytes by repository ID, plan ID, and plan hash and SHALL NOT recompute them from command arguments or a newer workspace snapshot. Once an operation record references a plan, the store SHALL pin its exact bytes through all nonterminal states and through `RecoveryRequired` until verified terminal cleanup or explicit recovery acknowledgement.
 
 ### Scenario: preview and apply use the same plan
 
@@ -94,6 +94,14 @@ A mutation SHALL prepare an immutable change set before apply. The plan SHALL de
 - **AND THEN** unsupported platform/filesystem combinations block unattended apply instead of relying on string-only or check-then-open validation
 - **AND THEN** a race detected after earlier side effects enters verified rollback and terminates as `RolledBack` or `RecoveryRequired`
 
+### Scenario: an affected file has hard-link aliases
+
+- **WHEN** preparation or side-effect-time revalidation finds a link count greater than one, cannot inspect stable file identity/link count, or observes that either value changed after review
+- **THEN** the plan declares `Reject`, `Preserve`, or `BreakByReplacement` hard-link handling and exposes its effects for review
+- **AND THEN** `Preserve` is allowed only when every affected alias and shared-inode effect is identified and contained
+- **AND THEN** `BreakByReplacement` changes only the declared directory entry and performs no in-place content, permission, or metadata mutation of the shared inode
+- **AND THEN** unattended apply is blocked when an alias or effect is unknown, outside the verified boundary, unsupported, or different from the reviewed plan
+
 ### Scenario: a changed file has no exact preservation policy
 
 - **WHEN** the implementation cannot determine how to preserve or intentionally change encoding, BOM, newline, permissions, or symlink behaviour
@@ -123,7 +131,7 @@ Every apply request SHALL include a caller-generated operation ID before dispatc
 
 ## Requirement: reviewed mutations are failure-aware and recoverable
 
-Apply SHALL verify every precondition before writes, stage replacement data, durably journal side effects, apply changes deterministically, verify postconditions, and attempt rollback after an apply failure. Each `Applying` record SHALL carry a renewable owner lease and monotonically increasing fencing epoch. Every side effect and every expired-owner takeover SHALL use the same OS-enforced per-repository single-writer fence and validate the current ledger state, epoch, and lease at the effect boundary. An expired owner SHALL be reconciled from durable evidence. Terminal states SHALL distinguish `Applied`, `RolledBack`, `RecoveryRequired`, stale/conflict rejection, and expiry; `Reconciling` is a bounded nonterminal recovery state.
+Apply SHALL verify every precondition before writes, stage replacement data, durably journal side effects, apply changes deterministically, verify postconditions, and attempt rollback after an apply failure. Each `Applying` record SHALL carry a renewable owner lease and monotonically increasing fencing epoch. Every side effect and every expired-owner takeover SHALL use the same OS-enforced per-repository single-writer fence and validate the current ledger state, epoch, lease, platform file identity, and link count at the effect boundary. An expired owner SHALL be reconciled from durable evidence. Terminal states SHALL distinguish `Applied`, `RolledBack`, `RecoveryRequired`, stale/conflict rejection, and expiry; `Reconciling` is a bounded nonterminal recovery state.
 
 ### Scenario: stale reviewed plan is applied
 

@@ -47,7 +47,7 @@ cross-host acceptance tests pass.
 - [ ] Model creates, replacements, deletes, moves, project edits, normal Roslyn documents, additional documents, and analyzer-config documents.
 - [ ] Record expected existence/hash/type for every affected path and expected post-apply hashes.
 - [ ] Preserve or explicitly change encoding, BOM, newline, file mode/permissions, and executable bit.
-- [ ] Define case-sensitivity, long-path, read-only, hard-link, and symlink policy across supported operating systems.
+- [ ] Define case-sensitivity, long-path, read-only, and symlink policy across supported operating systems; for hard links, record platform file identity, link count, and known aliases, require reviewed `Reject | Preserve | BreakByReplacement` semantics, and block unattended apply when shared-inode effects cannot be proven safe.
 - [ ] Enforce canonical root containment for source, destination, staging, backup, and symlink-resolved paths during preparation and again at every filesystem side effect using handle-relative no-follow/reparse-safe operations or an equivalent proven platform primitive.
 - [ ] Generate preview and apply from the same immutable plan; apply must not recompute from command arguments.
 - [ ] Reject pathless, duplicate, conflicting, non-verifiable, expired, or drifted plans before writes.
@@ -55,7 +55,7 @@ cross-host acceptance tests pass.
 ## P0.4 staged apply, rollback, and recovery
 
 - [ ] Extend the current staged compensating writer into a general filesystem writer with atomic per-path replacement where supported, deterministic ordering, and durable journal/backups that survive process restart.
-- [ ] Preflight all hashes, existence, permissions, destinations, symlinks, path boundaries, and required free space before side effects, then under the repository single-writer fence revalidate ledger state, fencing epoch, lease, path, and file identity at each write/move/delete/restore boundary.
+- [ ] Preflight all hashes, existence, permissions, destinations, symlinks, hard-link identity/count, path boundaries, and required free space before side effects, then under the repository single-writer fence revalidate ledger state, fencing epoch, lease, path, file identity, and link count at each write/move/delete/restore boundary.
 - [ ] Verify expected postconditions before recording `Applied`.
 - [ ] Implement rollback and verification for every supported operation type.
 - [ ] Add `RecoveryRequired` result, retained journal/backups, affected-path state, and deterministic recovery actions when rollback is incomplete.
@@ -63,7 +63,7 @@ cross-host acceptance tests pass.
 - [ ] Add `rt recover status|resume|rollback|acknowledge <operation-id>` or equivalent host-neutral operations.
 - [ ] Reconcile expired `Applying` records on startup and status lookup; acquire the same side-effect fence before advancing the epoch so one owner can prove completion, resume or roll back from a declared journal boundary, or enter `RecoveryRequired`, while every stale owner is denied further writes.
 - [ ] Add fault injection for each operation boundary: stage/write/flush/replace/move/delete/permission/verification/journal/rollback/cleanup/process termination.
-- [ ] Test encoding/BOM/newlines, executable bits, locked/read-only files, disk-full simulation, case-only moves, symlinks, cross-volume moves, and rollback failure on Windows, Linux, and macOS.
+- [ ] Test encoding/BOM/newlines, executable bits, locked/read-only files, disk-full simulation, case-only moves, symlinks, in-root and out-of-root hard-link aliases, link-count drift, cross-volume moves, and rollback failure on Windows, Linux, and macOS.
 
 ## P0.5 workspace completeness and proof policy
 

@@ -65,8 +65,9 @@ through bounded `Reconciling` work on startup or status lookup, and finish only 
 verified apply, verified rollback, or `RecoveryRequired`. A monotonically increasing
 fencing epoch and one OS-enforced repository side-effect fence prevent a resumed
 superseded owner from writing after takeover. Filesystem effects use
-handle-relative no-follow/reparse-safe operations, or unattended apply is blocked
-when the platform cannot prove containment at the side-effect boundary.
+handle-relative no-follow/reparse-safe operations and revalidate hard-link identity
+and count. Unattended apply is blocked when the platform cannot prove containment or
+cannot prevent an undeclared shared-inode effect at the side-effect boundary.
 
 Plans referenced by nonterminal or `RecoveryRequired` operations remain pinned with
 their recovery evidence until verified terminal cleanup or explicit acknowledgement;
@@ -81,6 +82,7 @@ Repository trust and evaluator mode are independent. Untrusted repositories are 
 - Review and apply can run in separate processes and still consume byte-identical, hash-verified plan data from outside repository control.
 - Plan retention cannot remove bytes still referenced by a nonterminal or recovery-required operation.
 - A symlink/reparse swap after preflight cannot redirect any write, move, delete, backup, or restore outside the verified root.
+- A hard-linked path cannot mutate an undeclared shared inode or silently lose a reviewed link relationship.
 - Killing the apply owner after any journal boundary leads through lease-based reconciliation to a verified terminal state rather than indefinite `Applying`.
 - A superseded owner resumed after lease takeover is fenced from every further repository side effect.
 - Fault injection proves complete success, complete rollback, or truthful `RecoveryRequired`; partial application is never labelled `Applied`.

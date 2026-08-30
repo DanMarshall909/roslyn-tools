@@ -138,7 +138,7 @@ A prepared change set contains:
 - plan ID, plan hash, schema version, creation time, expiry, repository identity, and expected repository revision;
 - exact operation list for creates, replacements, deletes, moves, project edits, Roslyn documents, additional documents, and analyzer-config documents;
 - expected existence and content hash for every read or modified path;
-- expected file type and symlink policy;
+- expected file type, platform file identity, link count, known hard-link aliases, and symlink/hard-link policy;
 - encoding, BOM, newline, and file-mode/permission preservation policy;
 - root-containment proof for every source, destination, staging, and backup path;
 - exact diff and machine-readable change model;
@@ -200,6 +200,21 @@ preflight, the operation writes nothing through that component. Before the first
 side effect it returns stale-plan rejection; after side effects have begun it follows
 the journalled rollback path and returns `RolledBack` or `RecoveryRequired` according
 to the verified repository state. No recovery action follows an unverified path.
+
+Preparation and every side-effect boundary also inspect platform file identity and
+hard-link count. A multiply linked file has an explicit reviewed policy:
+
+- `Reject` blocks unattended apply;
+- `Preserve` is allowed only when every affected alias and shared-inode effect is
+  identified, contained, and represented in the plan; or
+- `BreakByReplacement` explicitly replaces the selected directory entry without an
+  in-place content or metadata mutation of the shared inode.
+
+If identity/link-count inspection is unsupported, an alias may be outside the
+verified boundary, or the identity/count changes after review, unattended apply is
+blocked or the operation follows stale-plan/verified-recovery handling. No content,
+permission, or metadata operation may implicitly affect an undeclared hard-link
+alias, and no replacement may silently sever a reviewed link relationship.
 
 ### Restart reconciliation
 

@@ -40,7 +40,8 @@ The target shape is:
                ▼                                      ▼
 ┌─ Workspace boundary ─────────────────┐  ┌─ Domain services / Core ──┐
 │ complete / partial / failed          │  │ Roslyn analysis/refactoring│
-│ trusted / isolated / untrusted       │  │ symbol resolution           │
+│ trust: trusted / untrusted           │  │ symbol resolution           │
+│ evaluator: no-eval / in-proc / worker│  │                              │
 │ revision + diagnostics + provenance  │  │ deterministic transformations│
 └──────────────────────────────────────┘  └─────────────────────────────┘
                                │
@@ -158,9 +159,9 @@ GetOperation(operationId) -> OperationStatus
 Recover(operationId, action) -> RecoveryResult
 ```
 
-The immutable prepared plan contains all path and project operations, expected revision and hashes, encoding/newline/file-mode policy, symlink/root-containment policy, exact diff, diagnostics, assumptions, verification, expiry, and recovery data. Before prepare returns, its canonical bytes are atomically persisted in a user-private store outside repository control. Preview and apply consume that same repository-scoped, hash-verified plan across process restart. Once an operation ledger references a plan, garbage collection pins its exact bytes through every nonterminal state and through `RecoveryRequired`; it releases them only after verified terminal cleanup or explicit recovery acknowledgement.
+The immutable prepared plan contains all path and project operations, expected revision and hashes, encoding/newline/file-mode policy, symlink/hard-link/root-containment policy, exact diff, diagnostics, assumptions, verification, expiry, and recovery data. Before prepare returns, its canonical bytes are atomically persisted in a user-private store outside repository control. Preview and apply consume that same repository-scoped, hash-verified plan across process restart. Once an operation ledger references a plan, garbage collection pins its exact bytes through every nonterminal state and through `RecoveryRequired`; it releases them only after verified terminal cleanup or explicit recovery acknowledgement.
 
-Apply creates a durable operation record before side effects, claims a renewable owner lease and monotonically increasing fencing epoch, validates every precondition, stages content, journals changes, revalidates path containment and identity at every side-effect boundary, applies deterministically, verifies postconditions, and records one truthful state:
+Apply creates a durable operation record before side effects, claims a renewable owner lease and monotonically increasing fencing epoch, validates every precondition, stages content, journals changes, revalidates path containment, file identity, and link count at every side-effect boundary, applies deterministically, verifies postconditions, and records one truthful state:
 
 - `Applying` or bounded `Reconciling` while nonterminal;
 - `Applied`;
@@ -254,7 +255,7 @@ Protocol version and server version are release facts derived from one source, n
 - **Workspace tests** cover complete, partial, failed, trusted, isolated, and untrusted cases.
 - **Protocol tests** spawn the packaged MCP process and exercise malformed input, notifications, version negotiation, cancellation, large results, schema validation, disconnects, and continued availability.
 - **Parity tests** compare typed observable outcomes across direct, CLI, MCP, and transparent-daemon paths.
-- **Filesystem tests** run on Windows, Linux, and macOS for encoding/BOM/newlines, permissions, locks, symlinks, case-only changes, and interrupted recovery.
+- **Filesystem tests** run on Windows, Linux, and macOS for encoding/BOM/newlines, permissions, locks, symlinks, hard links, case-only changes, and interrupted recovery.
 - **Dependency/supply-chain gates** include locked release restore, vulnerability/dependency review, static security analysis, and controlled action dependencies.
 - **Command admission** blocks stable commands without executable examples, validation, typed expected failures, limits, provenance/confidence, cancellation, and proportional fault-injection evidence.
 
