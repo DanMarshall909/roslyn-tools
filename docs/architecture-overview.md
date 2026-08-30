@@ -71,7 +71,8 @@ instances remain resident. See
 
 Every ordinary command has one host-neutral application definition and exactly one
 typed `ICommandApplicationPort`. The definition carries identity, `RtCommandInfo`,
-request/response types, visibility, safety, execution placement, and suggested tools.
+request/response types, alternative request variants, visibility, safety, execution
+placement, and suggested tools.
 It contains no CLI builder or protocol type. `IRtCommand` remains the CLI projection;
 the generic MCP adapter projects the same definition into its tool surface. During
 migration only, descriptors without ports enter the isolated compatibility bridge.
@@ -126,7 +127,7 @@ Every inspection result may also carry a `_suggestions` array — five pre-fille
 | Reusable flag name + aliases + default + parse validation | Central option catalog (US-114) |
 | Capability interface ↔ catalog flag binding | Shared binders (US-114) |
 | Help, examples, known-issues | Same `RtCommandInfo` — `rt dump-help` reads it; `docs/COMMANDS.md` is generated, never hand-edited |
-| MCP tool schema | Generated from the typed request contract and host-neutral property metadata |
+| MCP tool schema | Generated from the typed request contract, host-neutral property metadata, and alternative request variants |
 
 If two surfaces describe the same flag, the catalog wins.
 
