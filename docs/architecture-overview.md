@@ -97,7 +97,7 @@ Workspace requests carry two independent values. Repository trust state is
 **Trusted** after an explicit scoped decision or **Untrusted** when that decision is
 absent or revoked. Evaluator mode is one of:
 
-- **NoEvaluation** — only operations proven not to invoke repository-controlled code may run.
+- **NoEvaluation** — only operations proven not to invoke repository-controlled code may run; for untrusted repositories, every host read also uses the root-contained safe-reader boundary below.
 - **InProcess** — repository-controlled evaluation may run in the request host and is valid only for a trusted repository.
 - **IsolatedWorker** — evaluation runs in a constrained worker even when the repository is trusted.
 
@@ -113,6 +113,15 @@ unless explicitly enabled. Repository write attempts and undeclared host reads a
 denied and recorded.
 
 Long-lived CLI, MCP, and daemon hosts never evaluate an untrusted repository in-process.
+
+They also never treat `NoEvaluation` as permission for ambient reads. Untrusted
+file-only operations use a shared handle-relative reader rooted at the verified
+checkout, with no-follow/reparse-safe component opens, post-open filesystem identity
+checks, declared regular-file/directory inputs, and conservative hard-link handling.
+Symlinks, junctions, mounts, reparse points, alternate streams, special files, or
+unproven external aliases are denied; if the boundary is unavailable, the operation
+runs in the allow-listed worker or is refused. Redirected content cannot reach
+results, diagnostics, logs, or caches.
 
 Each workspace request declares a semantic-input manifest: requested projects and
 transitive references; selected target frameworks, configurations, and compilation

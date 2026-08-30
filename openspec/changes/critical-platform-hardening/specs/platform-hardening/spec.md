@@ -20,6 +20,16 @@ Each stable command SHALL have one typed request, one application operation, and
 
 A workspace request SHALL declare repository trust state and evaluator mode as independent values. Trust state SHALL be `Trusted` or `Untrusted`; evaluator mode SHALL be `NoEvaluation`, `InProcess`, or `IsolatedWorker`. Absence or revocation of an explicit repository-scoped trust decision SHALL produce `Untrusted`. An untrusted request SHALL NOT select `InProcess`, while a trusted request MAY still select `IsolatedWorker`. The long-lived CLI, MCP, and daemon hosts SHALL NOT evaluate repository-controlled MSBuild logic, analyzers, generators, or repository executables in-process for an untrusted repository. `IsolatedWorker` SHALL use an OS-enforced allow-listed filesystem namespace that exposes only declared read-only inputs and disposable writable outputs; it SHALL NOT expose ambient host paths or credentials.
 
+`NoEvaluation` SHALL NOT mean unrestricted host reads. For an untrusted repository,
+every host-side repository read SHALL use one handle-relative reader rooted at the
+verified checkout, open every component with no-follow/reparse-safe semantics, bind
+the final handle to the expected filesystem identity, and accept only declared
+regular-file/directory inputs. Symlinks, junctions, mount points, reparse points,
+special files, alternate streams, and hard-linked files whose aliases cannot all be
+proven inside declared roots SHALL be denied in-process. A repository-supplied path
+SHALL NOT authorize an ambient host input. An operation that cannot establish this
+boundary SHALL run inside the allow-listed `IsolatedWorker` namespace or be refused.
+
 #### Scenario: untrusted repository requests semantic solution load
 
 - **WHEN** an untrusted repository requires MSBuild-backed semantic loading
@@ -49,8 +59,21 @@ A workspace request SHALL declare repository trust state and evaluator mode as i
 #### Scenario: file-only operation is safe without evaluation
 
 - **WHEN** an untrusted repository invokes an operation whose contract requires no MSBuild, analyzer, generator, or repository executable
-- **THEN** the operation may execute without elevating repository trust
+- **THEN** the operation may execute in the host only through root-contained, handle-relative, no-follow/reparse-safe reads of declared regular inputs
+- **AND THEN** every opened input is bound to the expected filesystem identity and hard-link policy before its content is consumed
 - **AND THEN** provenance states that no repository-controlled evaluation was performed
+
+#### Scenario: a file-only input redirects to an ambient host secret
+
+- **WHEN** an untrusted `NoEvaluation` input or path component is a symlink, junction, mount, reparse point, alternate stream, special file, or unproven hard link that can expose data outside declared roots
+- **THEN** the privileged host does not follow or read it and no content appears in results, diagnostics, logs, or caches
+- **AND THEN** the operation is refused or rerouted to an allow-listed `IsolatedWorker` namespace in which undeclared host paths are unavailable
+
+#### Scenario: a path is swapped during a file-only read
+
+- **WHEN** an untrusted repository path changes identity or becomes a link between validation and open/read
+- **THEN** handle-relative open or post-open identity validation rejects the input before its content is consumed
+- **AND THEN** the operation returns a typed safety error without exposing the redirected target
 
 #### Scenario: trust is inferred from locality
 

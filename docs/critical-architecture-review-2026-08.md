@@ -67,10 +67,11 @@ The current design has no threat model, trust decision, worker boundary, environ
 - Model repository trust (`Trusted | Untrusted`) independently from evaluator mode (`NoEvaluation | InProcess | IsolatedWorker`).
 - Refuse untrusted MSBuild-backed evaluation until a constrained worker is available.
 - Keep untrusted evaluation out of long-lived CLI, MCP, and daemon hosts.
+- Treat `NoEvaluation` as code-execution-free, not read-unrestricted: require verified-root handle-relative/no-follow reads or route the operation through the allow-listed worker.
 - Pass absolute request context rather than relying on current directory/environment.
 - Use an OS-enforced allow-listed filesystem namespace with read-only repository and declared SDK/package inputs, disposable writable outputs/caches/temp, no ambient host profile/credential/device paths, stripped inherited secrets, network disabled by default, and bounded CPU/memory/time.
 - Record trust state/evaluator mode and analyzer/generator policy in provenance.
-- Test hostile targets, analyzers/generators, hangs, output floods, symlink escapes, environment reads, and network attempts.
+- Test hostile targets, analyzers/generators, hangs, output floods, source/config symlinks and reparse/mount/hard-link escapes, environment reads, and network attempts.
 
 This should be treated as a product security boundary, not an optional enterprise feature.
 

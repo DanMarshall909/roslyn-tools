@@ -85,6 +85,17 @@ writes or undeclared host reads are denied and audited; evaluator completion nev
 copies undeclared writes back into the checkout. If the platform cannot establish
 this namespace, `IsolatedWorker` evaluation is refused.
 
+`NoEvaluation` is not an ambient-filesystem permission. For untrusted repositories,
+all host-side file-only reads go through one safe reader rooted at a verified checkout
+directory handle. It opens each component with no-follow/reparse-safe primitives,
+checks the final handle's filesystem identity before reading, and permits only
+operation-declared regular files/directories. It rejects symlinks, junctions, mounts,
+reparse points, special files, alternate streams, and hard links unless every alias
+is proven inside the declared roots. Repository text cannot declare a host path into
+scope. If the platform or operation cannot prove that boundary, the read is routed to
+the allow-listed worker or refused; denied target contents never enter diagnostics,
+results, logs, or caches.
+
 The CLI, MCP host, and daemon are long-lived privileged processes and SHALL NOT evaluate an untrusted repository in-process. A trust decision is scoped to a canonical repository identity and can be inspected and revoked. It is never inferred merely because a checkout is local or an editor opened it.
 
 Workspace provenance records:

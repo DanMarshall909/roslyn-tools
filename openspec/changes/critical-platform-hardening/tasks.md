@@ -24,8 +24,9 @@ cross-host acceptance tests pass.
 - [ ] Ensure CLI, MCP, and daemon operations do not use or mutate process current directory, global exit code, global console state, or arbitrary inherited environment as request context.
 - [ ] Refuse MSBuild-backed semantic loading for untrusted repositories until an isolated worker exists.
 - [ ] Implement a constrained evaluator worker with an OS-enforced allow-listed filesystem namespace containing only the read-only checkout, declared read-only SDK/package/tool inputs, and separate disposable writable output, intermediate, cache, and temporary locations; exclude host roots, user profiles, credentials, devices, and undeclared caches; use a secret-free environment allow-list, bounded CPU/memory/time, and network disabled by default.
+- [ ] Implement one handle-relative safe reader for untrusted `NoEvaluation` operations with verified-root/no-follow/reparse-safe opens, final-handle identity checks, declared regular inputs, conservative hard-link/alternate-stream/special-file policy, and worker-or-refuse fallback when containment cannot be proven.
 - [ ] Define analyzer/generator execution modes and prove untrusted code is not loaded into a long-lived privileged host.
-- [ ] Add adversarial fixtures containing custom build logic, imported targets, analyzers/generators, symlink escapes, large output, hangs, attempted source/repository-control writes, and attempted host-file/secret/network access; prove denied writes leave the checkout byte-identical and undeclared host paths are unreadable.
+- [ ] Add adversarial fixtures containing custom build logic, imported targets, analyzers/generators, source/config symlinks to host secrets, junction/reparse/mount swaps, hard links, alternate streams, special files, large output, hangs, attempted source/repository-control writes, and attempted host-file/secret/network access; prove denied writes leave the checkout byte-identical and undeclared host contents never reach results, diagnostics, logs, or caches.
 
 ## P0.2 durable operation identity and transport safety
 

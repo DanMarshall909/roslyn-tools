@@ -118,12 +118,20 @@ only the checkout, declared SDK/package/tool inputs, and disposable output locat
 are visible. Host profiles, credentials, SSH material, devices, and undeclared caches
 remain outside the namespace.
 
+Untrusted `NoEvaluation` operations are also contained. Host-side file reads use one
+verified-root, handle-relative, no-follow/reparse-safe reader with final-handle
+identity checks, declared regular inputs, and conservative link/special-file policy.
+Any input that could redirect to ambient host data is denied, routed to the
+allow-listed worker, or causes a typed refusal; redirected content never reaches
+results or diagnostics.
+
 ## Success measures
 
 - No apply-capable legacy daemon or MCP bridge can automatically replay a mutation after dispatch ambiguity.
 - A caller can retain the composite repository/operation identity even when the first response is lost, query a durable intake receipt or authoritative `NotRecorded` state, and receive the same outcome for repeated identical requests; explicit replay after `NotRecorded` uses the same repository ID, operation ID, request hash, and replay epoch.
 - Terminal-history compaction retains a lifetime idempotency tombstone, so an aged-out identical operation returns its stored outcome and an operation ID never becomes reusable.
 - A shared writable checkout either has one enforced cross-principal/cross-host coordination authority or remains inspect-only; no second OS user or host can bypass `RecoveryRequired` through separate private state.
+- An untrusted file-only operation cannot use a repository symlink, reparse point, mount, hard link, alternate stream, or special file to read undeclared host content in a privileged process.
 - Cancellation after durable intake either proves `CancelledNoEffect` before the first-effect permit or records the request while recovery-critical work reaches a truthful repository outcome; replay never restarts a cancelled operation.
 - Review and apply can run in separate processes and still consume byte-identical, hash-verified plan data from outside repository control.
 - Plan retention cannot remove bytes still referenced by a nonterminal (including recovering) or recovery-required operation.
