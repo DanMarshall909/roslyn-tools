@@ -118,12 +118,14 @@ retries, crashes, or process restarts.
 - Acquire one exclusive canonical-repository transaction reservation before final whole-plan preflight and hold it through the durable terminal result or recovery handoff so plans cannot interleave.
 - Acquire OS-enforced guards for every reviewed dependency/target or use atomic conditional effects so non-`rt` writers cannot win between validation and effect; advisory locks and unconditional replacement are insufficient.
 - Journal staging intent first, then stage only under a user-private operation root outside the repository, preferably on the same volume; make crash cleanup idempotent.
+- Use the same intake fence when cancellation races receipt-to-ledger promotion, then atomically arbitrate it against a durable `FirstEffectStarted` permit containing the complete effect intent and guard/version evidence; cancellation wins as `CancelledNoEffect` with no-effect proof, artifact inventory, and replay-safe cleanup status.
 - Preflight every condition and revalidate the expected intermediate state, remaining plan dependencies, containment, file identity, and link count at every side effect.
 - Restrict stale rejection to drift found before the first effect; mid-apply drift must stop, journal evidence, and reach verified rollback or `RecoveryRequired`.
 - Journal and apply deterministically with atomic per-file replacement where supported.
 - Verify postconditions before `Applied`.
 - Roll back and verify after failure.
 - Enter durable `RecoveryRequired` and retain journal/backups when rollback cannot restore every path.
+- Once the first-effect permit wins, record later cancellation without interrupting verification or rollback.
 - Reconcile expired apply-owner leases from durable evidence after restart using a fencing epoch and the same transaction reservation.
 - Add explicit fenced recovery operations with append-only `Recovering -> RecoveredApplied | RecoveredRolledBack | RecoveryRequired` transitions.
 - Make explicit acknowledgement a non-clean administrative outcome with actor, reason, observed evidence, artifact-retention choice, and immutable audit history.

@@ -179,9 +179,9 @@ GetOperation(repositoryId, operationId, requestHash) -> OperationStatus
 Recover(repositoryId, operationId, action) -> RecoveryResult
 ```
 
-The immutable prepared plan contains all path and project operations, expected revision and hashes, encoding/newline/file-mode policy, symlink/hard-link/root-containment policy, exact diff, diagnostics, assumptions, verification, expiry, and recovery data. Source/destination paths are repository-contained; staging, backups, and control artifacts use a user-private operation root outside and non-overlapping with the repository, on the target volume when required. Before prepare returns, its canonical bytes are atomically persisted outside repository control. Preview and apply consume that same repository-scoped, hash-verified plan across process restart. Once an intake receipt or operation ledger references a plan, garbage collection pins its exact bytes through every nonterminal state, including `Recovering`, and through `RecoveryRequired`; it releases them only after verified terminal cleanup, durable expiry, or explicit recovery acknowledgement.
+The immutable prepared plan contains all path and project operations, expected revision and hashes, encoding/newline/file-mode policy, symlink/hard-link/root-containment policy, exact diff, diagnostics, assumptions, verification, expiry, and recovery data. Source/destination paths are repository-contained; staging, backups, and control artifacts use a user-private operation root outside and non-overlapping with the repository, on the target volume when required. Before prepare returns, its canonical bytes are atomically persisted outside repository control. Preview and apply consume that same repository-scoped, hash-verified plan across process restart. Once an intake receipt or operation ledger references a plan, garbage collection pins its exact bytes through every nonterminal state, including `Recovering`, through `RecoveryRequired`, and while a `CancelledNoEffect` control bundle awaits verified cleanup; it releases them only after verified terminal cleanup, durable expiry, or explicit recovery acknowledgement.
 
-Apply creates a durable operation record, initializes its journal before staging, stages only in the outside-repository control root, acquires an exclusive canonical-repository transaction reservation, claims a renewable owner lease and monotonically increasing fencing epoch, validates every precondition, journals changes, revalidates the expected intermediate repository state at every side-effect boundary, applies deterministically, verifies postconditions, and records one truthful state. Interrupted pre-effect staging cleanup is idempotent and never touches the repository.
+Apply creates a durable operation record, initializes its journal before staging, stages only in the outside-repository control root, acquires an exclusive canonical-repository transaction reservation, claims a renewable owner lease and monotonically increasing fencing epoch, validates every precondition, arbitrates cancellation against a complete journalled first-effect permit in one durable compare-and-swap, journals changes, revalidates the expected intermediate repository state at every side-effect boundary, applies deterministically, verifies postconditions, and records one truthful state. Interrupted pre-effect staging cleanup is idempotent and never touches the repository.
 
 - `Received` or authoritative `NotRecorded` during dispatch resolution;
 - `Applying`, `Recovering`, or bounded `Reconciling` while nonterminal;
@@ -190,6 +190,7 @@ Apply creates a durable operation record, initializes its journal before staging
 - `RecoveryRequired` as a durable intervention state;
 - `RecoveredApplied` or `RecoveredRolledBack` after verified manual recovery;
 - `RecoveryAcknowledged` as an administrative terminal state that does not claim cleanliness;
+- `CancelledNoEffect` as a terminal accepted cancellation with proof that no repository effect began;
 - stale/conflict rejection; or
 - expiry.
 
@@ -223,6 +224,18 @@ Recovery artifacts stay pinned through `RecoveryRequired`
 and `Recovering`; verified recovery releases them only after cleanup, while explicit
 acknowledgement follows the recorded retention choice and preserves an immutable
 audit summary.
+
+After durable `Received`, cancellation is recorded against the composite operation
+identity. If receipt-to-ledger promotion is pending, the same cross-process intake
+fence atomically lets either promotion or cancellation win, so cancelled work cannot
+be enqueued afterward. Before the first repository effect, cancellation competes
+with the owner's effect permit in one store-enforced compare-and-swap. It wins as
+`CancelledNoEffect` only when `FirstEffectStarted` is absent; the record includes its
+request hash, timing, journal sequence, staged-artifact inventory, no-effect proof,
+and cleanup status. If the effect permit wins, later cancellation is recorded but
+verification and rollback remain non-interruptible. Exact replay returns the existing
+cancellation result, and startup/status lookup performs idempotent control-artifact
+cleanup outside the repository while retaining the plan until cleanup is verified.
 
 The caller generates `OperationId` and the canonical request hash before dispatch.
 Canonical repository ID plus operation ID is the composite key for every receipt,

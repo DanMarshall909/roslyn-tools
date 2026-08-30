@@ -161,10 +161,11 @@ Bounded retention applies only to unreferenced prepared plans and safely cleaned
 terminal history. Creating an operation record pins its canonical plan bytes by
 durable ledger reference. Garbage collection cannot remove a plan while an
 associated operation is `Received`, `NotRecorded`, `Prepared`, `Applying`,
-`Reconciling`, `Recovering`, or `RecoveryRequired`, and
-releases it only after verified terminal cleanup or explicit recovery
-acknowledgement. Recovery evidence and its plan are retained as one referentially
-complete bundle.
+`Reconciling`, `Recovering`, or `RecoveryRequired`, and cannot remove a
+`CancelledNoEffect` plan while its control-artifact cleanup remains pending. It
+releases the plan only after verified terminal cleanup, durable expiry, or explicit
+recovery acknowledgement. Recovery evidence and its plan are retained as one
+referentially complete bundle.
 
 ### Prepared plan contents
 
@@ -194,11 +195,13 @@ Prepared
   -> Applying
        -> Applied
        -> RolledBack
+       -> CancelledNoEffect  (only while FirstEffectStarted is absent)
        -> Reconciling
             -> Applied
             -> RolledBack
             -> RecoveryRequired
        -> RecoveryRequired
+  -> CancelledNoEffect
   -> RejectedStale
   -> RejectedConflict
   -> Expired
@@ -206,6 +209,7 @@ Prepared
 Unknown
   -> Received
        -> Prepared
+       -> CancelledNoEffect
        -> RejectedStale
        -> RejectedConflict
        -> Expired
@@ -230,7 +234,9 @@ No recovery action rewrites or erases the original `RecoveryRequired` event. Dir
 apply outcomes use `Applied` and `RolledBack`; verified manual-recovery outcomes use
 `RecoveredApplied` and `RecoveredRolledBack`. `RecoveryAcknowledged` records an
 explicit administrative handoff and does not assert that repository contents are
-clean.
+clean. `CancelledNoEffect` is a terminal result that proves the accepted request
+performed no repository effect; it is unavailable after the durable
+`FirstEffectStarted` boundary.
 
 The implementation:
 
@@ -242,10 +248,11 @@ The implementation:
 6. proves that every read dependency, affected path, and source/destination directory entry supports an OS-enforced conditional effect or exclusive external-write guard;
 7. establishes complete transaction protection by acquiring that guard set in deterministic order or recording immutable version tokens that every conditional effect checks atomically, and retains it with the repository reservation through final status or explicit recovery handoff;
 8. while holding both boundaries, performs final whole-plan preflight of every revision, read dependency, path, hash, permission, link, destination, and free-space condition;
-9. revalidates the guard tokens, ledger state, fencing epoch, lease, expected intermediate repository state, all prior effect outcomes, and every still-relevant plan dependency before each operation, then journals intent, performs the guarded conditional side effect, and durably records its observed outcome;
-10. orders operation boundaries deterministically and uses atomic per-path replacement where supported;
-11. while still holding the complete guard set, verifies expected postconditions and durably records the terminal result; then cleans staging and releases the guards and reservation; or
-12. performs guarded rollback from the journal.
+9. before the first repository effect, uses one store-enforced compare-and-swap to either commit `CancelledNoEffect` when cancellation is pending or append `FirstEffectStarted` with the complete first-effect intent, expected intermediate state, and guard/version tokens, then grants the current fenced owner permission to issue exactly that effect;
+10. revalidates the guard tokens, ledger state, fencing epoch, lease, expected intermediate repository state, all prior effect outcomes, and every still-relevant plan dependency before each operation, then journals intent, performs the guarded conditional side effect, and durably records its observed outcome;
+11. orders operation boundaries deterministically and uses atomic per-path replacement where supported;
+12. while still holding the complete guard set, verifies expected postconditions and durably records the terminal result; then cleans staging and releases the guards and reservation; or
+13. performs guarded rollback from the journal.
 
 Staging and backups are control-plane artifacts, never target-repository paths. The
 operation chooses a user-private, non-overlapping root outside the checkout and, when
@@ -257,7 +264,40 @@ cancellation, or stale-plan rejection before the first repository effect can lea
 only journalled control-plane artifacts; startup/status cleanup removes them without
 touching the repository and retains the plan until cleanup is verified.
 
-Rollback is best-effort across platform/filesystem constraints and is not falsely described as atomic. Once side effects begin, cancellation requests are recorded but do not interrupt recovery-critical rollback. If rollback cannot restore every verified precondition, the operation enters the durable intervention state `RecoveryRequired`, not `RolledBack` or `Failed`. Journals, backups, affected paths, observed hashes, and deterministic recovery instructions are retained until successful recovery or explicit acknowledgement.
+After `Received`, cancellation targets the canonical repository/operation identity
+and is durably appended to the intake receipt or ledger. If the durable receipt has
+not yet been promoted, cancellation acquires the same cross-process intake fence and
+atomically materializes the terminal ledger; receipt promotion checks that same
+state, so it cannot enqueue work after cancellation wins. While no
+`FirstEffectStarted` marker exists, cancellation and the owner's first-effect permit
+compete through one store-enforced compare-and-swap. If cancellation wins, the
+operation durably records `CancelledNoEffect` with the request hash, request and
+commit timestamps, journal sequence, proof that no first-effect permit exists, the
+staged-artifact inventory, and cleanup status. The same transaction fences the owner
+from starting an effect. This applies while waiting for the repository reservation,
+staging, acquiring external-write protection, or running final preflight.
+
+Control-artifact cleanup after `CancelledNoEffect` is idempotent and remains outside
+the repository. The terminal result may report `CleanupPending`; startup and status
+lookup retry cleanup and append `CleanupVerified` without changing the repository
+outcome. The exact plan remains pinned until that verification. Replaying the same
+repository ID, operation ID, and request hash returns the same cancellation result
+and never restarts execution; a new attempt requires a new operation ID, while a
+different payload remains `OperationConflict`.
+
+If the owner wins the compare-and-swap, it durably appends
+`FirstEffectStarted` as the complete journal intent for the first guarded conditional
+effect before issuing it. The marker conservatively means that effect may have run;
+after owner loss, reconciliation proves its observed outcome from the recorded
+precondition, guard tokens, and filesystem evidence rather than assuming it ran or
+did not run. Any later cancellation is recorded but cannot produce
+`CancelledNoEffect` or interrupt recovery-critical verification and rollback.
+Rollback is best-effort across
+platform/filesystem constraints and is not falsely described as atomic. If rollback
+cannot restore every verified precondition, the operation enters the durable
+intervention state `RecoveryRequired`, not `RolledBack` or `Failed`. Journals,
+backups, affected paths, observed hashes, and deterministic recovery instructions
+are retained until successful recovery or explicit acknowledgement.
 
 Stale-plan rejection is permitted only when drift is detected before the first
 repository effect. If revision, dependency, path, identity, hash, permission, link,
@@ -411,6 +451,11 @@ request with the returned replay epoch; this continues the same operation identi
 and fences the delayed original attempt. Read-only operations may have a separately
 declared retry policy, but a retry still uses the same request context and operation
 contract.
+
+Cancellation before durable `Received` remains transport knowledge and does not
+manufacture an operation result. Once acceptance is durable, cancellation is part of
+the canonical operation: status returns its current state or `CancelledNoEffect`,
+including after the original transport response is lost.
 
 ## Workspace completeness, provenance, and confidence
 

@@ -172,7 +172,36 @@ Every apply request SHALL include a caller-generated operation ID and canonical 
 
 ### Requirement: reviewed mutations are failure-aware and recoverable
 
-Apply SHALL verify every precondition before writes, durably journal staging intent, stage replacement data outside the repository, durably journal side effects, apply changes deterministically, verify postconditions, and attempt rollback after an apply failure. Before final whole-plan preflight, each apply/recovery SHALL acquire an exclusive OS-enforced transaction reservation keyed by canonical repository identity and SHALL establish complete external-write protection by either acquiring a deterministic guard set over every reviewed dependency, affected object, and directory entry or recording immutable version tokens that every effect checks atomically. It SHALL retain both boundaries through durable terminal completion or explicit recovery handoff. Each `Applying` or `Recovering` record SHALL carry a renewable owner lease and monotonically increasing fencing epoch. Every side effect and every expired-owner takeover SHALL validate the reservation, external-write guards or conditional-effect tokens, current ledger state, epoch, lease, expected intermediate repository state, prior effects, remaining plan dependencies, platform file identity, and link count. An expired owner SHALL be reconciled from durable evidence. The ledger SHALL retain an append-only transition history. Direct terminal states SHALL distinguish `Applied` and `RolledBack`; verified post-recovery terminal states SHALL distinguish `RecoveredApplied` and `RecoveredRolledBack`; `RecoveryAcknowledged` SHALL be an administrative terminal state that makes no repository-cleanliness claim. `RejectedStale`, `RejectedConflict`, and `Expired` SHALL remain no-effect terminal outcomes. `RecoveryRequired` SHALL be a durable intervention state, while `Received`, `NotRecorded`, `Prepared`, `Applying`, `Recovering`, and `Reconciling` are nonterminal or dormant resolution states.
+Apply SHALL verify every precondition before writes, durably journal staging intent,
+stage replacement data outside the repository, durably journal side effects, apply
+changes deterministically, verify postconditions, and attempt rollback after an
+apply failure. Before final whole-plan preflight, each apply/recovery SHALL acquire
+an exclusive OS-enforced transaction reservation keyed by canonical repository
+identity and SHALL establish complete external-write protection by either acquiring
+a deterministic guard set over every reviewed dependency, affected object, and
+directory entry or recording immutable version tokens that every effect checks
+atomically. It SHALL retain both boundaries through durable terminal completion or
+explicit recovery handoff. Each `Applying` or `Recovering` record SHALL carry a
+renewable owner lease and monotonically increasing fencing epoch. Before the first
+repository effect, one store-enforced compare-and-swap SHALL either commit
+`CancelledNoEffect` when cancellation is pending or durably append
+`FirstEffectStarted` with the complete effect intent, expected intermediate state,
+and guard/version tokens and grant the fenced owner permission to issue exactly that
+effect. After owner loss, the marker SHALL be treated as possibly effected until
+reconciliation proves its observed outcome from durable evidence.
+Every side effect and every expired-owner takeover SHALL validate the reservation,
+external-write guards or conditional-effect tokens, current ledger state, epoch,
+lease, expected intermediate repository state, prior effects, remaining plan
+dependencies, platform file identity, and link count. An expired owner SHALL be
+reconciled from durable evidence. The ledger SHALL retain an append-only transition
+history. Direct terminal states SHALL distinguish `Applied` and `RolledBack`;
+verified post-recovery terminal states SHALL distinguish `RecoveredApplied` and
+`RecoveredRolledBack`; `RecoveryAcknowledged` SHALL be an administrative terminal
+state that makes no repository-cleanliness claim. `CancelledNoEffect`,
+`RejectedStale`, `RejectedConflict`, and `Expired` SHALL remain no-effect terminal
+outcomes. `RecoveryRequired` SHALL be a durable intervention state, while `Received`,
+`NotRecorded`, `Prepared`, `Applying`, `Recovering`, and `Reconciling` are nonterminal
+or dormant resolution states.
 
 #### Scenario: two apply plans target the same repository
 
@@ -181,6 +210,27 @@ Apply SHALL verify every precondition before writes, durably journal staging int
 - **AND THEN** the other waits, cancels, or rejects before final validation and performs no repository side effect
 - **AND THEN** the owner holds the reservation through every journalled effect and durable terminal result or explicit recovery handoff
 - **AND THEN** each effect revalidates the expected intermediate state and every still-relevant reviewed dependency, so neither a queued plan nor external drift can be silently accepted
+
+#### Scenario: an accepted apply is cancelled before its first repository effect
+
+- **WHEN** an operation with a durable `Received` receipt is cancelled before `FirstEffectStarted`, including while awaiting the repository reservation, staging, acquiring external-write protection, or running final preflight
+- **THEN** cancellation uses the same cross-process intake fence when receipt-to-ledger promotion is still pending, and one store-enforced compare-and-swap records `CancelledNoEffect` under the same repository ID, operation ID, and request hash
+- **AND THEN** neither receipt promotion nor the current owner can enqueue or start an effect after cancellation wins
+- **AND THEN** the terminal record contains cancellation timing, journal sequence, proof that no first-effect permit exists, staged-artifact inventory, and cleanup status
+- **AND THEN** startup and status lookup clean the outside-repository control artifacts idempotently without writing the repository, and the exact plan remains pinned until cleanup is verified
+
+#### Scenario: cancellation races the first repository effect
+
+- **WHEN** cancellation and the first guarded repository effect become eligible concurrently
+- **THEN** one durable compare-and-swap either commits `CancelledNoEffect` or appends `FirstEffectStarted` with the complete first-effect intent and guard/version evidence and grants the current fenced owner permission to issue exactly that effect
+- **AND THEN** if cancellation wins, no repository effect can start
+- **AND THEN** if the effect permit wins, cancellation is recorded but cannot produce `CancelledNoEffect` or interrupt recovery-critical verification and rollback
+
+#### Scenario: a cancelled operation is submitted again
+
+- **WHEN** the caller repeats an operation in `CancelledNoEffect` with the same repository ID, operation ID, and canonical request hash
+- **THEN** the existing cancellation result and cleanup status are returned without restarting execution
+- **AND THEN** retrying the work requires a new operation ID, while reusing the cancelled operation ID for a different payload returns `OperationConflict`
 
 #### Scenario: stale reviewed plan is applied
 
