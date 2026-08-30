@@ -500,6 +500,7 @@ Prepared
 
 Unknown
   -> Received
+       -> RejectedPlanUnavailable  (only before FirstEffectStarted)
        -> Prepared
        -> CancelledNoEffect
        -> RejectedStale
@@ -509,6 +510,7 @@ Unknown
   -> NotRecorded
        -> Received  (same request hash plus replay epoch only)
        -> Expired
+  -> RejectedPlanUnavailable  (fenced dispatch resolution; no replay)
 
 RecoveryRequired
   -> Recovering
