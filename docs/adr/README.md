@@ -78,3 +78,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0011](0011-authoritative-trust-and-evaluator-isolation.md) | Authoritative repository trust and evaluator isolation | Accepted | 2026-08-30 |
 | [0012](0012-review-first-mutation-defaults.md) | Review-first mutation defaults during hardening | Accepted | 2026-08-30 |
 | [0013](0013-fenced-plan-unavailability-resolution.md) | Fenced plan-unavailability resolution | Accepted | 2026-08-30 |
+| [0014](0014-bounded-recovery-attempt-history.md) | Bounded recovery-attempt history | Accepted | 2026-08-31 |

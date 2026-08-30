@@ -476,7 +476,7 @@ writes, and crash-safe cleanup;
 repositories cannot supply or replace its control metadata.
 
 Bounded retention applies to unreferenced prepared plans, safely cleaned bulky
-recovery data, detailed terminal transition history, and terminal outcome records
+recovery data, authenticated compacted recovery-attempt detail, detailed terminal transition history, and terminal outcome records
 after their operation epoch is safely retired. Registering a `DispatchPlanLease` pins
 the exact plan before dispatch; creating a receipt or operation atomically adopts that
 pin by durable reference. Garbage collection cannot remove a plan while an associated
@@ -513,8 +513,11 @@ status, cancellation, cleanup, and recovery remain available. The authority does
 mint unlimited replacement epochs for a caller that exceeds its admission policy.
 Admission atomically reserves enough bounded coordination-store capacity for the
 receipt, transition ledger, maximum compact outcome, and required cleanup/recovery
-metadata. A quota cannot prevent an accepted operation from recording truthful state
-or completing recovery.
+metadata. That recovery reservation includes a fixed-size attempt accumulator and
+watermark, a plan-bounded current checkpoint, a bounded hot-attempt window, one
+maximum-size in-flight attempt journal segment, one plan-bounded active
+recovery-artifact set, and the next truthful transition. A quota cannot prevent an
+accepted operation from recording truthful state or completing recovery.
 
 After an epoch is sealed, it accepts no new dispatch lease, `Received`, or `NotRecorded` record and
 returns `OperationEpochSealed` for an otherwise unknown ID. In the same durable seal
@@ -651,8 +654,10 @@ outcome without reverting external drift. If the proof is absent or contradictor
 the reconciler cannot use a no-effect terminal state and must resolve the possibly
 effected journal or enter `RecoveryRequired`.
 
-The ledger stores a current state for lookup plus an append-only transition history.
-No recovery action rewrites or erases the original `RecoveryRequired` event. Direct
+The ledger stores a current state for lookup plus a logically append-only transition
+sequence. No recovery action rewrites or erases the original `RecoveryRequired` event;
+only fully quiesced repeated-attempt subhistory is eligible for the authenticated
+accumulator/watermark compaction described below. Direct
 apply outcomes use `Applied` and `RolledBack`; verified manual-recovery outcomes use
 `RecoveredApplied` and `RecoveredRolledBack`. `RecoveryAcknowledged` records an
 explicit administrative handoff and does not assert that repository contents are
@@ -786,10 +791,29 @@ the repository. They operate only from
 a declared journal boundary and revalidate the retained plan, evidence, paths, file
 identities, and expected intermediate state at every effect. Successful resume ends
 as `RecoveredApplied`; successful rollback ends as `RecoveredRolledBack`. A failed
-or ambiguous recovery appends its attempt evidence and returns to
+or ambiguous recovery commits a bounded immutable attempt summary, replaces the
+plan-bounded `CurrentRecoveryCheckpoint` with the latest verified journal frontier,
+per-affected-path state, unresolved intents, plan/backup references, remaining actions,
+active recovery-artifact inventory, and outcome classification, then returns to
 `RecoveryRequired`. An expired `Recovering` owner follows the same fenced,
 reservation-protected reconciliation protocol as an expired `Applying` owner, while
 preserving the requested recovery action in the journal.
+
+Recovery attempts use monotonic `RecoveryAttemptSequence` values, a bounded hot
+count/byte window, and a fixed-size authenticated `RecoveryAttemptAccumulator` with
+`CompactedThroughRecoveryAttempt`. Only one attempt is active. Before another attempt
+can perform an effect, fully quiesced old attempt transitions, journal segments, and
+bounded evidence outside the hot window are folded atomically into the accumulator and
+their pre-reserved slot is reused. The authority never compacts an unresolved owner,
+effect fence, one-use intent, observed result, or checkpoint. If continuity or safe
+compaction is unavailable, the request returns `RecoveryAttemptUnavailable` before an
+effect and leaves the barrier intact. Attempt diagnostics are capped and digested;
+older detail and superseded attempt artifacts may leave the hot store only after the
+accumulator, current-checkpoint, and active-artifact-set commit.
+Sequence/watermark/accumulator/checkpoint/artifact agreement is verified on restart or
+restore. This is logically append-only even though old individual attempt rows are
+removed: sequence values are never reused and authenticated history cannot be silently
+rewritten or reordered.
 
 `acknowledge` performs no repository effect. It appends `RecoveryAcknowledged` with
 the actor, time, reason, affected paths, last observed hashes, unresolved warnings,

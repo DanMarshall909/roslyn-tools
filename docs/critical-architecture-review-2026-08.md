@@ -154,7 +154,8 @@ retries, crashes, or process restarts.
   revalidates the current epoch at the actual conditional filesystem operation; a
   permit is not direct reusable write authority.
 - Reconcile expired apply-owner leases from durable evidence after restart using a fencing epoch and the same transaction reservation, but advance the epoch only after the effect fence is closed and drained or worker termination/write-capability closure is verified; otherwise retain `OwnerQuiescencePending` behind an intervention barrier.
-- Add explicit fenced recovery operations with append-only `Recovering -> RecoveredApplied | RecoveredRolledBack | RecoveryRequired` transitions.
+- Add explicit fenced recovery operations with logically append-only `Recovering -> RecoveredApplied | RecoveredRolledBack | RecoveryRequired` transitions.
+- Bound repeated recovery-attempt history per operation: reserve an in-flight attempt slot and plan-bounded current checkpoint before initial intake, retain unresolved actionable evidence, and fold only fully quiesced older attempt detail into a fixed-size authenticated accumulator with a monotonic compaction watermark.
 - Make explicit acknowledgement a non-clean administrative outcome with actor, reason, observed evidence, artifact-retention choice, and immutable audit history.
 
 Do not promise global filesystem atomicity. Promise truthful state, deterministic recovery, and no silent replay.

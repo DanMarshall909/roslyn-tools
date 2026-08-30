@@ -639,7 +639,8 @@ both values. Before accepted work can enter an execution queue, the receiver SHA
 acquire a cross-process, store-enforced intake fence keyed by repository and operation
 ID; validate the token, claims hash, epoch/ID match, and authenticated-principal
 binding; validate the matching dispatch lease and exact plan availability; reserve
-bounded worst-case receipt/ledger/outcome/recovery-metadata capacity;
+bounded worst-case receipt/ledger/outcome/recovery-metadata capacity, including the
+recovery-attempt structures and next truthful transition defined below;
 and durably record a `Received` receipt containing the repository ID, operation ID,
 request hash, and canonical request. The operation ledger SHALL then be recorded
 before repository side effects begin. A `Received` receipt without an operation
@@ -669,6 +670,34 @@ dispatch leases and release their plan pins while already accepted operations co
 SHALL remain available while mutation admission is blocked. Quotas SHALL NOT prevent an accepted
 operation from recording any truthful transition, terminal outcome, cleanup state, or
 recovery result within its declared resource budget.
+
+Every accepted mutation SHALL reserve capacity for a fixed-size authenticated
+`RecoveryAttemptAccumulator`, monotonic non-reused `RecoveryAttemptSequence` and
+`CompactedThroughRecoveryAttempt`, a bounded hot-attempt count/byte window, one
+maximum-size in-flight recovery journal segment, one plan-bounded
+`CurrentRecoveryCheckpoint`, one plan-bounded active recovery-artifact set, and the next truthful recovery transition. The checkpoint
+SHALL contain the latest verified journal frontier; existence, type, physical identity,
+hash, and required metadata for every plan-affected path; unresolved effect intents;
+plan/backup references; remaining deterministic resume/rollback actions; active
+recovery-artifact inventory; and the last outcome classification. Arbitrary diagnostic/log fields SHALL have count/byte caps and
+retain a digest when detail is omitted. The original plan, base journal, backups, and
+unresolved current-attempt evidence SHALL remain pinned.
+
+Only one recovery attempt SHALL be active for an operation. Before a later attempt may
+perform a repository effect, every fully quiesced attempt outside the hot window SHALL
+be atomically folded into `RecoveryAttemptAccumulator`, the compaction watermark SHALL
+advance, and its pre-reserved slot SHALL become reusable. An owner, effect fence,
+one-use intent, observed effect result, or checkpoint that is still unresolved SHALL
+NOT be compacted. If slot reuse, authority continuity, or compaction cannot be proven,
+the operation SHALL remain `RecoveryRequired` and the incoming request SHALL return
+typed `RecoveryAttemptUnavailable` before an effect. An inconclusive attempt SHALL use
+its reserved space to atomically commit a bounded immutable summary, replace
+`CurrentRecoveryCheckpoint`, and return to `RecoveryRequired`; old detail MAY be
+deleted or moved to a separately quota-bound archive, and superseded attempt artifacts
+MAY be removed, only after the accumulator, replacement checkpoint, and active-artifact
+set commit. Startup and restore SHALL prove the sequence, watermark, accumulator,
+checkpoint, and active-artifact inventory agree or retain the recovery barrier and
+admit no recovery effect.
 
 After the replay window, the authority SHALL atomically fold eligible terminal
 digests into a cumulative `RetiredOperationAccumulator`, advance a monotonic
@@ -840,8 +869,10 @@ Every side effect and every expired-owner takeover SHALL validate the reservatio
 external-write guards or conditional-effect tokens, current ledger state, epoch,
 lease, expected intermediate repository state, prior effects, remaining plan
 dependencies, platform file identity, and link count. An expired owner SHALL be
-reconciled from durable evidence. The ledger SHALL retain an append-only transition
-history. Direct terminal states SHALL distinguish `Applied` and `RolledBack`;
+reconciled from durable evidence. The ledger SHALL retain a logically append-only
+transition history: transition sequences SHALL never be reused or reordered, while
+eligible fully quiesced recovery-attempt subhistory MAY be removed only through the
+authenticated accumulator/watermark transaction above. Direct terminal states SHALL distinguish `Applied` and `RolledBack`;
 verified post-recovery terminal states SHALL distinguish `RecoveredApplied` and
 `RecoveredRolledBack`; `RecoveryAcknowledged` SHALL be an administrative terminal
 state that makes no repository-cleanliness claim. `CancelledNoEffect`,
@@ -963,14 +994,22 @@ evidence in `RecoveryRequired`.
 - **WHEN** an authorized caller resumes or rolls back an operation in `RecoveryRequired`
 - **THEN** recovery acquires the same exclusive repository reservation and complete external-write/conditional-effect protection, advances the fencing epoch, and appends `Recovering` before any repository effect
 - **AND THEN** successful verified resume terminates as `RecoveredApplied` and successful verified rollback terminates as `RecoveredRolledBack`
-- **AND THEN** the original `RecoveryRequired` event and the recovery attempt remain in append-only history
+- **AND THEN** the original `RecoveryRequired` event and terminal recovery evidence remain in logical append-only history, with only eligible older attempt detail subject to authenticated bounded compaction
 - **AND THEN** the plan and recovery bundle are released only after verified cleanup
 
 #### Scenario: manual recovery remains incomplete
 
 - **WHEN** a `Recovering` attempt cannot prove the requested applied or rolled-back state
-- **THEN** it appends the attempt evidence and returns to `RecoveryRequired`
+- **THEN** it commits a bounded immutable attempt summary, atomically replaces `CurrentRecoveryCheckpoint` with the exact latest actionable evidence, and returns to `RecoveryRequired`
 - **AND THEN** the plan, journal, backups, affected-path state, and recovery guidance remain pinned
+
+#### Scenario: repeated incomplete recovery attempts exceed the hot-history window
+
+- **WHEN** an authorized caller requests another recovery after enough fully quiesced inconclusive attempts to fill the per-operation hot count/byte window
+- **THEN** before any new effect the authority folds eligible old attempt digests into `RecoveryAttemptAccumulator`, advances `CompactedThroughRecoveryAttempt`, and reuses only the pre-reserved attempt slot
+- **AND THEN** it retains `CurrentRecoveryCheckpoint`, the bounded active recovery-artifact set, the original plan/base journal/backups, and every unresolved intent or unquiesced attempt needed for subsequent recovery
+- **AND THEN** failure to prove compaction or checkpoint continuity returns `RecoveryAttemptUnavailable` with the recovery barrier intact and no repository effect
+- **AND THEN** repeated attempts cannot increase coordination-store use beyond the declared per-operation budget or prevent a later admitted attempt from recording its truthful result
 
 #### Scenario: unresolved recovery is explicitly acknowledged
 

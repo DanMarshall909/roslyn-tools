@@ -158,7 +158,7 @@ can never strand an operation's only status/recovery key. Bulky final detail is
 authenticated by the fixed-size retired-repository accumulator rather than retained
 without bound in the coordination store.
 
-A failed or interrupted rollback is never reported as clean rollback. The operation enters durable intervention state `RecoveryRequired`; its journal, backups, diagnostics, and deterministic recovery guidance are retained until recovery or explicit acknowledgement. Recovery appends `Recovering` and ends as `RecoveredApplied`, `RecoveredRolledBack`, or another evidence-bearing `RecoveryRequired`. `RecoveryAcknowledged` is an explicit administrative handoff and never claims the repository is clean.
+A failed or interrupted rollback is never reported as clean rollback. The operation enters durable intervention state `RecoveryRequired`; its journal, backups, diagnostics, and deterministic recovery guidance are retained until recovery or explicit acknowledgement. Recovery appends `Recovering` and ends as `RecoveredApplied`, `RecoveredRolledBack`, or another evidence-bearing `RecoveryRequired`. Repeated inconclusive attempts use a pre-reserved bounded hot window and plan-bounded current checkpoint; fully quiesced old attempt detail folds behind a monotonic watermark into a fixed-size authenticated accumulator, while unresolved intents and the latest actionable evidence remain pinned. `RecoveryAcknowledged` is an explicit administrative handoff and never claims the repository is clean.
 
 Every `Applying` record has a renewable owner lease. Expired owners transition
 through bounded `Reconciling` work on startup or status lookup. An intact journal with

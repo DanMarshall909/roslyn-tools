@@ -371,7 +371,19 @@ pinned.
 - stale/conflict rejection; or
 - expiry.
 
-The ledger keeps an append-only transition history as well as the current state. An incomplete rollback is `RecoveryRequired`; it is never presented as clean failure or rollback. That state is committed to the coordination authority and cross-principal/cross-host registry before reservation release and blocks a different apply from any principal or host until fenced recovery verifies `RecoveredApplied` or `RecoveredRolledBack`, or an authorized user explicitly records `RecoveryAcknowledged`. Acknowledgement performs no repository effect and records actor, reason, observed hashes, unresolved warnings, and the absence of a cleanliness guarantee.
+The ledger keeps a logically append-only transition history as well as the current state. An incomplete rollback is `RecoveryRequired`; it is never presented as clean failure or rollback. That state is committed to the coordination authority and cross-principal/cross-host registry before reservation release and blocks a different apply from any principal or host until fenced recovery verifies `RecoveredApplied` or `RecoveredRolledBack`, or an authorized user explicitly records `RecoveryAcknowledged`. Acknowledgement performs no repository effect and records actor, reason, observed hashes, unresolved warnings, and the absence of a cleanliness guarantee.
+
+Repeated recovery history follows [ADR-0014](adr/0014-bounded-recovery-attempt-history.md).
+Original operation admission reserves a fixed-size authenticated attempt accumulator,
+monotonic attempt sequence and compaction watermark, bounded hot attempt count/bytes,
+one in-flight journal segment, a plan-bounded current checkpoint and active
+recovery-artifact set, and the next truthful transition. Before a new effect, only fully quiesced old attempts can be folded into the
+accumulator and release their slot. The current checkpoint retains the exact actionable
+path/journal/intent evidence and active-artifact inventory needed by the next attempt;
+arbitrary diagnostics are capped and digested. An unresolved owner/effect or failed continuity proof leaves the
+barrier active and returns `RecoveryAttemptUnavailable` without a repository effect.
+Sequences are never reused, so compaction bounds storage without making history
+rewritable or stranding later recovery outcomes.
 
 An expired `Applying` owner is never left or reported as healthy live work. Startup and
 status lookup first close and drain the effect fence or prove worker termination and
