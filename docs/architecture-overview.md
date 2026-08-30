@@ -254,18 +254,40 @@ records. Without either proof the repository is inspect-only and apply
 returns `RejectedUnsafeCoordination` with no
 repository effect. Ownership/authority changes are revalidated at every boundary;
 transfer is explicit, preserves repository identity, and enters an authority-wide
-`TransferPending` fence that blocks new epochs, preparation, intake, and replay. It
+`TransferPending` fence that blocks new epochs, preparation, dispatch-plan leases,
+intake, and replay. It
 waits for or reconciles every active operation under the existing reservation, resolves
-or acknowledges barriers, proves intake/reservation/nonterminal state quiescent,
+or acknowledges barriers, proves dispatch-lease/intake/reservation/nonterminal state quiescent,
 carries retained/pinned state, then atomically increments `CoordinationGeneration`,
 installs the new owner/writer set, and rotates credentials. A crash leaves old
 ownership, completed new ownership, or the durable fence, never two writable domains.
 
-The immutable prepared plan contains all path and project operations, expected revision and hashes, coordination-domain/ownership proof, encoding/newline/file-mode policy, symlink/hard-link/root-containment policy, exact diff, diagnostics, assumptions, verification, expiry, and recovery data. `PlanHash` is SHA-256 over one versioned host-neutral canonical plan payload with the `PlanHash` field omitted entirely; shared vectors keep every adapter byte-identical, and verification reserializes that payload before comparing the digest. Source/destination paths are repository-contained; staging, backups, and control artifacts use a protected operation root outside and non-overlapping with the repository, on the target volume when required. Before prepare returns, its canonical envelope is atomically persisted outside repository control in a user-private store for `ExclusivePrincipal` or authority-controlled storage for `SharedAuthority`. Preview and apply consume that same repository-scoped, hash-verified plan across process restart. Once an intake receipt or operation ledger references a plan, garbage collection pins its exact bytes through every nonterminal state, including `Recovering`, through `RecoveryRequired`, and while a `CancelledNoEffect` control bundle awaits verified cleanup; it releases them only after verified terminal cleanup, durable expiry, or explicit recovery acknowledgement.
+The immutable prepared plan contains all path and project operations, expected revision
+and hashes, coordination-domain/ownership proof, encoding/newline/file-mode policy,
+symlink/hard-link/root-containment policy, exact diff, diagnostics, assumptions,
+verification, expiry, and recovery data. `PlanHash` is SHA-256 over one versioned
+host-neutral canonical plan payload with the `PlanHash` field omitted entirely; shared
+vectors keep every adapter byte-identical, and verification reserializes that payload
+before comparing the digest. Source/destination paths are repository-contained;
+staging, backups, and control artifacts use a protected operation root outside and
+non-overlapping with the repository, on the target volume when required. Before
+prepare returns, its canonical envelope is atomically persisted outside repository
+control in a user-private store for `ExclusivePrincipal` or authority-controlled
+storage for `SharedAuthority`. Preview and apply consume that same repository-scoped,
+hash-verified plan across process restart.
+
+Under [ADR-0013](adr/0013-fenced-plan-unavailability-resolution.md), a quota-bounded
+`DispatchPlanLease` validates and pins the exact plan under the caller-known operation
+and canonical request identity before any request bytes are sent. `Received` atomically
+adopts that pin. Garbage collection retains it through authoritative dispatch
+resolution and every nonterminal state, including `Recovering`, through
+`RecoveryRequired`, and while a `CancelledNoEffect` control bundle awaits verified
+cleanup; it releases the pin only after fenced resolution, verified terminal cleanup,
+durable epoch sealing/expiry, or explicit recovery acknowledgement.
 
 Apply creates a durable operation record, initializes its journal before staging, stages only in the outside-repository control root, acquires an exclusive canonical-repository transaction reservation, claims a renewable owner lease and monotonically increasing fencing epoch, validates every precondition, arbitrates cancellation against a complete journalled first-effect permit in one durable compare-and-swap, journals changes, revalidates the expected intermediate repository state at every side-effect boundary, applies deterministically, verifies postconditions, and records one truthful state. Interrupted pre-effect staging cleanup is idempotent and never touches the repository.
 
-- `Received` or authoritative `NotRecorded` during dispatch resolution;
+- `Received` or authoritative `NotRecorded` during replayable dispatch resolution;
 - `Applying`, `Recovering`, or bounded `Reconciling` while nonterminal;
 - `Applied`;
 - `RolledBack`;
@@ -273,6 +295,7 @@ Apply creates a durable operation record, initializes its journal before staging
 - `RecoveredApplied` or `RecoveredRolledBack` after verified manual recovery;
 - `RecoveryAcknowledged` as an administrative terminal state that does not claim cleanliness;
 - `CancelledNoEffect` as a terminal accepted cancellation with proof that no repository effect began;
+- `RejectedPlanUnavailable` as a terminal no-effect fence when the leased exact plan cannot be verified before the first effect;
 - `RejectedUnsafeCoordination` when cross-principal/cross-host mutation coordination cannot be proven;
 - stale/conflict rejection; or
 - expiry.
@@ -340,21 +363,29 @@ scope, epoch, limits, and `NotAfter`, but not its signature. The request hash om
 `RequestHash` itself, replay and transport attempt metadata, cancellation state, and
 authentication proof. Every adapter uses the same canonicalizer and vectors instead
 of hashing its wire representation.
+Before sending request bytes, the caller registers a quota-bounded
+`DispatchPlanLease` that validates the epoch/principal, canonical request identity,
+and exact plan envelope/hash, reserves dispatch-resolution outcome capacity, and pins
+those bytes through receipt adoption, authoritative status resolution, or epoch
+sealing. Failure occurs before dispatch;
+the lease alone does not mean the request was accepted.
 Canonical repository ID plus operation ID is the composite key for every receipt,
 ledger, status, recovery, acknowledgement, and retention lookup; the same operation
 ID in another repository is independent.
 Before accepted work enters an execution queue, a cross-process, store-enforced
 intake fence keyed by repository and operation ID protects a durable `Received`
 receipt containing the canonical request. Intake validates the token, claims hash,
-principal binding, and reserved outcome capacity first; token/quota validation and
-receipt creation are atomic with epoch sealing. Startup and status
+principal binding, matching dispatch lease, exact plan availability, and reserved
+outcome capacity first; token/quota validation, plan-pin adoption, and receipt
+creation are atomic with epoch sealing. Startup and status
 lookup reconcile any receipt not yet promoted into the operation ledger. While a live
 or retained record exists, repeating the same operation ID and request returns the
 existing receipt/state/result and reusing it for different work returns conflict.
 
 Terminal outcomes remain individually addressable for a bounded replay window. The
-authority caps open operations, simultaneously open/unretired epochs, epoch issuance,
-accepted count/bytes, retained outcome bytes, and pinned recovery/cleanup exceptions;
+authority caps dispatch leases/pinned plan bytes, open operations, simultaneously
+open/unretired epochs, epoch issuance, accepted count/bytes, retained outcome bytes,
+and pinned recovery/cleanup exceptions;
 exhaustion rejects new mutation admission without blocking status or recovery. A
 sealed epoch rejects an otherwise unknown operation as `OperationEpochSealed` and
 cannot create `Received` or `NotRecorded`; sealing atomically converts outstanding
@@ -368,8 +399,9 @@ watermark, and only then deletes individual records. Pinned/live records resolve
 first. Every otherwise unknown ID at or below the watermark returns
 `OperationEpochRetired`, never `NotRecorded` or executable work. The watermark and
 accumulator are constant-size and never move backward. Identity retirement is a
-separate `RetirementPending` fence that blocks new mutation/transfer but preserves
-status/recovery while all epochs seal, active work quiesces, recovery and cleanup
+separate `RetirementPending` fence that blocks new mutation, transfer, and dispatch
+leases but preserves status/recovery while all epochs seal, leases and active work
+quiesce, recovery, and cleanup
 finish (or recovery is explicitly acknowledged), pinned records release, and retained outcomes compact
 through the final issued epoch. Only then does one transaction replace the live
 mapping with a permanent marker containing the final watermark/accumulator, physical
@@ -387,13 +419,14 @@ Transport outcome describes only what the caller can prove:
 An indeterminate mutation is never automatically retried or executed in-process. The
 host already knows the repository/operation identity and queries status. If no receipt
 or operation exists, status lookup validates the original token and canonical request
-identity, including the plan reference, then uses the intake fence to exclude a
-still-arriving request and atomically records `NotRecorded` with a replay epoch while
-the operation epoch is still open. Only then may the caller explicitly
-resubmit the identical request with the same operation ID, hash, and replay epoch
-before its operation epoch seals; a delayed original is fenced out. A sealed or
-retired epoch never authorizes replay and requires a current-epoch operation ID for a
-new attempt.
+identity, inspects the matching dispatch lease, then uses the intake fence to exclude a
+still-arriving request. If the exact plan remains readable and verified, it atomically
+records `NotRecorded` with a replay epoch while the operation epoch is open; only then
+may the caller explicitly resubmit the identical request under the same identity. If
+the lease or plan is unavailable or invalid, it instead records terminal no-effect
+`RejectedPlanUnavailable` with no replay authorization. Both outcomes fence a delayed
+original, and the rejection must be observed before the caller re-prepares and uses a
+new current-epoch operation ID. A sealed or retired epoch never authorizes replay.
 
 Cancellation is `NotDispatched` only when no request bytes were accepted. Once any
 bytes are accepted, cancelling or timing out the response wait is `Indeterminate`,

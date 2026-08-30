@@ -247,14 +247,14 @@ barrier. Ownership transfer cannot silently rebind the
 checkout to a new user-private ledger. It is an explicit administrative operation
 under an authority-wide repository transfer fence and preserves `RepositoryId` for
 the same physical checkout. The authority atomically enters `TransferPending`, blocks
-new operation epochs, apply-capable preparation, intake, replay promotion, and
+new operation epochs, apply-capable preparation, dispatch-plan leases, intake, replay promotion, and
 ownership changes, and seals outstanding operation epochs while leaving status,
 cancellation, cleanup, and recovery available.
 
 Transfer then waits for a live owner to finish or, after lease expiry and proven OS
 reservation release, reconciles it under the old repository reservation and fencing
-generation. Before committing new ownership, the authority proves there is no intake
-attempt/receipt promotion in flight, transaction reservation, live owner, nonterminal
+generation. Before committing new ownership, the authority proves there is no dispatch
+plan lease or intake attempt/receipt promotion in flight, transaction reservation, live owner, nonterminal
 operation, or unresolved recovery barrier; `NotRecorded` replay authorizations are
 expired, and every `RecoveryRequired` record is recovered or explicitly acknowledged.
 It carries retained outcomes, watermark/accumulator, pinned terminal cleanup records,
@@ -291,11 +291,30 @@ and defaults use one host-neutral canonicalizer shared by every adapter; adapter
 never hash their transport JSON directly. A transport request-attempt ID may be
 separate.
 
+Before sending any mutation request bytes, the caller atomically registers a bounded
+`DispatchPlanLease` in the protected coordination/plan authority under the same
+repository and operation ID. Registration validates the epoch token and claims,
+authenticated principal, canonical request identity, exact readable plan envelope and
+hash, available pinned-byte/lease quota, and capacity for authoritative
+`NotRecorded`/terminal dispatch resolution. The lease binds repository ID, operation
+ID, plan ID/hash, request hash, expected revision, claims hash, and operation-epoch
+expiry; it pins the exact plan until durable receipt adoption, authoritative dispatch
+resolution, or epoch sealing. A lease does not mean transport accepted the request.
+The receiver requires the matching lease, and `Received` atomically adopts its plan
+pin. Normal retention therefore cannot expire a potentially dispatched plan while its
+operation epoch can still admit or resolve that identity, and later quota exhaustion
+cannot prevent its truthful dispatch-resolution record.
+If transport proves `NotDispatched`, the caller may release the lease only through the
+intake fence after the authority proves no intake attempt or receipt exists. A caller
+crash before dispatch leaves only a quota-counted lease that expires when the epoch
+seals; uncertainty uses status resolution rather than early release.
+
 Before an accepted request can enter an execution queue, the receiver acquires a
 cross-process, store-enforced intake fence keyed by repository and operation ID and
 validates the operation-epoch token, its claims hash, and its binding to the current
-authenticated principal. The epoch-open check, quota debit/capacity reservation, and
-receipt creation are one authority transaction under that fence. It then durably
+authenticated principal. It also validates the matching `DispatchPlanLease` and exact
+plan availability. The epoch-open check, quota debit/capacity reservation, lease-pin
+adoption, and receipt creation are one authority transaction under that fence. It then durably
 records `Received(OperationId, RequestHash, CanonicalRequest)`. The canonical request is stored in the protected coordination
 control plane, not daemon logs. The operation ledger is then created before side effects
 begin. Startup and status lookup reconcile a `Received` receipt that has no operation
@@ -305,25 +324,35 @@ creation.
 If indeterminate dispatch is followed by a status lookup and neither a receipt nor
 an operation exists, `GetOperation` requires the original operation-epoch token plus
 an `OperationRequestIdentity` containing request hash, plan ID/hash, expected
-revision, and operation-epoch claims hash. It validates the token and accessible plan
-reference, acquires the same cross-process intake fence, and first proves that no
-receiver for that operation ID remains in flight. The epoch-open check and record
-creation are atomic with sealing. It then durably records
-`NotRecorded(OperationId, OperationRequestIdentity, ReplayEpoch)`. This is an authoritative
-no-effect dispatch-resolution state, not an inference from a missing row. Any delayed
-original attempt lacks that replay epoch and is rejected. While the operation epoch
-remains open, the caller may explicitly resubmit the exact canonical request with the
-same operation ID, request hash, and replay epoch; one compare-and-swap transitions
-`NotRecorded` to `Received`. A lost
+revision, and operation-epoch claims hash. It validates the token/request identity,
+looks up the matching `DispatchPlanLease`, acquires the same cross-process intake fence, and first proves
+that no receiver for that operation ID remains in flight. The epoch-open check and
+record creation are atomic with sealing. If the exact plan remains readable and
+verified, it durably records
+`NotRecorded(OperationId, OperationRequestIdentity, ReplayEpoch)`. This is an
+authoritative no-effect dispatch-resolution state, not an inference from a missing
+row. Any delayed original attempt lacks that replay epoch and is rejected. While the
+operation epoch remains open, the caller may explicitly resubmit the exact canonical
+request with the same operation ID, request hash, and replay epoch; one
+compare-and-swap transitions `NotRecorded` to `Received`. A lost
 `NotRecorded` response can be queried again to recover the same epoch. This explicit
 resolution is not an automatic retry or in-process fallback.
+
+If the dispatch lease is missing/expired or its exact plan is missing, expired,
+unreadable, schema-incompatible, or hash-mismatched, the same fenced resolution instead
+records terminal no-effect
+`RejectedPlanUnavailable(OperationId, OperationRequestIdentity, Reason, Evidence)`.
+It returns no replay authorization, permanently rejects a delayed receiver for that
+identity, and never revives if the plan later reappears. After observing this terminal
+outcome, a caller may re-prepare against current inputs and use a new current-epoch
+operation ID; it does not retry the unavailable plan.
 
 While its live or retained record exists, reusing an `OperationId` with the same
 canonical request returns the existing receipt, operation state, or result. Reusing
 such an ID with a different plan, revision, request hash, or payload returns
-`OperationConflict` and performs no work. `Received` and
-`NotRecorded` records are bounded: they pin the referenced plan until promotion,
-explicit replay, or durable expiry, and neither can remain unresolved indefinitely.
+`OperationConflict` and performs no work. `DispatchPlanLease`, `Received`, and
+`NotRecorded` records are bounded: they pin the referenced plan until receipt adoption,
+authoritative resolution, explicit replay, or durable expiry, and none can remain unresolved indefinitely.
 Expiry records the terminal outcome for the active replay window; sealing the
 operation epoch later makes every unknown or compacted ID in that epoch durably
 unacceptable. An outstanding `NotRecorded` replay authorization expires when its
@@ -331,7 +360,10 @@ operation epoch seals and cannot be carried into a new epoch.
 
 Apply loads the exact persisted plan bytes identified by repository ID, plan ID, and
 plan hash. A missing, expired, unreadable, schema-incompatible, or hash-mismatched plan
-is rejected before the operation ledger enters `Applying`. Apply never reconstructs a
+is rejected before the operation ledger enters `Applying`. If no receipt exists,
+status records the fenced `RejectedPlanUnavailable` dispatch resolution above; if
+`Received` already exists, the operation atomically records the same terminal
+no-effect outcome before `FirstEffectStarted`. Apply never reconstructs a
 plan from command arguments or a newer workspace snapshot. The plan store uses
 principal-private or authority-mediated access as declared by its coordination mode,
 bounded retention for unreferenced plans and safely cleaned terminal history, atomic
@@ -340,9 +372,10 @@ repositories cannot supply or replace its control metadata.
 
 Bounded retention applies to unreferenced prepared plans, safely cleaned bulky
 recovery data, detailed terminal transition history, and terminal outcome records
-after their operation epoch is safely retired. Creating an operation record pins its canonical plan bytes by
-durable ledger reference. Garbage collection cannot remove a plan while an
-associated operation is `Received`, `NotRecorded`, `Prepared`, `Applying`,
+after their operation epoch is safely retired. Registering a `DispatchPlanLease` pins
+the exact plan before dispatch; creating a receipt or operation atomically adopts that
+pin by durable reference. Garbage collection cannot remove a plan while an associated
+dispatch lease remains admissible or an operation is `Received`, `NotRecorded`, `Prepared`, `Applying`,
 `Reconciling`, `Recovering`, or `RecoveryRequired`, and cannot remove a
 `CancelledNoEffect` plan while its control-artifact cleanup remains pending. It
 releases the plan only after verified terminal cleanup, durable expiry, or explicit
@@ -360,11 +393,12 @@ an identical request returns the existing outcome without work, and a different 
 returns `OperationConflict`.
 
 The coordination authority enforces per-repository and per-principal limits for
-open-operation count, simultaneously open/unretired epochs, epoch issuance rate,
-accepted operations/bytes per epoch, replay-window duration, terminal-record bytes,
+dispatch-plan lease count/pinned bytes, open-operation count, simultaneously
+open/unretired epochs, epoch issuance rate, accepted operations/bytes per epoch,
+replay-window duration, terminal-record bytes,
 and pinned recovery/cleanup records. An epoch token stops accepting unknown operation
 IDs at its `NotAfter` or earlier count/byte limit. Quota
-exhaustion returns typed `CoordinationCapacityExceeded` before durable intake while
+exhaustion returns typed `CoordinationCapacityExceeded` before dispatch or durable intake while
 status, cancellation, cleanup, and recovery remain available. The authority does not
 mint unlimited replacement epochs for a caller that exceeds its admission policy.
 Admission atomically reserves enough bounded coordination-store capacity for the
@@ -372,10 +406,11 @@ receipt, transition ledger, maximum compact outcome, and required cleanup/recove
 metadata. A quota cannot prevent an accepted operation from recording truthful state
 or completing recovery.
 
-After an epoch is sealed, it accepts no new `Received` or `NotRecorded` record and
+After an epoch is sealed, it accepts no new dispatch lease, `Received`, or `NotRecorded` record and
 returns `OperationEpochSealed` for an otherwise unknown ID. In the same durable seal
 transition, every outstanding `NotRecorded` record becomes terminal `Expired` and its
-unused replay authorization is invalidated; already accepted operations continue.
+unused replay authorization is invalidated. Once intake attempts are quiescent, unused
+dispatch leases expire and release their plan pins; already accepted operations continue.
 Existing live/retained records remain queryable. Once the minimum replay window
 elapses, the
 authority atomically folds eligible terminal-record digests into a cumulative
@@ -393,10 +428,10 @@ request cannot execute after compaction even though its individual outcome is no
 longer retained. The accumulator and watermark are constant-size per repository and
 normal retention cannot move them backward. Explicit repository-identity retirement
 is distinct from ownership transfer and first enters a durable `RetirementPending`
-fence that blocks new epochs, apply-capable preparation, intake, replay, and transfer
+fence that blocks new epochs, apply-capable preparation, dispatch-plan leases, intake, replay, and transfer
 while preserving status, cancellation, cleanup, acknowledgement, and recovery access.
 Under the existing repository identity/reservation, it seals all epochs and waits for
-or reconciles every intake attempt, receipt promotion, live owner, reservation, and
+or reconciles every dispatch plan lease, intake attempt, receipt promotion, live owner, reservation, and
 nonterminal operation. Every `RecoveryRequired` record must reach verified recovery or
 terminal `RecoveryAcknowledged`, every cleanup-pending record must verify cleanup, and
 no plan/recovery/cleanup record may remain pinned. Every retained terminal replay
@@ -439,6 +474,7 @@ persisted bytes, and apply consumes those bytes without recomputation.
 
 ```text
 Prepared
+  -> RejectedPlanUnavailable  (only before FirstEffectStarted)
   -> Applying
        -> Applied
        -> RolledBack
@@ -451,6 +487,7 @@ Prepared
             -> RolledBack
             -> CancelledNoEffect  (only when NoEffectProven)
             -> RejectedStale  (only when NoEffectProven)
+            -> RejectedPlanUnavailable  (only when NoEffectProven)
             -> RejectedUnsafeCoordination  (only when NoEffectProven)
             -> Expired  (only when NoEffectProven)
             -> RecoveryRequired
