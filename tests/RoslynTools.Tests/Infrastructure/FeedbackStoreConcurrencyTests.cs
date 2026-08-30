@@ -39,6 +39,129 @@ public class FeedbackStoreConcurrencyTests
         }
     }
 
+    [Fact]
+    public async Task parallel_report_calls_create_only_one_issue_for_the_same_entry()
+    {
+        using var workspace = new ConcurrencyWorkspace();
+        using (workspace.UseCurrentDirectory())
+        {
+            FeedbackStore.Append(new FeedbackEntry
+            {
+                Type = "user-feedback",
+                Description = "report me once"
+            });
+            var createCount = 0;
+
+            async Task<(int Number, string Url)> CreateIssue(
+                FeedbackEntry _,
+                CancellationToken cancellationToken)
+            {
+                Interlocked.Increment(ref createCount);
+                await Task.Delay(50, cancellationToken);
+                return (72, "https://github.com/example/repository/issues/72");
+            }
+
+            var results = await Task.WhenAll(
+                FeedbackStore.ReportOnceAsync("FB-001", CreateIssue),
+                FeedbackStore.ReportOnceAsync("FB-001", CreateIssue));
+
+            createCount.ShouldBe(1);
+            results.Count(result => result.AlreadyReported).ShouldBe(1);
+            results.Count(result => !result.AlreadyReported).ShouldBe(1);
+            results.ShouldAllBe(result => result.Entry.GitHubIssueNumber == 72);
+            FeedbackStore.TryGetById("FB-001")!.GitHubIssueNumber.ShouldBe(72);
+        }
+    }
+
+    [Fact]
+    public async Task report_waits_beyond_the_legacy_lock_timeout_for_an_in_flight_process()
+    {
+        using var workspace = new ConcurrencyWorkspace();
+        using (workspace.UseCurrentDirectory())
+        {
+            FeedbackStore.Append(new FeedbackEntry
+            {
+                Type = "user-feedback",
+                Description = "wait for the active reporter"
+            });
+            using var existingProcessLock = new FileStream(
+                workspace.StoreLockPath,
+                FileMode.OpenOrCreate,
+                FileAccess.ReadWrite,
+                FileShare.None,
+                1,
+                FileOptions.None);
+
+            var started = new TaskCompletionSource(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            var report = Task.Run(async () =>
+            {
+                started.SetResult();
+                return await FeedbackStore.ReportOnceAsync(
+                    "FB-001",
+                    (_, _) => Task.FromResult((
+                        72,
+                        "https://github.com/example/repository/issues/72")));
+            });
+
+            await started.Task;
+            await Task.Delay(TimeSpan.FromSeconds(4));
+            report.IsCompleted.ShouldBeFalse();
+
+            existingProcessLock.Dispose();
+            var result = await report.WaitAsync(TimeSpan.FromSeconds(2));
+            result.AlreadyReported.ShouldBeFalse();
+            result.Entry.GitHubIssueNumber.ShouldBe(72);
+        }
+    }
+
+    [Fact]
+    public async Task report_lock_wait_honors_cancellation()
+    {
+        using var workspace = new ConcurrencyWorkspace();
+        using (workspace.UseCurrentDirectory())
+        {
+            FeedbackStore.Append(new FeedbackEntry
+            {
+                Type = "user-feedback",
+                Description = "cancel the waiter"
+            });
+            using var existingProcessLock = new FileStream(
+                workspace.StoreLockPath,
+                FileMode.OpenOrCreate,
+                FileAccess.ReadWrite,
+                FileShare.None,
+                1,
+                FileOptions.None);
+            using var cancellation = new CancellationTokenSource();
+
+            var started = new TaskCompletionSource(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            var report = Task.Run(async () =>
+            {
+                started.SetResult();
+                return await FeedbackStore.ReportOnceAsync(
+                    "FB-001",
+                    (_, _) => Task.FromResult((
+                        72,
+                        "https://github.com/example/repository/issues/72")),
+                    cancellation.Token);
+            });
+
+            await started.Task;
+            cancellation.CancelAfter(TimeSpan.FromMilliseconds(100));
+            await Should.ThrowAsync<OperationCanceledException>(() => report);
+        }
+    }
+
+    [Fact]
+    public void missing_store_directory_is_not_treated_as_lock_contention()
+    {
+        var exception = new DirectoryNotFoundException("The feedback directory disappeared.");
+
+        FeedbackStore.IsStoreLockContention(exception).ShouldBeFalse();
+    }
+
     private sealed class ConcurrencyWorkspace : IDisposable
     {
         private readonly string _previousDirectory;
@@ -51,6 +174,8 @@ public class FeedbackStoreConcurrencyTests
         }
 
         private string Root { get; }
+
+        public string StoreLockPath => Path.Combine(Root, "ralph", "feedback.json.lock");
 
         public IDisposable UseCurrentDirectory()
         {

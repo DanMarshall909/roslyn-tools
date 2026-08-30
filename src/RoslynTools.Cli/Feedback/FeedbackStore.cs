@@ -7,6 +7,12 @@ namespace RoslynTools.Feedback;
 
 internal static class FeedbackStore
 {
+    private const int WindowsSharingViolation = 32;
+    private const int WindowsLockViolation = 33;
+    private const int LinuxWouldBlock = 11;
+    private const int BsdWouldBlock = 35;
+
+    private static readonly TimeSpan StoreLockRetryDelay = TimeSpan.FromMilliseconds(20);
     private static readonly SemaphoreSlim Lock = new(1, 1);
 
     private static readonly JsonSerializerOptions ReadOpts = new()
@@ -38,22 +44,7 @@ internal static class FeedbackStore
         return Path.Combine(fallback, "feedback.json");
     }
 
-    internal static List<FeedbackEntry> LoadAll()
-    {
-        var path = ResolveStorePath();
-        if (!File.Exists(path)) return [];
-
-        try
-        {
-            var json = File.ReadAllText(path);
-            var doc = JsonSerializer.Deserialize<FeedbackFile>(json, ReadOpts);
-            return doc?.FeedbackItems ?? [];
-        }
-        catch
-        {
-            return [];
-        }
-    }
+    internal static List<FeedbackEntry> LoadAll() => ReadExisting();
 
     internal static string NextId(List<FeedbackEntry> existing)
     {
@@ -106,25 +97,37 @@ internal static class FeedbackStore
         LoadAll().SingleOrDefault(entry =>
             string.Equals(entry.Id, id, StringComparison.OrdinalIgnoreCase));
 
-    internal static FeedbackEntry MarkReported(string id, int issueNumber, string issueUrl)
+    /// <summary>
+    ///     Atomically creates or links an issue for <paramref name="id" />. The final
+    ///     reported-state check and issue creation run under the cross-process store
+    ///     lock so concurrent reporters cannot create duplicate public issues.
+    /// </summary>
+    internal static async Task<(FeedbackEntry Entry, bool AlreadyReported)> ReportOnceAsync(
+        string id,
+        Func<FeedbackEntry, CancellationToken, Task<(int Number, string Url)>> createIssue,
+        CancellationToken cancellationToken = default)
     {
-        Lock.Wait();
+        await Lock.WaitAsync(cancellationToken);
         try
         {
-            using var storeLock = AcquireStoreLock();
+            using var storeLock = await AcquireStoreLockAsync(cancellationToken);
             var all = ReadExisting();
             var entry = all.SingleOrDefault(candidate =>
                 string.Equals(candidate.Id, id, StringComparison.OrdinalIgnoreCase));
             if (entry is null)
                 throw new ArgumentException($"Feedback item '{id}' was not found.", nameof(id));
 
+            if (entry.GitHubIssueNumber is not null)
+                return (entry, true);
+
+            var (issueNumber, issueUrl) = await createIssue(entry, cancellationToken);
             entry.GitHubIssueNumber = issueNumber;
             entry.GitHubIssueUrl = issueUrl;
             entry.Status = "processed";
             entry.ProcessedAt = DateTimeOffset.UtcNow.ToString("O");
             entry.Resolution = $"Reported as GitHub issue #{issueNumber}: {issueUrl}";
             WriteAll(all);
-            return entry;
+            return (entry, false);
         }
         finally
         {
@@ -180,7 +183,7 @@ internal static class FeedbackStore
             await Lock.WaitAsync();
             try
             {
-                using var storeLock = AcquireStoreLock();
+                using var storeLock = await AcquireStoreLockAsync(CancellationToken.None);
                 var existing = ReadExisting();
                 var entry = new FeedbackEntry
                 {
@@ -253,35 +256,59 @@ internal static class FeedbackStore
 
     private static FileStream AcquireStoreLock()
     {
-        var path = ResolveStorePath();
-        var dir = Path.GetDirectoryName(path)!;
-        Directory.CreateDirectory(dir);
-
-        var lockPath = path + ".lock";
-        for (var attempt = 0; attempt < 100; attempt++)
+        var lockPath = ResolveStoreLockPath();
+        while (true)
             try
             {
-                return new FileStream(
-                    lockPath,
-                    FileMode.OpenOrCreate,
-                    FileAccess.ReadWrite,
-                    FileShare.None,
-                    1,
-                    FileOptions.DeleteOnClose);
+                return OpenStoreLock(lockPath);
             }
-            catch (IOException) when (attempt < 99)
+            catch (IOException ex) when (IsStoreLockContention(ex))
             {
-                Thread.Sleep(20);
+                Thread.Sleep(StoreLockRetryDelay);
             }
+    }
 
-        return new FileStream(
+    private static async Task<FileStream> AcquireStoreLockAsync(
+        CancellationToken cancellationToken)
+    {
+        var lockPath = ResolveStoreLockPath();
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                return OpenStoreLock(lockPath);
+            }
+            catch (IOException ex) when (IsStoreLockContention(ex))
+            {
+                await Task.Delay(StoreLockRetryDelay, cancellationToken);
+            }
+        }
+    }
+
+    internal static bool IsStoreLockContention(IOException exception)
+    {
+        var errorCode = exception.HResult & 0xFFFF;
+        return OperatingSystem.IsWindows()
+            ? errorCode is WindowsSharingViolation or WindowsLockViolation
+            : errorCode is LinuxWouldBlock or BsdWouldBlock;
+    }
+
+    private static string ResolveStoreLockPath()
+    {
+        var path = ResolveStorePath();
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        return path + ".lock";
+    }
+
+    private static FileStream OpenStoreLock(string lockPath) =>
+        new(
             lockPath,
             FileMode.OpenOrCreate,
             FileAccess.ReadWrite,
             FileShare.None,
             1,
-            FileOptions.DeleteOnClose);
-    }
+            FileOptions.None);
 
     private static List<FeedbackEntry> ReadExisting()
     {
@@ -290,8 +317,12 @@ internal static class FeedbackStore
 
         try
         {
-            var json = File.ReadAllText(path);
-            return JsonSerializer.Deserialize<FeedbackFile>(json, ReadOpts)?.FeedbackItems ?? [];
+            using var stream = new FileStream(
+                path,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            return JsonSerializer.Deserialize<FeedbackFile>(stream, ReadOpts)?.FeedbackItems ?? [];
         }
         catch
         {

@@ -157,21 +157,29 @@ internal sealed class FeedbackReportOperation : LegacyCommandApplicationPort, IR
 
     private readonly Func<string, FeedbackEntry?> _getById;
     private readonly IGitHubIssueClient _gitHub;
-    private readonly Func<string, int, string, FeedbackEntry> _markReported;
+    private readonly Func<
+        string,
+        Func<FeedbackEntry, CancellationToken, Task<(int Number, string Url)>>,
+        CancellationToken,
+        Task<(FeedbackEntry Entry, bool AlreadyReported)>> _reportOnce;
 
     public FeedbackReportOperation(IGitHubIssueClient gitHub)
-        : this(FeedbackStore.TryGetById, gitHub, FeedbackStore.MarkReported)
+        : this(FeedbackStore.TryGetById, gitHub, FeedbackStore.ReportOnceAsync)
     {
     }
 
     internal FeedbackReportOperation(
         Func<string, FeedbackEntry?> getById,
         IGitHubIssueClient gitHub,
-        Func<string, int, string, FeedbackEntry> markReported)
+        Func<
+            string,
+            Func<FeedbackEntry, CancellationToken, Task<(int Number, string Url)>>,
+            CancellationToken,
+            Task<(FeedbackEntry Entry, bool AlreadyReported)>> reportOnce)
     {
         _getById = getById;
         _gitHub = gitHub;
-        _markReported = markReported;
+        _reportOnce = reportOnce;
     }
 
     public override string CommandName => "feedback_report";
@@ -258,8 +266,16 @@ internal sealed class FeedbackReportOperation : LegacyCommandApplicationPort, IR
         if (request.DryRun)
             return new FeedbackReportResult(entry.Id, "dry-run", target.Number, target.Url, []);
 
-        var linked = _markReported(entry.Id, target.Number, target.Url);
-        return new FeedbackReportResult(linked.Id, "attached", target.Number, target.Url, []);
+        var (linked, alreadyReported) = await _reportOnce(
+            entry.Id,
+            (_, _) => Task.FromResult((target.Number, target.Url)),
+            cancellationToken);
+        return new FeedbackReportResult(
+            linked.Id,
+            alreadyReported ? "already-reported" : "attached",
+            linked.GitHubIssueNumber,
+            linked.GitHubIssueUrl,
+            []);
     }
 
     private async Task<FeedbackReportResult> ReportAsync(
@@ -290,16 +306,22 @@ internal sealed class FeedbackReportOperation : LegacyCommandApplicationPort, IR
                 null,
                 candidates);
 
-        var created = await _gitHub.CreateIssueAsync(
-            BuildIssueTitle(entry),
-            RenderIssueBody(entry),
+        var (reported, alreadyReported) = await _reportOnce(
+            entry.Id,
+            async (freshEntry, reportCancellationToken) =>
+            {
+                var created = await _gitHub.CreateIssueAsync(
+                    BuildIssueTitle(freshEntry),
+                    RenderIssueBody(freshEntry),
+                    reportCancellationToken);
+                return (created.Number, created.Url);
+            },
             cancellationToken);
-        var reported = _markReported(entry.Id, created.Number, created.Url);
         return new FeedbackReportResult(
             reported.Id,
-            "reported",
-            created.Number,
-            created.Url,
+            alreadyReported ? "already-reported" : "reported",
+            reported.GitHubIssueNumber,
+            reported.GitHubIssueUrl,
             candidates);
     }
 

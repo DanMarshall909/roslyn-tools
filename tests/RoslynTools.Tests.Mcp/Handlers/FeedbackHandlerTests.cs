@@ -229,11 +229,16 @@ public sealed class FeedbackHandlerTests
         var operation = new FeedbackReportOperation(
             _ => SampleEntry(),
             gitHub,
-            (id, number, url) => recorded = new FeedbackEntry
+            async (id, createIssue, cancellationToken) =>
             {
-                Id = id,
-                GitHubIssueNumber = number,
-                GitHubIssueUrl = url
+                var (number, url) = await createIssue(SampleEntry(), cancellationToken);
+                recorded = new FeedbackEntry
+                {
+                    Id = id,
+                    GitHubIssueNumber = number,
+                    GitHubIssueUrl = url
+                };
+                return (recorded, false);
             });
 
         var result = await operation.ExecuteAsync(
@@ -282,7 +287,7 @@ public sealed class FeedbackHandlerTests
             (_, _, _) =>
             {
                 persisted = true;
-                return SampleEntry();
+                return Task.FromResult((SampleEntry(), false));
             });
 
         var result = await operation.ExecuteAsync(
@@ -327,11 +332,15 @@ public sealed class FeedbackHandlerTests
         new(
             _ => SampleEntry(),
             gitHub,
-            (id, number, url) => new FeedbackEntry
+            async (id, createIssue, cancellationToken) =>
             {
-                Id = id,
-                GitHubIssueNumber = number,
-                GitHubIssueUrl = url
+                var (number, url) = await createIssue(SampleEntry(), cancellationToken);
+                return (new FeedbackEntry
+                {
+                    Id = id,
+                    GitHubIssueNumber = number,
+                    GitHubIssueUrl = url
+                }, false);
             });
 
     private static FeedbackEntry SampleEntry(int? issueNumber = null, string? issueUrl = null) => new()

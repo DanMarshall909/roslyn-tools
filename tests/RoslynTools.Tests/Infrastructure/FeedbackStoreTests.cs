@@ -72,7 +72,7 @@ public class FeedbackStoreTests
     }
 
     [Fact]
-    public void mark_reported_persists_the_github_link_and_is_discoverable_by_id()
+    public async Task report_once_persists_the_github_link_and_is_discoverable_by_id()
     {
         using var workspace = new FeedbackWorkspace();
         using (workspace.UseCurrentDirectory())
@@ -83,11 +83,13 @@ public class FeedbackStoreTests
                 Description = "promote me"
             });
 
-            var reported = FeedbackStore.MarkReported(
+            var (reported, alreadyReported) = await FeedbackStore.ReportOnceAsync(
                 "FB-001",
-                72,
-                "https://github.com/example/repository/issues/72");
+                (_, _) => Task.FromResult((
+                    72,
+                    "https://github.com/example/repository/issues/72")));
 
+            alreadyReported.ShouldBeFalse();
             reported.Status.ShouldBe("processed");
             reported.GitHubIssueNumber.ShouldBe(72);
             reported.GitHubIssueUrl.ShouldBe("https://github.com/example/repository/issues/72");
