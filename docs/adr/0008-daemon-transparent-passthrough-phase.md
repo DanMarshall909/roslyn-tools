@@ -43,7 +43,9 @@ to exclude an in-flight receiver and atomically records authoritative `NotRecord
 with a one-use replay epoch only if the operation epoch remains open. Only before that
 epoch seals may the caller explicitly resubmit the exact request under the same
 operation ID and replay epoch; delayed original attempts are fenced out. A different
-payload under a live or retained operation ID is an operation conflict.
+payload under a live or retained operation ID is an operation-conflict response for
+that incoming attempt; it cannot transition, terminate, or release resources owned by
+the canonical operation.
 
 The request hash uses the shared versioned semantic canonicalizer and includes the
 structured operation ID plus `OperationEpochClaimsHash` over the token's canonical

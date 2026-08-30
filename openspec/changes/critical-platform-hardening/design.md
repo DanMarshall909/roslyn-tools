@@ -427,7 +427,10 @@ operation ID; it does not retry the unavailable plan.
 While its live or retained record exists, reusing an `OperationId` with the same
 canonical request returns the existing receipt, operation state, or result. Reusing
 such an ID with a different plan, revision, request hash, or payload returns
-`OperationConflict` and performs no work. Pre-receipt `DispatchPlanLease` and
+`OperationConflict` to that incoming attempt and performs no work. Conflict is a
+response, not a canonical-ledger transition: the existing receipt/state/history,
+owner, reservations, plan pins, and eventual result remain unchanged, so an exact
+replay still observes the original operation. Pre-receipt `DispatchPlanLease` and
 `NotRecorded` records are bounded: they pin the referenced plan until receipt adoption,
 authoritative resolution, explicit replay, or durable lease/replay expiry, and none can
 remain unresolved indefinitely. `Received` atomically transfers that pin to the
@@ -583,7 +586,6 @@ Prepared
        -> RecoveryRequired
   -> CancelledNoEffect
   -> RejectedStale
-  -> RejectedConflict
   -> RejectedUnsafeCoordination
   -> Expired
 
@@ -593,7 +595,6 @@ Unknown
        -> Prepared
        -> CancelledNoEffect
        -> RejectedStale
-       -> RejectedConflict
        -> RejectedUnsafeCoordination
        -> Expired
   -> NotRecorded
@@ -614,6 +615,10 @@ RecoveryRequired
             -> RecoveryRequired
   -> RecoveryAcknowledged
 ```
+
+`OperationConflict` is a response for a mismatched incoming attempt and is deliberately
+absent from this state machine. It cannot terminate or otherwise mutate the canonical
+operation selected by `(RepositoryId, OperationId)`.
 
 `NoEffectProven` means the reconciler holds the fenced repository reservation and has
 verified an intact ledger/journal with no `FirstEffectStarted` permit and no possible

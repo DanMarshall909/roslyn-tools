@@ -450,7 +450,9 @@ outcome capacity first; token/quota validation, plan-pin adoption, and receipt
 creation are atomic with epoch sealing. Startup and status
 lookup reconcile any receipt not yet promoted into the operation ledger. While a live
 or retained record exists, repeating the same operation ID and request returns the
-existing receipt/state/result and reusing it for different work returns conflict.
+existing receipt/state/result and reusing it for different work returns conflict to the
+incoming attempt without changing the canonical receipt, ledger, pins, or outcome;
+conflict is not a terminal operation state.
 
 Terminal outcomes remain individually addressable for a bounded replay window. The
 authority caps dispatch leases/pinned plan bytes, open operations, simultaneously

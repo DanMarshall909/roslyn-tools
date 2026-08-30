@@ -752,6 +752,7 @@ without removing status/recovery access.
 - **WHEN** a live or retained operation ID is submitted with a different plan, payload, or expected revision
 - **THEN** the request returns `OperationConflict`
 - **AND THEN** no repository path is written
+- **AND THEN** the canonical receipt, ledger state/history, owner, reservations, plan pins, and outcome remain unchanged, so an exact replay continues to observe the original operation
 
 #### Scenario: an operation is repeated after its epoch is compacted
 
@@ -802,11 +803,16 @@ history. Direct terminal states SHALL distinguish `Applied` and `RolledBack`;
 verified post-recovery terminal states SHALL distinguish `RecoveredApplied` and
 `RecoveredRolledBack`; `RecoveryAcknowledged` SHALL be an administrative terminal
 state that makes no repository-cleanliness claim. `CancelledNoEffect`,
-`RejectedStale`, `RejectedConflict`, `RejectedPlanUnavailable`,
+`RejectedStale`, `RejectedPlanUnavailable`,
 `RejectedUnsafeCoordination`, and `Expired` SHALL
 remain no-effect terminal outcomes. `RecoveryRequired` SHALL be a durable intervention state, while `Received`,
 `NotRecorded`, `Prepared`, `Applying`, `Recovering`, `OwnerQuiescencePending`, and
 `Reconciling` are nonterminal or dormant resolution states.
+
+`OperationConflict` SHALL be a response scoped to a mismatched incoming attempt, not
+an operation-ledger state or transition. Returning it SHALL NOT terminate or otherwise
+mutate the canonical receipt, ledger history, ownership, reservations, pins, or
+eventual outcome for `(RepositoryId, OperationId)`.
 
 Every pre-effect control-root create/write/delete, staging or backup action, guard
 acquisition/release, and final-preflight activity SHALL be admitted through one
