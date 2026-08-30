@@ -1,5 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Core;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -7,25 +8,20 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Extracts string literals from the current file
 /// </summary>
-internal sealed class ExtractStringConstantCommand(IWorkspaceSessionFactory sessionFactory, MagicStringService magicString) : IRtCommand, IRefactorCommand
+internal sealed class ExtractStringConstantCommand : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
-    private readonly MagicStringService _magicString = magicString;
-    public static RtCommandInfo Info { get; } = new(
-        "extract-string-constant",
-        true,
-        false,
-        "refactor",
-        Aliases: ["esc"],
-        WhenToUse:
-        "Replacing a repeated string literal inside one containing type with a named private const string. Use find-magic-strings first to locate the file and line.",
-        Examples:
-        [
-            "rt refactor extract-string-constant --file src/App/Foo.cs --line 42 --name DefaultStatus --solution C:\\code\\app\\App.sln",
-            "rt refactor esc --file tests/FooTests.cs --line 18 --name ExpectedMessage --dry-run --solution RoslynTools.slnx",
-            "rt refactor extract-string-constant --file src/Domain/Order.cs --line 27 --name SubmittedStatus --solution RoslynTools.slnx"
-        ]
-    );
+    private readonly DaemonRpcRecoveryCoordinator _daemon;
+    private readonly ExtractStringConstantOperation _operation;
+
+    public ExtractStringConstantCommand(
+        DaemonRpcRecoveryCoordinator daemon,
+        ExtractStringConstantOperation operation)
+    {
+        _daemon = daemon;
+        _operation = operation;
+    }
+
+    public static RtCommandInfo Info => ExtractStringConstantCommandDefinition.Info;
 
     public Command Build()
     {
@@ -39,14 +35,16 @@ internal sealed class ExtractStringConstantCommand(IWorkspaceSessionFactory sess
         cmd.AddAlias("esc");
         cmd.AddAll(fileOpt, lineOpt, nameOpt, solutionOpt, dryRunOpt);
 
-        cmd.SetHandler(async (file, line, name, solution, dryRun) =>
+        cmd.SetHandler(async context =>
         {
-            var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
-            using (workspace)
-            {
-                await _magicString.ExtractConstantAsync(sln, file, line, name, dryRun);
-            }
-        }, fileOpt, lineOpt, nameOpt, solutionOpt, dryRunOpt);
+            var request = new ExtractStringConstantRequest(
+                context.ParseResult.GetValueForOption(fileOpt)!,
+                context.ParseResult.GetValueForOption(lineOpt),
+                context.ParseResult.GetValueForOption(nameOpt)!,
+                context.ParseResult.GetValueForOption(solutionOpt),
+                context.ParseResult.GetValueForOption(dryRunOpt));
+            await DaemonCommandExecutor.ExecuteAsync(_daemon, _operation, request, context);
+        });
 
         return cmd;
     }

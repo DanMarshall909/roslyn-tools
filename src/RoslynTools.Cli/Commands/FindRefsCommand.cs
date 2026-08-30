@@ -1,6 +1,8 @@
 using System.CommandLine;
+using RoslynTools.Cli;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 using RoslynTools.Services.Results;
 
@@ -9,27 +11,14 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Finds all references to a given symbol in the current file
 /// </summary>
-internal sealed class FindRefsCommand(FindRefsOperation operation) : IRtCommand, IInspectCommand
+internal sealed class FindRefsCommand(
+    DaemonRpcRecoveryCoordinator daemon,
+    FindRefsOperation operation) : IRtCommand, IInspectCommand
 {
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
     private readonly FindRefsOperation _operation = operation;
 
-    public static RtCommandInfo Info { get; } = new(
-        "find-refs",
-        false,
-        false,
-        "inspect",
-        Aliases: null,
-        WhenToUse:
-        "Finding all references to any symbol (type, method, property, field, namespace) across the solution using Roslyn's semantic analysis. Prefer this over grep because it resolves overloads and type inference correctly and skips string literals/comments.",
-        Examples:
-        [
-            "rt inspect find-refs --symbol BookingService --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt inspect find-refs --symbol CreateBooking --kind method --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt inspect find-refs --symbol IEmailService --kind type --solution RoslynTools.slnx"
-        ],
-        SeeAlso: ["find-callers", "find-impl", "rename"],
-        SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
-    );
+    public static RtCommandInfo Info => FindRefsCommandDefinition.Info;
 
     public Command Build()
     {
@@ -44,14 +33,33 @@ internal sealed class FindRefsCommand(FindRefsOperation operation) : IRtCommand,
         cmd.SetHandler(async ctx =>
         {
             var request = flags.Bind(ctx.ParseResult, FindRefsCliRequest.FromFlags);
-            var result = await _operation.ExecuteAsync(new FindRefsRequest(
-                request.Symbol!,
-                request.SolutionPath,
-                request.Kind));
-            RtResultRenderer.Write(RtResult<FindRefsResult>.Ok(result));
+            var result = await DaemonCommandExecutor.ExecuteTypedAsync(
+                _daemon,
+                _operation,
+                new FindRefsRequest(request.Symbol!, request.SolutionPath, request.Kind),
+                ctx.GetCancellationToken());
+            result.Match(
+                value => RtResultRenderer.Write(RtResult<FindRefsResult>.Ok(ToOutput(value))),
+                error => RtErrorPresenter.Surface(ctx, error));
         });
 
         return cmd;
+    }
+
+    private static FindRefsResult ToOutput(FindRefsOperationResult result)
+    {
+        return new FindRefsResult
+        {
+            SymbolName = result.SymbolName,
+            FullyQualifiedName = result.FullyQualifiedName,
+            References = result.References.Select(static reference => new ReferenceResult
+            {
+                FilePath = reference.FilePath,
+                Line = reference.Line,
+                LineText = reference.LineText
+            }).ToList(),
+            Suggestions = result.Suggestions
+        };
     }
 
     private sealed record FindRefsCliRequest(

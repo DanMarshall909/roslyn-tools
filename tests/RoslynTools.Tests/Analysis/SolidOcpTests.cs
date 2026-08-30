@@ -1,7 +1,7 @@
 using System.CommandLine;
 using System.Text.Json;
 using RoslynTools.Commands;
-using RoslynTools.Commands.Results;
+using RoslynTools.Services;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using Shouldly;
@@ -262,7 +262,7 @@ public class SolidOcpTests
         var result = new SolidResult();
         using var output = new StringWriter();
         RtContext.Format = OutputFormat.Json;
-        RtSerializer.Write(result, output);
+        RtSerializer.Write(StaticAnalyzerResultAdapters.Solid(result), output);
 
         using var doc = JsonDocument.Parse(output.ToString());
         doc.RootElement.TryGetProperty("OCP", out var ocp).ShouldBeTrue();
@@ -283,7 +283,7 @@ public class SolidOcpTests
     [Fact]
     public void execute_async_defaults_min_branches_to_2()
     {
-        var cmd = SolidCommand.Build();
+        var cmd = App.Commands.Single(entry => entry.Info.Name == "solid").Build();
         var minBranchesOpt = cmd.Options.OfType<Option<int>>()
             .First(o => o.Name == "min-branches");
         minBranchesOpt.Parse("").GetValueForOption(minBranchesOpt).ShouldBe(2);
@@ -292,7 +292,7 @@ public class SolidOcpTests
     [Fact]
     public void principle_help_mentions_OCP()
     {
-        var cmd = SolidCommand.Build();
+        var cmd = App.Commands.Single(entry => entry.Info.Name == "solid").Build();
         var principleOpt = cmd.Options.OfType<Option<string>>()
             .First(o => o.Name == "principle");
         Assert.Contains("OCP", principleOpt.Description, StringComparison.Ordinal);

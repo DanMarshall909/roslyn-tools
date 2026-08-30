@@ -1,5 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Core;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -7,26 +8,20 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Command for adding test commands to the project.
 /// </summary>
-internal sealed class AddTestCommand(IWorkspaceSessionFactory sessionFactory, AddTestService addTest) : IRtCommand, IRefactorCommand
+internal sealed class AddTestCommand : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
-    private readonly AddTestService _addTest = addTest;
-    public static RtCommandInfo Info { get; } = new(
-        "add-test",
-        true,
-        false,
-        "refactor",
-        Aliases: ["at"],
-        WhenToUse:
-        "Appending xUnit [Fact] stub methods to an existing test class. Two modes: legacy (--class with --name or --acs) adds to arbitrary test classes; command-based (--command with --scenario/--outcome or --before/--after) scaffolds organized test files by rt command category.",
-        Examples:
-        [
-            "rt refactor add-test --class BookingServiceTests --name Returns_404_When_Not_Found --solution RoslynTools.slnx",
-            "rt refactor add-test --class OrderTests --acs \"Returns total;Applies discount\" --nested-class WhenCalculatingTotal",
-            "rt refactor add-test --command ExtractMethod --scenario \"source file as first occurrence\" --outcome \"call site updated\" --concern SourceFileCallSite --solution RoslynTools.slnx",
-            "rt refactor add-test --command Rename --concern CrossFileRefs --before before.cs --after after.cs --solution RoslynTools.slnx"
-        ]
-    );
+    private readonly DaemonRpcRecoveryCoordinator _daemon;
+    private readonly AddTestOperation _operation;
+
+    public AddTestCommand(
+        DaemonRpcRecoveryCoordinator daemon,
+        AddTestOperation operation)
+    {
+        _daemon = daemon;
+        _operation = operation;
+    }
+
+    public static RtCommandInfo Info => AddTestCommandDefinition.Info;
 
     public Command Build()
     {
@@ -74,122 +69,29 @@ internal sealed class AddTestCommand(IWorkspaceSessionFactory sessionFactory, Ad
             var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
             var dryRun = ctx.ParseResult.GetValueForOption(dryRunOpt);
 
-            await ExecuteAsync(className, name, acs, nestedClass, command, scenario, outcome, concern, before, after,
-                file, solution, dryRun);
+            var mode = command is null ? AddTestMode.Legacy : AddTestMode.Command;
+            await DaemonCommandExecutor.ExecuteAsync(
+                _daemon,
+                _operation,
+                new AddTestRequest(
+                    mode,
+                    ClassName: className,
+                    Name: name,
+                    AcceptanceCriteria: acs,
+                    NestedClass: nestedClass,
+                    Command: command,
+                    Scenario: scenario,
+                    Outcome: outcome,
+                    Concern: concern,
+                    BeforePath: before,
+                    AfterPath: after,
+                    FilePath: file,
+                    Solution: solution,
+                    DryRun: dryRun),
+                ctx);
         });
 
         return cmd;
     }
 
-    /// <summary>
-    /// Executes the add test command asynchronously.
-    /// </summary>
-    internal async Task ExecuteAsync(
-        string? className,
-        string? name,
-        string? acs,
-        string? nestedClass,
-        string? command,
-        string? scenario,
-        string? outcome,
-        string? concern,
-        string? beforePath,
-        string? afterPath,
-        string? filePath,
-        string? solutionPath,
-        bool dryRun)
-    {
-        // Command-based mode
-        if (command != null)
-        {
-            if (concern == null)
-            {
-                RtLog.Error("Error: --concern is required with --command mode.");
-                Environment.ExitCode = 1;
-                return;
-            }
-
-            var hasScenarioOutcome = scenario != null || outcome != null;
-            var hasBeforeAfter = beforePath != null || afterPath != null;
-
-            if (!hasScenarioOutcome && !hasBeforeAfter)
-            {
-                RtLog.Error(
-                    "Error: either --scenario and --outcome, or --before and --after is required with --command mode.");
-                Environment.ExitCode = 1;
-                return;
-            }
-
-            if (hasScenarioOutcome && hasBeforeAfter)
-            {
-                RtLog.Error("Error: --scenario/--outcome and --before/--after are mutually exclusive.");
-                Environment.ExitCode = 1;
-                return;
-            }
-
-            var commandInfo = ResolveCommandInfo(command);
-            if (commandInfo == null)
-            {
-                RtLog.Error("Command '{CommandName}' not found in registry.", command);
-                Environment.ExitCode = 1;
-                return;
-            }
-
-            var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
-            using (workspace)
-            {
-                await _addTest.RunCommandBasedAsync(sln, commandInfo, scenario, outcome,
-                    concern, beforePath, afterPath, dryRun);
-            }
-        }
-        // Legacy mode
-        else
-        {
-            if (className == null)
-            {
-                RtLog.Error("Error: either --class (legacy mode) or --command (command-based mode) is required.");
-                Environment.ExitCode = 1;
-                return;
-            }
-
-            if (name == null && acs == null)
-            {
-                RtLog.Error("Error: either --name or --acs is required in legacy mode.");
-                Environment.ExitCode = 1;
-                return;
-            }
-
-            var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
-            using (workspace)
-            {
-                await _addTest.RunAsync(sln, className, name, acs, nestedClass, filePath, dryRun);
-            }
-        }
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    //  AC → C# identifier conversion (delegates to Core; kept here for tests)
-    // ──────────────────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Converts a command to a method name.
-    /// </summary>
-    internal string AcToMethodName(string ac)
-    {
-        return _addTest.AcToMethodName(ac);
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    //  Command registry resolution
-    // ──────────────────────────────────────────────────────────────────────────
-
-    private static RtCommandInfo? ResolveCommandInfo(string commandName)
-    {
-        var entry = App.Commands
-            .FirstOrDefault(e =>
-                e.Info.Name == commandName ||
-                (e.Info.Aliases?.Contains(commandName) ?? false));
-
-        return entry.Info ?? null;
-    }
 }

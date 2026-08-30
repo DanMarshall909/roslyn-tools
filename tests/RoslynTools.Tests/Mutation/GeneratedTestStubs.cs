@@ -1,6 +1,5 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
-using Microsoft.Extensions.Logging.Abstractions;
 using RoslynTools.Core;
 using RoslynTools.Services;
 using Shouldly;
@@ -30,19 +29,17 @@ public sealed class GeneratedTestStubs
 
         var (_, solution) = project.Build();
         var targetFilePath = Path.Combine(project.ProjectDir, "OrderTests.cs");
-        var writer = new CapturingSolutionChangeWriter();
-
-        await new AddTestService(NullLogger<AddTestService>.Instance, writer).RunAsync(
+        var preparation = await new AddTestService().PrepareLegacyAsync(
             solution,
             "OrderTests",
             "returns_total_for_valid_items",
             null,
             null,
-            targetFilePath,
-            false);
+            targetFilePath);
 
-        var orderText = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "OrderTests.cs");
-        var invoiceText = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "InvoiceTests.cs");
+        preparation.ShouldNotBeNull();
+        var orderText = await TestSolutionDocuments.GetTextAsync(preparation.Solution, "OrderTests.cs");
+        var invoiceText = await TestSolutionDocuments.GetTextAsync(preparation.Solution, "InvoiceTests.cs");
 
         orderText.ShouldContain("using System;", Case.Sensitive);
         orderText.ShouldContain("using Xunit;", Case.Sensitive);
@@ -50,7 +47,6 @@ public sealed class GeneratedTestStubs
         orderText.ShouldContain("public void returns_total_for_valid_items()", Case.Sensitive);
         orderText.ShouldContain("throw new NotImplementedException();", Case.Sensitive);
         invoiceText.ShouldNotContain("returns_total_for_valid_items", Case.Sensitive);
-        writer.DryRun.ShouldBe(false);
     }
 
     [Fact]
@@ -66,18 +62,16 @@ public sealed class GeneratedTestStubs
                                            """);
 
         var (_, solution) = project.Build();
-        var writer = new CapturingSolutionChangeWriter();
-
-        await new AddTestService(NullLogger<AddTestService>.Instance, writer).RunAsync(
+        var preparation = await new AddTestService().PrepareLegacyAsync(
             solution,
             "OrderTests",
             null,
             "returns total for valid items; rejects missing customer",
             "WhenCheckingOut",
-            null,
-            false);
+            null);
 
-        var orderText = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "OrderTests.cs");
+        preparation.ShouldNotBeNull();
+        var orderText = await TestSolutionDocuments.GetTextAsync(preparation.Solution, "OrderTests.cs");
         var outerClassIndex = orderText.IndexOf("public class OrderTests", StringComparison.Ordinal);
         var nestedClassIndex = orderText.IndexOf("public class WhenCheckingOut", StringComparison.Ordinal);
 
@@ -100,29 +94,15 @@ public sealed class GeneratedTestStubs
                                            """);
 
         var (_, solution) = project.Build();
-        var originalExitCode = Environment.ExitCode;
-        var writer = new CapturingSolutionChangeWriter();
+        var preparation = await new AddTestService().PrepareLegacyAsync(
+            solution,
+            "MissingTests",
+            "returns_total_for_valid_items",
+            null,
+            null,
+            null);
 
-        try
-        {
-            Environment.ExitCode = 0;
-
-            await new AddTestService(NullLogger<AddTestService>.Instance, writer).RunAsync(
-                solution,
-                "MissingTests",
-                "returns_total_for_valid_items",
-                null,
-                null,
-                null,
-                false);
-
-            writer.Solution.ShouldBeNull();
-            Environment.ExitCode.ShouldBe(1);
-        }
-        finally
-        {
-            Environment.ExitCode = originalExitCode;
-        }
+        preparation.ShouldBeNull();
     }
 
     [Fact]
@@ -152,7 +132,6 @@ public sealed class GeneratedTestStubs
             ]);
         var workspace = new AdhocWorkspace();
         workspace.AddProject(projectInfo);
-        var writer = new CapturingSolutionChangeWriter();
         var commandInfo = new RtCommandInfo(
             "rename",
             true,
@@ -161,17 +140,17 @@ public sealed class GeneratedTestStubs
             "Scaffold rename command tests.",
             []);
 
-        await new AddTestService(NullLogger<AddTestService>.Instance, writer).RunCommandBasedAsync(
+        var preparation = await AddTestService.PrepareCommandBasedAsync(
             workspace.CurrentSolution,
             commandInfo,
             "source file owns the call site",
             "updates the reference",
             "SourceFileCallSite",
             null,
-            null,
-            false);
+            null);
 
-        var renameText = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "Rename.cs");
+        preparation.ShouldNotBeNull();
+        var renameText = await TestSolutionDocuments.GetTextAsync(preparation.Solution, "Rename.cs");
 
         renameText.ShouldContain("using System;", Case.Sensitive);
         renameText.ShouldContain("using Xunit;", Case.Sensitive);

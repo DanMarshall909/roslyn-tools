@@ -1,7 +1,10 @@
 using System.CommandLine;
-using Microsoft.CodeAnalysis;
+using System.Globalization;
+using System.Text;
+using RoslynTools.Cli;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -9,30 +12,14 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Generates a dependency graph for a solution.
 /// </summary>
-internal sealed class DependencyGraphCommand(IWorkspaceSessionFactory sessionFactory, DependencyGraphService dependencyGraph) : IRtCommand, IStructuredOutputCommand, IAnalyzeCommand
+internal sealed class DependencyGraphCommand(
+    DaemonRpcRecoveryCoordinator daemon,
+    DependencyGraphOperation operation) : IRtCommand, IStructuredOutputCommand, IAnalyzeCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
-    private readonly DependencyGraphService _dependencyGraph = dependencyGraph;
-    public static RtCommandInfo Info { get; } = new(
-        "dependency-graph",
-        false,
-        true,
-        "analyze",
-        Aliases: ["depgraph"],
-        WhenToUse:
-        "Visualising the type-level dependency graph for a solution or a specific root type, to understand coupling before a large refactor. Use --format dot to pipe into Graphviz, or --format json for programmatic consumption. Use --type + --depth to focus on a single type's fan-out.",
-        Examples:
-        [
-            "rt analyze dependency-graph --solution C:\\code\\libraries\\ProjectX.Libraries.sln --scope ProjectX.Core",
-            "rt analyze depgraph --type BookingService --depth 2 --solution RoslynTools.slnx",
-            "rt analyze dependency-graph --format dot --solution RoslynTools.slnx | dot -Tsvg -o deps.svg"
-        ],
-        KnownIssues:
-        [
-            "Graph edges are built from fields, method parameters/returns, base types, and interfaces only — local variable type usages inside method bodies are missed. Static command classes with no fields appear as isolated nodes even when they reference WorkspaceLoader/SolutionWriter internally. See ai-improvements row #12."
-        ],
-        SupportedFormats: [OutputFormat.Text, OutputFormat.Json]
-    );
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
+    private readonly DependencyGraphOperation _operation = operation;
+
+    public static RtCommandInfo Info => DependencyGraphCommandDefinition.Info;
 
     public Command Build()
     {
@@ -54,27 +41,39 @@ internal sealed class DependencyGraphCommand(IWorkspaceSessionFactory sessionFac
             var scope = ctx.ParseResult.GetValueForOption(scopeOpt);
             var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
 
-            var sln = await _sessionFactory.GetSolutionAsync(solution);
-            var result = await _dependencyGraph
-                .BuildGraphAsync(sln, typeName, depth, format ?? "json", scope);
-
-            RtResultRenderer.WriteText(RtResult<string>.Ok(result));
+            var result = await DaemonCommandExecutor.ExecuteTypedAsync(
+                _daemon,
+                _operation,
+                new DependencyGraphRequest(solution, typeName, depth, scope),
+                ctx.GetCancellationToken());
+            result.Match(
+                value => Render(value, format ?? "json"),
+                error => RtErrorPresenter.Surface(ctx, error));
         });
 
         return cmd;
     }
 
-    /// <summary>
-    ///     Builds a type-level dependency graph and returns it in the requested format.
-    ///     Delegates to <see cref="DependencyGraphService.BuildGraphAsync" />.
-    /// </summary>
-    internal Task<string> BuildGraphAsync(
-        Solution sln,
-        string? typeName,
-        int? depth,
-        string format,
-        string? scope)
+    private static void Render(DependencyGraphResult result, string format)
     {
-        return _dependencyGraph.BuildGraphAsync(sln, typeName, depth, format, scope);
+        if (!format.Equals("dot", StringComparison.OrdinalIgnoreCase))
+        {
+            RtResultRenderer.Write(RtResult<DependencyGraphResult>.Ok(result));
+            return;
+        }
+
+        var builder = new StringBuilder();
+        builder.AppendLine("digraph {");
+        foreach (var edge in result.Edges)
+            builder.AppendLine(CultureInfo.InvariantCulture, $"  \"{edge.From}\" -> \"{edge.To}\";");
+
+        var nodesInEdges = result.Edges
+            .SelectMany(static edge => new[] { edge.From, edge.To })
+            .ToHashSet(StringComparer.Ordinal);
+        foreach (var node in result.Nodes.Where(node => !nodesInEdges.Contains(node)).OrderBy(static node => node))
+            builder.AppendLine(CultureInfo.InvariantCulture, $"  \"{node}\";");
+
+        builder.Append('}');
+        RtResultRenderer.WriteText(RtResult<string>.Ok(builder.ToString()));
     }
 }

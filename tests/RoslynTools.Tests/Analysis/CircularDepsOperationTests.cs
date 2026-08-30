@@ -20,10 +20,12 @@ public sealed class CircularDepsOperationTests
         var result = await operation.ExecuteAsync(
             new CircularDepsRequest(Solution: "requested.sln", Scope: "CycleApp"));
 
-        operation.CommandName.ShouldBe("circular-deps");
+        operation.Definition.Name.ShouldBe("circular_deps");
         sessionFactory.LoadedSolutionPath.ShouldBe("requested.sln");
-        result.HasCycles.ShouldBeTrue();
-        result.Cycles.ShouldHaveSingleItem().Path.ShouldBe("CycleApp.A -> CycleApp.B -> CycleApp.A");
+        result.Match(value => value, error => throw new Xunit.Sdk.XunitException(error.Message))
+            .HasCycles.ShouldBeTrue();
+        result.Match(value => value, error => throw new Xunit.Sdk.XunitException(error.Message))
+            .Cycles.ShouldHaveSingleItem().Path.ShouldBe("CycleApp.A -> CycleApp.B -> CycleApp.A");
     }
 
     [Fact]
@@ -40,8 +42,10 @@ public sealed class CircularDepsOperationTests
 
         var result = await operation.ExecuteAsync(new CircularDepsRequest(Scope: "Clean"));
 
-        result.HasCycles.ShouldBeFalse();
-        result.Cycles.ShouldBeEmpty();
+        result.Match(value => value, error => throw new Xunit.Sdk.XunitException(error.Message))
+            .HasCycles.ShouldBeFalse();
+        result.Match(value => value, error => throw new Xunit.Sdk.XunitException(error.Message))
+            .Cycles.ShouldBeEmpty();
     }
 
     private sealed class FixedWorkspaceSessionFactory(

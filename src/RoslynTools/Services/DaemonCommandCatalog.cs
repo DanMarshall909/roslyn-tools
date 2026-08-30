@@ -38,7 +38,7 @@ internal static class DaemonOwnedCommands
             OutlineCommandDefinition.Info,
             CommandSafety.ReadOnly,
             typeof(OutlineRequest),
-            typeof(List<object>),
+            typeof(OutlineResult),
             [
                 new CommandFollowOn(
                     "describe",
@@ -129,7 +129,7 @@ internal static class DaemonOwnedCommands
             FindCallersCommandDefinition.Info,
             CommandSafety.ReadOnly,
             typeof(FindCallersRequest),
-            typeof(FindCallersResult),
+            typeof(FindCallersOperationResult),
             []),
         new DaemonCommandDefinition(
             FindImplementationsCommandDefinition.Name,
@@ -188,7 +188,7 @@ internal static class OutlineCommandDefinition
     internal static ApplicationCommandDefinition Definition { get; } = new(
         Metadata,
         typeof(OutlineRequest),
-        typeof(List<object>),
+        typeof(OutlineResult),
         mcpVisible: true,
         CommandSafety.ReadOnly,
         CommandExecutionPlacement.DaemonPreferred,
@@ -262,6 +262,22 @@ internal static class MakeSealedCommandDefinition
             "rt refactor ms --type CsvFormatter --dry-run",
             "rt refactor make-sealed --type RtCommandInfo --solution RoslynTools.slnx"
         ]);
+
+    internal static ApplicationCommandDefinition Definition { get; } = new(
+        Info,
+        typeof(MakeSealedRequest),
+        typeof(MutationExecutionResult<MakeSealedResult>),
+        true,
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.DaemonPreferred,
+        [
+            new CommandFollowOn(
+                "describe",
+                "Use after the preview or change to inspect the class declaration and its modifiers."),
+            new CommandFollowOn(
+                "find_refs",
+                "Use after sealing to review references to the class before committing the change.")
+        ]);
 }
 
 /// <summary>Canonical daemon metadata for circular dependency analysis.</summary>
@@ -328,6 +344,22 @@ internal static class FindPatternCommandDefinition
         ],
         SeeAlso: ["find-duplicates", "source", "complexity"],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json]);
+
+    internal static ApplicationCommandDefinition Definition { get; } = new(
+        Info,
+        typeof(FindPatternRequest),
+        typeof(FindPatternResult),
+        true,
+        CommandSafety.ReadOnly,
+        CommandExecutionPlacement.DaemonPreferred,
+        [
+            new CommandFollowOn(
+                "source",
+                "Use after a match to inspect the complete declaration containing that location."),
+            new CommandFollowOn(
+                "find_duplicates",
+                "Use when structural matches suggest a wider solution-level duplication problem.")
+        ]);
 }
 
 /// <summary>Canonical daemon metadata for language-feature density analysis.</summary>
@@ -397,6 +429,15 @@ internal static class FindCallersCommandDefinition
         ],
         SeeAlso: ["find-refs", "find-impl", "change-signature"],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]);
+
+    internal static ApplicationCommandDefinition Definition { get; } = new(
+        Info,
+        typeof(FindCallersRequest),
+        typeof(FindCallersOperationResult),
+        true,
+        CommandSafety.ReadOnly,
+        CommandExecutionPlacement.DaemonPreferred,
+        []);
 }
 
 /// <summary>Canonical daemon metadata for implementation discovery.</summary>
@@ -420,4 +461,13 @@ internal static class FindImplementationsCommandDefinition
         ],
         SeeAlso: ["find-refs", "find-callers", "implement-interface", "extract-interface"],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json]);
+
+    internal static ApplicationCommandDefinition Definition { get; } = new(
+        Info,
+        typeof(FindImplementationsRequest),
+        typeof(FindImplementationsResult),
+        true,
+        CommandSafety.ReadOnly,
+        CommandExecutionPlacement.DaemonPreferred,
+        []);
 }

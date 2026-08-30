@@ -3,7 +3,6 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Rename;
-using Microsoft.Extensions.Logging;
 using Microsoft.VisualBasic.FileIO;
 using RoslynTools.Core;
 using RoslynTools.Models;
@@ -17,23 +16,25 @@ namespace RoslynTools.Services;
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class RenameService : IRtService
 {
-    private readonly ILogger<RenameService> _logger;
-    private readonly ISolutionChangeWriter _solutionChangeWriter;
     private readonly ISymbolResolutionService _symbols;
 
-    public RenameService()
-        : this(new RtConsoleLogger<RenameService>(), new SolutionChangeWriter())
+    public RenameService(ISymbolResolutionService symbols)
     {
+        _symbols = symbols;
     }
 
-    public RenameService(ILogger<RenameService> logger, ISolutionChangeWriter solutionChangeWriter,
-        ISymbolResolutionService? symbols = null)
-    {
-        _symbols = symbols ?? new SymbolResolutionService();
+    internal sealed record RenamePreparation(
+        Solution Solution,
+        RenameResult Result,
+        IReadOnlyList<PreparedFileMove> FileMoves,
+        IReadOnlyList<MutationDiagnostic> Diagnostics);
 
-        _logger = logger;
-        _solutionChangeWriter = solutionChangeWriter;
-    }
+    internal sealed record RenameBatchPreparation(
+        Solution Solution,
+        IReadOnlyList<RenameResult> Results,
+        int Skipped,
+        IReadOnlyList<PreparedFileMove> FileMoves,
+        IReadOnlyList<MutationDiagnostic> Diagnostics);
 
     /// <summary>
     /// Asynchronously renames symbols within a solution.
@@ -46,8 +47,6 @@ internal class RenameService : IRtService
     {
         var sym = await _symbols.FindSymbolByFqnAsync(sln, symbol, kind);
 
-        _logger.RtInfo("Renaming '{Symbol}' -> '{NewName}'...", sym.ToDisplayString(), newName);
-
         var options = new SymbolRenameOptions(
             false,
             false,
@@ -57,22 +56,29 @@ internal class RenameService : IRtService
         return await Renamer.RenameSymbolAsync(sln, sym, options, newName);
     }
 
-    internal async Task<RenameResult> ExecuteAsync(Solution solution, RenameRequest request)
+    internal async Task<RenamePreparation> PrepareAsync(
+        Solution solution,
+        RenameRequest request,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var relatedPlan = await BuildRelatedRenamePlanAsync(
             solution,
             request.Symbol,
             request.NewName,
             request.Kind);
+        cancellationToken.ThrowIfCancellationRequested();
         var withRelatedEdits = await ApplyRelatedRenameEditsAsync(
             solution,
             relatedPlan,
             request.RelatedEditIds);
+        cancellationToken.ThrowIfCancellationRequested();
         var renamedSolution = await RenameAsync(
             withRelatedEdits,
             request.Symbol,
             request.NewName,
             request.Kind);
+        cancellationToken.ThrowIfCancellationRequested();
         var changedFilePaths = renamedSolution.GetChanges(solution)
             .GetProjectChanges()
             .SelectMany(project => project.GetChangedDocuments())
@@ -81,18 +87,17 @@ internal class RenameService : IRtService
             .Select(path => path!)
             .OrderBy(path => path, StringComparer.Ordinal)
             .ToArray();
-
-        await _solutionChangeWriter.ApplyChangesAsync(solution, renamedSolution, request.DryRun);
-        ApplyRelatedFileRenames(relatedPlan, request.RelatedEditIds, request.DryRun);
-
-        return new RenameResult(
+        var diagnostics = new List<MutationDiagnostic>();
+        var fileMoves = BuildSelectedFileMoves(relatedPlan, request.RelatedEditIds, diagnostics);
+        var result = new RenameResult(
             request.Symbol,
             request.NewName,
             changedFilePaths.Length,
             changedFilePaths,
-            !request.DryRun,
+            false,
             request.RelatedEditIds.OrderBy(id => id, StringComparer.Ordinal).ToArray(),
             relatedPlan.Edits);
+        return new RenamePreparation(renamedSolution, result, fileMoves, diagnostics);
     }
 
     internal async Task<RelatedRenamePlan> BuildRelatedRenamePlanAsync(
@@ -223,13 +228,32 @@ internal class RenameService : IRtService
         return solution;
     }
 
-    internal void ApplyRelatedFileRenames(
+    private static List<PreparedFileMove> BuildSelectedFileMoves(
         RelatedRenamePlan plan,
         IReadOnlySet<string> selectedIds,
-        bool dryRun)
+        List<MutationDiagnostic> diagnostics)
     {
-        foreach (var edit in plan.Edits.Where(edit => edit.Kind == "file" && selectedIds.Contains(edit.Id)))
-            ApplyFileRename((edit.OldText, edit.NewText), dryRun);
+        var moves = new List<PreparedFileMove>();
+        foreach (var edit in plan.Edits.Where(edit =>
+                     edit.Kind == "file" && selectedIds.Contains(edit.Id)))
+        {
+            if (File.Exists(edit.NewText))
+            {
+                diagnostics.Add(new MutationDiagnostic(
+                    MutationDiagnosticSeverity.Warning,
+                    $"Target file already exists: {edit.NewText} — file not renamed.",
+                    Context: new Dictionary<string, string>
+                    {
+                        ["source"] = edit.OldText,
+                        ["destination"] = edit.NewText
+                    }));
+                continue;
+            }
+
+            moves.Add(new PreparedFileMove(edit.OldText, edit.NewText));
+        }
+
+        return moves;
     }
 
     private static SyntaxToken RewriteRelatedToken(
@@ -346,53 +370,7 @@ internal class RenameService : IRtService
         return value.Length == 0 ? value : char.ToLowerInvariant(value[0]) + value[1..];
     }
 
-    /// <summary>
-    /// Asynchronously renames a single symbol within a solution.
-    /// </summary>
-    internal async Task ExecuteSingleAsync(
-        Solution sln,
-        string symbol,
-        string newName,
-        string? kind,
-        bool dryRun)
-    {
-        await ExecuteAsync(
-            sln,
-            new RenameRequest(
-                symbol,
-                newName,
-                kind,
-                dryRun,
-                new HashSet<string>(StringComparer.Ordinal)));
-    }
-
-    private async Task<Solution> RenameOneAsync(
-        Solution sln,
-        string symbol,
-        string newName,
-        string? kind,
-        bool dryRun)
-    {
-        var sym = await _symbols.FindSymbolByFqnAsync(sln, symbol, kind);
-        var fileRename = ComputeFileRename(sym, newName);
-
-        _logger.RtInfo("Renaming '{Symbol}' -> '{NewName}'...", sym.ToDisplayString(), newName);
-
-        var newSln = await Renamer.RenameSymbolAsync(
-            sln,
-            sym,
-            new SymbolRenameOptions(false, false, false, false),
-            newName);
-
-        await _solutionChangeWriter.ApplyChangesAsync(sln, newSln, dryRun);
-
-        if (fileRename is { } rename)
-            ApplyFileRename(rename, dryRun);
-
-        return newSln;
-    }
-
-    private (string OldPath, string NewPath)? ComputeFileRename(ISymbol sym, string newName)
+    private static (string OldPath, string NewPath)? ComputeFileRename(ISymbol sym, string newName)
     {
         if (sym is not INamedTypeSymbol) return null;
 
@@ -408,30 +386,12 @@ internal class RenameService : IRtService
         return (filePath, Path.Combine(dir, newName + ext));
     }
 
-    private void ApplyFileRename((string OldPath, string NewPath) rename, bool dryRun)
-    {
-        if (dryRun)
-        {
-            RtConsole.WriteLine(RtOutputContext.Diagnostic,
-                $"[dry-run] Would rename: {rename.OldPath} -> {rename.NewPath}");
-            return;
-        }
-
-        if (File.Exists(rename.NewPath))
-        {
-            _logger.RtWarning("Target file already exists: {Path} — file not renamed.", rename.NewPath);
-            return;
-        }
-
-        File.Move(rename.OldPath, rename.NewPath);
-        RtConsole.WriteLine(RtOutputContext.Diagnostic, $"Renamed file: {rename.OldPath} -> {rename.NewPath}");
-    }
-
-    internal async Task ExecuteBatchAsync(
+    internal async Task<RenameBatchPreparation> PrepareBatchAsync(
         Solution sln,
         string csvPath,
-        bool dryRun)
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (!File.Exists(csvPath))
             throw new FileNotFoundException("CSV mapping file was not found.", csvPath);
 
@@ -441,37 +401,103 @@ internal class RenameService : IRtService
             throw new InvalidOperationException(
                 $"CSV contains {flagged.Count} row(s) with a non-empty review column. Curate first.");
 
-        var currentSln = sln;
+        var currentSolution = sln;
+        var results = new List<RenameResult>();
+        var skipped = 0;
+        var moves = new List<PreparedFileMove>();
+        var diagnostics = new List<MutationDiagnostic>();
         foreach (var row in rows.Where(r => !string.IsNullOrWhiteSpace(r.NewName)))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (string.IsNullOrWhiteSpace(row.OldFqn))
                 continue;
 
-            currentSln = await RenameOneOrSkipAlreadyAppliedAsync(currentSln, row, dryRun);
+            var prepared = await PrepareBatchRowAsync(currentSolution, row, cancellationToken);
+            if (prepared is null)
+            {
+                skipped++;
+                diagnostics.Add(new MutationDiagnostic(
+                    MutationDiagnosticSeverity.Information,
+                    $"Skipping already-applied rename '{row.OldFqn}' -> '{row.NewName}'.",
+                    Context: new Dictionary<string, string>
+                    {
+                        ["symbol"] = row.OldFqn,
+                        ["newName"] = row.NewName!
+                    }));
+                continue;
+            }
+
+            currentSolution = prepared.Solution;
+            results.Add(prepared.Result);
+            moves.AddRange(prepared.FileMoves);
+            foreach (var diagnostic in prepared.Diagnostics)
+                diagnostics.Add(diagnostic);
         }
+
+        return new RenameBatchPreparation(currentSolution, results, skipped, moves, diagnostics);
     }
 
-    private async Task<Solution> RenameOneOrSkipAlreadyAppliedAsync(
+    private async Task<RenamePreparation?> PrepareBatchRowAsync(
         Solution sln,
         RenameCsvRow row,
-        bool dryRun)
+        CancellationToken cancellationToken)
     {
         try
         {
-            return await RenameOneAsync(sln, row.OldFqn!, row.NewName!, null, dryRun);
+            var symbol = await _symbols.FindSymbolByFqnAsync(sln, row.OldFqn!, null);
+            cancellationToken.ThrowIfCancellationRequested();
+            var fileRename = ComputeFileRename(symbol, row.NewName!);
+            var renamedSolution = await Renamer.RenameSymbolAsync(
+                sln,
+                symbol,
+                new SymbolRenameOptions(false, false, false, false),
+                row.NewName!,
+                cancellationToken);
+            var changedFilePaths = renamedSolution.GetChanges(sln)
+                .GetProjectChanges()
+                .SelectMany(project => project.GetChangedDocuments())
+                .Select(id => renamedSolution.GetDocument(id)?.FilePath)
+                .Where(path => !string.IsNullOrEmpty(path))
+                .Select(path => path!)
+                .OrderBy(path => path, StringComparer.Ordinal)
+                .ToArray();
+            var moves = new List<PreparedFileMove>();
+            var diagnostics = new List<MutationDiagnostic>();
+            if (fileRename is { } move)
+            {
+                if (File.Exists(move.NewPath))
+                {
+                    diagnostics.Add(new MutationDiagnostic(
+                        MutationDiagnosticSeverity.Warning,
+                        $"Target file already exists: {move.NewPath} — file not renamed.",
+                        Context: new Dictionary<string, string>
+                        {
+                            ["source"] = move.OldPath,
+                            ["destination"] = move.NewPath
+                        }));
+                }
+                else
+                {
+                    moves.Add(new PreparedFileMove(move.OldPath, move.NewPath));
+                }
+            }
+
+            var result = new RenameResult(
+                row.OldFqn!,
+                row.NewName!,
+                changedFilePaths.Length,
+                changedFilePaths,
+                false,
+                [],
+                []);
+            return new RenamePreparation(renamedSolution, result, moves, diagnostics);
         }
         catch (InvalidOperationException ex) when (ex.Message.StartsWith(
                                                        $"No symbol with FQN '{row.OldFqn}' found in solution.",
                                                        StringComparison.Ordinal))
         {
             if (await AnyAlreadyAppliedTargetExistsAsync(sln, row))
-            {
-                _logger.RtInfo(
-                    "Skipping already-applied rename '{Symbol}' -> '{NewName}'.",
-                    row.OldFqn,
-                    row.NewName);
-                return sln;
-            }
+                return null;
 
             throw;
         }

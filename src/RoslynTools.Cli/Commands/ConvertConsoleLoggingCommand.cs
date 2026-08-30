@@ -1,41 +1,19 @@
 using System.CommandLine;
-using System.Text;
-using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
-using RoslynTools.Core.Output;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
-/// <summary>
-/// Converts console logging to a more structured format.
-/// </summary>
-internal sealed class ConvertConsoleLoggingCommand(IWorkspaceSessionFactory sessionFactory, AddDependencyService addDependency, ISolutionChangeWriter solutionChangeWriter) : IRtCommand, IRefactorCommand
+/// <summary>Converts console logging to structured logger calls.</summary>
+internal sealed class ConvertConsoleLoggingCommand(
+    DaemonRpcRecoveryCoordinator daemon,
+    ConvertConsoleLoggingOperation operation) : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
-    private readonly AddDependencyService _addDependency = addDependency;
-    private readonly ISolutionChangeWriter _solutionChangeWriter = solutionChangeWriter;
-    public static RtCommandInfo Info { get; } = new(
-        "convert-console-logging",
-        true,
-        false,
-        "refactor",
-        Aliases: ["ccl"],
-        WhenToUse:
-        "Migrating Console.Write/WriteLine and Console.Error.Write/WriteLine calls to logger calls while preserving messages as structured templates where possible. Use this after the target logger dependency already exists, or pair it with add-dependency.",
-        Examples:
-        [
-            "rt refactor convert-console-logging --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt refactor ccl --inject-logger --solution C:\\code\\app\\App.sln",
-            "rt refactor ccl --inject-logger --apply --solution C:\\code\\app\\App.sln",
-            "rt refactor convert-console-logging --stream all --logger _log --information-method Info --warning-method Warn --error-method Error --dry-run --solution C:\\code\\app\\App.sln"
-        ],
-        KnownIssues:
-        [
-            "Logger injection reuses add-dependency and only targets containing classes that have matching Console call sites.",
-            "Ambiguous non-template expressions are wrapped as {Value} and flagged by --review."
-        ]
-    );
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
+    private readonly ConvertConsoleLoggingOperation _operation = operation;
+
+    public static RtCommandInfo Info => ConvertConsoleLoggingCommandDefinition.Info;
 
     public Command Build()
     {
@@ -48,8 +26,8 @@ internal sealed class ConvertConsoleLoggingCommand(IWorkspaceSessionFactory sess
             "Method used when warning-level text is inferred");
         var errorMethodOpt = new Option<string>("--error-method", () => "LogError",
             "Method used for Console.Error.Write/WriteLine");
-        var streamOpt =
-            new Option<string>("--stream", () => "stderr", "Console stream to rewrite: all, stdout, or stderr");
+        var streamOpt = new Option<string>("--stream", () => "stderr",
+            "Console stream to rewrite: all, stdout, or stderr");
         var excludeOpt = new Option<string[]>("--exclude", "Path fragment to exclude; repeat for multiple exclusions")
         {
             AllowMultipleArgumentsPerToken = true
@@ -57,7 +35,7 @@ internal sealed class ConvertConsoleLoggingCommand(IWorkspaceSessionFactory sess
         var noInferLevelOpt = new Option<bool>("--no-infer-level",
             "Disable warning/info/error inference and map stderr to the error method");
         var applyOpt = new Option<bool>("--apply",
-            "Write changes to disk. Without this, the command prints a review summary.");
+            "Write changes to disk. Without this, the command returns a structured review.");
         var reviewOpt = new Option<bool>("--review",
             "Summarize matching call sites without writing files or printing a full diff. This is the default mode.");
         var injectLoggerOpt = new Option<bool>("--inject-logger",
@@ -74,185 +52,24 @@ internal sealed class ConvertConsoleLoggingCommand(IWorkspaceSessionFactory sess
 
         cmd.SetHandler(async context =>
         {
-            await ExecuteAsync(
+            var request = new ConvertConsoleLoggingRequest(
                 context.ParseResult.GetValueForOption(solutionOpt),
                 context.ParseResult.GetValueForOption(dryRunOpt),
+                context.ParseResult.GetValueForOption(applyOpt),
+                context.ParseResult.GetValueForOption(reviewOpt),
                 context.ParseResult.GetValueForOption(loggerOpt)!,
                 context.ParseResult.GetValueForOption(informationMethodOpt)!,
                 context.ParseResult.GetValueForOption(warningMethodOpt)!,
                 context.ParseResult.GetValueForOption(errorMethodOpt)!,
                 context.ParseResult.GetValueForOption(streamOpt)!,
                 context.ParseResult.GetValueForOption(excludeOpt) ?? [],
-                !context.ParseResult.GetValueForOption(noInferLevelOpt),
-                context.ParseResult.GetValueForOption(applyOpt),
-                context.ParseResult.GetValueForOption(reviewOpt),
+                context.ParseResult.GetValueForOption(noInferLevelOpt),
                 context.ParseResult.GetValueForOption(injectLoggerOpt),
                 context.ParseResult.GetValueForOption(loggerDependencyOpt)!,
                 context.ParseResult.GetValueForOption(loggerFieldOpt)!);
+            await DaemonCommandExecutor.ExecuteAsync(_daemon, _operation, request, context);
         });
 
         return cmd;
     }
-
-    /// <summary>
-    /// Executes console logging conversion with detailed parameters.
-    /// </summary>
-    internal async Task ExecuteAsync(
-        string? solutionPath,
-        bool dryRun,
-        string loggerExpression,
-        string informationMethod,
-        string warningMethod,
-        string errorMethod,
-        string stream,
-        string[] excludePaths,
-        bool inferLevel,
-        bool apply,
-        bool review,
-        bool injectLogger,
-        string loggerDependency,
-        string loggerField)
-    {
-        var (workspace, solution) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
-        using (workspace)
-        {
-            await ExecuteCoreAsync(solution, dryRun, loggerExpression, informationMethod, warningMethod, errorMethod,
-                stream, excludePaths, inferLevel, apply, review, injectLogger, loggerDependency, loggerField);
-        }
-    }
-
-    /// <summary>
-    /// Executes console logging conversion core functionality with optional parameters.
-    /// </summary>
-    internal Task ExecuteCoreAsync(
-        Solution solution,
-        bool dryRun,
-        string loggerExpression = "_logger",
-        string informationMethod = "LogInformation",
-        string warningMethod = "LogWarning",
-        string errorMethod = "LogError",
-        string stream = "all",
-        string[]? excludePaths = null,
-        bool inferLevel = true,
-        bool apply = false,
-        bool review = false,
-        bool injectLogger = false,
-        string loggerDependency = "ILogger<{TypeName}>",
-        string loggerField = "_logger")
-    {
-        var options = new ConsoleLoggingOptions(
-            loggerExpression,
-            informationMethod,
-            warningMethod,
-            errorMethod,
-            ParseStream(stream),
-            excludePaths ?? [],
-            inferLevel);
-
-        if (review || (!apply && !dryRun))
-            return ReviewAsync(solution, options, injectLogger, loggerDependency);
-
-        if (injectLogger)
-            return ApplyWithLoggerInjectionAsync(solution, options, dryRun, loggerDependency, loggerField);
-
-        return ConsoleLoggingCore.RunAsync(solution, options, dryRun, _solutionChangeWriter);
-    }
-
-    private static ConsoleLoggingStream ParseStream(string stream)
-    {
-        return stream.ToLowerInvariant() switch
-        {
-            "all" => ConsoleLoggingStream.All,
-            "stdout" => ConsoleLoggingStream.Stdout,
-            "stderr" => ConsoleLoggingStream.Stderr,
-            _ => throw new ArgumentException("Stream must be one of: all, stdout, stderr.", nameof(stream))
-        };
-    }
-
-    private async Task ApplyWithLoggerInjectionAsync(
-        Solution solution,
-        ConsoleLoggingOptions options,
-        bool dryRun,
-        string loggerDependency,
-        string loggerField)
-    {
-        var originalSolution = solution;
-        var review = await ConsoleLoggingCore.AnalyzeAsync(solution, options);
-
-        foreach (var target in GetInjectionTargets(review, loggerDependency))
-        {
-            var result = await _addDependency.ApplyAsync(
-                solution,
-                target.TypeFullName,
-                target.DependencyType,
-                loggerField);
-            solution = result.Solution;
-        }
-
-        solution = await ConsoleLoggingCore.ApplyAsync(solution, options);
-        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
-    }
-
-    private static async Task ReviewAsync(
-        Solution solution,
-        ConsoleLoggingOptions options,
-        bool injectLogger,
-        string loggerDependency)
-    {
-        var review = await ConsoleLoggingCore.AnalyzeAsync(solution, options);
-        var entries = review.Entries;
-        var output = new StringBuilder();
-
-        output.AppendLine(FormattableString.Invariant($"console logging review: {entries.Count} call site(s)"));
-        foreach (var group in entries.GroupBy(e => e.Stream).OrderBy(g => g.Key))
-        {
-            output.AppendLine(FormattableString.Invariant($"  {group.Key}: {group.Count()}"));
-            foreach (var levelGroup in group.GroupBy(e => e.Level).OrderBy(g => g.Key))
-                output.AppendLine(FormattableString.Invariant($"    {levelGroup.Key}: {levelGroup.Count()}"));
-        }
-
-        var reviewCount = entries.Count(e => e.NeedsReview);
-        if (reviewCount > 0)
-            output.AppendLine(FormattableString.Invariant($"  needs-review: {reviewCount}"));
-
-        if (injectLogger)
-        {
-            var targets = GetInjectionTargets(review, loggerDependency).ToList();
-            output.AppendLine(FormattableString.Invariant($"  logger injections: {targets.Count}"));
-            foreach (var target in targets.Take(20))
-                output.AppendLine(FormattableString.Invariant($"    {target.TypeFullName}: {target.DependencyType}"));
-        }
-
-        foreach (var entry in entries.Where(e => e.NeedsReview).Take(20))
-            output.AppendLine(
-                FormattableString.Invariant($"  REVIEW {entry.FilePath}({entry.Line}): {entry.Template}"));
-
-        RtResultRenderer.WriteText(RtResult<string>.Ok(output.ToString()));
-    }
-
-    private static IEnumerable<LoggerInjectionTarget> GetInjectionTargets(
-        ConsoleLoggingReview review,
-        string dependencyTemplate)
-    {
-        return review.Entries
-            .Where(e => !string.IsNullOrWhiteSpace(e.TypeName)
-                        && !string.IsNullOrWhiteSpace(e.TypeFullName))
-            .GroupBy(e => e.TypeFullName!, StringComparer.Ordinal)
-            .OrderBy(g => g.Key, StringComparer.Ordinal)
-            .Select(g =>
-            {
-                var entry = g.First();
-                return new LoggerInjectionTarget(
-                    entry.TypeFullName!,
-                    FormatDependencyType(dependencyTemplate, entry.TypeName!, entry.TypeFullName!));
-            });
-    }
-
-    private static string FormatDependencyType(string template, string typeName, string typeFullName)
-    {
-        return template.Replace("{TypeName}", typeName, StringComparison.Ordinal)
-            .Replace("{TypeFullName}", typeFullName, StringComparison.Ordinal);
-    }
-
-    private sealed record LoggerInjectionTarget(string TypeFullName, string DependencyType);
 }

@@ -211,28 +211,28 @@ public class ServiceHelpers : IClassFixture<RtServicesFixture>
     public void reads_batch_rows_throws_for_empty_file()
     {
         var path = WriteTempCsv("");
-        Should.Throw<InvalidOperationException>(() => new RenameService().ReadBatchRows(path));
+        Should.Throw<InvalidOperationException>(() => _services.Resolve<RenameService>().ReadBatchRows(path));
     }
 
     [Fact]
     public void reads_batch_rows_throws_when_source_symbol_column_missing()
     {
         var path = WriteTempCsv("target_name\nFoo");
-        Should.Throw<InvalidOperationException>(() => new RenameService().ReadBatchRows(path));
+        Should.Throw<InvalidOperationException>(() => _services.Resolve<RenameService>().ReadBatchRows(path));
     }
 
     [Fact]
     public void reads_batch_rows_throws_when_target_name_column_missing()
     {
         var path = WriteTempCsv("source_symbol\nFoo");
-        Should.Throw<InvalidOperationException>(() => new RenameService().ReadBatchRows(path));
+        Should.Throw<InvalidOperationException>(() => _services.Resolve<RenameService>().ReadBatchRows(path));
     }
 
     [Fact]
     public void reads_batch_rows_parses_valid_csv()
     {
         var path = WriteTempCsv("source_symbol,target_name\nOldName,NewName");
-        var rows = new RenameService().ReadBatchRows(path);
+        var rows = _services.Resolve<RenameService>().ReadBatchRows(path);
         Assert.Single(rows);
         rows[0].OldFqn.ShouldBe("OldName");
         rows[0].NewName.ShouldBe("NewName");
@@ -243,7 +243,7 @@ public class ServiceHelpers : IClassFixture<RtServicesFixture>
     public void reads_batch_rows_reads_optional_review_column()
     {
         var path = WriteTempCsv("source_symbol,target_name,review\nOldName,NewName,check-this");
-        var rows = new RenameService().ReadBatchRows(path);
+        var rows = _services.Resolve<RenameService>().ReadBatchRows(path);
         Assert.Single(rows);
         rows[0].Review.ShouldBe("check-this");
     }
@@ -259,7 +259,7 @@ public class ServiceHelpers : IClassFixture<RtServicesFixture>
                                 tests/AlreadyGood.cs,My.Tests.AlreadyGood,AlreadyGood,AlreadyGood,My.Tests.AlreadyGood.already_good,already_good,already_good,,AlreadyGood already good
                                 """);
 
-        var rows = new RenameService().ReadBatchRows(path);
+        var rows = _services.Resolve<RenameService>().ReadBatchRows(path);
 
         Assert.Collection(
             rows,
@@ -299,8 +299,8 @@ public class ServiceHelpers : IClassFixture<RtServicesFixture>
     public void gets_field_returns_null_for_out_of_bounds_index()
     {
         var fields = new[] { "a", "b" };
-        new RenameService().GetField(fields, 5).ShouldBeNull();
-        new RenameService().GetField(fields, -1).ShouldBeNull();
+        _services.Resolve<RenameService>().GetField(fields, 5).ShouldBeNull();
+        _services.Resolve<RenameService>().GetField(fields, -1).ShouldBeNull();
     }
 
     private static string WriteTempCsv(string content)

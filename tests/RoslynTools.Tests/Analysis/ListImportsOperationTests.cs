@@ -18,13 +18,14 @@ public sealed class ListImportsOperationTests
 
         var result = await operation.ExecuteAsync(new ListImportsRequest("requested.slnx", "all"));
 
-        operation.CommandName.ShouldBe("list_imports");
+        operation.Definition.Name.ShouldBe("list_imports");
         sessionFactory.RequestedSolution.ShouldBe("requested.slnx");
-        result.Imports.Count.ShouldBe(3);
-        result.Imports.Select(importDirective => importDirective.Kind)
+        var response = result.Match(value => value, error => throw new ShouldAssertException(error.Message));
+        response.Imports.Count.ShouldBe(3);
+        response.Imports.Select(importDirective => importDirective.Kind)
             .ShouldBe(["global", "static", "alias"]);
-        result.Imports.Single(importDirective => importDirective.IsGlobal).Name.ShouldBe("System");
-        result.Imports.Single(importDirective => importDirective.IsStatic).Name.ShouldBe("System.Math");
+        response.Imports.Single(importDirective => importDirective.IsGlobal).Name.ShouldBe("System");
+        response.Imports.Single(importDirective => importDirective.IsStatic).Name.ShouldBe("System.Math");
     }
 
     [Fact]
@@ -39,7 +40,8 @@ public sealed class ListImportsOperationTests
 
         var result = await operation.ExecuteAsync(new ListImportsRequest(ImportKind: "global"));
 
-        result.Imports.ShouldHaveSingleItem().Name.ShouldBe("System");
+        result.Match(value => value, error => throw new ShouldAssertException(error.Message))
+            .Imports.ShouldHaveSingleItem().Name.ShouldBe("System");
     }
 
     private sealed class CapturingWorkspaceSessionFactory(

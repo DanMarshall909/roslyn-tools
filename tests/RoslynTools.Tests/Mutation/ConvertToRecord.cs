@@ -1,15 +1,12 @@
-using RoslynTools.Commands;
+using Microsoft.CodeAnalysis;
 using RoslynTools.Core;
-using RoslynTools.Tests.Infrastructure;
+using RoslynTools.Services;
 using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
-public class ConvertToRecord : IClassFixture<RtServicesFixture>
+public class ConvertToRecord
 {
-    private readonly RtServicesFixture _services;
-    public ConvertToRecord(RtServicesFixture services) => _services = services;
-
     private const string RecordAppSource = """
                                            class Point { public int X { get; init; } public int Y { get; init; } }
                                            class WithEquals {
@@ -31,10 +28,7 @@ public class ConvertToRecord : IClassFixture<RtServicesFixture>
         proj.AddSource("Types.cs", RecordAppSource);
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
-        {
-            await _services.Resolve<ConvertToRecordCommand>().ExecuteAsync("Point", "ignored", false);
-        }
+        (await ExecuteAsync(workspace, sln, "Point")).IsOk.ShouldBeTrue();
 
         var content = await proj.ReadSourceAsync("Types.cs");
         content.ShouldContain("record Point", Case.Sensitive);
@@ -52,10 +46,7 @@ public class ConvertToRecord : IClassFixture<RtServicesFixture>
         proj.AddSource("Types.cs", RecordAppSource);
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
-        {
-            await _services.Resolve<ConvertToRecordCommand>().ExecuteAsync("Point", "ignored", false);
-        }
+        (await ExecuteAsync(workspace, sln, "Point")).IsOk.ShouldBeTrue();
 
         var content = await proj.ReadSourceAsync("Types.cs");
         // Positional record syntax: record Point(int X, int Y)
@@ -74,10 +65,7 @@ public class ConvertToRecord : IClassFixture<RtServicesFixture>
         proj.AddSource("Types.cs", RecordAppSource);
         var (workspace, sln) = proj.Build();
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
-        {
-            await _services.Resolve<ConvertToRecordCommand>().ExecuteAsync("WithEquals", "ignored", false);
-        }
+        (await ExecuteAsync(workspace, sln, "WithEquals")).IsOk.ShouldBeTrue();
 
         var content = await proj.ReadSourceAsync("Types.cs");
         content.ShouldNotContain("override bool Equals", Case.Sensitive);
@@ -95,24 +83,10 @@ public class ConvertToRecord : IClassFixture<RtServicesFixture>
         proj.AddSource("Types.cs", RecordAppSource);
         var (workspace, sln) = proj.Build();
 
-        // Capture stderr to verify warning
-        var originalError = Console.Error;
-        var errorCapture = new StringWriter();
-        Console.SetError(errorCapture);
-        try
-        {
-            using (WorkspaceLoader.UseOverride(workspace, sln))
-            {
-                await _services.Resolve<ConvertToRecordCommand>().ExecuteAsync("WithMutableProp", "ignored", false);
-            }
-        }
-        finally
-        {
-            Console.SetError(originalError);
-        }
+        var execution = (await ExecuteAsync(workspace, sln, "WithMutableProp")).Unwrap();
 
-        var stderrOutput = errorCapture.ToString();
-        Assert.Contains("mutable", stderrOutput, StringComparison.OrdinalIgnoreCase);
+        execution.Diagnostics.ShouldHaveSingleItem().Message
+            .ShouldContain("mutable", Case.Insensitive);
 
         var content = await proj.ReadSourceAsync("Types.cs");
         content.ShouldContain("record WithMutableProp", Case.Sensitive);
@@ -131,12 +105,34 @@ public class ConvertToRecord : IClassFixture<RtServicesFixture>
 
         var before = await proj.ReadSourceAsync("Types.cs");
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
-        {
-            await _services.Resolve<ConvertToRecordCommand>().ExecuteAsync("Point", "ignored", true);
-        }
+        (await ExecuteAsync(workspace, sln, "Point", dryRun: true)).IsOk.ShouldBeTrue();
 
         var after = await proj.ReadSourceAsync("Types.cs");
         after.ShouldBe(before);
+    }
+
+    private static Task<Result<MutationExecutionResult<ConvertToRecordResult>, RtError>> ExecuteAsync(
+        Workspace workspace,
+        Solution solution,
+        string type,
+        bool dryRun = false)
+    {
+        var operation = new ConvertToRecordOperation(
+            new FixedWorkspaceSessionFactory(workspace, solution),
+            new ConvertToRecordService(
+                new SymbolResolutionService(),
+                new DocumentLocatorService()),
+            new SolutionChangeWriter());
+        return operation.ExecuteAsync(new ConvertToRecordRequest(type, DryRun: dryRun));
+    }
+
+    private sealed class FixedWorkspaceSessionFactory(
+        Workspace workspace,
+        Solution solution) : IWorkspaceSessionFactory
+    {
+        public Task<Solution> GetSolutionAsync(string? solutionPath) => Task.FromResult(solution);
+
+        public Task<(Workspace Workspace, Solution Solution)> LoadWorkspaceAsync(string? solutionPath) =>
+            Task.FromResult((workspace, solution));
     }
 }

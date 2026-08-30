@@ -37,11 +37,11 @@ internal sealed record MakeSealedPreparation(
 
 /// <summary>Shared make-sealed operation used by future CLI and MCP adapters.</summary>
 internal sealed class MakeSealedOperation
-    : LegacyCommandApplicationPort<MakeSealedRequest, MutationExecutionResult<MakeSealedResult>>, IRtService
+    : CommandApplicationPort<MakeSealedRequest, MutationExecutionResult<MakeSealedResult>>, IRtService
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly MakeSealedService _makeSealed;
-    private readonly ISolutionChangeWriter _solutionChangeWriter;
+    private readonly PreparedChangeSetExecutor _changeSetExecutor;
 
     public MakeSealedOperation(
         IWorkspaceSessionFactory sessionFactory,
@@ -50,12 +50,13 @@ internal sealed class MakeSealedOperation
     {
         _sessionFactory = sessionFactory;
         _makeSealed = makeSealed;
-        _solutionChangeWriter = solutionChangeWriter;
+        _changeSetExecutor = new PreparedChangeSetExecutor(
+            new SolutionPreparedChangeSetWriter(solutionChangeWriter));
     }
 
-    public override string CommandName => "make-sealed";
+    public override ApplicationCommandDefinition Definition => MakeSealedCommandDefinition.Definition;
 
-    public override async Task<MutationExecutionResult<MakeSealedResult>> ExecuteAsync(
+    public override async Task<Result<MutationExecutionResult<MakeSealedResult>, RtError>> ExecuteAsync(
         MakeSealedRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -64,28 +65,38 @@ internal sealed class MakeSealedOperation
         using (workspace)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var prepared = await _makeSealed.PrepareAsync(solution, request.Type);
-            if (!prepared.Changed)
+            MakeSealedPreparation prepared;
+            try
             {
-                return MutationExecutionResult<MakeSealedResult>.NoOp(
-                    prepared.Result,
-                    [new MutationDiagnostic(
-                        MutationDiagnosticSeverity.Information,
-                        prepared.Result.Message ?? "No changes were required.")]);
+                prepared = await _makeSealed.PrepareAsync(solution, request.Type);
+            }
+            catch (InvalidOperationException exception)
+            {
+                return Result<MutationExecutionResult<MakeSealedResult>, RtError>.Err(
+                    exception.Message.Contains("not found", StringComparison.OrdinalIgnoreCase)
+                        ? RtError.NotFound(exception.Message)
+                        : new RtError(RtErrorKind.InvalidInput, exception.Message));
             }
 
-            await _solutionChangeWriter.ApplyChangesAsync(
-                solution,
-                prepared.Solution,
-                request.DryRun);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!prepared.Changed)
+            {
+                return Result<MutationExecutionResult<MakeSealedResult>, RtError>.Ok(
+                    MutationExecutionResult<MakeSealedResult>.NoOp(
+                        prepared.Result,
+                        [new MutationDiagnostic(
+                            MutationDiagnosticSeverity.Information,
+                            prepared.Result.Message ?? "No changes were required.")]));
+            }
 
-            return request.DryRun
-                ? MutationExecutionResult<MakeSealedResult>.DryRun(
+            var changeSet = new PreparedChangeSet(solution, prepared.Solution);
+            var result = request.DryRun
+                ? _changeSetExecutor.Preview(prepared.Result, changeSet)
+                : await _changeSetExecutor.ApplyAsync(
                     prepared.Result,
-                    prepared.ChangedFiles)
-                : MutationExecutionResult<MakeSealedResult>.Applied(
-                    prepared.Result,
-                    prepared.ChangedFiles);
+                    changeSet,
+                    cancellationToken: cancellationToken);
+            return Result<MutationExecutionResult<MakeSealedResult>, RtError>.Ok(result);
         }
     }
 }

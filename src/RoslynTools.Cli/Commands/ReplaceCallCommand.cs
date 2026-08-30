@@ -1,5 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Core;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -7,25 +8,20 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Replaces a call with a new implementation or method.
 /// </summary>
-internal sealed class ReplaceCallCommand(IWorkspaceSessionFactory sessionFactory, ReplaceCallService replace) : IRtCommand, IRefactorCommand
+internal sealed class ReplaceCallCommand : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
-    private readonly ReplaceCallService _replace = replace;
-    public static RtCommandInfo Info { get; } = new(
-        "replace-call",
-        true,
-        false,
-        "refactor",
-        Aliases: ["rc"],
-        WhenToUse:
-        "Replacing all invocations of a static method with a different method name across the solution. Use when renaming a utility method that isn't captured by a semantic rename (e.g. because callers use it via a static import or the old name needs to stay as an overload).",
-        Examples:
-        [
-            "rt refactor replace-call --from Logger.Log --to LogInfo --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt refactor rc --from DateHelper.UtcNow --to TimeProvider.GetUtcNow --dry-run --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt refactor replace-call --from Console.WriteLine --to Logger.Info --solution RoslynTools.slnx"
-        ]
-    );
+    private readonly DaemonRpcRecoveryCoordinator _daemon;
+    private readonly ReplaceCallOperation _operation;
+
+    public ReplaceCallCommand(
+        DaemonRpcRecoveryCoordinator daemon,
+        ReplaceCallOperation operation)
+    {
+        _daemon = daemon;
+        _operation = operation;
+    }
+
+    public static RtCommandInfo Info => ReplaceCallCommandDefinition.Info;
 
     public Command Build()
     {
@@ -44,26 +40,22 @@ internal sealed class ReplaceCallCommand(IWorkspaceSessionFactory sessionFactory
         };
         cmd.AddAlias("rc");
 
-        cmd.SetHandler(
-            async (from, to, solution, dryRun, ifArgIndex, ifArgLiteral) =>
+        cmd.SetHandler(async context =>
             {
-                await ExecuteAsync(from, to, solution, dryRun, ifArgIndex, ifArgLiteral);
-            },
-            fromOpt, toOpt, solutionOpt, dryRunOpt, ifArgIndexOpt, ifArgLiteralOpt);
+                var from = context.ParseResult.GetValueForOption(fromOpt)!;
+                var to = context.ParseResult.GetValueForOption(toOpt)!;
+                var solution = context.ParseResult.GetValueForOption(solutionOpt);
+                var dryRun = context.ParseResult.GetValueForOption(dryRunOpt);
+                var ifArgIndex = context.ParseResult.GetValueForOption(ifArgIndexOpt);
+                var ifArgLiteral = context.ParseResult.GetValueForOption(ifArgLiteralOpt);
+                await DaemonCommandExecutor.ExecuteAsync(
+                    _daemon,
+                    _operation,
+                    new ReplaceCallRequest(from, to, solution, dryRun, ifArgIndex, ifArgLiteral),
+                    context);
+            });
 
         return cmd;
     }
 
-    /// <summary>
-    /// Asynchronously replaces a call with new parameters.
-    /// </summary>
-    internal async Task ExecuteAsync(string from, string to, string? solutionPath, bool dryRun,
-        int? ifArgIndex = null, string? ifArgLiteral = null)
-    {
-        var (workspace, solution) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
-        using (workspace)
-        {
-            await _replace.RunAsync(solution, from, to, dryRun, ifArgIndex, ifArgLiteral);
-        }
-    }
 }

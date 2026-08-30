@@ -2,7 +2,6 @@ using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
@@ -14,76 +13,79 @@ namespace RoslynTools.Services;
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class ConvertToRecordService : IRtService
 {
-    private readonly ILogger<ConvertToRecordService> _logger;
-    private readonly ISolutionChangeWriter _solutionChangeWriter;
     private readonly IDocumentLocatorService _documents;
+    private readonly ISymbolResolutionService _symbols;
 
-    public ConvertToRecordService()
-        : this(new RtConsoleLogger<ConvertToRecordService>(), new SolutionChangeWriter())
+    public ConvertToRecordService(
+        ISymbolResolutionService symbols,
+        IDocumentLocatorService documents)
     {
+        _symbols = symbols;
+        _documents = documents;
     }
 
-    public ConvertToRecordService(ILogger<ConvertToRecordService> logger, ISolutionChangeWriter solutionChangeWriter,
-        IDocumentLocatorService? documents = null)
-    {
-        _logger = logger;
-        _solutionChangeWriter = solutionChangeWriter;
-        _documents = documents ?? new DocumentLocatorService();
-    }
+    internal sealed record Preparation(
+        Solution Solution,
+        bool Changed,
+        IReadOnlyList<MutationDiagnostic> Diagnostics);
 
     /// <summary>
     /// Runs the conversion process for a method into a record.
     /// </summary>
-    internal async Task RunAsync(Solution sln, string typeName, bool dryRun)
+    internal async Task<Preparation> PrepareAsync(
+        Solution sln,
+        string typeName,
+        CancellationToken cancellationToken = default)
     {
-        var originalSolution = sln;
-
-        var classSymbol = await FindClassSymbolAsync(sln, typeName);
+        cancellationToken.ThrowIfCancellationRequested();
+        var symbol = await _symbols.FindSymbolAsync(sln, typeName, "type");
+        if (symbol is not INamedTypeSymbol { TypeKind: TypeKind.Class } classSymbol)
+            throw new InvalidOperationException($"Class '{typeName}' not found in solution.");
 
         if (classSymbol.IsRecord)
-        {
-            _logger.RtInfo("'{TypeName}' is already a record.", typeName);
-            return;
-        }
+            return new Preparation(
+                sln,
+                false,
+                [new MutationDiagnostic(
+                    MutationDiagnosticSeverity.Information,
+                    $"'{typeName}' is already a record.")]);
 
         var syntaxRef = classSymbol.DeclaringSyntaxReferences.FirstOrDefault()
                         ?? throw new InvalidOperationException($"No source declaration found for '{typeName}'.");
 
-        var classSyntax = (ClassDeclarationSyntax)await syntaxRef.GetSyntaxAsync();
+        var classSyntax = (ClassDeclarationSyntax)await syntaxRef.GetSyntaxAsync(cancellationToken);
 
         var docId = _documents.FindDocumentId(sln, classSymbol)
                     ?? throw new InvalidOperationException("Cannot locate source document for the target class.");
 
-        var (initProps, remainingMembers) = CollectMembers(typeName, classSyntax);
+        var (initProps, remainingMembers, mutablePropertyNames) = CollectMembers(classSyntax);
 
         var parameters = BuildParameterList(initProps);
         var recordDecl = BuildRecordDeclaration(classSyntax, parameters, remainingMembers);
 
-        sln = await ApplyRecordReplacementAsync(sln, docId, syntaxRef, recordDecl);
+        sln = await ApplyRecordReplacementAsync(
+            sln,
+            docId,
+            syntaxRef,
+            recordDecl,
+            cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
 
-        _logger.RtInfo("Converting '{TypeName}' to a positional record...", typeName);
-        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
+        var diagnostics = mutablePropertyNames.Count == 0
+            ? []
+            : new MutationDiagnostic[]
+            {
+                new(
+                    MutationDiagnosticSeverity.Warning,
+                    $"'{typeName}' has mutable auto-properties ({string.Join(", ", mutablePropertyNames)}). " +
+                    "They will remain as regular properties in the record body.")
+            };
+        return new Preparation(sln, true, diagnostics);
     }
 
-    private async Task<INamedTypeSymbol> FindClassSymbolAsync(Solution sln, string typeName)
-    {
-        foreach (var project in sln.Projects)
-        {
-            var compilation = await project.GetCompilationAsync();
-            if (compilation == null) continue;
-
-            foreach (var symbol in compilation.GetSymbolsWithName(typeName, SymbolFilter.Type))
-                if (symbol is INamedTypeSymbol namedType &&
-                    namedType.TypeKind == TypeKind.Class &&
-                    namedType.Name == typeName)
-                    return namedType;
-        }
-
-        throw new InvalidOperationException($"Class '{typeName}' not found in solution.");
-    }
-
-    private (List<PropertyDeclarationSyntax> InitProps, List<MemberDeclarationSyntax> RemainingMembers)
-        CollectMembers(string typeName, ClassDeclarationSyntax classSyntax)
+    private (List<PropertyDeclarationSyntax> InitProps,
+        List<MemberDeclarationSyntax> RemainingMembers,
+        List<string> MutablePropertyNames) CollectMembers(ClassDeclarationSyntax classSyntax)
     {
         var allMembers = classSyntax.Members;
 
@@ -97,17 +99,12 @@ internal class ConvertToRecordService : IRtService
             .Where(p => !IsInitOnlyAutoProperty(p) && IsMutableAutoProperty(p))
             .ToList();
 
-        if (mutableProps.Count > 0)
-        {
-            var names = string.Join(", ", mutableProps.Select(p => p.Identifier.Text));
-            _logger.RtWarning(
-                "'{TypeName}' has mutable auto-properties ({PropertyNames}). They will remain as regular properties in the record body.",
-                typeName, names);
-        }
-
         var membersToRemove = BuildMembersToRemove(allMembers, initProps);
         var remainingMembers = allMembers.Where(m => !membersToRemove.Contains(m)).ToList();
-        return (initProps, remainingMembers);
+        return (
+            initProps,
+            remainingMembers,
+            mutableProps.Select(property => property.Identifier.Text).ToList());
     }
 
     private HashSet<MemberDeclarationSyntax> BuildMembersToRemove(
@@ -213,10 +210,11 @@ internal class ConvertToRecordService : IRtService
         Solution sln,
         DocumentId docId,
         SyntaxReference syntaxRef,
-        RecordDeclarationSyntax recordDecl)
+        RecordDeclarationSyntax recordDecl,
+        CancellationToken cancellationToken)
     {
         var document = sln.GetDocument(docId)!;
-        var root = (await document.GetSyntaxRootAsync())!;
+        var root = (await document.GetSyntaxRootAsync(cancellationToken))!;
         var oldNode = root.FindNode(syntaxRef.Span) as ClassDeclarationSyntax
                       ?? throw new InvalidOperationException("Cannot locate class syntax node in document.");
 

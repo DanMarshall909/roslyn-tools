@@ -1,5 +1,5 @@
-using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Services;
 using RoslynTools.Tests.Infrastructure;
 using Shouldly;
 
@@ -27,7 +27,7 @@ public class FixNamespace : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<FixNamespaceCommand>().ExecuteAsync(
+            await ExecuteAsync(
                 Path.Combine(project.ProjectDir, "Services", "AgentService.cs"),
                 "ignored",
                 false);
@@ -55,7 +55,7 @@ public class FixNamespace : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<FixNamespaceCommand>().ExecuteAsync(
+            await ExecuteAsync(
                 Path.Combine(project.ProjectDir, "Services", "AgentService.cs"),
                 "ignored",
                 false);
@@ -84,22 +84,13 @@ public class FixNamespace : IClassFixture<RtServicesFixture>
         var originalAgentService = await project.ReadSourceAsync("Services/AgentService.cs");
         var originalProgram = await project.ReadSourceAsync("Program.cs");
 
-        var output = new StringWriter();
-        var previousOut = Console.Out;
-        Console.SetOut(output);
-        try
+        MutationExecutionResult<FixNamespaceResult> execution;
+        using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            using (WorkspaceLoader.UseOverride(workspace, sln))
-            {
-                await _services.Resolve<FixNamespaceCommand>().ExecuteAsync(
-                    Path.Combine(project.ProjectDir, "Services", "AgentService.cs"),
-                    "ignored",
-                    true);
-            }
-        }
-        finally
-        {
-            Console.SetOut(previousOut);
+            execution = await ExecuteAsync(
+                Path.Combine(project.ProjectDir, "Services", "AgentService.cs"),
+                "ignored",
+                true);
         }
 
         // Files on disk must be unchanged
@@ -108,8 +99,17 @@ public class FixNamespace : IClassFixture<RtServicesFixture>
         afterAgentService.ShouldBe(originalAgentService);
         afterProgram.ShouldBe(originalProgram);
 
-        // Output should mention the diff
-        var diffOutput = output.ToString();
-        diffOutput.ShouldContain("WrongNamespace", Case.Sensitive);
+        execution.Status.ShouldBe(MutationExecutionStatus.DryRun);
+        execution.ChangedFiles.Count.ShouldBe(2);
+    }
+
+    private async Task<MutationExecutionResult<FixNamespaceResult>> ExecuteAsync(
+        string file,
+        string? solution,
+        bool dryRun)
+    {
+        var result = await _services.Resolve<FixNamespaceOperation>().ExecuteAsync(
+            new FixNamespaceRequest(file, solution, dryRun));
+        return result.Unwrap();
     }
 }

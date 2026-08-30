@@ -1,8 +1,6 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.Extensions.Logging.Abstractions;
-using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Services;
 using RoslynTools.Tests.Infrastructure;
@@ -34,46 +32,170 @@ public class SafeDelete : IClassFixture<RtServicesFixture>
     {
         var project = new AdhocProjectBuilder("SafeApp");
         project.AddSource("SafeApp.cs", SafeAppSource);
-        var (workspace, sln) = project.Build();
-        return (project, workspace, sln);
+        var (workspace, solution) = project.Build();
+        return (project, workspace, solution);
     }
 
     [Fact]
-    public async Task deletes_the_type()
+    public async Task cli_adapter_deletes_the_type_through_the_typed_operation()
     {
-        var (project, workspace, sln) = BuildFixture();
+        var (project, workspace, solution) = BuildFixture();
         using (project)
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseOverride(workspace, solution))
         {
-            await _services.Resolve<SafeDeleteCommand>().ExecuteAsync("Orphan", null, "ignored", false);
+            var exitCode = await App.RunAsync(
+                ["safe-delete", "--symbol", "Orphan", "--solution", "ignored"]);
 
+            exitCode.ShouldBe(0);
             var content = await project.ReadSourceAsync("SafeApp.cs");
             content.ShouldNotContain("class Orphan", Case.Sensitive);
         }
     }
 
     [Fact]
-    public async Task throws_an_error_for_a_referenced_type()
+    public async Task cli_adapter_returns_non_zero_for_a_referenced_type_without_writing()
     {
-        var (project, workspace, sln) = BuildFixture();
+        var (project, workspace, solution) = BuildFixture();
         using (project)
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseOverride(workspace, solution))
         {
-            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                _services.Resolve<SafeDeleteCommand>().ExecuteAsync("Used", null, "ignored", false));
+            var exitCode = await App.RunAsync(
+                ["safe-delete", "--symbol", "Used", "--solution", "ignored"]);
 
-            ex.Message.ShouldContain("Used", Case.Sensitive);
+            exitCode.ShouldBe(1);
+            var content = await project.ReadSourceAsync("SafeApp.cs");
+            content.ShouldContain("class Used", Case.Sensitive);
+        }
+    }
+
+    [Fact]
+    public async Task rejects_a_referenced_type_with_structured_reference_evidence()
+    {
+        var (project, workspace, solution) = BuildFixture();
+        using (project)
+        using (WorkspaceLoader.UseOverride(workspace, solution))
+        {
+            var result = await ExecuteResultAsync("Used");
+
+            result.IsErr.ShouldBeTrue();
+            var error = result.Match(_ => null!, failure => failure);
+            error.Kind.ShouldBe(RtErrorKind.InvalidInput);
+            error.Message.ShouldContain("Used", Case.Sensitive);
+            error.Message.ShouldContain("new Used", Case.Sensitive);
+            error.Context.ShouldNotBeNull();
+            error.Context["referenceCount"].ShouldBe("1");
+            error.Context["reference.0.filePath"].ShouldEndWith("SafeApp.cs", Case.Sensitive);
+            error.Context["reference.0.lineText"].ShouldContain("new Used", Case.Sensitive);
+
+            var content = await project.ReadSourceAsync("SafeApp.cs");
+            content.ShouldContain("class Used", Case.Sensitive);
         }
     }
 
     [Fact]
     public async Task deletes_the_method()
     {
-        var (project, workspace, sln) = BuildFixture();
+        var (project, workspace, solution) = BuildFixture();
         using (project)
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseOverride(workspace, solution))
         {
-            await _services.Resolve<SafeDeleteCommand>().ExecuteAsync("Svc.Dead", "method", "ignored", false);
+            var execution = await ExecuteAsync("Svc.Dead", "method");
+
+            execution.Status.ShouldBe(MutationExecutionStatus.Applied);
+            execution.Value.ShouldNotBeNull();
+            execution.Value.Kind.ShouldBe("method");
+            execution.Value.ReferenceCount.ShouldBe(0);
+            execution.ChangedFiles.Single().ShouldEndWith("SafeApp.cs", Case.Sensitive);
+            var content = await project.ReadSourceAsync("SafeApp.cs");
+            content.ShouldNotContain("void Dead()", Case.Sensitive);
+            content.ShouldContain("void Live()", Case.Sensitive);
+        }
+    }
+
+    [Fact]
+    public async Task rejects_a_referenced_method_without_writing()
+    {
+        var (project, workspace, solution) = BuildFixture();
+        using (project)
+        using (WorkspaceLoader.UseOverride(workspace, solution))
+        {
+            var result = await ExecuteResultAsync("Svc.Live", "method");
+
+            result.IsErr.ShouldBeTrue();
+            var error = result.Match(_ => null!, failure => failure);
+            error.Message.ShouldContain("Live", Case.Sensitive);
+            error.Context!["referenceCount"].ShouldBe("1");
+            var content = await project.ReadSourceAsync("SafeApp.cs");
+            content.ShouldContain("void Live()", Case.Sensitive);
+        }
+    }
+
+    [Fact]
+    public async Task dry_run_reports_the_exact_path_without_modifying_files()
+    {
+        var (project, workspace, solution) = BuildFixture();
+        using (project)
+        using (WorkspaceLoader.UseOverride(workspace, solution))
+        {
+            var originalContent = await project.ReadSourceAsync("SafeApp.cs");
+
+            var execution = await ExecuteAsync("Orphan", dryRun: true);
+
+            execution.Status.ShouldBe(MutationExecutionStatus.DryRun);
+            execution.ChangedFiles.Single().ShouldEndWith("SafeApp.cs", Case.Sensitive);
+            var afterContent = await project.ReadSourceAsync("SafeApp.cs");
+            afterContent.ShouldBe(originalContent);
+        }
+    }
+
+    [Fact]
+    public async Task treats_nameof_references_as_non_references_and_reports_the_ignored_evidence()
+    {
+        using var project = new AdhocProjectBuilder("SafeApp");
+        project.AddSource("SafeApp.cs", """
+                                         public class Logger
+                                         {
+                                             public void Log(string msg) { }
+                                         }
+
+                                         public class Client
+                                         {
+                                             void Setup()
+                                             {
+                                                 var name = nameof(Logger);
+                                             }
+                                         }
+                                         """);
+        var (workspace, solution) = project.Build();
+
+        using (WorkspaceLoader.UseOverride(workspace, solution))
+        {
+            var execution = await ExecuteAsync("Logger");
+
+            execution.Status.ShouldBe(MutationExecutionStatus.Applied);
+            execution.Value.ShouldNotBeNull();
+            execution.Value.IgnoredNameofReferenceCount.ShouldBe(1);
+            var content = await project.ReadSourceAsync("SafeApp.cs");
+            content.ShouldNotContain("class Logger", Case.Sensitive);
+        }
+    }
+
+    [Fact]
+    public async Task deletes_a_simple_member_name_after_type_lookup_falls_back()
+    {
+        using var project = new AdhocProjectBuilder("SafeApp");
+        project.AddSource("SafeApp.cs", """
+                                         public class Svc
+                                         {
+                                             public void Dead() { }
+                                             public void Live() { }
+                                         }
+                                         """);
+        var (workspace, solution) = project.Build();
+
+        using (WorkspaceLoader.UseOverride(workspace, solution))
+        {
+            await ExecuteAsync("Dead");
 
             var content = await project.ReadSourceAsync("SafeApp.cs");
             content.ShouldNotContain("void Dead()", Case.Sensitive);
@@ -82,29 +204,46 @@ public class SafeDelete : IClassFixture<RtServicesFixture>
     }
 
     [Fact]
-    public async Task throws_an_error_for_a_referenced_method()
+    public async Task returns_a_typed_not_found_error_for_an_unknown_symbol()
     {
-        var (project, workspace, sln) = BuildFixture();
+        var (project, workspace, solution) = BuildFixture();
         using (project)
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseOverride(workspace, solution))
         {
-            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                _services.Resolve<SafeDeleteCommand>().ExecuteAsync("Svc.Live", "method", "ignored", false));
+            var result = await ExecuteResultAsync("MissingType");
 
-            ex.Message.ShouldContain("Live", Case.Sensitive);
+            result.IsErr.ShouldBeTrue();
+            var error = result.Match(_ => null!, failure => failure);
+            error.Kind.ShouldBe(RtErrorKind.NotFound);
+            error.Message.ShouldContain("MissingType", Case.Sensitive);
         }
     }
 
     [Fact]
-    public async Task does_not_modify_files()
+    public async Task rejects_a_blank_symbol_before_loading_a_workspace()
     {
-        var (project, workspace, sln) = BuildFixture();
+        var result = await _services.Resolve<SafeDeleteOperation>().ExecuteAsync(
+            new SafeDeleteRequest(" "));
+
+        result.IsErr.ShouldBeTrue();
+        var error = result.Match(_ => null!, failure => failure);
+        error.Kind.ShouldBe(RtErrorKind.InvalidInput);
+        error.Message.ShouldContain("symbol", Case.Insensitive);
+    }
+
+    [Fact]
+    public async Task cancellation_before_dispatch_cannot_apply_the_deletion()
+    {
+        var (project, workspace, solution) = BuildFixture();
         using (project)
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (var cancellation = new CancellationTokenSource())
         {
             var originalContent = await project.ReadSourceAsync("SafeApp.cs");
+            cancellation.Cancel();
 
-            await _services.Resolve<SafeDeleteCommand>().ExecuteAsync("Orphan", null, "ignored", true);
+            await Should.ThrowAsync<OperationCanceledException>(() =>
+                ExecuteResultAsync("Orphan", cancellationToken: cancellation.Token));
 
             var afterContent = await project.ReadSourceAsync("SafeApp.cs");
             afterContent.ShouldBe(originalContent);
@@ -112,64 +251,7 @@ public class SafeDelete : IClassFixture<RtServicesFixture>
     }
 
     [Fact]
-    public async Task treats_nameof_references_as_non_references_and_deletes()
-    {
-        var project = new AdhocProjectBuilder("SafeApp");
-        project.AddSource("SafeApp.cs", """
-                                        public class Logger
-                                        {
-                                            public void Log(string msg) { }
-                                        }
-
-                                        public class Client
-                                        {
-                                            void Setup()
-                                            {
-                                                // nameof reference only — not a real usage
-                                                var name = nameof(Logger);
-                                            }
-                                        }
-                                        """);
-        var (workspace, sln) = project.Build();
-
-        using (project)
-        using (WorkspaceLoader.UseOverride(workspace, sln))
-        {
-            // Logger is only used inside nameof() — should be deletable
-            await _services.Resolve<SafeDeleteCommand>().ExecuteAsync("Logger", null, "ignored", false);
-
-            var content = await project.ReadSourceAsync("SafeApp.cs");
-            content.ShouldNotContain("class Logger", Case.Sensitive);
-        }
-    }
-
-    [Fact]
-    public async Task delete_a_simple_member_name_after_type_lookup_falls_back()
-    {
-        var project = new AdhocProjectBuilder("SafeApp");
-        project.AddSource("SafeApp.cs", """
-                                        public class Svc
-                                        {
-                                            public void Dead() { }
-                                            public void Live() { }
-                                        }
-                                        """);
-        var (_, solution) = project.Build();
-        var writer = new CapturingSolutionChangeWriter();
-
-        using (project)
-        {
-            await new SafeDeleteService(NullLogger<SafeDeleteService>.Instance, writer)
-                .RunAsync(solution, "Dead", null, false);
-
-            var content = await TestSolutionDocuments.GetTextAsync(writer.Solution!, "SafeApp.cs");
-            content.ShouldNotContain("void Dead()", Case.Sensitive);
-            content.ShouldContain("void Live()", Case.Sensitive);
-        }
-    }
-
-    [Fact]
-    public void support_all_top_level_member_declarations_that_safe_delete_can_remove()
+    public void supports_all_top_level_member_declarations_that_safe_delete_can_remove()
     {
         var root = CSharpSyntaxTree.ParseText("""
                                               public class C { }
@@ -186,29 +268,47 @@ public class SafeDelete : IClassFixture<RtServicesFixture>
                                                   public void Method() { }
                                               }
                                               """).GetCompilationUnitRoot();
-        var service =
-            new SafeDeleteService(NullLogger<SafeDeleteService>.Instance, new CapturingSolutionChangeWriter());
 
         Assert.All(root.DescendantNodes().OfType<ClassDeclarationSyntax>(), node =>
-            service.FindDeclarationNode(node).ShouldBeSameAs(node));
+            SafeDeleteService.FindDeclarationNode(node).ShouldBeSameAs(node));
         Assert.All(root.DescendantNodes().OfType<InterfaceDeclarationSyntax>(), node =>
-            service.FindDeclarationNode(node).ShouldBeSameAs(node));
+            SafeDeleteService.FindDeclarationNode(node).ShouldBeSameAs(node));
         Assert.All(root.DescendantNodes().OfType<StructDeclarationSyntax>(), node =>
-            service.FindDeclarationNode(node).ShouldBeSameAs(node));
+            SafeDeleteService.FindDeclarationNode(node).ShouldBeSameAs(node));
         Assert.All(root.DescendantNodes().OfType<RecordDeclarationSyntax>(), node =>
-            service.FindDeclarationNode(node).ShouldBeSameAs(node));
+            SafeDeleteService.FindDeclarationNode(node).ShouldBeSameAs(node));
         Assert.All(root.DescendantNodes().OfType<EnumDeclarationSyntax>(), node =>
-            service.FindDeclarationNode(node).ShouldBeSameAs(node));
+            SafeDeleteService.FindDeclarationNode(node).ShouldBeSameAs(node));
         Assert.All(root.DescendantNodes().OfType<DelegateDeclarationSyntax>(), node =>
-            service.FindDeclarationNode(node).ShouldBeSameAs(node));
+            SafeDeleteService.FindDeclarationNode(node).ShouldBeSameAs(node));
         Assert.All(root.DescendantNodes().OfType<MethodDeclarationSyntax>(), node =>
-            service.FindDeclarationNode(node).ShouldBeSameAs(node));
+            SafeDeleteService.FindDeclarationNode(node).ShouldBeSameAs(node));
         Assert.All(root.DescendantNodes().OfType<PropertyDeclarationSyntax>(), node =>
-            service.FindDeclarationNode(node).ShouldBeSameAs(node));
+            SafeDeleteService.FindDeclarationNode(node).ShouldBeSameAs(node));
         Assert.All(root.DescendantNodes().OfType<FieldDeclarationSyntax>(), node =>
-            service.FindDeclarationNode(node).ShouldBeSameAs(node));
+            SafeDeleteService.FindDeclarationNode(node).ShouldBeSameAs(node));
         Assert.All(root.DescendantNodes().OfType<EventDeclarationSyntax>(), node =>
-            service.FindDeclarationNode(node).ShouldBeSameAs(node));
-        service.FindDeclarationNode(root).ShouldBeNull();
+            SafeDeleteService.FindDeclarationNode(node).ShouldBeSameAs(node));
+        SafeDeleteService.FindDeclarationNode(root).ShouldBeNull();
+    }
+
+    private async Task<MutationExecutionResult<SafeDeleteResult>> ExecuteAsync(
+        string symbol,
+        string? kind = null,
+        bool dryRun = false)
+    {
+        var result = await ExecuteResultAsync(symbol, kind, dryRun);
+        return result.Unwrap();
+    }
+
+    private Task<Result<MutationExecutionResult<SafeDeleteResult>, RtError>> ExecuteResultAsync(
+        string symbol,
+        string? kind = null,
+        bool dryRun = false,
+        CancellationToken cancellationToken = default)
+    {
+        return _services.Resolve<SafeDeleteOperation>().ExecuteAsync(
+            new SafeDeleteRequest(symbol, kind, "ignored", dryRun),
+            cancellationToken);
     }
 }

@@ -328,7 +328,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
     }
 
     [Fact]
-    public async Task handles_dry_run_prints_a_diff_and_does_not_modify_files()
+    public async Task handles_dry_run_reports_changed_files_and_does_not_modify_files()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
@@ -379,10 +379,9 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                 ]);
 
                 exitCode.ShouldBe(0);
-                output.ToString().ShouldContain("--- ", Case.Sensitive);
-                output.ToString().ShouldContain("+++ ", Case.Sensitive);
-                output.ToString().ShouldContain("@@ ", Case.Sensitive);
-                output.ToString().ShouldContain("[dry-run]", Case.Sensitive);
+                output.ToString().ShouldContain("\"changedFiles\"", Case.Sensitive);
+                output.ToString().ShouldContain("Service.cs", Case.Sensitive);
+                output.ToString().ShouldContain("Caller.cs", Case.Sensitive);
             }
             finally
             {
@@ -1838,7 +1837,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
     // ── AC26: --dry-run for add-param and remove-param ────────────────────────
 
     [Fact]
-    public async Task adds_param_dry_run_prints_diff_and_does_not_write_files()
+    public async Task adds_param_dry_run_reports_changed_files_and_does_not_write_files()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
@@ -1866,9 +1865,8 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                 ]);
 
                 exitCode.ShouldBe(0);
-                output.ToString().ShouldContain("--- ", Case.Sensitive);
-                output.ToString().ShouldContain("+++ ", Case.Sensitive);
-                output.ToString().ShouldContain("[dry-run]", Case.Sensitive);
+                output.ToString().ShouldContain("\"changedFiles\"", Case.Sensitive);
+                output.ToString().ShouldContain("Service.cs", Case.Sensitive);
             }
             finally
             {
@@ -1880,7 +1878,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
     }
 
     [Fact]
-    public async Task removes_param_dry_run_prints_diff_and_does_not_write_files()
+    public async Task removes_param_dry_run_reports_changed_files_and_does_not_write_files()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
@@ -1908,9 +1906,8 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                 ]);
 
                 exitCode.ShouldBe(0);
-                output.ToString().ShouldContain("--- ", Case.Sensitive);
-                output.ToString().ShouldContain("+++ ", Case.Sensitive);
-                output.ToString().ShouldContain("[dry-run]", Case.Sensitive);
+                output.ToString().ShouldContain("\"changedFiles\"", Case.Sensitive);
+                output.ToString().ShouldContain("Service.cs", Case.Sensitive);
             }
             finally
             {

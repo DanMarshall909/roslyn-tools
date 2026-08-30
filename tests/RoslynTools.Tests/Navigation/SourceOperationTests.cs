@@ -27,10 +27,11 @@ public sealed class SourceOperationTests
 
             var result = await operation.ExecuteAsync(new SourceRequest(
                 "App.Calculator.Add", "requested.slnx", "method"));
+            var sources = result.Unwrap();
 
-            operation.CommandName.ShouldBe("source");
+            operation.Definition.Name.ShouldBe("source");
             factory.RequestedSolution.ShouldBe("requested.slnx");
-            var entry = result.ShouldHaveSingleItem();
+            var entry = sources.ShouldHaveSingleItem();
             entry.FullyQualifiedName.ShouldBe("App.Calculator.Add(int, int)");
             entry.Text.ShouldBe("""
                 /// <summary>Adds two values.</summary>
@@ -77,7 +78,10 @@ public sealed class SourceOperationTests
             return Task.FromResult(solution);
         }
 
-        public Task<(Workspace Workspace, Solution Solution)> LoadWorkspaceAsync(string? solutionPath) =>
-            throw new NotSupportedException();
+        public Task<(Workspace Workspace, Solution Solution)> LoadWorkspaceAsync(string? solutionPath)
+        {
+            RequestedSolution = solutionPath;
+            return Task.FromResult((solution.Workspace, solution));
+        }
     }
 }

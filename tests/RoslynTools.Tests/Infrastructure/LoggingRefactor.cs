@@ -1,3 +1,4 @@
+using System.CommandLine;
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using Shouldly;
@@ -29,7 +30,8 @@ public class LoggingRefactor : IClassFixture<RtServicesFixture>
             using (recordWorkspace)
             using (WorkspaceLoader.UseOverride(recordWorkspace, recordSolution))
             {
-                await _services.Resolve<ConvertToRecordCommand>().ExecuteAsync("WithMutableProp", "ignored", false);
+                await _services.Resolve<ConvertToRecordCommand>().Build().InvokeAsync(
+                    ["--type", "WithMutableProp", "--solution", "ignored"]);
             }
 
             using var staticProject = new AdhocProjectBuilder("StaticApp");
@@ -45,10 +47,9 @@ public class LoggingRefactor : IClassFixture<RtServicesFixture>
             using (staticWorkspace)
             using (WorkspaceLoader.UseOverride(staticWorkspace, staticSolution))
             {
-                Environment.ExitCode = 0;
-                await _services.Resolve<MakeStaticCommand>().ExecuteAsync("Service.GetValue", "ignored", false);
-                Environment.ExitCode.ShouldBe(1);
-                Environment.ExitCode = 0;
+                var exitCode = await _services.Resolve<MakeStaticCommand>().Build().InvokeAsync(
+                    ["--method", "Service.GetValue", "--solution", "ignored"]);
+                exitCode.ShouldBe(1);
             }
         }
 
@@ -102,7 +103,7 @@ public class LoggingRefactor : IClassFixture<RtServicesFixture>
     }
 
     [Fact]
-    public async Task mutation_dry_run_diff_output_remains_on_stdout()
+    public async Task typed_mutation_dry_run_result_remains_on_stdout()
     {
         using var project = new AdhocProjectBuilder("MyApp");
         project.AddSource("Services/AgentService.cs", """
@@ -120,23 +121,24 @@ public class LoggingRefactor : IClassFixture<RtServicesFixture>
         using (WorkspaceLoader.UseOverride(workspace, solution))
         using (Core.RtConsole.UseConsole(console))
         {
-            await _services.Resolve<FixNamespaceCommand>().ExecuteAsync(
+            await _services.Resolve<FixNamespaceCommand>().Build().InvokeAsync(
+            [
+                "--file",
                 Path.Combine(project.ProjectDir, "Services", "AgentService.cs"),
+                "--solution",
                 "ignored",
-                true);
+                "--dry-run"
+            ]);
         }
 
-        var diffOutput = string.Join("\n", console.WriteEntries
-            .Where(e => e.Context.HasFlag(RtOutputContext.Diff))
+        var resultOutput = string.Join("\n", console.WriteEntries
+            .Where(e => e.Context.HasFlag(RtOutputContext.Result))
             .Select(e => e.Message));
 
-        diffOutput.ShouldContain("--- ", Case.Sensitive);
-        diffOutput.ShouldContain("+++ ", Case.Sensitive);
-        diffOutput.ShouldContain("[dry-run]", Case.Sensitive);
-
-        console.LogEntries.ShouldContain(e => e.Level == RtLogLevel.Info &&
-                 e.RenderedMessage.Contains("Fixing namespace", StringComparison.Ordinal));
-        diffOutput.ShouldNotContain("Fixing namespace", Case.Sensitive);
+        resultOutput.ShouldContain("\"changedFiles\"", Case.Sensitive);
+        resultOutput.ShouldContain("AgentService.cs", Case.Sensitive);
+        resultOutput.ShouldContain("Program.cs", Case.Sensitive);
+        console.LogEntries.ShouldBeEmpty();
     }
 
     [Fact]
@@ -193,21 +195,23 @@ public class LoggingRefactor : IClassFixture<RtServicesFixture>
         using (WorkspaceLoader.UseOverride(workspace, solution))
         using (Core.RtConsole.UseConsole(console))
         {
-            await _services.Resolve<NarrowDependencyCommand>().ExecuteAsync(
+            var exitCode = await _services.Resolve<NarrowDependencyCommand>().Build().InvokeAsync(
+            [
                 "IWideFacade",
-                ["Send"],
-                "ISender",
-                "ignored",
-                false);
+                "--members", "Send",
+                "--new-name", "ISender",
+                "--solution", "ignored"
+            ]);
+            exitCode.ShouldBe(0);
         }
 
         var allOutput = string.Join("", console.WriteEntries.Select(e => e.Message));
-        allOutput.ShouldContain("Narrowed 1 consumer(s)", Case.Sensitive);
+        allOutput.ShouldContain("\"narrowedConsumers\"", Case.Sensitive);
         allOutput.ShouldContain("SenderOnlyConsumer", Case.Sensitive);
-        Assert.Contains("MixedConsumer: skipped", allOutput, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("DI registration", allOutput, StringComparison.OrdinalIgnoreCase);
+        allOutput.ShouldContain("MixedConsumer", Case.Sensitive);
+        allOutput.ShouldContain("DI registration", Case.Insensitive);
 
-        console.LogEntries.ShouldNotContain(e => e.RenderedMessage.Contains("Narrowed 1 consumer(s)", StringComparison.Ordinal));
+        console.LogEntries.ShouldNotContain(e => e.RenderedMessage.Contains("SenderOnlyConsumer", StringComparison.Ordinal));
         console.LogEntries.ShouldNotContain(e => e.RenderedMessage.Contains("DI registration", StringComparison.OrdinalIgnoreCase));
         console.LogEntries.ShouldNotContain(e => e.RenderedMessage.Contains("MixedConsumer", StringComparison.Ordinal));
     }

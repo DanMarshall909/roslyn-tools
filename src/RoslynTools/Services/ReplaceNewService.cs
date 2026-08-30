@@ -2,7 +2,6 @@ using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
@@ -14,50 +13,40 @@ namespace RoslynTools.Services;
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class ReplaceNewService : IRtService
 {
-    private readonly ILogger<ReplaceNewService> _logger;
-    private readonly ISolutionChangeWriter _solutionChangeWriter;
-
-    public ReplaceNewService()
-        : this(new RtConsoleLogger<ReplaceNewService>(), new SolutionChangeWriter())
-    {
-    }
-
-    public ReplaceNewService(ILogger<ReplaceNewService> logger, ISolutionChangeWriter solutionChangeWriter)
-    {
-        _logger = logger;
-        _solutionChangeWriter = solutionChangeWriter;
-    }
+    internal sealed record Preparation(Solution Solution, int Replacements);
 
     /// <summary>
     /// Runs an asynchronous method to replace new services in a solution with specified parameters.
     /// </summary>
-    internal async Task RunAsync(Solution solution, string typeName, string with_method, bool dryRun,
-        int? ifArgIndex = null, string? ifArgLiteral = null, bool dropMatchedArg = false)
+    internal async Task<Preparation> PrepareAsync(
+        Solution solution,
+        string typeName,
+        string replacement,
+        int? ifArgIndex = null,
+        string? ifArgLiteral = null,
+        bool dropMatchedArg = false,
+        CancellationToken cancellationToken = default)
     {
-        var originalSolution = solution;
-
-        _logger.RtInfo("Finding constructor invocations of '{Type}'...", typeName);
-
-        var objectCreations = await FindObjectCreationsAsync(solution, typeName, ifArgIndex, ifArgLiteral);
+        var objectCreations = await FindObjectCreationsAsync(
+            solution,
+            typeName,
+            ifArgIndex,
+            ifArgLiteral,
+            cancellationToken);
 
         if (objectCreations.Count == 0)
-        {
-            RtConsole.WriteLine(RtOutputContext.Diagnostic, $"No constructor calls to {typeName} found.");
-            return;
-        }
+            return new Preparation(solution, 0);
 
         var totalCallSites = objectCreations.Values.Sum(l => l.Count);
-        _logger.RtInfo("Found {TotalCallSites} constructor call site(s). Replacing '{TypeName}' → '{With}'...",
-            totalCallSites, typeName, with_method);
 
         foreach (var (docId, locations) in objectCreations)
         {
             var doc = solution.GetDocument(docId)!;
-            var root = await doc.GetSyntaxRootAsync();
+            var root = await doc.GetSyntaxRootAsync(cancellationToken);
             if (root is null)
                 continue;
 
-            var replacements = RewriteObjectCreation(root, locations, with_method, ifArgIndex, dropMatchedArg);
+            var replacements = RewriteObjectCreation(root, locations, replacement, ifArgIndex, dropMatchedArg);
             if (replacements.Count == 0)
                 continue;
 
@@ -68,21 +57,22 @@ internal class ReplaceNewService : IRtService
             solution = solution.WithDocumentSyntaxRoot(docId, newRoot);
         }
 
-        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
+        return new Preparation(solution, totalCallSites);
     }
 
     private async Task<Dictionary<DocumentId, List<Location>>> FindObjectCreationsAsync(
         Solution solution,
         string typeName,
         int? ifArgIndex = null,
-        string? ifArgLiteral = null)
+        string? ifArgLiteral = null,
+        CancellationToken cancellationToken = default)
     {
         var locationsByDocument = new Dictionary<DocumentId, List<Location>>();
 
         foreach (var project in solution.Projects)
             foreach (var document in project.Documents)
             {
-                var root = await document.GetSyntaxRootAsync();
+                var root = await document.GetSyntaxRootAsync(cancellationToken);
                 if (root is null)
                     continue;
 

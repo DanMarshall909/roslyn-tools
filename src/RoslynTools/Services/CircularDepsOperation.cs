@@ -1,4 +1,5 @@
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 
 namespace RoslynTools.Services;
 
@@ -27,7 +28,7 @@ internal sealed record CircularDepsAnalysisResult(IReadOnlyList<CircularDependen
 ///     daemon, and MCP adapters use the same solution-loading and scope behavior.
 /// </summary>
 internal sealed class CircularDepsOperation
-    : LegacyCommandApplicationPort<CircularDepsRequest, CircularDepsAnalysisResult>, IRtService
+    : CommandApplicationPort<CircularDepsRequest, CircularDepsAnalysisResult>, IRtService
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly CircularDepsService _circularDeps;
@@ -40,9 +41,16 @@ internal sealed class CircularDepsOperation
         _circularDeps = circularDeps;
     }
 
-    public override string CommandName => "circular-deps";
+    public override ApplicationCommandDefinition Definition { get; } = new(
+        CircularDepsCommandDefinition.Info,
+        typeof(CircularDepsRequest),
+        typeof(CircularDepsAnalysisResult),
+        true,
+        CommandSafety.ReadOnly,
+        CommandExecutionPlacement.DaemonPreferred,
+        []);
 
-    public override async Task<CircularDepsAnalysisResult> ExecuteAsync(
+    public override async Task<Result<CircularDepsAnalysisResult, RtError>> ExecuteAsync(
         CircularDepsRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -52,8 +60,8 @@ internal sealed class CircularDepsOperation
         {
             cancellationToken.ThrowIfCancellationRequested();
             var cycles = await _circularDeps.AnalyzeCyclesAsync(solution, request.Scope);
-            return new CircularDepsAnalysisResult(
-                cycles.Select(nodes => new CircularDependencyCycle(nodes)).ToList());
+            return Result<CircularDepsAnalysisResult, RtError>.Ok(new CircularDepsAnalysisResult(
+                cycles.Select(nodes => new CircularDependencyCycle(nodes)).ToList()));
         }
     }
 }

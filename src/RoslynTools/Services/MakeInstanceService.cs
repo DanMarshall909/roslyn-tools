@@ -4,7 +4,6 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
-using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
@@ -16,36 +15,28 @@ namespace RoslynTools.Services;
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class MakeInstanceService : IRtService
 {
-    private readonly ILogger<MakeInstanceService> _logger;
-    private readonly ISolutionChangeWriter _solutionChangeWriter;
+    internal sealed record SkippedCallSite(string File, int Line, string Reason);
 
-    public MakeInstanceService()
-        : this(new RtConsoleLogger<MakeInstanceService>(), new SolutionChangeWriter())
-    {
-    }
-
-    public MakeInstanceService(ILogger<MakeInstanceService> logger, ISolutionChangeWriter solutionChangeWriter)
-    {
-        _logger = logger;
-        _solutionChangeWriter = solutionChangeWriter;
-    }
+    internal sealed record Preparation(
+        Solution Solution,
+        int TotalCallSites,
+        IReadOnlyList<SkippedCallSite> SkippedCallSites);
 
     /// <summary>
     /// Runs asynchronous instance transformation operations
     /// </summary>
-    internal async Task RunAsync(Solution sln, string methodSpec, bool dryRun)
+    internal async Task<Preparation> PrepareAsync(
+        Solution sln,
+        string methodSpec,
+        CancellationToken cancellationToken = default)
     {
-        var originalSolution = sln;
-
         var (typeName, methodName) = ParseMethodSpec(methodSpec);
 
-        var methodSymbol = await FindStaticMethodAsync(sln, typeName, methodName)
+        var methodSymbol = await FindStaticMethodAsync(sln, typeName, methodName, cancellationToken)
                            ?? throw new InvalidOperationException(
                                $"Static method '{methodSpec}' not found in solution.");
 
-        _logger.RtInfo("Found method '{Method}'. Collecting call sites...", methodSymbol.ToDisplayString());
-
-        var refs = await SymbolFinder.FindReferencesAsync(methodSymbol, sln);
+        var refs = await SymbolFinder.FindReferencesAsync(methodSymbol, sln, cancellationToken);
 
         // Group reference locations by document (from the original solution)
         var locationsByDoc = refs
@@ -54,8 +45,6 @@ internal class MakeInstanceService : IRtService
             .ToDictionary(g => g.Key, g => g.Select(l => l.Location.SourceSpan).ToList());
 
         var total = locationsByDoc.Values.Sum(l => l.Count);
-        _logger.RtInfo("Found {Total} call site(s). Analysing reachability...", total);
-
         // Find the document containing the method declaration
         var declLocation = methodSymbol.Locations.FirstOrDefault(l => l.IsInSource)
                            ?? throw new InvalidOperationException("No source location for method declaration.");
@@ -64,30 +53,28 @@ internal class MakeInstanceService : IRtService
 
         // Process all documents that have call sites plus the declaration document
         var allDocIds = new HashSet<DocumentId>(locationsByDoc.Keys) { declDocId };
-        var skipped = new List<(string file, int line, string reason)>();
+        var skipped = new List<SkippedCallSite>();
 
         foreach (var docId in allDocIds)
         {
             var doc = sln.GetDocument(docId)!;
-            var root = (await doc.GetSyntaxRootAsync())!;
-            var semanticModel = await doc.GetSemanticModelAsync();
+            var root = (await doc.GetSyntaxRootAsync(cancellationToken))!;
+            var semanticModel = await doc.GetSemanticModelAsync(cancellationToken);
             if (semanticModel is null) continue;
 
             locationsByDoc.TryGetValue(docId, out var callSpans);
             var isDeclarationDoc = docId == declDocId;
 
-            var (newRoot, docSkipped) = TransformDocument(
+            var (newRoot, docSkipped) = await TransformDocumentAsync(
                 root, semanticModel, methodSymbol, methodSymbol.ContainingType,
-                callSpans ?? [], isDeclarationDoc, doc);
+                callSpans ?? [], isDeclarationDoc, doc, cancellationToken);
 
             foreach (var s in docSkipped) skipped.Add(s);
 
             sln = sln.WithDocumentSyntaxRoot(docId, newRoot);
         }
 
-        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
-
-        PrintSummary(total, skipped);
+        return new Preparation(sln, total, skipped);
     }
 
     // ── Document transformation ──────────────────────────────────────────────
@@ -98,17 +85,18 @@ internal class MakeInstanceService : IRtService
     ///     • Rewrites qualifying call sites from Type.Method(...) to instance.Method(...)
     ///     • Warns and skips call sites where no instance is reachable
     /// </summary>
-    private (SyntaxNode newRoot, List<(string file, int line, string reason)> skipped)
-        TransformDocument(
+    private async Task<(SyntaxNode newRoot, List<SkippedCallSite> skipped)>
+        TransformDocumentAsync(
             SyntaxNode root,
             SemanticModel semanticModel,
             IMethodSymbol methodSymbol,
             INamedTypeSymbol targetType,
             List<TextSpan> callSpans,
             bool isDeclarationDoc,
-            Document doc)
+            Document doc,
+            CancellationToken cancellationToken)
     {
-        var skipped = new List<(string file, int line, string reason)>();
+        var skipped = new List<SkippedCallSite>();
         var replacements = new Dictionary<SyntaxNode, SyntaxNode>(ReferenceEqualityComparer.Instance);
 
         // ── 1. Remove `static` from the declaration ──────────────────────────
@@ -131,7 +119,7 @@ internal class MakeInstanceService : IRtService
         }
 
         // ── 2. Rewrite call sites ────────────────────────────────────────────
-        var fileText = doc.GetTextAsync().GetAwaiter().GetResult();
+        var fileText = await doc.GetTextAsync(cancellationToken);
         var filePath = doc.FilePath ?? doc.Name;
 
         foreach (var span in callSpans)
@@ -151,15 +139,13 @@ internal class MakeInstanceService : IRtService
 
             if (reachability.Kind == ReachableInstanceKind.None)
             {
-                _logger.RtWarning("{FilePath}:{LineNum}: no reachable instance — skipped", filePath, lineNum);
-                skipped.Add((filePath, lineNum, "no reachable instance"));
+                skipped.Add(new SkippedCallSite(filePath, lineNum, "no reachable instance"));
                 continue;
             }
 
             if (reachability.Kind == ReachableInstanceKind.Ambiguous)
             {
-                _logger.RtWarning("{FilePath}:{LineNum}: ambiguous reachable instance — skipped", filePath, lineNum);
-                skipped.Add((filePath, lineNum, "ambiguous reachable instance"));
+                skipped.Add(new SkippedCallSite(filePath, lineNum, "ambiguous reachable instance"));
                 continue;
             }
 
@@ -187,14 +173,21 @@ internal class MakeInstanceService : IRtService
 
     // ── Symbol finding ───────────────────────────────────────────────────────
 
-    private async Task<IMethodSymbol?> FindStaticMethodAsync(Solution sln, string typeName, string methodName)
+    private async Task<IMethodSymbol?> FindStaticMethodAsync(
+        Solution sln,
+        string typeName,
+        string methodName,
+        CancellationToken cancellationToken)
     {
         foreach (var project in sln.Projects)
         {
-            var compilation = await project.GetCompilationAsync();
+            var compilation = await project.GetCompilationAsync(cancellationToken);
             if (compilation == null) continue;
 
-            foreach (var sym in compilation.GetSymbolsWithName(typeName, SymbolFilter.Type))
+            foreach (var sym in compilation.GetSymbolsWithName(
+                         typeName,
+                         SymbolFilter.Type,
+                         cancellationToken))
             {
                 if (sym is not INamedTypeSymbol typeSymbol) continue;
 
@@ -235,15 +228,4 @@ internal class MakeInstanceService : IRtService
         return null;
     }
 
-    // ── Output ───────────────────────────────────────────────────────────────
-
-    private void PrintSummary(int total, List<(string file, int line, string reason)> skipped)
-    {
-        var rewritten = total - skipped.Count;
-        RtConsole.WriteLine(RtOutputContext.Diagnostic,
-            $"\nSummary: {total} call site(s) found, {rewritten} rewritten, {skipped.Count} skipped.");
-
-        foreach (var (file, line, reason) in skipped)
-            RtConsole.WriteLine(RtOutputContext.Diagnostic, $"  SKIPPED {file}:{line} — {reason}");
-    }
 }

@@ -21,21 +21,39 @@ internal sealed class NamespaceMoveRewriter : CSharpSyntaxRewriter
     public bool Changed { get; private set; }
     public bool IsDeclarationFile { get; private set; }
 
+    /// <summary>Rewrites an exact block-scoped namespace declaration and records its file role.</summary>
     public override SyntaxNode? VisitNamespaceDeclaration(NamespaceDeclarationSyntax node)
     {
-        // Check BEFORE visiting children (the name hasn't been rewritten yet)
-        if (node.Name.ToString() == _oldNs)
-            IsDeclarationFile = true;
+        if (node.Name.ToString() != _oldNs)
+            return base.VisitNamespaceDeclaration(node);
 
-        return base.VisitNamespaceDeclaration(node);
+        IsDeclarationFile = true;
+        Changed = true;
+        return base.VisitNamespaceDeclaration(
+            node.WithName(SyntaxFactory.ParseName(_newNs).WithTriviaFrom(node.Name)));
     }
 
+    /// <summary>Rewrites an exact file-scoped namespace declaration and records its file role.</summary>
     public override SyntaxNode? VisitFileScopedNamespaceDeclaration(FileScopedNamespaceDeclarationSyntax node)
     {
-        if (node.Name.ToString() == _oldNs)
-            IsDeclarationFile = true;
+        if (node.Name.ToString() != _oldNs)
+            return base.VisitFileScopedNamespaceDeclaration(node);
 
-        return base.VisitFileScopedNamespaceDeclaration(node);
+        IsDeclarationFile = true;
+        Changed = true;
+        return base.VisitFileScopedNamespaceDeclaration(
+            node.WithName(SyntaxFactory.ParseName(_newNs).WithTriviaFrom(node.Name)));
+    }
+
+    /// <summary>Rewrites an exact namespace import, including single-segment names.</summary>
+    public override SyntaxNode? VisitUsingDirective(UsingDirectiveSyntax node)
+    {
+        if (node.Name?.ToString() != _oldNs)
+            return base.VisitUsingDirective(node);
+
+        Changed = true;
+        return base.VisitUsingDirective(
+            node.WithName(SyntaxFactory.ParseName(_newNs).WithTriviaFrom(node.Name)));
     }
 
     public override SyntaxNode? VisitQualifiedName(QualifiedNameSyntax node)

@@ -1,7 +1,7 @@
 using System.CommandLine;
 using System.Text.Json;
 using RoslynTools.Commands;
-using RoslynTools.Commands.Results;
+using RoslynTools.Services;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using Shouldly;
@@ -428,7 +428,7 @@ public class SolidSrpTests
         var result = new SolidResult();
         using var output = new StringWriter();
         RtContext.Format = OutputFormat.Json;
-        RtSerializer.Write(result, output);
+        RtSerializer.Write(StaticAnalyzerResultAdapters.Solid(result), output);
 
         using var doc = JsonDocument.Parse(output.ToString());
         doc.RootElement.TryGetProperty("SRP", out _).ShouldBeTrue();
@@ -476,7 +476,7 @@ public class SolidSrpTests
     [Fact]
     public void execute_async_defaults_min_methods_to_10()
     {
-        var cmd = SolidCommand.Build();
+        var cmd = App.Commands.Single(entry => entry.Info.Name == "solid").Build();
         var minMethodsOpt = cmd.Options.OfType<Option<int>>()
             .First(o => o.Name == "min-methods");
         minMethodsOpt.Parse("").GetValueForOption(minMethodsOpt).ShouldBe(10);
@@ -485,7 +485,7 @@ public class SolidSrpTests
     [Fact]
     public void execute_async_defaults_min_deps_to_5()
     {
-        var cmd = SolidCommand.Build();
+        var cmd = App.Commands.Single(entry => entry.Info.Name == "solid").Build();
         var minDepsOpt = cmd.Options.OfType<Option<int>>()
             .First(o => o.Name == "min-deps");
         minDepsOpt.Parse("").GetValueForOption(minDepsOpt).ShouldBe(5);

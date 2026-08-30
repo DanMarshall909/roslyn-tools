@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using RoslynTools.CommandDescriptors;
 using RoslynTools.Core;
+using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Core.Output;
 using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;

@@ -1,4 +1,5 @@
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.CodeAnalysis;
+using RoslynTools.Core;
 using RoslynTools.Services;
 using Shouldly;
 
@@ -34,10 +35,14 @@ public sealed class ConstructorReplacement
         using (workspace)
         {
             var writer = new CapturingSolutionChangeWriter();
-            var service = new ReplaceNewService(NullLogger<ReplaceNewService>.Instance, writer);
+            var execution = await ExecuteAsync(
+                workspace,
+                solution,
+                writer,
+                "Widget",
+                "WidgetFactory.Create");
 
-            await service.RunAsync(solution, "Widget", "WidgetFactory.Create", false);
-
+            execution.Status.ShouldBe(MutationExecutionStatus.Applied);
             var updatedText = await TestSolutionDocuments.GetTextAsync(writer.NewSolution!, "Consumer.cs");
             updatedText.ShouldContain("public Widget Build() => WidgetFactory.Create(\"primary\");", Case.Sensitive);
             updatedText.ShouldContain("public static Widget Create(string name) => null!;", Case.Sensitive);
@@ -74,15 +79,14 @@ public sealed class ConstructorReplacement
         using (workspace)
         {
             var writer = new CapturingSolutionChangeWriter();
-            var service = new ReplaceNewService(NullLogger<ReplaceNewService>.Instance, writer);
-
-            await service.RunAsync(
+            await ExecuteAsync(
+                workspace,
                 solution,
+                writer,
                 "Widget",
                 "WidgetFactory.Create",
-                false,
-                0,
-                "primary");
+                ifArgIndex: 0,
+                ifArgLiteral: "primary");
 
             var updatedText = await TestSolutionDocuments.GetTextAsync(writer.NewSolution!, "Consumer.cs");
             updatedText.ShouldContain("public Widget Primary() => WidgetFactory.Create(\"primary\");", Case.Sensitive);
@@ -108,10 +112,14 @@ public sealed class ConstructorReplacement
         using (workspace)
         {
             var writer = new CapturingSolutionChangeWriter();
-            var service = new ReplaceNewService(NullLogger<ReplaceNewService>.Instance, writer);
+            var execution = await ExecuteAsync(
+                workspace,
+                solution,
+                writer,
+                "Widget",
+                "WidgetFactory.Create");
 
-            await service.RunAsync(solution, "Widget", "WidgetFactory.Create", false);
-
+            execution.Status.ShouldBe(MutationExecutionStatus.NoOp);
             writer.NewSolution.ShouldBeNull();
         }
     }
@@ -144,13 +152,12 @@ public sealed class ConstructorReplacement
         using (workspace)
         {
             var writer = new CapturingSolutionChangeWriter();
-            var service = new ReplaceNewService(NullLogger<ReplaceNewService>.Instance, writer);
-
-            await service.RunAsync(
+            await ExecuteAsync(
+                workspace,
                 solution,
+                writer,
                 "Option",
                 "Factory.Create",
-                false,
                 ifArgIndex: 0,
                 ifArgLiteral: "--field",
                 dropMatchedArg: true);
@@ -189,13 +196,12 @@ public sealed class ConstructorReplacement
         using (workspace)
         {
             var writer = new CapturingSolutionChangeWriter();
-            var service = new ReplaceNewService(NullLogger<ReplaceNewService>.Instance, writer);
-
-            await service.RunAsync(
+            await ExecuteAsync(
+                workspace,
                 solution,
+                writer,
                 "Option",
                 "Factory.Create",
-                false,
                 ifArgIndex: 0,
                 ifArgLiteral: "--field",
                 dropMatchedArg: false);
@@ -230,17 +236,52 @@ public sealed class ConstructorReplacement
         using (workspace)
         {
             var writer = new CapturingSolutionChangeWriter();
-            var service = new ReplaceNewService(NullLogger<ReplaceNewService>.Instance, writer);
-
-            await service.RunAsync(
+            var execution = await ExecuteAsync(
+                workspace,
                 solution,
+                writer,
                 "Widget",
                 "WidgetFactory.Create",
-                false,
-                argumentIndex,
-                "primary");
+                ifArgIndex: argumentIndex,
+                ifArgLiteral: "primary");
 
+            execution.Status.ShouldBe(MutationExecutionStatus.NoOp);
             writer.NewSolution.ShouldBeNull();
         }
+    }
+
+    private static async Task<MutationExecutionResult<ReplaceNewResult>> ExecuteAsync(
+        Workspace workspace,
+        Solution solution,
+        CapturingSolutionChangeWriter writer,
+        string type,
+        string replacement,
+        int? ifArgIndex = null,
+        string? ifArgLiteral = null,
+        bool dropMatchedArg = false,
+        bool dryRun = false)
+    {
+        var operation = new ReplaceNewOperation(
+            new FixedWorkspaceSessionFactory(workspace, solution),
+            new ReplaceNewService(),
+            writer);
+        var result = await operation.ExecuteAsync(new ReplaceNewRequest(
+            type,
+            replacement,
+            ifArgIndex,
+            ifArgLiteral,
+            dropMatchedArg,
+            DryRun: dryRun));
+        return result.Unwrap();
+    }
+
+    private sealed class FixedWorkspaceSessionFactory(
+        Workspace workspace,
+        Solution solution) : IWorkspaceSessionFactory
+    {
+        public Task<Solution> GetSolutionAsync(string? solutionPath) => Task.FromResult(solution);
+
+        public Task<(Workspace Workspace, Solution Solution)> LoadWorkspaceAsync(string? solutionPath) =>
+            Task.FromResult((workspace, solution));
     }
 }

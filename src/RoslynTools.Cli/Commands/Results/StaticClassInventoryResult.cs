@@ -2,6 +2,7 @@ using System.Text.Json;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Models;
+using RoslynTools.Services.Results;
 
 namespace RoslynTools.Commands.Results;
 
@@ -84,6 +85,21 @@ internal sealed record StaticClassInventoryResult : IRtOutput, IRtJsonOutput
             }).ToList()
         };
     }
+
+    internal static StaticClassInventoryResult FromAnalysis(StaticClassInventoryAnalysisResult result) => new()
+    {
+        TotalStaticClasses = result.TotalStaticClasses,
+        Classes = result.Classes.Select(c => new StaticClassEntryOutput
+        {
+            Fqn = c.Fqn,
+            File = c.File,
+            MemberCount = c.MemberCount,
+            CallSiteCount = c.CallSiteCount,
+            CalledFromStaticClasses = c.CalledFromStaticClasses,
+            CalledFromInstanceClasses = c.CalledFromInstanceClasses,
+            MigrationDifficulty = c.MigrationDifficulty
+        }).ToList()
+    };
 }
 
 /// <summary>

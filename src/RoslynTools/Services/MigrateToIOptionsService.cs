@@ -1,127 +1,107 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
-using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
-using RoslynTools.Core.Output;
 
 namespace RoslynTools.Services;
 
-/// <summary>
-/// Supports migration to IOptions patterns
-/// </summary>
+/// <summary>Prepares IOptions migrations without rendering or writing changes.</summary>
 internal sealed class MigrateToIOptionsService : IRtService
 {
     private static readonly Regex GetValueRegex = new(
         @"GetValue\s*(?:<(?<type>[^>]+)>)?\s*\(\s*""(?<key>[^""]+)""",
         RegexOptions.Compiled);
 
-    private static readonly Action<ILogger, Exception?> NoRegistrationSite = LoggerMessage.Define(
-        LogLevel.Error,
-        new EventId(1, nameof(NoRegistrationSite)),
-        "No DI registration site found. Add a services.Configure entry-point manually or pass a solution containing IServiceCollection configuration.");
+    internal sealed record Preparation(
+        Solution Solution,
+        MigrateToIOptionsResult Result,
+        IReadOnlyList<MutationDiagnostic> Diagnostics,
+        bool Changed);
 
-    private static readonly Action<ILogger, Exception?> MultipleRegistrationSites = LoggerMessage.Define(
-        LogLevel.Warning,
-        new EventId(2, nameof(MultipleRegistrationSites)),
-        "Multiple DI registration sites found; using first candidate.");
-
-    private static readonly Action<ILogger, string, int, Exception?> RegistrationSiteCandidate =
-        LoggerMessage.Define<string, int>(
-            LogLevel.Warning,
-            new EventId(3, nameof(RegistrationSiteCandidate)),
-            "  {FilePath}:{Line}");
-
-    private static readonly Action<ILogger, string, string, Exception?> TypeNameCollision =
-        LoggerMessage.Define<string, string>(
-            LogLevel.Error,
-            new EventId(4, nameof(TypeNameCollision)),
-            "Type name collision: {Name} already exists at {FilePath}.");
-
-    private static readonly Action<ILogger, Exception?> DryRunMode = LoggerMessage.Define(
-        LogLevel.Information,
-        new EventId(5, nameof(DryRunMode)),
-        "dry-run mode: no files will be written.");
-
-    private readonly ILogger<MigrateToIOptionsService> _logger;
-    private readonly ISolutionChangeWriter _solutionChangeWriter;
-
-    public MigrateToIOptionsService()
-        : this(new RtConsoleLogger<MigrateToIOptionsService>(), new SolutionChangeWriter())
+    [SuppressMessage("Performance", "CA1822:Mark members as static",
+        Justification = "The service is deliberately instance-shaped for the application operation seam.")]
+    internal async Task<Result<Preparation, RtError>> PrepareAsync(
+        Solution solution,
+        string section,
+        string name,
+        CancellationToken cancellationToken = default)
     {
-    }
-
-    public MigrateToIOptionsService(ILogger<MigrateToIOptionsService> logger,
-        ISolutionChangeWriter solutionChangeWriter)
-    {
-        _logger = logger;
-        _solutionChangeWriter = solutionChangeWriter;
-    }
-
-    public async Task<int> RunAsync(Solution solution, string section, string name, bool dryRun)
-    {
-        var candidates = await FindRegistrationSitesAsync(solution);
+        var candidates = await FindRegistrationSitesAsync(solution, cancellationToken);
         if (candidates.Count == 0)
-        {
-            NoRegistrationSite(_logger, null);
-            return 1;
-        }
+            return Result<Preparation, RtError>.Err(RtError.NotFound(
+                "No DI registration site found. Add a services.Configure entry-point manually or pass a solution containing IServiceCollection configuration."));
 
-        var target = candidates
-            .OrderBy(c => c.FilePath, StringComparer.InvariantCulture)
-            .ThenBy(c => c.Line)
-            .First();
+        var orderedCandidates = candidates
+            .OrderBy(candidate => candidate.FilePath, StringComparer.InvariantCulture)
+            .ThenBy(candidate => candidate.Line)
+            .ToArray();
+        var target = orderedCandidates[0];
+        var diagnostics = CreateRegistrationDiagnostics(orderedCandidates);
 
-        if (candidates.Count > 1)
-        {
-            MultipleRegistrationSites(_logger, null);
-            foreach (var candidate in candidates.OrderBy(c => c.FilePath, StringComparer.InvariantCulture)
-                         .ThenBy(c => c.Line))
-                RegistrationSiteCandidate(_logger, candidate.FilePath, candidate.Line, null);
-        }
-
-        var targetNamespace = await InferNamespaceAsync(target.Document);
+        cancellationToken.ThrowIfCancellationRequested();
+        var targetNamespace = await InferNamespaceAsync(target.Document, cancellationToken);
         var namespaceName = targetNamespace
                             ?? target.Project.AssemblyName
                             ?? target.Project.Name;
         var outputPath = Path.Combine(Path.GetDirectoryName(target.Project.FilePath!)!, name + ".cs");
-        var pocoText = BuildPoco(namespaceName, name, await InferPropertiesAsync(solution, section));
+        var discovered = await InferPropertiesAsync(solution, section, cancellationToken);
+        var pocoText = BuildPoco(namespaceName, name, discovered.Properties);
 
-        if (File.Exists(outputPath) && await File.ReadAllTextAsync(outputPath) != pocoText)
-        {
-            TypeNameCollision(_logger, name, outputPath, null);
-            return 1;
-        }
+        if (File.Exists(outputPath) && await File.ReadAllTextAsync(outputPath, cancellationToken) != pocoText)
+            return Result<Preparation, RtError>.Err(new RtError(
+                RtErrorKind.InvalidInput,
+                $"Type name collision: {name} already exists at {outputPath}.",
+                new Dictionary<string, string>
+                {
+                    ["name"] = name,
+                    ["filePath"] = outputPath
+                }));
 
-        var changedFiles = new SortedSet<string>(StringComparer.InvariantCulture);
-        var newSolution = solution;
+        cancellationToken.ThrowIfCancellationRequested();
         var namespaceImport = $"using {namespaceName};";
         var needsNamespaceImport = targetNamespace is null
                                    && !target.Text.Contains(namespaceImport, StringComparison.Ordinal);
-
-        var alreadyApplied = File.Exists(outputPath)
-                             && await File.ReadAllTextAsync(outputPath) == pocoText
+        var existingPocoMatches = File.Exists(outputPath)
+                                  && await File.ReadAllTextAsync(outputPath, cancellationToken) == pocoText;
+        var alreadyApplied = existingPocoMatches
                              && target.Text.Contains($"Configure<{name}>", StringComparison.Ordinal)
                              && !needsNamespaceImport;
+        var worklist = await FindConsumersAsync(solution, section, cancellationToken);
+        var registration = new MigrateToIOptionsRegistrationSite(
+            target.FilePath,
+            target.Line,
+            target.ServicesName,
+            target.ConfigurationName);
+        var result = new MigrateToIOptionsResult(
+            section,
+            name,
+            outputPath,
+            registration,
+            discovered.ConfigSources,
+            worklist,
+            alreadyApplied);
 
         if (alreadyApplied)
         {
-            RtResultRenderer.WriteText(RtResult<string>.Ok($"Migration already applied for {name}."));
-            return 0;
+            diagnostics.Add(new MutationDiagnostic(
+                MutationDiagnosticSeverity.Information,
+                $"Migration already applied for {name}."));
+            return Result<Preparation, RtError>.Ok(new Preparation(solution, result, diagnostics, false));
         }
 
+        var newSolution = solution;
         if (!File.Exists(outputPath))
         {
-            var docId = DocumentId.CreateNewId(target.Project.Id);
+            var documentId = DocumentId.CreateNewId(target.Project.Id);
             newSolution = newSolution.AddDocument(
-                docId,
+                documentId,
                 name + ".cs",
                 SourceText.From(pocoText, Encoding.UTF8),
                 filePath: outputPath);
-            changedFiles.Add(outputPath);
         }
 
         if (!target.Text.Contains($"Configure<{name}>", StringComparison.Ordinal) || needsNamespaceImport)
@@ -136,44 +116,48 @@ internal sealed class MigrateToIOptionsService : IRtService
             }
 
             if (!updatedText.Contains($"Configure<{name}>", StringComparison.Ordinal))
-                updatedText = InsertRegistration(updatedText, name, section, target.ServicesName,
-                    target.ConfigurationName, insertOffset);
+                updatedText = InsertRegistration(
+                    updatedText,
+                    name,
+                    section,
+                    target.ServicesName,
+                    target.ConfigurationName,
+                    insertOffset);
 
             newSolution = newSolution.WithDocumentText(target.Document.Id, SourceText.From(updatedText, Encoding.UTF8));
-            changedFiles.Add(target.FilePath);
         }
 
-        if (dryRun)
-            DryRunMode(_logger, null);
-
-        await _solutionChangeWriter.ApplyChangesAsync(solution, newSolution, dryRun);
-
-        WriteResultLine("Changed files:");
-        foreach (var file in changedFiles)
-            WriteResultLine(file);
-
-        var worklist = await FindConsumersAsync(solution, section);
-        WriteResultLine("Read-site worklist:");
-        foreach (var file in worklist)
-            WriteResultLine(file);
-
-        return 0;
+        return Result<Preparation, RtError>.Ok(new Preparation(newSolution, result, diagnostics, true));
     }
 
-    private static void WriteResultLine(string value)
+    private static List<MutationDiagnostic> CreateRegistrationDiagnostics(
+        IReadOnlyList<RegistrationSite> candidates)
     {
-        RtResultRenderer.WriteText(RtResult<string>.Ok(value));
+        var diagnostics = new List<MutationDiagnostic>();
+        if (candidates.Count <= 1)
+            return diagnostics;
+
+        diagnostics.Add(new MutationDiagnostic(
+            MutationDiagnosticSeverity.Warning,
+            "Multiple DI registration sites found; using first candidate."));
+        diagnostics.AddRange(candidates.Select(candidate => new MutationDiagnostic(
+            MutationDiagnosticSeverity.Warning,
+            $"  {candidate.FilePath}:{candidate.Line}")));
+        return diagnostics;
     }
 
-    private static async Task<List<RegistrationSite>> FindRegistrationSitesAsync(Solution solution)
+    private static async Task<List<RegistrationSite>> FindRegistrationSitesAsync(
+        Solution solution,
+        CancellationToken cancellationToken)
     {
         var sites = new List<RegistrationSite>();
         foreach (var project in solution.Projects)
             foreach (var document in project.Documents)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var text = document.FilePath is not null && File.Exists(document.FilePath)
-                    ? await File.ReadAllTextAsync(document.FilePath)
-                    : (await document.GetTextAsync()).ToString();
+                    ? await File.ReadAllTextAsync(document.FilePath, cancellationToken)
+                    : (await document.GetTextAsync(cancellationToken)).ToString();
                 var match = Regex.Match(
                     text,
                     @"(?<services>[A-Za-z_][A-Za-z0-9_]*(?:\s*\.\s*[A-Za-z_][A-Za-z0-9_]*)*)\s*\.\s*(?:Add\w+|Configure)\s*\(");
@@ -196,7 +180,7 @@ internal sealed class MigrateToIOptionsService : IRtService
                 if (insertOffset < 0)
                     continue;
 
-                var line = text.Take(match.Index).Count(c => c == '\n') + 1;
+                var line = text.Take(match.Index).Count(character => character == '\n') + 1;
                 sites.Add(new RegistrationSite(
                     project,
                     document,
@@ -211,20 +195,24 @@ internal sealed class MigrateToIOptionsService : IRtService
         return sites;
     }
 
-    private static async Task<string?> InferNamespaceAsync(Document document)
+    private static async Task<string?> InferNamespaceAsync(Document document, CancellationToken cancellationToken)
     {
-        var text = (await document.GetTextAsync()).ToString();
+        var text = (await document.GetTextAsync(cancellationToken)).ToString();
         var match = Regex.Match(text, @"namespace\s+(?<namespace>[A-Za-z_][A-Za-z0-9_.]*)\s*[;{]");
         return match.Success ? match.Groups["namespace"].Value : null;
     }
 
-    private static async Task<IReadOnlyList<OptionProperty>> InferPropertiesAsync(Solution solution, string section)
+    private static async Task<DiscoveredProperties> InferPropertiesAsync(
+        Solution solution,
+        string section,
+        CancellationToken cancellationToken)
     {
         var properties = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var project in solution.Projects)
             foreach (var document in project.Documents)
             {
-                var text = (await document.GetTextAsync()).ToString();
+                cancellationToken.ThrowIfCancellationRequested();
+                var text = (await document.GetTextAsync(cancellationToken)).ToString();
                 foreach (Match match in GetValueRegex.Matches(text))
                 {
                     var key = match.Groups["key"].Value;
@@ -233,36 +221,47 @@ internal sealed class MigrateToIOptionsService : IRtService
 
                     var leaf = key[(section.Length + 1)..].Split(':', StringSplitOptions.RemoveEmptyEntries)
                         .LastOrDefault();
-                    if (string.IsNullOrWhiteSpace(leaf))
-                        continue;
-
-                    properties[ToPascalCase(leaf)] = NormalizeType(match.Groups["type"].Value);
+                    if (!string.IsNullOrWhiteSpace(leaf))
+                        properties[ToPascalCase(leaf)] = NormalizeType(match.Groups["type"].Value);
                 }
             }
 
+        var configSources = new SortedSet<string>(StringComparer.InvariantCulture);
         foreach (var project in solution.Projects)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var projectDir = Path.GetDirectoryName(project.FilePath);
             if (string.IsNullOrEmpty(projectDir))
                 continue;
 
             foreach (var appsettings in Directory.EnumerateFiles(projectDir, "appsettings*.json",
-                         SearchOption.TopDirectoryOnly))
-                AddJsonProperties(properties, section, appsettings);
+                         SearchOption.TopDirectoryOnly).OrderBy(path => path, StringComparer.InvariantCulture))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                configSources.Add(appsettings);
+                await AddJsonPropertiesAsync(properties, section, appsettings, cancellationToken);
+            }
         }
 
         if (properties.Count == 0)
             properties["Value"] = "string";
 
-        return properties
-            .OrderBy(kv => kv.Key, StringComparer.Ordinal)
-            .Select(kv => new OptionProperty(kv.Key, kv.Value))
-            .ToList();
+        return new DiscoveredProperties(
+            properties
+                .OrderBy(pair => pair.Key, StringComparer.Ordinal)
+                .Select(pair => new OptionProperty(pair.Key, pair.Value))
+                .ToArray(),
+            configSources.ToArray());
     }
 
-    private static void AddJsonProperties(Dictionary<string, string> properties, string section, string appsettings)
+    private static async Task AddJsonPropertiesAsync(
+        Dictionary<string, string> properties,
+        string section,
+        string appsettings,
+        CancellationToken cancellationToken)
     {
-        using var document = JsonDocument.Parse(File.ReadAllText(appsettings));
+        await using var stream = File.OpenRead(appsettings);
+        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
         var current = document.RootElement;
         foreach (var part in section.Split(':'))
             if (current.ValueKind != JsonValueKind.Object || !current.TryGetProperty(part, out current))
@@ -304,8 +303,8 @@ internal sealed class MigrateToIOptionsService : IRtService
         var newline = text.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
         var indentStart = text.LastIndexOf('\n', Math.Max(0, insertOffset - 1));
         var nextNonWhitespace = insertOffset;
-        while (nextNonWhitespace < text.Length && char.IsWhiteSpace(text[nextNonWhitespace]) &&
-               text[nextNonWhitespace] != '\n' && text[nextNonWhitespace] != '\r')
+        while (nextNonWhitespace < text.Length && char.IsWhiteSpace(text[nextNonWhitespace])
+               && text[nextNonWhitespace] != '\n' && text[nextNonWhitespace] != '\r')
             nextNonWhitespace++;
 
         var indent = "        ";
@@ -333,19 +332,23 @@ internal sealed class MigrateToIOptionsService : IRtService
         return text.Insert(last.Index + last.Length, newline + namespaceImport);
     }
 
-    private static async Task<IReadOnlyList<string>> FindConsumersAsync(Solution solution, string section)
+    private static async Task<IReadOnlyList<string>> FindConsumersAsync(
+        Solution solution,
+        string section,
+        CancellationToken cancellationToken)
     {
         var files = new SortedSet<string>(StringComparer.InvariantCulture);
         foreach (var project in solution.Projects)
             foreach (var document in project.Documents)
             {
-                var text = (await document.GetTextAsync()).ToString();
+                cancellationToken.ThrowIfCancellationRequested();
+                var text = (await document.GetTextAsync(cancellationToken)).ToString();
                 if (text.Contains($"\"{section}:", StringComparison.Ordinal)
                     || text.Contains($"GetSection(\"{section}\")", StringComparison.Ordinal))
                     files.Add(document.FilePath!);
             }
 
-        return files.ToList();
+        return files.ToArray();
     }
 
     private static string NormalizeType(string type)
@@ -362,30 +365,23 @@ internal sealed class MigrateToIOptionsService : IRtService
         };
     }
 
-    private static string NormalizeExpression(string expression)
-    {
-        return Regex.Replace(expression, @"\s+", "");
-    }
+    private static string NormalizeExpression(string expression) => Regex.Replace(expression, @"\s+", "");
 
-    private static string InferJsonType(JsonElement value)
+    private static string InferJsonType(JsonElement value) => value.ValueKind switch
     {
-        return value.ValueKind switch
-        {
-            JsonValueKind.Number when value.TryGetInt32(out _) => "int",
-            JsonValueKind.Number when value.TryGetInt64(out _) => "long",
-            JsonValueKind.Number => "double",
-            JsonValueKind.True or JsonValueKind.False => "bool",
-            _ => "string"
-        };
-    }
+        JsonValueKind.Number when value.TryGetInt32(out _) => "int",
+        JsonValueKind.Number when value.TryGetInt64(out _) => "long",
+        JsonValueKind.Number => "double",
+        JsonValueKind.True or JsonValueKind.False => "bool",
+        _ => "string"
+    };
 
     private static string ToPascalCase(string value)
     {
-        var parts = Regex.Split(value, @"[^A-Za-z0-9]+").Where(p => p.Length > 0).ToArray();
-        if (parts.Length == 0)
-            return "Value";
-
-        return string.Concat(parts.Select(p => char.ToUpperInvariant(p[0]) + p[1..]));
+        var parts = Regex.Split(value, @"[^A-Za-z0-9]+").Where(part => part.Length > 0).ToArray();
+        return parts.Length == 0
+            ? "Value"
+            : string.Concat(parts.Select(part => char.ToUpperInvariant(part[0]) + part[1..]));
     }
 
     private sealed record RegistrationSite(
@@ -399,4 +395,8 @@ internal sealed class MigrateToIOptionsService : IRtService
         int Line);
 
     private sealed record OptionProperty(string Name, string Type);
+
+    private sealed record DiscoveredProperties(
+        IReadOnlyList<OptionProperty> Properties,
+        IReadOnlyList<string> ConfigSources);
 }

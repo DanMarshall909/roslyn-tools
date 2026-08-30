@@ -41,22 +41,20 @@ internal class InlineMethodService : IRtService
     /// <summary>
     /// Runs an operation to inline a method on a solution.
     /// </summary>
-    internal async Task RunAsync(Solution sln, string typeName, string methodName, bool dryRun)
-    {
-        var originalSolution = sln;
+    internal sealed record Preparation(Solution Solution, bool Changed, string? Error = null);
 
+    internal async Task<Preparation> PrepareAsync(Solution sln, string typeName, string methodName)
+    {
         var methodSymbol = await _symbols.FindMethodInTypeAsync(sln, typeName, methodName);
         if (methodSymbol == null)
         {
-            _logger.RtError("Error: Method '{MethodName}' not found in type '{TypeName}'.", methodName, typeName);
-            return;
+            return new Preparation(sln, false, $"Method '{methodName}' not found in type '{typeName}'.");
         }
 
         var bodyExpression = GetInlinableBodyExpression(methodSymbol);
         if (bodyExpression == null)
         {
-            _logger.RtError("Error: inline-method only supports expression-bodied and single-return block methods.");
-            return;
+            return new Preparation(sln, false, "inline-method only supports expression-bodied and single-return block methods.");
         }
 
         var parameters = methodSymbol.Parameters;
@@ -70,8 +68,7 @@ internal class InlineMethodService : IRtService
         var declDocId = _documents.FindDocumentId(sln, methodSymbol);
         if (declDocId == null)
         {
-            _logger.RtError("Error: Cannot locate source document for '{MethodName}'.", methodName);
-            return;
+            return new Preparation(sln, false, $"Cannot locate source document for '{methodName}'.");
         }
 
         var allDocIds = new HashSet<DocumentId>(callSitesByDoc.Keys) { declDocId };
@@ -95,7 +92,14 @@ internal class InlineMethodService : IRtService
             sln = sln.WithDocumentSyntaxRoot(docId, root);
         }
 
-        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
+        return new Preparation(sln, true);
+    }
+
+    internal async Task RunAsync(Solution sln, string typeName, string methodName, bool dryRun)
+    {
+        var prepared = await PrepareAsync(sln, typeName, methodName);
+        if (prepared.Changed)
+            await _solutionChangeWriter.ApplyChangesAsync(sln, prepared.Solution, dryRun);
     }
 
     /// <summary>

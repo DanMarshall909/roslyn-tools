@@ -2,7 +2,6 @@ using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
@@ -14,46 +13,21 @@ namespace RoslynTools.Services;
     Justification = "Instance service used by the static-to-instance migration dogfood path.")]
 internal sealed class DestaticClassService : IRtService
 {
+    internal sealed record Preparation(Solution Solution, string TypeName);
     private readonly IDocumentLocatorService _documents;
-    private readonly ILogger<DestaticClassService> _logger;
     private readonly ISymbolResolutionService _symbols;
-    private readonly ISolutionChangeWriter _writer;
-
-    public DestaticClassService()
-        : this(
-            new RtConsoleLogger<DestaticClassService>(),
-            new SymbolResolutionService(),
-            new DocumentLocatorService(),
-            new SolutionChangeWriter())
-    {
-    }
 
     public DestaticClassService(
         ISymbolResolutionService symbols,
-        IDocumentLocatorService documents,
-        ISolutionChangeWriter writer)
-        : this(new RtConsoleLogger<DestaticClassService>(), symbols, documents, writer)
+        IDocumentLocatorService documents)
     {
-    }
-
-    public DestaticClassService(
-        ILogger<DestaticClassService> logger,
-        ISymbolResolutionService symbols,
-        IDocumentLocatorService documents,
-        ISolutionChangeWriter writer)
-    {
-        _logger = logger;
         _symbols = symbols;
         _documents = documents;
-        _writer = writer;
     }
 
-    /// <summary>
-    /// Runs the static class analysis process.
-    /// </summary>
-    internal async Task RunAsync(Solution solution, string typeName, bool dryRun)
+    internal async Task<Preparation> PrepareAsync(Solution solution, string typeName, CancellationToken cancellationToken = default)
     {
-        var originalSolution = solution;
+        cancellationToken.ThrowIfCancellationRequested();
         var symbol = await _symbols.FindTypeByFqnAsync(solution, typeName);
 
         if (symbol is not INamedTypeSymbol typeSymbol)
@@ -69,10 +43,11 @@ internal sealed class DestaticClassService : IRtService
                                       $"Cannot locate source document for '{typeName}'.");
 
         solution = await RewriteCallSitesAsync(solution, typeSymbol);
+        cancellationToken.ThrowIfCancellationRequested();
         solution = await RewriteDeclarationAsync(solution, declaringDocumentId, classDeclaration);
+        cancellationToken.ThrowIfCancellationRequested();
 
-        _logger.RtInfo("Migrated static class '{TypeName}' to instance class.", typeSymbol.ToDisplayString());
-        await _writer.ApplyChangesAsync(originalSolution, solution, dryRun);
+        return new Preparation(solution, typeSymbol.ToDisplayString());
     }
 
     private static async Task<Solution> RewriteDeclarationAsync(

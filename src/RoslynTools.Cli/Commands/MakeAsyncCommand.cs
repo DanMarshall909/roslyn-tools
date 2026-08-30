@@ -1,5 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Core;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -7,25 +8,20 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Converts a method to be asynchronous
 /// </summary>
-internal sealed class MakeAsyncCommand(IWorkspaceSessionFactory sessionFactory, MakeAsyncService makeAsync) : IRtCommand, IRefactorCommand
+internal sealed class MakeAsyncCommand : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
-    private readonly MakeAsyncService _makeAsync = makeAsync;
-    public static RtCommandInfo Info { get; } = new(
-        "make-async",
-        true,
-        false,
-        "refactor",
-        Aliases: ["ma"],
-        WhenToUse:
-        "Converting a synchronous method to async Task<T> and updating its direct call sites with await, without manually hunting every invocation. Use --no-rename to skip the Async suffix when the call sites already have naming that makes async clear.",
-        Examples:
-        [
-            "rt refactor make-async --type BookingService --method Save --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt refactor ma --type EmailSender --method Send --no-rename --dry-run",
-            "rt refactor make-async --type HeroApiClient --method FetchAvailability --solution RoslynTools.slnx"
-        ]
-    );
+    private readonly DaemonRpcRecoveryCoordinator _daemon;
+    private readonly MakeAsyncOperation _operation;
+
+    public MakeAsyncCommand(
+        DaemonRpcRecoveryCoordinator daemon,
+        MakeAsyncOperation operation)
+    {
+        _daemon = daemon;
+        _operation = operation;
+    }
+
+    public static RtCommandInfo Info => MakeAsyncCommandDefinition.Info;
 
     public Command Build()
     {
@@ -39,25 +35,21 @@ internal sealed class MakeAsyncCommand(IWorkspaceSessionFactory sessionFactory, 
         cmd.AddAlias("ma");
         cmd.AddAll(typeOpt, methodOpt, noRenameOpt, solutionOpt, dryRunOpt);
 
-        cmd.SetHandler(
-            async (type, method, noRename, solution, dryRun) =>
-            {
-                await ExecuteAsync(type, method, noRename, solution, dryRun);
-            }, typeOpt, methodOpt, noRenameOpt, solutionOpt, dryRunOpt);
+        cmd.SetHandler(async context =>
+        {
+            await DaemonCommandExecutor.ExecuteAsync(
+                _daemon,
+                _operation,
+                new MakeAsyncRequest(
+                    context.ParseResult.GetValueForOption(typeOpt)!,
+                    context.ParseResult.GetValueForOption(methodOpt)!,
+                    context.ParseResult.GetValueForOption(noRenameOpt),
+                    context.ParseResult.GetValueForOption(solutionOpt),
+                    context.ParseResult.GetValueForOption(dryRunOpt)),
+                context);
+        });
 
         return cmd;
     }
 
-    /// <summary>
-    /// Executes the MakeAsyncCommand with async parameters
-    /// </summary>
-    internal async Task ExecuteAsync(string typeName, string methodName, bool noRename, string? solutionPath,
-        bool dryRun)
-    {
-        var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
-        using (workspace)
-        {
-            await _makeAsync.RunAsync(sln, typeName, methodName, noRename, dryRun);
-        }
-    }
 }

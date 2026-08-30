@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Services;
 
 namespace RoslynTools.Tests.Infrastructure;
 
@@ -23,7 +24,7 @@ public class Architecture : IClassFixture<RtServicesFixture>
         var (workspace, solution) = await WorkspaceLoader.LoadAsync(FindSolutionPath());
         using (workspace)
         {
-            var cycles = await _services.Resolve<CircularDepsCommand>().AnalyzeCyclesAsync(solution, null);
+            var cycles = await _services.Resolve<CircularDepsService>().AnalyzeCyclesAsync(solution, null);
 
             Assert.True(
                 cycles.Count == 0,

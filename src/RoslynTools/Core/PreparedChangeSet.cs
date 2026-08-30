@@ -61,6 +61,7 @@ internal sealed class PreparedChangeSet
 
     private string[] BuildAffectedPaths()
     {
+        ValidateMoveRoles();
         var paths = new Dictionary<string, string>(PathComparer);
 
         if (OriginalSolution is not null && ChangedSolution is not null)
@@ -72,8 +73,8 @@ internal sealed class PreparedChangeSet
             AddUnique(paths, file);
         foreach (var move in MovedFiles)
         {
-            AddUnique(paths, move.SourcePath);
-            AddUnique(paths, move.DestinationPath);
+            AddUnique(paths, move.SourcePath, allowExisting: OriginalSolution is not null);
+            AddUnique(paths, move.DestinationPath, allowExisting: OriginalSolution is not null);
         }
         foreach (var edit in ProjectFileEdits)
             AddUnique(paths, edit.Path);
@@ -81,6 +82,31 @@ internal sealed class PreparedChangeSet
             AddUnique(paths, edit.Path);
 
         return paths.Values.OrderBy(path => path, StringComparer.Ordinal).ToArray();
+    }
+
+    private void ValidateMoveRoles()
+    {
+        var sources = new HashSet<string>(PathComparer);
+        var destinations = new HashSet<string>(PathComparer);
+
+        foreach (var move in MovedFiles)
+        {
+            var source = Path.GetFullPath(move.SourcePath);
+            var destination = Path.GetFullPath(move.DestinationPath);
+            if (!sources.Add(source))
+                throw new ArgumentException(
+                    $"Move source '{move.SourcePath}' is used more than once.",
+                    nameof(MovedFiles));
+            if (!destinations.Add(destination))
+                throw new ArgumentException(
+                    $"Move destination '{move.DestinationPath}' is targeted more than once.",
+                    nameof(MovedFiles));
+        }
+
+        if (sources.Overlaps(destinations))
+            throw new ArgumentException(
+                "Prepared file moves cannot form chains or cycles.",
+                nameof(MovedFiles));
     }
 
     private static void AddSolutionPaths(
@@ -123,12 +149,15 @@ internal sealed class PreparedChangeSet
                 AddUnique(paths, document.FilePath);
     }
 
-    private static void AddUnique(IDictionary<string, string> paths, string path)
+    private static void AddUnique(
+        IDictionary<string, string> paths,
+        string path,
+        bool allowExisting = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         var displayPath = NormalizeDisplayPath(path);
         var comparisonPath = Path.GetFullPath(displayPath);
-        if (!paths.TryAdd(comparisonPath, displayPath))
+        if (!paths.TryAdd(comparisonPath, displayPath) && !allowExisting)
             throw new ArgumentException($"Path '{displayPath}' is affected more than once.", nameof(path));
     }
 
@@ -137,7 +166,8 @@ internal sealed class PreparedChangeSet
         var fullPath = Path.GetFullPath(path);
         return Path.IsPathFullyQualified(path)
             ? fullPath
-            : Path.GetRelativePath(Directory.GetCurrentDirectory(), fullPath);
+            : Path.GetRelativePath(Directory.GetCurrentDirectory(), fullPath)
+                .Replace(Path.DirectorySeparatorChar, '/');
     }
 
     private static StringComparer PathComparer => OperatingSystem.IsWindows()
@@ -148,17 +178,20 @@ internal sealed class PreparedChangeSet
 /// <summary>Content for a new file or an edit to an existing text/project file.</summary>
 internal sealed record PreparedFileWrite
 {
-    internal PreparedFileWrite(string path, string content)
+    internal PreparedFileWrite(string path, string content, string? expectedContent = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentNullException.ThrowIfNull(content);
         Path = path;
         Content = content;
+        ExpectedContent = expectedContent;
     }
 
     internal string Path { get; }
 
     internal string Content { get; }
+
+    internal string? ExpectedContent { get; }
 }
 
 /// <summary>A filesystem move whose source and destination are both affected paths.</summary>

@@ -3,9 +3,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
-using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
-using RoslynTools.Core.Output;
 
 namespace RoslynTools.Services;
 
@@ -16,49 +14,30 @@ namespace RoslynTools.Services;
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class ReplaceCallService : IRtService
 {
-    private readonly ILogger<ReplaceCallService> _logger;
-    private readonly ISolutionChangeWriter _solutionChangeWriter;
     private readonly ISymbolResolutionService _symbols;
 
-    public ReplaceCallService()
-        : this(new RtConsoleLogger<ReplaceCallService>(), new SolutionChangeWriter())
+    public ReplaceCallService(ISymbolResolutionService symbols)
     {
-    }
-
-    public ReplaceCallService(ILogger<ReplaceCallService> logger, ISolutionChangeWriter solutionChangeWriter,
-        ISymbolResolutionService? symbols = null)
-    {
-        _symbols = symbols ?? new SymbolResolutionService();
-
-        _logger = logger;
-        _solutionChangeWriter = solutionChangeWriter;
+        _symbols = symbols;
     }
 
     /// <summary>
     /// Runs an asynchronous method to replace call services in a solution with specified parameters.
     /// </summary>
-    internal async Task RunAsync(Solution solution, string from, string to, bool dryRun, int? ifArgIndex = null,
+    internal sealed record Preparation(Solution Solution, bool Changed, string? Message = null);
+
+    internal async Task<Preparation> PrepareAsync(Solution solution, string from, string to, int? ifArgIndex = null,
         string? ifArgLiteral = null)
     {
-        var originalSolution = solution;
-
-        var methodName = ParseMethodName(from);
         var methodSymbol = await _symbols.FindSymbolByFqnAsync(solution, from, "method");
-
-        _logger.RtInfo("Finding invocations of '{Method}'...", methodSymbol.ToDisplayString());
 
         var referencedSymbols = await SymbolFinder.FindReferencesAsync(methodSymbol, solution);
         var locationsByDocument = await FindInvocationSitesAsync(referencedSymbols, ifArgIndex, ifArgLiteral);
 
         if (locationsByDocument.Count == 0)
         {
-            RtResultRenderer.WriteText(RtResult<string>.Ok($"No calls to {from} found."));
-            return;
+            return new Preparation(solution, false, $"No calls to {from} found.");
         }
-
-        var totalCallSites = locationsByDocument.Values.Sum(l => l.Count);
-        _logger.RtInfo("Found {TotalCallSites} call site(s). Replacing '{MethodName}' → '{To}'...", totalCallSites,
-            methodName, to);
 
         foreach (var (docId, locations) in locationsByDocument)
         {
@@ -78,13 +57,7 @@ internal class ReplaceCallService : IRtService
             solution = solution.WithDocumentSyntaxRoot(docId, newRoot);
         }
 
-        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
-    }
-
-    private string ParseMethodName(string from)
-    {
-        var lastDot = from.LastIndexOf('.');
-        return lastDot >= 0 ? from[(lastDot + 1)..] : from;
+        return new Preparation(solution, true);
     }
 
     private async Task<Dictionary<DocumentId, List<Location>>> FindInvocationSitesAsync(

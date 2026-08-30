@@ -1,8 +1,5 @@
-using System.Globalization;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using RoslynTools.Core;
-using RoslynTools.Core.Output;
 
 namespace RoslynTools.Services;
 
@@ -93,97 +90,16 @@ internal sealed record LanguageFeatureDiagnostic(
 
 /// <summary>Host-neutral language-feature inventory and refactoring drill-down.</summary>
 internal sealed record LanguageFeaturesResult(
-    [property: OutputField(OutputLevel.Default, "catalogVersion")] string CatalogVersion,
-    [property: OutputField(OutputLevel.Default, "generatedCode")] string GeneratedCode,
-    [property: OutputField(OutputLevel.Default, "totals")] LanguageFeatureTotals Totals,
-    [property: OutputField(OutputLevel.Detailed, "projects")] IReadOnlyList<LanguageFeatureProjectResult> Projects,
-    [property: OutputField(OutputLevel.Default, "features")] IReadOnlyList<LanguageFeatureResult> Features,
-    [property: OutputField(OutputLevel.Default, "diagnostics")] IReadOnlyList<LanguageFeatureDiagnostic> Diagnostics) : IRtOutput, IRtJsonOutput
-{
-    private static readonly JsonSerializerOptions StrictJsonOptions = CreateJsonOptions(false);
-    private static readonly JsonSerializerOptions RelaxedJsonOptions = CreateJsonOptions(true);
-
-    [OutputField(OutputLevel.Llm, "summary")]
-    [JsonIgnore]
-    public string LlmSummary =>
-        $"{CatalogVersion}: {Totals.Projects} projects, {Totals.Files} files, "
-        + $"{Features.Count} detected features; "
-        + $"{Features.Count(feature => feature.Refactoring is not null)} refactoring reviews";
-
-    public void RenderText(TextWriter writer)
-    {
-        writer.WriteLine(
-            $"C# language features: {Totals.Projects} projects | {Totals.Files} files | "
-            + $"{Totals.NonBlankSourceLines} non-blank source lines");
-        writer.WriteLine($"Catalog: {CatalogVersion} | generated: {GeneratedCode}");
-
-        if (Features.Count == 0)
-        {
-            writer.WriteLine("No matching language features were detected.");
-        }
-        else
-        {
-            writer.WriteLine();
-            writer.WriteLine("Feature                         Since   Uses  Files    /KLOC   File %  Adoption");
-            foreach (var feature in Features)
-            {
-                var adoption = feature.Adoption is null
-                    ? "-"
-                    : feature.Adoption.Percent.ToString("0.###", CultureInfo.InvariantCulture) + "%";
-                writer.WriteLine(
-                    $"{feature.Id,-31} {feature.IntroducedIn,5} {feature.Occurrences,6} "
-                    + $"{feature.Files,6} {feature.OccurrencesPerKloc,8:0.###} "
-                    + $"{feature.FilePercent,8:0.###}%  {adoption}");
-            }
-        }
-
-        var refactorings = Features.Where(feature => feature.Refactoring is not null).ToList();
-        if (refactorings.Count > 0)
-        {
-            writer.WriteLine();
-            writer.WriteLine("Refactoring review candidates:");
-            foreach (var feature in refactorings)
-            {
-                var refactoring = feature.Refactoring!;
-                writer.WriteLine(
-                    $"- {feature.Id}: {refactoring.ReviewCandidates} — {refactoring.Description}");
-                if (refactoring.CandidateLocations is null)
-                    continue;
-
-                foreach (var location in refactoring.CandidateLocations)
-                    writer.WriteLine($"  {location.Path}:{location.Line}:{location.Column}");
-            }
-        }
-
-        if (Diagnostics.Count > 0)
-        {
-            writer.WriteLine();
-            writer.WriteLine("Partial-analysis diagnostics:");
-            foreach (var diagnostic in Diagnostics)
-                writer.WriteLine($"- {diagnostic.Code}: {diagnostic.Message}");
-        }
-    }
-
-    public void RenderJson(TextWriter writer)
-    {
-        writer.Write(JsonSerializer.Serialize(
-            this,
-            RtContext.RelaxJson ? RelaxedJsonOptions : StrictJsonOptions));
-    }
-
-    private static JsonSerializerOptions CreateJsonOptions(bool relaxed)
-    {
-        return new JsonSerializerOptions(JsonEncoders.Select(relaxed))
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            DictionaryKeyPolicy = JsonNamingPolicy.CamelCase
-        };
-    }
-}
+    string CatalogVersion,
+    string GeneratedCode,
+    LanguageFeatureTotals Totals,
+    IReadOnlyList<LanguageFeatureProjectResult> Projects,
+    IReadOnlyList<LanguageFeatureResult> Features,
+    IReadOnlyList<LanguageFeatureDiagnostic> Diagnostics);
 
 /// <summary>Shared typed application operation for CLI, daemon, and MCP adapters.</summary>
 internal sealed class LanguageFeaturesOperation
-    : LegacyCommandApplicationPort<LanguageFeaturesRequest, LanguageFeaturesResult>, IRtService
+    : CommandApplicationPort<LanguageFeaturesRequest, LanguageFeaturesResult>, IRtService
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly LanguageFeaturesAnalyzer _analyzer;
@@ -196,9 +112,12 @@ internal sealed class LanguageFeaturesOperation
         _analyzer = analyzer;
     }
 
-    public override string CommandName => "language_features";
+    public override ApplicationCommandDefinition Definition { get; } = new(
+        LanguageFeaturesCommandDefinition.Info,
+        typeof(LanguageFeaturesRequest), typeof(LanguageFeaturesResult), true,
+        CommandSafety.ReadOnly, CommandExecutionPlacement.DaemonPreferred, []);
 
-    public override async Task<LanguageFeaturesResult> ExecuteAsync(
+    public override async Task<Result<LanguageFeaturesResult, RtError>> ExecuteAsync(
         LanguageFeaturesRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -207,7 +126,7 @@ internal sealed class LanguageFeaturesOperation
         using (workspace)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return await _analyzer.AnalyzeAsync(solution, request, cancellationToken);
+            return Result<LanguageFeaturesResult, RtError>.Ok(await _analyzer.AnalyzeAsync(solution, request, cancellationToken));
         }
     }
 }

@@ -27,13 +27,14 @@ public sealed class FindImplementationsOperationTests
 
             var result = await operation.ExecuteAsync(new FindImplementationsRequest(
                 "App.IWorker", "requested.slnx"));
+            var response = result.Unwrap();
 
-            operation.CommandName.ShouldBe("find_impl");
+            operation.Definition.Name.ShouldBe("find_impl");
             factory.RequestedSolution.ShouldBe("requested.slnx");
-            result.Symbol.ShouldBe("App.IWorker");
-            result.SymbolKind.ShouldBe("Interface");
-            result.ImplementationCount.ShouldBe(1);
-            result.Implementations[0]["fqn"].ShouldBe("App.Worker");
+            response.Symbol.ShouldBe("App.IWorker");
+            response.SymbolKind.ShouldBe("Interface");
+            response.ImplementationCount.ShouldBe(1);
+            response.Implementations[0].Fqn.ShouldBe("App.Worker");
         }
     }
 
@@ -49,7 +50,8 @@ public sealed class FindImplementationsOperationTests
 
         public Task<(Workspace Workspace, Solution Solution)> LoadWorkspaceAsync(string? solutionPath)
         {
-            throw new NotSupportedException();
+            RequestedSolution = solutionPath;
+            return Task.FromResult((solution.Workspace, solution));
         }
     }
 }

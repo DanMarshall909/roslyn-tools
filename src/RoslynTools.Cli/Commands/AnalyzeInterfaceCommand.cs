@@ -1,8 +1,9 @@
 using System.CommandLine;
+using RoslynTools.Cli;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
-using RoslynTools.Models;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -10,22 +11,11 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Command for analyzing an interface for issues.
 /// </summary>
-internal sealed class AnalyzeInterfaceCommand(IWorkspaceSessionFactory sessionFactory, AnalyzeInterfaceService analyzeInterface) : IRtCommand, IStructuredOutputCommand, IAnalyzeCommand
+internal sealed class AnalyzeInterfaceCommand(DaemonRpcRecoveryCoordinator daemon, AnalyzeInterfaceOperation operation) : IRtCommand, IStructuredOutputCommand, IAnalyzeCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
-    private readonly AnalyzeInterfaceService _analyzeInterface = analyzeInterface;
-    public static RtCommandInfo Info { get; } = new(
-        "analyze-interface",
-        false,
-        true,
-        "analyze",
-        "Grouping interface consumers by the exact interface members they use so interface-segregation work can be driven by evidence instead of raw reference dumps. Use --scope to focus on one namespace or project, and --json for automation-friendly output.",
-        [
-            "rt analyze analyze-interface ProjectX.Core.IEmailSender --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt analyze analyze-interface IEmailSender --scope ProjectX.Core --solution RoslynTools.slnx",
-            "rt analyze analyze-interface ProjectX.Core.IEmailSender --json --solution RoslynTools.slnx"
-        ],
-        SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]);
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
+    private readonly AnalyzeInterfaceOperation _operation = operation;
+    public static RtCommandInfo Info => AnalyzeInterfaceCommandDefinition.Info;
 
     public Command Build()
     {
@@ -43,20 +33,24 @@ internal sealed class AnalyzeInterfaceCommand(IWorkspaceSessionFactory sessionFa
         cmd.Add(includeTestsOpt);
         cmd.Add(suggestOpt);
 
-        cmd.SetHandler(async (interfaceSpec, solution, scope, includeTests, suggest) =>
+        cmd.SetHandler(async context =>
         {
-            var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
-            using (workspace)
-            {
-                var report = await _analyzeInterface.AnalyzeAsync(
-                    sln,
-                    interfaceSpec,
-                    new AnalyzeInterfaceOptions(scope, includeTests, suggest));
-
-                RtResultRenderer.Write(RtResult<AnalyzeInterfaceResult>.Ok(
-                    AnalyzeInterfaceResult.FromReport(report, suggest)));
-            }
-        }, interfaceArg, solutionOpt, scopeOpt, includeTestsOpt, suggestOpt);
+            var request = new AnalyzeInterfaceRequest(
+                context.ParseResult.GetValueForArgument(interfaceArg),
+                context.ParseResult.GetValueForOption(solutionOpt),
+                context.ParseResult.GetValueForOption(scopeOpt),
+                context.ParseResult.GetValueForOption(includeTestsOpt),
+                context.ParseResult.GetValueForOption(suggestOpt));
+            var result = await DaemonCommandExecutor.ExecuteTypedAsync(
+                _daemon,
+                _operation,
+                request,
+                context.GetCancellationToken());
+            result.Match(
+                report => RtResultRenderer.Write(RtResult<AnalyzeInterfaceResult>.Ok(
+                    AnalyzeInterfaceResult.FromReport(report, request.Suggest))),
+                error => RtErrorPresenter.Surface(context, error));
+        });
 
         return cmd;
     }

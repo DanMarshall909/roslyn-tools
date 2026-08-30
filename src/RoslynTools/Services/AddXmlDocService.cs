@@ -10,48 +10,55 @@ namespace RoslynTools.Services;
 /// </summary>
 internal sealed class AddXmlDocService : IRtService
 {
+    internal sealed record XmlDocPreparation(
+        Solution Solution,
+        int Applied,
+        IReadOnlyList<string> SkippedSymbols);
+
     private readonly ISymbolResolutionService _symbols;
-    private readonly ISolutionChangeWriter _writer;
 
-    public AddXmlDocService() : this(new SymbolResolutionService(), new SolutionChangeWriter()) { }
-
-    public AddXmlDocService(ISymbolResolutionService symbols, ISolutionChangeWriter writer)
+    public AddXmlDocService(ISymbolResolutionService symbols)
     {
         _symbols = symbols;
-        _writer = writer;
     }
 
-    /// <summary>
-    /// An asynchronous method to run XML documentation services.
-    /// </summary>
-    internal async Task RunAsync(Solution sln, IReadOnlyDictionary<string, string> docs, bool dryRun)
+    internal async Task<XmlDocPreparation> PrepareAsync(
+        Solution sln,
+        IReadOnlyDictionary<string, string> docs,
+        CancellationToken cancellationToken = default)
     {
         var updated = sln;
         var applied = 0;
-        var skipped = 0;
+        var skippedSymbols = new List<string>();
 
         foreach (var (fqn, summary) in docs)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             ISymbol? symbol;
-            try { symbol = await _symbols.FindSymbolByFqnAsync(updated, fqn, null); }
-            catch { symbol = null; }
+            try
+            {
+                symbol = await _symbols.FindSymbolByFqnAsync(updated, fqn, null);
+            }
+            catch (InvalidOperationException)
+            {
+                symbol = null;
+            }
 
             if (symbol is null)
             {
-                RtLog.Error("Symbol not found, skipping: {Fqn}", fqn);
-                skipped++;
+                skippedSymbols.Add(fqn);
                 continue;
             }
 
             foreach (var syntaxRef in symbol.DeclaringSyntaxReferences)
             {
-                var node = await syntaxRef.GetSyntaxAsync();
+                var node = await syntaxRef.GetSyntaxAsync(cancellationToken);
                 if (HasXmlDoc(node)) continue;
 
                 var document = updated.GetDocument(node.SyntaxTree);
                 if (document is null) continue;
 
-                var root = await document.GetSyntaxRootAsync();
+                var root = await document.GetSyntaxRootAsync(cancellationToken);
                 if (root is null) continue;
 
                 var newNode = InsertXmlDoc(node, summary);
@@ -61,8 +68,7 @@ internal sealed class AddXmlDocService : IRtService
             }
         }
 
-        RtLog.Info("XML docs: {Applied} applied, {Skipped} symbols not found.", applied, skipped);
-        await _writer.ApplyChangesAsync(sln, updated, dryRun);
+        return new XmlDocPreparation(updated, applied, skippedSymbols);
     }
 
     private static SyntaxNode InsertXmlDoc(SyntaxNode node, string summary)

@@ -37,7 +37,7 @@ public sealed class FindCallersOperationTests
             var result = await operation.ExecuteAsync(
                 new FindCallersRequest("Work", "requested.sln"));
 
-            operation.CommandName.ShouldBe("find_callers");
+            operation.Definition.Name.ShouldBe("find_callers");
             sessionFactory.LoadedSolutionPath.ShouldBe("requested.sln");
             result.IsOk.ShouldBeTrue();
             result.Match(callers => callers.Callers.ShouldHaveSingleItem().ContainingMethod,
@@ -103,7 +103,10 @@ public sealed class FindCallersOperationTests
             return Task.FromResult(solution);
         }
 
-        public Task<(Workspace Workspace, Solution Solution)> LoadWorkspaceAsync(string? solutionPath) =>
-            throw new NotSupportedException();
+        public Task<(Workspace Workspace, Solution Solution)> LoadWorkspaceAsync(string? solutionPath)
+        {
+            LoadedSolutionPath = solutionPath;
+            return Task.FromResult((solution.Workspace, solution));
+        }
     }
 }

@@ -237,6 +237,67 @@ internal class ImportDirectiveService : IRtService
         await _solutionChangeWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
     }
 
+    internal async Task<PreparedGlobalUsing> PrepareGlobalUsingAsync(
+        Solution solution,
+        string filePath,
+        string namespaceName)
+    {
+        var document = FindDocument(solution, filePath);
+        var root = await GetCompilationUnitAsync(document);
+        if (root.Usings.Any(usingDirective =>
+                usingDirective.GlobalKeyword.IsKind(SyntaxKind.GlobalKeyword)
+                && !usingDirective.StaticKeyword.IsKind(SyntaxKind.StaticKeyword)
+                && usingDirective.Name?.ToString() == namespaceName))
+            return new PreparedGlobalUsing(solution, false, "Global using already exists.");
+
+        var newRoot = AddUsingDirective(root, ParseUsingDirective($"global using {namespaceName};"));
+        return new PreparedGlobalUsing(
+            solution.WithDocumentSyntaxRoot(document.Id, newRoot),
+            true,
+            null);
+    }
+
+    internal sealed record PreparedGlobalUsing(
+        Solution Solution,
+        bool Changed,
+        string? Message);
+
+    internal async Task<PreparedGlobalUsing> PrepareStaticUsingAsync(
+        Solution solution,
+        string filePath,
+        string typeName,
+        bool simplify,
+        bool simplifyAllStaticImports)
+    {
+        var originalSolution = solution;
+        var document = FindDocument(solution, filePath);
+        var root = await GetCompilationUnitAsync(document);
+        var exists = root.Usings.Any(u => u.StaticKeyword.IsKind(SyntaxKind.StaticKeyword)
+                                          && u.Name?.ToString() == typeName);
+        if (!exists)
+        {
+            solution = solution.WithDocumentSyntaxRoot(document.Id,
+                AddUsingDirective(root, ParseUsingDirective($"using static {typeName};")));
+        }
+
+        if (simplify || simplifyAllStaticImports)
+        {
+            var refreshed = solution.GetDocument(document.Id)
+                            ?? throw new InvalidOperationException(
+                                $"Document for '{filePath}' could not be re-resolved after edit.");
+            solution = await SimplifyStaticReferencesAsync(refreshed, typeName, simplifyAllStaticImports);
+        }
+
+        var changed = solution.GetChanges(originalSolution)
+            .GetProjectChanges()
+            .SelectMany(change => change.GetChangedDocuments())
+            .Any();
+        return new PreparedGlobalUsing(
+            solution,
+            changed,
+            !changed && exists ? "Static using already exists." : null);
+    }
+
     private Document FindDocument(Solution solution, string filePath)
     {
         var fullPath = Path.GetFullPath(filePath);

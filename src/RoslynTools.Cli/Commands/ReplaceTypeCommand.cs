@@ -1,5 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Core;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -7,25 +8,20 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Replaces a type reference with another type.
 /// </summary>
-internal sealed class ReplaceTypeCommand(IWorkspaceSessionFactory sessionFactory, ReplaceTypeService replace) : IRtCommand, IRefactorCommand
+internal sealed class ReplaceTypeCommand : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
-    private readonly ReplaceTypeService _replace = replace;
-    public static RtCommandInfo Info { get; } = new(
-        "replace-datetime",
-        true,
-        false,
-        "refactor",
-        Aliases: null,
-        WhenToUse:
-        "Replacing all DateTime.UtcNow and DateTime.Now usages with injected TimeProvider calls (_timeProvider.GetUtcNow().UtcDateTime / GetLocalNow().DateTime) and automatically wiring TimeProvider into the affected class constructors. Run solution-wide before adding unit tests that need controllable time.",
-        Examples:
-        [
-            "rt refactor replace-datetime --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt refactor replace-datetime --dry-run --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt refactor replace-datetime --solution RoslynTools.slnx"
-        ]
-    );
+    private readonly DaemonRpcRecoveryCoordinator _daemon;
+    private readonly ReplaceDateTimeOperation _operation;
+
+    public ReplaceTypeCommand(
+        DaemonRpcRecoveryCoordinator daemon,
+        ReplaceDateTimeOperation operation)
+    {
+        _daemon = daemon;
+        _operation = operation;
+    }
+
+    public static RtCommandInfo Info => ReplaceDateTimeCommandDefinition.Info;
 
     public Command Build()
     {
@@ -38,15 +34,16 @@ internal sealed class ReplaceTypeCommand(IWorkspaceSessionFactory sessionFactory
             solutionOpt, dryRunOpt
         };
 
-        cmd.SetHandler(async (solution, dryRun) =>
-            {
-                var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
-                using (workspace)
-                {
-                    await _replace.RunAsync(sln, dryRun);
-                }
-            },
-            solutionOpt, dryRunOpt);
+        cmd.SetHandler(async context =>
+        {
+            await DaemonCommandExecutor.ExecuteAsync(
+                _daemon,
+                _operation,
+                new ReplaceDateTimeRequest(
+                    context.ParseResult.GetValueForOption(solutionOpt),
+                    context.ParseResult.GetValueForOption(dryRunOpt)),
+                context);
+        });
 
         return cmd;
     }

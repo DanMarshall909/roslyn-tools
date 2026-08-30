@@ -39,6 +39,10 @@ internal static class Bootstrap
         services.AddSingleton<ISymbolResolutionService, SymbolResolutionService>();
         services.AddSingleton<IDocumentLocatorService, DocumentLocatorService>();
         services.AddSingleton<ISolutionChangeWriter, SolutionChangeWriter>();
+        services.AddSingleton<IPreparedFileSystem, PhysicalPreparedFileSystem>();
+        services.AddSingleton<IPreparedChangeSetWriter>(provider =>
+            new PreparedChangeSetWriter(provider.GetRequiredService<IPreparedFileSystem>()));
+        services.AddSingleton<PreparedChangeSetExecutor>();
         services.AddSingleton<ICommandCatalog, AppCommandCatalog>();
         services.AddSingleton<FeedbackAddOperation>();
         services.AddSingleton<FeedbackListOperation>();

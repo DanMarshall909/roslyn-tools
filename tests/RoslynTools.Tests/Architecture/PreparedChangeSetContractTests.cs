@@ -115,6 +115,45 @@ public sealed class PreparedChangeSetContractTests
     }
 
     [Fact]
+    public void rejects_duplicate_move_destinations_before_application()
+    {
+        Should.Throw<ArgumentException>(() => new PreparedChangeSet(
+            movedFiles:
+            [
+                new PreparedFileMove("src/First.cs", "src/Target.cs"),
+                new PreparedFileMove("src/Second.cs", "src/./Target.cs")
+            ]));
+    }
+
+    [Fact]
+    public void a_solution_edit_can_be_followed_by_a_move_of_the_changed_document()
+    {
+        using var workspace = new AdhocWorkspace();
+        var projectId = ProjectId.CreateNewId();
+        var documentId = DocumentId.CreateNewId(projectId);
+        var original = workspace.CurrentSolution
+            .AddProject(ProjectInfo.Create(
+                projectId,
+                VersionStamp.Create(),
+                "PreparedChanges",
+                "PreparedChanges",
+                LanguageNames.CSharp))
+            .AddDocument(
+                documentId,
+                "Before.cs",
+                SourceText.From("class Before;"),
+                filePath: "src/Before.cs");
+        var changed = original.WithDocumentText(documentId, SourceText.From("class After;"));
+
+        var changeSet = new PreparedChangeSet(
+            original,
+            changed,
+            movedFiles: [new PreparedFileMove("src/Before.cs", "src/After.cs")]);
+
+        changeSet.AffectedPaths.ShouldBe(["src/After.cs", "src/Before.cs"]);
+    }
+
+    [Fact]
     public async Task preview_returns_exact_paths_without_applying_and_apply_writes_exactly_once()
     {
         var changeSet = new PreparedChangeSet(
@@ -193,6 +232,198 @@ public sealed class PreparedChangeSetContractTests
         writer.LastChangeSet.ShouldBeSameAs(second);
     }
 
+    [Fact]
+    public async Task full_writer_applies_text_and_move_effects_after_preflight()
+    {
+        var directory = Directory.CreateTempSubdirectory("rt-prepared-");
+        try
+        {
+            var sourcePath = Path.Combine(directory.FullName, "Before.cs");
+            var destinationPath = Path.Combine(directory.FullName, "After.cs");
+            var textPath = Path.Combine(directory.FullName, "notes.txt");
+            await File.WriteAllTextAsync(sourcePath, "class Before;");
+            await File.WriteAllTextAsync(textPath, "before");
+            var writer = new PreparedChangeSetWriter(new PhysicalPreparedFileSystem());
+            var changeSet = new PreparedChangeSet(
+                movedFiles: [new PreparedFileMove(sourcePath, destinationPath)],
+                textEdits: [new PreparedFileWrite(textPath, "after")]);
+
+            await writer.ApplyAsync(changeSet);
+
+            File.Exists(sourcePath).ShouldBeFalse();
+            (await File.ReadAllTextAsync(destinationPath)).ShouldBe("class Before;");
+            (await File.ReadAllTextAsync(textPath)).ShouldBe("after");
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task full_writer_rejects_a_move_conflict_before_any_write()
+    {
+        var directory = Directory.CreateTempSubdirectory("rt-prepared-");
+        try
+        {
+            var sourcePath = Path.Combine(directory.FullName, "Before.cs");
+            var destinationPath = Path.Combine(directory.FullName, "After.cs");
+            var textPath = Path.Combine(directory.FullName, "notes.txt");
+            await File.WriteAllTextAsync(sourcePath, "class Before;");
+            await File.WriteAllTextAsync(destinationPath, "class After;");
+            await File.WriteAllTextAsync(textPath, "before");
+            var writer = new PreparedChangeSetWriter(new PhysicalPreparedFileSystem());
+            var changeSet = new PreparedChangeSet(
+                movedFiles: [new PreparedFileMove(sourcePath, destinationPath)],
+                textEdits: [new PreparedFileWrite(textPath, "after")]);
+
+            await Should.ThrowAsync<IOException>(() => writer.ApplyAsync(changeSet));
+
+            (await File.ReadAllTextAsync(textPath)).ShouldBe("before");
+            File.Exists(sourcePath).ShouldBeTrue();
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task full_writer_creates_missing_move_destination_directories()
+    {
+        var directory = Directory.CreateTempSubdirectory("rt-prepared-");
+        try
+        {
+            var sourcePath = Path.Combine(directory.FullName, "Before.cs");
+            var destinationPath = Path.Combine(directory.FullName, "nested", "After.cs");
+            await File.WriteAllTextAsync(sourcePath, "class Before;");
+            var writer = new PreparedChangeSetWriter(new PhysicalPreparedFileSystem());
+            var changeSet = new PreparedChangeSet(
+                movedFiles: [new PreparedFileMove(sourcePath, destinationPath)]);
+
+            await writer.ApplyAsync(changeSet);
+
+            File.Exists(sourcePath).ShouldBeFalse();
+            (await File.ReadAllTextAsync(destinationPath)).ShouldBe("class Before;");
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task full_writer_rolls_back_prior_writes_and_moves_when_a_later_move_fails()
+    {
+        var directory = Directory.CreateTempSubdirectory("rt-prepared-");
+        try
+        {
+            var firstSource = Path.Combine(directory.FullName, "First.cs");
+            var firstDestination = Path.Combine(directory.FullName, "moved", "First.cs");
+            var secondSource = Path.Combine(directory.FullName, "Second.cs");
+            var secondDestination = Path.Combine(directory.FullName, "moved", "Second.cs");
+            var projectPath = Path.Combine(directory.FullName, "App.csproj");
+            await File.WriteAllTextAsync(firstSource, "first");
+            await File.WriteAllTextAsync(secondSource, "second");
+            await File.WriteAllTextAsync(projectPath, "before");
+            var physical = new PhysicalPreparedFileSystem();
+            var writer = new PreparedChangeSetWriter(new FaultingPreparedFileSystem(
+                physical,
+                (source, destination) =>
+                    PathComparer.Equals(source, secondSource)
+                    && PathComparer.Equals(destination, secondDestination)));
+            var changeSet = new PreparedChangeSet(
+                movedFiles:
+                [
+                    new PreparedFileMove(firstSource, firstDestination),
+                    new PreparedFileMove(secondSource, secondDestination)
+                ],
+                projectFileEdits: [new PreparedFileWrite(projectPath, "after")]);
+
+            await Should.ThrowAsync<IOException>(() => writer.ApplyAsync(changeSet));
+
+            (await File.ReadAllTextAsync(firstSource)).ShouldBe("first");
+            (await File.ReadAllTextAsync(secondSource)).ShouldBe("second");
+            (await File.ReadAllTextAsync(projectPath)).ShouldBe("before");
+            File.Exists(firstDestination).ShouldBeFalse();
+            File.Exists(secondDestination).ShouldBeFalse();
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task full_writer_rejects_stale_solution_content_before_writing()
+    {
+        var directory = Directory.CreateTempSubdirectory("rt-prepared-");
+        try
+        {
+            var path = Path.Combine(directory.FullName, "Changed.cs");
+            await File.WriteAllTextAsync(path, "class Stale;");
+            using var workspace = new AdhocWorkspace();
+            var projectId = ProjectId.CreateNewId();
+            var documentId = DocumentId.CreateNewId(projectId);
+            var original = workspace.CurrentSolution
+                .AddProject(ProjectInfo.Create(
+                    projectId,
+                    VersionStamp.Create(),
+                    "PreparedChanges",
+                    "PreparedChanges",
+                    LanguageNames.CSharp))
+                .AddDocument(
+                    documentId,
+                    "Changed.cs",
+                    SourceText.From("class Before;"),
+                    filePath: path);
+            var changed = original.WithDocumentText(
+                documentId,
+                SourceText.From("class After;"));
+            var writer = new PreparedChangeSetWriter(new PhysicalPreparedFileSystem());
+
+            await Should.ThrowAsync<IOException>(() =>
+                writer.ApplyAsync(new PreparedChangeSet(original, changed)));
+
+            (await File.ReadAllTextAsync(path)).ShouldBe("class Stale;");
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task solution_writer_preserves_legacy_dry_run_rendering()
+    {
+        using var workspace = new AdhocWorkspace();
+        var projectId = ProjectId.CreateNewId();
+        var documentId = DocumentId.CreateNewId(projectId);
+        var original = workspace.CurrentSolution
+            .AddProject(ProjectInfo.Create(
+                projectId,
+                VersionStamp.Create(),
+                "PreparedChanges",
+                "PreparedChanges",
+                LanguageNames.CSharp))
+            .AddDocument(
+                documentId,
+                "Changed.cs",
+                SourceText.From("class Before;"),
+                filePath: "Changed.cs");
+        var changed = original.WithDocumentText(
+            documentId,
+            SourceText.From("class After;"));
+        var console = new CollectingConsole();
+
+        using (RtConsole.UseConsole(console))
+            await new SolutionChangeWriter().ApplyChangesAsync(original, changed, dryRun: true);
+
+        console.Diff.ShouldContain(line => line.Contains("--- Changed.cs", StringComparison.Ordinal));
+        console.Diff.ShouldContain(line => line.Contains("class After;", StringComparison.Ordinal));
+        console.Diff.ShouldContain(line => line.Contains("[dry-run]", StringComparison.Ordinal));
+    }
+
     private sealed class RecordingPreparedChangeSetWriter : IPreparedChangeSetWriter
     {
         internal int ApplyCount { get; private set; }
@@ -224,4 +455,74 @@ public sealed class PreparedChangeSetContractTests
             return Task.CompletedTask;
         }
     }
+
+    private sealed class FaultingPreparedFileSystem(
+        IPreparedFileSystem inner,
+        Func<string, string, bool> shouldFailMove) : IPreparedFileSystem
+    {
+        public bool FileExists(string path) => inner.FileExists(path);
+
+        public bool DirectoryExists(string path) => inner.DirectoryExists(path);
+
+        public bool DirectoryIsEmpty(string path) => inner.DirectoryIsEmpty(path);
+
+        public IEnumerable<string> EnumerateFiles(string path) => inner.EnumerateFiles(path);
+
+        public void CreateDirectory(string path) => inner.CreateDirectory(path);
+
+        public void DeleteDirectory(string path) => inner.DeleteDirectory(path);
+
+        public void CopyFile(string sourcePath, string destinationPath, bool overwrite) =>
+            inner.CopyFile(sourcePath, destinationPath, overwrite);
+
+        public void MoveFile(string sourcePath, string destinationPath, bool overwrite)
+        {
+            if (shouldFailMove(sourcePath, destinationPath))
+                throw new IOException("Injected move failure.");
+            inner.MoveFile(sourcePath, destinationPath, overwrite);
+        }
+
+        public void DeleteFile(string path) => inner.DeleteFile(path);
+
+        public string ReadAllText(string path) => inner.ReadAllText(path);
+
+        public Task WriteAllTextAsync(
+            string path,
+            string content,
+            CancellationToken cancellationToken) =>
+            inner.WriteAllTextAsync(path, content, cancellationToken);
+    }
+
+    private sealed class CollectingConsole : IRtConsole
+    {
+        internal List<string> Diff { get; } = [];
+
+        public bool IsOutputRedirected => true;
+
+        public void Log(RtLogLevel level, string template, params object?[] args)
+        {
+        }
+
+        public void WriteLine(
+            RtOutputContext context,
+            string message = "",
+            ConsoleColor? color = null)
+        {
+            if (context == RtOutputContext.Diff)
+                Diff.Add(message);
+        }
+
+        public void Write(
+            RtOutputContext context,
+            string message,
+            ConsoleColor? color = null)
+        {
+            if (context == RtOutputContext.Diff)
+                Diff.Add(message);
+        }
+    }
+
+    private static StringComparer PathComparer => OperatingSystem.IsWindows()
+        ? StringComparer.OrdinalIgnoreCase
+        : StringComparer.Ordinal;
 }

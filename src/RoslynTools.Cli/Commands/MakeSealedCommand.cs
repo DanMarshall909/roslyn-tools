@@ -9,9 +9,12 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Converts a class to be sealed
 /// </summary>
-internal sealed class MakeSealedCommand(DaemonRpcClient daemon) : IRtCommand, IRefactorCommand
+internal sealed class MakeSealedCommand(
+    DaemonRpcRecoveryCoordinator daemon,
+    MakeSealedOperation operation) : IRtCommand, IRefactorCommand
 {
-    private readonly DaemonRpcClient _daemon = daemon;
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
+    private readonly MakeSealedOperation _operation = operation;
 
     // Stryker disable all
     public static RtCommandInfo Info => MakeSealedCommandDefinition.Info;
@@ -49,7 +52,7 @@ internal sealed class MakeSealedCommand(DaemonRpcClient daemon) : IRtCommand, IR
     {
         await DaemonCommandExecutor.ExecuteAsync(
             _daemon,
-            MakeSealedCommandDefinition.Name,
+            _operation,
             request,
             context);
     }

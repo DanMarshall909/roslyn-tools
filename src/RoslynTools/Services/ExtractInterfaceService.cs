@@ -4,7 +4,6 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
-using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
@@ -16,41 +15,48 @@ namespace RoslynTools.Services;
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class ExtractInterfaceService : IRtService
 {
-    private readonly ILogger<ExtractInterfaceService> _logger;
-    private readonly ISolutionChangeWriter _solutionChangeWriter;
     private readonly ISymbolResolutionService _symbols;
 
     public ExtractInterfaceService()
-        : this(new RtConsoleLogger<ExtractInterfaceService>(), new SolutionChangeWriter())
+        : this(new SymbolResolutionService())
     {
     }
 
-    public ExtractInterfaceService(ILogger<ExtractInterfaceService> logger, ISolutionChangeWriter solutionChangeWriter,
-        ISymbolResolutionService? symbols = null)
+    public ExtractInterfaceService(ISymbolResolutionService symbols)
     {
-        _symbols = symbols ?? new SymbolResolutionService();
-
-        _logger = logger;
-        _solutionChangeWriter = solutionChangeWriter;
+        _symbols = symbols;
     }
 
     /// <summary>
-    /// Runs an asynchronous interface extraction process with provided parameters.
+    /// Calculates an interface extraction without writing or rendering a result.
     /// </summary>
-    internal async Task RunAsync(
+    internal async Task<Result<Preparation, RtError>> PrepareAsync(
         Solution sln,
         string typeName,
         string? outputDir,
         string? ns,
-        bool dryRun)
+        CancellationToken cancellationToken = default)
     {
-        var originalSln = sln;
+        cancellationToken.ThrowIfCancellationRequested();
 
-        var classSymbol = await _symbols.FindSymbolAsync(sln, typeName, "type") as INamedTypeSymbol
-                          ?? throw new InvalidOperationException($"'{typeName}' is not a named type.");
+        var resolved = await _symbols.TryFindSymbolAsync(sln, typeName, "type");
+        INamedTypeSymbol? classSymbol = null;
+        RtError? resolutionError = null;
+        resolved.Match(value => classSymbol = value as INamedTypeSymbol, error => resolutionError = error);
+        if (resolutionError is not null)
+            return Result<Preparation, RtError>.Err(resolutionError);
+
+        if (classSymbol is null)
+            return Result<Preparation, RtError>.Err(new RtError(
+                RtErrorKind.InvalidInput,
+                $"'{typeName}' is not a named type.",
+                new Dictionary<string, string> { ["type"] = typeName }));
 
         if (classSymbol.TypeKind != TypeKind.Class)
-            throw new InvalidOperationException($"'{typeName}' must be a class, but is {classSymbol.TypeKind}.");
+            return Result<Preparation, RtError>.Err(new RtError(
+                RtErrorKind.InvalidInput,
+                $"'{typeName}' must be a class, but is {classSymbol.TypeKind}.",
+                new Dictionary<string, string> { ["type"] = typeName }));
 
         var interfaceName = "I" + classSymbol.Name;
         // Stryker disable once String : ContainingNamespace is non-null for every source type, so the '?? string.Empty' fallback is unreachable.
@@ -62,7 +68,10 @@ internal class ExtractInterfaceService : IRtService
             .FirstOrDefault(p => !string.IsNullOrEmpty(p));
 
         if (string.IsNullOrEmpty(classFilePath))
-            throw new InvalidOperationException($"Cannot determine source file for '{typeName}'.");
+            return Result<Preparation, RtError>.Err(new RtError(
+                RtErrorKind.InvalidInput,
+                $"Cannot determine source file for '{typeName}'.",
+                new Dictionary<string, string> { ["type"] = typeName }));
 
         var classDir = outputDir ?? Path.GetDirectoryName(classFilePath)!;
         var interfaceFileName = interfaceName + ".cs";
@@ -102,7 +111,12 @@ internal class ExtractInterfaceService : IRtService
                             ?? throw new InvalidOperationException(
                                 $"Document for '{classFilePath}' not found in solution.");
 
-        var updatedClassSolution = await AddInterfaceToClassAsync(sln, classDocument, classSymbol, interfaceName);
+        var updatedClassSolution = await AddInterfaceToClassAsync(
+            sln,
+            classDocument,
+            classSymbol,
+            interfaceName,
+            cancellationToken);
 
         // Stryker disable once NullCoalescing, String : the owning project always contains the just-found classDocument, so '?? throw' and its message are unreachable. NOTE: this statement also carries a KILLABLE Any()->All() Linq mutant (covered by succeeds_when_project_has_multiple_documents), so we deliberately do NOT disable Linq here — the remaining FirstOrDefault()->First() Linq mutant is a documented equivalent (single owning project => First()==FirstOrDefault()) that cannot be disabled without masking the killable Any()->All().
         var owningProject = updatedClassSolution.Projects
@@ -117,8 +131,13 @@ internal class ExtractInterfaceService : IRtService
             interfaceSourceText,
             filePath: interfaceFilePath);
 
-        _logger.RtInfo("Extracting interface '{InterfaceName}' from '{Name}'...", interfaceName, classSymbol.Name);
-        await _solutionChangeWriter.ApplyChangesAsync(originalSln, finalSolution, dryRun);
+        return Result<Preparation, RtError>.Ok(new Preparation(
+            finalSolution,
+            classSymbol.Name,
+            interfaceName,
+            targetNamespace,
+            interfaceFilePath,
+            exposedMethods.Count + exposedProperties.Count));
     }
 
     /// <summary>
@@ -128,10 +147,11 @@ internal class ExtractInterfaceService : IRtService
         Solution solution,
         Document classDocument,
         INamedTypeSymbol classSymbol,
-        string interfaceName)
+        string interfaceName,
+        CancellationToken cancellationToken = default)
     {
         // Stryker disable once NullCoalescing, String : a parsed C# document always has a syntax root, so '?? throw' and its message are unreachable.
-        var root = await classDocument.GetSyntaxRootAsync()
+        var root = await classDocument.GetSyntaxRootAsync(cancellationToken)
                    ?? throw new InvalidOperationException("Cannot get syntax root.");
 
         // Stryker disable once Linq, NullCoalescing, String : the class declaration always exists in its own resolved document, so FirstOrDefault is never null and '?? throw' / its message are unreachable. (The '==' Equality mutant on the identifier match IS killable and is left enabled.)
@@ -184,4 +204,12 @@ internal class ExtractInterfaceService : IRtService
         var newRoot = root.ReplaceNode(classDecl, updatedClass);
         return solution.WithDocumentSyntaxRoot(classDocument.Id, newRoot);
     }
+
+    internal sealed record Preparation(
+        Solution Solution,
+        string TypeName,
+        string InterfaceName,
+        string Namespace,
+        string InterfaceFilePath,
+        int MemberCount);
 }

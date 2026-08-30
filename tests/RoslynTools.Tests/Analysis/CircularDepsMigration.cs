@@ -2,6 +2,7 @@ using System.Text.Json;
 using RoslynTools.Commands;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core.Output;
+using RoslynTools.Services;
 using RoslynTools.Tests.Infrastructure;
 using Shouldly;
 
@@ -49,9 +50,9 @@ public class CircularDepsMigration : IClassFixture<RtServicesFixture>, IDisposab
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var legacyText = await _services.Resolve<CircularDepsCommand>().AnalyzeAsync(sln, null);
+            var legacyText = await _services.Resolve<CircularDepsService>().AnalyzeAsync(sln, null);
 
-            var cycles = await _services.Resolve<CircularDepsCommand>().AnalyzeCyclesAsync(sln, null);
+            var cycles = await _services.Resolve<CircularDepsService>().AnalyzeCyclesAsync(sln, null);
             var result = CircularDepsResult.FromCycles(cycles);
 
             var sw = new StringWriter();
@@ -72,7 +73,7 @@ public class CircularDepsMigration : IClassFixture<RtServicesFixture>, IDisposab
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var cycles = await _services.Resolve<CircularDepsCommand>().AnalyzeCyclesAsync(sln, null);
+            var cycles = await _services.Resolve<CircularDepsService>().AnalyzeCyclesAsync(sln, null);
             var result = CircularDepsResult.FromCycles(cycles);
 
             var sw = new StringWriter();
@@ -91,7 +92,7 @@ public class CircularDepsMigration : IClassFixture<RtServicesFixture>, IDisposab
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var cycles = await _services.Resolve<CircularDepsCommand>().AnalyzeCyclesAsync(sln, null);
+            var cycles = await _services.Resolve<CircularDepsService>().AnalyzeCyclesAsync(sln, null);
             cycles.ShouldNotBeEmpty();
 
             var result = CircularDepsResult.FromCycles(cycles);
@@ -128,7 +129,7 @@ public class CircularDepsMigration : IClassFixture<RtServicesFixture>, IDisposab
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var cycles = await _services.Resolve<CircularDepsCommand>().AnalyzeCyclesAsync(sln, null);
+            var cycles = await _services.Resolve<CircularDepsService>().AnalyzeCyclesAsync(sln, null);
             cycles.ShouldNotBeEmpty();
 
             var result = CircularDepsResult.FromCycles(cycles);
@@ -151,7 +152,7 @@ public class CircularDepsMigration : IClassFixture<RtServicesFixture>, IDisposab
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var cycles = await _services.Resolve<CircularDepsCommand>().AnalyzeCyclesAsync(sln, null);
+            var cycles = await _services.Resolve<CircularDepsService>().AnalyzeCyclesAsync(sln, null);
             var result = CircularDepsResult.FromCycles(cycles);
 
             var sw = new StringWriter();
@@ -173,7 +174,7 @@ public class CircularDepsMigration : IClassFixture<RtServicesFixture>, IDisposab
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var cycles = await _services.Resolve<CircularDepsCommand>().AnalyzeCyclesAsync(sln, null);
+            var cycles = await _services.Resolve<CircularDepsService>().AnalyzeCyclesAsync(sln, null);
             cycles.ShouldNotBeEmpty();
 
             var result = CircularDepsResult.FromCycles(cycles);
@@ -198,9 +199,9 @@ public class CircularDepsMigration : IClassFixture<RtServicesFixture>, IDisposab
         var (workspace, sln) = proj.Build();
         using (workspace)
         {
-            var legacyText = await _services.Resolve<CircularDepsCommand>().AnalyzeAsync(sln, null);
+            var legacyText = await _services.Resolve<CircularDepsService>().AnalyzeAsync(sln, null);
 
-            var cycles = await _services.Resolve<CircularDepsCommand>().AnalyzeCyclesAsync(sln, null);
+            var cycles = await _services.Resolve<CircularDepsService>().AnalyzeCyclesAsync(sln, null);
             var result = CircularDepsResult.FromCycles(cycles);
 
             var sw = new StringWriter();

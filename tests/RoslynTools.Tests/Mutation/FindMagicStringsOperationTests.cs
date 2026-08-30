@@ -27,10 +27,11 @@ public sealed class FindMagicStringsOperationTests
             MinOccurrences: 2,
             Solution: "requested.slnx"));
 
-        operation.CommandName.ShouldBe("find_magic_strings");
+        operation.Definition.Name.ShouldBe("find_magic_strings");
         sessionFactory.RequestedSolution.ShouldBe("requested.slnx");
-        result.SolutionPath.ShouldBe(solution.FilePath);
-        var group = result.Groups.ShouldHaveSingleItem();
+        var report = result.Match(value => value, error => throw new Xunit.Sdk.XunitException(error.Message));
+        report.SolutionPath.ShouldBe(solution.FilePath);
+        var group = report.Groups.ShouldHaveSingleItem();
         group.Value.ShouldBe("repeat-value");
         group.Count.ShouldBe(2);
         group.Occurrences.Select(occurrence => occurrence.MemberName)
@@ -58,7 +59,8 @@ public sealed class FindMagicStringsOperationTests
             MinLength: 5,
             MinOccurrences: 3));
 
-        result.Groups.ShouldBeEmpty();
+        result.Match(value => value, error => throw new Xunit.Sdk.XunitException(error.Message))
+            .Groups.ShouldBeEmpty();
     }
 
     private sealed class CapturingWorkspaceSessionFactory(

@@ -1,8 +1,8 @@
-using System.CommandLine;
 using System.Reflection;
 using System.Text.Json.Serialization;
 using RoslynTools.CommandDescriptors;
 using RoslynTools.Core;
+using RoslynTools.Core.CommandDescriptors;
 
 namespace RoslynTools.Mcp.Tools;
 
@@ -27,36 +27,34 @@ internal sealed class ToolSchemaBuilder(CommandDescriptorRegistry descriptors)
         descriptor.Definition is not null
             ? BuildPortSchema(descriptor.Definition.RequestType)
             : descriptor.Port is not null
-                ? BuildLegacyPortSchema(
-                    descriptor.BuildCliCommand(),
-                    descriptor.Port.RequestType)
-                : BuildCliSchema(descriptor.BuildCliCommand()),
+                ? BuildLegacyPortSchema(descriptor.Input, descriptor.Port.RequestType)
+                : BuildInputSchema(descriptor.Input),
         descriptor.Structured
             ? JsonSchemaBuilder.StructuredOutput()
             : null);
 
-    private static Dictionary<string, object> BuildCliSchema(Command cmd)
+    private static Dictionary<string, object> BuildInputSchema(ApplicationCommandInput input)
     {
         var properties = new Dictionary<string, Dictionary<string, object>>();
         var required = new List<string>();
 
-        foreach (var arg in cmd.Arguments)
+        foreach (var argument in input.Arguments)
         {
-            var prop = new Dictionary<string, object> { ["type"] = "string" };
-            if (!string.IsNullOrEmpty(arg.Description))
-                prop["description"] = arg.Description;
-            properties[arg.Name] = prop;
-            if (arg.Arity.MinimumNumberOfValues > 0)
-                required.Add(arg.Name);
+            var property = BuildParameterSchema(argument.ValueType);
+            if (!string.IsNullOrEmpty(argument.Description))
+                property["description"] = argument.Description;
+            properties[argument.Name] = property;
+            if (argument.Required)
+                required.Add(argument.Name);
         }
 
-        foreach (var option in cmd.Options)
+        foreach (var option in input.Options)
         {
-            var prop = BuildPropertySchema(option.ValueType);
+            var property = BuildParameterSchema(option.ValueType);
             if (!string.IsNullOrEmpty(option.Description))
-                prop["description"] = option.Description;
-            properties[option.Name] = prop;
-            if (option.IsRequired)
+                property["description"] = option.Description;
+            properties[option.Name] = property;
+            if (option.Required)
                 required.Add(option.Name);
         }
 
@@ -73,8 +71,10 @@ internal sealed class ToolSchemaBuilder(CommandDescriptorRegistry descriptors)
 
         foreach (var property in requestType.GetProperties(BindingFlags.Instance | BindingFlags.Public))
         {
-            var name = property.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name
-                       ?? char.ToLowerInvariant(property.Name[0]) + property.Name[1..];
+            if (IsAlwaysIgnored(property))
+                continue;
+
+            var name = JsonPropertyName(property);
             var schema = BuildPropertySchema(property.PropertyType);
             var description = property.GetCustomAttribute<CommandPropertyDescriptionAttribute>();
             if (description is not null)
@@ -91,13 +91,12 @@ internal sealed class ToolSchemaBuilder(CommandDescriptorRegistry descriptors)
     }
 
     private static Dictionary<string, object> BuildLegacyPortSchema(
-        Command command,
+        ApplicationCommandInput input,
         Type requestType)
     {
-        var descriptions = command.Arguments
-            .Select(argument => (Name: ToCamelCase(argument.Name), argument.Description))
-            .Concat(command.Options.Select(option =>
-                (Name: ToCamelCase(option.Name), option.Description)))
+        var descriptions = input.Arguments
+            .Concat(input.Options)
+            .Select(parameter => (Name: ToCamelCase(parameter.Name), parameter.Description))
             .Where(item => !string.IsNullOrEmpty(item.Description))
             .GroupBy(item => item.Name, StringComparer.Ordinal)
             .ToDictionary(
@@ -111,8 +110,10 @@ internal sealed class ToolSchemaBuilder(CommandDescriptorRegistry descriptors)
 
         foreach (var property in requestType.GetProperties(BindingFlags.Instance | BindingFlags.Public))
         {
-            var name = property.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name
-                       ?? char.ToLowerInvariant(property.Name[0]) + property.Name[1..];
+            if (IsAlwaysIgnored(property))
+                continue;
+
+            var name = JsonPropertyName(property);
             var schema = BuildPropertySchema(property.PropertyType);
             if (descriptions.TryGetValue(ToCamelCase(name), out var description))
                 schema["description"] = description;
@@ -129,24 +130,59 @@ internal sealed class ToolSchemaBuilder(CommandDescriptorRegistry descriptors)
 
     private static Dictionary<string, object> BuildPropertySchema(Type type)
     {
-        if (type.IsArray)
+        var valueType = Nullable.GetUnderlyingType(type) ?? type;
+        if (valueType.IsArray)
         {
-            var elementType = type.GetElementType() ?? typeof(string);
+            var elementType = valueType.GetElementType() ?? typeof(string);
             return new Dictionary<string, object>
             {
                 ["type"] = "array",
-                ["items"] = new Dictionary<string, object> { ["type"] = ToJsonType(elementType) }
+                ["items"] = BuildPropertySchema(elementType)
             };
         }
 
-        return new Dictionary<string, object> { ["type"] = ToJsonType(type) };
+        if (valueType.IsEnum)
+        {
+            return new Dictionary<string, object>
+            {
+                ["type"] = "string",
+                ["enum"] = Enum.GetNames(valueType)
+            };
+        }
+
+        return new Dictionary<string, object> { ["type"] = ToJsonType(valueType) };
     }
+
+    private static Dictionary<string, object> BuildParameterSchema(string valueType)
+    {
+        if (valueType.EndsWith("[]", StringComparison.Ordinal))
+        {
+            return new Dictionary<string, object>
+            {
+                ["type"] = "array",
+                ["items"] = new Dictionary<string, object>
+                {
+                    ["type"] = valueType[..^2]
+                }
+            };
+        }
+
+        return new Dictionary<string, object> { ["type"] = valueType };
+    }
+
+    private static bool IsAlwaysIgnored(PropertyInfo property) =>
+        property.GetCustomAttribute<JsonIgnoreAttribute>()?.Condition
+        == JsonIgnoreCondition.Always;
+
+    private static string JsonPropertyName(PropertyInfo property) =>
+        property.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name
+        ?? char.ToLowerInvariant(property.Name[0]) + property.Name[1..];
 
     private static string ToJsonType(Type type)
     {
-        var t = Nullable.GetUnderlyingType(type) ?? type;
-        return t == typeof(bool) ? "boolean"
-            : t == typeof(int) || t == typeof(long) ? "integer"
+        var valueType = Nullable.GetUnderlyingType(type) ?? type;
+        return valueType == typeof(bool) ? "boolean"
+            : valueType == typeof(int) || valueType == typeof(long) ? "integer"
             : "string";
     }
 

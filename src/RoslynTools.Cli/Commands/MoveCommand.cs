@@ -1,89 +1,73 @@
 using System.CommandLine;
 using RoslynTools.Core;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
-/// <summary>
-/// Moves code elements within the solution.
-/// </summary>
-internal sealed class MoveCommand(IWorkspaceSessionFactory sessionFactory, MoveService moveService) : IRtCommand, IRefactorCommand
+/// <summary>Moves types or namespaces through the shared typed operation.</summary>
+internal sealed class MoveCommand(
+    DaemonRpcRecoveryCoordinator daemon,
+    MoveOperation operation) : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
-    private readonly MoveService _moveService = moveService;
-    public static RtCommandInfo Info { get; } = new(
-        "move",
-        true,
-        false,
-        "refactor",
-        Aliases: null,
-        WhenToUse:
-        "Moving a type to a different namespace — or batch-moving all types in a namespace — while updating the declaration and all reference sites (using directives and fully-qualified names). Use --move-file to also relocate the source file(s) to match the new namespace folder structure. Use --to-project to physically move a file across project boundaries while keeping its namespace intact.",
-        Examples:
-        [
-            "rt refactor move --type ProjectX.Core.Services.BookingService --to-namespace ProjectX.Domain.Services --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt refactor move --namespace ProjectX.Core.Models --to-namespace ProjectX.Domain.Entities --move-file --dry-run --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt refactor move --type RoslynTools.Commands.RenameCommand --to-namespace RoslynTools.Commands.Rename --solution RoslynTools.slnx",
-            "rt refactor move --type MyApp.Api.Models.Product --to-project MyApp.Domain --solution MyApp.sln",
-            "rt refactor move --type MyApp.Api.Models.Product --to-project MyApp.Domain --to-namespace MyApp.Domain.Models --solution MyApp.sln"
-        ]
-    );
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
+    private readonly MoveOperation _operation = operation;
+
+    public static RtCommandInfo Info => MoveCommandDefinition.Info;
 
     public Command Build()
     {
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln/.slnx file");
         var typeOpt = new Option<string?>("--type",
             "Fully-qualified type name (e.g. ProjectX.Core.Services.BookingService)");
-        var nsFromOpt = new Option<string?>("--namespace",
-            "Source namespace — moves ALL types in this namespace (batch mode)");
-        var nsToOpt = new Option<string?>("--to-namespace",
-            "Target namespace (e.g. ProjectX.Core.Domain.Services). Optional when --to-project is provided.");
+        var namespaceOpt = new Option<string?>("--namespace",
+            "Source namespace; moves every type declared in that namespace");
+        var toNamespaceOpt = new Option<string?>("--to-namespace",
+            "Target namespace. Optional when --to-project preserves the existing namespace.");
         var toProjectOpt = new Option<string?>("--to-project",
-            "Target project name — moves the file to that project's folder while keeping its namespace. " +
-            "When combined with --to-namespace, also rewrites the namespace and updates consumers.");
+            "Target project for a type-to-project move");
         var dryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk");
         var moveFileOpt = new Option<bool>("--move-file",
-            "Move source file(s) to match the target namespace folder structure");
+            "Move declaration files for namespace modes; cannot be combined with --to-project");
 
-        var cmd = new Command("move",
-            "Move a type to a different namespace, updating the declaration and all references")
+        var command = new Command(
+            "move",
+            "Move a type or namespace with structured scope and prepared filesystem changes")
         {
-            solutionOpt, typeOpt, nsFromOpt, nsToOpt, toProjectOpt, dryRunOpt, moveFileOpt
+            solutionOpt,
+            typeOpt,
+            namespaceOpt,
+            toNamespaceOpt,
+            toProjectOpt,
+            dryRunOpt,
+            moveFileOpt
         };
 
-        cmd.SetHandler(async (solution, type, nsFrom, nsTo, toProject, dryRun, moveFile) =>
-            {
-                if (type == null && nsFrom == null)
-                {
-                    RtLog.Error("Error: either --type or --namespace is required.");
-                    return;
-                }
+        command.SetHandler(async context =>
+        {
+            var type = context.ParseResult.GetValueForOption(typeOpt);
+            var sourceNamespace = context.ParseResult.GetValueForOption(namespaceOpt);
+            var targetProject = context.ParseResult.GetValueForOption(toProjectOpt);
+            var mode = sourceNamespace is not null
+                ? MoveMode.NamespaceToNamespace
+                : targetProject is not null
+                    ? MoveMode.TypeToProject
+                    : MoveMode.TypeToNamespace;
+            await DaemonCommandExecutor.ExecuteAsync(
+                _daemon,
+                _operation,
+                new MoveRequest(
+                    mode,
+                    type,
+                    sourceNamespace,
+                    context.ParseResult.GetValueForOption(toNamespaceOpt),
+                    targetProject,
+                    context.ParseResult.GetValueForOption(moveFileOpt),
+                    context.ParseResult.GetValueForOption(solutionOpt),
+                    context.ParseResult.GetValueForOption(dryRunOpt)),
+                context);
+        });
 
-                if (type != null && nsFrom != null)
-                {
-                    RtLog.Error("Error: --type and --namespace are mutually exclusive.");
-                    return;
-                }
-
-                if (toProject == null && nsTo == null)
-                {
-                    RtLog.Error("Error: either --to-namespace or --to-project is required.");
-                    return;
-                }
-
-                var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
-                using (workspace)
-                {
-                    if (nsFrom != null)
-                        await _moveService.ExecuteNamespaceMoveAsync(workspace, sln, nsFrom, nsTo!, moveFile, dryRun);
-                    else if (toProject != null)
-                        await _moveService.ExecuteCrossProjectMoveAsync(workspace, sln, type!, toProject, nsTo, dryRun);
-                    else
-                        await _moveService.ExecuteSingleTypeMoveAsync(workspace, sln, type!, nsTo!, moveFile, dryRun);
-                }
-            },
-            solutionOpt, typeOpt, nsFromOpt, nsToOpt, toProjectOpt, dryRunOpt, moveFileOpt);
-
-        return cmd;
+        return command;
     }
 }

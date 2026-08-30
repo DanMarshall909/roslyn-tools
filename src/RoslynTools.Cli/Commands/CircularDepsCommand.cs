@@ -1,6 +1,7 @@
 using System.CommandLine;
-using Microsoft.CodeAnalysis;
+using RoslynTools.Cli;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
@@ -10,11 +11,11 @@ namespace RoslynTools.Commands;
 /// Command for detecting and handling circular dependencies.
 /// </summary>
 internal sealed class CircularDepsCommand(
-    DaemonRpcClient daemon,
-    CircularDepsService circularDeps) : IRtCommand, IAnalyzeCommand
+    DaemonRpcRecoveryCoordinator daemon,
+    CircularDepsOperation operation) : IRtCommand, IAnalyzeCommand
 {
-    private readonly DaemonRpcClient _daemon = daemon;
-    private readonly CircularDepsService _circularDeps = circularDeps;
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
+    private readonly CircularDepsOperation _operation = operation;
 
     public static RtCommandInfo Info => CircularDepsCommandDefinition.Info;
 
@@ -33,29 +34,15 @@ internal sealed class CircularDepsCommand(
             var request = new CircularDepsRequest(
                 context.ParseResult.GetValueForOption(solutionOpt),
                 context.ParseResult.GetValueForOption(scopeOpt));
-            await DaemonCommandExecutor.ExecuteAsync(
-                _daemon,
-                CircularDepsCommandDefinition.Name,
-                request,
-                context);
+            var result = await DaemonCommandExecutor.ExecuteTypedAsync(
+                _daemon, _operation, request, context.GetCancellationToken());
+            result.Match(
+                value => RtResultRenderer.Write(RtResult<RoslynTools.Commands.Results.CircularDepsResult>.Ok(
+                    RoslynTools.Commands.Results.CircularDepsResult.FromCycles(
+                        value.Cycles.Select(cycle => (IReadOnlyList<string>)cycle.Nodes).ToList()))),
+                error => RtErrorPresenter.Surface(context, error));
         });
 
         return cmd;
-    }
-
-    /// <summary>
-    /// Analyzes cycles in a solution using Roslyn.
-    /// </summary>
-    internal Task<IReadOnlyList<IReadOnlyList<string>>> AnalyzeCyclesAsync(Solution sln, string? scope)
-    {
-        return _circularDeps.AnalyzeCyclesAsync(sln, scope);
-    }
-
-    /// <summary>
-    /// Analyzes cycles in a solution asynchronously.
-    /// </summary>
-    internal Task<string> AnalyzeAsync(Solution sln, string? scope)
-    {
-        return _circularDeps.AnalyzeAsync(sln, scope);
     }
 }

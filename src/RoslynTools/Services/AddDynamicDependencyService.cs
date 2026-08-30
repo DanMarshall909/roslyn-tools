@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -6,30 +7,20 @@ using RoslynTools.Core;
 namespace RoslynTools.Services;
 
 /// <summary>Adds trimming-safe references for types reached through reflection.</summary>
+[SuppressMessage("Performance", "CA1822:Mark members as static",
+    Justification = "Preparation is exposed through an injected application service.")]
 internal sealed class AddDynamicDependencyService : IRtService
 {
-    private readonly ISolutionChangeWriter _solutionChangeWriter;
+    internal sealed record Preparation(Solution Solution, bool Changed);
 
-    public AddDynamicDependencyService()
-        : this(new SolutionChangeWriter())
-    {
-    }
-
-    public AddDynamicDependencyService(ISolutionChangeWriter solutionChangeWriter)
-    {
-        _solutionChangeWriter = solutionChangeWriter;
-    }
-
-    internal async Task RunAsync(
+    internal async Task<Preparation> PrepareAsync(
         Solution solution,
         IReadOnlyCollection<string> typeNames,
-        string rootMethod,
-        bool dryRun)
+        string rootMethod)
     {
         if (typeNames.Count == 0)
             throw new ArgumentException("At least one --type must be supplied.", nameof(typeNames));
 
-        var originalSolution = solution;
         var (document, method, semanticModel) = await FindRootMethodAsync(solution, rootMethod);
         var targetTypes = new List<INamedTypeSymbol>();
 
@@ -44,7 +35,7 @@ internal sealed class AddDynamicDependencyService : IRtService
             .ToArray();
 
         if (attributes.Length == 0)
-            return;
+            return new Preparation(solution, false);
 
         // The attribute list is emitted ahead of the method but inherits none of its trivia,
         // so it must carry the method's own indentation or the result fails dotnet format.
@@ -65,7 +56,7 @@ internal sealed class AddDynamicDependencyService : IRtService
         }
 
         solution = solution.WithDocumentSyntaxRoot(document.Id, updatedRoot);
-        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, solution, dryRun);
+        return new Preparation(solution, true);
     }
 
     /// <summary>The BCL namespace holding <c>DynamicDependencyAttribute</c>; no package reference needed.</summary>

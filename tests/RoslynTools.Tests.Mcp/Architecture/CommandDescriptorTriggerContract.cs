@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.CommandDescriptors;
+using RoslynTools.Core.CommandDescriptors;
 
 namespace RoslynTools.Tests.Mcp.Architecture;
 
@@ -75,7 +76,17 @@ public sealed class CommandDescriptorTriggerContract
         ["find_pattern"] = "Grep",
         ["debug"] = "Read",
         ["add_dependency"] = "Edit",
+        ["convert_console_logging"] = "Edit",
+        ["extract_class"] = "Edit",
+        ["extract_interface"] = "Edit",
+        ["extract_method"] = "Edit",
         ["make_sealed"] = "Edit",
+        ["migrate_to_ioptions"] = "Edit",
+        ["move"] = "Edit",
+        ["move_method"] = "Edit",
+        ["narrow_dependency"] = "Edit",
+        ["replace_xunit_asserts"] = "Edit",
+        ["safe_delete"] = "Edit",
         ["semantic_diff"] = "git diff"
     };
 

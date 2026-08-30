@@ -5,18 +5,33 @@ using Microsoft.CodeAnalysis.Text;
 namespace RoslynTools.Core;
 
 /// <summary>
-/// The default <see cref="ISolutionChangeWriter" /> — a thin adapter over the
-/// static <c>SolutionWriter</c> helper. DI-registered as the production binding.
+/// The default <see cref="ISolutionChangeWriter" />. Legacy dry runs retain their diff
+/// rendering while non-preview writes use the prepared mutation boundary.
 /// </summary>
 [SuppressMessage("Performance", "CA1822:Mark members as static",
     Justification = "Instance service registered through DI for dependency inversion.")]
 internal sealed class SolutionChangeWriter : ISolutionChangeWriter
 {
+    /// <summary>
+    ///     Preserves legacy dry-run rendering and applies non-preview solution deltas through
+    ///     the staged prepared writer.
+    /// </summary>
     public Task ApplyChangesAsync(Solution originalSolution, Solution newSolution, bool dryRun)
     {
-        return SolutionWriter.ApplyChangesAsync(originalSolution, newSolution, dryRun);
+        if (dryRun)
+            return SolutionWriter.ApplyChangesAsync(originalSolution, newSolution, dryRun: true);
+
+        var changeSet = new PreparedChangeSet(originalSolution, newSolution);
+        if (!changeSet.HasChanges)
+            return Task.CompletedTask;
+        return new PreparedChangeSetWriter(new PhysicalPreparedFileSystem())
+            .ApplyAsync(changeSet);
     }
 
+    /// <summary>
+    ///     Renders fix diffs during preview or composes and silently applies all fixes through
+    ///     the staged writer. An empty set retains the legacy no-change message.
+    /// </summary>
     public async Task WriteFixesAsync(Solution originalSolution, IReadOnlyList<Fix> fixes, bool dryRun)
     {
         if (fixes.Count == 0)
@@ -48,6 +63,6 @@ internal sealed class SolutionChangeWriter : ISolutionChangeWriter
                 composed = composed.WithDocumentText(file.DocumentId, SourceText.From(file.NewText));
         }
 
-        await SolutionWriter.ApplyChangesAsync(originalSolution, composed, dryRun: false);
+        await ApplyChangesAsync(originalSolution, composed, dryRun: false);
     }
 }

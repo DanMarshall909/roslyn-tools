@@ -2,6 +2,7 @@ using System.Text.Json;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
+using RoslynTools.Services.Results;
 
 namespace RoslynTools.Commands.Results;
 
@@ -35,6 +36,7 @@ internal sealed record UnusedSymbolResult : IRtOutput
             fix.RenderText(writer);
         }
     }
+
 }
 
 /// <summary>Top-level result returned by find-unused.</summary>
@@ -89,4 +91,18 @@ internal sealed record FindUnusedResult : IRtOutput, IRtJsonOutput
             }).ToList()
         };
     }
+
+    internal static FindUnusedResult FromAnalysis(FindUnusedAnalysisResult result) => new()
+    {
+        Symbols = result.Symbols.Select(s => new UnusedSymbolResult
+        {
+            Kind = s.Kind,
+            Name = s.Name,
+            FilePath = s.FilePath,
+            Line = s.Line,
+            Confidence = s.Confidence,
+            Reason = s.Reason,
+            SuggestedFixes = s.SuggestedFixes
+        }).ToList()
+    };
 }

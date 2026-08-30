@@ -47,8 +47,17 @@ internal static class Program
             .ConfigureServices(Bootstrap.RegisterServices)
             .Build();
 
+        var typedDefinitions = host.Services
+            .GetServices<ICommandApplicationPort>()
+            .Where(port => port is not ILegacyCommandApplicationPort)
+            .Select(port => port.Definition)
+            .ToArray();
+
         // Route through the daemon if one is running and this isn't a daemon lifecycle command.
-        if (!IsDaemonCommand(args) && !DaemonOwnedCommands.IsInvocation(args) && !NoDaemon)
+        if (!IsDaemonCommand(args)
+            && !DaemonOwnedCommands.IsInvocation(args)
+            && !TypedCommandInvocation.IsMatch(args, typedDefinitions)
+            && !NoDaemon)
         {
             var client = host.Services.GetRequiredService<DaemonClient>();
             var exitCode = await client.TrySendAsync(args);

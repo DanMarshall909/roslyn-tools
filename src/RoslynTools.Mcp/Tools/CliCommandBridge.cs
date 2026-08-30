@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.Json;
-using RoslynTools.CommandDescriptors;
 using RoslynTools.Core;
+using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Core.Output;
 
 namespace RoslynTools.Mcp.Tools;
@@ -21,8 +21,7 @@ internal sealed class CliCommandBridge(IServiceProvider services)
         CancellationToken cancellationToken = default)
     {
         var commandName = descriptor.Path[^1];
-        var command = descriptor.BuildCliCommand();
-        var positionalNames = command.Arguments.Select(a => a.Name).ToList();
+        var positionalNames = descriptor.Input.Arguments.Select(argument => argument.Name).ToList();
         var cliArgs = BuildCliArgs(
             commandName,
             arguments,

@@ -1,7 +1,9 @@
 using System.CommandLine;
+using RoslynTools.Cli;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -9,30 +11,11 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Identifies duplicate symbols in the current file
 /// </summary>
-internal sealed class FindDuplicatesCommand(IWorkspaceSessionFactory sessionFactory, FindDuplicatesService findDuplicates) : IRtCommand, IStructuredOutputCommand, IAnalyzeCommand
+internal sealed class FindDuplicatesCommand(DaemonRpcRecoveryCoordinator daemon, FindDuplicatesOperation operation) : IRtCommand, IStructuredOutputCommand, IAnalyzeCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
-    private readonly FindDuplicatesService _findDuplicates = findDuplicates;
-    public static RtCommandInfo Info { get; } = new(
-        "find-duplicates",
-        false,
-        true,
-        "analyze",
-        Aliases: ["fd"],
-        WhenToUse:
-        "Discovering repeated code blocks (exact clones) across a solution before an extract-method pass. Use --min-statements to tune noise vs. signal, --min-occurrences to target the most-duplicated blocks, and --scope to focus on one subsystem.",
-        Examples:
-        [
-            "rt analyze find-duplicates --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt analyze fd --min-statements 5 --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt analyze find-duplicates --min-statements 4 --min-occurrences 3 --solution RoslynTools.slnx",
-            "rt analyze find-duplicates --scope MyApp.Services --solution RoslynTools.slnx",
-            "rt analyze find-duplicates --include-tests --solution RoslynTools.slnx",
-            "rt analyze find-duplicates --max-statements 20 --solution RoslynTools.slnx",
-            "rt analyze find-duplicates --json --solution RoslynTools.slnx"
-        ],
-        SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]
-    );
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
+    private readonly FindDuplicatesOperation _operation = operation;
+    public static RtCommandInfo Info => FindDuplicatesCommandDefinition.Info;
 
     public Command Build()
     {
@@ -55,23 +38,28 @@ internal sealed class FindDuplicatesCommand(IWorkspaceSessionFactory sessionFact
         cmd.Add(includeTestsOpt);
         cmd.Add(maxStatementsOpt);
 
-        cmd.SetHandler(async (solution, minStatements, minOccurrences, scope, includeTests, maxStatements) =>
+        cmd.SetHandler(async context =>
         {
-            var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
-            using (workspace)
-            {
-                var options =
-                    new FindDuplicatesOptions(minStatements, minOccurrences, scope, includeTests, maxStatements);
-                var groups = await _findDuplicates.RunAsync(sln, options);
-
-                var solutionDir = sln.FilePath is not null
-                    ? Path.GetDirectoryName(sln.FilePath)
-                    : null;
-
-                var result = FindDuplicatesResult.FromGroups(groups, solutionDir, sln.FilePath);
-                RtResultRenderer.Write(RtResult<FindDuplicatesResult>.Ok(result));
-            }
-        }, solutionOpt, minStatementsOpt, minOccurrencesOpt, scopeOpt, includeTestsOpt, maxStatementsOpt);
+            var request = new FindDuplicatesRequest(
+                context.ParseResult.GetValueForOption(solutionOpt),
+                context.ParseResult.GetValueForOption(minStatementsOpt),
+                context.ParseResult.GetValueForOption(minOccurrencesOpt),
+                context.ParseResult.GetValueForOption(scopeOpt),
+                context.ParseResult.GetValueForOption(includeTestsOpt),
+                context.ParseResult.GetValueForOption(maxStatementsOpt));
+            var result = await DaemonCommandExecutor.ExecuteTypedAsync(
+                _daemon,
+                _operation,
+                request,
+                context.GetCancellationToken());
+            result.Match(
+                report => RtResultRenderer.Write(RtResult<FindDuplicatesResult>.Ok(
+                    FindDuplicatesResult.FromGroups(
+                        report.Groups,
+                        report.SolutionDirectory,
+                        report.SolutionPath))),
+                error => RtErrorPresenter.Surface(context, error));
+        });
 
         return cmd;
     }

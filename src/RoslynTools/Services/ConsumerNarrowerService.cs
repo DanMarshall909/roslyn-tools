@@ -35,21 +35,23 @@ internal class ConsumerNarrowerService : IRtService
     /// </summary>
     internal async Task<List<(INamedTypeSymbol Symbol, Document Document)>> FindConsumersAsync(
         Solution solution,
-        INamedTypeSymbol interfaceSymbol)
+        INamedTypeSymbol interfaceSymbol,
+        CancellationToken cancellationToken = default)
     {
         var result = new List<(INamedTypeSymbol, Document)>();
 
         foreach (var project in solution.Projects)
             foreach (var document in project.Documents)
             {
-                var root = await document.GetSyntaxRootAsync();
-                var semanticModel = await document.GetSemanticModelAsync();
+                cancellationToken.ThrowIfCancellationRequested();
+                var root = await document.GetSyntaxRootAsync(cancellationToken);
+                var semanticModel = await document.GetSemanticModelAsync(cancellationToken);
                 if (root is null || semanticModel is null)
                     continue;
 
                 // Find fields typed as the interface
                 foreach (var field in root.DescendantNodes().OfType<VariableDeclaratorSyntax>())
-                    if (semanticModel.GetDeclaredSymbol(field) is IFieldSymbol fieldSym
+                    if (semanticModel.GetDeclaredSymbol(field, cancellationToken) is IFieldSymbol fieldSym
                         && SymbolEqualityComparer.Default.Equals(fieldSym.Type, interfaceSymbol))
                     {
                         var containingType = fieldSym.ContainingType;
@@ -58,7 +60,7 @@ internal class ConsumerNarrowerService : IRtService
 
                 // Find ctor parameters typed as the interface
                 foreach (var param in root.DescendantNodes().OfType<ParameterSyntax>())
-                    if (semanticModel.GetDeclaredSymbol(param) is IParameterSymbol paramSym
+                    if (semanticModel.GetDeclaredSymbol(param, cancellationToken) is IParameterSymbol paramSym
                         && SymbolEqualityComparer.Default.Equals(paramSym.Type, interfaceSymbol)
                         && paramSym.ContainingSymbol is IMethodSymbol
                         {
@@ -87,7 +89,8 @@ internal class ConsumerNarrowerService : IRtService
         INamedTypeSymbol interfaceSymbol,
         List<ISymbol> selectedMembers,
         string newInterfaceName,
-        Solution workingSolution)
+        Solution workingSolution,
+        CancellationToken cancellationToken = default)
     {
         var selectedMemberNames = selectedMembers
             .Select(m => m.Name)
@@ -97,10 +100,11 @@ internal class ConsumerNarrowerService : IRtService
         var skipped = new List<(string Name, string Reason)>();
 
         // Find all classes/structs that have a field or ctor param of the interface type
-        var consumers = await FindConsumersAsync(originalSolution, interfaceSymbol);
+        var consumers = await FindConsumersAsync(originalSolution, interfaceSymbol, cancellationToken);
 
         foreach (var (consumerSymbol, consumerDoc) in consumers)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             // Determine which interface members this consumer actually uses
             var usedMembers = await _interfaceAnalyzer.GetUsedMembersAsync(
                 originalSolution, consumerSymbol, interfaceSymbol);
@@ -124,7 +128,8 @@ internal class ConsumerNarrowerService : IRtService
                 consumerDoc,
                 consumerSymbol,
                 interfaceSymbol.Name,
-                newInterfaceName);
+                newInterfaceName,
+                cancellationToken);
 
             if (updatedDoc is not null)
             {
@@ -145,20 +150,38 @@ internal class ConsumerNarrowerService : IRtService
         Document consumerDocument,
         INamedTypeSymbol consumerSymbol,
         string oldInterfaceName,
-        string newInterfaceName)
+        string newInterfaceName,
+        CancellationToken cancellationToken)
     {
-        var root = await consumerDocument.GetSyntaxRootAsync();
-        var semanticModel = await consumerDocument.GetSemanticModelAsync();
+        cancellationToken.ThrowIfCancellationRequested();
+        var currentDocument = solution.GetDocument(consumerDocument.Id);
+        if (currentDocument is null)
+            return null;
+
+        var root = await currentDocument.GetSyntaxRootAsync(cancellationToken);
+        var semanticModel = await currentDocument.GetSemanticModelAsync(cancellationToken);
         if (root is null || semanticModel is null)
             return null;
 
-        var rewriter = new NarrowTypeRewriter(semanticModel, oldInterfaceName, newInterfaceName);
-        var newRoot = rewriter.Visit(root);
+        var consumerDisplayName = consumerSymbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
+        var consumerDeclaration = root.DescendantNodes()
+            .OfType<TypeDeclarationSyntax>()
+            .FirstOrDefault(node =>
+                semanticModel.GetDeclaredSymbol(node, cancellationToken)
+                    ?.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat) == consumerDisplayName);
 
-        if (newRoot is null || newRoot.IsEquivalentTo(root))
+        if (consumerDeclaration is null)
             return null;
 
-        return solution.WithDocumentSyntaxRoot(consumerDocument.Id, newRoot);
+        var rewriter = new NarrowTypeRewriter(semanticModel, oldInterfaceName, newInterfaceName);
+        var newDeclaration = rewriter.Visit(consumerDeclaration);
+
+        if (newDeclaration is null || newDeclaration.IsEquivalentTo(consumerDeclaration))
+            return null;
+
+        return solution.WithDocumentSyntaxRoot(
+            currentDocument.Id,
+            root.ReplaceNode(consumerDeclaration, newDeclaration));
     }
 
     /// <summary>

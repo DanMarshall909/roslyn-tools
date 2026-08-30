@@ -1,5 +1,5 @@
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Rename;
-using Microsoft.Extensions.Logging.Abstractions;
 using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Models;
@@ -162,20 +162,21 @@ public class Rename : IClassFixture<RtServicesFixture>
         using (workspace)
         {
             var writer = new CapturingSolutionChangeWriter();
-            var service = new RenameService(NullLogger<RenameService>.Instance, writer);
+            var operation = new RenameOperation(
+                new FixedWorkspaceSessionFactory(workspace, solution),
+                new RenameService(new SymbolResolutionService()),
+                new PreparedChangeSetExecutor(new SolutionPreparedChangeSetWriter(writer)));
 
-            var result = await service.ExecuteAsync(
-                solution,
-                new RenameRequest(
-                    "TestApp.Widget",
-                    "Gadget",
-                    "type",
-                    true,
-                    new HashSet<string>(StringComparer.Ordinal)));
+            var result = (await operation.ExecuteAsync(new RenameOperationRequest(
+                RenameOperationMode.Single,
+                "TestApp.Widget",
+                "Gadget",
+                Kind: "type",
+                DryRun: true))).Unwrap();
 
-            writer.DryRun.ShouldBe(true);
-            writer.NewSolution.ShouldNotBeNull();
-            result.Applied.ShouldBeFalse();
+            writer.NewSolution.ShouldBeNull();
+            result.Status.ShouldBe(MutationExecutionStatus.DryRun);
+            result.Value!.Renames.ShouldHaveSingleItem().Applied.ShouldBeFalse();
         }
     }
 
@@ -210,22 +211,17 @@ public class Rename : IClassFixture<RtServicesFixture>
                                               "TestApp.Product","Item"
                                               "TestApp.ProductService.GetProduct","FetchItem"
                                               """);
-        using (workspace)
-        using (WorkspaceLoader.UseOverride(workspace, sln))
-        {
-            var originalError = Console.Error;
-            using var errorWriter = new StringWriter();
-            Console.SetError(errorWriter);
-            try
-            {
-                var exitCode = await App.RunAsync(["rename", "--csv", csvPath, "--solution", "ignored"]);
-                Assert.True(exitCode == 0, $"Expected exit code 0 but got {exitCode}. stderr: {errorWriter}");
-            }
-            finally
-            {
-                Console.SetError(originalError);
-            }
-        }
+        var operation = new RenameOperation(
+            new FixedWorkspaceSessionFactory(workspace, sln),
+            new RenameService(new SymbolResolutionService()),
+            new PreparedChangeSetExecutor(
+                new PreparedChangeSetWriter(new PhysicalPreparedFileSystem())));
+
+        var result = await operation.ExecuteAsync(new RenameOperationRequest(
+            RenameOperationMode.Batch,
+            CsvPath: csvPath));
+
+        result.IsOk.ShouldBeTrue(result.Match(_ => string.Empty, error => error.Message));
 
         var modelContent = await project.ReadSourceAsync("Model.cs");
         modelContent.ShouldContain("class Item", Case.Sensitive);
@@ -255,12 +251,28 @@ public class Rename : IClassFixture<RtServicesFixture>
                                               "TestApp.Product","Item","no-verb"
                                               """);
 
-        using (workspace)
-        {
-            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                _services.Resolve<RenameCommand>().ExecuteBatchAsync(sln, csvPath, true));
+        var operation = new RenameOperation(
+            new FixedWorkspaceSessionFactory(workspace, sln),
+            new RenameService(new SymbolResolutionService()),
+            new PreparedChangeSetExecutor(
+                new PreparedChangeSetWriter(new PhysicalPreparedFileSystem())));
+        var result = await operation.ExecuteAsync(new RenameOperationRequest(
+            RenameOperationMode.Batch,
+            CsvPath: csvPath,
+            DryRun: true));
 
-            ex.Message.ShouldContain("review column", Case.Sensitive);
-        }
+        result.IsErr.ShouldBeTrue();
+        result.Match(_ => string.Empty, error => error.Message)
+            .ShouldContain("review column", Case.Sensitive);
+    }
+
+    private sealed class FixedWorkspaceSessionFactory(
+        Workspace workspace,
+        Solution solution) : IWorkspaceSessionFactory
+    {
+        public Task<Solution> GetSolutionAsync(string? solutionPath) => Task.FromResult(solution);
+
+        public Task<(Workspace Workspace, Solution Solution)> LoadWorkspaceAsync(string? solutionPath) =>
+            Task.FromResult((workspace, solution));
     }
 }

@@ -1,4 +1,6 @@
-using RoslynTools.Commands;
+using Microsoft.CodeAnalysis;
+using RoslynTools.Core;
+using RoslynTools.Services;
 using RoslynTools.Tests.Infrastructure;
 using Shouldly;
 
@@ -25,12 +27,14 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
                                        """);
         var (workspace, solution) = project.Build();
 
+        MutationExecutionResult<ConvertConsoleLoggingResult> execution;
         using (workspace)
         {
-            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(solution, false, apply: true);
+            execution = await ExecuteAsync(solution, false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
+        execution.Status.ShouldBe(MutationExecutionStatus.Applied);
         content.ShouldNotContain("Console.Write", Case.Sensitive);
         content.ShouldContain("_logger.LogInformation(\"started\")", Case.Sensitive);
         content.ShouldContain("_logger.LogInformation(\"still running\")", Case.Sensitive);
@@ -54,7 +58,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
 
         using (workspace)
         {
-            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(solution, false, apply: true);
+            await ExecuteAsync(solution, false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -84,7 +88,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
 
         using (workspace)
         {
-            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(
+            await ExecuteAsync(
                 solution,
                 false,
                 stream: "stderr",
@@ -114,7 +118,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
 
         using (workspace)
         {
-            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(
+            await ExecuteAsync(
                 solution,
                 false,
                 stream: "stderr",
@@ -144,7 +148,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
 
         using (workspace)
         {
-            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(solution, false, apply: true);
+            await ExecuteAsync(solution, false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -170,7 +174,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
 
         using (workspace)
         {
-            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(solution, false, apply: true);
+            await ExecuteAsync(solution, false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -196,7 +200,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
 
         using (workspace)
         {
-            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(solution, false, apply: true);
+            await ExecuteAsync(solution, false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -222,7 +226,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
 
         using (workspace)
         {
-            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(
+            await ExecuteAsync(
                 solution,
                 false,
                 "_log",
@@ -251,12 +255,14 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
         var (workspace, solution) = project.Build();
         var original = await project.ReadSourceAsync("LogApp.cs");
 
+        MutationExecutionResult<ConvertConsoleLoggingResult> execution;
         using (workspace)
         {
-            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(solution, true);
+            execution = await ExecuteAsync(solution, true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
+        execution.Status.ShouldBe(MutationExecutionStatus.DryRun);
         content.ShouldBe(original);
     }
 
@@ -276,27 +282,65 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
         var (workspace, solution) = project.Build();
         var original = await project.ReadSourceAsync("LogApp.cs");
 
-        using var stdout = new StringWriter();
-        var originalOut = Console.Out;
-        Console.SetOut(stdout);
-        try
+        MutationExecutionResult<ConvertConsoleLoggingResult> execution;
+        using (workspace)
         {
-            using (workspace)
-            {
-                await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(
-                    solution,
-                    false,
-                    stream: "stderr");
-            }
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
+            execution = await ExecuteAsync(
+                solution,
+                false,
+                stream: "stderr");
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
         content.ShouldBe(original);
-        stdout.ToString().ShouldContain("console logging review: 1 call site(s)", Case.Sensitive);
+        execution.Status.ShouldBe(MutationExecutionStatus.Reviewed);
+        execution.Value!.EntryCount.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task review_takes_precedence_over_apply_and_dry_run()
+    {
+        using var project = new AdhocProjectBuilder("LogApp");
+        project.AddSource("LogApp.cs", """
+                                       class App
+                                       {
+                                           void Run() => Console.Error.WriteLine("Starting");
+                                       }
+                                       """);
+        var (workspace, solution) = project.Build();
+        var original = await project.ReadSourceAsync("LogApp.cs");
+
+        MutationExecutionResult<ConvertConsoleLoggingResult> execution;
+        using (workspace)
+        {
+            execution = await ExecuteAsync(
+                solution,
+                dryRun: true,
+                stream: "stderr",
+                apply: true,
+                review: true);
+        }
+
+        execution.Status.ShouldBe(MutationExecutionStatus.Reviewed);
+        (await project.ReadSourceAsync("LogApp.cs")).ShouldBe(original);
+    }
+
+    [Fact]
+    public async Task apply_returns_no_op_when_no_console_logging_calls_match()
+    {
+        using var project = new AdhocProjectBuilder("LogApp");
+        project.AddSource("LogApp.cs", "class App { void Run() { } }");
+        var (workspace, solution) = project.Build();
+
+        MutationExecutionResult<ConvertConsoleLoggingResult> execution;
+        using (workspace)
+        {
+            execution = await ExecuteAsync(solution, false, apply: true);
+        }
+
+        execution.Status.ShouldBe(MutationExecutionStatus.NoOp);
+        execution.Diagnostics.ShouldContain(diagnostic =>
+            diagnostic.Message.Contains("No matching Console logging calls", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -317,7 +361,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
 
         using (workspace)
         {
-            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(
+            await ExecuteAsync(
                 solution,
                 false,
                 stream: "stderr",
@@ -355,7 +399,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
 
         using (workspace)
         {
-            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(
+            await ExecuteAsync(
                 solution,
                 false,
                 stream: "stderr",
@@ -386,33 +430,24 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
         var (workspace, solution) = project.Build();
         var original = await project.ReadSourceAsync("LogApp.cs");
 
-        using var stdout = new StringWriter();
-        var originalOut = Console.Out;
-        Console.SetOut(stdout);
-        try
+        MutationExecutionResult<ConvertConsoleLoggingResult> execution;
+        using (workspace)
         {
-            using (workspace)
-            {
-                await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(
-                    solution,
-                    false,
-                    stream: "all",
-                    review: true);
-            }
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
+            execution = await ExecuteAsync(
+                solution,
+                false,
+                stream: "all",
+                review: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
         content.ShouldBe(original);
 
-        var output = stdout.ToString();
-        output.ShouldContain("console logging review: 2 call site(s)", Case.Sensitive);
-        output.ShouldContain("stdout: 1", Case.Sensitive);
-        output.ShouldContain("stderr: 1", Case.Sensitive);
-        output.ShouldContain("needs-review: 1", Case.Sensitive);
+        execution.Status.ShouldBe(MutationExecutionStatus.Reviewed);
+        execution.Value!.EntryCount.ShouldBe(2);
+        execution.Value.Entries.Count(entry => entry.Stream == "stdout").ShouldBe(1);
+        execution.Value.Entries.Count(entry => entry.Stream == "stderr").ShouldBe(1);
+        execution.Value.Entries.Count(entry => entry.NeedsReview).ShouldBe(1);
     }
 
     [Fact]
@@ -444,7 +479,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
 
         using (workspace)
         {
-            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(
+            await ExecuteAsync(
                 solution,
                 false,
                 stream: "stderr",
@@ -475,29 +510,20 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
                                        """);
         var (workspace, solution) = project.Build();
 
-        using var stdout = new StringWriter();
-        var originalOut = Console.Out;
-        Console.SetOut(stdout);
-        try
+        MutationExecutionResult<ConvertConsoleLoggingResult> execution;
+        using (workspace)
         {
-            using (workspace)
-            {
-                await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(
-                    solution,
-                    false,
-                    stream: "stderr",
-                    review: true,
-                    injectLogger: true);
-            }
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
+            execution = await ExecuteAsync(
+                solution,
+                false,
+                stream: "stderr",
+                review: true,
+                injectLogger: true);
         }
 
-        var output = stdout.ToString();
-        output.ShouldContain("logger injections: 1", Case.Sensitive);
-        output.ShouldContain("App: ILogger<App>", Case.Sensitive);
+        execution.Status.ShouldBe(MutationExecutionStatus.Reviewed);
+        execution.Value!.LoggerInjections.ShouldBe([
+            new LoggerInjectionTarget("App", "ILogger<App>")]);
     }
 
     // US-001: string.Format decomposition tests
@@ -520,7 +546,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
 
         using (workspace)
         {
-            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(solution, false, apply: true);
+            await ExecuteAsync(solution, false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -547,7 +573,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
 
         using (workspace)
         {
-            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(solution, false, apply: true);
+            await ExecuteAsync(solution, false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -576,7 +602,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
 
         using (workspace)
         {
-            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(solution, false, apply: true);
+            await ExecuteAsync(solution, false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -604,7 +630,7 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
 
         using (workspace)
         {
-            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(solution, false, apply: true);
+            await ExecuteAsync(solution, false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -632,12 +658,68 @@ public class ConvertConsoleLogging : IClassFixture<RtServicesFixture>
 
         using (workspace)
         {
-            await _services.Resolve<ConvertConsoleLoggingCommand>().ExecuteCoreAsync(solution, false, apply: true);
+            await ExecuteAsync(solution, false, apply: true);
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
         content.ShouldNotContain("Console.WriteLine", Case.Sensitive);
         content.ShouldContain("{Value}", Case.Sensitive);
         content.ShouldContain("GetMessage()", Case.Sensitive);
+    }
+
+    [Fact]
+    public async Task returns_a_typed_error_for_an_invalid_stream_before_loading_a_workspace()
+    {
+        var result = await _services.Resolve<ConvertConsoleLoggingOperation>().ExecuteAsync(
+            new ConvertConsoleLoggingRequest(Stream: "console"));
+
+        result.IsErr.ShouldBeTrue();
+        result.Match(
+            _ => throw new InvalidOperationException("The invalid stream was accepted."),
+            error =>
+            {
+                error.Kind.ShouldBe(RtErrorKind.InvalidInput);
+                error.Message.ShouldContain("all, stdout, stderr", Case.Sensitive);
+            });
+    }
+
+    private async Task<MutationExecutionResult<ConvertConsoleLoggingResult>> ExecuteAsync(
+        Solution solution,
+        bool dryRun,
+        string loggerExpression = "_logger",
+        string informationMethod = "LogInformation",
+        string warningMethod = "LogWarning",
+        string errorMethod = "LogError",
+        string stream = "all",
+        string[]? excludePaths = null,
+        bool inferLevel = true,
+        bool apply = false,
+        bool review = false,
+        bool injectLogger = false,
+        string loggerDependency = "ILogger<{TypeName}>",
+        string loggerField = "_logger")
+    {
+        using (WorkspaceLoader.UseOverride(solution.Workspace, solution))
+        {
+            var result = await _services.Resolve<ConvertConsoleLoggingOperation>().ExecuteAsync(
+                new ConvertConsoleLoggingRequest(
+                    Solution: "ignored",
+                    DryRun: dryRun,
+                    Apply: apply,
+                    Review: review,
+                    Logger: loggerExpression,
+                    InformationMethod: informationMethod,
+                    WarningMethod: warningMethod,
+                    ErrorMethod: errorMethod,
+                    Stream: stream,
+                    ExcludePaths: excludePaths ?? [],
+                    NoInferLevel: !inferLevel,
+                    InjectLogger: injectLogger,
+                    LoggerDependency: loggerDependency,
+                    LoggerField: loggerField));
+            return result.Match(
+                value => value,
+                error => throw new InvalidOperationException(error.Message));
+        }
     }
 }

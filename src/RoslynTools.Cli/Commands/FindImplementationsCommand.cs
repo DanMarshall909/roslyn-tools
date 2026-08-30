@@ -1,5 +1,7 @@
 using System.CommandLine;
+using RoslynTools.Cli;
 using RoslynTools.Core;
+using RoslynTools.Core.Output;
 using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
@@ -8,9 +10,12 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Finds all implementations of a given symbol in the current file
 /// </summary>
-internal sealed class FindImplementationsCommand(DaemonRpcClient daemon) : IRtCommand, IStructuredOutputCommand, IInspectCommand
+internal sealed class FindImplementationsCommand(
+    DaemonRpcRecoveryCoordinator daemon,
+    FindImplementationsOperation operation) : IRtCommand, IStructuredOutputCommand, IInspectCommand
 {
-    private readonly DaemonRpcClient _daemon = daemon;
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
+    private readonly FindImplementationsOperation _operation = operation;
 
     public static RtCommandInfo Info => FindImplementationsCommandDefinition.Info;
 
@@ -26,15 +31,18 @@ internal sealed class FindImplementationsCommand(DaemonRpcClient daemon) : IRtCo
         cmd.AddAlias("impls");
 
         cmd.SetHandler(async ctx =>
-            {
-                var symbol = ctx.ParseResult.GetValueForArgument(symbolArg);
-                var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
-                await DaemonCommandExecutor.ExecuteAsync(
-                    _daemon,
-                    FindImplementationsCommandDefinition.Name,
-                    new FindImplementationsRequest(symbol, solution),
-                    ctx);
-            });
+        {
+            var symbol = ctx.ParseResult.GetValueForArgument(symbolArg);
+            var solution = ctx.ParseResult.GetValueForOption(solutionOpt);
+            var result = await DaemonCommandExecutor.ExecuteTypedAsync(
+                _daemon,
+                _operation,
+                new FindImplementationsRequest(symbol, solution),
+                ctx.GetCancellationToken());
+            result.Match(
+                value => RtResultRenderer.Write(RtResult<FindImplementationsResult>.Ok(value)),
+                error => RtErrorPresenter.Surface(ctx, error));
+        });
 
         return cmd;
     }

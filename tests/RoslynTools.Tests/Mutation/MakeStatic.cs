@@ -1,5 +1,5 @@
-using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Services;
 using RoslynTools.Tests.Infrastructure;
 using Shouldly;
 
@@ -27,7 +27,7 @@ public class MakeStatic : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<MakeStaticCommand>().ExecuteAsync("Calc.Add", "ignored", false);
+            await ExecuteAsync("Calc.Add");
         }
 
         var content = await proj.ReadSourceAsync("Calc.cs");
@@ -50,21 +50,13 @@ public class MakeStatic : IClassFixture<RtServicesFixture>
                                      """);
         var (workspace, sln) = proj.Build();
 
-        var stderr = new StringWriter();
-        Console.SetError(stderr);
-
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<MakeStaticCommand>().ExecuteAsync("Service.GetValue", "ignored", false);
+            var result = await ExecuteResultAsync("Service.GetValue");
+            result.IsErr.ShouldBeTrue();
+            result.Match(_ => string.Empty, error => error.Message)
+                .ShouldContain("this", Case.Sensitive);
         }
-
-        var output = stderr.ToString();
-        output.ShouldContain("this", Case.Sensitive);
-        Environment.ExitCode.ShouldBe(1);
-
-        // Reset for other tests
-        Environment.ExitCode = 0;
-        Console.SetError(new StreamWriter(Stream.Null));
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -83,21 +75,14 @@ public class MakeStatic : IClassFixture<RtServicesFixture>
                                   """);
         var (workspace, sln) = proj.Build();
 
-        var stderr = new StringWriter();
-        Console.SetError(stderr);
-
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<MakeStaticCommand>().ExecuteAsync("Repo.GetCount", "ignored", false);
+            var result = await ExecuteResultAsync("Repo.GetCount");
+            result.IsErr.ShouldBeTrue();
+            var message = result.Match(_ => string.Empty, error => error.Message);
+            message.ShouldContain("instance member", Case.Sensitive);
+            message.ShouldContain("_count", Case.Sensitive);
         }
-
-        var output = stderr.ToString();
-        output.ShouldContain("instance member", Case.Sensitive);
-        output.ShouldContain("_count", Case.Sensitive);
-        Environment.ExitCode.ShouldBe(1);
-
-        Environment.ExitCode = 0;
-        Console.SetError(new StreamWriter(Stream.Null));
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -115,20 +100,13 @@ public class MakeStatic : IClassFixture<RtServicesFixture>
                                   """);
         var (workspace, sln) = proj.Build();
 
-        var stderr = new StringWriter();
-        Console.SetError(stderr);
-
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<MakeStaticCommand>().ExecuteAsync("Base.Describe", "ignored", false);
+            var result = await ExecuteResultAsync("Base.Describe");
+            result.IsErr.ShouldBeTrue();
+            result.Match(_ => string.Empty, error => error.Message)
+                .ShouldContain("virtual", Case.Sensitive);
         }
-
-        var output = stderr.ToString();
-        output.ShouldContain("virtual", Case.Sensitive);
-        Environment.ExitCode.ShouldBe(1);
-
-        Environment.ExitCode = 0;
-        Console.SetError(new StreamWriter(Stream.Null));
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -156,7 +134,7 @@ public class MakeStatic : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<MakeStaticCommand>().ExecuteAsync("Helper.Format", "ignored", false);
+            await ExecuteAsync("Helper.Format");
         }
 
         var helperContent = await proj.ReadSourceAsync("Helper.cs");
@@ -184,25 +162,31 @@ public class MakeStatic : IClassFixture<RtServicesFixture>
 
         var before = await proj.ReadSourceAsync("Util.cs");
 
-        var sw = new StringWriter();
-        var prevOut = Console.Out;
-        Console.SetOut(sw);
-        try
+        MutationExecutionResult<MakeStaticResult> execution;
+        using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            using (WorkspaceLoader.UseOverride(workspace, sln))
-            {
-                await _services.Resolve<MakeStaticCommand>().ExecuteAsync("Util.Square", "ignored", true);
-            }
-        }
-        finally
-        {
-            Console.SetOut(prevOut);
+            execution = await ExecuteAsync("Util.Square", dryRun: true);
         }
 
         var after = await proj.ReadSourceAsync("Util.cs");
         after.ShouldBe(before);
 
-        var diffOutput = sw.ToString();
-        diffOutput.ShouldContain("static", Case.Sensitive);
+        execution.Status.ShouldBe(MutationExecutionStatus.DryRun);
+        execution.ChangedFiles.ShouldHaveSingleItem().ShouldEndWith("Util.cs");
+    }
+
+    private async Task<MutationExecutionResult<MakeStaticResult>> ExecuteAsync(
+        string method,
+        bool dryRun = false)
+    {
+        return (await ExecuteResultAsync(method, dryRun)).Unwrap();
+    }
+
+    private Task<Result<MutationExecutionResult<MakeStaticResult>, RtError>> ExecuteResultAsync(
+        string method,
+        bool dryRun = false)
+    {
+        return _services.Resolve<MakeStaticOperation>().ExecuteAsync(
+            new MakeStaticRequest(method, "ignored", dryRun));
     }
 }

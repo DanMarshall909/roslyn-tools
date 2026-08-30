@@ -1,7 +1,7 @@
 using System.CommandLine;
 using System.Text.Json;
 using RoslynTools.Commands;
-using RoslynTools.Commands.Results;
+using RoslynTools.Services;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using Shouldly;
@@ -396,7 +396,7 @@ public class SolidIspTests
         var result = new SolidResult();
         using var output = new StringWriter();
         RtContext.Format = OutputFormat.Json;
-        RtSerializer.Write(result, output);
+        RtSerializer.Write(StaticAnalyzerResultAdapters.Solid(result), output);
 
         using var doc = JsonDocument.Parse(output.ToString());
         doc.RootElement.TryGetProperty("ISP", out _).ShouldBeTrue();
@@ -408,7 +408,7 @@ public class SolidIspTests
         var result = new SolidResult();
         using var output = new StringWriter();
         RtContext.Format = OutputFormat.Json;
-        RtSerializer.Write(result, output);
+        RtSerializer.Write(StaticAnalyzerResultAdapters.Solid(result), output);
 
         using var doc = JsonDocument.Parse(output.ToString());
         var isp = doc.RootElement.GetProperty("ISP");
@@ -439,7 +439,7 @@ public class SolidIspTests
     [Fact]
     public void execute_async_defaults_min_members_to_7()
     {
-        var cmd = SolidCommand.Build();
+        var cmd = App.Commands.Single(entry => entry.Info.Name == "solid").Build();
         var minMembersOpt = cmd.Options.OfType<Option<int>>()
             .First(o => o.Name == "min-members");
         minMembersOpt.Parse("").GetValueForOption(minMembersOpt).ShouldBe(7);
@@ -448,7 +448,7 @@ public class SolidIspTests
     [Fact]
     public void principle_help_mentions_ISP()
     {
-        var cmd = SolidCommand.Build();
+        var cmd = App.Commands.Single(entry => entry.Info.Name == "solid").Build();
         var principleOpt = cmd.Options.OfType<Option<string>>()
             .First(o => o.Name == "principle");
         Assert.Contains("ISP", principleOpt.Description, StringComparison.Ordinal);

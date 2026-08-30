@@ -13,7 +13,7 @@ internal sealed record FindImplementationsRequest(
 internal sealed record FindImplementationsResult(
     string Symbol,
     string SymbolKind,
-    IReadOnlyList<Dictionary<string, object?>> Implementations,
+    IReadOnlyList<ImplementationItem> Implementations,
     [property: JsonIgnore] bool IsAbstract)
 {
     public int ImplementationCount => Implementations.Count;
@@ -21,7 +21,7 @@ internal sealed record FindImplementationsResult(
 
 /// <summary>Shared find-implementations operation used by host adapters.</summary>
 internal sealed class FindImplementationsOperation
-    : LegacyCommandApplicationPort<FindImplementationsRequest, FindImplementationsResult>, IRtService
+    : CommandApplicationPort<FindImplementationsRequest, FindImplementationsResult>, IRtService
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly FindImplementationsService _findImplementations;
@@ -37,28 +37,39 @@ internal sealed class FindImplementationsOperation
         _symbols = symbols;
     }
 
-    public override string CommandName => "find_impl";
+    public override ApplicationCommandDefinition Definition => FindImplementationsCommandDefinition.Definition;
 
-    public override async Task<FindImplementationsResult> ExecuteAsync(
+    public override async Task<Result<FindImplementationsResult, RtError>> ExecuteAsync(
         FindImplementationsRequest request,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var solution = await _sessionFactory.GetSolutionAsync(request.Solution);
-        cancellationToken.ThrowIfCancellationRequested();
+        var (workspace, solution) = await _sessionFactory.LoadWorkspaceAsync(request.Solution);
+        using (workspace)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
 
-        var symbol = request.Symbol.Contains('.', StringComparison.Ordinal)
-            ? await _symbols.FindSymbolByFqnAsync(solution, request.Symbol, "type")
-            : await _symbols.FindSymbolAsync(solution, request.Symbol, "type");
+            var resolved = request.Symbol.Contains('.', StringComparison.Ordinal)
+                ? await _symbols.TryFindSymbolByFqnAsync(solution, request.Symbol, "type")
+                : await _symbols.TryFindSymbolAsync(solution, request.Symbol, "type");
+            if (resolved.IsErr)
+                return resolved.Map(_ => default(FindImplementationsResult)!);
 
-        if (symbol is not INamedTypeSymbol typeSymbol)
-            throw new InvalidOperationException($"'{request.Symbol}' is not a type (found {symbol.Kind}).");
+            var symbol = resolved.Match(value => value, _ => default!);
+            if (symbol is not INamedTypeSymbol typeSymbol)
+            {
+                return Result<FindImplementationsResult, RtError>.Err(new RtError(
+                    RtErrorKind.InvalidInput,
+                    $"'{request.Symbol}' is not a type (found {symbol.Kind})."));
+            }
 
-        var implementations = await _findImplementations.FindAsync(solution, typeSymbol);
-        return new FindImplementationsResult(
-            typeSymbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
-            typeSymbol.TypeKind.ToString(),
-            implementations,
-            typeSymbol.IsAbstract);
+            var implementations = await _findImplementations.FindAsync(solution, typeSymbol);
+            cancellationToken.ThrowIfCancellationRequested();
+            return Result<FindImplementationsResult, RtError>.Ok(new FindImplementationsResult(
+                typeSymbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
+                typeSymbol.TypeKind.ToString(),
+                implementations,
+                typeSymbol.IsAbstract));
+        }
     }
 }

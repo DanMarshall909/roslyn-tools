@@ -9,6 +9,36 @@ namespace RoslynTools.Daemon.Rpc;
 /// <summary>Executes one typed daemon request and maps its terminal response to CLI output.</summary>
 internal static class DaemonCommandExecutor
 {
+    internal static async Task<Result<TResponse, RtError>> ExecuteTypedAsync<TRequest, TResponse>(
+        DaemonRpcRecoveryCoordinator recovery,
+        CommandApplicationPort<TRequest, TResponse> port,
+        TRequest request,
+        CancellationToken cancellationToken = default)
+        where TRequest : class
+        where TResponse : class
+    {
+        if (port.Definition.ExecutionPlacement == CommandExecutionPlacement.InProcess
+            || WorkspaceLoader.Override.Value is not null)
+            return await port.ExecuteAsync(request, cancellationToken);
+
+        var recoveryResult = await recovery.ExecuteAsync(
+            port.Definition,
+            JsonSerializer.SerializeToElement(request),
+            cancellationToken);
+        if (recoveryResult.Response?.Error?.Code == DaemonRpcErrorCodes.CommandNotFound)
+            return await port.ExecuteAsync(request, cancellationToken);
+
+        if (recoveryResult.Response is not null)
+            return DeserializeResponse<TResponse>(recoveryResult.Response);
+
+        if (!recoveryResult.ShouldFallback)
+            return Result<TResponse, RtError>.Err(RtError.ExternalToolFailure(
+                "The daemon accepted this mutation but its result is indeterminate; "
+                + "inspect the target before retrying."));
+
+        return await port.ExecuteAsync(request, cancellationToken);
+    }
+
     internal static async Task ExecuteAsync<TRequest>(
         DaemonRpcClient daemon,
         string commandName,
@@ -41,6 +71,13 @@ internal static class DaemonCommandExecutor
         where TRequest : class
     {
         var cancellationToken = context.GetCancellationToken();
+
+        if (WorkspaceLoader.Override.Value is not null)
+        {
+            await ExecuteLocalAsync(port, request, context, cancellationToken);
+            return;
+        }
+
         var result = await recovery.ExecuteAsync(
             port.Definition,
             JsonSerializer.SerializeToElement(request),
@@ -59,6 +96,16 @@ internal static class DaemonCommandExecutor
             return;
         }
 
+        await ExecuteLocalAsync(port, request, context, cancellationToken);
+    }
+
+    private static async Task ExecuteLocalAsync<TRequest>(
+        ICommandApplicationPort port,
+        TRequest request,
+        InvocationContext context,
+        CancellationToken cancellationToken)
+        where TRequest : class
+    {
         var local = await port.InvokeAsync(request, cancellationToken);
         if (local.IsError)
         {
@@ -82,5 +129,35 @@ internal static class DaemonCommandExecutor
         }
 
         RtResultRenderer.Write(RtResult<JsonElement>.Ok(response.Result ?? default));
+    }
+
+    private static Result<TResponse, RtError> DeserializeResponse<TResponse>(
+        DaemonRpcResponse response)
+        where TResponse : class
+    {
+        if (response.Error is not null)
+            return Result<TResponse, RtError>.Err(new RtError(
+                response.Error.Kind ?? RtErrorKind.ExternalToolFailure,
+                response.Error.Message,
+                response.Error.Context));
+
+        if (response.Result is not { } envelope
+            || !envelope.TryGetProperty("data", out var data))
+            return Result<TResponse, RtError>.Err(RtError.ExternalToolFailure(
+                "The daemon returned an invalid command response."));
+
+        try
+        {
+            var value = data.Deserialize<TResponse>(DaemonRpcJson.Options);
+            return value is null
+                ? Result<TResponse, RtError>.Err(RtError.ExternalToolFailure(
+                    "The daemon returned an empty command result."))
+                : Result<TResponse, RtError>.Ok(value);
+        }
+        catch (JsonException ex)
+        {
+            return Result<TResponse, RtError>.Err(RtError.ExternalToolFailure(
+                $"The daemon returned an invalid command result: {ex.Message}"));
+        }
     }
 }

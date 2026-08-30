@@ -37,18 +37,16 @@ public sealed class ImplementedTypes
                 .FindAsync(solution, symbol.ShouldBeAssignableTo<INamedTypeSymbol>()!);
 
             var worker = Assert.Single(results);
-            var directInterfaces = worker["directInterfaces"].ShouldBeAssignableTo<List<string>>()!;
-            var locations = worker["locations"].ShouldBeAssignableTo<List<Dictionary<string, object?>>>()!;
 
-            worker["name"].ShouldBe("ConcreteWorker");
-            worker["fqn"].ShouldBe("App.ConcreteWorker");
-            worker["typeKind"].ShouldBe("Class");
-            worker["accessibility"].ShouldBe("Public");
-            worker["isAbstract"].ShouldBe(false);
-            worker["project"].ShouldBe("TestProject");
-            directInterfaces.ShouldContain("App.IWorker");
-            worker["baseType"].ShouldBe("App.WorkerBase");
-            locations.ShouldNotBeEmpty();
+            worker.Name.ShouldBe("ConcreteWorker");
+            worker.Fqn.ShouldBe("App.ConcreteWorker");
+            worker.TypeKind.ShouldBe("Class");
+            worker.Accessibility.ShouldBe("Public");
+            worker.IsAbstract.ShouldBeFalse();
+            worker.Project.ShouldBe("TestProject");
+            worker.DirectInterfaces!.ShouldContain("App.IWorker");
+            worker.BaseType.ShouldBe("App.WorkerBase");
+            worker.Locations.ShouldNotBeEmpty();
         }
     }
 
@@ -79,10 +77,10 @@ public sealed class ImplementedTypes
 
             var handler = Assert.Single(results);
 
-            handler["name"].ShouldBe("CreateHandler");
-            handler["fqn"].ShouldBe("App.CreateHandler");
-            handler["typeKind"].ShouldBe("Class");
-            handler["isAbstract"].ShouldBe(false);
+            handler.Name.ShouldBe("CreateHandler");
+            handler.Fqn.ShouldBe("App.CreateHandler");
+            handler.TypeKind.ShouldBe("Class");
+            handler.IsAbstract.ShouldBeFalse();
         }
     }
 

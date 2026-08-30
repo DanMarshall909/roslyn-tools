@@ -3,6 +3,7 @@ using System.CommandLine.Invocation;
 using System.Text.Json;
 using RoslynTools.Core;
 using RoslynTools.Daemon.Rpc;
+using RoslynTools.Services;
 using Shouldly;
 
 namespace RoslynTools.Tests.Daemon;
@@ -57,6 +58,92 @@ public sealed class DaemonCommandExecutorRecoveryTests
         context.ExitCode.ShouldBe(1);
         port.InvocationCount.ShouldBe(0);
         console.Errors.ShouldContain(message => message.Contains("indeterminate", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Typed_execution_deserializes_the_domain_response_before_CLI_projection()
+    {
+        var port = new FakePort(ReadOnlyDefinition());
+        var response = new DaemonRpcResponse(
+            DaemonRpcProtocol.CurrentVersion,
+            "request",
+            DaemonRpcJson.SerializeExecution(new CommandExecutionResult(
+                new FakeResponse("from daemon"),
+                [])));
+        var rpc = new StubRpcClient(new DaemonRpcAttempt(
+            DaemonRpcAttemptState.Completed,
+            response,
+            DispatchStarted: true));
+        var recovery = new DaemonRpcRecoveryCoordinator(rpc, new StubLauncher(started: false));
+
+        var result = await DaemonCommandExecutor.ExecuteTypedAsync(
+            recovery,
+            port,
+            new FakeRequest("hello"));
+
+        result.Match(
+            value => value.Value.ShouldBe("from daemon"),
+            error => throw new ShouldAssertException(error.Message));
+        port.InvocationCount.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Typed_execution_returns_daemon_errors_without_local_retry()
+    {
+        var port = new FakePort(ReadOnlyDefinition());
+        var response = new DaemonRpcResponse(
+            DaemonRpcProtocol.CurrentVersion,
+            "request",
+            Error: new DaemonRpcError(
+                DaemonRpcErrorCodes.CommandFailed,
+                "bad request",
+                RtErrorKind.InvalidInput));
+        var rpc = new StubRpcClient(new DaemonRpcAttempt(
+            DaemonRpcAttemptState.Completed,
+            response,
+            DispatchStarted: true));
+        var recovery = new DaemonRpcRecoveryCoordinator(rpc, new StubLauncher(started: false));
+
+        var result = await DaemonCommandExecutor.ExecuteTypedAsync(
+            recovery,
+            port,
+            new FakeRequest("hello"));
+
+        result.Match(
+            _ => throw new ShouldAssertException("Expected an error result."),
+            error =>
+            {
+                error.Kind.ShouldBe(RtErrorKind.InvalidInput);
+                error.Message.ShouldBe("bad request");
+            });
+        port.InvocationCount.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Typed_execution_falls_back_when_a_resident_daemon_is_older_than_the_command()
+    {
+        var port = new FakePort(ReadOnlyDefinition());
+        var response = new DaemonRpcResponse(
+            DaemonRpcProtocol.CurrentVersion,
+            "request",
+            Error: new DaemonRpcError(
+                DaemonRpcErrorCodes.CommandNotFound,
+                "unknown command"));
+        var rpc = new StubRpcClient(new DaemonRpcAttempt(
+            DaemonRpcAttemptState.Completed,
+            response,
+            DispatchStarted: true));
+        var recovery = new DaemonRpcRecoveryCoordinator(rpc, new StubLauncher(started: false));
+
+        var result = await DaemonCommandExecutor.ExecuteTypedAsync(
+            recovery,
+            port,
+            new FakeRequest("local fallback"));
+
+        result.Match(
+            value => value.Value.ShouldBe("local fallback"),
+            error => throw new ShouldAssertException(error.Message));
+        port.InvocationCount.ShouldBe(1);
     }
 
     private static InvocationContext CreateInvocationContext() =>

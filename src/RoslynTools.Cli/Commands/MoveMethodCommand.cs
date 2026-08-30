@@ -1,5 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Core;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -7,22 +8,13 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Moves a method from one location to another in the solution.
 /// </summary>
-internal sealed class MoveMethodCommand(IWorkspaceSessionFactory sessionFactory, MoveMethodService moveMethod) : IRtCommand, IRefactorCommand
+internal sealed class MoveMethodCommand(
+    DaemonRpcRecoveryCoordinator daemon,
+    MoveMethodOperation operation) : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
-    private readonly MoveMethodService _moveMethod = moveMethod;
-    public static RtCommandInfo Info { get; } = new(
-        "move-method",
-        true,
-        false,
-        "refactor",
-        "Moving a static method from one class to another, rewriting all call sites across the solution. Use when reorganising utility helpers or pulling methods toward the types they operate on. Pass --create-file to create the target class if it does not yet exist.",
-        [
-            "rt refactor move-method App.Source.Add --to-type App.Target --solution RoslynTools.slnx --dry-run",
-            "rt refactor move-method MathApp.MathHelper.Double --to-type MathApp.MathUtils --solution MySolution.sln",
-            "rt refactor move-method Helpers.StringUtils.Truncate --to-type Helpers.TextHelper --create-file --solution MySolution.sln"
-        ]
-    );
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
+    private readonly MoveMethodOperation _operation = operation;
+    public static RtCommandInfo Info => MoveMethodCommandDefinition.Info;
 
     public Command Build()
     {
@@ -38,31 +30,20 @@ internal sealed class MoveMethodCommand(IWorkspaceSessionFactory sessionFactory,
             methodFqnArg, toTypeOpt, createFileOpt, solutionOpt, dryRunOpt
         };
 
-        cmd.SetHandler(
-            async (methodFqn, toType, createFile, solution, dryRun) =>
-            {
-                await ExecuteAsync(methodFqn, toType, createFile, solution, dryRun);
-            }, methodFqnArg, toTypeOpt, createFileOpt, solutionOpt, dryRunOpt);
+        cmd.SetHandler(async context =>
+        {
+            await DaemonCommandExecutor.ExecuteAsync(
+                _daemon,
+                _operation,
+                new MoveMethodRequest(
+                    context.ParseResult.GetValueForArgument(methodFqnArg),
+                    context.ParseResult.GetValueForOption(toTypeOpt)!,
+                    context.ParseResult.GetValueForOption(createFileOpt),
+                    context.ParseResult.GetValueForOption(solutionOpt),
+                    context.ParseResult.GetValueForOption(dryRunOpt)),
+                context);
+        });
 
         return cmd;
-    }
-
-    /// <summary>
-    /// Asynchronously executes a method move with additional parameters.
-    /// </summary>
-    internal async Task ExecuteAsync(
-        string methodFqn,
-        string toType,
-        bool createFile,
-        string? solutionPath,
-        bool dryRun)
-    {
-        var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solutionPath);
-        using (workspace)
-        {
-            var ok = await _moveMethod.RunAsync(sln, methodFqn, toType, createFile, dryRun);
-            if (!ok)
-                Environment.ExitCode = 1;
-        }
     }
 }

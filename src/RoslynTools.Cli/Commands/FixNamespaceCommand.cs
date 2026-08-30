@@ -1,5 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Core;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -7,24 +8,20 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Fixes namespace issues in the current file
 /// </summary>
-internal sealed class FixNamespaceCommand(FixNamespaceService fixNamespace) : IRtCommand, IRefactorCommand
+internal sealed class FixNamespaceCommand : IRtCommand, IRefactorCommand
 {
-    private readonly FixNamespaceService _fixNamespace = fixNamespace;
-    public static RtCommandInfo Info { get; } = new(
-        "fix-namespace",
-        true,
-        false,
-        "refactor",
-        Aliases: ["fns"],
-        WhenToUse:
-        "Correcting a file's namespace declaration to match its folder path after moving files, or when a file was created in the wrong location. Also updates any using directives in other files that imported the old namespace.",
-        Examples:
-        [
-            "rt refactor fix-namespace --file src/Services/BookingService.cs --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt refactor fns --file src/RoslynTools/Commands/RenameCommand.cs --dry-run",
-            "rt refactor fix-namespace --file src/Domain/Order.cs --solution RoslynTools.slnx"
-        ]
-    );
+    private readonly DaemonRpcRecoveryCoordinator _daemon;
+    private readonly FixNamespaceOperation _operation;
+
+    public FixNamespaceCommand(
+        DaemonRpcRecoveryCoordinator daemon,
+        FixNamespaceOperation operation)
+    {
+        _daemon = daemon;
+        _operation = operation;
+    }
+
+    public static RtCommandInfo Info => FixNamespaceCommandDefinition.Info;
 
     public Command Build()
     {
@@ -36,20 +33,19 @@ internal sealed class FixNamespaceCommand(FixNamespaceService fixNamespace) : IR
         cmd.AddAlias("fns");
         cmd.AddAll(fileOpt, solutionOpt, dryRunOpt);
 
-        cmd.SetHandler(
-            async (file, solution, dryRun) =>
-            {
-                await _fixNamespace.ExecuteAsync(file, solution, dryRun);
-            }, fileOpt, solutionOpt, dryRunOpt);
+        cmd.SetHandler(async context =>
+        {
+            await DaemonCommandExecutor.ExecuteAsync(
+                _daemon,
+                _operation,
+                new FixNamespaceRequest(
+                    context.ParseResult.GetValueForOption(fileOpt)!,
+                    context.ParseResult.GetValueForOption(solutionOpt),
+                    context.ParseResult.GetValueForOption(dryRunOpt)),
+                context);
+        });
 
         return cmd;
     }
 
-    /// <summary>
-    /// Executes the FixNamespaceCommand with async parameters
-    /// </summary>
-    internal Task ExecuteAsync(string filePath, string? solutionPath, bool dryRun)
-    {
-        return _fixNamespace.ExecuteAsync(filePath, solutionPath, dryRun);
-    }
 }

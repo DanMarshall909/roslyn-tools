@@ -1,5 +1,5 @@
-using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Services;
 using RoslynTools.Tests.Infrastructure;
 using Shouldly;
 
@@ -80,9 +80,9 @@ public class ReplaceXunitAsserts : IClassFixture<RtServicesFixture>
                                              """);
         var (workspace, solution) = project.Build();
 
-        using (workspace)
+        using (WorkspaceLoader.UseOverride(workspace, solution))
         {
-            await _services.Resolve<ReplaceXunitAssertsCommand>().ExecuteCoreAsync(solution, false, true);
+            await ExecuteAsync(apply: true);
         }
 
         var content = await project.ReadSourceAsync("ExampleTests.cs");
@@ -125,9 +125,9 @@ public class ReplaceXunitAsserts : IClassFixture<RtServicesFixture>
                                              """);
         var (workspace, solution) = project.Build();
 
-        using (workspace)
+        using (WorkspaceLoader.UseOverride(workspace, solution))
         {
-            await _services.Resolve<ReplaceXunitAssertsCommand>().ExecuteCoreAsync(solution, false, true);
+            await ExecuteAsync(apply: true);
         }
 
         var content = await project.ReadSourceAsync("ExampleTests.cs");
@@ -155,9 +155,9 @@ public class ReplaceXunitAsserts : IClassFixture<RtServicesFixture>
                                              """);
         var (workspace, solution) = project.Build();
 
-        using (workspace)
+        using (WorkspaceLoader.UseOverride(workspace, solution))
         {
-            await _services.Resolve<ReplaceXunitAssertsCommand>().ExecuteCoreAsync(solution, false, true);
+            await ExecuteAsync(apply: true);
         }
 
         var content = await project.ReadSourceAsync("ExampleTests.cs");
@@ -187,9 +187,9 @@ public class ReplaceXunitAsserts : IClassFixture<RtServicesFixture>
                                              """);
         var (workspace, solution) = project.Build();
 
-        using (workspace)
+        using (WorkspaceLoader.UseOverride(workspace, solution))
         {
-            await _services.Resolve<ReplaceXunitAssertsCommand>().ExecuteCoreAsync(solution, false, true);
+            await ExecuteAsync(apply: true);
         }
 
         var content = await project.ReadSourceAsync("ExampleTests.cs");
@@ -217,9 +217,9 @@ public class ReplaceXunitAsserts : IClassFixture<RtServicesFixture>
                                              """);
         var (workspace, solution) = project.Build();
 
-        using (workspace)
+        using (WorkspaceLoader.UseOverride(workspace, solution))
         {
-            await _services.Resolve<ReplaceXunitAssertsCommand>().ExecuteCoreAsync(solution, false, true);
+            await ExecuteAsync(apply: true);
         }
 
         var content = await project.ReadSourceAsync("ExampleTests.cs");
@@ -246,9 +246,9 @@ public class ReplaceXunitAsserts : IClassFixture<RtServicesFixture>
                                              """);
         var (workspace, solution) = project.Build();
 
-        using (workspace)
+        using (WorkspaceLoader.UseOverride(workspace, solution))
         {
-            await _services.Resolve<ReplaceXunitAssertsCommand>().ExecuteCoreAsync(solution, false, true);
+            await ExecuteAsync(apply: true);
         }
 
         var content = await project.ReadSourceAsync("ExampleTests.cs");
@@ -278,9 +278,9 @@ public class ReplaceXunitAsserts : IClassFixture<RtServicesFixture>
                                              """);
         var (workspace, solution) = project.Build();
 
-        using (workspace)
+        using (WorkspaceLoader.UseOverride(workspace, solution))
         {
-            await _services.Resolve<ReplaceXunitAssertsCommand>().ExecuteCoreAsync(solution, false, true);
+            await ExecuteAsync(apply: true);
         }
 
         var content = await project.ReadSourceAsync("ExampleTests.cs");
@@ -309,9 +309,9 @@ public class ReplaceXunitAsserts : IClassFixture<RtServicesFixture>
                                              """);
         var (workspace, solution) = project.Build();
 
-        using (workspace)
+        using (WorkspaceLoader.UseOverride(workspace, solution))
         {
-            await _services.Resolve<ReplaceXunitAssertsCommand>().ExecuteCoreAsync(solution, false, true);
+            await ExecuteAsync(apply: true);
         }
 
         var content = await project.ReadSourceAsync("ExampleTests.cs");
@@ -337,14 +337,18 @@ public class ReplaceXunitAsserts : IClassFixture<RtServicesFixture>
                                              """);
         var (workspace, solution) = project.Build();
 
-        using (workspace)
+        MutationExecutionResult<ReplaceXunitAssertsResult> execution;
+        using (WorkspaceLoader.UseOverride(workspace, solution))
         {
-            await _services.Resolve<ReplaceXunitAssertsCommand>().ExecuteCoreAsync(solution, false, true);
+            execution = await ExecuteAsync(apply: true);
         }
 
         var content = await project.ReadSourceAsync("ExampleTests.cs");
         content.ShouldNotContain("using Shouldly;", Case.Sensitive);
         content.ShouldContain("Assert.Equal(1.234, 1.235, 2);", Case.Sensitive);
+        execution.Status.ShouldBe(MutationExecutionStatus.NoOp);
+        execution.Diagnostics.ShouldContain(diagnostic =>
+            diagnostic.Message.Contains("No supported Xunit assertions", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -366,24 +370,95 @@ public class ReplaceXunitAsserts : IClassFixture<RtServicesFixture>
         var (workspace, solution) = project.Build();
         var original = await project.ReadSourceAsync("ExampleTests.cs");
 
-        using var stdout = new StringWriter();
-        var originalOut = Console.Out;
-        Console.SetOut(stdout);
-        try
+        MutationExecutionResult<ReplaceXunitAssertsResult> execution;
+        using (WorkspaceLoader.UseOverride(workspace, solution))
         {
-            using (workspace)
-            {
-                await _services.Resolve<ReplaceXunitAssertsCommand>().ExecuteCoreAsync(solution, false);
-            }
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
+            execution = await ExecuteAsync();
         }
 
         var content = await project.ReadSourceAsync("ExampleTests.cs");
         content.ShouldBe(original);
-        stdout.ToString().ShouldContain("xunit assert review: 1 call site(s)", Case.Sensitive);
+        execution.Status.ShouldBe(MutationExecutionStatus.Reviewed);
+        execution.Value.ShouldNotBeNull().EntryCount.ShouldBe(1);
+        execution.Value.Entries.ShouldHaveSingleItem().Replacement.ShouldBe("true.ShouldBeTrue()");
+    }
+
+    [Fact]
+    public async Task dry_run_reports_affected_paths_without_modifying_files()
+    {
+        using var project = new AdhocProjectBuilder("Tests");
+        project.AddSource("ExampleTests.cs", """
+                                             using Xunit;
+
+                                             public class ExampleTests
+                                             {
+                                                 [Fact]
+                                                 public void Values_match()
+                                                 {
+                                                     Assert.True(true);
+                                                 }
+                                             }
+                                             """);
+        var (workspace, solution) = project.Build();
+        var original = await project.ReadSourceAsync("ExampleTests.cs");
+
+        MutationExecutionResult<ReplaceXunitAssertsResult> execution;
+        using (WorkspaceLoader.UseOverride(workspace, solution))
+        {
+            execution = await ExecuteAsync(dryRun: true);
+        }
+
+        var content = await project.ReadSourceAsync("ExampleTests.cs");
+        content.ShouldBe(original);
+        execution.Status.ShouldBe(MutationExecutionStatus.DryRun);
+        execution.ChangedFiles.ShouldHaveSingleItem().ShouldEndWith("ExampleTests.cs");
+    }
+
+    [Fact]
+    public async Task cancellation_prevents_analysis_and_writes()
+    {
+        using var project = new AdhocProjectBuilder("Tests");
+        project.AddSource("ExampleTests.cs", """
+                                             using Xunit;
+
+                                             public class ExampleTests
+                                             {
+                                                 [Fact]
+                                                 public void Values_match()
+                                                 {
+                                                     Assert.True(true);
+                                                 }
+                                             }
+                                             """);
+        var (workspace, solution) = project.Build();
+        var original = await project.ReadSourceAsync("ExampleTests.cs");
+        using var cancellation = new CancellationTokenSource();
+        await cancellation.CancelAsync();
+
+        using (WorkspaceLoader.UseOverride(workspace, solution))
+        {
+            await Should.ThrowAsync<OperationCanceledException>(async () =>
+                await ExecuteAsync(apply: true, cancellationToken: cancellation.Token));
+        }
+
+        var content = await project.ReadSourceAsync("ExampleTests.cs");
+        content.ShouldBe(original);
+    }
+
+    private async Task<MutationExecutionResult<ReplaceXunitAssertsResult>> ExecuteAsync(
+        bool dryRun = false,
+        bool apply = false,
+        bool review = false,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _services.Resolve<ReplaceXunitAssertsOperation>().ExecuteAsync(
+            new ReplaceXunitAssertsRequest(
+                "ignored",
+                dryRun,
+                apply,
+                review),
+            cancellationToken);
+        return result.Unwrap();
     }
 
     private static int CountOccurrences(string text, string pattern)

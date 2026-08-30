@@ -4,7 +4,6 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.Extensions.Logging;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
@@ -16,31 +15,17 @@ namespace RoslynTools.Services;
     Justification = "Instance class created by rt destatic-class migration.")]
 internal class ImplementInterfaceService : IRtService
 {
+    internal sealed record Preparation(Solution Solution, int StubCount, string? Message);
     private readonly IDocumentLocatorService _documents;
-    private readonly ILogger<ImplementInterfaceService> _logger;
-    private readonly ISolutionChangeWriter _solutionChangeWriter;
 
-    public ImplementInterfaceService()
-        : this(new RtConsoleLogger<ImplementInterfaceService>(), new SolutionChangeWriter())
+    public ImplementInterfaceService(IDocumentLocatorService documents)
     {
+        _documents = documents;
     }
 
-    public ImplementInterfaceService(ILogger<ImplementInterfaceService> logger,
-        ISolutionChangeWriter solutionChangeWriter,
-        IDocumentLocatorService? documents = null)
+    internal async Task<Preparation> PrepareAsync(Solution sln, string typeName, string? interfaceName, CancellationToken cancellationToken = default)
     {
-        _documents = documents ?? new DocumentLocatorService();
-
-        _logger = logger;
-        _solutionChangeWriter = solutionChangeWriter;
-    }
-
-    /// <summary>
-    /// Runs an operation to implement an interface on a solution.
-    /// </summary>
-    internal async Task RunAsync(Solution sln, string typeName, string? interfaceName, bool dryRun)
-    {
-        var originalSolution = sln;
+        cancellationToken.ThrowIfCancellationRequested();
 
         var classSymbol = await FindClassSymbolAsync(sln, typeName)
                           ?? throw new InvalidOperationException($"Class '{typeName}' not found in solution.");
@@ -48,8 +33,7 @@ internal class ImplementInterfaceService : IRtService
         var interfacesToImplement = await CollectInterfacesToImplementAsync(sln, classSymbol, interfaceName);
         if (interfacesToImplement.Count == 0)
         {
-            RtConsole.WriteLine(RtOutputContext.Diagnostic, $"'{typeName}' does not implement any interfaces.");
-            return;
+            return new Preparation(sln, 0, $"'{typeName}' does not implement any interfaces.");
         }
 
         var docId = _documents.FindDocumentId(sln, classSymbol)
@@ -58,13 +42,11 @@ internal class ImplementInterfaceService : IRtService
         var unimplementedMembers = CollectUnimplementedMembers(classSymbol, interfacesToImplement);
         if (unimplementedMembers.Count == 0)
         {
-            RtConsole.WriteLine(RtOutputContext.Diagnostic, $"'{typeName}' already implements all interface members.");
-            return;
+            return new Preparation(sln, 0, $"'{typeName}' already implements all interface members.");
         }
 
         sln = await ApplyStubsAsync(sln, typeName, docId, classSymbol, unimplementedMembers);
-        _logger.RtInfo("Adding {Count} stub(s) to '{TypeName}'...", unimplementedMembers.Count, typeName);
-        await _solutionChangeWriter.ApplyChangesAsync(originalSolution, sln, dryRun);
+        return new Preparation(sln, unimplementedMembers.Count, null);
     }
 
     private async Task<Solution> ApplyStubsAsync(
@@ -76,10 +58,7 @@ internal class ImplementInterfaceService : IRtService
     {
         var stubs = unimplementedMembers.Select(BuildStub).OfType<MemberDeclarationSyntax>().ToList();
         if (stubs.Count == 0)
-        {
-            RtConsole.WriteLine(RtOutputContext.Diagnostic, "No stubs to generate.");
             return sln;
-        }
 
         var document = sln.GetDocument(docId)!;
         var root = (CompilationUnitSyntax)(await document.GetSyntaxRootAsync())!;

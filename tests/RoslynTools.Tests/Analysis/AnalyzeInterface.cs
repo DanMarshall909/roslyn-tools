@@ -1,8 +1,10 @@
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Commands;
 using RoslynTools.Commands.Results;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Models;
 using RoslynTools.Services;
 using RoslynTools.Tests.Infrastructure;
@@ -640,7 +642,12 @@ public sealed class AnalyzeInterface : IClassFixture<RtServicesFixture>, IDispos
 
         try
         {
-            var exitCode = await App.RunAsync(args);
+            var services = new ServiceCollection();
+            global::RoslynTools.Bootstrap.RegisterServices(services);
+            services.AddSingleton<IDaemonRpcClient, UnavailableDaemonRpcClient>();
+            services.AddSingleton<IDaemonLauncher, UnavailableDaemonLauncher>();
+            await using var provider = services.BuildServiceProvider();
+            var exitCode = await App.RunAsync(args, provider);
             return (exitCode, stdout.ToString(), stderr.ToString());
         }
         finally
@@ -648,5 +655,23 @@ public sealed class AnalyzeInterface : IClassFixture<RtServicesFixture>, IDispos
             Console.SetOut(originalOut);
             Console.SetError(originalError);
         }
+    }
+
+    private sealed class UnavailableDaemonRpcClient : IDaemonRpcClient
+    {
+        public Task<DaemonRpcAttempt> ExecuteAsync(
+            string commandName,
+            JsonElement arguments,
+            CommandSafety safety,
+            CancellationToken cancellationToken = default) => Task.FromResult(new DaemonRpcAttempt(
+            DaemonRpcAttemptState.UnavailableBeforeDispatch,
+            null,
+            DispatchStarted: false));
+    }
+
+    private sealed class UnavailableDaemonLauncher : IDaemonLauncher
+    {
+        public Task<bool> EnsureStartedAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
     }
 }

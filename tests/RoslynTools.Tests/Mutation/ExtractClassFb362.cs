@@ -1,8 +1,8 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Formatting;
-using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Services;
 using RoslynTools.Tests.Infrastructure;
 using Shouldly;
 
@@ -45,7 +45,7 @@ public class ExtractClassFb362 : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<ExtractClassCommand>().ExecuteAsync(
+            await ExecuteExtractClassAsync(
                 "BigService", "Score", "Scoring", true, "ignored", null, false);
         }
 
@@ -78,7 +78,7 @@ public class ExtractClassFb362 : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<ExtractClassCommand>().ExecuteAsync(
+            await ExecuteExtractClassAsync(
                 "BigService", "Template", "Templates", true, "ignored", null, false);
         }
 
@@ -121,7 +121,7 @@ public class ExtractClassFb362 : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<ExtractClassCommand>().ExecuteAsync(
+            await ExecuteExtractClassAsync(
                 "BigService", "Score", "Scoring", true, "ignored", null, false);
         }
 
@@ -153,7 +153,7 @@ public class ExtractClassFb362 : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<ExtractClassCommand>().ExecuteAsync(
+            await ExecuteExtractClassAsync(
                 "BigService", "Helper", "Maths", true, "ignored", null, false);
         }
 
@@ -185,7 +185,7 @@ public class ExtractClassFb362 : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<ExtractClassCommand>().ExecuteAsync(
+            await ExecuteExtractClassAsync(
                 "BigService", "Helper,Twice", "Maths", true, "ignored", null, false);
         }
 
@@ -218,7 +218,7 @@ public class ExtractClassFb362 : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<ExtractClassCommand>().ExecuteAsync(
+            await ExecuteExtractClassAsync(
                 "BigService", "Origin,Point", "Geometry", true, "ignored", null, false);
         }
 
@@ -227,5 +227,24 @@ public class ExtractClassFb362 : IClassFixture<RtServicesFixture>
 
         extracted.ShouldContain("class Point", Case.Sensitive);
         source.ShouldNotContain("class Point", Case.Sensitive);
+    }
+
+    private async Task ExecuteExtractClassAsync(
+        string typeName,
+        string members,
+        string newTypeName,
+        bool isStatic,
+        string? solutionPath,
+        string? outputDir,
+        bool dryRun)
+    {
+        (await _services.Resolve<ExtractClassOperation>().ExecuteAsync(new ExtractClassRequest(
+            typeName,
+            members,
+            newTypeName,
+            isStatic,
+            outputDir,
+            solutionPath,
+            dryRun))).Unwrap();
     }
 }

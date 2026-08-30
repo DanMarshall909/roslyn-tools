@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
-using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Services;
 using RoslynTools.Tests.Infrastructure;
 using Shouldly;
 
@@ -36,7 +36,7 @@ public class ReplaceCall : IClassFixture<RtServicesFixture>
         using (project)
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<ReplaceCallCommand>().ExecuteAsync("Logger.Log", "LogInfo", "ignored", false);
+            await ExecuteAsync("Logger.Log", "LogInfo");
 
             var content = await project.ReadSourceAsync("LogApp.cs");
 
@@ -62,7 +62,7 @@ public class ReplaceCall : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<ReplaceCallCommand>().ExecuteAsync("Logger.Log", "LogInfo", "ignored", false);
+            await ExecuteAsync("Logger.Log", "LogInfo");
         }
 
         var content = await project.ReadSourceAsync("LogApp.cs");
@@ -84,23 +84,13 @@ public class ReplaceCall : IClassFixture<RtServicesFixture>
                                        """);
         var (workspace, sln) = project.Build();
 
-        var sw = new StringWriter();
-        var previousOut = Console.Out;
-        Console.SetOut(sw);
-        try
+        using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            using (WorkspaceLoader.UseOverride(workspace, sln))
-            {
-                await _services.Resolve<ReplaceCallCommand>().ExecuteAsync("Logger.Log", "LogInfo", "ignored", false);
-            }
+            var execution = await ExecuteAsync("Logger.Log", "LogInfo");
+            execution.Status.ShouldBe(MutationExecutionStatus.NoOp);
+            execution.Diagnostics.ShouldContain(diagnostic =>
+                diagnostic.Message.Contains("Logger.Log", StringComparison.Ordinal));
         }
-        finally
-        {
-            Console.SetOut(previousOut);
-        }
-
-        var output = sw.ToString();
-        output.ShouldContain("Logger.Log", Case.Sensitive);
     }
 
     [Fact]
@@ -112,23 +102,13 @@ public class ReplaceCall : IClassFixture<RtServicesFixture>
         {
             var originalContent = await project.ReadSourceAsync("LogApp.cs");
 
-            var sw = new StringWriter();
-            var previousOut = Console.Out;
-            Console.SetOut(sw);
-            try
-            {
-                await _services.Resolve<ReplaceCallCommand>().ExecuteAsync("Logger.Log", "LogInfo", "ignored", true);
-            }
-            finally
-            {
-                Console.SetOut(previousOut);
-            }
+            var execution = await ExecuteAsync("Logger.Log", "LogInfo", dryRun: true);
 
             var afterContent = await project.ReadSourceAsync("LogApp.cs");
             afterContent.ShouldBe(originalContent);
 
-            var diffOutput = sw.ToString();
-            diffOutput.ShouldNotBeEmpty();
+            execution.Status.ShouldBe(MutationExecutionStatus.DryRun);
+            execution.ChangedFiles.ShouldHaveSingleItem().ShouldEndWith("LogApp.cs");
         }
     }
 
@@ -153,8 +133,11 @@ public class ReplaceCall : IClassFixture<RtServicesFixture>
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await _services.Resolve<ReplaceCallCommand>().ExecuteAsync("Factory.CreateStringOption", "Factory.CreateMethodOption", "ignored",
-                false, 0, "--method");
+            await ExecuteAsync(
+                "Factory.CreateStringOption",
+                "Factory.CreateMethodOption",
+                ifArgIndex: 0,
+                ifArgLiteral: "--method");
         }
 
         var content = await project.ReadSourceAsync("FactoryApp.cs");
@@ -163,6 +146,18 @@ public class ReplaceCall : IClassFixture<RtServicesFixture>
         CountOccurrences(content, "Factory.CreateMethodOption(").ShouldBe(2);
         CountOccurrences(content, "Factory.CreateStringOption(\"--file\"").ShouldBe(1);
         content.ShouldNotContain("CreateStringOption(\"--method\"", Case.Sensitive);
+    }
+
+    private async Task<MutationExecutionResult<ReplaceCallResult>> ExecuteAsync(
+        string from,
+        string to,
+        bool dryRun = false,
+        int? ifArgIndex = null,
+        string? ifArgLiteral = null)
+    {
+        var result = await _services.Resolve<ReplaceCallOperation>().ExecuteAsync(
+            new ReplaceCallRequest(from, to, "ignored", dryRun, ifArgIndex, ifArgLiteral));
+        return result.Unwrap();
     }
 
     private static int CountOccurrences(string text, string pattern)

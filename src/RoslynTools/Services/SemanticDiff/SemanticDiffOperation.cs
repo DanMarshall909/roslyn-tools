@@ -1,4 +1,3 @@
-using System.Text.Json;
 using RoslynTools.Core;
 using RoslynTools.Services.SemanticDiff.Git;
 
@@ -12,6 +11,11 @@ internal sealed record SemanticDiffOperationRequest(
     bool DetectRenames = true,
     string? Directory = null);
 
+/// <summary>Host-neutral semantic diff data and its precomputed text projection.</summary>
+internal sealed record SemanticDiffOperationResult(
+    IReadOnlyList<DeclarationDelta> Deltas,
+    string Text);
+
 /// <summary>
 ///     Shared semantic-diff operation. Source-mode selection, options, move suppression,
 ///     and both output projections live here rather than in either host adapter.
@@ -20,18 +24,21 @@ internal sealed class SemanticDiffOperation(
     GitSemanticDiffSourceProvider gitSource,
     FileSemanticDiffSourceProvider fileSource,
     SemanticDiffService engine,
-    SemanticDiffTextRenderer renderer) : LegacyCommandApplicationPort, IRtService
+    SemanticDiffTextRenderer renderer) : CommandApplicationPort<SemanticDiffOperationRequest, SemanticDiffOperationResult>, IRtService
 {
     private readonly GitSemanticDiffSourceProvider _gitSource = gitSource;
     private readonly FileSemanticDiffSourceProvider _fileSource = fileSource;
     private readonly SemanticDiffService _engine = engine;
     private readonly SemanticDiffTextRenderer _renderer = renderer;
 
-    public override string CommandName => "semantic_diff";
-    public override Type RequestType => typeof(SemanticDiffOperationRequest);
-    public override Type ResponseType => typeof(JsonElement);
+    public override ApplicationCommandDefinition Definition { get; } = new(
+        new RtCommandInfo("semantic-diff", false, true, "analyze", Aliases: ["sdiff"],
+            WhenToUse: "Semantic C# diff between two git versions or two files on disc.", Examples: [],
+            SupportedFormats: [Core.Output.OutputFormat.Text, Core.Output.OutputFormat.Json]),
+        typeof(SemanticDiffOperationRequest), typeof(SemanticDiffOperationResult), true,
+        CommandSafety.ReadOnly, CommandExecutionPlacement.InProcess, []);
 
-    internal Task<SemanticDiffOutput> ExecuteAsync(
+    public override Task<Result<SemanticDiffOperationResult, RtError>> ExecuteAsync(
         SemanticDiffOperationRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -50,19 +57,8 @@ internal sealed class SemanticDiffOperation(
             result = SuppressSpuriousMoves(result);
 
         var text = _renderer.Render(result, before, after);
-        return Task.FromResult(new SemanticDiffOutput(result.Deltas, text));
-    }
-
-    protected override async Task<CommandPortResult> InvokeLegacyAsync(
-        object request,
-        CancellationToken cancellationToken)
-    {
-        if (request is not SemanticDiffOperationRequest typedRequest)
-            throw new ArgumentException("Invalid semantic-diff request.", nameof(request));
-
-        var output = await ExecuteAsync(typedRequest, cancellationToken);
-        using var json = JsonDocument.Parse(SemanticDiffJson.Serialize(output.Deltas));
-        return CommandPortResult.Success(json.RootElement.Clone());
+        return Task.FromResult(Result<SemanticDiffOperationResult, RtError>.Ok(
+            new SemanticDiffOperationResult(result.Deltas, text)));
     }
 
     private (IReadOnlyList<SemanticDiffSource> Before, IReadOnlyList<SemanticDiffSource> After)

@@ -1,327 +1,256 @@
+using System.CommandLine;
+using System.Text.Json;
+using Microsoft.CodeAnalysis;
 using RoslynTools.Commands;
 using RoslynTools.Core;
+using RoslynTools.Daemon.Rpc;
+using RoslynTools.Services;
 using RoslynTools.Tests.Infrastructure;
 using Shouldly;
 
 namespace RoslynTools.Tests.Mutation;
 
-public sealed class NarrowDependency : IClassFixture<RtServicesFixture>
+public sealed class NarrowDependencyOperationTests
 {
-    private readonly RtServicesFixture _services;
-    public NarrowDependency(RtServicesFixture services) => _services = services;
-
-    // -------------------------------------------------------------------------
-    // AC1 + AC3: extracts selected members into a new interface file
-    // -------------------------------------------------------------------------
     [Fact]
-    public async Task extracts_new_interface_with_selected_members()
+    public async Task apply_creates_the_interface_narrows_compatible_consumers_and_returns_the_full_report()
     {
         using var project = BuildWideFacadeProject();
-        var (workspace, sln) = project.Build();
+        var (workspace, solution) = project.Build();
+        var writer = new CapturingSolutionChangeWriter();
+        var operation = CreateOperation(workspace, solution, writer);
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
+        var execution = (await operation.ExecuteAsync(
+            new NarrowDependencyRequest("IWideFacade", ["Send"], "ISender"))).Unwrap();
+
+        operation.Definition.Name.ShouldBe("narrow_dependency");
+        execution.Status.ShouldBe(MutationExecutionStatus.Applied);
+        var value = execution.Value!;
+        value.InterfaceCreated.ShouldBeTrue();
+        value.InterfaceReused.ShouldBeFalse();
+        value.NarrowedConsumers.ShouldBe(["MyApp.SenderOnlyConsumer"]);
+        value.SkippedConsumers.ShouldBe([
+            new NarrowDependencySkippedConsumer(
+                "MyApp.MixedConsumer",
+                "uses members outside the selected subset: Receive")]);
+        value.DiRegistrationFollowUp.ShouldNotBeNull();
+        value.DiRegistrationFollowUp.ShouldContain("DI registration", Case.Insensitive);
+        execution.ChangedFiles.ShouldContain(path => path.EndsWith("ISender.cs", StringComparison.Ordinal));
+        execution.ChangedFiles.ShouldContain(path => path.EndsWith("Consumers.cs", StringComparison.Ordinal));
+        execution.Diagnostics.ShouldContain(diagnostic => diagnostic.Message.Contains("New interface 'ISender'", StringComparison.Ordinal));
+        execution.Diagnostics.ShouldContain(diagnostic => diagnostic.Message.Contains("DI registration", StringComparison.OrdinalIgnoreCase));
+        writer.NewSolution.ShouldNotBeNull();
+
+        var interfaceText = await TestSolutionDocuments.GetTextAsync(writer.NewSolution!, "ISender.cs");
+        interfaceText.ShouldContain("Send", Case.Sensitive);
+        interfaceText.ShouldNotContain("Receive", Case.Sensitive);
+
+        var consumerText = await TestSolutionDocuments.GetTextAsync(writer.NewSolution!, "Consumers.cs");
+        consumerText.ShouldContain("ISender", Case.Sensitive);
+        consumerText.ShouldContain("IWideFacade", Case.Sensitive);
+    }
+
+    [Fact]
+    public async Task dry_run_reports_the_new_document_and_leaves_the_writer_unreached()
+    {
+        using var project = BuildWideFacadeProject();
+        var (workspace, solution) = project.Build();
+        var writer = new CapturingSolutionChangeWriter();
+        var operation = CreateOperation(workspace, solution, writer);
+
+        var execution = (await operation.ExecuteAsync(
+            new NarrowDependencyRequest("IWideFacade", ["Send"], "ISender", DryRun: true))).Unwrap();
+
+        execution.Status.ShouldBe(MutationExecutionStatus.DryRun);
+        execution.ChangedFiles.ShouldContain(path => path.EndsWith("ISender.cs", StringComparison.Ordinal));
+        writer.NewSolution.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task reuse_returns_a_structured_no_op_when_no_consumers_need_narrowing()
+    {
+        using var project = new AdhocProjectBuilder("ReuseApp");
+        project.AddSource("IWideFacade.cs", "namespace MyApp; public interface IWideFacade { void Send(); }");
+        project.AddSource("ISender.cs", "namespace MyApp; public interface ISender { void Send(); }");
+        var (workspace, solution) = project.Build();
+        var writer = new CapturingSolutionChangeWriter();
+        var operation = CreateOperation(workspace, solution, writer);
+
+        var execution = (await operation.ExecuteAsync(
+            new NarrowDependencyRequest("IWideFacade", ["Send"], "ISender"))).Unwrap();
+
+        execution.Status.ShouldBe(MutationExecutionStatus.NoOp);
+        execution.Value!.InterfaceCreated.ShouldBeFalse();
+        execution.Value.InterfaceReused.ShouldBeTrue();
+        execution.Value.NarrowedConsumers.ShouldBeEmpty();
+        execution.Diagnostics.ShouldHaveSingleItem().Message.ShouldContain("Reusing existing interface 'ISender'", Case.Sensitive);
+        writer.NewSolution.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task invalid_member_returns_a_typed_error_without_writing()
+    {
+        using var project = BuildWideFacadeProject();
+        var (workspace, solution) = project.Build();
+        var writer = new CapturingSolutionChangeWriter();
+        var operation = CreateOperation(workspace, solution, writer);
+
+        var result = await operation.ExecuteAsync(
+            new NarrowDependencyRequest("IWideFacade", ["Missing"], "ISender"));
+
+        var error = GetError(result);
+        error.Kind.ShouldBe(RtErrorKind.InvalidInput);
+        error.Message.ShouldContain("Missing", Case.Sensitive);
+        error.Context!["interface"].ShouldBe("IWideFacade");
+        writer.NewSolution.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task non_interface_type_returns_a_typed_error_without_writing()
+    {
+        using var project = new AdhocProjectBuilder("TypeApp");
+        project.AddSource("Widget.cs", "namespace MyApp; public class Widget { }");
+        var (workspace, solution) = project.Build();
+        var writer = new CapturingSolutionChangeWriter();
+        var operation = CreateOperation(workspace, solution, writer);
+
+        var result = await operation.ExecuteAsync(
+            new NarrowDependencyRequest("Widget", ["Run"], "IWidget"));
+
+        var error = GetError(result);
+        error.Kind.ShouldBe(RtErrorKind.InvalidInput);
+        error.Message.ShouldContain("not an interface", Case.Insensitive);
+        writer.NewSolution.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task cancellation_before_dispatch_cannot_write()
+    {
+        var writer = new CapturingSolutionChangeWriter();
+        var operation = new NarrowDependencyOperation(
+            new ThrowingWorkspaceSessionFactory(),
+            new NarrowDependencyService(),
+            writer);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Should.ThrowAsync<OperationCanceledException>(() => operation.ExecuteAsync(
+            new NarrowDependencyRequest("IWideFacade", ["Send"], "ISender"),
+            cancellation.Token));
+
+        writer.NewSolution.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task daemon_dispatches_the_same_typed_port_in_preview_mode()
+    {
+        using var project = BuildWideFacadeProject();
+        var (workspace, solution) = project.Build();
+        var writer = new CapturingSolutionChangeWriter();
+        var operation = CreateOperation(workspace, solution, writer);
+        var dispatcher = new DaemonCommandDispatcher([operation]);
+        using var arguments = JsonDocument.Parse(
+            """{"interface":"IWideFacade","members":["Send"],"new-name":"ISender","dry-run":true}""");
+
+        var response = await dispatcher.ExecuteAsync(new DaemonRpcRequest(
+            DaemonRpcProtocol.CurrentVersion,
+            "narrow-dependency-preview",
+            DaemonRpcProtocol.ExecuteCommandMethod,
+            NarrowDependencyCommandDefinition.Definition.Name,
+            arguments.RootElement.Clone()));
+
+        response.Error.ShouldBeNull();
+        response.Result!.Value.GetProperty("data").GetProperty("status").GetInt32()
+            .ShouldBe((int)MutationExecutionStatus.DryRun);
+        response.Result.Value.GetProperty("data").GetProperty("value")
+            .GetProperty("narrowedConsumers").GetArrayLength().ShouldBe(1);
+        writer.NewSolution.ShouldBeNull();
+    }
+
+    [Fact]
+    public void cli_retains_the_interface_argument_and_repeatable_members_option()
+    {
+        using var services = new RtServicesFixture();
+        var command = services.Resolve<NarrowDependencyCommand>().Build();
+
+        command.Arguments.ShouldContain(argument => argument.Name == "interface");
+        command.Options.ShouldContain(option => option.Name == "members");
+        command.Options.ShouldContain(option => option.Name == "new-name");
+        command.Options.ShouldContain(option => option.Name == "solution");
+        command.Options.ShouldContain(option => option.Name == "dry-run");
+    }
+
+    [Fact]
+    public async Task cli_expands_comma_separated_members_before_dispatching_the_port()
+    {
+        using var project = BuildWideFacadeProject();
+        var (workspace, solution) = project.Build();
+        using var services = new RtServicesFixture();
+
+        using (WorkspaceLoader.UseOverride(workspace, solution))
         {
-            await _services.Resolve<NarrowDependencyCommand>().ExecuteAsync(
+            var exitCode = await services.Resolve<NarrowDependencyCommand>().Build().InvokeAsync(
+            [
                 "IWideFacade",
-                ["Send"],
-                "ISender",
-                "ignored",
-                false);
+                "--members", "Send,Receive",
+                "--new-name", "IMessageFacade",
+                "--solution", "ignored"
+            ]);
+            exitCode.ShouldBe(0);
         }
 
-        Assert.True(project.SourceExists("ISender.cs"),
-            "ISender.cs should have been created");
-
-        var content = await project.ReadSourceAsync("ISender.cs");
-        content.ShouldContain("ISender", Case.Sensitive);
-        content.ShouldContain("Send", Case.Sensitive);
-        content.ShouldNotContain("Receive", Case.Sensitive);
-        content.ShouldNotContain("Delete", Case.Sensitive);
+        var interfaceSource = await project.ReadSourceAsync("IMessageFacade.cs");
+        interfaceSource.ShouldContain("Send", Case.Sensitive);
+        interfaceSource.ShouldContain("Receive", Case.Sensitive);
     }
 
-    // -------------------------------------------------------------------------
-    // AC5: narrows a consumer whose usage matches the selected subset
-    // -------------------------------------------------------------------------
-    [Fact]
-    public async Task narrows_consumer_that_uses_only_selected_members()
-    {
-        using var project = BuildWideFacadeProject();
-        var (workspace, sln) = project.Build();
+    private static NarrowDependencyOperation CreateOperation(
+        Workspace workspace,
+        Solution solution,
+        CapturingSolutionChangeWriter writer) => new(
+        new FixedWorkspaceSessionFactory(workspace, solution),
+        new NarrowDependencyService(new ConsumerNarrowerService(), new SymbolResolutionService()),
+        writer);
 
-        using (WorkspaceLoader.UseOverride(workspace, sln))
-        {
-            await _services.Resolve<NarrowDependencyCommand>().ExecuteAsync(
-                "IWideFacade",
-                ["Send"],
-                "ISender",
-                "ignored",
-                false);
-        }
-
-        // SenderOnlyConsumer only uses Send — its ctor param and field should be narrowed
-        var content = await project.ReadSourceAsync("Consumers.cs");
-        content.ShouldContain("ISender", Case.Sensitive);
-    }
-
-    // -------------------------------------------------------------------------
-    // AC6: leaves mixed-usage consumers unchanged
-    // -------------------------------------------------------------------------
-    [Fact]
-    public async Task leaves_mixed_usage_consumer_unchanged()
-    {
-        using var project = BuildWideFacadeProject();
-        var (workspace, sln) = project.Build();
-
-        using (WorkspaceLoader.UseOverride(workspace, sln))
-        {
-            await _services.Resolve<NarrowDependencyCommand>().ExecuteAsync(
-                "IWideFacade",
-                ["Send"],
-                "ISender",
-                "ignored",
-                false);
-        }
-
-        // MixedConsumer uses Send + Receive — should still have IWideFacade
-        var content = await project.ReadSourceAsync("Consumers.cs");
-        content.ShouldContain("IWideFacade", Case.Sensitive);
-    }
-
-    // -------------------------------------------------------------------------
-    // AC8: invalid member causes validation error with no changes
-    // -------------------------------------------------------------------------
-    [Fact]
-    public async Task fails_with_clear_error_when_member_not_on_interface()
-    {
-        using var project = BuildWideFacadeProject();
-        var (workspace, sln) = project.Build();
-
-        using (WorkspaceLoader.UseOverride(workspace, sln))
-        {
-            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                _services.Resolve<NarrowDependencyCommand>().ExecuteAsync(
-                    "IWideFacade",
-                    ["NonExistentMethod"],
-                    "INarrow",
-                    "ignored",
-                    false));
-
-            ex.Message.ShouldContain("NonExistentMethod", Case.Sensitive);
-            ex.Message.ShouldContain("IWideFacade", Case.Sensitive);
-        }
-
-        // No files written
-        project.SourceExists("INarrow.cs").ShouldBeFalse();
-    }
-
-    // -------------------------------------------------------------------------
-    // AC10: --dry-run prints diff, writes no files
-    // -------------------------------------------------------------------------
-    [Fact]
-    public async Task handles_dry_run_does_not_write_files()
-    {
-        using var project = BuildWideFacadeProject();
-        var (workspace, sln) = project.Build();
-
-        using (WorkspaceLoader.UseOverride(workspace, sln))
-        {
-            await _services.Resolve<NarrowDependencyCommand>().ExecuteAsync(
-                "IWideFacade",
-                ["Send"],
-                "ISender",
-                "ignored",
-                true);
-        }
-
-        Assert.False(project.SourceExists("ISender.cs"),
-            "ISender.cs should NOT be written during dry-run");
-    }
-
-    // -------------------------------------------------------------------------
-    // AC7: DI follow-up is reported when consumers were narrowed
-    // -------------------------------------------------------------------------
-    [Fact]
-    public async Task reports_di_follow_up_when_consumers_narrowed()
-    {
-        using var project = BuildWideFacadeProject();
-        var (workspace, sln) = project.Build();
-
-        var originalOut = Console.Out;
-        using var stdout = new StringWriter();
-        Console.SetOut(stdout);
-        try
-        {
-            using (WorkspaceLoader.UseOverride(workspace, sln))
-            {
-                await _services.Resolve<NarrowDependencyCommand>().ExecuteAsync(
-                    "IWideFacade",
-                    ["Send"],
-                    "ISender",
-                    "ignored",
-                    false);
-            }
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-        }
-
-        var output = stdout.ToString();
-        Assert.Contains("DI", output, StringComparison.OrdinalIgnoreCase);
-    }
-
-    // -------------------------------------------------------------------------
-    // AC9: consumer skipped with explicit reason when usage exceeds subset
-    // -------------------------------------------------------------------------
-    [Fact]
-    public async Task reports_skipped_consumers_that_exceed_selected_subset()
-    {
-        using var project = BuildWideFacadeProject();
-        var (workspace, sln) = project.Build();
-
-        var originalOut = Console.Out;
-        using var stdout = new StringWriter();
-        Console.SetOut(stdout);
-        try
-        {
-            using (WorkspaceLoader.UseOverride(workspace, sln))
-            {
-                await _services.Resolve<NarrowDependencyCommand>().ExecuteAsync(
-                    "IWideFacade",
-                    ["Send"],
-                    "ISender",
-                    "ignored",
-                    false);
-            }
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-        }
-
-        // MixedConsumer uses Send + Receive, so it should be skipped
-        var output = stdout.ToString();
-        output.ShouldContain("MixedConsumer", Case.Sensitive);
-        Assert.Contains("skipped", output, StringComparison.OrdinalIgnoreCase);
-    }
-
-    // -------------------------------------------------------------------------
-    // Command registration
-    // -------------------------------------------------------------------------
-    [Fact]
-    public void registers_command_with_expected_options()
-    {
-        App.Commands.ShouldContain(entry => entry.Info.Name == "narrow-dependency");
-
-        var command = _services.Resolve<NarrowDependencyCommand>().Build();
-
-        command.Arguments.ShouldContain(arg => arg.Name == "interface");
-        command.Options.ShouldContain(opt => opt.Name == "members");
-        command.Options.ShouldContain(opt => opt.Name == "new-name");
-        command.Options.ShouldContain(opt => opt.Name == "solution");
-        command.Options.ShouldContain(opt => opt.Name == "dry-run");
-    }
-
-    // -------------------------------------------------------------------------
-    // AC3: reuses existing interface when shape already matches
-    // -------------------------------------------------------------------------
-    [Fact]
-    public async Task reuses_existing_interface_when_shape_matches()
-    {
-        using var project = new AdhocProjectBuilder();
-        project.AddSource("IWideFacade.cs", """
-                                            namespace MyApp;
-
-                                            public interface IWideFacade
-                                            {
-                                                void Send(string message);
-                                                void Receive();
-                                            }
-                                            """);
-        // Pre-existing ISender with the exact same member
-        project.AddSource("ISender.cs", """
-                                        namespace MyApp;
-
-                                        public interface ISender
-                                        {
-                                            void Send(string message);
-                                        }
-                                        """);
-        var (workspace, sln) = project.Build();
-
-        using (WorkspaceLoader.UseOverride(workspace, sln))
-        {
-            await _services.Resolve<NarrowDependencyCommand>().ExecuteAsync(
-                "IWideFacade",
-                ["Send"],
-                "ISender",
-                "ignored",
-                false);
-        }
-
-        // No exception thrown — existing ISender was reused.
-        // Content should be unchanged (not overwritten with a duplicate)
-        var content = await project.ReadSourceAsync("ISender.cs");
-        content.ShouldContain("ISender", Case.Sensitive);
-        content.ShouldContain("Send", Case.Sensitive);
-    }
-
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
+    private static RtError GetError(Result<MutationExecutionResult<NarrowDependencyResult>, RtError> result) =>
+        result.Match(
+            _ => throw new ShouldAssertException("Expected dependency narrowing to fail."),
+            error => error);
 
     private static AdhocProjectBuilder BuildWideFacadeProject()
     {
-        var project = new AdhocProjectBuilder();
-
+        var project = new AdhocProjectBuilder("WideFacadeApp");
         project.AddSource("IWideFacade.cs", """
                                             namespace MyApp;
-
-                                            public interface IWideFacade
-                                            {
-                                                void Send(string message);
-                                                void Receive();
-                                                void Delete(int id);
-                                            }
+                                            public interface IWideFacade { void Send(string message); void Receive(); }
                                             """);
-
         project.AddSource("Consumers.cs", """
                                           namespace MyApp;
-
-                                          /// Only uses Send — safe to narrow
                                           public sealed class SenderOnlyConsumer
                                           {
                                               private readonly IWideFacade _facade;
-
-                                              public SenderOnlyConsumer(IWideFacade facade)
-                                              {
-                                                  _facade = facade;
-                                              }
-
-                                              public void Use()
-                                              {
-                                                  _facade.Send("hello");
-                                              }
+                                              public SenderOnlyConsumer(IWideFacade facade) => _facade = facade;
+                                              public void Use() => _facade.Send("hello");
                                           }
-
-                                          /// Uses Send + Receive — must stay on IWideFacade
                                           public sealed class MixedConsumer
                                           {
                                               private readonly IWideFacade _facade;
-
-                                              public MixedConsumer(IWideFacade facade)
-                                              {
-                                                  _facade = facade;
-                                              }
-
-                                              public void Use()
-                                              {
-                                                  _facade.Send("hello");
-                                                  _facade.Receive();
-                                              }
+                                              public MixedConsumer(IWideFacade facade) => _facade = facade;
+                                              public void Use() { _facade.Send("hello"); _facade.Receive(); }
                                           }
                                           """);
-
         return project;
+    }
+
+    private sealed class FixedWorkspaceSessionFactory(Workspace workspace, Solution solution) : IWorkspaceSessionFactory
+    {
+        public Task<Solution> GetSolutionAsync(string? solutionPath) => Task.FromResult(solution);
+        public Task<(Workspace Workspace, Solution Solution)> LoadWorkspaceAsync(string? solutionPath) => Task.FromResult((workspace, solution));
+    }
+
+    private sealed class ThrowingWorkspaceSessionFactory : IWorkspaceSessionFactory
+    {
+        public Task<Solution> GetSolutionAsync(string? solutionPath) => throw new InvalidOperationException("Workspace loading must not start after cancellation.");
+        public Task<(Workspace Workspace, Solution Solution)> LoadWorkspaceAsync(string? solutionPath) => throw new InvalidOperationException("Workspace loading must not start after cancellation.");
     }
 }

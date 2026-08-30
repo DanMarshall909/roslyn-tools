@@ -1,5 +1,6 @@
 using System.CommandLine;
 using RoslynTools.Core;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
@@ -7,25 +8,14 @@ namespace RoslynTools.Commands;
 /// <summary>
 /// Converts a class to a static class.
 /// </summary>
-internal sealed class DestaticClassCommand(IWorkspaceSessionFactory sessionFactory, DestaticClassService destaticClass) : IRtCommand, IRefactorCommand
+internal sealed class DestaticClassCommand(
+    DaemonRpcRecoveryCoordinator daemon,
+    DestaticClassOperation operation) : IRtCommand, IRefactorCommand
 {
-    private readonly IWorkspaceSessionFactory _sessionFactory = sessionFactory;
-    private readonly DestaticClassService _destaticClass = destaticClass;
-    public static RtCommandInfo Info { get; } = new(
-        "convert-static-class",
-        true,
-        false,
-        "refactor",
-        Aliases: [],
-        WhenToUse: "Migrating a static class to an instance class with DI: drops the static modifier, "
-                   + "generates a matching interface, registers in Bootstrap, and rewrites consumer call sites "
-                   + "to use injected references. Pairs with rt analyze static-class-inventory for sequencing.",
-        Examples:
-        [
-            "rt refactor convert-static-class RoslynTools.Services.InspectService --solution RoslynTools.slnx --dry-run",
-            "rt refactor convert-static-class RoslynTools.Services.RenameService --no-interface --solution RoslynTools.slnx"
-        ]
-    );
+    private readonly DaemonRpcRecoveryCoordinator _daemon = daemon;
+    private readonly DestaticClassOperation _operation = operation;
+
+    public static RtCommandInfo Info => DestaticClassCommandDefinition.Info;
 
     public Command Build()
     {
@@ -45,8 +35,12 @@ internal sealed class DestaticClassCommand(IWorkspaceSessionFactory sessionFacto
         cmd.AddArgument(typeArg);
         cmd.AddAll(interfaceNameOpt, noInterfaceOpt, noDiOpt, lifetimeOpt, solutionOpt, dryRunOpt);
 
-        cmd.SetHandler(async (type, interfaceName, noInterface, noDiRegistration, lifetime, solution, dryRun) =>
+        cmd.SetHandler(async context =>
         {
+            var type = context.ParseResult.GetValueForArgument(typeArg);
+            var noInterface = context.ParseResult.GetValueForOption(noInterfaceOpt);
+            var noDiRegistration = context.ParseResult.GetValueForOption(noDiOpt);
+            var lifetime = context.ParseResult.GetValueForOption(lifetimeOpt)!;
             if (!noInterface)
                 RtConsole.Log(RtLogLevel.Warning,
                     "interface generation is not yet implemented — skipping (track: US-037).");
@@ -60,12 +54,15 @@ internal sealed class DestaticClassCommand(IWorkspaceSessionFactory sessionFacto
                 && !string.Equals(lifetime, "transient", StringComparison.Ordinal))
                 throw new InvalidOperationException("--lifetime must be singleton, scoped, or transient.");
 
-            var (workspace, sln) = await _sessionFactory.LoadWorkspaceAsync(solution);
-            using (workspace)
-            {
-                await _destaticClass.RunAsync(sln, type, dryRun);
-            }
-        }, typeArg, interfaceNameOpt, noInterfaceOpt, noDiOpt, lifetimeOpt, solutionOpt, dryRunOpt);
+            await DaemonCommandExecutor.ExecuteAsync(
+                _daemon,
+                _operation,
+                new DestaticClassRequest(
+                    type,
+                    context.ParseResult.GetValueForOption(solutionOpt),
+                    context.ParseResult.GetValueForOption(dryRunOpt)),
+                context);
+        });
 
         return cmd;
     }
