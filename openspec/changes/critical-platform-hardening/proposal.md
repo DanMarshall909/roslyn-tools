@@ -116,6 +116,10 @@ non-bypassable OS-enforced broker that revalidates authority at the actual condi
 filesystem boundary. The permit is not reusable direct write authority, and expired
 owner takeover cannot advance the epoch until the effect fence is closed and drained
 or worker termination and write-capability closure are verified.
+Pre-effect staging/control-root writes and guard acquisition use a parallel revocable
+control-generation fence. Cancellation closes that admission in the same transaction;
+cleanup stays pending until admitted activity drains, guards release, and an exclusive
+rescan proves the protected operation root empty.
 Replay returns the cancellation outcome while its bounded record is retained and
 `OperationEpochRetired` after safe epoch compaction; neither restarts work. Once the
 first-effect permit wins, cancellation is recorded but recovery-critical verification
@@ -159,7 +163,8 @@ handle-relative no-follow/reparse-safe operations and revalidate hard-link ident
 and count. Unattended apply is blocked when the platform cannot prove containment or
 cannot prevent an undeclared shared-inode effect at the side-effect boundary.
 
-Plans referenced by nonterminal (including `Recovering`) or `RecoveryRequired`
+Plans referenced by nonterminal (including `Recovering` and
+`OwnerQuiescencePending`) or `RecoveryRequired`
 operations, and `CancelledNoEffect` plans with pending control-artifact cleanup,
 remain pinned with their evidence until verified terminal cleanup or explicit
 acknowledgement; normal retention cannot strand recovery without the reviewed bytes.

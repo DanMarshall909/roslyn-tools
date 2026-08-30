@@ -420,7 +420,7 @@ after their operation epoch is safely retired. Registering a `DispatchPlanLease`
 the exact plan before dispatch; creating a receipt or operation atomically adopts that
 pin by durable reference. Garbage collection cannot remove a plan while an associated
 dispatch lease remains admissible or an operation is `Received`, `NotRecorded`, `Prepared`, `Applying`,
-`Reconciling`, `Recovering`, or `RecoveryRequired`, and cannot remove a
+`OwnerQuiescencePending`, `Reconciling`, `Recovering`, or `RecoveryRequired`, and cannot remove a
 `CancelledNoEffect` plan while its control-artifact cleanup remains pending. It
 releases the plan only after verified terminal cleanup, durable expiry, or explicit
 recovery acknowledgement. Recovery evidence and its plan are retained as one
@@ -620,6 +620,14 @@ cancellation, or stale-plan rejection before the first repository effect can lea
 only journalled control-plane artifacts; startup/status cleanup removes them without
 touching the repository and retains the plan until cleanup is verified.
 
+All staging/backup/control-root mutations, guard acquisition/release, and final
+preflight work pass through an operation-scoped `PreEffectActivityFence` bound to the
+owner and monotonic control generation. The worker has no bypassable direct authority
+over the protected control root or guard manager. Cancellation and other no-effect
+resolution close effect and pre-effect admission and advance the control generation in
+the same authority transaction. Already admitted activity drains; stale generations
+cannot create or journal another artifact or acquire a guard.
+
 After `Received`, cancellation targets the canonical repository/operation identity
 and is durably appended to the intake receipt or ledger. If the durable receipt has
 not yet been promoted, cancellation acquires the same cross-process intake fence and
@@ -630,13 +638,16 @@ compete through one store-enforced compare-and-swap. If cancellation wins, the
 operation durably records `CancelledNoEffect` with the request hash, request and
 commit timestamps, journal sequence, proof that no first-effect permit exists, the
 staged-artifact inventory, and cleanup status. The same transaction fences the owner
-from starting an effect. This applies while waiting for the repository reservation,
+from starting an effect or new pre-effect activity. This applies while waiting for the repository reservation,
 staging, acquiring external-write protection, or running final preflight.
 
 Control-artifact cleanup after `CancelledNoEffect` is idempotent and remains outside
 the repository. The terminal result may report `CleanupPending`; startup and status
-lookup retry cleanup and append `CleanupVerified` without changing the repository
-outcome. The exact plan remains pinned until that verification. During its retained
+lookup may inventory/remove artifacts and append `CleanupVerified` only after the
+pre-effect fence is closed and drained, every guard is released, and an exclusive
+rescan proves the operation root empty. Unreachable activity state fails closed as
+pending. The exact plan, journal, artifact inventory, quota reservation, and cleanup
+capability remain pinned until that verification. During its retained
 epoch window, replaying the same repository ID, operation ID, and request hash returns
 the same cancellation result; after epoch compaction it returns
 `OperationEpochRetired`. Neither path restarts execution. A new attempt requires a

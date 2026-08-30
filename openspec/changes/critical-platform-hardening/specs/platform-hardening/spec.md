@@ -734,6 +734,23 @@ remain no-effect terminal outcomes. `RecoveryRequired` SHALL be a durable interv
 `NotRecorded`, `Prepared`, `Applying`, `Recovering`, `OwnerQuiescencePending`, and
 `Reconciling` are nonterminal or dormant resolution states.
 
+Every pre-effect control-root create/write/delete, staging or backup action, guard
+acquisition/release, and final-preflight activity SHALL be admitted through one
+operation-scoped `PreEffectActivityFence` bound to the owner and a monotonic control
+generation. The worker SHALL have no bypassable direct authority over the protected
+control root or guard manager. Cancellation or any no-effect resolution SHALL
+atomically close new effect and pre-effect activity admission and advance the control
+generation. Activity admitted first MAY drain, but a stale generation SHALL NOT create
+or journal another artifact or acquire a guard afterward.
+
+A terminal no-effect outcome MAY report `CleanupPending`, but cleanup SHALL NOT
+inventory/remove artifacts or append `CleanupVerified` until the pre-effect fence is
+closed and drained, every guard is released, and the old worker cannot perform another
+control-plane write. Unreachable activity state SHALL fail closed as pending. The exact
+plan, artifact inventory, journal, quota reservation, and cleanup capability SHALL stay
+pinned until verified cleanup, so a terminal outcome never makes an unquiesced control
+root appear clean.
+
 If `Received` exists but the exact leased plan becomes unavailable or fails envelope,
 schema, or hash verification before `FirstEffectStarted`, the operation SHALL
 atomically terminate as no-effect `RejectedPlanUnavailable`; it SHALL NOT reconstruct
@@ -760,10 +777,17 @@ evidence in `RecoveryRequired`.
 #### Scenario: an accepted apply is cancelled before its first repository effect
 
 - **WHEN** an operation with a durable `Received` receipt is cancelled before `FirstEffectStarted`, including while awaiting the repository reservation, staging, acquiring external-write protection, or running final preflight
-- **THEN** cancellation uses the same cross-process intake fence when receipt-to-ledger promotion is still pending, and one store-enforced compare-and-swap records `CancelledNoEffect` under the same repository ID, operation ID, and request hash
-- **AND THEN** neither receipt promotion nor the current owner can enqueue or start an effect after cancellation wins
+- **THEN** cancellation uses the same cross-process intake fence when receipt-to-ledger promotion is still pending, and one store-enforced compare-and-swap records `CancelledNoEffect`, closes effect and pre-effect activity admission, and advances the control generation under the same repository ID, operation ID, and request hash
+- **AND THEN** neither receipt promotion nor the current owner can enqueue or start an effect, create or journal a control artifact, or acquire a guard after cancellation wins
 - **AND THEN** the terminal record contains cancellation timing, journal sequence, proof that no first-effect permit exists, staged-artifact inventory, and cleanup status
-- **AND THEN** startup and status lookup clean the outside-repository control artifacts idempotently without writing the repository, and the exact plan remains pinned until cleanup is verified
+- **AND THEN** startup and status lookup wait for admitted pre-effect activity to drain and every guard to release before cleaning outside-repository artifacts and appending `CleanupVerified`; the exact plan and cleanup capacity remain pinned until then
+
+#### Scenario: cancellation cleanup races an admitted staging write
+
+- **WHEN** a staging worker is paused after pre-effect activity admission and cancellation wins before its control-root write completes
+- **THEN** the cancellation result reports `CleanupPending` and cleanup does not inventory, remove, or verify the control root while that admission remains in flight
+- **AND THEN** after the admitted activity drains, the stale control generation prevents the worker from creating or journalling any later artifact
+- **AND THEN** cleanup appends `CleanupVerified` only after an exclusive rescan proves the protected operation root empty and all guards released
 
 #### Scenario: cancellation races the first repository effect
 

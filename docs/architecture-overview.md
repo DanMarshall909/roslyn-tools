@@ -312,6 +312,15 @@ durable epoch sealing/expiry, or explicit recovery acknowledgement.
 
 Apply creates a durable operation record, initializes its journal before staging, stages only in the outside-repository control root, acquires an exclusive canonical-repository transaction reservation, claims a renewable owner lease and monotonically increasing fencing epoch, validates every precondition, arbitrates cancellation against a complete journalled first-effect permit in one durable compare-and-swap, journals changes, revalidates the expected intermediate repository state at every side-effect boundary, applies deterministically, verifies postconditions, and records one truthful state. A first-effect permit is eligibility to request one effect, not reusable write authority: a non-bypassable OS-enforced broker/fence revalidates authority at the actual conditional filesystem boundary and serializes effect admission with fence closure. Interrupted pre-effect staging cleanup is idempotent and never touches the repository.
 
+Pre-effect staging/backup/control-root writes, guard acquisition/release, and final
+preflight also use a non-bypassable `PreEffectActivityFence` bound to an owner control
+generation. Cancellation or another no-effect resolution closes new effect and
+pre-effect admission and advances that generation atomically. Admitted activity must
+drain, all guards must release, and an exclusive rescan must prove the operation root
+empty before cleanup can be marked verified; otherwise the terminal no-effect result
+remains `CleanupPending` with its plan, journal, artifacts, quota, and cleanup capability
+pinned.
+
 - `Received` or authoritative `NotRecorded` during replayable dispatch resolution;
 - `Applying`, `Recovering`, `OwnerQuiescencePending`, or bounded `Reconciling` while nonterminal;
 - `Applied`;
@@ -375,12 +384,15 @@ be enqueued afterward. Before the first repository effect, cancellation competes
 with the owner's effect permit in one store-enforced compare-and-swap. It wins as
 `CancelledNoEffect` only when `FirstEffectStarted` is absent; the record includes its
 request hash, timing, journal sequence, staged-artifact inventory, no-effect proof,
-and cleanup status. If the effect permit wins, later cancellation is recorded but
+and cleanup status. The winning transaction also closes pre-effect activity admission
+and advances its control generation, so a stale worker cannot create another artifact
+or acquire a guard after cleanup. If the effect permit wins, later cancellation is recorded but
 verification and rollback remain non-interruptible. Replay returns the existing
 cancellation result while its outcome record is retained and
 `OperationEpochRetired` after compaction; neither restarts work. Startup/status lookup
-performs idempotent control-artifact cleanup outside the repository while retaining
-the plan until cleanup is verified.
+performs idempotent control-artifact cleanup outside the repository only after the
+pre-effect fence drains and guards release, while retaining the plan until cleanup is
+verified.
 
 Before dispatch the caller obtains a bounded, authenticated repository operation-epoch
 token and constructs `OperationId` from its monotonic epoch plus a caller-generated

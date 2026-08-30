@@ -45,6 +45,11 @@ process termination closes them; otherwise the operation remains nonterminal
 `OwnerQuiescencePending` behind an intervention barrier and cannot be acknowledged as
 `RecoveryRequired`.
 
+Pre-effect control activity has a parallel revocable generation fence. Workers cannot
+bypass it to write staging/backup/control artifacts or acquire guards. A no-effect
+resolution closes admission; `CleanupVerified` is unavailable until admitted activity
+drains, guards release, and an exclusive rescan proves the operation root empty.
+
 ## Consequences
 
 - Migration groups M0 through M4 cannot land a new implicit-write default.
