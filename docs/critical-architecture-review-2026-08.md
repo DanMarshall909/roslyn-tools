@@ -117,7 +117,8 @@ retries, crashes, or process restarts.
 - Assign caller-known operation identity and persist its ledger before writes.
 - Acquire one exclusive canonical-repository transaction reservation before final whole-plan preflight and hold it through the durable terminal result or recovery handoff so plans cannot interleave.
 - Acquire OS-enforced guards for every reviewed dependency/target or use atomic conditional effects so non-`rt` writers cannot win between validation and effect; advisory locks and unconditional replacement are insufficient.
-- Preflight every condition and stage data, preferably on the same volume; revalidate the expected intermediate state, remaining plan dependencies, containment, file identity, and link count at every side effect.
+- Journal staging intent first, then stage only under a user-private operation root outside the repository, preferably on the same volume; make crash cleanup idempotent.
+- Preflight every condition and revalidate the expected intermediate state, remaining plan dependencies, containment, file identity, and link count at every side effect.
 - Restrict stale rejection to drift found before the first effect; mid-apply drift must stop, journal evidence, and reach verified rollback or `RecoveryRequired`.
 - Journal and apply deterministically with atomic per-file replacement where supported.
 - Verify postconditions before `Applied`.

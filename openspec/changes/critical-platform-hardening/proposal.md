@@ -58,6 +58,12 @@ the target repository and returns its repository ID, plan ID, and plan hash. App
 loads those exact bytes across process restart; it never recomputes the reviewed work
 from command arguments or a newer workspace snapshot.
 
+Apply durably journals staging intent before creating replacement content. Staging,
+backups, and control artifacts remain in an operation-scoped user-private root outside
+the repository, on the target volume when required, so pre-effect cancellation,
+crash, or stale rejection can leave only restart-cleanable control artifacts and no
+unjournalled repository write.
+
 A failed or interrupted rollback is never reported as clean rollback. The operation enters durable intervention state `RecoveryRequired`; its journal, backups, diagnostics, and deterministic recovery guidance are retained until recovery or explicit acknowledgement. Recovery appends `Recovering` and ends as `RecoveredApplied`, `RecoveredRolledBack`, or another evidence-bearing `RecoveryRequired`. `RecoveryAcknowledged` is an explicit administrative handoff and never claims the repository is clean.
 
 Every `Applying` record has a renewable owner lease. Expired owners transition

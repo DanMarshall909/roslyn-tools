@@ -41,7 +41,7 @@ cross-host acceptance tests pass.
 
 ## P0.3 complete prepared-change-set model
 
-- [ ] Extend `PreparedChangeSet` with plan ID, repository identity/revision, expiry, canonical operation list, exact diff, diagnostics, assumptions, confidence, verification, cleanup/recovery policy, and per-path external-write guard or conditional-effect requirements.
+- [ ] Extend `PreparedChangeSet` with plan ID, repository identity/revision, expiry, canonical operation list, exact diff, diagnostics, assumptions, confidence, verification, operation-scoped outside-repository staging/backup roots, cleanup/recovery policy, and per-path external-write guard or conditional-effect requirements.
 - [ ] Add a user-private durable plan store outside the target repository, atomically keyed by repository ID, plan ID, and plan hash, with schema versioning, owner-only access where supported, bounded retention for unreferenced plans, durable ledger-reference pinning, and crash-safe cleanup.
 - [ ] Pin exact plan bytes and their recovery bundle while any associated operation is `Received`, `NotRecorded`, nonterminal (including `Recovering`), or `RecoveryRequired`; release only after verified terminal cleanup, durable expiry, or explicit acknowledgement, with garbage-collection tests across retention expiry and restart.
 - [ ] Reject missing, expired, unreadable, schema-incompatible, or hash-mismatched plans before entering `Applying`; prove review and apply can occur in separate processes without recomputation.
@@ -49,13 +49,13 @@ cross-host acceptance tests pass.
 - [ ] Record expected existence/hash/type for every affected path and expected post-apply hashes.
 - [ ] Preserve or explicitly change encoding, BOM, newline, file mode/permissions, and executable bit.
 - [ ] Define case-sensitivity, long-path, read-only, and symlink policy across supported operating systems; for hard links, record platform file identity, link count, and known aliases, require reviewed `Reject | Preserve | BreakByReplacement` semantics, and block unattended apply when shared-inode effects cannot be proven safe.
-- [ ] Enforce canonical root containment for source, destination, staging, backup, and symlink-resolved paths during preparation and again at every filesystem side effect using handle-relative no-follow/reparse-safe operations or an equivalent proven platform primitive.
+- [ ] Enforce separate canonical roots: source/destination and their symlink-resolved paths stay under the repository, while staging/backup/control artifacts stay under a user-private operation root outside and non-overlapping with the repository; require a safe same-volume control root when the effect primitive needs one.
 - [ ] Generate preview and apply from the same immutable plan; apply must not recompute from command arguments.
 - [ ] Reject pathless, duplicate, conflicting, non-verifiable, expired, or drifted plans before writes.
 
 ## P0.4 staged apply, rollback, and recovery
 
-- [ ] Extend the current staged compensating writer into a general filesystem writer with atomic per-path replacement where supported, deterministic ordering, and durable journal/backups that survive process restart.
+- [ ] Extend the current staged compensating writer into a general filesystem writer with atomic per-path replacement where supported, deterministic ordering, and durable journal/backups that survive process restart; durably journal staging intent before writing any outside-repository staging artifact and make cleanup idempotent.
 - [ ] Before final preflight, prove and deterministically acquire an OS-enforced external-write guard set for every reviewed dependency, affected object, and directory entry, or equivalent atomic conditional-effect tokens; hold it with the repository reservation through durable outcome and block unattended apply when advisory/check-then-act primitives cannot exclude non-cooperating writers.
 - [ ] Under both boundaries, preflight all revisions, read dependencies, hashes, existence, permissions, destinations, symlinks, hard-link identity/count, path boundaries, and required free space; before each guarded write/move/delete/restore, revalidate the guards/tokens, expected intermediate state, prior effects, every still-relevant dependency, ledger state, fencing epoch, lease, path, file identity, and link count.
 - [ ] Return `RejectedStale` only for drift detected before the first effect; after any journalled effect, stop the remaining plan and verify rollback to `RolledBack` or `RecoveryRequired`.

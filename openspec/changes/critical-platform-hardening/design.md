@@ -176,7 +176,7 @@ A prepared change set contains:
 - expected file type, platform file identity, link count, known hard-link aliases, and symlink/hard-link policy;
 - the OS/filesystem conditional-effect or exclusive-guard capability required for every read dependency, affected path, and destination directory entry;
 - encoding, BOM, newline, and file-mode/permission preservation policy;
-- root-containment proof for every source, destination, staging, and backup path;
+- root-containment proof that every source/destination is under the canonical repository root and every staging/backup/control artifact is under an operation-scoped user-private control root outside the repository;
 - exact diff and machine-readable change model;
 - diagnostics, assumptions, confidence, and irreversible limitations;
 - verification steps and expected post-apply hashes; and
@@ -237,15 +237,25 @@ The implementation:
 1. loads and verifies the exact persisted plan;
 2. creates or reads the durable operation record;
 3. acquires an exclusive transaction reservation keyed by canonical repository identity, then validates replay semantics and claims a renewable owner lease plus fencing epoch;
-4. stages replacement content, preferably on the same volume;
-5. proves that every read dependency, affected path, and source/destination directory entry supports an OS-enforced conditional effect or exclusive external-write guard;
-6. establishes complete transaction protection by acquiring that guard set in deterministic order or recording immutable version tokens that every conditional effect checks atomically, and retains it with the repository reservation through final status or explicit recovery handoff;
-7. while holding both boundaries, performs final whole-plan preflight of every revision, read dependency, path, hash, permission, link, destination, and free-space condition;
-8. durably writes a journal and recovery metadata;
+4. durably initializes the operation journal and records the exact staging/backup roots plus staging intent before creating any artifact;
+5. stages replacement content atomically into that operation-scoped user-private root outside the repository, preferably on the target volume, and journals each artifact's hash and completion;
+6. proves that every read dependency, affected path, and source/destination directory entry supports an OS-enforced conditional effect or exclusive external-write guard;
+7. establishes complete transaction protection by acquiring that guard set in deterministic order or recording immutable version tokens that every conditional effect checks atomically, and retains it with the repository reservation through final status or explicit recovery handoff;
+8. while holding both boundaries, performs final whole-plan preflight of every revision, read dependency, path, hash, permission, link, destination, and free-space condition;
 9. revalidates the guard tokens, ledger state, fencing epoch, lease, expected intermediate repository state, all prior effect outcomes, and every still-relevant plan dependency before each operation, then journals intent, performs the guarded conditional side effect, and durably records its observed outcome;
 10. orders operation boundaries deterministically and uses atomic per-path replacement where supported;
 11. while still holding the complete guard set, verifies expected postconditions and durably records the terminal result; then cleans staging and releases the guards and reservation; or
 12. performs guarded rollback from the journal.
+
+Staging and backups are control-plane artifacts, never target-repository paths. The
+operation chooses a user-private, non-overlapping root outside the checkout and, when
+same-volume atomic replacement is required, on the target volume. If it cannot prove
+that boundary or create a safe same-volume location, unattended apply is blocked.
+The journal is durable before the first staging write and makes staging creation,
+hash verification, cleanup, and restart reconciliation idempotent. A crash,
+cancellation, or stale-plan rejection before the first repository effect can leave
+only journalled control-plane artifacts; startup/status cleanup removes them without
+touching the repository and retains the plan until cleanup is verified.
 
 Rollback is best-effort across platform/filesystem constraints and is not falsely described as atomic. Once side effects begin, cancellation requests are recorded but do not interrupt recovery-critical rollback. If rollback cannot restore every verified precondition, the operation enters the durable intervention state `RecoveryRequired`, not `RolledBack` or `Failed`. Journals, backups, affected paths, observed hashes, and deterministic recovery instructions are retained until successful recovery or explicit acknowledgement.
 
@@ -317,7 +327,9 @@ summary remains for the configured terminal-history retention period.
 
 ### Filesystem containment at side-effect time
 
-String normalisation, ordinary revalidation, and advisory locks are necessary but
+Source and destination paths are contained under the canonical repository root;
+staging, backup, and control paths are contained under their user-private root and
+must not overlap the repository. String normalisation, ordinary revalidation, and advisory locks are necessary but
 insufficient. Every
 create, open, stage, replace, move, delete, backup, and restore is performed relative
 to verified directory handles with no-follow/reparse-point-safe semantics where the
