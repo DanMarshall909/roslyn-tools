@@ -4,13 +4,6 @@
 - Date: 2026-08-26
 - Stories: daemon RPC recovery
 
-> **Current ruling:** ADR-0008 supersedes the warm-workspace objective and universal
-> in-process recovery described below. Lazy startup may support eligible transparent
-> typed transport, but the daemon owns no workspace or mutation state. Fallback is
-> allowed only after proven `NotDispatched`; an indeterminate mutation is never
-> retried or run in-process, and apply-capable commands remain in-process until the
-> current hardening gates are separately satisfied.
-
 ## Context
 
 Daemon-owned MCP tools use typed local RPC, but a newly installed or restarted

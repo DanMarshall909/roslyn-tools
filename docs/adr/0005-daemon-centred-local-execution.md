@@ -4,13 +4,6 @@
 - Date: 2026-08-16
 - Stories: rt-012
 
-> **Current ruling:** ADR-0008 supersedes this ADR's daemon-owned workspace,
-> command-execution authority, and broad in-process recovery direction for the
-> current hardening phase. The daemon is now optional transparent typed transport;
-> it does not own workspace or mutation state, and dispatch ambiguity never causes
-> mutation replay. The decision below remains historical context and a possible
-> future direction requiring a new approved change.
-
 ## Context
 
 `rt` already has a background daemon that owns a warm process, a named-pipe
