@@ -1,6 +1,6 @@
 # ADR-0007: Host-neutral command contracts and complete application-port migration
 
-- Status: Accepted
+- Status: Accepted; daemon boundary superseded in part by [ADR-0008](0008-daemon-transparent-passthrough-phase.md)
 - Date: 2026-08-26
 - Stories: rt-007, EP-012, US-095, US-096, US-097, US-098, US-099, US-143
 
@@ -134,6 +134,7 @@ new shared hosting project.
 - [ADR-0001](0001-core-service-thin-host-adapters.md)
 - [ADR-0003](0003-shared-command-descriptors-and-application-ports.md)
 - [ADR-0005](0005-daemon-centred-local-execution.md)
+- [ADR-0008](0008-daemon-transparent-passthrough-phase.md)
 - [Architecture overview](../architecture-overview.md)
 - [Command application-port migration playbook](../command-application-port-migration.md)
 - [rt-007](../issues/open/architecture/rt-007-shared-command-descriptors.md)

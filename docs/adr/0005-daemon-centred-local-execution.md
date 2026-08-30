@@ -1,6 +1,6 @@
 # ADR-0005: Daemon-centred local execution
 
-- Status: Accepted
+- Status: Superseded in part by [ADR-0008](0008-daemon-transparent-passthrough-phase.md)
 - Date: 2026-08-16
 - Stories: rt-012
 
@@ -65,5 +65,5 @@ daemon is unavailable.
 ## References
 
 - Commits: pending
-- Related ADRs: [ADR-0001](0001-core-service-thin-host-adapters.md), [ADR-0003](0003-shared-command-descriptors-and-application-ports.md), [ADR-0004](0004-portable-mcp-distribution.md)
+- Related ADRs: [ADR-0001](0001-core-service-thin-host-adapters.md), [ADR-0003](0003-shared-command-descriptors-and-application-ports.md), [ADR-0004](0004-portable-mcp-distribution.md), [ADR-0008](0008-daemon-transparent-passthrough-phase.md)
 - Related docs: [architecture overview](../architecture-overview.md), [rt-012](../issues/open/architecture/rt-012-portable-mcp-installation-and-distribution.md)

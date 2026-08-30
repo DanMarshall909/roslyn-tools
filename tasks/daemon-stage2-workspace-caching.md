@@ -1,66 +1,87 @@
-# Daemon Stage 2 — Workspace Caching
+# Daemon Stage 2 — Workspace caching
 
-**Priority: High**
+- **Status:** Parked
+- **Superseded for the current phase by:** [ADR-0008](../docs/adr/0008-daemon-transparent-passthrough-phase.md)
+- **Governing change:** [critical platform hardening OpenSpec](../openspec/changes/critical-platform-hardening/proposal.md)
 
-## Goal
+## Decision
 
-Eliminate the ~3.8s workspace load on every `rt` command by caching the `Solution` inside the daemon process. After Stage 2, only the first command (or a git-state change) pays the load cost; subsequent commands respond in ~200ms.
+Do not implement daemon-owned workspace caching while the current hardening change is active.
 
-## Why it's blocked
+For this phase the daemon is only an optional transparent typed transport adapter. It does not own workspaces, repository trust, source revisions, mutation state, operation idempotency, retry policy, or command semantics.
 
-Stage 1 routes commands through `App.RunAsync` in the daemon process — MSBuild/DI is already initialised once. But every command still calls `WorkspaceLoader.LoadAsync(solution)` directly, creating a new `MSBuildWorkspace` and loading all projects on each invocation. Caching requires `WorkspaceLoader` to be an injectable singleton that holds the loaded `Solution` between requests.
+The earlier sketch based cache validity on solution path, Git HEAD, dirty state, and index modification time. That is not a sufficient semantic cache key. It can miss or mishandle:
 
-**This is why the static-class refactoring must come first.** As long as `WorkspaceLoader` is a static class with no instance state, there is nowhere to store the cached solution.
+- untracked and ignored source/configuration files;
+- working-tree content changes that do not alter the index;
+- linked files and files outside the solution directory;
+- `Directory.Build.*`, `Directory.Packages.props`, `global.json`, NuGet configuration, imports, SDK/workload changes, and environment-dependent properties;
+- generated files, source generators, analyzers, additional documents, and analyzer-config documents;
+- configuration, target framework, runtime, and global property differences;
+- repository trust/evaluator policy;
+- filesystem watcher loss, rename races, timestamp granularity, and case/symlink identity;
+- concurrent requests for multiple repositories or revisions; and
+- workspace memory ownership, disposal, cancellation, and upgrade draining.
 
-## Invalidation key
+A fast stale semantic model is worse than a slower correct one, particularly when the result can drive deletion or refactoring.
 
-Cache hit if all three match against the daemon's last-loaded state:
-- `solutionPath` — absolute path sent by the client
-- `gitState.head` — current HEAD sha
-- `gitState.dirty + gitState.indexMtime` — if dirty, the `.git/index` mtime
+## Preconditions for reconsideration
 
-On mismatch: reload, update `DaemonStateFile` fields (`Solution`, `CachedHead`, `CachedDirty`, `CachedIndexMtime`).
+A new daemon-workspace proposal requires all of the following evidence first:
 
-## Implementation sketch (after DI refactoring)
+- [ ] The P0 mutation safety kernel is complete, including caller-known operation identity, durable status, rollback, and `RecoveryRequired`.
+- [ ] Repository trust and isolated evaluation are implemented and tested.
+- [ ] Workspace acquisition returns `Complete | Partial | Failed` with full provenance.
+- [ ] The five-command canonical spine has no CLI/MCP compatibility bridges and passes direct/CLI/MCP/passthrough parity.
+- [ ] MCP cancellation, paging, limits, and lifecycle behaviour are stable.
+- [ ] Cold-load performance is measured on representative small, medium, and large solutions.
+- [ ] Profiling shows workspace loading is the dominant remaining cost and that simpler in-process/session-scoped indexing is insufficient.
+- [ ] A separately approved OpenSpec and ADR define daemon service ownership and failure behaviour.
 
-```csharp
-// Bootstrap.cs
-services.AddSingleton<WorkspaceLoader>();   // holds cached Solution
+## Required design for any future proposal
 
-// WorkspaceLoader (instance)
-internal sealed class WorkspaceLoader
-{
-    private Solution? _cached;
-    private string? _cachedSolution;
-    private string? _cachedHead;
-    private bool _cachedDirty;
-    private long? _cachedIndexMtime;
+A future workspace daemon proposal must specify and test:
 
-    public async Task<(MSBuildWorkspace, Solution)> LoadAsync(
-        string? solutionPath, GitState? gitState = null)
-    {
-        if (IsCacheHit(solutionPath, gitState))
-            return _cached!;
-        // reload ...
-    }
-}
-```
+### Identity and cache key
 
-Commands receive `WorkspaceLoader` via DI; the daemon's singleton retains state across requests.
+- canonical repository, solution, configuration, target framework, SDK, global properties, trust mode, and evaluator identity;
+- complete input fingerprint or sound invalidation model for source, projects, imports, packages, analyzers, generators, additional/config documents, and external linked files;
+- case, symlink, and filesystem identity rules; and
+- behaviour for dirty, untracked, ignored, generated, or externally modified files.
 
-## Steps
+### Isolation and concurrency
 
-1. Convert `WorkspaceLoader` to an instance class → register as singleton in `Bootstrap`
-2. Convert `SymbolLocator` to an instance class (depends on `WorkspaceLoader`)
-3. Convert `SolutionWriter` to an instance class
-4. Convert service classes to instance classes and register in `Bootstrap`
-5. Update commands to resolve services via `IServiceProvider` (already threaded through `App.RunAsync`)
-6. Add git-state cache key comparison to `WorkspaceLoader.LoadAsync`
-7. Propagate `GitState` from the daemon request into `WorkspaceLoader` calls
+- per-user access-controlled endpoint and repository authorisation;
+- multiple repositories, revisions, and configurations concurrently;
+- request scheduling, cancellation, fairness, and draining;
+- no process-current-directory or global environment semantics; and
+- safe evaluator-worker isolation for untrusted or constrained repositories.
 
-## Success criteria
+### Lifetime and resources
 
-- `rt inspect find-refs --symbol WorkspaceLoader` second invocation (same HEAD, no edits): < 300ms
-- Cache invalidates correctly on `git commit` (new HEAD) and on file edit (changed index mtime)
-- All existing tests pass
-- In-process path (`RT_NO_DAEMON=1`) is unaffected — `WorkspaceLoader` reloads each time (no git state)
+- workspace/session leases and disposal;
+- memory limits, LRU/expiry, pressure response, and large-solution behaviour;
+- health, status, metrics, and deterministic diagnostic bundles;
+- process restart, binary upgrade, protocol mismatch, and stale-client behaviour; and
+- log redaction and retention.
+
+### Correctness
+
+- cache hit and invalidation proofs, including missed-watcher-event recovery;
+- source revision exposed in every result;
+- partial/failed load propagation and confidence downgrading;
+- no stale model use for mutation preconditions; and
+- parity with a clean direct load under adversarial change sequences.
+
+## Reconsideration success criteria
+
+Only proceed when a prototype demonstrates, on representative repositories:
+
+- a material measured improvement to user-perceived latency or throughput;
+- no semantic divergence from clean direct loads across the invalidation suite;
+- bounded memory and predictable eviction;
+- correct concurrent multi-repository behaviour;
+- safe trust/evaluator isolation; and
+- a simpler operational story than the performance problem it solves.
+
+Until then, optimise canonical operations, request-scoped workspace use, indexing, cancellation, and output bounds before adding daemon state.

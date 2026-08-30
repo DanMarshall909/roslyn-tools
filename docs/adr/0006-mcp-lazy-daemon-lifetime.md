@@ -1,6 +1,6 @@
 # ADR-0006: MCP lazy daemon lifetime
 
-- Status: Accepted
+- Status: Superseded in part by [ADR-0008](0008-daemon-transparent-passthrough-phase.md)
 - Date: 2026-08-26
 - Stories: daemon RPC recovery
 
@@ -59,5 +59,5 @@ or retry fails, the existing typed in-process recovery remains available.
 ## References
 
 - Commits: pending
-- Related ADRs: [ADR-0004](0004-portable-mcp-distribution.md), [ADR-0005](0005-daemon-centred-local-execution.md)
+- Related ADRs: [ADR-0004](0004-portable-mcp-distribution.md), [ADR-0005](0005-daemon-centred-local-execution.md), [ADR-0008](0008-daemon-transparent-passthrough-phase.md)
 - Related docs: [architecture overview](../architecture-overview.md)
