@@ -30,8 +30,8 @@ cross-host acceptance tests pass.
 ## P0.2 durable operation identity and transport safety
 
 - [ ] Add caller-generated `OperationId` to every apply request before dispatch; keep request-attempt correlation separate.
-- [ ] Implement a durable operation ledger written before side effects, with `Prepared | Applying | Reconciling | Applied | RolledBack | RecoveryRequired | RejectedStale | RejectedConflict | Expired` states.
-- [ ] Record owner instance, monotonically increasing fencing epoch, lease expiry, heartbeat, and transaction-reservation identity for `Applying`; acquire one OS-enforced exclusive reservation per canonical repository before final preflight, hold it through terminal completion/recovery handoff, and require it for expired-owner takeover.
+- [ ] Implement a durable operation ledger written before side effects, with append-only transition history and `Prepared | Applying | Reconciling | Applied | RolledBack | RecoveryRequired | Recovering | RecoveredApplied | RecoveredRolledBack | RecoveryAcknowledged | RejectedStale | RejectedConflict | Expired` states.
+- [ ] Record owner instance, monotonically increasing fencing epoch, lease expiry, heartbeat, and transaction-reservation identity for `Applying` and `Recovering`; acquire one OS-enforced exclusive reservation per canonical repository before final preflight, hold it through terminal completion/recovery handoff, and require it for expired-owner takeover.
 - [ ] Define canonical request hashing so identical operation-ID replay returns the existing result and differing replay returns `OperationConflict`.
 - [ ] Add `GetOperation` status lookup and stable recovery guidance available after client/server restart.
 - [ ] Preserve operation ID and status semantics across CLI, MCP, in-process, and daemon adapters.
@@ -42,7 +42,7 @@ cross-host acceptance tests pass.
 
 - [ ] Extend `PreparedChangeSet` with plan ID, repository identity/revision, expiry, canonical operation list, exact diff, diagnostics, assumptions, confidence, verification, cleanup, and recovery policy.
 - [ ] Add a user-private durable plan store outside the target repository, atomically keyed by repository ID, plan ID, and plan hash, with schema versioning, owner-only access where supported, bounded retention for unreferenced plans, durable ledger-reference pinning, and crash-safe cleanup.
-- [ ] Pin exact plan bytes and their recovery bundle while any associated operation is nonterminal or `RecoveryRequired`; release only after verified terminal cleanup or explicit acknowledgement, with garbage-collection tests across retention expiry and restart.
+- [ ] Pin exact plan bytes and their recovery bundle while any associated operation is nonterminal (including `Recovering`) or `RecoveryRequired`; release only after verified terminal cleanup or explicit acknowledgement, with garbage-collection tests across retention expiry and restart.
 - [ ] Reject missing, expired, unreadable, schema-incompatible, or hash-mismatched plans before entering `Applying`; prove review and apply can occur in separate processes without recomputation.
 - [ ] Model creates, replacements, deletes, moves, project edits, normal Roslyn documents, additional documents, and analyzer-config documents.
 - [ ] Record expected existence/hash/type for every affected path and expected post-apply hashes.
@@ -58,11 +58,11 @@ cross-host acceptance tests pass.
 - [ ] Under the exclusive repository transaction reservation, preflight all revisions, read dependencies, hashes, existence, permissions, destinations, symlinks, hard-link identity/count, path boundaries, and required free space; before each write/move/delete/restore, revalidate the expected intermediate state, prior effects, every still-relevant dependency, ledger state, fencing epoch, lease, path, file identity, and link count.
 - [ ] Verify expected postconditions before recording `Applied`.
 - [ ] Implement rollback and verification for every supported operation type.
-- [ ] Add `RecoveryRequired` result, retained journal/backups, affected-path state, and deterministic recovery actions when rollback is incomplete.
+- [ ] Add durable `RecoveryRequired` intervention state, retained journal/backups, affected-path state, deterministic recovery actions, and a repository recovery barrier when rollback is incomplete.
 - [ ] Make recovery-critical rollback non-interruptible after side effects begin while recording the caller's cancellation request.
-- [ ] Add `rt recover status|resume|rollback|acknowledge <operation-id>` or equivalent host-neutral operations.
-- [ ] Reconcile expired `Applying` records on startup and status lookup; apply bounded mutation-worker shutdown, acquire the same exclusive transaction reservation before advancing the epoch, and allow one owner to prove completion, resume or roll back from a declared journal boundary, or enter `RecoveryRequired`; if OS reservation release cannot be proven, revoke the epoch, retain the possibly in-flight boundary, and perform no reconciliation write.
-- [ ] Add fault injection for each operation boundary: stage/write/flush/replace/move/delete/permission/verification/journal/rollback/cleanup/process termination.
+- [ ] Add `rt recover status|resume|rollback|acknowledge <operation-id>` or equivalent host-neutral operations; append `Recovering -> RecoveredApplied | RecoveredRolledBack | RecoveryRequired` transitions, and make acknowledgement record actor/reason/evidence without claiming cleanliness.
+- [ ] Reconcile expired `Applying` and `Recovering` records on startup and status lookup; apply bounded mutation-worker shutdown, acquire the same exclusive transaction reservation before advancing the epoch, and allow one owner to prove completion, resume or roll back from a declared journal boundary, or enter `RecoveryRequired`; if OS reservation release cannot be proven, revoke the epoch, retain the possibly in-flight boundary, and perform no reconciliation write.
+- [ ] Add fault injection for each operation boundary: stage/write/flush/replace/move/delete/permission/verification/journal/rollback/recovery/acknowledgement/cleanup/process termination, including artifact-retention and append-only-history assertions.
 - [ ] Test encoding/BOM/newlines, executable bits, locked/read-only files, disk-full simulation, case-only moves, symlinks, in-root and out-of-root hard-link aliases, link-count drift, cross-volume moves, and rollback failure on Windows, Linux, and macOS.
 
 ## P0.5 workspace completeness and proof policy

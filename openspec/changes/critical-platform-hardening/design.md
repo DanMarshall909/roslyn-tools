@@ -131,7 +131,8 @@ repositories cannot supply or replace its control metadata.
 Bounded retention applies only to unreferenced prepared plans and safely cleaned
 terminal history. Creating an operation record pins its canonical plan bytes by
 durable ledger reference. Garbage collection cannot remove a plan while an
-associated operation is `Applying`, `Reconciling`, or `RecoveryRequired`, and
+associated operation is `Prepared`, `Applying`, `Reconciling`, `Recovering`, or
+`RecoveryRequired`, and
 releases it only after verified terminal cleanup or explicit recovery
 acknowledgement. Recovery evidence and its plan are retained as one referentially
 complete bundle.
@@ -163,15 +164,33 @@ Prepared
   -> Applying
        -> Applied
        -> RolledBack
-       -> RecoveryRequired
        -> Reconciling
             -> Applied
             -> RolledBack
             -> RecoveryRequired
+       -> RecoveryRequired
   -> RejectedStale
   -> RejectedConflict
   -> Expired
+
+RecoveryRequired
+  -> Recovering
+       -> RecoveredApplied
+       -> RecoveredRolledBack
+       -> RecoveryRequired
+       -> Reconciling
+            -> RecoveredApplied
+            -> RecoveredRolledBack
+            -> RecoveryRequired
+  -> RecoveryAcknowledged
 ```
+
+The ledger stores a current state for lookup plus an append-only transition history.
+No recovery action rewrites or erases the original `RecoveryRequired` event. Direct
+apply outcomes use `Applied` and `RolledBack`; verified manual-recovery outcomes use
+`RecoveredApplied` and `RecoveredRolledBack`. `RecoveryAcknowledged` records an
+explicit administrative handoff and does not assert that repository contents are
+clean.
 
 The implementation:
 
@@ -187,7 +206,38 @@ The implementation:
 10. commits the terminal result and cleans staging before releasing the reservation only after durable success; or
 11. performs rollback from the journal.
 
-Rollback is best-effort across platform/filesystem constraints and is not falsely described as atomic. Once side effects begin, cancellation requests are recorded but do not interrupt recovery-critical rollback. If rollback cannot restore every verified precondition, the terminal state is `RecoveryRequired`, not `RolledBack` or `Failed`. Journals, backups, affected paths, observed hashes, and deterministic recovery instructions are retained until successful recovery or explicit acknowledgement.
+Rollback is best-effort across platform/filesystem constraints and is not falsely described as atomic. Once side effects begin, cancellation requests are recorded but do not interrupt recovery-critical rollback. If rollback cannot restore every verified precondition, the operation enters the durable intervention state `RecoveryRequired`, not `RolledBack` or `Failed`. Journals, backups, affected paths, observed hashes, and deterministic recovery instructions are retained until successful recovery or explicit acknowledgement.
+
+### Manual recovery and acknowledgement
+
+`RecoveryRequired` is not terminal. It is a durable recovery barrier for the
+canonical repository: new apply operations are rejected before final validation
+until the operation reaches a verified recovered state or an authorized user
+explicitly acknowledges the unresolved condition.
+
+`resume` and `rollback` acquire the same exclusive repository transaction
+reservation, compare-and-swap the current state to `Recovering`, and claim a new
+owner lease and fencing epoch before touching the repository. They operate only from
+a declared journal boundary and revalidate the retained plan, evidence, paths, file
+identities, and expected intermediate state at every effect. Successful resume ends
+as `RecoveredApplied`; successful rollback ends as `RecoveredRolledBack`. A failed
+or ambiguous recovery appends its attempt evidence and returns to
+`RecoveryRequired`. An expired `Recovering` owner follows the same fenced,
+reservation-protected reconciliation protocol as an expired `Applying` owner, while
+preserving the requested recovery action in the journal.
+
+`acknowledge` performs no repository effect. It appends `RecoveryAcknowledged` with
+the actor, time, reason, affected paths, last observed hashes, unresolved warnings,
+and an explicit statement that repository cleanliness was not verified. Only that
+explicit action lifts the recovery barrier without verification; every later plan
+must be prepared against the then-observed repository revision.
+
+The exact plan, journal, backups, and recovery bundle remain pinned throughout
+`RecoveryRequired`, `Recovering`, and recovery reconciliation. After
+`RecoveredApplied` or `RecoveredRolledBack`, bulky artifacts are released only after
+verified cleanup; after `RecoveryAcknowledged`, they are released only according to
+the acknowledged retention choice. In every case an immutable transition and audit
+summary remains for the configured terminal-history retention period.
 
 ### Filesystem containment at side-effect time
 

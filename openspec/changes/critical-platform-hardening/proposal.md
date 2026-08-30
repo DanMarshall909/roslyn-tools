@@ -58,7 +58,7 @@ the target repository and returns its repository ID, plan ID, and plan hash. App
 loads those exact bytes across process restart; it never recomputes the reviewed work
 from command arguments or a newer workspace snapshot.
 
-A failed or interrupted rollback is never reported as clean rollback. The operation enters `RecoveryRequired`; its journal, backups, diagnostics, and deterministic recovery guidance are retained until recovery or explicit acknowledgement.
+A failed or interrupted rollback is never reported as clean rollback. The operation enters durable intervention state `RecoveryRequired`; its journal, backups, diagnostics, and deterministic recovery guidance are retained until recovery or explicit acknowledgement. Recovery appends `Recovering` and ends as `RecoveredApplied`, `RecoveredRolledBack`, or another evidence-bearing `RecoveryRequired`. `RecoveryAcknowledged` is an explicit administrative handoff and never claims the repository is clean.
 
 Every `Applying` record has a renewable owner lease. Expired owners transition
 through bounded `Reconciling` work on startup or status lookup, and finish only as a
@@ -71,7 +71,7 @@ handle-relative no-follow/reparse-safe operations and revalidate hard-link ident
 and count. Unattended apply is blocked when the platform cannot prove containment or
 cannot prevent an undeclared shared-inode effect at the side-effect boundary.
 
-Plans referenced by nonterminal or `RecoveryRequired` operations remain pinned with
+Plans referenced by nonterminal (including `Recovering`) or `RecoveryRequired` operations remain pinned with
 their recovery evidence until verified terminal cleanup or explicit acknowledgement;
 normal retention cannot strand recovery without the reviewed bytes.
 
@@ -87,13 +87,13 @@ remain outside the namespace.
 - No apply-capable legacy daemon or MCP bridge can automatically replay a mutation after dispatch ambiguity.
 - A caller can recover the operation ID even when the first response is lost, query status, and receive the same terminal outcome for repeated identical requests.
 - Review and apply can run in separate processes and still consume byte-identical, hash-verified plan data from outside repository control.
-- Plan retention cannot remove bytes still referenced by a nonterminal or recovery-required operation.
+- Plan retention cannot remove bytes still referenced by a nonterminal (including recovering) or recovery-required operation.
 - A symlink/reparse swap after preflight cannot redirect any write, move, delete, backup, or restore outside the verified root.
 - A hard-linked path cannot mutate an undeclared shared inode or silently lose a reviewed link relationship.
 - Killing the apply owner after any journal boundary leads through lease-based reconciliation to a verified terminal state rather than indefinite `Applying`.
 - A superseded owner resumed after lease takeover is fenced from every further repository side effect.
-- Overlapping apply/recovery plans for one repository cannot interleave between final preflight and durable terminal state.
-- Fault injection proves complete success, complete rollback, or truthful `RecoveryRequired`; partial application is never labelled `Applied`.
+- Overlapping apply/recovery plans for one repository cannot interleave between final preflight and durable terminal state, and `RecoveryRequired` blocks unrelated apply until verified recovery or explicit acknowledgement.
+- Fault injection proves complete success, complete rollback, verified post-recovery state, or truthful `RecoveryRequired`; partial application is never labelled `Applied`.
 - No proof-strength finding or deletion suggestion is emitted from a partial workspace or an externally visible symbol without an explicit proof basis.
 - Trust/evaluator tests cover untrusted isolated evaluation and trusted opt-in isolation; repository-controlled build logic cannot write through the isolated worker's read-only checkout, read undeclared host files, or execute in a privileged long-lived host.
 - The five spine commands pass CLI, MCP, in-process, and passthrough parity plus cancellation and failure-injection tests.

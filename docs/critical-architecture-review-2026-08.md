@@ -112,16 +112,17 @@ retries, crashes, or process restarts.
 - Prepare one immutable plan containing every create/replace/delete/move/project/additional/analyzer-config change.
 - Persist its canonical bytes outside repository control and require repository ID, plan ID, and plan hash at apply.
 - Record expected existence/hash/type, platform identity/link count, encoding/BOM/newlines, permissions/mode, symlink/hard-link policy, repository revision, exact diff, expiry, verification, and recovery data.
-- Pin the exact plan and recovery bundle while an operation is nonterminal or `RecoveryRequired`.
+- Pin the exact plan and recovery bundle while an operation is nonterminal (including `Recovering`) or `RecoveryRequired`.
 - Assign caller-known operation identity and persist its ledger before writes.
 - Acquire one exclusive canonical-repository transaction reservation before final whole-plan preflight and hold it through the durable terminal result or recovery handoff so plans cannot interleave.
 - Preflight every condition and stage data, preferably on the same volume; revalidate the expected intermediate state, remaining plan dependencies, containment, file identity, and link count at every side effect.
 - Journal and apply deterministically with atomic per-file replacement where supported.
 - Verify postconditions before `Applied`.
 - Roll back and verify after failure.
-- Return `RecoveryRequired` and retain journal/backups when rollback cannot restore every path.
+- Enter durable `RecoveryRequired` and retain journal/backups when rollback cannot restore every path.
 - Reconcile expired apply-owner leases from durable evidence after restart using a fencing epoch and the same transaction reservation.
-- Add explicit recovery operations rather than telling users to inspect the tree manually.
+- Add explicit fenced recovery operations with append-only `Recovering -> RecoveredApplied | RecoveredRolledBack | RecoveryRequired` transitions.
+- Make explicit acknowledgement a non-clean administrative outcome with actor, reason, observed evidence, artifact-retention choice, and immutable audit history.
 
 Do not promise global filesystem atomicity. Promise truthful state, deterministic recovery, and no silent replay.
 
@@ -431,7 +432,7 @@ Do not call the tool stable merely because tests pass or every command has a por
 - explicit repository trust and safe evaluator behaviour;
 - no automatic replay after ambiguous mutation dispatch;
 - durable idempotency/status/recovery across process restart;
-- truthful `Applied | RolledBack | RecoveryRequired` mutation state;
+- truthful direct, recovery-required, and verified post-recovery mutation states, including non-clean `RecoveryAcknowledged`;
 - complete/partial/failed workspace provenance;
 - no destructive advice from incomplete or unsupported proof premises;
 - five-command host parity with bridge deletion;

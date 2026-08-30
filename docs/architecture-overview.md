@@ -162,23 +162,28 @@ GetOperation(operationId) -> OperationStatus
 Recover(operationId, action) -> RecoveryResult
 ```
 
-The immutable prepared plan contains all path and project operations, expected revision and hashes, encoding/newline/file-mode policy, symlink/hard-link/root-containment policy, exact diff, diagnostics, assumptions, verification, expiry, and recovery data. Before prepare returns, its canonical bytes are atomically persisted in a user-private store outside repository control. Preview and apply consume that same repository-scoped, hash-verified plan across process restart. Once an operation ledger references a plan, garbage collection pins its exact bytes through every nonterminal state and through `RecoveryRequired`; it releases them only after verified terminal cleanup or explicit recovery acknowledgement.
+The immutable prepared plan contains all path and project operations, expected revision and hashes, encoding/newline/file-mode policy, symlink/hard-link/root-containment policy, exact diff, diagnostics, assumptions, verification, expiry, and recovery data. Before prepare returns, its canonical bytes are atomically persisted in a user-private store outside repository control. Preview and apply consume that same repository-scoped, hash-verified plan across process restart. Once an operation ledger references a plan, garbage collection pins its exact bytes through every nonterminal state, including `Recovering`, and through `RecoveryRequired`; it releases them only after verified terminal cleanup or explicit recovery acknowledgement.
 
 Apply creates a durable operation record before side effects, acquires an exclusive canonical-repository transaction reservation, claims a renewable owner lease and monotonically increasing fencing epoch, validates every precondition, stages content, journals changes, revalidates the expected intermediate repository state at every side-effect boundary, applies deterministically, verifies postconditions, and records one truthful state:
 
-- `Applying` or bounded `Reconciling` while nonterminal;
+- `Applying`, `Recovering`, or bounded `Reconciling` while nonterminal;
 - `Applied`;
 - `RolledBack`;
-- `RecoveryRequired`;
+- `RecoveryRequired` as a durable intervention state;
+- `RecoveredApplied` or `RecoveredRolledBack` after verified manual recovery;
+- `RecoveryAcknowledged` as an administrative terminal state that does not claim cleanliness;
 - stale/conflict rejection; or
 - expiry.
 
-An incomplete rollback is `RecoveryRequired`; it is never presented as clean failure or rollback. The plan, journal, and backups remain pinned with deterministic recovery guidance.
+The ledger keeps an append-only transition history as well as the current state. An incomplete rollback is `RecoveryRequired`; it is never presented as clean failure or rollback. That state blocks a different apply for the repository until fenced recovery verifies `RecoveredApplied` or `RecoveredRolledBack`, or an authorized user explicitly records `RecoveryAcknowledged`. Acknowledgement performs no repository effect and records actor, reason, observed hashes, unresolved warnings, and the absence of a cleanliness guarantee.
 
 An `Applying` owner that disappears cannot leave a permanent nonterminal record.
 Startup and status lookup claim an expired lease exactly once, transition through
 `Reconciling`, and use the durable plan, journal, backups, and observed hashes to
-prove `Applied`, prove `RolledBack`, or require explicit recovery.
+prove `Applied`, prove `RolledBack`, or require explicit recovery. An expired
+`Recovering` owner is reconciled under the same reservation, lease, and fencing
+rules and ends as `RecoveredApplied`, `RecoveredRolledBack`, or
+`RecoveryRequired`.
 
 The reservation is acquired before final whole-plan preflight and held through the
 durable terminal result, verified rollback, or explicit recovery handoff. No second
@@ -187,7 +192,10 @@ it is held. At every journalled effect, the owner verifies the reservation, ledg
 state, fencing epoch, lease, prior effect outcomes, and every still-relevant plan
 dependency. A reconciler acquires the same reservation before advancing the epoch;
 after takeover, a resumed stale owner cannot pass the reservation/epoch check or
-perform another write.
+perform another write. Recovery artifacts stay pinned through `RecoveryRequired`
+and `Recovering`; verified recovery releases them only after cleanup, while explicit
+acknowledgement follows the recorded retention choice and preserves an immutable
+audit summary.
 
 The caller generates `OperationId` before dispatch. Repeating the same operation ID and canonical request returns the existing state/result; reusing it for different work returns conflict.
 
