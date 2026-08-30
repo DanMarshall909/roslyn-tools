@@ -68,7 +68,7 @@ The current design has no threat model, trust decision, worker boundary, environ
 - Refuse untrusted MSBuild-backed evaluation until a constrained worker is available.
 - Keep untrusted evaluation out of long-lived CLI, MCP, and daemon hosts.
 - Pass absolute request context rather than relying on current directory/environment.
-- Mount repository inputs read-only, redirect outputs/caches/temp to disposable writable locations, strip inherited secrets, disable network by default, and bound CPU/memory/time in isolated mode.
+- Use an OS-enforced allow-listed filesystem namespace with read-only repository and declared SDK/package inputs, disposable writable outputs/caches/temp, no ambient host profile/credential/device paths, stripped inherited secrets, network disabled by default, and bounded CPU/memory/time.
 - Record trust state/evaluator mode and analyzer/generator policy in provenance.
 - Test hostile targets, analyzers/generators, hangs, output floods, symlink escapes, environment reads, and network attempts.
 
@@ -111,14 +111,16 @@ retries, crashes, or process restarts.
 
 - Prepare one immutable plan containing every create/replace/delete/move/project/additional/analyzer-config change.
 - Persist its canonical bytes outside repository control and require repository ID, plan ID, and plan hash at apply.
-- Record expected existence/hash/type, encoding/BOM/newlines, permissions/mode, symlink policy, repository revision, exact diff, expiry, verification, and recovery data.
+- Record expected existence/hash/type, platform identity/link count, encoding/BOM/newlines, permissions/mode, symlink/hard-link policy, repository revision, exact diff, expiry, verification, and recovery data.
+- Pin the exact plan and recovery bundle while an operation is nonterminal or `RecoveryRequired`.
 - Assign caller-known operation identity and persist its ledger before writes.
-- Preflight every condition and stage data, preferably on the same volume; revalidate containment and file identity atomically at every side effect.
+- Acquire one exclusive canonical-repository transaction reservation before final whole-plan preflight and hold it through the durable terminal result or recovery handoff so plans cannot interleave.
+- Preflight every condition and stage data, preferably on the same volume; revalidate the expected intermediate state, remaining plan dependencies, containment, file identity, and link count at every side effect.
 - Journal and apply deterministically with atomic per-file replacement where supported.
 - Verify postconditions before `Applied`.
 - Roll back and verify after failure.
 - Return `RecoveryRequired` and retain journal/backups when rollback cannot restore every path.
-- Reconcile expired apply-owner leases from durable evidence after restart.
+- Reconcile expired apply-owner leases from durable evidence after restart using a fencing epoch and the same transaction reservation.
 - Add explicit recovery operations rather than telling users to inspect the tree manually.
 
 Do not promise global filesystem atomicity. Promise truthful state, deterministic recovery, and no silent replay.

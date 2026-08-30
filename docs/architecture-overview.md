@@ -104,10 +104,13 @@ absent or revoked. Evaluator mode is one of:
 An untrusted repository can use `NoEvaluation` or `IsolatedWorker`, never
 `InProcess`. A trusted repository may still request `IsolatedWorker`; choosing
 isolation does not change or imply its trust state. The isolated worker receives an
-OS-enforced read-only repository view, separate disposable writable output, cache,
-and temporary locations outside the checkout, bounded resources, no inherited
-secrets, and no network unless explicitly enabled. Repository write attempts are
-denied and recorded rather than redirected into the checkout.
+OS-enforced allow-listed filesystem namespace containing only the read-only
+repository, declared read-only SDK/package/tool inputs, and separate disposable
+writable output, cache, and temporary locations outside the checkout. Host roots,
+user profiles, credentials, SSH material, undeclared package caches, and devices are
+not visible. The worker has bounded resources, no inherited secrets, and no network
+unless explicitly enabled. Repository write attempts and undeclared host reads are
+denied and recorded.
 
 Long-lived CLI, MCP, and daemon hosts never evaluate an untrusted repository in-process.
 
@@ -161,7 +164,7 @@ Recover(operationId, action) -> RecoveryResult
 
 The immutable prepared plan contains all path and project operations, expected revision and hashes, encoding/newline/file-mode policy, symlink/hard-link/root-containment policy, exact diff, diagnostics, assumptions, verification, expiry, and recovery data. Before prepare returns, its canonical bytes are atomically persisted in a user-private store outside repository control. Preview and apply consume that same repository-scoped, hash-verified plan across process restart. Once an operation ledger references a plan, garbage collection pins its exact bytes through every nonterminal state and through `RecoveryRequired`; it releases them only after verified terminal cleanup or explicit recovery acknowledgement.
 
-Apply creates a durable operation record before side effects, claims a renewable owner lease and monotonically increasing fencing epoch, validates every precondition, stages content, journals changes, revalidates path containment, file identity, and link count at every side-effect boundary, applies deterministically, verifies postconditions, and records one truthful state:
+Apply creates a durable operation record before side effects, acquires an exclusive canonical-repository transaction reservation, claims a renewable owner lease and monotonically increasing fencing epoch, validates every precondition, stages content, journals changes, revalidates the expected intermediate repository state at every side-effect boundary, applies deterministically, verifies postconditions, and records one truthful state:
 
 - `Applying` or bounded `Reconciling` while nonterminal;
 - `Applied`;
@@ -177,12 +180,14 @@ Startup and status lookup claim an expired lease exactly once, transition throug
 `Reconciling`, and use the durable plan, journal, backups, and observed hashes to
 prove `Applied`, prove `RolledBack`, or require explicit recovery.
 
-Every repository side effect and every lease-epoch takeover uses the same
-OS-enforced single-writer fence. While holding that fence, an owner verifies the
-current ledger state, fencing epoch, and lease immediately before journalling and
-performing the effect. A reconciler cannot advance the epoch while an earlier
-effect boundary is active; after it advances the epoch, a resumed stale owner cannot
-pass the fence check or perform another write.
+The reservation is acquired before final whole-plan preflight and held through the
+durable terminal result, verified rollback, or explicit recovery handoff. No second
+apply or recovery transaction for the repository can enter final validation while
+it is held. At every journalled effect, the owner verifies the reservation, ledger
+state, fencing epoch, lease, prior effect outcomes, and every still-relevant plan
+dependency. A reconciler acquires the same reservation before advancing the epoch;
+after takeover, a resumed stale owner cannot pass the reservation/epoch check or
+perform another write.
 
 The caller generates `OperationId` before dispatch. Repeating the same operation ID and canonical request returns the existing state/result; reusing it for different work returns conflict.
 

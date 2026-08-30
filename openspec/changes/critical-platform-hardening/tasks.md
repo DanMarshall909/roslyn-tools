@@ -18,25 +18,25 @@ cross-host acceptance tests pass.
 
 ## P0.1 repository trust and workspace isolation
 
-- [ ] Write a threat model covering MSBuild imports/targets/tasks, analyzers, generators, repository executables, environment inheritance, source/log leakage, symlinks, and long-lived hosts.
+- [ ] Write a threat model covering MSBuild imports/targets/tasks, analyzers, generators, repository executables, environment inheritance, ambient host filesystem reads, source/log leakage, symlinks, and long-lived hosts.
 - [ ] Define canonical repository identity and persisted `Trusted | Untrusted` trust decisions independently from `NoEvaluation | InProcess | IsolatedWorker` evaluator modes, including inspect, grant, revoke, explicit isolation, and non-interactive behaviour.
 - [ ] Introduce `WorkspaceRequest` and `WorkspaceProvenance` with absolute context, independent trust state/evaluator mode, configuration, SDK/compiler identity, source revision, diagnostics, and resource budget.
 - [ ] Ensure CLI, MCP, and daemon operations do not use or mutate process current directory, global exit code, global console state, or arbitrary inherited environment as request context.
 - [ ] Refuse MSBuild-backed semantic loading for untrusted repositories until an isolated worker exists.
-- [ ] Implement a constrained evaluator worker with an OS-enforced read-only repository mount/handle view; separate disposable writable output, intermediate, cache, and temporary locations; a secret-free environment allow-list; bounded CPU/memory/time; and network disabled by default.
+- [ ] Implement a constrained evaluator worker with an OS-enforced allow-listed filesystem namespace containing only the read-only checkout, declared read-only SDK/package/tool inputs, and separate disposable writable output, intermediate, cache, and temporary locations; exclude host roots, user profiles, credentials, devices, and undeclared caches; use a secret-free environment allow-list, bounded CPU/memory/time, and network disabled by default.
 - [ ] Define analyzer/generator execution modes and prove untrusted code is not loaded into a long-lived privileged host.
-- [ ] Add adversarial fixtures containing custom build logic, imported targets, analyzers/generators, symlink escapes, large output, hangs, attempted source/repository-control writes, and attempted secret/network access; prove denied writes leave the checkout byte-identical.
+- [ ] Add adversarial fixtures containing custom build logic, imported targets, analyzers/generators, symlink escapes, large output, hangs, attempted source/repository-control writes, and attempted host-file/secret/network access; prove denied writes leave the checkout byte-identical and undeclared host paths are unreadable.
 
 ## P0.2 durable operation identity and transport safety
 
 - [ ] Add caller-generated `OperationId` to every apply request before dispatch; keep request-attempt correlation separate.
 - [ ] Implement a durable operation ledger written before side effects, with `Prepared | Applying | Reconciling | Applied | RolledBack | RecoveryRequired | RejectedStale | RejectedConflict | Expired` states.
-- [ ] Record owner instance, monotonically increasing fencing epoch, lease expiry, and heartbeat for `Applying`; use one OS-enforced per-repository single-writer fence for every side effect and for atomic expired-owner takeover.
+- [ ] Record owner instance, monotonically increasing fencing epoch, lease expiry, heartbeat, and transaction-reservation identity for `Applying`; acquire one OS-enforced exclusive reservation per canonical repository before final preflight, hold it through terminal completion/recovery handoff, and require it for expired-owner takeover.
 - [ ] Define canonical request hashing so identical operation-ID replay returns the existing result and differing replay returns `OperationConflict`.
 - [ ] Add `GetOperation` status lookup and stable recovery guidance available after client/server restart.
 - [ ] Preserve operation ID and status semantics across CLI, MCP, in-process, and daemon adapters.
 - [ ] Retain `NotDispatched | Completed | Indeterminate` as transport knowledge and prohibit mutation retry/fallback after `Indeterminate`.
-- [ ] Test lost first response, process termination before/after ledger write and every journal boundary, owner-lease expiry, a stale owner resumed before/after every fence check, concurrent reconciliation, malformed response, duplicate request, concurrent duplicate request, stale daemon, and client cancellation.
+- [ ] Test lost first response, process termination before/after ledger write and every journal boundary, owner-lease expiry, a stale owner resumed before/after every reservation/epoch check, concurrent reconciliation, overlapping plans for the same and different repositories, malformed response, duplicate request, concurrent duplicate request, stale daemon, and client cancellation.
 
 ## P0.3 complete prepared-change-set model
 
@@ -55,13 +55,13 @@ cross-host acceptance tests pass.
 ## P0.4 staged apply, rollback, and recovery
 
 - [ ] Extend the current staged compensating writer into a general filesystem writer with atomic per-path replacement where supported, deterministic ordering, and durable journal/backups that survive process restart.
-- [ ] Preflight all hashes, existence, permissions, destinations, symlinks, hard-link identity/count, path boundaries, and required free space before side effects, then under the repository single-writer fence revalidate ledger state, fencing epoch, lease, path, file identity, and link count at each write/move/delete/restore boundary.
+- [ ] Under the exclusive repository transaction reservation, preflight all revisions, read dependencies, hashes, existence, permissions, destinations, symlinks, hard-link identity/count, path boundaries, and required free space; before each write/move/delete/restore, revalidate the expected intermediate state, prior effects, every still-relevant dependency, ledger state, fencing epoch, lease, path, file identity, and link count.
 - [ ] Verify expected postconditions before recording `Applied`.
 - [ ] Implement rollback and verification for every supported operation type.
 - [ ] Add `RecoveryRequired` result, retained journal/backups, affected-path state, and deterministic recovery actions when rollback is incomplete.
 - [ ] Make recovery-critical rollback non-interruptible after side effects begin while recording the caller's cancellation request.
 - [ ] Add `rt recover status|resume|rollback|acknowledge <operation-id>` or equivalent host-neutral operations.
-- [ ] Reconcile expired `Applying` records on startup and status lookup; acquire the same side-effect fence before advancing the epoch so one owner can prove completion, resume or roll back from a declared journal boundary, or enter `RecoveryRequired`, while every stale owner is denied further writes.
+- [ ] Reconcile expired `Applying` records on startup and status lookup; apply bounded mutation-worker shutdown, acquire the same exclusive transaction reservation before advancing the epoch, and allow one owner to prove completion, resume or roll back from a declared journal boundary, or enter `RecoveryRequired`; if OS reservation release cannot be proven, revoke the epoch, retain the possibly in-flight boundary, and perform no reconciliation write.
 - [ ] Add fault injection for each operation boundary: stage/write/flush/replace/move/delete/permission/verification/journal/rollback/cleanup/process termination.
 - [ ] Test encoding/BOM/newlines, executable bits, locked/read-only files, disk-full simulation, case-only moves, symlinks, in-root and out-of-root hard-link aliases, link-count drift, cross-volume moves, and rollback failure on Windows, Linux, and macOS.
 

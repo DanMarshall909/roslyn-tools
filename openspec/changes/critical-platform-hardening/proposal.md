@@ -63,8 +63,10 @@ A failed or interrupted rollback is never reported as clean rollback. The operat
 Every `Applying` record has a renewable owner lease. Expired owners transition
 through bounded `Reconciling` work on startup or status lookup, and finish only as a
 verified apply, verified rollback, or `RecoveryRequired`. A monotonically increasing
-fencing epoch and one OS-enforced repository side-effect fence prevent a resumed
-superseded owner from writing after takeover. Filesystem effects use
+fencing epoch and one OS-enforced exclusive repository transaction reservation,
+held from final preflight through durable terminal completion or recovery handoff,
+prevent overlapping plans and stop a resumed superseded owner after takeover.
+Filesystem effects use
 handle-relative no-follow/reparse-safe operations and revalidate hard-link identity
 and count. Unattended apply is blocked when the platform cannot prove containment or
 cannot prevent an undeclared shared-inode effect at the side-effect boundary.
@@ -74,6 +76,11 @@ their recovery evidence until verified terminal cleanup or explicit acknowledgem
 normal retention cannot strand recovery without the reviewed bytes.
 
 Repository trust and evaluator mode are independent. Untrusted repositories are not evaluated inside the long-lived CLI, MCP, or daemon host, while trusted repositories may still request isolation. An isolated worker receives an OS-enforced read-only checkout and separate disposable writable output/cache locations; the tool must refuse evaluation when that boundary is unavailable.
+
+The isolated worker's filesystem namespace is allow-listed, not merely writable-safe:
+only the checkout, declared SDK/package/tool inputs, and disposable output locations
+are visible. Host profiles, credentials, SSH material, devices, and undeclared caches
+remain outside the namespace.
 
 ## Success measures
 
@@ -85,9 +92,10 @@ Repository trust and evaluator mode are independent. Untrusted repositories are 
 - A hard-linked path cannot mutate an undeclared shared inode or silently lose a reviewed link relationship.
 - Killing the apply owner after any journal boundary leads through lease-based reconciliation to a verified terminal state rather than indefinite `Applying`.
 - A superseded owner resumed after lease takeover is fenced from every further repository side effect.
+- Overlapping apply/recovery plans for one repository cannot interleave between final preflight and durable terminal state.
 - Fault injection proves complete success, complete rollback, or truthful `RecoveryRequired`; partial application is never labelled `Applied`.
 - No proof-strength finding or deletion suggestion is emitted from a partial workspace or an externally visible symbol without an explicit proof basis.
-- Trust/evaluator tests cover untrusted isolated evaluation and trusted opt-in isolation; repository-controlled build logic cannot write through the isolated worker's read-only checkout or execute in a privileged long-lived host.
+- Trust/evaluator tests cover untrusted isolated evaluation and trusted opt-in isolation; repository-controlled build logic cannot write through the isolated worker's read-only checkout, read undeclared host files, or execute in a privileged long-lived host.
 - The five spine commands pass CLI, MCP, in-process, and passthrough parity plus cancellation and failure-injection tests.
 - MCP conformance is tested for every advertised protocol version; structured tools return schema-valid `structuredContent` as well as a text view.
 - `dotnet build` is hermetic: it does not modify the repository, deploy files into the user profile, or depend on an already-running daemon.

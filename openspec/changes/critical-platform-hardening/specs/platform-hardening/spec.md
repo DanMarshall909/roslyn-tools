@@ -16,7 +16,7 @@ Each stable command SHALL have one typed request, one application operation, and
 
 ## Requirement: repository evaluation has an explicit trust boundary
 
-A workspace request SHALL declare repository trust state and evaluator mode as independent values. Trust state SHALL be `Trusted` or `Untrusted`; evaluator mode SHALL be `NoEvaluation`, `InProcess`, or `IsolatedWorker`. Absence or revocation of an explicit repository-scoped trust decision SHALL produce `Untrusted`. An untrusted request SHALL NOT select `InProcess`, while a trusted request MAY still select `IsolatedWorker`. The long-lived CLI, MCP, and daemon hosts SHALL NOT evaluate repository-controlled MSBuild logic, analyzers, generators, or repository executables in-process for an untrusted repository.
+A workspace request SHALL declare repository trust state and evaluator mode as independent values. Trust state SHALL be `Trusted` or `Untrusted`; evaluator mode SHALL be `NoEvaluation`, `InProcess`, or `IsolatedWorker`. Absence or revocation of an explicit repository-scoped trust decision SHALL produce `Untrusted`. An untrusted request SHALL NOT select `InProcess`, while a trusted request MAY still select `IsolatedWorker`. The long-lived CLI, MCP, and daemon hosts SHALL NOT evaluate repository-controlled MSBuild logic, analyzers, generators, or repository executables in-process for an untrusted repository. `IsolatedWorker` SHALL use an OS-enforced allow-listed filesystem namespace that exposes only declared read-only inputs and disposable writable outputs; it SHALL NOT expose ambient host paths or credentials.
 
 ### Scenario: untrusted repository requests semantic solution load
 
@@ -36,6 +36,13 @@ A workspace request SHALL declare repository trust state and evaluator mode as i
 - **THEN** an OS-enforced read-only repository view denies the write
 - **AND THEN** build outputs, intermediate files, caches, and temporary files use separate disposable writable locations outside the checkout
 - **AND THEN** the repository remains unchanged and the denied attempt is reported in provenance
+
+### Scenario: isolated repository code attempts an undeclared host read
+
+- **WHEN** repository-controlled code in `IsolatedWorker` attempts to read a user profile, SSH key, credential store, host configuration, undeclared package cache, device, or other path outside its declared inputs
+- **THEN** the OS-enforced filesystem namespace makes that path unavailable and denies the read
+- **AND THEN** only the read-only checkout, declared read-only SDK/package/tool inputs, and disposable writable output/cache/temp locations are visible
+- **AND THEN** evaluation is refused on a platform that cannot establish this namespace
 
 ### Scenario: file-only operation is safe without evaluation
 
@@ -131,7 +138,15 @@ Every apply request SHALL include a caller-generated operation ID before dispatc
 
 ## Requirement: reviewed mutations are failure-aware and recoverable
 
-Apply SHALL verify every precondition before writes, stage replacement data, durably journal side effects, apply changes deterministically, verify postconditions, and attempt rollback after an apply failure. Each `Applying` record SHALL carry a renewable owner lease and monotonically increasing fencing epoch. Every side effect and every expired-owner takeover SHALL use the same OS-enforced per-repository single-writer fence and validate the current ledger state, epoch, lease, platform file identity, and link count at the effect boundary. An expired owner SHALL be reconciled from durable evidence. Terminal states SHALL distinguish `Applied`, `RolledBack`, `RecoveryRequired`, stale/conflict rejection, and expiry; `Reconciling` is a bounded nonterminal recovery state.
+Apply SHALL verify every precondition before writes, stage replacement data, durably journal side effects, apply changes deterministically, verify postconditions, and attempt rollback after an apply failure. Before final whole-plan preflight, each apply/recovery SHALL acquire an exclusive OS-enforced transaction reservation keyed by canonical repository identity and SHALL hold it through durable terminal completion or explicit recovery handoff. Each `Applying` record SHALL carry a renewable owner lease and monotonically increasing fencing epoch. Every side effect and every expired-owner takeover SHALL validate the reservation, current ledger state, epoch, lease, expected intermediate repository state, prior effects, remaining plan dependencies, platform file identity, and link count. An expired owner SHALL be reconciled from durable evidence. Terminal states SHALL distinguish `Applied`, `RolledBack`, `RecoveryRequired`, stale/conflict rejection, and expiry; `Reconciling` is a bounded nonterminal recovery state.
+
+### Scenario: two apply plans target the same repository
+
+- **WHEN** two apply or recovery requests for the same canonical repository overlap
+- **THEN** only one acquires the exclusive transaction reservation and enters final whole-plan preflight
+- **AND THEN** the other waits, cancels, or rejects before final validation and performs no repository side effect
+- **AND THEN** the owner holds the reservation through every journalled effect and durable terminal result or explicit recovery handoff
+- **AND THEN** each effect revalidates the expected intermediate state and every still-relevant reviewed dependency, so neither a queued plan nor external drift can be silently accepted
 
 ### Scenario: stale reviewed plan is applied
 
@@ -168,11 +183,18 @@ Apply SHALL verify every precondition before writes, stage replacement data, dur
 
 ### Scenario: an expired apply owner resumes after reconciliation starts
 
-- **WHEN** a reconciler acquires the repository fence and advances the fencing epoch for an expired owner
+- **WHEN** a reconciler acquires the exclusive repository transaction reservation and advances the fencing epoch for an expired owner
 - **AND WHEN** the original owner later resumes with its stale epoch
-- **THEN** the original owner cannot reacquire a valid side-effect boundary or append a journalled effect
+- **THEN** the original owner cannot reacquire the reservation or append a journalled effect
 - **AND THEN** it performs no replace, move, delete, backup, restore, or other repository write
-- **AND THEN** takeover tests suspend and resume owners before and after every fence boundary to prove stale writers are excluded
+- **AND THEN** takeover tests suspend and resume owners before and after every reservation, epoch, and effect boundary to prove stale writers are excluded
+
+### Scenario: an expired owner does not release the transaction reservation
+
+- **WHEN** bounded shutdown cannot prove the mutation worker exited and its OS reservation was released
+- **THEN** the ledger epoch is revoked and the operation records `RecoveryRequired` with the possibly in-flight journal boundary
+- **AND THEN** no reconciler or queued plan performs a repository effect until reservation release is proven
+- **AND THEN** the operation does not remain indefinitely reported as a healthy live `Applying` owner
 
 ## Requirement: indeterminate mutation dispatch is never replayed automatically
 

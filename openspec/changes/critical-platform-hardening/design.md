@@ -72,13 +72,18 @@ Operations do not read or mutate process current directory, global console state
 policy requests defence in depth. Isolation is therefore an execution decision, not
 a trust state.
 
-The isolated worker receives the repository through an OS-enforced read-only mount
-or equivalent handle boundary. Build outputs, intermediate files, package/analyzer
-caches, and temporary files live in separate disposable writable locations outside
-the checkout. The worker inherits no secrets, has bounded CPU/memory/time, and has
-no network unless explicitly enabled. Repository-controlled tasks, analyzers, or
-generators that attempt to write source or repository-control files are denied and
-audited; evaluator completion never copies undeclared writes back into the checkout.
+The isolated worker runs inside an OS-enforced allow-listed filesystem namespace.
+The namespace exposes only the repository through a read-only mount or equivalent
+handle boundary, explicitly declared read-only SDK/package/tool inputs, and separate
+disposable writable build-output, intermediate, analyzer/package-cache, and
+temporary locations outside the checkout. Host filesystem roots, user profiles,
+SSH keys, credential stores, undeclared package caches, device endpoints, and other
+ambient paths are not mounted or visible. The worker inherits no secrets, has
+bounded CPU/memory/time, and has no network unless explicitly enabled.
+Repository-controlled tasks, analyzers, or generators that attempt repository
+writes or undeclared host reads are denied and audited; evaluator completion never
+copies undeclared writes back into the checkout. If the platform cannot establish
+this namespace, `IsolatedWorker` evaluation is refused.
 
 The CLI, MCP host, and daemon are long-lived privileged processes and SHALL NOT evaluate an untrusted repository in-process. A trust decision is scoped to a canonical repository identity and can be inspected and revoked. It is never inferred merely because a checkout is local or an editor opened it.
 
@@ -172,14 +177,14 @@ The implementation:
 
 1. loads and verifies the exact persisted plan;
 2. creates or reads the durable operation record;
-3. validates operation replay semantics and claims a renewable owner lease plus fencing epoch under the repository's single-writer fence;
-4. preflights every revision, path, hash, permission, symlink, destination, and free-space condition;
+3. acquires an exclusive transaction reservation keyed by canonical repository identity, then validates replay semantics and claims a renewable owner lease plus fencing epoch;
+4. while holding the reservation, performs final whole-plan preflight of every revision, read dependency, path, hash, permission, link, destination, and free-space condition;
 5. stages replacement content, preferably on the same volume;
 6. durably writes a journal and recovery metadata;
-7. for each operation, acquires the single-writer fence, revalidates ledger state, fencing epoch, lease, containment, and file identity, journals intent, performs the side effect, and durably records its observed outcome before releasing the fence;
-8. orders those fenced operation boundaries deterministically and uses atomic per-path replacement where supported;
+7. while continuously holding the reservation, revalidates ledger state, fencing epoch, lease, the expected intermediate repository state, all prior effect outcomes, and every still-relevant plan dependency before each operation, then journals intent, performs the side effect, and durably records its observed outcome;
+8. orders those reserved operation boundaries deterministically and uses atomic per-path replacement where supported;
 9. verifies expected postconditions;
-10. commits the terminal result and cleans staging only after durable success; or
+10. commits the terminal result and cleans staging before releasing the reservation only after durable success; or
 11. performs rollback from the journal.
 
 Rollback is best-effort across platform/filesystem constraints and is not falsely described as atomic. Once side effects begin, cancellation requests are recorded but do not interrupt recovery-critical rollback. If rollback cannot restore every verified precondition, the terminal state is `RecoveryRequired`, not `RolledBack` or `Failed`. Journals, backups, affected paths, observed hashes, and deterministic recovery instructions are retained until successful recovery or explicit acknowledgement.
@@ -219,19 +224,25 @@ alias, and no replacement may silently sever a reviewed link relationship.
 ### Restart reconciliation
 
 Every `Applying` ledger entry contains an owner instance ID, monotonically increasing
-fencing epoch, lease expiry, and heartbeat. A live owner renews its lease while
-applying or rolling back. Every journalled filesystem effect runs inside an
-OS-enforced per-repository single-writer fence and validates the current ledger
-state, epoch, and lease immediately before the effect. On process startup and
-`GetOperation`, a reconciler must acquire that same fence before a compare-and-swap
-advances the epoch and transitions an expired `Applying` entry to `Reconciling`; a
-live lease cannot be stolen.
+fencing epoch, lease expiry, heartbeat, and exclusive transaction-reservation
+identity. A live owner renews its lease while applying or rolling back and holds the
+OS-enforced reservation continuously from final whole-plan preflight through the
+durable terminal result or explicit recovery handoff. Other apply/recovery requests
+for the same canonical repository wait, cancel, or reject before final validation;
+their operations cannot interleave.
 
-If an old owner is paused inside an effect boundary, the reconciler cannot advance
-the epoch until that fenced boundary completes. If the reconciler has advanced the
-epoch, a resumed old owner cannot reacquire the fence with its stale token and must
-stop before journalling or performing another side effect. Fault injection suspends
-owners before and after every fence check to prove this property.
+On process startup and `GetOperation`, a reconciler must acquire that same
+reservation before a compare-and-swap advances the epoch and transitions an expired
+`Applying` entry to `Reconciling`; process exit releases the OS reservation. If an
+expired owner still holds it, the reconciler performs no repository effect and does
+not claim the epoch until the reservation is safely released. The supervisor applies
+a bounded shutdown to the mutation worker. If it cannot prove worker exit and OS
+reservation release, it revokes the ledger epoch, records `RecoveryRequired` with
+the possibly in-flight journal boundary, and performs no reconciliation effect until
+release is proven. After takeover, a resumed old owner cannot reacquire the
+reservation with its stale token and must stop before journalling or performing
+another side effect. Fault injection suspends owners before and after reservation,
+epoch, and effect boundaries to prove this property.
 
 The reconciler verifies the plan hash, journal, backups, staged files, affected-path
 identities, and observed pre/post hashes. It then deterministically completes a
