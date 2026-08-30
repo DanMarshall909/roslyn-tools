@@ -38,7 +38,9 @@ Companion documents:
   orchestration.
 - [ ] Expected failures return `RtError`; nested `Result` values are never serialized as
   successful payloads.
-- [ ] Safety is explicitly read-only, apply-default, or review-default.
+- [ ] Safety is explicitly read-only or review-default during the current hardening
+  phase; apply-default requires a later approved OpenSpec/ADR and is not preserved by
+  conversion work.
 - [ ] Execution placement is explicitly daemon-preferred or in-process.
 - [ ] Suggested follow-on actions are typed data, not rendered command prose.
 - [ ] Service/operation contains no `System.CommandLine`, `InvocationContext`,
@@ -68,6 +70,8 @@ Companion documents:
 - [ ] Review analyzes only; dry-run prepares the exact transformation without writing.
 - [ ] Response lists every affected path and carries structured diagnostics.
 - [ ] Apply writes once after preparation succeeds.
+- [ ] Omitted mutation mode selects non-writing review, or dry-run when review-only
+  analysis is not meaningful; apply requires explicit caller selection.
 - [ ] Multi-file/filesystem work uses the prepared change-set abstraction; cancellation
   or failure cannot leave a half-applied move/write chain.
 - [ ] A mutation is never retried after dispatch becomes indeterminate.
@@ -84,7 +88,7 @@ Companion documents:
 - [ ] Transparent-daemon/in-process parity for daemon-eligible read-only commands;
   apply-capable commands remain in-process during the current hardening phase.
 - [ ] Mutations cover all supported review/dry-run/apply/no-op states and prove preview
-  performs no write.
+  and the omitted/default path perform no write.
 - [ ] Line/branch coverage and in-scope Stryker threshold pass.
 
 ## 6. Fan-out ownership

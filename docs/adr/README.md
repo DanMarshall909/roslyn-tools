@@ -76,3 +76,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0009](0009-authenticated-daemon-endpoints.md) | Authenticated local daemon endpoints | Accepted | 2026-08-30 |
 | [0010](0010-revision-bound-continuation-tokens.md) | Revision-bound continuation tokens | Accepted | 2026-08-30 |
 | [0011](0011-authoritative-trust-and-evaluator-isolation.md) | Authoritative repository trust and evaluator isolation | Accepted | 2026-08-30 |
+| [0012](0012-review-first-mutation-defaults.md) | Review-first mutation defaults during hardening | Accepted | 2026-08-30 |

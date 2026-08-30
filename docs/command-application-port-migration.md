@@ -5,10 +5,20 @@ to the host-neutral application-port architecture in
 [ADR-0007](adr/0007-host-neutral-command-contracts.md).
 
 [ADR-0008](adr/0008-daemon-transparent-passthrough-phase.md) governs execution
-placement for the current hardening phase. `DaemonPreferred` below is restricted to
-eligible read-only typed operations. Any command with an apply-capable mode remains
-`InProcess` until the canonical mutation ledger exists and a separately reviewed
-change proves transparent-daemon parity and failure safety.
+placement for the current hardening phase. `DaemonPreferred` is restricted to eligible
+read-only typed operations. Any command with an apply-capable mode remains `InProcess`
+until the canonical mutation ledger exists and a separately reviewed change proves
+transparent-daemon parity and failure safety. The manifest's `execution` column records
+the as-built baseline; a mutation row marked `daemon-preferred` is containment debt,
+not approved placement, and a slice touching that command updates runtime metadata and
+the row to `in-process` together.
+
+[ADR-0012](adr/0012-review-first-mutation-defaults.md) governs mutation defaults for
+the same phase. Every apply-capable command defaults to `Review` where supported or
+otherwise `DryRun`; apply requires explicit selection. The manifest's `safety` column
+records the as-built baseline for architecture drift. An `apply-default` row is
+containment debt, not a migration target, and a slice that touches that command must
+change both its runtime metadata and manifest row to `review-default`.
 
 ## Scope and baseline
 
@@ -76,6 +86,8 @@ local substitutes.
    - Support `Reviewed`, `DryRun`, `Applied`, and `NoOp` as distinct statuses.
    - Carry a typed domain value, every affected path, and structured diagnostics.
    - Add a prepared change-set abstraction for multi-file and filesystem mutations.
+   - Default to non-writing `Review`, or `DryRun` when review-only analysis is not
+     meaningful; require explicit `Apply` and never preserve a legacy implicit write.
 
 6. **Host-neutral suggested actions**
    - Move `SuggestedFix`, `FixCatalog`, and related records out of CLI.
@@ -303,6 +315,9 @@ Execution: InProcess, read-only.
 
 All mutations return `MutationExecutionResult<T>` or its finalized replacement.
 Every preview lists all affected paths. Apply happens once, after preparation succeeds.
+During the current hardening phase every group is review-first: omission selects
+`Review` where supported or otherwise `DryRun`, and only an explicit apply selection
+may write. Conversion completion does not satisfy the separate mutation safety gate.
 
 ### M0 — reconcile reference ports and complete rename
 
@@ -319,7 +334,9 @@ Instructions:
   - return the related-edit plan in the typed result;
   - remove direct rendering and filesystem side effects from the service; and
   - route CLI through the shared execution router.
-- Preserve current public apply defaults. MCP safety projection remains centralized.
+- Preserve public request/result compatibility where safe, but replace any
+  apply-by-default behavior with the shared review/dry-run default. No adapter may
+  restore an implicit apply.
 
 Execution: InProcess, mutation during the current hardening phase.
 
@@ -348,8 +365,8 @@ Instructions:
   - replace `MakeStaticService` integer/exit-code outcomes with typed failures;
   - preserve safe-delete evidence in the result.
 
-Execution: InProcess, apply-by-default mutation during the current hardening phase
-unless the existing command explicitly documents another default.
+Execution: InProcess, review/dry-run-default mutation during the current hardening
+phase; apply requires explicit selection.
 
 ### M2 — discriminated multi-mode mutations
 
@@ -370,7 +387,8 @@ Instructions:
 - Operation owns mode validation and returns typed invalid-mode errors.
 - Remove `Environment.ExitCode` and command-handler orchestration from shared logic.
 
-Execution: InProcess, apply-by-default mutation during the current hardening phase.
+Execution: InProcess, review/dry-run-default mutation during the current hardening
+phase; apply requires explicit selection.
 
 ### M3 — review-first mutations
 
@@ -411,7 +429,8 @@ Instructions:
   - `narrow-dependency` returns a structured summary;
   - `extract-class` replaces exit-code mutation with typed failure.
 
-Execution: InProcess, apply-by-default mutation during the current hardening phase.
+Execution: InProcess, review/dry-run-default mutation during the current hardening
+phase; apply requires explicit selection.
 
 ## Fan-out ownership rules
 
@@ -446,7 +465,8 @@ snapshot, or project file in parallel.
 7. Transparent-daemon and in-process parity for daemon-eligible read-only commands;
    apply-capable commands remain in-process until separately approved safety gates pass.
 8. Mutations only: review/dry-run/apply/no-op as applicable, complete changed-path list,
-   and no write during preview.
+   no write during preview, and proof that omitted execution mode takes the non-writing
+   review/dry-run path.
 
 ## Definition of done
 
@@ -457,5 +477,7 @@ snapshot, or project file in parallel.
 - MCP does not reference CLI; neither host references the other.
 - Shared code contains no `System.CommandLine`, host protocol, console, renderer, or
   exit-code dependency.
+- Every mutation touched by conversion defaults to review/dry-run, requires explicit
+  apply, and updates any `apply-default` manifest debt in the same slice.
 - Full architecture, CLI/core, MCP, distribution, parity, coverage, and mutation gates
   pass.

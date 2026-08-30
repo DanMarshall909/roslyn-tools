@@ -217,6 +217,13 @@ GetOperation(repositoryId, operationId, requestIdentity?, operationEpochToken?) 
 Recover(repositoryId, operationId, action) -> RecoveryResult
 ```
 
+Until the durable mutation kernel and its failure/recovery gates pass,
+[ADR-0012](adr/0012-review-first-mutation-defaults.md) requires every apply-capable
+command to default to non-writing `Review`, or `DryRun` when review-only analysis is
+not meaningful. `Apply` requires explicit caller selection and remains in-process.
+Existing `apply-default` catalogue entries are containment debt, not a migration
+target; port conversion alone cannot preserve or justify them.
+
 Repository identity and mutation coordination span OS principals and hosts. An OS-
 or service-protected registry outside repository control maps checkout/Git-common-dir filesystem identity
 to one non-reused repository ID and records mode, owner/authority, active recovery
