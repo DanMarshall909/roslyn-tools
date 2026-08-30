@@ -2,6 +2,8 @@
 
 - Status: Accepted
 - Date: 2026-08-26
+- Updated: 2026-08-30
+- Current daemon boundary: [ADR-0008](0008-daemon-transparent-passthrough-phase.md)
 - Stories: rt-007, EP-012, US-095, US-096, US-097, US-098, US-099, US-143
 
 ## Context
@@ -65,14 +67,18 @@ including discriminated alternative request variants when one operation supports
 multiple valid shapes. They are not derived from instantiated CLI commands. CLI
 metadata is checked against the shared definition by architecture tests.
 
-Daemon routing follows the definition's execution placement rather than a manually
-maintained daemon catalogue. Daemon recovery distinguishes:
+During the current hardening phase, ADR-0008 limits daemon routing to optional
+transparent typed transport for eligible operations; it does not grant the daemon
+workspace, mutation, or operation-ledger ownership. Apply-capable commands remain
+in-process until the canonical mutation ledger exists and a separately reviewed
+change proves transparent transport parity and failure safety. Transport outcome
+distinguishes:
 
-- unavailable before dispatch, which may start/retry and safely use the same port
-  in-process; and
-- indeterminate after dispatch, which must not retry a mutation.
+- `NotDispatched`, where operation policy may permit retry or in-process selection;
+  and
+- `Indeterminate`, which never retries or falls back for a mutation.
 
-CLI and MCP use the same recovery component. Operational/bootstrap commands such as
+CLI and MCP use the same outcome-classification component. Operational/bootstrap commands such as
 `daemon`, `prime`, and `dump-help` remain host-owned and outside the ordinary
 application catalog.
 
@@ -134,6 +140,7 @@ new shared hosting project.
 - [ADR-0001](0001-core-service-thin-host-adapters.md)
 - [ADR-0003](0003-shared-command-descriptors-and-application-ports.md)
 - [ADR-0005](0005-daemon-centred-local-execution.md)
+- [ADR-0008](0008-daemon-transparent-passthrough-phase.md)
 - [Architecture overview](../architecture-overview.md)
 - [Command application-port migration playbook](../command-application-port-migration.md)
 - [rt-007](../issues/open/architecture/rt-007-shared-command-descriptors.md)

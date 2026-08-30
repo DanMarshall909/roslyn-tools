@@ -2,8 +2,8 @@
 
 - Status: Accepted
 - Date: 2026-08-27
-- Updated: 2026-08-28
-- Supersedes: the daemon-execution portions of [ADR-0005](0005-daemon-centred-local-execution.md) for the current hardening phase
+- Updated: 2026-08-30
+- Supersedes: the daemon-execution portions of [ADR-0005](0005-daemon-centred-local-execution.md), the warm-workspace and fallback portions of [ADR-0006](0006-mcp-lazy-daemon-lifetime.md), and daemon placement guidance in [ADR-0007](0007-host-neutral-command-contracts.md) for the current hardening phase
 - Related OpenSpec: [critical platform hardening](../../openspec/changes/critical-platform-hardening/proposal.md)
 
 ## Context
@@ -61,7 +61,9 @@ The transparent adapter must pass parity and failure-injection tests against dir
 - Legacy daemon routing is removed first from every mutation, then command by command from the canonical spine.
 - A lost response becomes a recoverable status query, not a reason to rerun work.
 - Daemon startup cost may remain with no warm-workspace performance benefit during this phase. That is accepted to avoid premature cache correctness and isolation complexity.
-- Existing daemon-centred statements are read through this temporary boundary and must be rewritten where they still imply workspace or mutation ownership.
+- Active migration guidance now marks apply-capable commands `InProcess` and
+  restricts `DaemonPreferred` to eligible read-only typed operations. Superseded ADRs
+  are status-marked and cross-linked here rather than treated as concurrent policy.
 - New daemon service work requires a separate approved OpenSpec change and ADR.
 
 ## Required evidence

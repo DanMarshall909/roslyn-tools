@@ -81,7 +81,8 @@ Companion documents:
 - [ ] Cancellation propagation test.
 - [ ] Thin CLI exit/rendering test.
 - [ ] Generic MCP structured success/error test.
-- [ ] Daemon/in-process parity for daemon-preferred commands.
+- [ ] Transparent-daemon/in-process parity for daemon-eligible read-only commands;
+  apply-capable commands remain in-process during the current hardening phase.
 - [ ] Mutations cover all supported review/dry-run/apply/no-op states and prove preview
   performs no write.
 - [ ] Line/branch coverage and in-scope Stryker threshold pass.
@@ -90,7 +91,7 @@ Companion documents:
 
 Command conversion agents edit only their assigned command, request/result/operation,
 direct service dependencies, and focused tests. The integration owner edits shared
-definitions/discovery, daemon routing/recovery, schema generation, mutation change-set
+definitions/discovery, transport routing/outcome classification, schema generation, mutation change-set
 abstractions, architecture ratchets, project references, generated snapshots, and
 documentation.
 

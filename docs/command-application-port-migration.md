@@ -4,6 +4,12 @@ This is the fan-out specification for converting the complete public command sur
 to the host-neutral application-port architecture in
 [ADR-0007](adr/0007-host-neutral-command-contracts.md).
 
+[ADR-0008](adr/0008-daemon-transparent-passthrough-phase.md) governs execution
+placement for the current hardening phase. `DaemonPreferred` below is restricted to
+eligible read-only typed operations. Any command with an apply-capable mode remains
+`InProcess` until the canonical mutation ledger exists and a separately reviewed
+change proves transparent-daemon parity and failure safety.
+
 ## Scope and baseline
 
 The machine-readable catalog currently contains 56 category commands:
@@ -26,7 +32,7 @@ CLI arguments ──> CLI binder ──┐
                                ├─> typed Request ─> application port ─> typed Result
 MCP JSON ──> generic adapter ───┘                         │
                                                          ├─ in process
-                                                         └─ typed daemon RPC
+                                                         └─ optional transparent typed daemon transport
 ```
 
 There is no command-specific MCP handler and no CLI output capture.
@@ -56,10 +62,15 @@ local substitutes.
    - Stop instantiating `System.CommandLine.Command` inside `ToolSchemaBuilder`.
 
 4. **Execution placement and recovery**
-   - Define `DaemonPreferred` and `InProcess` placement.
-   - Share daemon start/retry/fallback between CLI and MCP.
+   - Use `DaemonPreferred` only for eligible read-only typed operations and
+     `InProcess` for every apply-capable command during the current phase.
+   - Share typed transport startup and dispatch-outcome classification between CLI
+     and MCP; fallback is allowed only when `NotDispatched` and operation policy
+     permits it.
    - Distinguish unavailable-before-dispatch from indeterminate-after-dispatch.
    - Never retry or fall back for a mutation that may already have been accepted.
+   - Keep workspace, trust, preparation, mutation, and operation-ledger ownership in
+     the canonical application boundary, never in the daemon adapter.
 
 5. **Mutation envelope**
    - Support `Reviewed`, `DryRun`, `Applied`, and `NoOp` as distinct statuses.
@@ -310,7 +321,7 @@ Instructions:
   - route CLI through the shared execution router.
 - Preserve current public apply defaults. MCP safety projection remains centralized.
 
-Execution: DaemonPreferred, mutation.
+Execution: InProcess, mutation during the current hardening phase.
 
 ### M1 — mechanical one-workspace mutations
 
@@ -337,8 +348,8 @@ Instructions:
   - replace `MakeStaticService` integer/exit-code outcomes with typed failures;
   - preserve safe-delete evidence in the result.
 
-Execution: DaemonPreferred, apply-by-default mutation unless the existing command
-explicitly documents another default.
+Execution: InProcess, apply-by-default mutation during the current hardening phase
+unless the existing command explicitly documents another default.
 
 ### M2 — discriminated multi-mode mutations
 
@@ -359,7 +370,7 @@ Instructions:
 - Operation owns mode validation and returns typed invalid-mode errors.
 - Remove `Environment.ExitCode` and command-handler orchestration from shared logic.
 
-Execution: DaemonPreferred, apply-by-default mutation.
+Execution: InProcess, apply-by-default mutation during the current hardening phase.
 
 ### M3 — review-first mutations
 
@@ -377,7 +388,8 @@ Instructions:
   one preparation/write boundary.
 - Replace `StringBuilder`, prose result, and command-owned rendering with typed data.
 
-Execution: DaemonPreferred, review-by-default mutation.
+Execution: InProcess for the whole apply-capable command during the current hardening
+phase, including its review mode.
 
 ### M4 — high-impact multi-file and filesystem mutations
 
@@ -399,7 +411,7 @@ Instructions:
   - `narrow-dependency` returns a structured summary;
   - `extract-class` replaces exit-code mutation with typed failure.
 
-Execution: DaemonPreferred, apply-by-default mutation.
+Execution: InProcess, apply-by-default mutation during the current hardening phase.
 
 ## Fan-out ownership rules
 
@@ -413,7 +425,7 @@ Each conversion agent owns only:
 The integration owner exclusively owns:
 
 - application definition/discovery and DI infrastructure;
-- daemon routing/recovery and mutation change-set abstractions;
+- transport routing/outcome classification and mutation change-set abstractions;
 - schema generation;
 - architecture ratchets and coverage manifests;
 - shared suggested-action contracts;
@@ -431,7 +443,8 @@ snapshot, or project file in parallel.
 4. Cancellation propagation.
 5. CLI exit and renderer projection.
 6. MCP structured success/error through the generic adapter.
-7. Daemon and in-process parity for daemon-preferred commands.
+7. Transparent-daemon and in-process parity for daemon-eligible read-only commands;
+   apply-capable commands remain in-process until separately approved safety gates pass.
 8. Mutations only: review/dry-run/apply/no-op as applicable, complete changed-path list,
    and no write during preview.
 

@@ -1,8 +1,15 @@
 # ADR-0005: Daemon-centred local execution
 
-- Status: Accepted
+- Status: Superseded in part by [ADR-0008](0008-daemon-transparent-passthrough-phase.md)
 - Date: 2026-08-16
 - Stories: rt-012
+
+> **Current ruling:** ADR-0008 supersedes this ADR's daemon-owned workspace,
+> command-execution authority, and broad in-process recovery direction for the
+> current hardening phase. The daemon is now optional transparent typed transport;
+> it does not own workspace or mutation state, and dispatch ambiguity never causes
+> mutation replay. The decision below remains historical context and a possible
+> future direction requiring a new approved change.
 
 ## Context
 
@@ -65,5 +72,5 @@ daemon is unavailable.
 ## References
 
 - Commits: pending
-- Related ADRs: [ADR-0001](0001-core-service-thin-host-adapters.md), [ADR-0003](0003-shared-command-descriptors-and-application-ports.md), [ADR-0004](0004-portable-mcp-distribution.md)
+- Related ADRs: [ADR-0001](0001-core-service-thin-host-adapters.md), [ADR-0003](0003-shared-command-descriptors-and-application-ports.md), [ADR-0004](0004-portable-mcp-distribution.md), [ADR-0008](0008-daemon-transparent-passthrough-phase.md)
 - Related docs: [architecture overview](../architecture-overview.md), [rt-012](../issues/open/architecture/rt-012-portable-mcp-installation-and-distribution.md)
