@@ -81,7 +81,14 @@ trusted surface with deliberate user action can change the record; ordinary CLI,
 or daemon requests, repository content, and evaluator output cannot. The record is
 durably audited, and non-interactive callers cannot bootstrap trust.
 
-The isolated worker runs inside an OS-enforced allow-listed filesystem namespace.
+The isolated worker runs as a distinct least-privilege security identity inside
+OS-enforced process/PID, process-handle, IPC, filesystem, and network namespaces or
+equivalent sandbox boundaries. It cannot authenticate as or impersonate the host user,
+enumerate/open/debug/signal/inject into host processes, or reach undeclared pipes,
+sockets, shared memory, or other same-machine IPC. It inherits no ambient handles;
+only bounded schema-validated operation-scoped supervisor channels are present, and
+every child remains in the same containment and resource limits.
+
 The namespace exposes only the repository through a read-only mount or equivalent
 handle boundary, explicitly declared read-only SDK/package/tool inputs, and separate
 disposable writable build-output, intermediate, analyzer/package-cache, and
@@ -95,8 +102,9 @@ a separate trusted broker that executes no repository code, accepts only
 policy-allow-listed registries and user-reviewed lockfile-pinned coordinates, verifies
 content hashes/signatures, and materializes the results as declared read-only worker
 inputs. Missing inputs stop evaluation with a typed diagnostic; they do not trigger
-restore from inside the worker. If the platform cannot prove filesystem containment
-and network egress denial, `IsolatedWorker` evaluation is refused.
+restore from inside the worker. If the platform cannot prove identity separation,
+process/handle/IPC isolation, filesystem containment, and network egress denial,
+`IsolatedWorker` evaluation is refused.
 Repository-controlled tasks, analyzers, or generators that attempt repository
 writes or undeclared host reads are denied and audited; evaluator completion never
 copies undeclared writes back into the checkout. If the platform cannot establish

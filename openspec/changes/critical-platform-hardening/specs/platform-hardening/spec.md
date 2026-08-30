@@ -34,16 +34,26 @@ allow-listed filesystem namespace that exposes only declared read-only inputs an
 disposable writable outputs; it SHALL NOT expose ambient host paths or credentials.
 
 Every `IsolatedWorker` phase capable of executing untrusted repository-controlled code
-SHALL run in an OS-enforced networkless namespace with no DNS, socket, loopback, proxy,
-or external egress; policy SHALL NOT enable networking inside that phase. Required
-SDK/package/tool acquisition SHALL occur beforehand through a separate trusted broker
+SHALL run under a distinct least-privilege security identity that cannot authenticate
+as or impersonate the host user. OS-enforced process/PID, process-handle, and IPC
+isolation SHALL prevent the worker and its descendants from enumerating, opening,
+debugging, signalling, injecting into, or exchanging undeclared IPC with host or other
+same-machine processes. The worker SHALL inherit no ambient handles and SHALL expose
+only bounded schema-validated supervisor channels created specifically for that
+operation; child processes SHALL remain inside the same containment and resource
+limits.
+
+The worker SHALL also run in an OS-enforced networkless namespace with no DNS, socket,
+loopback, proxy, or external egress; policy SHALL NOT enable networking inside that
+phase. Required SDK/package/tool acquisition SHALL occur beforehand through a
+separate trusted broker
 that executes no repository code, accepts only policy-allow-listed registries and
 user-reviewed lockfile-pinned coordinates, rejects repository-generated URLs, proxy
 settings, restore hooks, and dynamic evaluator output, verifies content hashes and
 signatures, and exposes results as declared read-only worker inputs. Missing inputs
 SHALL produce a typed diagnostic rather than trigger restore inside the worker. A
-platform that cannot prove both filesystem containment and egress denial SHALL refuse
-untrusted evaluation.
+platform that cannot prove filesystem, process/handle, IPC, identity, and egress
+containment SHALL refuse untrusted evaluation.
 
 `NoEvaluation` SHALL NOT mean unrestricted host reads. For an untrusted repository,
 every host-side repository read SHALL use one handle-relative reader rooted at the
@@ -87,6 +97,13 @@ boundary SHALL run inside the allow-listed `IsolatedWorker` namespace or be refu
 - **THEN** the OS-enforced networkless namespace denies the attempt and no checkout or declared input content leaves the worker
 - **AND THEN** network access cannot be enabled for any phase in which untrusted repository code executes
 - **AND THEN** missing SDK/package/tool inputs produce a typed diagnostic rather than an in-worker restore
+
+#### Scenario: isolated repository code targets a host process or IPC object
+
+- **WHEN** repository-controlled code attempts to inspect, signal, debug, inject into, open a handle to, or communicate through an undeclared pipe, socket, shared-memory object, or other IPC endpoint owned by the host user or another process
+- **THEN** the distinct low-privilege identity and OS-enforced process/handle/IPC boundary deny the attempt
+- **AND THEN** only the operation-scoped bounded schema-validated supervisor channels are reachable, all descendants remain contained, and the denied attempt is reported without exposing host data
+- **AND THEN** evaluation is refused on a platform that cannot prove this isolation
 
 #### Scenario: dependencies are acquired for a future isolated evaluation
 
