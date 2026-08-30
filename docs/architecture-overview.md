@@ -338,8 +338,14 @@ digests into a cumulative accumulator, advances a monotonic `RetiredThroughEpoch
 watermark, and only then deletes individual records. Pinned/live records resolve
 first. Every otherwise unknown ID at or below the watermark returns
 `OperationEpochRetired`, never `NotRecorded` or executable work. The watermark and
-accumulator are constant-size and never move backward; identity retirement preserves
-their final values in one permanent marker.
+accumulator are constant-size and never move backward. Identity retirement is a
+separate `RetirementPending` fence that blocks new mutation/transfer but preserves
+status/recovery while all epochs seal, active work quiesces, recovery and cleanup
+finish (or recovery is explicitly acknowledged), pinned records release, and retained outcomes compact
+through the final issued epoch. Only then does one transaction replace the live
+mapping with a permanent marker containing the final watermark/accumulator, physical
+binding, generations, actor/reason/time, and audit root. A pinned operation therefore
+can never lose its only status or recovery key.
 
 ### 7. Transport contract
 

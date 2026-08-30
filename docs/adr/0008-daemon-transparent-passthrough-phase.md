@@ -64,6 +64,12 @@ and accumulator; repository IDs and operation epoch numbers are never reused.
 Admission reserves the bounded ledger, terminal-outcome, and recovery-metadata space
 an accepted operation may need, so quota exhaustion cannot prevent truthful state.
 
+Retirement first enters `RetirementPending`, blocks new mutation and transfer, and
+preserves status/recovery until every intake, owner, reservation, nonterminal,
+recovery, cleanup, pinned, and retained-outcome record is resolved and compacted
+through the final issued epoch. Only then may one transaction replace live routing
+with the permanent marker. A pinned operation never loses its composite status key.
+
 ### Permitted fallback
 
 A host may select in-process execution only when the transport proves `NotDispatched`. `Indeterminate` is surfaced unchanged and never triggers automatic mutation retry or in-process fallback. Explicit same-operation resubmission is allowed only after durable `NotRecorded` resolution, before the operation epoch seals, and requires its request hash and replay epoch. A sealed or retired epoch is non-replayable; a new attempt requires a current-epoch operation ID. Read-only retry behaviour must be explicitly declared and must still preserve the canonical request context and result contract.

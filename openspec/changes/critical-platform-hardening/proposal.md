@@ -129,6 +129,13 @@ removed. Bounded live/recovery exceptions remain pinned. Any delayed unknown req
 from a retired epoch returns `OperationEpochRetired`, never `NotRecorded` or execution,
 so replay safety no longer requires one permanent record per operation.
 
+Repository retirement first enters `RetirementPending`: new mutation and transfer are
+blocked while status/recovery remain available, all epochs seal, active operations
+quiesce, recovery finishes or is acknowledged, cleanup verifies, pinned records release, and
+retained outcomes compact through the final issued epoch. Only then can the live
+mapping become a permanent retired marker. Retirement can never strand an operation's
+only status/recovery key.
+
 A failed or interrupted rollback is never reported as clean rollback. The operation enters durable intervention state `RecoveryRequired`; its journal, backups, diagnostics, and deterministic recovery guidance are retained until recovery or explicit acknowledgement. Recovery appends `Recovering` and ends as `RecoveredApplied`, `RecoveredRolledBack`, or another evidence-bearing `RecoveryRequired`. `RecoveryAcknowledged` is an explicit administrative handoff and never claims the repository is clean.
 
 Every `Applying` record has a renewable owner lease. Expired owners transition
@@ -169,6 +176,7 @@ results or diagnostics.
 - No apply-capable legacy daemon or MCP bridge can automatically replay a mutation after dispatch ambiguity.
 - A caller obtains an authenticated bounded operation epoch and constructs the operation ID before dispatch; after a lost response it can query a durable receipt/current outcome, obtain authoritative `NotRecorded` replay only while that epoch remains open, or receive a non-replayable sealed/retired result once it closes.
 - Operation retention is bounded by epoch/time/count/byte and pinned-exception quotas; compaction advances one monotonic rejection watermark/accumulator before deleting individual outcomes, so aged-out work cannot execute and the store does not grow one permanent record per operation.
+- Repository retirement preserves status and recovery until every active, recovery, cleanup, pinned, and retained record is resolved and compacted; only a fully quiescent identity can become a reject-only marker.
 - A shared writable checkout either has one enforced cross-principal/cross-host coordination authority or remains inspect-only; no second OS user or host can bypass `RecoveryRequired` through separate private state.
 - A new checkout can be enrolled explicitly under an authority fence, while lost registry continuity can never masquerade as first enrollment or reset a repository identity.
 - Ownership transfer preserves identity and cannot rotate the writer domain until all intake, reservations, active operations, and recovery barriers are fenced and quiescent.

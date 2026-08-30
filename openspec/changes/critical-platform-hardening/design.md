@@ -145,6 +145,7 @@ GetOperation(repositoryId, operationId, requestIdentity?, operationEpochToken?) 
 CancelOperation(repositoryId, operationId) -> OperationStatus
 Recover(repositoryId, operationId, recoveryAction) -> RecoveryResult
 TransferRepositoryOwnership(repositoryId, transferRequest) -> RepositoryIdentity
+RetireRepositoryIdentity(repositoryId, retirementRequest) -> RepositoryIdentityStatus
 ```
 
 ### Mutation coordination domain
@@ -374,8 +375,25 @@ operation whose epoch is at or below `RetiredThroughEpoch` returns durable
 request cannot execute after compaction even though its individual outcome is no
 longer retained. The accumulator and watermark are constant-size per repository and
 normal retention cannot move them backward. Explicit repository-identity retirement
-atomically writes a permanent retired-repository marker carrying the final watermark
-and accumulator; repository IDs and operation epoch numbers are never reused.
+is distinct from ownership transfer and first enters a durable `RetirementPending`
+fence that blocks new epochs, apply-capable preparation, intake, replay, and transfer
+while preserving status, cancellation, cleanup, acknowledgement, and recovery access.
+Under the existing repository identity/reservation, it seals all epochs and waits for
+or reconciles every intake attempt, receipt promotion, live owner, reservation, and
+nonterminal operation. Every `RecoveryRequired` record must reach verified recovery or
+terminal `RecoveryAcknowledged`, every cleanup-pending record must verify cleanup, and
+no plan/recovery/cleanup record may remain pinned. Every retained terminal replay
+window must elapse and its record must be compacted so `RetiredThroughEpoch` covers
+every issued epoch.
+
+Only after those preconditions are durably proven does one transaction replace the
+live mapping with a permanent retired-repository marker carrying the final watermark,
+accumulator, physical binding, maximum repository/operation generation, retirement
+actor/reason/time, and final audit root (including any acknowledgement summaries).
+After commit there is no operation that can still require status or recovery, so every
+later request carrying the retired repository ID is rejected before intake. If
+quiescence or cleanup cannot be proven, retirement remains pending or fails without
+removing access. Repository IDs and operation epoch numbers are never reused.
 
 ### Prepared plan contents
 

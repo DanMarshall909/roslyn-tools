@@ -426,9 +426,27 @@ bounded pinned-exception index; reaching its cap SHALL block new mutation admiss
 Lookup SHALL resolve pinned/live records before the watermark. An otherwise unknown
 operation at or below the watermark SHALL return `OperationEpochRetired` and SHALL
 NOT create `NotRecorded`, authorize replay, or execute. The watermark and accumulator
-SHALL never move backward. Repository/epoch identifiers SHALL never be reused, and
-repository retirement SHALL preserve the final watermark/accumulator in one permanent
-retired-repository marker.
+SHALL never move backward. Repository/epoch identifiers SHALL never be reused.
+
+Repository-identity retirement SHALL be distinct from ownership transfer and SHALL
+first enter a durable `RetirementPending` fence that blocks new epochs, apply-capable
+preparation, intake, replay, and transfer while preserving status, cancellation,
+cleanup, acknowledgement, and recovery access. Under the existing repository identity
+and reservation, retirement SHALL seal all epochs and wait for or reconcile every
+intake attempt, receipt promotion, live owner, reservation, and nonterminal operation.
+Every `RecoveryRequired` record SHALL reach verified recovery or terminal
+`RecoveryAcknowledged`; every cleanup-pending record SHALL verify cleanup; no
+plan/recovery/cleanup record SHALL remain pinned; and every retained terminal replay
+window SHALL elapse and compact so `RetiredThroughEpoch` covers every issued epoch.
+
+Only after those preconditions are durably proven SHALL one transaction replace the
+live mapping with a permanent retired-repository marker carrying the final watermark,
+accumulator, physical binding, maximum repository/operation generation, retirement
+actor/reason/time, and final audit root including acknowledgement summaries. After
+commit no operation may remain that requires status or recovery, and every later
+request carrying the retired repository ID SHALL be rejected before intake. If
+quiescence or cleanup cannot be proven, retirement SHALL remain pending or fail
+without removing status/recovery access.
 
 #### Scenario: a caller constructs the canonical request hash
 
@@ -469,8 +487,16 @@ retired-repository marker.
 #### Scenario: a repository identity is explicitly retired
 
 - **WHEN** an administrator retires a canonical repository identity
-- **THEN** the store first commits a permanent retired-repository marker containing the final operation-epoch watermark and accumulator
-- **AND THEN** the retired repository ID is never reused and every later request carrying it is rejected before intake
+- **THEN** the authority enters `RetirementPending`, blocks new mutation admission/transfer, and keeps status, cleanup, acknowledgement, and recovery available
+- **AND THEN** it seals epochs and proves every intake/reservation/owner/nonterminal state is quiescent, every recovery or cleanup record is resolved, no record remains pinned, and every retained outcome is compacted through the final issued epoch
+- **AND THEN** it atomically commits the permanent marker with final watermark, accumulator, physical binding, generations, actor/reason/time, and audit root
+- **AND THEN** only after no operation can require status or recovery does every later request carrying the never-reused repository ID reject before intake
+
+#### Scenario: retirement encounters pinned recovery work
+
+- **WHEN** retirement finds a nonterminal, `RecoveryRequired`, cleanup-pending, retained replay-window, or otherwise pinned record
+- **THEN** it does not commit the retired-repository marker or remove status/recovery access
+- **AND THEN** it waits for verified terminal cleanup/recovery/compaction or fails with the blocking identities and required action
 
 #### Scenario: the first response is lost
 
