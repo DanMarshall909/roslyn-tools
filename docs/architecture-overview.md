@@ -85,7 +85,7 @@ Every operation receives explicit, absolute request context:
 - request ID and, for apply, a caller-known structured operation ID from a bounded authority-issued epoch;
 - repository root and solution path;
 - configuration and SDK/target-framework selection;
-- repository trust state and evaluator mode/policy;
+- requested trust constraint, authority-derived effective repository trust, and evaluator mode/policy;
 - cancellation and resource budget; and
 - source/revision identity where applicable.
 
@@ -95,9 +95,17 @@ Operations do not infer repository identity from process current directory and d
 
 Loading an MSBuild solution can evaluate repository-controlled build logic and can involve analyzers or generators. A local checkout is not automatically trusted.
 
-Workspace requests carry two independent values. Repository trust state is
-**Trusted** after an explicit scoped decision or **Untrusted** when that decision is
-absent or revoked. Evaluator mode is one of:
+Effective trust comes from the OS/service-protected authenticated-principal-scoped
+registry defined by [ADR-0011](adr/0011-authoritative-trust-and-evaluator-isolation.md).
+It binds canonical repository identity to verified physical identity. A request trust
+value can constrain or assert an expected state but cannot elevate it. Only deliberately
+invoked authenticated grant/revoke operations through a trusted surface change the
+audited record; absent, revoked, unreadable, mismatched, stale-binding, or
+non-interactively bootstrapped decisions are `Untrusted`.
+
+Workspace acquisition and provenance carry two independent values. Effective
+repository trust is **Trusted** after an authoritative explicit scoped decision or
+**Untrusted** when that decision is absent or revoked. Evaluator mode is one of:
 
 - **NoEvaluation** — only operations proven not to invoke repository-controlled code may run; for untrusted repositories, every host read also uses the root-contained safe-reader boundary below.
 - **InProcess** — repository-controlled evaluation may run in the request host and is valid only for a trusted repository.
@@ -105,10 +113,14 @@ absent or revoked. Evaluator mode is one of:
 
 An untrusted repository can use `NoEvaluation` or `IsolatedWorker`, never
 `InProcess`. A trusted repository may still request `IsolatedWorker`; choosing
-isolation does not change or imply its trust state. The isolated worker receives an
-OS-enforced allow-listed filesystem namespace containing only the read-only
-repository, declared read-only SDK/package/tool inputs, and separate disposable
-writable output, cache, and temporary locations outside the checkout. Host roots,
+isolation does not change or imply its trust state. The isolated worker runs under a
+distinct least-privilege identity with OS-enforced process/PID, process-handle, and IPC
+isolation. It cannot impersonate the host user, inspect/control host processes, reach
+undeclared IPC, or inherit ambient handles; only bounded schema-validated
+operation-scoped supervisor channels are available and every child remains contained.
+The worker also receives an OS-enforced allow-listed filesystem namespace containing
+only the read-only repository, declared read-only SDK/package/tool inputs, and separate
+disposable writable output, cache, and temporary locations outside the checkout. Host roots,
 user profiles, credentials, SSH material, undeclared package caches, and devices are
 not visible. The worker has bounded resources, no inherited secrets, and no network
 during any phase that executes untrusted repository code. Required packages and tools
@@ -116,8 +128,8 @@ are acquired beforehand by a separate trusted broker that executes no repository
 accepts only reviewed lockfile-pinned coordinates from allow-listed registries, and
 verifies hashes/signatures before mounting them read-only. Missing inputs never trigger
 restore inside the worker. Repository write attempts, undeclared host reads, and all
-network egress are denied and recorded; platforms that cannot prove both filesystem
-and egress isolation refuse untrusted evaluation.
+network egress are denied and recorded; platforms that cannot prove identity,
+process/handle/IPC, filesystem, and egress isolation refuse untrusted evaluation.
 
 Long-lived CLI, MCP, and daemon hosts never evaluate an untrusted repository in-process.
 
