@@ -122,8 +122,11 @@ so replay safety no longer requires one permanent record per operation.
 A failed or interrupted rollback is never reported as clean rollback. The operation enters durable intervention state `RecoveryRequired`; its journal, backups, diagnostics, and deterministic recovery guidance are retained until recovery or explicit acknowledgement. Recovery appends `Recovering` and ends as `RecoveredApplied`, `RecoveredRolledBack`, or another evidence-bearing `RecoveryRequired`. `RecoveryAcknowledged` is an explicit administrative handoff and never claims the repository is clean.
 
 Every `Applying` record has a renewable owner lease. Expired owners transition
-through bounded `Reconciling` work on startup or status lookup, and finish only as a
-verified apply, verified rollback, or `RecoveryRequired`. A monotonically increasing
+through bounded `Reconciling` work on startup or status lookup. An intact journal with
+no `FirstEffectStarted` permit can prove no repository effect, allowing revalidated
+no-effect cancellation, stale, unsafe-coordination, or expiry outcomes without
+rolling back external drift. Otherwise reconciliation finishes only as a verified
+apply, verified rollback, or `RecoveryRequired`. A monotonically increasing
 fencing epoch and one OS-enforced exclusive repository transaction reservation,
 held from final preflight through durable terminal completion or recovery handoff,
 prevent overlapping plans and stop a resumed superseded owner after takeover.
@@ -170,6 +173,7 @@ results or diagnostics.
 - A superseded owner resumed after lease takeover is fenced from every further repository side effect.
 - Pre-effect drift is rejected without writes; drift after a journalled effect stops the remaining plan and produces verified rollback or `RecoveryRequired`, never stale rejection or applied success.
 - Overlapping apply/recovery plans for one repository cannot interleave between final preflight and durable terminal state, and `RecoveryRequired` blocks unrelated apply until verified recovery or explicit acknowledgement.
+- An owner lost before `FirstEffectStarted` can reconcile stale preflight to `RejectedStale` only with durable no-effect proof; ambiguous or possibly effected state never masquerades as stale or rolled back.
 - Fault injection proves complete success, complete rollback, verified post-recovery state, or truthful `RecoveryRequired`; partial application is never labelled `Applied`.
 - No workspace is `Complete` unless every operation-required project, compilation context, reference, build input, document, and generator/analyzer stage is accounted for; no proof-strength finding or deletion suggestion is emitted from partial input or an externally visible symbol without an explicit proof basis.
 - Trust/evaluator tests cover untrusted isolated evaluation and trusted opt-in isolation; repository-controlled build logic cannot write through the isolated worker's read-only checkout, read undeclared host files, or execute in a privileged long-lived host.

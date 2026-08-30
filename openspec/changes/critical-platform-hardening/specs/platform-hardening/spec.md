@@ -492,6 +492,15 @@ remain no-effect terminal outcomes. `RecoveryRequired` SHALL be a durable interv
 `NotRecorded`, `Prepared`, `Applying`, `Recovering`, and `Reconciling` are nonterminal
 or dormant resolution states.
 
+An apply reconciler MAY transition from `Reconciling` to `CancelledNoEffect`,
+`RejectedStale`, `RejectedUnsafeCoordination`, or `Expired` only while holding the
+fenced repository reservation and after verifying an intact ledger/journal containing
+no `FirstEffectStarted` permit and proving no repository effect was possible. It SHALL
+rerun final preflight before selecting the applicable no-effect outcome and SHALL NOT
+roll back unrelated external drift. If no-effect proof is absent or contradictory, it
+SHALL resolve the possibly effected journal to `Applied` or `RolledBack`, or retain
+evidence in `RecoveryRequired`.
+
 #### Scenario: two apply plans target the same repository
 
 - **WHEN** two apply or recovery requests for the same canonical repository overlap
@@ -524,7 +533,15 @@ or dormant resolution states.
 #### Scenario: stale reviewed plan is applied
 
 - **WHEN** a file, repository revision, path type, symlink target, or other declared precondition changes after review and the change is detected before the first repository effect
-- **THEN** apply returns a stale-plan rejection before writing any path
+- **THEN** apply returns `RejectedStale` before writing any path
+
+#### Scenario: an apply owner expires before its first effect and preflight is stale
+
+- **WHEN** an `Applying` owner lease expires before `FirstEffectStarted` and a reviewed dependency drifts before startup or status reconciliation
+- **THEN** the reconciler acquires the fenced repository reservation and proves from the intact ledger/journal that no first-effect permit or repository effect was possible
+- **AND THEN** it reruns final preflight, records the observed drift, and transitions `Reconciling` to `RejectedStale`
+- **AND THEN** it performs only idempotent outside-repository control-artifact cleanup, does not roll back the external change, and records no repository effect
+- **AND THEN** if no-effect proof is incomplete or contradictory, it records `RecoveryRequired` instead of `RejectedStale`
 
 #### Scenario: a reviewed precondition drifts after an effect
 
@@ -579,9 +596,9 @@ or dormant resolution states.
 - **THEN** the request records cancellation but continues recovery-critical verification or rollback
 - **AND THEN** the terminal state truthfully reports the observed repository condition
 
-#### Scenario: the apply process exits after a side effect
+#### Scenario: the apply process exits after a side effect may have started
 
-- **WHEN** an operation record remains `Applying` after its owner lease expires
+- **WHEN** an operation record remains `Applying` after its owner lease expires and `FirstEffectStarted` exists or durable evidence cannot exclude an effect
 - **THEN** process startup or `GetOperation` atomically claims one reconciliation lease and transitions the record to `Reconciling`
 - **AND THEN** the reconciler verifies the persisted plan, journal, backups, staged files, affected-path identities, and observed hashes
 - **AND THEN** it completes a provably finished apply, resumes or rolls back only from a declared journal boundary, or enters `RecoveryRequired`

@@ -242,7 +242,12 @@ The ledger keeps an append-only transition history as well as the current state.
 An `Applying` owner that disappears cannot leave a permanent nonterminal record.
 Startup and status lookup claim an expired lease exactly once, transition through
 `Reconciling`, and use the durable plan, journal, backups, and observed hashes to
-prove `Applied`, prove `RolledBack`, or require explicit recovery. An expired
+prove `Applied`, prove `RolledBack`, or require explicit recovery. If the fenced
+reconciler instead proves the intact journal has no `FirstEffectStarted` permit and no
+repository effect was possible, it reruns final preflight and may record the applicable
+`CancelledNoEffect`, `RejectedStale`, `RejectedUnsafeCoordination`, or `Expired`
+outcome without reverting external drift; ambiguous evidence is `RecoveryRequired`.
+An expired
 `Recovering` owner is reconciled under the same reservation, lease, and fencing
 rules and ends as `RecoveredApplied`, `RecoveredRolledBack`, or
 `RecoveryRequired`.

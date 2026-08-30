@@ -123,7 +123,7 @@ retries, crashes, or process restarts.
 - Acquire OS-enforced guards for every reviewed dependency/target or use atomic conditional effects so non-`rt` writers cannot win between validation and effect; advisory locks and unconditional replacement are insufficient.
 - Journal staging intent first, then stage only under a coordination-domain-protected operation root outside the repository, preferably on the same volume; make crash cleanup idempotent.
 - Use the same intake fence when cancellation races receipt-to-ledger promotion, then atomically arbitrate it against a durable `FirstEffectStarted` permit containing the complete effect intent and guard/version evidence; cancellation wins as `CancelledNoEffect` with no-effect proof, artifact inventory, and replay-safe cleanup status.
-- Preflight every condition and revalidate the expected intermediate state, remaining plan dependencies, containment, file identity, and link count at every side effect.
+- Preflight every condition and revalidate the expected intermediate state, remaining plan dependencies, containment, file identity, and link count at every side effect; allow expired-owner reconciliation to return a no-effect stale rejection only when the intact journal proves no `FirstEffectStarted` permit or repository effect was possible.
 - Restrict stale rejection to drift found before the first effect; mid-apply drift must stop, journal evidence, and reach verified rollback or `RecoveryRequired`.
 - Journal and apply deterministically with atomic per-file replacement where supported.
 - Verify postconditions before `Applied`.

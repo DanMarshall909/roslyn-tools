@@ -379,9 +379,16 @@ Prepared
        -> Applied
        -> RolledBack
        -> CancelledNoEffect  (only while FirstEffectStarted is absent)
+       -> RejectedStale  (only while FirstEffectStarted is absent)
+       -> RejectedUnsafeCoordination  (only while FirstEffectStarted is absent)
+       -> Expired  (only while FirstEffectStarted is absent)
        -> Reconciling
             -> Applied
             -> RolledBack
+            -> CancelledNoEffect  (only when NoEffectProven)
+            -> RejectedStale  (only when NoEffectProven)
+            -> RejectedUnsafeCoordination  (only when NoEffectProven)
+            -> Expired  (only when NoEffectProven)
             -> RecoveryRequired
        -> RecoveryRequired
   -> CancelledNoEffect
@@ -413,6 +420,15 @@ RecoveryRequired
             -> RecoveryRequired
   -> RecoveryAcknowledged
 ```
+
+`NoEffectProven` means the reconciler holds the fenced repository reservation and has
+verified an intact ledger/journal with no `FirstEffectStarted` permit and no possible
+repository effect. Outside-repository staging and its idempotent cleanup do not count
+as repository effects. Under that proof, reconciliation reruns final preflight and may
+record the applicable no-effect cancellation, stale, unsafe-coordination, or expiry
+outcome without reverting external drift. If the proof is absent or contradictory,
+the reconciler cannot use a no-effect terminal state and must resolve the possibly
+effected journal or enter `RecoveryRequired`.
 
 The ledger stores a current state for lookup plus an append-only transition history.
 No recovery action rewrites or erases the original `RecoveryRequired` event. Direct
@@ -621,9 +637,13 @@ If that protection cannot be re-established, it records `RecoveryRequired` and p
 rollback, replace, move, delete, or restore.
 
 The reconciler verifies the plan hash, journal, backups, staged files, affected-path
-identities, and observed pre/post hashes. It then deterministically completes a
-provably finished apply, resumes or rolls back only from a declared journal boundary,
-or enters `RecoveryRequired` with retained evidence. An operation cannot remain
+identities, and observed pre/post hashes. If the intact journal proves no
+`FirstEffectStarted` permit exists and no repository effect was possible, it reruns
+final preflight and may terminate as `CancelledNoEffect`, `RejectedStale`,
+`RejectedUnsafeCoordination`, or `Expired`; it does not roll back unrelated external
+drift. Otherwise it deterministically completes a provably finished apply, resumes or
+rolls back only from a declared journal boundary, or enters `RecoveryRequired` with
+retained evidence. An operation cannot remain
 `Applying` indefinitely after its owner disappears, and ambiguous state is never
 reported as `Applied` or silently replayed.
 
