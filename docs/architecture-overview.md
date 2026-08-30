@@ -354,6 +354,14 @@ before its operation epoch seals; a delayed original is fenced out. A sealed or
 retired epoch never authorizes replay and requires a current-epoch operation ID for a
 new attempt.
 
+Cancellation is `NotDispatched` only when no request bytes were accepted. Once any
+bytes are accepted, cancelling or timing out the response wait is `Indeterminate`,
+even before `Received` is durable; it is not an ordinary cancelled operation result.
+The caller retains the same ID and status resolution races receipt creation under the
+same intake fence. A winning `Received` is cancelled idempotently through the canonical
+operation; a winning `NotRecorded` fences the receiver, and an in-flight receiver keeps
+status indeterminate. No new apply or operation ID is created automatically.
+
 For the current hardening phase, the daemon is an optional transparent typed transport adapter under [ADR-0008](adr/0008-daemon-transparent-passthrough-phase.md). It has no workspace cache, operation authority, CLI argument bridge for mutations, process-global request context, or raw payload logging. It must preserve the same typed observable result as direct execution.
 
 ## Output pipeline

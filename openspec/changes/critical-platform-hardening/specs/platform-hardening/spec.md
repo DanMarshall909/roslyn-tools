@@ -654,7 +654,37 @@ evidence in `RecoveryRequired`.
 
 ### Requirement: indeterminate mutation dispatch is never replayed automatically
 
-Mutation transport SHALL classify caller knowledge as `NotDispatched`, `Completed`, or `Indeterminate`. An `Indeterminate` mutation SHALL NOT be retried or run in-process automatically. An explicit same-operation resubmission SHALL be permitted only after status lookup durably returns authoritative `NotRecorded` with a replay epoch and only before the operation epoch seals. A sealed operation epoch SHALL return `OperationEpochSealed` for an otherwise unknown ID; a retired operation epoch SHALL return `OperationEpochRetired`. Neither SHALL authorize replay.
+Mutation transport SHALL classify caller knowledge as `NotDispatched`, `Completed`, or `Indeterminate`. An `Indeterminate` mutation SHALL NOT be retried or run in-process automatically. Cancellation before any request bytes are accepted MAY return `NotDispatched`. Once any request bytes are accepted, cancellation or timeout of the caller's wait SHALL return `Indeterminate`, never an ordinary cancelled operation result, even if `Received` is not yet durable. The receiver SHALL NOT use transport cancellation as permission to abandon the intake critical section without durable resolution.
+
+After pre-receipt cancellation, the caller SHALL retain the same operation ID, send no
+new apply, and query status. Receipt creation and authoritative `NotRecorded`
+resolution SHALL contend under the same intake fence. If `Received` wins, status SHALL
+expose that canonical operation and explicit idempotent cancellation SHALL target that
+identity; if `NotRecorded` wins, a delayed receiver SHALL be rejected. While a receiver
+lease remains in flight, status SHALL remain indeterminate rather than infer absence.
+An intake receiver SHALL register a bounded renewable `IntakeAttempt` lease under the
+fence; status SHALL create `NotRecorded` only after the lease is absent or expires,
+and a later receiver SHALL require the one-use replay epoch rather than revive the
+original attempt.
+An explicit same-operation resubmission SHALL be permitted only after status lookup
+durably returns authoritative `NotRecorded` with a replay epoch and only before the
+operation epoch seals. A sealed operation epoch SHALL return `OperationEpochSealed`
+for an otherwise unknown ID; a retired operation epoch SHALL return
+`OperationEpochRetired`. Neither SHALL authorize replay.
+
+#### Scenario: cancellation races durable intake
+
+- **WHEN** a caller cancels after mutation request bytes are accepted but before it has received proof of durable `Received`
+- **THEN** transport returns `Indeterminate` with the caller-known repository/operation identity and does not report ordinary operation cancellation
+- **AND THEN** the caller submits no new apply and resolves that identity through status under the intake fence
+- **AND THEN** either receipt creation wins and explicit cancellation targets the resulting canonical operation, or authoritative `NotRecorded` wins and fences the delayed receiver
+- **AND THEN** an in-flight receiver's bounded `IntakeAttempt` lease keeps status indeterminate until the attempt resolves or expires
+
+#### Scenario: cancellation occurs before dispatch
+
+- **WHEN** cancellation wins before any mutation request bytes are accepted
+- **THEN** transport may return `NotDispatched` and no canonical operation result is manufactured
+- **AND THEN** operation policy may permit later dispatch of the same canonical request and caller-known identity, but no accepted operation result is inferred
 
 #### Scenario: daemon response is lost after dispatch
 

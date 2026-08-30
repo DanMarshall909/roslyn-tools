@@ -68,6 +68,13 @@ an accepted operation may need, so quota exhaustion cannot prevent truthful stat
 
 A host may select in-process execution only when the transport proves `NotDispatched`. `Indeterminate` is surfaced unchanged and never triggers automatic mutation retry or in-process fallback. Explicit same-operation resubmission is allowed only after durable `NotRecorded` resolution, before the operation epoch seals, and requires its request hash and replay epoch. A sealed or retired epoch is non-replayable; a new attempt requires a current-epoch operation ID. Read-only retry behaviour must be explicitly declared and must still preserve the canonical request context and result contract.
 
+Cancellation is `NotDispatched` only when no request bytes were accepted. After any
+bytes are accepted, cancelling the response wait returns `Indeterminate` even if the
+durable receipt is not yet visible. The caller keeps the same operation ID and uses
+status resolution under the intake fence: `Received` wins and canonical cancellation
+targets that operation, or authoritative `NotRecorded` wins and fences the delayed
+receiver. An in-flight receiver is not inferred absent, and no new apply is issued.
+
 ### Process and endpoint isolation
 
 The daemon carries absolute request context. It does not use or mutate process current directory, global console state, global exit code, or arbitrary environment as operation context.

@@ -142,6 +142,7 @@ Prepare(request) -> PreparedChangeSet
 GetOperationEpoch(repositoryId) -> OperationEpochToken
 Apply(repositoryId, planId, planHash, operationEpochToken, operationId, requestHash, expectedRevision, replayEpoch?) -> ApplyResult
 GetOperation(repositoryId, operationId, requestIdentity?, operationEpochToken?) -> OperationStatus
+CancelOperation(repositoryId, operationId) -> OperationStatus
 Recover(repositoryId, operationId, recoveryAction) -> RecoveryResult
 ```
 
@@ -676,9 +677,32 @@ separately declared retry policy, but a retry still uses the same request contex
 operation contract.
 
 Cancellation before durable `Received` remains transport knowledge and does not
-manufacture an operation result. Once acceptance is durable, cancellation is part of
-the canonical operation: status returns its current state or `CancelledNoEffect`,
-including after the original transport response is lost.
+manufacture an operation result. If cancellation wins before any request bytes are
+accepted, transport may return `NotDispatched`. Once any request bytes are accepted,
+cancelling or timing out the caller's wait returns `Indeterminate`, never an ordinary
+cancelled operation result, even when `Received` has not yet been committed. The
+receiver treats transport cancellation as cancellation of the response wait, not
+permission to abandon the intake critical section silently.
+
+The caller retains the same operation ID, sends no new apply, and resolves status
+through `GetOperation`. The receiver's receipt creation and the resolver's
+authoritative `NotRecorded` transition contend under the same intake fence: if
+`Received` wins, status exposes that canonical operation; if `NotRecorded` wins, the
+delayed receiver is rejected. While a receiver lease remains in flight, status remains
+indeterminate rather than inferring absence. A receiver that enters intake registers a
+bounded renewable `IntakeAttempt` lease under the fence; cancellation stops response
+waiting, not the lease protocol, and status may create `NotRecorded` only after the
+lease is absent/expired. A receiver arriving after `NotRecorded` cannot obtain intake
+without the one-use replay epoch. If the caller intended to cancel the
+work and status finds durable `Received`, it invokes idempotent `CancelOperation` for
+that identity; receipt promotion and cancellation then use the existing fenced
+`CancelledNoEffect`/`FirstEffectStarted` arbitration. If status returns authoritative
+`NotRecorded`, no canonical operation exists to cancel and only the guarded exact
+replay rules apply. This race can never authorize a new operation ID automatically.
+
+Once acceptance is durable, cancellation is part of the canonical operation: status
+returns its current state or `CancelledNoEffect`, including after the original
+transport response is lost.
 
 ## Workspace completeness, provenance, and confidence
 

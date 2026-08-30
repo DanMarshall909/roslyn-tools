@@ -111,6 +111,12 @@ Replay returns the cancellation outcome while its bounded record is retained and
 first-effect permit wins, cancellation is recorded but recovery-critical verification
 and rollback continue to a truthful repository outcome.
 
+Before durable intake, cancellation remains transport knowledge. It is
+`NotDispatched` only when no request bytes were accepted; otherwise the caller receives
+`Indeterminate`, retains the same operation ID, and resolves `Received` versus
+authoritative `NotRecorded` under the intake fence before targeting canonical
+cancellation or considering guarded exact replay. It never starts a new operation ID.
+
 Terminal outcomes remain addressable for a minimum replay window. After an epoch is
 sealed, unknown IDs return `OperationEpochSealed` without intake or replay
 authorization. Eligible terminal digests are folded into a cumulative accumulator and one
@@ -163,6 +169,7 @@ results or diagnostics.
 - A new checkout can be enrolled explicitly under an authority fence, while lost registry continuity can never masquerade as first enrollment or reset a repository identity.
 - An untrusted file-only operation cannot use a repository symlink, reparse point, mount, hard link, alternate stream, or special file to read undeclared host content in a privileged process.
 - Cancellation after durable intake either proves `CancelledNoEffect` before the first-effect permit or records the request while recovery-critical work reaches a truthful repository outcome; replay never restarts a cancelled operation.
+- Cancellation after request-byte acceptance but before durable intake is `Indeterminate` and must resolve the same identity under the intake fence; it cannot be mistaken for a safe ordinary cancellation or authorize a second apply.
 - Review and apply can run in separate processes and still consume byte-identical, hash-verified plan data from outside repository control.
 - `PlanHash` has one cross-adapter canonical representation and never hashes itself.
 - Plan retention cannot remove bytes still referenced by a nonterminal (including recovering) or recovery-required operation.
