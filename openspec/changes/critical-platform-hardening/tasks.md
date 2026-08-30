@@ -19,7 +19,7 @@ cross-host acceptance tests pass.
 ## P0.1 repository trust and workspace isolation
 
 - [ ] Write a threat model covering MSBuild imports/targets/tasks, analyzers, generators, repository executables, environment inheritance, ambient host filesystem reads, source/log leakage, symlinks, and long-lived hosts.
-- [ ] Define canonical repository identity and persisted `Trusted | Untrusted` trust decisions independently from `NoEvaluation | InProcess | IsolatedWorker` evaluator modes, including inspect, grant, revoke, explicit isolation, and non-interactive behaviour.
+- [ ] Define canonical repository identity and persist `Trusted | Untrusted` decisions in an OS/service-protected authenticated-principal-scoped registry outside repository control, bound to verified physical identity and independent from `NoEvaluation | InProcess | IsolatedWorker`; make request trust an expected-state/downgrade constraint only, provide deliberately invoked authenticated inspect/grant/revoke operations with audit and stale-binding checks, and default non-interactive or unavailable authority to `Untrusted`.
 - [ ] Introduce `WorkspaceRequest` and `WorkspaceProvenance` with absolute context, independent trust state/evaluator mode, configuration, SDK/compiler identity, source revision, diagnostics, and resource budget.
 - [ ] Ensure CLI, MCP, and daemon operations do not use or mutate process current directory, global exit code, global console state, or arbitrary inherited environment as request context.
 - [ ] Refuse MSBuild-backed semantic loading for untrusted repositories until an isolated worker exists.

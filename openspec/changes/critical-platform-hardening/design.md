@@ -64,13 +64,22 @@ Operations do not read or mutate process current directory, global console state
 
 `WorkspaceRequest` declares two independent axes:
 
-- `TrustState` is `Trusted` only under the user's explicit, repository-scoped decision; otherwise it is `Untrusted`.
+- `TrustState` is `Trusted` only under the authenticated user's explicit decision recorded in a protected principal-scoped registry for the canonical repository identity and verified physical binding; otherwise it is `Untrusted`.
 - `EvaluatorMode` is `NoEvaluation`, `InProcess`, or `IsolatedWorker`.
 
 `Untrusted` can be paired with `NoEvaluation` or `IsolatedWorker`, never
 `InProcess`. `Trusted` can still be paired with `IsolatedWorker` when the user or
 policy requests defence in depth. Isolation is therefore an execution decision, not
 a trust state.
+
+The request-carried trust value is an expected-state or downgrade constraint, never
+an authority claim. Before evaluator admission, the application operation derives the
+effective value from the protected registry and treats an absent, revoked, unreadable,
+mismatched, or stale-binding decision as `Untrusted`. Only authenticated
+`GrantRepositoryTrust` and `RevokeRepositoryTrust` operations reached through a
+trusted surface with deliberate user action can change the record; ordinary CLI, MCP,
+or daemon requests, repository content, and evaluator output cannot. The record is
+durably audited, and non-interactive callers cannot bootstrap trust.
 
 The isolated worker runs inside an OS-enforced allow-listed filesystem namespace.
 The namespace exposes only the repository through a read-only mount or equivalent
@@ -104,7 +113,7 @@ scope. If the platform or operation cannot prove that boundary, the read is rout
 the allow-listed worker or refused; denied target contents never enter diagnostics,
 results, logs, or caches.
 
-The CLI, MCP host, and daemon are long-lived privileged processes and SHALL NOT evaluate an untrusted repository in-process. A trust decision is scoped to a canonical repository identity and can be inspected and revoked. It is never inferred merely because a checkout is local or an editor opened it.
+The CLI, MCP host, and daemon are long-lived privileged processes and SHALL NOT evaluate an untrusted repository in-process. A trust decision is scoped to the authenticated principal, canonical repository identity, and verified physical binding; it can be inspected and revoked through the protected trust authority. It is never inferred merely because a checkout is local or an editor opened it.
 
 Workspace provenance records:
 

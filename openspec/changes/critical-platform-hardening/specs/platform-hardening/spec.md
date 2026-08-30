@@ -18,7 +18,20 @@ Each stable command SHALL have one typed request, one application operation, and
 
 ### Requirement: repository evaluation has an explicit trust boundary
 
-A workspace request SHALL declare repository trust state and evaluator mode as independent values. Trust state SHALL be `Trusted` or `Untrusted`; evaluator mode SHALL be `NoEvaluation`, `InProcess`, or `IsolatedWorker`. Absence or revocation of an explicit repository-scoped trust decision SHALL produce `Untrusted`. An untrusted request SHALL NOT select `InProcess`, while a trusted request MAY still select `IsolatedWorker`. The long-lived CLI, MCP, and daemon hosts SHALL NOT evaluate repository-controlled MSBuild logic, analyzers, generators, or repository executables in-process for an untrusted repository. `IsolatedWorker` SHALL use an OS-enforced allow-listed filesystem namespace that exposes only declared read-only inputs and disposable writable outputs; it SHALL NOT expose ambient host paths or credentials.
+A workspace request SHALL declare repository trust state and evaluator mode as independent values. Trust state SHALL be `Trusted` or `Untrusted`; evaluator mode SHALL be `NoEvaluation`, `InProcess`, or `IsolatedWorker`. Before evaluation, the application boundary SHALL derive the effective trust state from an OS/service-protected, authenticated-principal-scoped trust registry outside repository control, keyed by canonical repository identity and its verified physical binding. A request-carried trust value is only an expected-state or downgrade constraint and SHALL NOT grant or elevate trust. Absence, mismatch, revocation, stale physical binding, or inability to read the authoritative decision SHALL produce `Untrusted`.
+
+Only explicit authenticated `GrantRepositoryTrust` and `RevokeRepositoryTrust`
+operations backed by deliberate user action through a trusted surface SHALL mutate the
+registry; repository content, an evaluator, an ordinary workspace request, or an
+adapter SHALL NOT synthesize that authority. Grant/revoke SHALL be durably audited,
+revocation SHALL take effect before a later evaluator admission, and non-interactive
+operation without a pre-existing valid grant SHALL default to `Untrusted`. An
+untrusted request SHALL NOT select `InProcess`, while a trusted request MAY still
+select `IsolatedWorker`. The long-lived CLI, MCP, and daemon hosts SHALL NOT evaluate
+repository-controlled MSBuild logic, analyzers, generators, or repository executables
+in-process for an untrusted repository. `IsolatedWorker` SHALL use an OS-enforced
+allow-listed filesystem namespace that exposes only declared read-only inputs and
+disposable writable outputs; it SHALL NOT expose ambient host paths or credentials.
 
 Every `IsolatedWorker` phase capable of executing untrusted repository-controlled code
 SHALL run in an OS-enforced networkless namespace with no DNS, socket, loopback, proxy,
@@ -105,6 +118,12 @@ boundary SHALL run inside the allow-listed `IsolatedWorker` namespace or be refu
 
 - **WHEN** a repository is local or open in an editor but has no explicit trust decision
 - **THEN** it remains untrusted
+
+#### Scenario: an adapter claims trust without an authoritative grant
+
+- **WHEN** a workspace request or host adapter supplies `Trusted` but the authenticated principal's protected registry has no matching current grant for the verified repository binding
+- **THEN** the application boundary derives `Untrusted` and refuses `InProcess` evaluation
+- **AND THEN** no ordinary request, repository file, or evaluator output can create the missing grant
 
 ### Requirement: request context is explicit and host-neutral
 
