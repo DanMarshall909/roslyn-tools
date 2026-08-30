@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using RoslynTools;
 using RoslynTools.Core;
 using RoslynTools.Daemon;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Feedback;
 using RoslynTools.Rendering;
 using RoslynTools.Services;
@@ -13,9 +14,6 @@ using RoslynTools.Services;
 /// </summary>
 internal static class Program
 {
-    private static bool NoDaemon =>
-        Environment.GetEnvironmentVariable("RT_NO_DAEMON") is "1" or "true";
-
     private static async Task<int> Main(string[] args)
     {
         // Internal mode: spawned by `rt daemon start`, runs as the background pipe server.
@@ -58,7 +56,7 @@ internal static class Program
             && !DaemonOwnedCommands.IsInvocation(args)
             && !TypedCommandInvocation.IsMatch(args, typedDefinitions)
             && !IsInformationalInvocation(args)
-            && !NoDaemon)
+            && !DaemonRuntime.IsDisabled)
         {
             var client = host.Services.GetRequiredService<DaemonClient>();
             var exitCode = await client.TrySendAsync(args);

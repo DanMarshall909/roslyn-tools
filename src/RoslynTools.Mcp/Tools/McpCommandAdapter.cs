@@ -42,7 +42,8 @@ internal sealed class McpCommandAdapter(
 
         var safeArguments = ApplySafetyPolicy(descriptor, arguments);
 
-        if (descriptor.Port is not null
+        if (!DaemonRuntime.IsDisabled
+            && descriptor.Port is not null
             && (descriptor.Definition?.ExecutionPlacement == CommandExecutionPlacement.DaemonPreferred
                 || descriptor.Definition is null && DaemonOwnedCommands.Contains(toolName)))
         {
