@@ -821,11 +821,20 @@ For this phase the daemon is optional typed transport only. It:
 
 - accepts the same typed request the in-process router accepts;
 - invokes the same operation and returns the same typed envelope;
-- uses a per-user, collision-resistant, access-controlled endpoint;
+- uses a per-user, collision-resistant endpoint that mutually authenticates the client principal and daemon instance before request bytes are accepted;
 - preserves request/operation IDs, cancellation, diagnostics, provenance, confidence, and safety state; and
 - may be bypassed before dispatch when unavailable.
 
 It has no workspace cache, global current-directory semantics, command-line argument bridge for mutations, output capture, idempotency authority, retry policy, or command-specific semantic mapping. It does not log raw request payloads; structured logs use redacted fields and bounded diagnostics.
+
+Endpoint authorization uses OS-enforced peer identity and endpoint/container ACLs, or
+a cryptographically equivalent mutually authenticated local channel with user-private
+OS/service-protected discovery and credentials outside repository control. Server
+credentials are instance-bound and rotate on restart; they never travel in endpoint
+names, arguments, environment, logs, repository files, or request payloads. If any
+endpoint, discovery, credential-protection, mutual-authentication, or authorization
+boundary cannot be proven, the daemon does not start or advertise an endpoint and the
+host may choose direct execution only before dispatch.
 
 A future workspace daemon requires a separately approved change covering session/cache identity, invalidation, isolation, memory limits, concurrency, operation ledger ownership, health/status APIs, upgrade draining, and multi-repository behaviour.
 

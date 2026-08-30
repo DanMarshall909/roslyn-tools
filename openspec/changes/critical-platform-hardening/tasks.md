@@ -137,7 +137,7 @@ cross-host acceptance tests pass.
 
 - [ ] Mark workspace caching/session ownership as parked and superseded for this phase in all active architecture documents.
 - [ ] Remove legacy CLI argument-array routing for mutations and eventually for every converted spine command.
-- [ ] Use a per-user, collision-resistant, access-controlled endpoint rather than one global well-known pipe/socket name.
+- [ ] Use a per-user, collision-resistant endpoint that authenticates both client principal and daemon instance through OS-enforced peer identity and ACLs or cryptographically equivalent mutually authenticated local transport; protect discovery/instance-rotated credentials outside repository control, refuse startup when any boundary is unavailable, and test cross-principal denial, rogue servers, stale credentials, ACL failure, restart rotation, and pre-auth disclosure rather than relying on endpoint-name secrecy.
 - [ ] Remove request use of process current directory, global environment/exit code, and console capture.
 - [ ] Replace raw request/piped-input logging with bounded structured, redacted diagnostics and retention controls.
 - [ ] Add tests proving no cache, no operation ownership, no mutation retry, no global-state leakage, and exact observable parity.

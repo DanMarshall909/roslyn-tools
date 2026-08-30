@@ -51,8 +51,10 @@ The target shape is:
                                ▼
                      host-specific projection
 
-Optional daemon transport sits around the typed request/result boundary only.
-It is not an additional semantic layer and does not own workspaces or mutations.
+Optional daemon transport sits around the typed request/result boundary only. It uses
+an authenticated per-user endpoint or remains disabled; endpoint-name secrecy is not
+authorization. It is not an additional semantic layer and does not own workspaces or
+mutations.
 ```
 
 **Placement rule:** could the behaviour be tested without CLI, MCP, daemon, console, or process-global state in scope? If not, host concerns have leaked inward.
@@ -374,7 +376,7 @@ same intake fence. A winning `Received` is cancelled idempotently through the ca
 operation; a winning `NotRecorded` fences the receiver, and an in-flight receiver keeps
 status indeterminate. No new apply or operation ID is created automatically.
 
-For the current hardening phase, the daemon is an optional transparent typed transport adapter under [ADR-0008](adr/0008-daemon-transparent-passthrough-phase.md). It has no workspace cache, operation authority, CLI argument bridge for mutations, process-global request context, or raw payload logging. It must preserve the same typed observable result as direct execution.
+For the current hardening phase, the daemon is an optional transparent typed transport adapter under [ADR-0008](adr/0008-daemon-transparent-passthrough-phase.md), with fail-closed endpoint authentication under [ADR-0009](adr/0009-authenticated-daemon-endpoints.md). It has no workspace cache, operation authority, CLI argument bridge for mutations, process-global request context, or raw payload logging. Every connection authenticates the client principal and daemon instance through OS-enforced peer identity/access control or an equivalent protected mutually authenticated local channel. If that boundary cannot be proven, the daemon remains disabled and direct execution may be selected only before dispatch. It must preserve the same typed observable result as direct execution.
 
 ## Output pipeline
 

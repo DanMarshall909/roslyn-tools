@@ -908,12 +908,23 @@ Stable operations SHALL declare and enforce applicable limits for request size, 
 
 ### Requirement: the daemon is transparent and locally isolated in this phase
 
-The daemon SHALL be an optional typed transport adapter only. It SHALL NOT cache workspaces, own mutation/idempotency semantics, route apply-capable legacy CLI commands, mutate process-global request state, log raw request payloads, retry after indeterminate mutation dispatch, change the execution operation, or alter typed observable results. Its endpoint SHALL be per-user, collision-resistant, and access controlled where the platform permits.
+The daemon SHALL be an optional typed transport adapter only. It SHALL NOT cache workspaces, own mutation/idempotency semantics, route apply-capable legacy CLI commands, mutate process-global request state, log raw request payloads, retry after indeterminate mutation dispatch, change the execution operation, or alter typed observable results. Its endpoint SHALL be per-user and collision-resistant, and every connection SHALL authenticate both the client principal and daemon instance before request bytes or source-bearing results are exchanged. Authorization SHALL use OS-enforced peer identity plus endpoint/container access control, or cryptographically equivalent mutually authenticated local transport with user-private OS/service-protected discovery and credentials outside repository control. If endpoint creation, discovery, credential protection, peer authentication, or authorization cannot be proven, daemon startup SHALL fail and no endpoint SHALL be advertised; a host MAY select canonical in-process execution only before dispatch.
 
 #### Scenario: two users run the daemon on one machine
 
 - **WHEN** separate users start the daemon
 - **THEN** their endpoints and state cannot be confused or accessed through one global well-known name
+
+#### Scenario: authenticated endpoint protection is unavailable
+
+- **WHEN** the platform cannot prove endpoint access control or mutually authenticated local transport, including protected discovery and credential storage
+- **THEN** daemon startup fails closed and advertises no endpoint
+- **AND THEN** clients do not send request bytes, may select canonical in-process execution before dispatch, and never use endpoint-name secrecy as authorization
+
+#### Scenario: another principal or a rogue daemon attempts a connection
+
+- **WHEN** a client or server cannot prove the expected authenticated principal and daemon-instance identity
+- **THEN** the connection is rejected before request content, repository existence, operation status, or source-bearing results are disclosed
 
 #### Scenario: request contains source or secret-bearing input
 
