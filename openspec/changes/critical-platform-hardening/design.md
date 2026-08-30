@@ -121,7 +121,8 @@ the canonical hash of the complete apply request except transport-attempt and re
 fields. A transport request-attempt ID may be separate.
 
 Before an accepted request can enter an execution queue, the receiver acquires a
-per-operation intake fence and durably records `Received(OperationId, RequestHash,
+cross-process, store-enforced intake fence keyed by repository and operation ID and
+durably records `Received(OperationId, RequestHash,
 CanonicalRequest)`. The canonical request is stored in the user-private control
 plane, not daemon logs. The operation ledger is then created before side effects
 begin. Startup and status lookup reconcile a `Received` receipt that has no operation
@@ -129,7 +130,7 @@ record, so accepted work cannot disappear between transport intake and ledger
 creation.
 
 If indeterminate dispatch is followed by a status lookup and neither a receipt nor
-an operation exists, `GetOperation` acquires the same intake fence and first proves
+an operation exists, `GetOperation` acquires the same cross-process intake fence and first proves
 that no receiver for that operation ID remains in flight. It then durably records
 `NotRecorded(OperationId, RequestHash, ReplayEpoch)`. This is an authoritative
 no-effect dispatch-resolution state, not an inference from a missing row. Any delayed

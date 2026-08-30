@@ -26,7 +26,7 @@ When dispatch is indeterminate, the host returns the existing operation ID and
 status-lookup guidance. The execution authority durably records a typed intake
 receipt before execution enqueue and operation state before repository side effects.
 Status lookup reconciles a receipt without an operation record. If neither exists, it
-uses the same operation-intake fence to exclude an in-flight receiver and durably
+uses the same cross-process, store-enforced operation-intake fence to exclude an in-flight receiver and durably
 records authoritative `NotRecorded` with the canonical request hash and a replay
 epoch. Only then may the caller explicitly resubmit that exact request under the same
 operation ID and epoch; delayed original attempts are fenced out. A different payload

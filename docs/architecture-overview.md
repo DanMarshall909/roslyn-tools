@@ -179,7 +179,7 @@ GetOperation(repositoryId, operationId, requestHash) -> OperationStatus
 Recover(operationId, action) -> RecoveryResult
 ```
 
-The immutable prepared plan contains all path and project operations, expected revision and hashes, encoding/newline/file-mode policy, symlink/hard-link/root-containment policy, exact diff, diagnostics, assumptions, verification, expiry, and recovery data. Before prepare returns, its canonical bytes are atomically persisted in a user-private store outside repository control. Preview and apply consume that same repository-scoped, hash-verified plan across process restart. Once an operation ledger references a plan, garbage collection pins its exact bytes through every nonterminal state, including `Recovering`, and through `RecoveryRequired`; it releases them only after verified terminal cleanup or explicit recovery acknowledgement.
+The immutable prepared plan contains all path and project operations, expected revision and hashes, encoding/newline/file-mode policy, symlink/hard-link/root-containment policy, exact diff, diagnostics, assumptions, verification, expiry, and recovery data. Before prepare returns, its canonical bytes are atomically persisted in a user-private store outside repository control. Preview and apply consume that same repository-scoped, hash-verified plan across process restart. Once an intake receipt or operation ledger references a plan, garbage collection pins its exact bytes through every nonterminal state, including `Recovering`, and through `RecoveryRequired`; it releases them only after verified terminal cleanup, durable expiry, or explicit recovery acknowledgement.
 
 Apply creates a durable operation record before side effects, acquires an exclusive canonical-repository transaction reservation, claims a renewable owner lease and monotonically increasing fencing epoch, validates every precondition, stages content, journals changes, revalidates the expected intermediate repository state at every side-effect boundary, applies deterministically, verifies postconditions, and records one truthful state:
 
@@ -219,8 +219,9 @@ acknowledgement follows the recorded retention choice and preserves an immutable
 audit summary.
 
 The caller generates `OperationId` and the canonical request hash before dispatch.
-Before accepted work enters an execution queue, a per-operation intake fence protects
-a durable `Received` receipt containing the canonical request. Startup and status
+Before accepted work enters an execution queue, a cross-process, store-enforced
+intake fence keyed by repository and operation ID protects a durable `Received`
+receipt containing the canonical request. Startup and status
 lookup reconcile any receipt not yet promoted into the operation ledger. Repeating
 the same operation ID and request returns the existing receipt/state/result; reusing
 it for different work returns conflict.

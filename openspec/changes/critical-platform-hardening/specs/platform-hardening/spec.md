@@ -118,7 +118,7 @@ A mutation SHALL prepare an immutable change set before apply. The plan SHALL de
 
 ### Requirement: apply operations have caller-known durable identity
 
-Every apply request SHALL include a caller-generated operation ID and canonical request hash before dispatch. The operation ID SHALL be the durable idempotency and status-lookup handle. Before accepted work can enter an execution queue, the receiver SHALL acquire a per-operation intake fence and durably record a `Received` receipt containing the operation ID, request hash, and canonical request. The operation ledger SHALL then be recorded before repository side effects begin. A `Received` receipt without an operation record SHALL be reconciled on startup and status lookup.
+Every apply request SHALL include a caller-generated operation ID and canonical request hash before dispatch. The operation ID SHALL be the durable idempotency and status-lookup handle. Before accepted work can enter an execution queue, the receiver SHALL acquire a cross-process, store-enforced intake fence keyed by repository and operation ID and durably record a `Received` receipt containing the operation ID, request hash, and canonical request. The operation ledger SHALL then be recorded before repository side effects begin. A `Received` receipt without an operation record SHALL be reconciled on startup and status lookup.
 
 #### Scenario: the first response is lost
 
