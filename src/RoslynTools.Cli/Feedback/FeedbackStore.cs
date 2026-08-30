@@ -7,6 +7,7 @@ namespace RoslynTools.Feedback;
 
 internal static class FeedbackStore
 {
+    private static readonly TimeSpan StoreLockRetryDelay = TimeSpan.FromMilliseconds(20);
     private static readonly SemaphoreSlim Lock = new(1, 1);
 
     private static readonly JsonSerializerOptions ReadOpts = new()
@@ -119,7 +120,7 @@ internal static class FeedbackStore
         await Lock.WaitAsync(cancellationToken);
         try
         {
-            using var storeLock = AcquireStoreLock();
+            using var storeLock = await AcquireStoreLockAsync(cancellationToken);
             var all = ReadExisting();
             var entry = all.SingleOrDefault(candidate =>
                 string.Equals(candidate.Id, id, StringComparison.OrdinalIgnoreCase));
@@ -192,7 +193,7 @@ internal static class FeedbackStore
             await Lock.WaitAsync();
             try
             {
-                using var storeLock = AcquireStoreLock();
+                using var storeLock = await AcquireStoreLockAsync(CancellationToken.None);
                 var existing = ReadExisting();
                 var entry = new FeedbackEntry
                 {
@@ -265,35 +266,51 @@ internal static class FeedbackStore
 
     private static FileStream AcquireStoreLock()
     {
-        var path = ResolveStorePath();
-        var dir = Path.GetDirectoryName(path)!;
-        Directory.CreateDirectory(dir);
-
-        var lockPath = path + ".lock";
-        for (var attempt = 0; attempt < 100; attempt++)
+        var lockPath = ResolveStoreLockPath();
+        while (true)
             try
             {
-                return new FileStream(
-                    lockPath,
-                    FileMode.OpenOrCreate,
-                    FileAccess.ReadWrite,
-                    FileShare.None,
-                    1,
-                    FileOptions.DeleteOnClose);
+                return OpenStoreLock(lockPath);
             }
-            catch (IOException) when (attempt < 99)
+            catch (IOException)
             {
-                Thread.Sleep(20);
+                Thread.Sleep(StoreLockRetryDelay);
             }
+    }
 
-        return new FileStream(
+    private static async Task<FileStream> AcquireStoreLockAsync(
+        CancellationToken cancellationToken)
+    {
+        var lockPath = ResolveStoreLockPath();
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                return OpenStoreLock(lockPath);
+            }
+            catch (IOException)
+            {
+                await Task.Delay(StoreLockRetryDelay, cancellationToken);
+            }
+        }
+    }
+
+    private static string ResolveStoreLockPath()
+    {
+        var path = ResolveStorePath();
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        return path + ".lock";
+    }
+
+    private static FileStream OpenStoreLock(string lockPath) =>
+        new(
             lockPath,
             FileMode.OpenOrCreate,
             FileAccess.ReadWrite,
             FileShare.None,
             1,
-            FileOptions.DeleteOnClose);
-    }
+            FileOptions.None);
 
     private static List<FeedbackEntry> ReadExisting()
     {
