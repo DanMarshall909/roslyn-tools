@@ -58,7 +58,7 @@ internal sealed class McpCommandAdapter(
                     ResolveSafety(descriptor),
                     cancellationToken);
             if (recovery.Response is not null)
-                return ToToolResult(recovery.Response);
+                return ToToolResult(recovery.Response, descriptor.Port.ResponseType);
             if (!recovery.ShouldFallback)
                 return new ToolResult(
                     true,
@@ -113,7 +113,9 @@ internal sealed class McpCommandAdapter(
         }
     }
 
-    private static ToolResult ToToolResult(DaemonRpcResponse response)
+    private static ToolResult ToToolResult(
+        DaemonRpcResponse response,
+        Type responseType)
     {
         if (response.Error is not null)
             return new ToolResult(
@@ -126,7 +128,24 @@ internal sealed class McpCommandAdapter(
                         response.Error.Message,
                         response.Error.Context))));
 
-        return new ToolResult(false, response.Result?.GetRawText() ?? "null");
+        if (response.Result is not { } envelope
+            || envelope.ValueKind != JsonValueKind.Object
+            || !envelope.TryGetProperty("data", out var data))
+            return new ToolResult(true, "The daemon returned an invalid command response.");
+
+        try
+        {
+            var value = data.Deserialize(responseType, DaemonRpcJson.Options);
+            return new ToolResult(false, SerializeSuccess(value));
+        }
+        catch (Exception ex) when (ex is JsonException
+                                   or InvalidOperationException
+                                   or NotSupportedException)
+        {
+            return new ToolResult(
+                true,
+                $"The daemon returned an invalid command result: {ex.Message}");
+        }
     }
 
     private static JsonSerializerOptions CreateResponseOptions()
