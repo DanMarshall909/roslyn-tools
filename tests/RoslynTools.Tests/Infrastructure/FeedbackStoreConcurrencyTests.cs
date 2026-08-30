@@ -39,6 +39,40 @@ public class FeedbackStoreConcurrencyTests
         }
     }
 
+    [Fact]
+    public async Task parallel_report_calls_create_only_one_issue_for_the_same_entry()
+    {
+        using var workspace = new ConcurrencyWorkspace();
+        using (workspace.UseCurrentDirectory())
+        {
+            FeedbackStore.Append(new FeedbackEntry
+            {
+                Type = "user-feedback",
+                Description = "report me once"
+            });
+            var createCount = 0;
+
+            async Task<(int Number, string Url)> CreateIssue(
+                FeedbackEntry _,
+                CancellationToken cancellationToken)
+            {
+                Interlocked.Increment(ref createCount);
+                await Task.Delay(50, cancellationToken);
+                return (72, "https://github.com/example/repository/issues/72");
+            }
+
+            var results = await Task.WhenAll(
+                FeedbackStore.ReportOnceAsync("FB-001", CreateIssue),
+                FeedbackStore.ReportOnceAsync("FB-001", CreateIssue));
+
+            createCount.ShouldBe(1);
+            results.Count(result => result.AlreadyReported).ShouldBe(1);
+            results.Count(result => !result.AlreadyReported).ShouldBe(1);
+            results.ShouldAllBe(result => result.Entry.GitHubIssueNumber == 72);
+            FeedbackStore.TryGetById("FB-001")!.GitHubIssueNumber.ShouldBe(72);
+        }
+    }
+
     private sealed class ConcurrencyWorkspace : IDisposable
     {
         private readonly string _previousDirectory;

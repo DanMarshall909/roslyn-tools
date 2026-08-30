@@ -106,9 +106,17 @@ internal static class FeedbackStore
         LoadAll().SingleOrDefault(entry =>
             string.Equals(entry.Id, id, StringComparison.OrdinalIgnoreCase));
 
-    internal static FeedbackEntry MarkReported(string id, int issueNumber, string issueUrl)
+    /// <summary>
+    ///     Atomically creates or links an issue for <paramref name="id" />. The final
+    ///     reported-state check and issue creation run under the cross-process store
+    ///     lock so concurrent reporters cannot create duplicate public issues.
+    /// </summary>
+    internal static async Task<(FeedbackEntry Entry, bool AlreadyReported)> ReportOnceAsync(
+        string id,
+        Func<FeedbackEntry, CancellationToken, Task<(int Number, string Url)>> createIssue,
+        CancellationToken cancellationToken = default)
     {
-        Lock.Wait();
+        await Lock.WaitAsync(cancellationToken);
         try
         {
             using var storeLock = AcquireStoreLock();
@@ -118,13 +126,17 @@ internal static class FeedbackStore
             if (entry is null)
                 throw new ArgumentException($"Feedback item '{id}' was not found.", nameof(id));
 
+            if (entry.GitHubIssueNumber is not null)
+                return (entry, true);
+
+            var (issueNumber, issueUrl) = await createIssue(entry, cancellationToken);
             entry.GitHubIssueNumber = issueNumber;
             entry.GitHubIssueUrl = issueUrl;
             entry.Status = "processed";
             entry.ProcessedAt = DateTimeOffset.UtcNow.ToString("O");
             entry.Resolution = $"Reported as GitHub issue #{issueNumber}: {issueUrl}";
             WriteAll(all);
-            return entry;
+            return (entry, false);
         }
         finally
         {
