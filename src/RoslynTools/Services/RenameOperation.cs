@@ -12,7 +12,7 @@ internal enum RenameOperationMode
 }
 
 internal sealed record RenameOperationRequest(
-    [property: JsonRequired] RenameOperationMode Mode,
+    RenameOperationMode Mode = RenameOperationMode.Single,
     string? Symbol = null,
     [property: JsonPropertyName("new-name")] string? NewName = null,
     [property: JsonPropertyName("csv")] string? CsvPath = null,

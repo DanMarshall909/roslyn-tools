@@ -7,6 +7,7 @@ using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Core.Output;
 using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
+using RoslynTools.Services.SemanticDiff;
 
 namespace RoslynTools.Mcp.Tools;
 
@@ -100,11 +101,7 @@ internal sealed class McpCommandAdapter(
                         ? "Command failed."
                         : SerializeError(result.Error)));
 
-            var json = JsonSerializer.Serialize(
-                result.Value,
-                result.Value?.GetType() ?? typeof(object),
-                CreateResponseOptions());
-            return new ToolResult(false, json);
+            return new ToolResult(false, SerializeSuccess(result.Value));
         }
         catch (Exception ex) when (ex is ArgumentException
                                    or InvalidOperationException
@@ -137,6 +134,48 @@ internal sealed class McpCommandAdapter(
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
+    }
+
+    private static string SerializeSuccess(object? value)
+    {
+        return value switch
+        {
+            SemanticDiffOperationResult semanticDiff =>
+                SemanticDiffJson.Serialize(semanticDiff.Deltas),
+            DescribeResult describe => SerializeDescribe(describe),
+            MutationExecutionResult<RenameOperationResult> rename => SerializeRename(rename),
+            _ => JsonSerializer.Serialize(
+                value,
+                value?.GetType() ?? typeof(object),
+                CreateResponseOptions())
+        };
+    }
+
+    private static string SerializeDescribe(DescribeResult result)
+    {
+        return result switch
+        {
+            { Kind: DescribeResultKind.Compact, Compact: not null } =>
+                JsonSerializer.Serialize(result.Compact, CreateResponseOptions()),
+            { Kind: DescribeResultKind.Verbose, Verbose: { } verbose } =>
+                JsonSerializer.Serialize(verbose, CreateResponseOptions()),
+            _ => throw new InvalidOperationException(
+                "The describe result did not contain its declared value.")
+        };
+    }
+
+    private static string SerializeRename(MutationExecutionResult<RenameOperationResult> execution)
+    {
+        if (execution.Value is
+            {
+                Mode: RenameOperationMode.Single,
+                Renames.Count: 1
+            } single)
+        {
+            return JsonSerializer.Serialize(single.Renames[0], CreateResponseOptions());
+        }
+
+        return JsonSerializer.Serialize(execution, CreateResponseOptions());
     }
 
     private static string SerializeError(RtError error)

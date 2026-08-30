@@ -131,7 +131,10 @@ public class DescribeToolTests
             var result = await registry.InvokeAsync("describe", args.RootElement);
 
             result.isError.ShouldBeTrue();
-            result.content.ShouldBe("No symbol with FQN 'TestApp.Missing' found in solution.");
+            using var error = JsonDocument.Parse(result.content);
+            error.RootElement.GetProperty("kind").GetString().ShouldBe(nameof(RtErrorKind.NotFound));
+            error.RootElement.GetProperty("message").GetString()
+                .ShouldBe("No symbol with FQN 'TestApp.Missing' found in solution.");
         }
     }
 

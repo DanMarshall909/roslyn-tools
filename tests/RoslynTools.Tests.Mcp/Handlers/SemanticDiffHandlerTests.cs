@@ -272,8 +272,8 @@ public sealed class SemanticDiffHandlerTests
                 RequestJsonOptions)!;
             var result = await ((ICommandApplicationPort)operation)
                 .InvokeAsync(request, CancellationToken.None);
-            var content = result.Value is JsonElement json
-                ? json.GetRawText()
+            var content = result.Value is SemanticDiffOperationResult semanticDiff
+                ? SemanticDiffJson.Serialize(semanticDiff.Deltas)
                 : JsonSerializer.Serialize(result.Value);
             return new ToolResult(result.IsError, result.Error?.Message ?? content);
         }
