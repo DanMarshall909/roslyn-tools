@@ -65,6 +65,7 @@ The current design has no threat model, trust decision, worker boundary, environ
 **Required correction**
 
 - Model repository trust (`Trusted | Untrusted`) independently from evaluator mode (`NoEvaluation | InProcess | IsolatedWorker`).
+- Bound trust records and hot audit history globally and per principal, reserve eventual revocation capacity before granting trust, and compact completed quiescent revocations into a continuity-protected fixed-size authenticated accumulator so quota pressure cannot block revoke or make compacted absence trusted.
 - Derive trust from the protected authenticated-principal registry and bind in-process
   admission to a generation-scoped lease plus a held verified-root capability consumed
   at the actual evaluator open; never re-resolve a replaceable checkout path under an

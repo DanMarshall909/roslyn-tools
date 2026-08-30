@@ -27,6 +27,34 @@ adapter SHALL NOT synthesize that authority. Grant/revoke SHALL be durably audit
 and non-interactive operation without a pre-existing valid grant SHALL default to
 `Untrusted`.
 
+The trust authority SHALL enforce authority-wide and per-authenticated-principal
+count/byte limits for `Trusted`, `RevocationPending`, and bounded hot `Untrusted`/audit
+records plus grant rate/concurrency limits. Before persisting `Trusted`, a grant SHALL
+atomically reserve the record, audit, and worst-case eventual revocation/compaction
+capacity. Exhaustion SHALL return typed `TrustRegistryCapacityExceeded` before trust is
+granted; the binding SHALL remain `Untrusted`, and lookup, evaluator termination,
+reconciliation, and revocation of admitted grants SHALL remain available. Revoke SHALL
+consume reserved capacity, SHALL NOT be blocked by grant quota/rate, and SHALL be
+idempotent without appending another durable transition when the binding is already
+authoritatively untrusted.
+
+Every trust transition SHALL receive a never-reused monotonic `TrustDecisionSequence`.
+After an `Untrusted` revocation is complete, its old-generation evaluator domains are
+proven empty, and its declared hot-retention window elapses, the authority SHALL first
+fold the record and audit digest into a fixed-size authenticated
+`TrustAuditAccumulator` and advance `CompactedThroughTrustDecision` in one
+continuity-protected transaction, then MAY remove the per-binding detail. Absence after
+compaction SHALL remain `Untrusted`; a restored decision at or below the watermark
+SHALL be rejected, and only a new deliberate grant with a later sequence MAY establish
+trust. Current `Trusted` or `RevocationPending` state and any generation with an
+unquiesced lease SHALL remain pinned. Hot audit count/bytes SHALL be bounded; older
+detail MAY move to a separately quota-bound archive or be deleted only after the
+accumulator commit. Capacity changes SHALL be explicit authenticated audited
+administrator operations. Startup and restore SHALL prove continuity of the authority
+generation, decision-sequence high-water mark, compaction watermark, and accumulator;
+failure SHALL refuse grants and resolve evaluation as `Untrusted`, never as an empty
+fresh authority.
+
 Grant, revoke, and every admission capable of starting repository-controlled code in
 `InProcess` SHALL share one linearizable trust gate keyed by authenticated principal,
 canonical repository identity, and verified physical binding. Evaluator admission
@@ -218,6 +246,20 @@ boundary SHALL run inside the allow-listed `IsolatedWorker` namespace or be refu
 - **WHEN** a workspace request or host adapter supplies `Trusted` but the authenticated principal's protected registry has no matching current grant for the verified repository binding
 - **THEN** the application boundary derives `Untrusted` and refuses `InProcess` evaluation
 - **AND THEN** no ordinary request, repository file, or evaluator output can create the missing grant
+
+#### Scenario: trust-registry grant capacity is exhausted
+
+- **WHEN** an authority-wide or per-principal trust-record, byte, rate, concurrency, audit, or reserved-revocation limit is reached
+- **THEN** `GrantRepositoryTrust` returns `TrustRegistryCapacityExceeded` before assigning a decision sequence or persisting `Trusted`
+- **AND THEN** the binding remains `Untrusted`, and existing lookup, evaluator termination, reconciliation, and revocation remain available
+- **AND THEN** the caller cannot bypass the limit by cycling bindings, principals, grant/revoke transitions, or implicit authority reprovisioning
+
+#### Scenario: completed trust revocation is compacted
+
+- **WHEN** a binding is durably `Untrusted`, every old-generation evaluator domain is proven empty, and its bounded hot-retention window elapses
+- **THEN** the authority atomically folds the decision/audit digest into `TrustAuditAccumulator` and advances `CompactedThroughTrustDecision` before removing per-binding detail
+- **AND THEN** absence continues to resolve as `Untrusted`, and any restored decision at or below the watermark is rejected
+- **AND THEN** trust can be re-established only by a new deliberate quota-admitted grant with a later decision sequence
 
 #### Scenario: revocation races evaluator admission
 

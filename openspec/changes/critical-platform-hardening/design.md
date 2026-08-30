@@ -81,6 +81,28 @@ trusted surface with deliberate user action can change the record; ordinary CLI,
 or daemon requests, repository content, and evaluator output cannot. The record is
 durably audited, and non-interactive callers cannot bootstrap trust.
 
+The authority caps `Trusted`, `RevocationPending`, and bounded hot
+`Untrusted`/audit record count and bytes both globally and per principal, and rate- and
+concurrency-limits grants. A grant reserves its record, audit transition, and eventual
+revocation/compaction capacity before committing `Trusted`; exhaustion returns
+`TrustRegistryCapacityExceeded` while the binding remains untrusted. Revocation uses
+that reservation, remains available under grant saturation, and is idempotent for an
+already authoritative `Untrusted` binding.
+
+Trust transitions use a never-reused monotonic `TrustDecisionSequence`. Once
+revocation is complete, its old-generation domains are proven empty, and hot retention
+elapses, one transaction folds the record/audit digest into a fixed-size authenticated
+`TrustAuditAccumulator`, advances `CompactedThroughTrustDecision`, and only then
+removes bulky per-binding detail. Missing detail still means `Untrusted`, and a restored
+decision at or below the watermark is invalid; a later explicit grant receives a new
+sequence. Live trusted/pending records and unquiesced generations stay pinned. Older
+audit detail is deleted or moves to a separately quota-bound archive only after the
+compact commit, so repeated grant/revoke cycles cannot grow authority storage without
+bound or make revocation fail for quota. Startup and restore prove continuity of the
+authority generation, decision high-water mark, compaction watermark, and accumulator;
+failure refuses grants and resolves evaluation as untrusted rather than inferring an
+empty authority.
+
 Grant, revoke, and `InProcess` evaluator admission use one linearizable trust gate per
 authenticated principal, canonical repository identity, and verified physical binding.
 Admission atomically re-reads the grant and acquires a revocable evaluator lease bound

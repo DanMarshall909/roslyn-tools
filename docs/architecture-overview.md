@@ -103,6 +103,17 @@ invoked authenticated grant/revoke operations through a trusted surface change t
 audited record; absent, revoked, unreadable, mismatched, stale-binding, or
 non-interactively bootstrapped decisions are `Untrusted`.
 
+Trust state and hot audit storage are bounded by authority-wide and per-principal
+count/byte quotas, with grant rate/concurrency limits. Grant reserves worst-case
+revocation and audit-compaction capacity before persisting `Trusted`; exhaustion
+returns `TrustRegistryCapacityExceeded` and leaves the binding untrusted, while revoke,
+status, termination, and reconciliation remain available. Completed quiescent
+revocations compact behind a monotonic trust-decision watermark into a fixed-size
+authenticated accumulator before detailed records are removed. Compacted absence is
+still `Untrusted`, stale restored grants at or below the watermark fail closed, and
+only a later deliberate quota-admitted grant can establish trust again. Startup or
+restore without continuity proof refuses grants and evaluates as untrusted.
+
 Grant, revoke, and `InProcess` evaluator admission share a linearizable authority gate
 for the principal and verified repository binding. Admission atomically revalidates
 the grant and acquires a revocable lease for the current monotonic trust generation

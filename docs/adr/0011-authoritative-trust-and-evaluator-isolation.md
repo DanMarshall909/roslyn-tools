@@ -30,6 +30,24 @@ backed by deliberate user action through a trusted surface can change a record. 
 authority audits those changes and does not allow repository content, evaluator
 output, ordinary requests, or non-interactive callers to bootstrap trust.
 
+The authority enforces global and per-principal count/byte quotas for current and hot
+audit records and rate/concurrency limits for grants. A grant reserves its own state,
+audit transition, and worst-case eventual revocation/compaction capacity before it can
+persist `Trusted`. Saturation returns `TrustRegistryCapacityExceeded` and leaves the
+binding untrusted; revocation, status, termination, and reconciliation remain available
+and an already-untrusted revoke is idempotent.
+
+Every transition receives a monotonic never-reused trust-decision sequence. After a
+revocation is complete, old-generation execution is proven quiescent, and bounded hot
+retention elapses, the authority atomically folds its record and audit digest into a
+fixed-size authenticated accumulator and advances a protected compaction watermark
+before removing detail. Missing compacted state remains `Untrusted`; restored decisions
+at or below the watermark are rejected, and only a later explicit grant can establish
+trust. Active trusted/pending records and unquiesced generations remain pinned. Startup
+and restore must prove continuity of the authority generation, sequence high-water
+mark, watermark, and accumulator; otherwise grants are refused and evaluation is
+untrusted rather than treating the authority as fresh.
+
 Grant, revoke, and `InProcess` evaluator admission share one linearizable gate for the
 principal and verified repository binding. Admission atomically revalidates the grant
 and acquires a revocable lease for the current monotonic trust generation plus a held
@@ -81,6 +99,8 @@ the separate root-contained handle-relative safe-reader contract.
 - All hosts report the same authority-derived effective trust and evaluator mode in
   provenance.
 - Trust grants are explicit security decisions rather than transport parameters.
+- Trust-state and audit storage is quota-bounded; grant admission reserves revocation
+  capacity, and compacted absence remains fail-closed untrusted.
 - Revocation is linearizable with evaluator admission and has an explicit quiescence
   contract for work admitted before the revocation fence.
 - Trusted in-process execution still requires non-escapable descendant containment;
@@ -90,7 +110,8 @@ the separate root-contained handle-relative safe-reader contract.
 - Read-only checkout views cannot preserve unproven host inode aliases, and process,
   descriptor, writable-byte, inode, and teardown budgets are containment properties.
 - Adversarial tests cover forged trust claims, stale bindings and startup replacement,
-  grant/revoke admission races and lost-lease reconciliation, hard-linked host files,
+  grant/revoke admission races, quota saturation/churn, audit compaction/rollback,
+  lost-lease reconciliation, hard-linked host files,
   fork/descriptor and disk/inode exhaustion, cleanup failure, host-process access,
   undeclared IPC, host-file access, writes, and network egress.
 
