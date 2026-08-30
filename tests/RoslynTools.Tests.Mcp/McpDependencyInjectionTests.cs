@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
+using RoslynTools.Daemon.Rpc;
 using RoslynTools.Mcp;
 using RoslynTools.Mcp.Tools;
 using Shouldly;
@@ -24,6 +25,20 @@ public sealed class McpDependencyInjectionTests
         provider.GetRequiredService<McpCommandAdapter>().ShouldNotBeNull();
         provider.GetRequiredService<ToolRegistry>().ShouldNotBeNull();
         provider.GetRequiredService<Server>().ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task Mcp_test_host_never_attaches_to_a_resident_daemon()
+    {
+        using var provider = McpTestHost.CreateProvider();
+
+        var attempt = await provider.GetRequiredService<IDaemonRpcClient>().ExecuteAsync(
+            "describe",
+            JsonSerializer.SerializeToElement(new { symbol = "TestApp.Widget" }),
+            CommandSafety.ReadOnly);
+
+        attempt.State.ShouldBe(DaemonRpcAttemptState.UnavailableBeforeDispatch);
+        attempt.DispatchStarted.ShouldBeFalse();
     }
 
     [Fact]

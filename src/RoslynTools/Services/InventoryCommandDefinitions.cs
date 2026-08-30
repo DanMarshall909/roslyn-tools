@@ -7,7 +7,7 @@ internal static class FindUnusedCommandDefinition
 {
     internal static RtCommandInfo Info { get; } = new(
         "find-unused", false, false, "inspect", Aliases: ["unused"],
-        WhenToUse: "Identifying dead code — types and methods with zero references in the solution — before a safe-delete pass or ahead of a major refactor. Use --scope to focus on a specific namespace and filter noise from generated or test code.",
+        WhenToUse: "Use this instead of Grep when identifying dead code — types and methods with zero references in the solution — before a safe-delete pass or ahead of a major refactor. Use --scope to focus on a specific namespace and filter noise from generated or test code.",
         Examples: [
             "rt inspect find-unused --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt inspect unused --scope ProjectX.Core --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
@@ -20,7 +20,7 @@ internal static class FindUndocumentedCommandDefinition
 {
     internal static RtCommandInfo Info { get; } = new(
         "find-undocumented", false, false, "inspect", Aliases: ["undoc"],
-        WhenToUse: "Finding types and members that have no XML documentation comment — the first step before bulk-generating docs with an LLM. Use --members to include methods and properties, not just types. Use --level to control which accessibility levels are checked (default: public).",
+        WhenToUse: "Use this instead of Grep when finding types and members that have no XML documentation comment — the first step before bulk-generating docs with an LLM. Use --members to include methods and properties, not just types. Use --level to control which accessibility levels are checked (default: public).",
         Examples: [
             "rt inspect find-undocumented --solution RoslynTools.slnx",
             "rt inspect undoc --members --level internal --solution RoslynTools.slnx",
@@ -33,7 +33,7 @@ internal static class StaticClassInventoryCommandDefinition
 {
     internal static RtCommandInfo Info { get; } = new(
         "static-class-inventory", false, true, "analyze",
-        "Planning a static-to-instance migration by listing every static class with its call-site count, member count, and inbound static coupling. Results are sorted leaf-first so the safest classes to de-static appear at the top.",
+        "Use this instead of Read when planning a static-to-instance migration by listing every static class with its call-site count, member count, and inbound static coupling. Results are sorted leaf-first so the safest classes to de-static appear at the top.",
         [
             "rt analyze static-class-inventory --solution RoslynTools.slnx",
             "rt analyze static-class-inventory --solution C:\\code\\libraries\\ProjectX.Libraries.sln",

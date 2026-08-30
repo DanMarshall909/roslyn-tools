@@ -74,7 +74,7 @@ internal static class FixNamespaceCommandDefinition
         "refactor",
         Aliases: ["fns"],
         WhenToUse:
-        "Correcting a file's namespace declaration to match its folder path after moving files, or when a file was created in the wrong location. Also updates any using directives in other files that imported the old namespace.",
+        "Use this instead of manual Edit when correcting a file's namespace declaration to match its folder path after moving files, or when a file was created in the wrong location. Also updates any using directives in other files that imported the old namespace.",
         Examples:
         [
             "rt refactor fix-namespace --file src/Services/BookingService.cs --solution C:\\code\\libraries\\ProjectX.Libraries.sln",

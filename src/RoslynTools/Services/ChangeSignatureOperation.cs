@@ -142,7 +142,7 @@ internal static class ChangeSignatureCommandDefinition
         true,
         false,
         "refactor",
-        "Change method signatures and update affected call sites.",
+        "Use this instead of manual Edit when changing a method signature and updating affected call sites semantically.",
         [
             "rt refactor change-signature rename-param \"MyApp.Services.OrderService.PlaceOrder\" oldName newName --solution MyApp.sln",
             "rt refactor change-signature reorder \"MyApp.Services.OrderService.PlaceOrder\" \"2,0,1\" --solution MyApp.sln",

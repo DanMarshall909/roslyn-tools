@@ -63,6 +63,15 @@ internal static class DaemonTransport
     internal const string PipeName = "rt-daemon";
 }
 
+/// <summary>Process-level daemon routing controls shared by every host adapter.</summary>
+internal static class DaemonRuntime
+{
+    internal const string DisableEnvironmentVariable = "RT_NO_DAEMON";
+
+    internal static bool IsDisabled =>
+        Environment.GetEnvironmentVariable(DisableEnvironmentVariable) is "1" or "true";
+}
+
 /// <summary>Transport seam for a typed daemon command invocation.</summary>
 internal interface IDaemonRpcClient
 {

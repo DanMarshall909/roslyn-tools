@@ -25,7 +25,7 @@ internal sealed class ToolSchemaBuilder(CommandDescriptorRegistry descriptors)
         descriptor.ToolName,
         descriptor.WhenToUse,
         descriptor.Definition is not null
-            ? BuildPortSchema(descriptor.Definition.RequestType)
+            ? BuildPortSchema(descriptor.Definition)
             : descriptor.Port is not null
                 ? BuildLegacyPortSchema(descriptor.Input, descriptor.Port.RequestType)
                 : BuildInputSchema(descriptor.Input),
@@ -63,8 +63,9 @@ internal sealed class ToolSchemaBuilder(CommandDescriptorRegistry descriptors)
             properties.Count > 0 ? properties : null);
     }
 
-    private static Dictionary<string, object> BuildPortSchema(Type requestType)
+    private static Dictionary<string, object> BuildPortSchema(ApplicationCommandDefinition definition)
     {
+        var requestType = definition.RequestType;
         var properties = new Dictionary<string, Dictionary<string, object>>(
             StringComparer.Ordinal);
         var required = new List<string>();
@@ -75,20 +76,71 @@ internal sealed class ToolSchemaBuilder(CommandDescriptorRegistry descriptors)
                 continue;
 
             var name = JsonPropertyName(property);
-            var schema = BuildPropertySchema(property.PropertyType);
+            var propertySchema = BuildPropertySchema(property.PropertyType);
             var description = property.GetCustomAttribute<CommandPropertyDescriptionAttribute>();
             if (description is not null)
-                schema["description"] = description.Description;
-            properties[name] = schema;
+                propertySchema["description"] = description.Description;
+            properties[name] = propertySchema;
 
             if (property.GetCustomAttribute<JsonRequiredAttribute>() is not null)
                 required.Add(name);
         }
 
-        return JsonSchemaBuilder.Object(
+        var schema = JsonSchemaBuilder.Object(
             required.Count > 0 ? [.. required] : null,
             properties.Count > 0 ? properties : null);
+        if (definition.RequestVariants.Count > 0)
+            schema["oneOf"] = definition.RequestVariants
+                .Select(variant => BuildRequestVariantSchema(requestType, variant))
+                .ToArray();
+
+        return schema;
     }
+
+    private static Dictionary<string, object> BuildRequestVariantSchema(
+        Type requestType,
+        CommandRequestVariant variant)
+    {
+        var discriminator = ResolveRequestProperty(requestType, variant.DiscriminatorProperty);
+        var discriminatorName = JsonPropertyName(discriminator);
+        var discriminatorSchema = BuildPropertySchema(discriminator.PropertyType);
+        discriminatorSchema["enum"] = new[] { variant.DiscriminatorValue };
+
+        var required = variant.RequiredProperties
+            .Select(name => JsonPropertyName(ResolveRequestProperty(requestType, name)))
+            .ToList();
+        if (variant.DiscriminatorRequired)
+            required.Add(discriminatorName);
+
+        var schema = JsonSchemaBuilder.Object(
+            [.. required.Distinct(StringComparer.Ordinal)],
+            new Dictionary<string, Dictionary<string, object>>(StringComparer.Ordinal)
+            {
+                [discriminatorName] = discriminatorSchema
+            });
+        if (variant.ForbiddenProperties.Count > 0)
+        {
+            schema["not"] = new Dictionary<string, object>
+            {
+                ["anyOf"] = variant.ForbiddenProperties
+                    .Select(name => (object)new Dictionary<string, object>
+                    {
+                        ["required"] = new[]
+                        {
+                            JsonPropertyName(ResolveRequestProperty(requestType, name))
+                        }
+                    })
+                    .ToArray()
+            };
+        }
+
+        return schema;
+    }
+
+    private static PropertyInfo ResolveRequestProperty(Type requestType, string propertyName) =>
+        requestType.GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public)
+        ?? throw new InvalidOperationException(
+            $"Request variant property '{propertyName}' does not exist on '{requestType.Name}'.");
 
     private static Dictionary<string, object> BuildLegacyPortSchema(
         ApplicationCommandInput input,

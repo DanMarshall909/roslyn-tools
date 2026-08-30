@@ -33,7 +33,7 @@ internal sealed class SemanticDiffOperation(
 
     public override ApplicationCommandDefinition Definition { get; } = new(
         new RtCommandInfo("semantic-diff", false, true, "analyze", Aliases: ["sdiff"],
-            WhenToUse: "Semantic C# diff between two git versions or two files on disc.", Examples: [],
+            WhenToUse: "Use this instead of git diff when you need a semantic C# diff between two git versions or two files on disc.", Examples: [],
             SupportedFormats: [Core.Output.OutputFormat.Text, Core.Output.OutputFormat.Json]),
         typeof(SemanticDiffOperationRequest), typeof(SemanticDiffOperationResult), true,
         CommandSafety.ReadOnly, CommandExecutionPlacement.InProcess, []);

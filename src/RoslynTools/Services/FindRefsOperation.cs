@@ -20,6 +20,7 @@ internal sealed record FindRefsOperationResult(
     string SymbolName,
     string FullyQualifiedName,
     IReadOnlyList<FindReferenceOperationResult> References,
+    [property: JsonPropertyName("_suggestions")]
     IReadOnlyList<ToolSuggestion>? Suggestions);
 
 /// <summary>Shared find-references operation used by CLI and MCP.</summary>

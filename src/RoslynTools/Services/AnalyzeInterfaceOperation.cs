@@ -63,7 +63,7 @@ internal static class AnalyzeInterfaceCommandDefinition
     internal const string Name = "analyze_interface";
     internal static RtCommandInfo Info { get; } = new(
         "analyze-interface", false, true, "analyze",
-        "Grouping interface consumers by the exact interface members they use so interface-segregation work can be driven by evidence instead of raw reference dumps. Use --scope to focus on one namespace or project, and --json for automation-friendly output.",
+        "Use this instead of Read or raw reference dumps when grouping interface consumers by the exact interface members they use so interface-segregation work can be driven by evidence. Use --scope to focus on one namespace or project, and --json for automation-friendly output.",
         [
             "rt analyze analyze-interface ProjectX.Core.IEmailSender --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt analyze analyze-interface IEmailSender --scope ProjectX.Core --solution RoslynTools.slnx",

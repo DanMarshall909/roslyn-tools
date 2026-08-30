@@ -56,7 +56,7 @@ internal static class ProbeDiCommandDefinition
     internal static RtCommandInfo Info { get; } = new(
         "probe-di", false, true, "analyze",
         WhenToUse:
-        "Auditing assembly-scanning dependency injection after a successful build. This explicitly executes only the selected registration method and never boots the application host.",
+        "Use this instead of Read when auditing assembly-scanning dependency injection after a successful build. This explicitly executes only the selected registration method and never boots the application host.",
         Examples:
         [
             "rt analyze probe-di --entrypoint Bootstrap.RegisterServices --solution MyApp.slnx"

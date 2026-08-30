@@ -69,7 +69,7 @@ internal static class MakeStaticCommandDefinition
         false,
         "refactor",
         Aliases: ["mst"],
-        WhenToUse: "Converting an instance method to static when it has no instance-state dependencies. "
+        WhenToUse: "Use this instead of manual Edit when converting an instance method to static when it has no instance-state dependencies. "
                    + "Validates safety (no 'this', no instance field/property access, not virtual/override/abstract) "
                    + "before modifying and rewrites all call sites from instance.Method() to Type.Method().",
         Examples:

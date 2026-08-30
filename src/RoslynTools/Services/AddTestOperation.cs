@@ -154,7 +154,7 @@ internal static class AddTestCommandDefinition
         "refactor",
         Aliases: ["at"],
         WhenToUse:
-        "Appending xUnit [Fact] stub methods to an existing test class. Two modes: legacy (--class with --name or --acs) adds to arbitrary test classes; command-based (--command with --scenario/--outcome or --before/--after) scaffolds organized test files by rt command category.",
+        "Use this instead of manual Edit when appending xUnit [Fact] stub methods to an existing test class. Two modes: legacy (--class with --name or --acs) adds to arbitrary test classes; command-based (--command with --scenario/--outcome or --before/--after) scaffolds organized test files by rt command category.",
         Examples:
         [
             "rt refactor add-test --class BookingServiceTests --name Returns_404_When_Not_Found --solution RoslynTools.slnx",

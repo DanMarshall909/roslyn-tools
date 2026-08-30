@@ -146,6 +146,37 @@ public sealed class DaemonCommandExecutorRecoveryTests
         port.InvocationCount.ShouldBe(1);
     }
 
+    [Fact]
+    public async Task Typed_execution_honors_the_process_no_daemon_setting()
+    {
+        var previous = Environment.GetEnvironmentVariable(DaemonRuntime.DisableEnvironmentVariable);
+        Environment.SetEnvironmentVariable(DaemonRuntime.DisableEnvironmentVariable, "1");
+        try
+        {
+            var port = new FakePort(ReadOnlyDefinition());
+            var rpc = new StubRpcClient(new DaemonRpcAttempt(
+                DaemonRpcAttemptState.UnavailableBeforeDispatch,
+                null,
+                DispatchStarted: false));
+            var recovery = new DaemonRpcRecoveryCoordinator(rpc, new StubLauncher(started: true));
+
+            var result = await DaemonCommandExecutor.ExecuteTypedAsync(
+                recovery,
+                port,
+                new FakeRequest("local only"));
+
+            result.Match(
+                value => value.Value.ShouldBe("local only"),
+                error => throw new ShouldAssertException(error.Message));
+            port.InvocationCount.ShouldBe(1);
+            rpc.CallCount.ShouldBe(0);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(DaemonRuntime.DisableEnvironmentVariable, previous);
+        }
+    }
+
     private static InvocationContext CreateInvocationContext() =>
         new(new RootCommand().Parse([]));
 
@@ -187,11 +218,17 @@ public sealed class DaemonCommandExecutorRecoveryTests
 
     private sealed class StubRpcClient(DaemonRpcAttempt attempt) : IDaemonRpcClient
     {
+        internal int CallCount { get; private set; }
+
         public Task<DaemonRpcAttempt> ExecuteAsync(
             string commandName,
             JsonElement arguments,
             CommandSafety safety,
-            CancellationToken cancellationToken = default) => Task.FromResult(attempt);
+            CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            return Task.FromResult(attempt);
+        }
     }
 
     private sealed class StubLauncher(bool started) : IDaemonLauncher

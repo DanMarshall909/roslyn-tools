@@ -91,7 +91,7 @@ internal static class TransformParametersCommandDefinition
         "refactor",
         Aliases: ["tp"],
         WhenToUse:
-        "Introduce a Parameter Object: extract a method's parameters into a new record and update all call sites. Useful when a method has 3+ parameters that logically belong together.",
+        "Use this instead of manual Edit when introducing a Parameter Object: extract a method's parameters into a new record and update all call sites when a method has 3+ parameters that logically belong together.",
         Examples:
         [
             "rt refactor transform-parameters --method OrderService.PlaceOrder --new-type PlaceOrderArgs --solution MySolution.sln",

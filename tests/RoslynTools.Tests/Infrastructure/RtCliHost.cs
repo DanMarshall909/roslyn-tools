@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using RoslynTools.Daemon.Rpc;
 
 namespace RoslynTools.Tests.Infrastructure;
 
@@ -26,6 +27,7 @@ internal static class RtCliHost
             RedirectStandardError = true,
             UseShellExecute = false
         };
+        startInfo.Environment[DaemonRuntime.DisableEnvironmentVariable] = "1";
 
         using var process = Process.Start(startInfo)
                              ?? throw new InvalidOperationException("Failed to start 'dotnet'.");

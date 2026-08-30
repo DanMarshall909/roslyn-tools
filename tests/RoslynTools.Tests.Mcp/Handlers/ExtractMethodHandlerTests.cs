@@ -57,30 +57,30 @@ public sealed class ExtractMethodHandlerTests
         using (workspace)
         using (WorkspaceLoader.UseOverride(workspace, solution))
         using (var provider = CreateProvider())
-        using (var successArguments = JsonDocument.Parse($$"""
-                                                        {
-                                                          "file": "{{Path.Combine(project.ProjectDir, "Calculator.cs")}}",
-                                                          "new-name": "Calculate",
-                                                          "start-line": 7,
-                                                          "end-line": 8
-                                                        }
-                                                        """))
-        using (var missingArguments = JsonDocument.Parse($$"""
-                                                        {
-                                                          "file": "{{Path.Combine(project.ProjectDir, "Missing.cs")}}",
-                                                          "new-name": "Calculate",
-                                                          "start-line": 7,
-                                                          "end-line": 8
-                                                        }
-                                                        """))
-        using (var invalidRangeArguments = JsonDocument.Parse($$"""
-                                                             {
-                                                               "file": "{{Path.Combine(project.ProjectDir, "Calculator.cs")}}",
-                                                               "new-name": "Calculate",
-                                                               "start-line": 0,
-                                                               "end-line": 8
-                                                             }
-                                                             """))
+        using (var successArguments = JsonSerializer.SerializeToDocument(
+                   new Dictionary<string, object?>
+                   {
+                       ["file"] = Path.Combine(project.ProjectDir, "Calculator.cs"),
+                       ["new-name"] = "Calculate",
+                       ["start-line"] = 7,
+                       ["end-line"] = 8
+                   }))
+        using (var missingArguments = JsonSerializer.SerializeToDocument(
+                   new Dictionary<string, object?>
+                   {
+                       ["file"] = Path.Combine(project.ProjectDir, "Missing.cs"),
+                       ["new-name"] = "Calculate",
+                       ["start-line"] = 7,
+                       ["end-line"] = 8
+                   }))
+        using (var invalidRangeArguments = JsonSerializer.SerializeToDocument(
+                   new Dictionary<string, object?>
+                   {
+                       ["file"] = Path.Combine(project.ProjectDir, "Calculator.cs"),
+                       ["new-name"] = "Calculate",
+                       ["start-line"] = 0,
+                       ["end-line"] = 8
+                   }))
         {
             var adapter = new McpCommandAdapter(
                 provider.GetRequiredService<CommandDescriptorRegistry>(),

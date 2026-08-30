@@ -101,7 +101,7 @@ internal static class AddStaticImportCommandDefinition
         "refactor",
         Aliases: ["asi"],
         WhenToUse:
-        "Adding a C# `using static` directive to a specific file so static members can be referenced without qualifying the containing type. Prefer a narrow file target over solution-wide static imports. Pass --simplify to also strip the now-redundant `<Type>.` qualifiers from the file body in one pass.",
+        "Use this instead of manual Edit when adding a C# `using static` directive to a specific file so static members can be referenced without qualifying the containing type. Prefer a narrow file target over solution-wide static imports. Pass --simplify to also strip the now-redundant `<Type>.` qualifiers from the file body in one pass.",
         Examples:
         [
             "rt refactor add-static-import --file tests/MathTests.cs --type Xunit.Assert --solution C:\\code\\app\\App.sln",
