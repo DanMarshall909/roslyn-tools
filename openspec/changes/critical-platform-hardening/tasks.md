@@ -68,14 +68,15 @@ cross-host acceptance tests pass.
 
 ## P0.5 workspace completeness and proof policy
 
-- [ ] Replace tuple workspace results with `Complete | Partial | Failed` plus requested/loaded/failed project identities and full diagnostics.
-- [ ] Keep complete diagnostics in structured provenance even when a text renderer suppresses warnings.
+- [ ] Replace tuple workspace results with `Complete | Partial | Failed` plus a declared semantic-input manifest covering projects/transitive references, target frameworks/configurations/compilation contexts, documents, references, SDK/package/build inputs, generated output, and operation-required evaluator/analyzer/generator stages.
+- [ ] Record per-input loaded/resolved/failed/policy-blocked/excluded state and classify every diagnostic by completeness impact; keep the full manifest and diagnostics in structured provenance even when a text renderer suppresses warnings.
+- [ ] Define `Complete` only when every required manifest input is available at the declared revision and every required stage succeeds; allow exclusions only under a validated operation-specific irrelevance premise, return `Partial` when usable scope remains, and `Failed` when minimum scope cannot be established.
 - [ ] Make partial/failed state flow through every operation and result envelope.
 - [ ] Block proof confidence, safe-delete advice, and automatic mutation suggestions from partial workspaces.
 - [ ] Add a shared `Confidence { level, basis, evidence, limitations }` model and policy service.
 - [ ] Define the closed-world premises required before a publicly or externally visible symbol can be classified as proven unused.
 - [ ] Cover interface/override dispatch, extension use, reflection, DI/framework activation, serialization, route binding, markup, source generation, external consumers, and unsupported mechanisms.
-- [ ] Add partial-project, failed-reference, generator/analyzer-disabled, and external-public-API fixtures.
+- [ ] Add partial-project, missing target-framework/configuration, failed project/metadata/framework reference, missing SDK/package/import, generator/analyzer-disabled or failed, narrowed-scope, completeness-impacting diagnostic, and external-public-API fixtures.
 
 ## P1.1 five-command canonical spine
 

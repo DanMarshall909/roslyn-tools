@@ -263,7 +263,19 @@ Mutation transport SHALL classify caller knowledge as `NotDispatched`, `Complete
 
 ### Requirement: workspace completeness governs confidence and advice
 
-Workspace acquisition SHALL return `Complete`, `Partial`, or `Failed`, requested/loaded/failed project identities, all diagnostics, source identity, revision, SDK/compiler configuration, and independent trust-state/evaluator-mode provenance. Partial workspaces SHALL not produce proof-strength conclusions, deletion advice, or automatic mutation suggestions.
+Before acquisition, an operation SHALL declare a semantic-input manifest containing every requested project and transitive project reference; the selected target framework, configuration, and compilation context for each project, or every applicable context when the request does not narrow them; source, additional, analyzer-config, and generated documents; project, metadata, framework, SDK, package, and imported build inputs; and every evaluator, source-generator, or analyzer stage whose output the operation requires. Workspace acquisition SHALL return `Complete`, `Partial`, or `Failed`, the per-input loaded/resolved/failed/policy-blocked/excluded state, requested/loaded/failed project identities, all diagnostics and their completeness impact, source identity, revision, SDK/compiler configuration, and independent trust-state/evaluator-mode provenance. `Complete` SHALL require every required manifest entry at the declared revision and successful completion of every required evaluation/generator stage. An excluded input SHALL count as complete only when the operation contract declares and validates that it is irrelevant. `Partial` SHALL mean at least one usable semantic scope exists but a required input is unavailable, unresolved, failed, or blocked. `Failed` SHALL mean no usable semantic model remains or the missing input prevents the operation's minimum declared scope. Partial workspaces SHALL not produce proof-strength conclusions, deletion advice, or automatic mutation suggestions.
+
+#### Scenario: project objects load but semantic input is missing
+
+- **WHEN** all requested project objects are created but a required target framework, configuration, metadata/project/framework reference, imported build input, generated document, or required generator/analyzer stage is unavailable or fails
+- **THEN** the workspace is `Partial` when a usable declared scope remains, otherwise `Failed`
+- **AND THEN** it is not labelled `Complete` merely because every project object exists
+
+#### Scenario: a request intentionally narrows compilation scope
+
+- **WHEN** a request explicitly selects one target framework or compilation context and the operation contract permits that scope
+- **THEN** completeness is evaluated against that declared scope and records omitted contexts in provenance
+- **AND THEN** an omitted input is treated as irrelevant only when the operation validates that it cannot affect the requested conclusion
 
 #### Scenario: project load fails during unused analysis
 
@@ -274,7 +286,7 @@ Workspace acquisition SHALL return `Complete`, `Partial`, or `Failed`, requested
 #### Scenario: workspace warnings are hidden from the text view
 
 - **WHEN** human-facing output suppresses non-fatal workspace diagnostics
-- **THEN** structured provenance still contains the complete diagnostic set and completeness decision
+- **THEN** structured provenance still contains the complete diagnostic set, per-input manifest state, diagnostic completeness impact, and completeness decision
 
 #### Scenario: workspace contains no usable projects
 

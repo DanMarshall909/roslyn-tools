@@ -114,7 +114,24 @@ denied and recorded.
 
 Long-lived CLI, MCP, and daemon hosts never evaluate an untrusted repository in-process.
 
-Workspace acquisition returns **Complete**, **Partial**, or **Failed**, plus requested/loaded/failed projects, all diagnostics, SDK/compiler/configuration, trust state/evaluator mode, source identity, and revision. Suppressing warnings from a human renderer never removes them from structured provenance.
+Each workspace request declares a semantic-input manifest: requested projects and
+transitive references; selected target frameworks, configurations, and compilation
+contexts; source/additional/analyzer-config/generated documents; project, metadata,
+framework, SDK, package, and imported build inputs; and operation-required evaluator,
+generator, or analyzer stages. Acquisition records each entry as loaded/resolved,
+failed, policy-blocked, or explicitly excluded, with its diagnostic completeness
+impact.
+
+Workspace acquisition is **Complete** only when every required manifest input is
+available at the declared revision and every required stage succeeds in the declared
+evaluator mode. An exclusion counts as complete only under a validated
+operation-specific irrelevance premise. It is **Partial** when usable semantic scope
+remains but any required input is missing, unresolved, failed, or blocked, and
+**Failed** when no usable model or minimum declared scope remains. Results also carry
+requested/loaded/failed projects, all diagnostics, SDK/compiler/configuration, trust
+state/evaluator mode, source identity, and revision. Suppressing warnings from a
+human renderer never removes the manifest, diagnostics, or completeness decision
+from structured provenance.
 
 Partial workspaces cannot produce proof-strength conclusions, automatic deletion advice, or mutation suggestions. Confidence is a shared structure with level, basis, evidence, and limitations—not an analyser-local adjective.
 

@@ -94,7 +94,7 @@ remain outside the namespace.
 - A superseded owner resumed after lease takeover is fenced from every further repository side effect.
 - Overlapping apply/recovery plans for one repository cannot interleave between final preflight and durable terminal state, and `RecoveryRequired` blocks unrelated apply until verified recovery or explicit acknowledgement.
 - Fault injection proves complete success, complete rollback, verified post-recovery state, or truthful `RecoveryRequired`; partial application is never labelled `Applied`.
-- No proof-strength finding or deletion suggestion is emitted from a partial workspace or an externally visible symbol without an explicit proof basis.
+- No workspace is `Complete` unless every operation-required project, compilation context, reference, build input, document, and generator/analyzer stage is accounted for; no proof-strength finding or deletion suggestion is emitted from partial input or an externally visible symbol without an explicit proof basis.
 - Trust/evaluator tests cover untrusted isolated evaluation and trusted opt-in isolation; repository-controlled build logic cannot write through the isolated worker's read-only checkout, read undeclared host files, or execute in a privileged long-lived host.
 - The five spine commands pass CLI, MCP, in-process, and passthrough parity plus cancellation and failure-injection tests.
 - MCP conformance is tested for every advertised protocol version; structured tools return schema-valid `structuredContent` as well as a text view.

@@ -135,7 +135,8 @@ An analysis cannot prove absence of references it was unable to load. This is mo
 
 **Required correction**
 
-- Return `Complete | Partial | Failed` and full provenance from workspace acquisition.
+- Declare a semantic-input manifest covering projects, transitive references, target frameworks/configurations, documents, SDK/package/build inputs, and required generator/analyzer stages.
+- Return `Complete` only when every required manifest entry is resolved; otherwise return `Partial` when usable scope remains or `Failed` when minimum scope cannot be established.
 - Preserve every diagnostic in structured output even when text output suppresses warnings.
 - Downgrade all affected findings from partial input.
 - Suppress safe-delete and other destructive follow-ons unless completeness and shared confidence policy permit them.

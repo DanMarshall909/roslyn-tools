@@ -355,7 +355,33 @@ contract.
 
 ## Workspace completeness, provenance, and confidence
 
-Workspace acquisition returns `Complete`, `Partial`, or `Failed`, with requested/loaded/failed project identities and all diagnostics. A partial result remains explicitly partial at top level and for every finding affected by missing input.
+Before acquisition, the operation constructs a semantic-input manifest for its
+declared scope. It includes every requested project and transitive project reference;
+the selected target framework, configuration, and compilation context for each
+project (or every applicable context when the request does not narrow them); source,
+additional, analyzer-config, and generated documents; project, metadata, framework,
+SDK, package, and imported build inputs; and every evaluator, source-generator, or
+analyzer stage whose output the operation requires. Each entry records loaded,
+resolved, failed, policy-blocked, or explicitly excluded state and the diagnostics
+that justify it.
+
+Workspace acquisition returns `Complete`, `Partial`, or `Failed`, that manifest,
+requested/loaded/failed project identities, and all diagnostics. `Complete` means
+every required manifest entry was loaded or resolved at the declared source revision
+and every required evaluation/generator stage completed in the declared evaluator
+mode without a completeness-impacting diagnostic. A deliberately excluded input is
+compatible with `Complete` only when the operation contract declares it irrelevant
+and validates that premise; otherwise exclusion is missing input.
+
+`Partial` means at least one usable semantic scope exists but a required project,
+target framework, configuration, reference, build input, document, generator output,
+or operation-required analyzer stage is unavailable, unresolved, failed, or blocked.
+`Failed` means no usable semantic model remains or the missing input prevents the
+operation's minimum declared scope. Diagnostic severity alone does not determine
+completeness: the loader records whether each diagnostic has no completeness impact,
+degrades a required input, or makes the requested scope unusable. A partial result
+remains explicitly partial at top level and for every finding affected by missing
+input.
 
 Shared policy enforces:
 
