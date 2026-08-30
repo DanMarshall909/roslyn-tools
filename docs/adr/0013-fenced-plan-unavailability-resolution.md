@@ -30,9 +30,11 @@ requires the matching lease and atomically adopts its pin when recording `Receiv
 The lease is not evidence that transport accepted the request.
 
 Receipt adoption transfers the pin into the operation lifecycle. Operation-level
-`Expired` and every other terminal no-effect outcome retain the exact plan, journal,
-artifact inventory, quota reservation, and cleanup capability while cleanup is
-pending. Epoch sealing or durable lease/replay expiry releases only an unadopted pin
+`Expired` and terminal no-effect outcomes with a valid plan retain its exact bytes,
+journal, artifact inventory, quota reservation, and cleanup capability while cleanup
+is pending. `RejectedPlanUnavailable` retains the immutable identity/hash, any
+remaining verified bytes, failure evidence, and the rest of the cleanup bundle without
+reconstruction. Epoch sealing or durable lease/replay expiry releases only an unadopted pin
 for which no operation or control artifact exists; an adopted pin releases only after
 verified terminal cleanup or explicit recovery acknowledgement.
 

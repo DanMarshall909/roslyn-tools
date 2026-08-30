@@ -317,7 +317,9 @@ resolution and every nonterminal state, including `Recovering`, through
 control bundle awaits verified
 cleanup. Any terminal no-effect operation, including `Expired`, keeps the adopted plan,
 journal, artifact inventory, quota, and cleanup capability pinned while
-`CleanupPending`. Durable lease/replay expiry or epoch sealing releases only an
+`CleanupPending`; `RejectedPlanUnavailable` keeps its immutable identity/hash, any
+remaining verified bytes, failure evidence, and the rest of that cleanup bundle without
+reconstruction. Durable lease/replay expiry or epoch sealing releases only an
 unadopted pin for which no operation/control artifact exists; an adopted pin releases
 only after verified terminal cleanup or explicit recovery acknowledgement.
 

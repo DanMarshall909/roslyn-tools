@@ -438,8 +438,10 @@ pin by durable reference. Garbage collection cannot remove a plan while an assoc
 dispatch lease remains admissible or an operation is `Received`, `NotRecorded`, `Prepared`, `Applying`,
 `OwnerQuiescencePending`, `Reconciling`, `Recovering`, or `RecoveryRequired`, and cannot remove a
 terminal no-effect plan, including `CancelledNoEffect`, `Expired`, `RejectedStale`,
-`RejectedPlanUnavailable`, or `RejectedUnsafeCoordination`, while its control-artifact
-cleanup remains pending. Durable dispatch-lease/replay expiry releases only an
+or `RejectedUnsafeCoordination`, while its control-artifact cleanup remains pending.
+`RejectedPlanUnavailable` retains the immutable reference/hash, any remaining verified
+bytes, failure evidence, journal, inventory, quota, and cleanup capability rather than
+reconstructing missing or untrusted bytes. Durable dispatch-lease/replay expiry releases only an
 unadopted pin for which no operation or control artifact exists. An adopted pin releases
 only after verified terminal cleanup or explicit recovery acknowledgement. Recovery
 evidence and its plan are retained as one

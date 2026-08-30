@@ -274,9 +274,13 @@ snapshot. Once an operation record references a plan, the store SHALL pin its ex
 bytes through all nonterminal states and through `RecoveryRequired` until verified
 terminal cleanup or explicit recovery acknowledgement. A terminal no-effect state,
 including `CancelledNoEffect`, `Expired`, `RejectedStale`,
-`RejectedPlanUnavailable`, or `RejectedUnsafeCoordination`, SHALL retain the plan,
-journal, artifact inventory, and cleanup capability as one complete pinned bundle while
-`CleanupPending`; operation expiry or epoch sealing SHALL NOT release an adopted pin.
+or `RejectedUnsafeCoordination`, SHALL retain the plan, journal, artifact inventory,
+and cleanup capability as one complete pinned bundle while `CleanupPending`.
+`RejectedPlanUnavailable` SHALL instead retain the immutable plan identity/hash, all
+remaining verified plan bytes, the unavailability/corruption evidence, journal,
+artifact inventory, quota, and cleanup capability; it SHALL NOT reconstruct missing or
+untrusted bytes. Operation expiry or epoch sealing SHALL NOT release an adopted pin or
+cleanup reference.
 
 Before any mutation request bytes are sent, the caller SHALL atomically register a
 bounded `DispatchPlanLease` in the protected coordination/plan authority, keyed by
