@@ -69,7 +69,22 @@ Repository root, solution path, configuration, trust state, evaluator mode, reso
 
 ### Requirement: prepared mutation plans are complete and immutable
 
-A mutation SHALL prepare an immutable change set before apply. The plan SHALL describe every create, replacement, delete, move, project edit, Roslyn document, additional document, and analyzer-config document it can affect, including exact path preconditions, expected hashes/existence, platform file identity, link count, known hard-link aliases, encoding/newline/file-mode policy, symlink/hard-link policy, operation-scoped staging/backup roots outside the repository, OS/filesystem conditional-effect or external-write-guard requirements, diff, verification plan, expiry, and repository revision. Before prepare succeeds, the exact canonical plan bytes SHALL be atomically persisted in a user-private durable store scoped by canonical repository identity. Apply SHALL identify those bytes by repository ID, plan ID, and plan hash and SHALL NOT recompute them from command arguments or a newer workspace snapshot. Once an operation record references a plan, the store SHALL pin its exact bytes through all nonterminal states and through `RecoveryRequired` until verified terminal cleanup or explicit recovery acknowledgement.
+A mutation SHALL prepare an immutable change set before apply. The plan SHALL
+describe every create, replacement, delete, move, project edit, Roslyn document,
+additional document, and analyzer-config document it can affect, including
+coordination domain/mode and writer-set proof, exact path preconditions, expected
+hashes/existence, platform file identity, link count, known hard-link aliases,
+encoding/newline/file-mode policy, symlink/hard-link policy, operation-scoped
+staging/backup roots outside the repository, OS/filesystem conditional-effect or
+external-write-guard requirements, diff, verification plan, expiry, and repository
+revision. Before prepare succeeds, the exact canonical plan bytes SHALL be atomically
+persisted in protected durable storage outside repository control: user-private for
+proven `ExclusivePrincipal`, or authority-owned/access-controlled for
+`SharedAuthority`. Apply SHALL identify those bytes by repository ID, plan ID, and
+plan hash and SHALL NOT recompute them from command arguments or a newer workspace
+snapshot. Once an operation record references a plan, the store SHALL pin its exact
+bytes through all nonterminal states and through `RecoveryRequired` until verified
+terminal cleanup or explicit recovery acknowledgement.
 
 #### Scenario: preview and apply use the same plan
 
@@ -92,14 +107,14 @@ A mutation SHALL prepare an immutable change set before apply. The plan SHALL de
 
 #### Scenario: a path escapes its assigned root
 
-- **WHEN** a source/destination falls outside the canonical repository root, or a staging/backup/control path falls outside its user-private control root or overlaps the repository
+- **WHEN** a source/destination falls outside the canonical repository root, or a staging/backup/control path falls outside its coordination-domain-protected control root or overlaps the repository
 - **THEN** preparation or preflight rejects the plan before any repository write
 
 #### Scenario: staging is interrupted before repository effects
 
 - **WHEN** apply is cancelled, crashes, or finds stale input while creating replacement content
 - **THEN** a durable journal already identifies every staging intent and completed artifact
-- **AND THEN** all staging and backup paths are under an operation-scoped user-private root outside the repository
+- **AND THEN** all staging and backup paths are under an operation-scoped coordination-domain-protected root outside the repository
 - **AND THEN** restart/status cleanup is idempotent, performs no repository write, and retains the plan until artifact cleanup is verified
 - **AND THEN** inability to create a safe outside-repository location, including a same-volume location when required, blocks unattended apply
 
@@ -132,6 +147,72 @@ A mutation SHALL prepare an immutable change set before apply. The plan SHALL de
 
 - **WHEN** the implementation cannot determine how to preserve or intentionally change encoding, BOM, newline, permissions, or symlink behaviour
 - **THEN** preparation reports the limitation and blocks unattended apply
+
+### Requirement: mutation coordination spans every writable principal
+
+Canonical repository identity SHALL be stable across OS principals and hosts. One
+OS- or service-protected registry outside repository control SHALL bind the checkout
+filesystem identity, Git
+common-directory identity, and a non-reused coordination nonce, and SHALL record the
+coordination mode, declared owner or authority, active recovery-barrier summary, and
+identity-retirement marker. A per-user store SHALL NOT shadow that mapping. Every
+would-be mutation principal and host SHALL resolve the same registry before intake. A
+machine-local registry SHALL qualify only when filesystem/ownership proof excludes
+writes from every other host; shared or network storage SHALL require an authority
+spanning every writer. Every
+apply-capable plan SHALL name a coordination domain and
+prove one of two modes. `ExclusivePrincipal` SHALL prove through OS
+ACL/mode/ownership metadata that no other non-administrative principal or host in the
+declared threat model can write or replace the repository root, Git common directory,
+or ancestor entries capable of replacing either. Trusted OS administrators SHALL use
+only the explicit transfer path. Its full ledger and payloads MAY remain
+principal-private, but
+admission, ownership, active recovery-barrier status, and transfer SHALL remain in
+the cross-principal registry. `SharedAuthority` SHALL use one OS- or service-enforced
+authority outside repository control for intake fencing, operation state, transaction
+reservation, fencing epochs, recovery barriers, and tombstones across
+every authorized principal and host adapter. Protected operation payloads and
+recovery artifacts MAY remain encrypted or access-controlled within that authority.
+Normal retention SHALL NOT delete the repository mapping or an active barrier.
+Missing, unreachable, or inconsistent registry state SHALL reject mutation rather
+than create a new repository identity.
+
+If neither proof is available, mutation preparation SHALL NOT return an apply-capable
+plan and an accepted apply SHALL terminate as no-effect
+`RejectedUnsafeCoordination`. Apply SHALL revalidate the writer set and authority
+before the first repository effect and at every effect boundary. Coordination drift
+after an effect SHALL enter verified rollback or `RecoveryRequired` rather than a
+no-effect rejection. `RecoveryRequired` SHALL be committed to the coordination
+authority and cross-principal registry before releasing the repository reservation,
+and every later apply from any principal SHALL consult that barrier. Ownership
+transfer SHALL be explicit,
+require verified recovery or acknowledgement, carry forward tombstones, and obey
+repository-identity retirement; it SHALL NOT silently create a new user-private
+mutation domain.
+
+#### Scenario: a shared writable checkout has no coordination authority
+
+- **WHEN** more than one OS principal or host can write or replace the checkout or Git common directory and no shared authority covers all of them
+- **THEN** inspection remains available but mutation preparation does not return an apply-capable plan
+- **AND THEN** an accepted apply records `RejectedUnsafeCoordination` and performs no repository effect
+
+#### Scenario: another principal targets a repository awaiting recovery
+
+- **WHEN** one principal leaves a shared-authority repository in `RecoveryRequired` and another principal submits an apply
+- **THEN** both resolve the same canonical repository ID and coordination authority
+- **AND THEN** the second apply observes the durable barrier and is rejected before any repository effect
+
+#### Scenario: mutation ownership changes during apply
+
+- **WHEN** the proven writer set, coordination authority, or ownership identity changes after plan review
+- **THEN** detection before the first effect records `RejectedUnsafeCoordination` with no repository effect
+- **AND THEN** detection after an effect stops remaining work and reaches verified `RolledBack` or `RecoveryRequired`
+
+#### Scenario: repository mutation ownership is transferred
+
+- **WHEN** an administrator transfers a checkout to another mutation principal
+- **THEN** the authority requires verified recovery or explicit acknowledgement of every barrier before transfer
+- **AND THEN** it carries forward tombstones and either preserves repository identity or retires it permanently before issuing a non-reused identity
 
 ### Requirement: apply operations have caller-known durable identity
 
@@ -244,8 +325,8 @@ history. Direct terminal states SHALL distinguish `Applied` and `RolledBack`;
 verified post-recovery terminal states SHALL distinguish `RecoveredApplied` and
 `RecoveredRolledBack`; `RecoveryAcknowledged` SHALL be an administrative terminal
 state that makes no repository-cleanliness claim. `CancelledNoEffect`,
-`RejectedStale`, `RejectedConflict`, and `Expired` SHALL remain no-effect terminal
-outcomes. `RecoveryRequired` SHALL be a durable intervention state, while `Received`,
+`RejectedStale`, `RejectedConflict`, `RejectedUnsafeCoordination`, and `Expired` SHALL
+remain no-effect terminal outcomes. `RecoveryRequired` SHALL be a durable intervention state, while `Received`,
 `NotRecorded`, `Prepared`, `Applying`, `Recovering`, and `Reconciling` are nonterminal
 or dormant resolution states.
 
@@ -327,8 +408,8 @@ or dormant resolution states.
 
 #### Scenario: another plan targets a repository awaiting recovery
 
-- **WHEN** a repository has an operation in `RecoveryRequired` and a different apply request reaches final validation
-- **THEN** the new apply is rejected without a repository effect until verified recovery or explicit acknowledgement lifts the recovery barrier
+- **WHEN** a repository has an operation in `RecoveryRequired` and a different apply request from the same or another OS principal reaches final validation
+- **THEN** the cross-principal registry and coordination domain expose the same barrier and reject the new apply without a repository effect until verified recovery or explicit acknowledgement lifts it
 
 #### Scenario: cancellation arrives after side effects begin
 

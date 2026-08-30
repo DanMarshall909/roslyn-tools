@@ -104,9 +104,11 @@ Workspace provenance records:
 
 `Prepare` returns an immutable `PreparedChangeSet` with a stable `PlanId` and
 `PlanHash`. Before prepare succeeds, the canonical serialized plan is atomically
-persisted in a user-private durable plan store outside the target repository. The
-store is logically scoped by canonical repository identity and survives CLI, MCP,
-and daemon process restart. `Apply` receives both the plan identity and a
+persisted in a protected durable plan store outside the target repository:
+user-private
+under proven `ExclusivePrincipal`, or authority-owned/access-controlled under
+`SharedAuthority`. The store is logically scoped by canonical repository identity and
+survives CLI, MCP, and daemon process restart. `Apply` receives both the plan identity and a
 caller-generated `OperationId` before any transport dispatch:
 
 ```text
@@ -115,6 +117,58 @@ Apply(repositoryId, planId, planHash, operationId, requestHash, expectedRevision
 GetOperation(repositoryId, operationId, requestHash) -> OperationStatus
 Recover(repositoryId, operationId, recoveryAction) -> RecoveryResult
 ```
+
+### Mutation coordination domain
+
+Canonical repository identity is stable across OS principals and hosts: an OS- or
+service-protected registry outside repository control binds the checkout filesystem
+identity, Git
+common-directory identity, and a non-reused coordination nonce. The registry cannot
+be shadowed by a per-user store and records the coordination mode, declared owner or
+authority, active recovery-barrier summary, and identity-retirement marker. Every
+would-be mutation principal and host must resolve it through the same enforced
+registry, so a second user or machine opening the checkout cannot derive an
+independent repository ID and bypass existing operation state. A machine-local
+registry qualifies only when filesystem/ownership proof excludes writes from other
+hosts; shared or network storage requires a shared authority spanning every writer.
+Normal retention never deletes the mapping or an active barrier. Missing,
+unreachable, or inconsistent registry state rejects mutation instead of minting a new
+repository identity.
+
+Every apply-capable plan declares one `CoordinationDomainId` and mode:
+
+- `ExclusivePrincipal` requires an OS ACL/mode/ownership proof that no other
+  non-administrative principal or other host in the declared threat model can write or
+  replace the
+  repository root, Git common directory, or ancestor directory entries that can
+  replace either. Trusted OS administrators act only through the explicit transfer
+  path. In this mode the
+  principal's protected user-private store may hold the full ledger and payloads, but
+  admission, ownership, active recovery-barrier status, and transfer remain
+  authoritative in the cross-principal registry.
+- `SharedAuthority` requires one OS- or service-enforced authority outside repository
+  control that every authorized mutation principal and host adapter must use. It owns
+  the intake fence, active operation state, transaction reservation, fencing epoch,
+  recovery barrier, and idempotency tombstones. Operation
+  payloads and recovery artifacts remain access-controlled and may be encrypted or
+  referenced without exposing them to every principal.
+
+Mutation preparation records the writer-set and authority proof. If another
+principal can write the checkout and no shared authority is available, preparation
+does not return an apply-capable plan and apply records no-effect terminal
+`RejectedUnsafeCoordination`. Inspection remains available. Apply revalidates the
+proof before the first effect and at every effect boundary. Pre-effect ownership or
+authority drift also returns `RejectedUnsafeCoordination`; drift after an effect
+enters verified rollback or `RecoveryRequired`.
+
+`RecoveryRequired` is committed to the coordination authority and the
+cross-principal registry before the transaction reservation is released. Every later
+apply, from any OS principal, must resolve that registry and authority and observe the
+barrier. Ownership transfer cannot silently rebind the
+checkout to a new user-private ledger: it is an explicit administrative operation
+that requires verified recovery or acknowledgement, carries forward tombstones, and
+rotates identity only under the permanent retirement rules. If the required
+cross-principal proof or authority cannot be established, mutation is refused.
 
 `(RepositoryId, OperationId)` is the composite durable identity for intake,
 idempotency, status, recovery, acknowledgement, and retention. `OperationId` need
@@ -131,8 +185,8 @@ transport JSON directly. A transport request-attempt ID may be separate.
 Before an accepted request can enter an execution queue, the receiver acquires a
 cross-process, store-enforced intake fence keyed by repository and operation ID and
 durably records `Received(OperationId, RequestHash,
-CanonicalRequest)`. The canonical request is stored in the user-private control
-plane, not daemon logs. The operation ledger is then created before side effects
+CanonicalRequest)`. The canonical request is stored in the protected coordination
+control plane, not daemon logs. The operation ledger is then created before side effects
 begin. Startup and status lookup reconcile a `Received` receipt that has no operation
 record, so accepted work cannot disappear between transport intake and ledger
 creation.
@@ -160,8 +214,9 @@ Apply loads the exact persisted plan bytes identified by repository ID, plan ID,
 plan hash. A missing, expired, unreadable, schema-incompatible, or hash-mismatched plan
 is rejected before the operation ledger enters `Applying`. Apply never reconstructs a
 plan from command arguments or a newer workspace snapshot. The plan store uses
-owner-only access where supported, bounded retention for unreferenced plans and
-safely cleaned terminal history, atomic writes, and crash-safe cleanup;
+principal-private or authority-mediated access as declared by its coordination mode,
+bounded retention for unreferenced plans and safely cleaned terminal history, atomic
+writes, and crash-safe cleanup;
 repositories cannot supply or replace its control metadata.
 
 Bounded retention applies only to unreferenced prepared plans, safely cleaned bulky
@@ -199,19 +254,21 @@ ID is rejected before intake.
 A prepared change set contains:
 
 - plan ID, plan hash, schema version, creation time, expiry, repository identity, and expected repository revision;
+- coordination domain ID/mode, stable cross-principal repository identity, declared mutation principal/writer set, and OS ownership or shared-authority proof;
 - exact operation list for creates, replacements, deletes, moves, project edits, Roslyn documents, additional documents, and analyzer-config documents;
 - expected existence and content hash for every read or modified path;
 - expected file type, platform file identity, link count, known hard-link aliases, and symlink/hard-link policy;
 - the OS/filesystem conditional-effect or exclusive-guard capability required for every read dependency, affected path, and destination directory entry;
 - encoding, BOM, newline, and file-mode/permission preservation policy;
-- root-containment proof that every source/destination is under the canonical repository root and every staging/backup/control artifact is under an operation-scoped user-private control root outside the repository;
+- root-containment proof that every source/destination is under the canonical repository root and every staging/backup/control artifact is under an operation-scoped coordination-domain-protected control root outside the repository;
 - exact diff and machine-readable change model;
 - diagnostics, assumptions, confidence, and irreversible limitations;
 - verification steps and expected post-apply hashes; and
 - cleanup and recovery policy.
 
 Preparation performs no target-repository writes. Persisting the canonical plan in
-the user-private control-plane store is part of preparation and must complete before
+the protected coordination control-plane store is part of preparation and must
+complete before
 the plan is returned. Review and dry-run rendering are projections of those exact
 persisted bytes, and apply consumes those bytes without recomputation.
 
@@ -231,6 +288,7 @@ Prepared
   -> CancelledNoEffect
   -> RejectedStale
   -> RejectedConflict
+  -> RejectedUnsafeCoordination
   -> Expired
 
 Unknown
@@ -239,6 +297,7 @@ Unknown
        -> CancelledNoEffect
        -> RejectedStale
        -> RejectedConflict
+       -> RejectedUnsafeCoordination
        -> Expired
   -> NotRecorded
        -> Received  (same request hash plus replay epoch only)
@@ -263,15 +322,17 @@ apply outcomes use `Applied` and `RolledBack`; verified manual-recovery outcomes
 explicit administrative handoff and does not assert that repository contents are
 clean. `CancelledNoEffect` is a terminal result that proves the accepted request
 performed no repository effect; it is unavailable after the durable
-`FirstEffectStarted` boundary.
+`FirstEffectStarted` boundary. `RejectedUnsafeCoordination` proves the required
+exclusive-principal ownership or shared authority was unavailable before any
+repository effect.
 
 The implementation:
 
 1. loads and verifies the exact persisted plan;
 2. creates or reads the durable operation record;
-3. acquires an exclusive transaction reservation keyed by canonical repository identity, then validates replay semantics and claims a renewable owner lease plus fencing epoch;
+3. resolves and revalidates the plan's coordination domain, acquires its exclusive transaction reservation keyed by canonical repository identity, then validates replay semantics and claims a renewable owner lease plus fencing epoch;
 4. durably initializes the operation journal and records the exact staging/backup roots plus staging intent before creating any artifact;
-5. stages replacement content atomically into that operation-scoped user-private root outside the repository, preferably on the target volume, and journals each artifact's hash and completion;
+5. stages replacement content atomically into that operation-scoped coordination-domain-protected root outside the repository, preferably on the target volume, and journals each artifact's hash and completion;
 6. proves that every read dependency, affected path, and source/destination directory entry supports an OS-enforced conditional effect or exclusive external-write guard;
 7. establishes complete transaction protection by acquiring that guard set in deterministic order or recording immutable version tokens that every conditional effect checks atomically, and retains it with the repository reservation through final status or explicit recovery handoff;
 8. while holding both boundaries, performs final whole-plan preflight of every revision, read dependency, path, hash, permission, link, destination, and free-space condition;
@@ -282,7 +343,8 @@ The implementation:
 13. performs guarded rollback from the journal.
 
 Staging and backups are control-plane artifacts, never target-repository paths. The
-operation chooses a user-private, non-overlapping root outside the checkout and, when
+operation chooses a coordination-domain-protected, non-overlapping root outside the
+checkout and, when
 same-volume atomic replacement is required, on the target volume. If it cannot prove
 that boundary or create a safe same-volume location, unattended apply is blocked.
 The journal is durable before the first staging write and makes staging creation,
@@ -361,10 +423,11 @@ be exposed as stable apply-capable MCP behaviour.
 
 ### Manual recovery and acknowledgement
 
-`RecoveryRequired` is not terminal. It is a durable recovery barrier for the
-canonical repository: new apply operations are rejected before final validation
-until the operation reaches a verified recovered state or an authorized user
-explicitly acknowledges the unresolved condition.
+`RecoveryRequired` is not terminal. It is a durable recovery barrier in the
+repository's coordination domain and cross-principal registry: new apply operations
+from every OS principal
+are rejected before final validation until the operation reaches a verified recovered
+state or an authorized user explicitly acknowledges the unresolved condition.
 
 `resume` and `rollback` resolve the operation by canonical repository ID plus
 operation ID, then acquire the same exclusive repository transaction
@@ -395,7 +458,8 @@ summary remains for the configured terminal-history retention period.
 ### Filesystem containment at side-effect time
 
 Source and destination paths are contained under the canonical repository root;
-staging, backup, and control paths are contained under their user-private root and
+staging, backup, and control paths are contained under their
+coordination-domain-protected root and
 must not overlap the repository. String normalisation, ordinary revalidation, and advisory locks are necessary but
 insufficient. Every
 create, open, stage, replace, move, delete, backup, and restore is performed relative
@@ -431,7 +495,7 @@ alias, and no replacement may silently sever a reviewed link relationship.
 
 Every `Applying` ledger entry contains an owner instance ID, monotonically increasing
 fencing epoch, lease expiry, heartbeat, and exclusive transaction-reservation
-identity. A live owner renews its lease while applying or rolling back and holds the
+identity in the repository's coordination domain. A live owner renews its lease while applying or rolling back and holds the
 OS-enforced reservation continuously from final whole-plan preflight through the
 durable terminal result or explicit recovery handoff. Other apply/recovery requests
 for the same canonical repository wait, cancel, or reject before final validation;

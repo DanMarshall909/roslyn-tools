@@ -55,6 +55,23 @@ Its local endpoint is per-user, collision-resistant, and access controlled where
 
 The daemon logs bounded structured metadata and redacted diagnostics. It does not persist raw JSON requests, command-line payloads, piped source/input, arbitrary environment values, or unbounded exception/source data.
 
+### Cross-principal mutation coordination
+
+A per-user daemon or ledger cannot define repository identity or hide an active
+barrier. Every would-be writer first resolves an OS/service-protected cross-principal
+and cross-host registry outside repository control that maps checkout/Git-common-dir
+identity to one non-reused repository ID and records ownership, active recovery
+barriers, and retirement. Machine-local state qualifies only when other hosts cannot
+write the storage. Full operation data may remain per-user only when OS ownership/ACL
+proof shows that no other non-administrative principal or host in the threat model
+can write or replace the checkout and Git common directory. A shared writable
+checkout requires a separate OS/service-enforced coordination authority that every
+principal and adapter uses for intake, reservations, state, recovery barriers,
+fencing, and tombstones. If neither mode is proven, mutation is rejected and the
+checkout remains inspect-only. This authority is a safety primitive of the canonical
+application operation; it does not give the transparent daemon workspace, execution,
+or mutation-policy ownership.
+
 ### Prohibited ownership
 
 The daemon SHALL NOT:

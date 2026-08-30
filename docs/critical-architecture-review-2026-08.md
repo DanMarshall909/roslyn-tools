@@ -113,20 +113,21 @@ retries, crashes, or process restarts.
 **Required correction**
 
 - Prepare one immutable plan containing every create/replace/delete/move/project/additional/analyzer-config change.
-- Persist its canonical bytes outside repository control and require repository ID, plan ID, and plan hash at apply.
+- Persist its canonical bytes in protected storage outside repository control and require repository ID, plan ID, and plan hash at apply.
+- Resolve one OS/service-protected cross-principal/cross-host repository identity and barrier registry, then prove no other non-administrative principal or host can write the checkout or require one shared coordination authority; otherwise keep it inspect-only.
 - Record expected existence/hash/type, platform identity/link count, encoding/BOM/newlines, permissions/mode, symlink/hard-link policy, repository revision, exact diff, expiry, verification, and recovery data.
 - Pin the exact plan and recovery bundle while an operation is nonterminal (including `Recovering`) or `RecoveryRequired`.
 - Assign caller-known operation identity and persist its ledger before writes.
 - Acquire one exclusive canonical-repository transaction reservation before final whole-plan preflight and hold it through the durable terminal result or recovery handoff so plans cannot interleave.
 - Acquire OS-enforced guards for every reviewed dependency/target or use atomic conditional effects so non-`rt` writers cannot win between validation and effect; advisory locks and unconditional replacement are insufficient.
-- Journal staging intent first, then stage only under a user-private operation root outside the repository, preferably on the same volume; make crash cleanup idempotent.
+- Journal staging intent first, then stage only under a coordination-domain-protected operation root outside the repository, preferably on the same volume; make crash cleanup idempotent.
 - Use the same intake fence when cancellation races receipt-to-ledger promotion, then atomically arbitrate it against a durable `FirstEffectStarted` permit containing the complete effect intent and guard/version evidence; cancellation wins as `CancelledNoEffect` with no-effect proof, artifact inventory, and replay-safe cleanup status.
 - Preflight every condition and revalidate the expected intermediate state, remaining plan dependencies, containment, file identity, and link count at every side effect.
 - Restrict stale rejection to drift found before the first effect; mid-apply drift must stop, journal evidence, and reach verified rollback or `RecoveryRequired`.
 - Journal and apply deterministically with atomic per-file replacement where supported.
 - Verify postconditions before `Applied`.
 - Roll back and verify after failure.
-- Enter durable `RecoveryRequired` and retain journal/backups when rollback cannot restore every path.
+- Enter durable `RecoveryRequired`, retain journal/backups, and publish the barrier through the coordination domain to every writable OS principal before releasing the reservation when rollback cannot restore every path.
 - Once the first-effect permit wins, record later cancellation without interrupting verification or rollback.
 - Reconcile expired apply-owner leases from durable evidence after restart using a fencing epoch and the same transaction reservation.
 - Add explicit fenced recovery operations with append-only `Recovering -> RecoveredApplied | RecoveredRolledBack | RecoveryRequired` transitions.
@@ -205,7 +206,7 @@ Even as a passthrough, it should use explicit request context, per-user collisio
 
 ### Dry-run output is not yet the reviewed plan contract
 
-A text diff generated from recomputed Roslyn snapshots is helpful but insufficient for a safe apply workflow. An excellent tool lets a user or agent review one stable plan, then applies exactly that plan against explicit preconditions, including from a later process. The plan needs a machine-readable change list, stable ID and hash, and durable user-private storage outside repository control, not only console diff text.
+A text diff generated from recomputed Roslyn snapshots is helpful but insufficient for a safe apply workflow. An excellent tool lets a user or agent review one stable plan, then applies exactly that plan against explicit preconditions, including from a later process. The plan needs a machine-readable change list, stable ID and hash, and durable coordination-domain-protected storage outside repository control, not only console diff text.
 
 ### Error and result contracts are still split by migration state
 

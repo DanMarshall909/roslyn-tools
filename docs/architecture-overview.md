@@ -179,7 +179,27 @@ GetOperation(repositoryId, operationId, requestHash) -> OperationStatus
 Recover(repositoryId, operationId, action) -> RecoveryResult
 ```
 
-The immutable prepared plan contains all path and project operations, expected revision and hashes, encoding/newline/file-mode policy, symlink/hard-link/root-containment policy, exact diff, diagnostics, assumptions, verification, expiry, and recovery data. Source/destination paths are repository-contained; staging, backups, and control artifacts use a user-private operation root outside and non-overlapping with the repository, on the target volume when required. Before prepare returns, its canonical bytes are atomically persisted outside repository control. Preview and apply consume that same repository-scoped, hash-verified plan across process restart. Once an intake receipt or operation ledger references a plan, garbage collection pins its exact bytes through every nonterminal state, including `Recovering`, through `RecoveryRequired`, and while a `CancelledNoEffect` control bundle awaits verified cleanup; it releases them only after verified terminal cleanup, durable expiry, or explicit recovery acknowledgement.
+Repository identity and mutation coordination span OS principals and hosts. An OS-
+or service-protected registry outside repository control maps checkout/Git-common-dir filesystem identity
+to one non-reused repository ID and records mode, owner/authority, active recovery
+barrier, and retirement state; no per-user store can shadow it. Every would-be
+mutation principal/host resolves this registry before intake; machine-local state is
+valid only when other hosts cannot write the filesystem. Missing, inconsistent, or
+unreachable registry state blocks mutation instead of creating another identity, and
+normal retention never removes an active barrier. Every apply plan records a
+`CoordinationDomainId` and proves either `ExclusivePrincipal` ownership (no other
+non-administrative principal or host in the threat model can write/replace the
+checkout, Git common directory, and their
+replace-capable ancestors; its payloads may remain private while admission and active
+barriers remain in the registry) or a `SharedAuthority` outside repository control
+used by every authorized principal and adapter. The shared authority owns the intake
+fence, transaction reservation, active state, `RecoveryRequired` barrier, fencing
+epochs, and tombstones. Without either proof the repository is inspect-only and apply
+returns `RejectedUnsafeCoordination` with no
+repository effect. Ownership/authority changes are revalidated at every boundary;
+transfer is explicit and cannot discard barriers or tombstones.
+
+The immutable prepared plan contains all path and project operations, expected revision and hashes, coordination-domain/ownership proof, encoding/newline/file-mode policy, symlink/hard-link/root-containment policy, exact diff, diagnostics, assumptions, verification, expiry, and recovery data. Source/destination paths are repository-contained; staging, backups, and control artifacts use a protected operation root outside and non-overlapping with the repository, on the target volume when required. Before prepare returns, its canonical bytes are atomically persisted outside repository control in a user-private store for `ExclusivePrincipal` or authority-controlled storage for `SharedAuthority`. Preview and apply consume that same repository-scoped, hash-verified plan across process restart. Once an intake receipt or operation ledger references a plan, garbage collection pins its exact bytes through every nonterminal state, including `Recovering`, through `RecoveryRequired`, and while a `CancelledNoEffect` control bundle awaits verified cleanup; it releases them only after verified terminal cleanup, durable expiry, or explicit recovery acknowledgement.
 
 Apply creates a durable operation record, initializes its journal before staging, stages only in the outside-repository control root, acquires an exclusive canonical-repository transaction reservation, claims a renewable owner lease and monotonically increasing fencing epoch, validates every precondition, arbitrates cancellation against a complete journalled first-effect permit in one durable compare-and-swap, journals changes, revalidates the expected intermediate repository state at every side-effect boundary, applies deterministically, verifies postconditions, and records one truthful state. Interrupted pre-effect staging cleanup is idempotent and never touches the repository.
 
@@ -191,10 +211,11 @@ Apply creates a durable operation record, initializes its journal before staging
 - `RecoveredApplied` or `RecoveredRolledBack` after verified manual recovery;
 - `RecoveryAcknowledged` as an administrative terminal state that does not claim cleanliness;
 - `CancelledNoEffect` as a terminal accepted cancellation with proof that no repository effect began;
+- `RejectedUnsafeCoordination` when cross-principal/cross-host mutation coordination cannot be proven;
 - stale/conflict rejection; or
 - expiry.
 
-The ledger keeps an append-only transition history as well as the current state. An incomplete rollback is `RecoveryRequired`; it is never presented as clean failure or rollback. That state blocks a different apply for the repository until fenced recovery verifies `RecoveredApplied` or `RecoveredRolledBack`, or an authorized user explicitly records `RecoveryAcknowledged`. Acknowledgement performs no repository effect and records actor, reason, observed hashes, unresolved warnings, and the absence of a cleanliness guarantee.
+The ledger keeps an append-only transition history as well as the current state. An incomplete rollback is `RecoveryRequired`; it is never presented as clean failure or rollback. That state is committed to the coordination authority and cross-principal/cross-host registry before reservation release and blocks a different apply from any principal or host until fenced recovery verifies `RecoveredApplied` or `RecoveredRolledBack`, or an authorized user explicitly records `RecoveryAcknowledged`. Acknowledgement performs no repository effect and records actor, reason, observed hashes, unresolved warnings, and the absence of a cleanliness guarantee.
 
 An `Applying` owner that disappears cannot leave a permanent nonterminal record.
 Startup and status lookup claim an expired lease exactly once, transition through

@@ -53,16 +53,30 @@ The daemon is not an execution authority in this change. It is an optional trans
 
 Every apply-capable request is assigned a caller-generated operation ID before dispatch. Canonical repository ID plus operation ID is the durable idempotency, status, and recovery handle. A separate request-attempt ID may be used for transport correlation, but a server-generated ID that can be lost with the response is insufficient.
 
-Prepare atomically persists the exact canonical plan in a user-private store outside
-the target repository and returns its repository ID, plan ID, and plan hash. Apply
+Prepare atomically persists the exact canonical plan in protected storage outside
+the target repository and returns its repository ID, plan ID, and plan hash. Storage
+is user-private only when `ExclusivePrincipal` ownership is proven; shared writable
+repositories require an authority-owned coordination domain. Apply
 loads those exact bytes across process restart; it never recomputes the reviewed work
 from command arguments or a newer workspace snapshot.
 
 Apply durably journals staging intent before creating replacement content. Staging,
-backups, and control artifacts remain in an operation-scoped user-private root outside
+backups, and control artifacts remain in an operation-scoped protected root outside
 the repository, on the target volume when required, so pre-effect cancellation,
 crash, or stale rejection can leave only restart-cleanable control artifacts and no
 unjournalled repository write.
+
+Mutation coordination is repository-scoped across OS principals and hosts. An OS-
+or service-protected registry outside repository control supplies one non-reused repository identity and
+records ownership, active recovery barriers, and retirement state for every would-be
+writer; machine-local state is valid only when other hosts cannot write the storage.
+A plan must then prove either that no other non-administrative principal or host in
+the threat model can write/replace the checkout and Git common directory, or that
+every authorized principal uses one OS/service-enforced shared authority for intake, reservation,
+state, recovery barriers, fencing, and tombstones. Otherwise mutation is refused as
+`RejectedUnsafeCoordination`. `RecoveryRequired` is committed to the authority and
+cross-principal registry before reservation release, and ownership transfer cannot
+discard its barriers or tombstones.
 
 After durable intake, cancellation belongs to the canonical operation. Before the
 first repository effect, one store-enforced compare-and-swap either records terminal
@@ -109,6 +123,7 @@ remain outside the namespace.
 - No apply-capable legacy daemon or MCP bridge can automatically replay a mutation after dispatch ambiguity.
 - A caller can retain the composite repository/operation identity even when the first response is lost, query a durable intake receipt or authoritative `NotRecorded` state, and receive the same outcome for repeated identical requests; explicit replay after `NotRecorded` uses the same repository ID, operation ID, request hash, and replay epoch.
 - Terminal-history compaction retains a lifetime idempotency tombstone, so an aged-out identical operation returns its stored outcome and an operation ID never becomes reusable.
+- A shared writable checkout either has one enforced cross-principal/cross-host coordination authority or remains inspect-only; no second OS user or host can bypass `RecoveryRequired` through separate private state.
 - Cancellation after durable intake either proves `CancelledNoEffect` before the first-effect permit or records the request while recovery-critical work reaches a truthful repository outcome; replay never restarts a cancelled operation.
 - Review and apply can run in separate processes and still consume byte-identical, hash-verified plan data from outside repository control.
 - Plan retention cannot remove bytes still referenced by a nonterminal (including recovering) or recovery-required operation.
