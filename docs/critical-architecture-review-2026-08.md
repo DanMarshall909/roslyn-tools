@@ -88,11 +88,11 @@ The newer `DaemonRpcRecoveryCoordinator` correctly treats indeterminate migrated
 - Immediately remove every apply-capable command from legacy daemon routing.
 - Hide apply-capable bridge tools from stable MCP discovery.
 - Add an architecture gate preventing any new mutator from entering a bridge or rendered-output route.
-- Generate `OperationId` in the caller before dispatch and key intake, status, recovery, acknowledgement, and retention by canonical `(RepositoryId, OperationId)`.
-- Compute `RequestHash` from one versioned host-neutral semantic serialization that omits the hash field itself plus replay and transport-only metadata; share conformance vectors across adapters.
+- Obtain a bounded repository-scoped operation-epoch token before dispatch, construct `OperationId` from its authenticated monotonic epoch plus a caller nonce, and key intake, status, recovery, acknowledgement, and retention by canonical `(RepositoryId, OperationId)`.
+- Compute `RequestHash` from one versioned host-neutral semantic serialization that includes the structured operation ID and canonical public token-claims hash but omits token authentication proof, the hash field itself, replay data, and transport-only metadata; share conformance vectors across adapters.
 - Persist an intake receipt before execution enqueue and operation state before side effects; reconcile the gap after lost response or process restart.
-- Retain a compact idempotency tombstone after terminal-history cleanup so normal retention can never make a repository/operation identity reusable.
-- Resolve a genuinely absent receipt under the same intake fence as durable `NotRecorded`, and require its replay epoch for explicit same-operation resubmission.
+- Bound operation epochs, replay duration, terminal bytes, and pinned exceptions; after the replay window, advance a durable monotonic retirement watermark before deleting individual outcomes so every delayed ID is rejected without permanent per-operation state.
+- Resolve a genuinely absent receipt under the same intake fence as durable `NotRecorded`, and require its replay epoch for explicit same-operation resubmission before the operation epoch seals.
 - Test timeout/disconnect/malformed-response/cancellation before and after intake receipt and ledger creation, including delayed originals, and assert exactly one apply attempt.
 
 ### 3. Mutation application is staged and compensating, but not durable
@@ -392,7 +392,7 @@ Core and application assemblies should not reference CLI/parser or MCP protocol 
 
 1. Write the repository-evaluation threat model with independent trust-state and evaluator-mode policy.
 2. Refuse untrusted semantic loading until the worker boundary exists.
-3. Add caller-generated operation IDs, canonical repository scoping, and a durable status ledger.
+3. Add bounded authority-issued operation epochs, caller-known structured operation IDs, canonical repository scoping, and a durable status ledger.
 4. Complete prepared-plan metadata and stale-plan preflight.
 5. Complete the staged writer with durable plans, journal, verification, restart reconciliation, handle-safe containment, `RecoveryRequired`, and recovery commands.
 6. Add hostile workspace and filesystem fault-injection suites across operating systems.

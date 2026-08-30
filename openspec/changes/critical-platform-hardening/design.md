@@ -50,7 +50,7 @@ The compatibility bridge is temporary. It is removed command by command as each 
 
 A canonical request context contains absolute, normalised values rather than ambient process state:
 
-- request ID and, for apply, caller-generated operation ID;
+- request ID and, for apply, a caller-known structured operation ID from a bounded authority-issued epoch;
 - repository root and solution path;
 - working directory only as an explicit absolute path;
 - configuration, target framework selection, SDK identity, and environment allow-list;
@@ -124,8 +124,9 @@ caller-generated `OperationId` before any transport dispatch:
 
 ```text
 Prepare(request) -> PreparedChangeSet
-Apply(repositoryId, planId, planHash, operationId, requestHash, expectedRevision, replayEpoch?) -> ApplyResult
-GetOperation(repositoryId, operationId, requestHash) -> OperationStatus
+GetOperationEpoch(repositoryId) -> OperationEpochToken
+Apply(repositoryId, planId, planHash, operationEpochToken, operationId, requestHash, expectedRevision, replayEpoch?) -> ApplyResult
+GetOperation(repositoryId, operationId, requestIdentity?, operationEpochToken?) -> OperationStatus
 Recover(repositoryId, operationId, recoveryAction) -> RecoveryResult
 ```
 
@@ -160,7 +161,7 @@ Every apply-capable plan declares one `CoordinationDomainId` and mode:
 - `SharedAuthority` requires one OS- or service-enforced authority outside repository
   control that every authorized mutation principal and host adapter must use. It owns
   the intake fence, active operation state, transaction reservation, fencing epoch,
-  recovery barrier, and idempotency tombstones. Operation
+  recovery barrier, bounded operation-epoch state, and retirement watermark. Operation
   payloads and recovery artifacts remain access-controlled and may be encrypted or
   referenced without exposing them to every principal.
 
@@ -177,49 +178,70 @@ cross-principal registry before the transaction reservation is released. Every l
 apply, from any OS principal, must resolve that registry and authority and observe the
 barrier. Ownership transfer cannot silently rebind the
 checkout to a new user-private ledger: it is an explicit administrative operation
-that requires verified recovery or acknowledgement, carries forward tombstones, and
-rotates identity only under the permanent retirement rules. If the required
+that requires verified recovery or acknowledgement, carries forward the operation
+epoch watermark, accumulator, and pinned records, and rotates identity only under the
+permanent retirement rules. If the required
 cross-principal proof or authority cannot be established, mutation is refused.
 
 `(RepositoryId, OperationId)` is the composite durable identity for intake,
-idempotency, status, recovery, acknowledgement, and retention. `OperationId` need
-only be unique within its canonical repository; every API and durable-store lookup
-that can observe or change an operation carries both values. `RequestHash` is the
+idempotency, status, recovery, acknowledgement, and retention. Before mutation
+dispatch, the caller obtains a bounded `OperationEpochToken` from the coordination
+authority and constructs `OperationId` from that authenticated monotonically
+increasing epoch plus a caller-generated nonce. The token is repository-bound,
+principal-bound, schema-versioned, count/byte/time-limited, and has an explicit
+`NotAfter`; the operation epoch is distinct from owner fencing epochs. The token is
+obtained before dispatch, so it is not lost with an apply response. Every API and
+durable-store lookup that can observe or change an operation carries the structured
+ID. `ReplayEpoch` is a separate one-use authorization for a proven `NotRecorded`
+operation and never extends the operation epoch's validity. `RequestHash` is the
 SHA-256 digest of a versioned UTF-8 canonical serialization of the semantic apply
 request. That serialization includes repository ID, plan ID/hash, operation ID,
-expected revision, and every other work-defining field, but omits `RequestHash`
-itself, `ReplayEpoch`, transport attempt/correlation metadata, cancellation state,
-and authentication material. Paths, strings, property order, nulls, and defaults use
-one host-neutral canonicalizer shared by every adapter; adapters never hash their
-transport JSON directly. A transport request-attempt ID may be separate.
+expected revision, `OperationEpochClaimsHash`, and every other work-defining field,
+but omits `RequestHash` itself, `ReplayEpoch`, transport attempt/correlation metadata,
+cancellation state, and authentication proof. `OperationEpochClaimsHash` covers the
+token's canonical public repository/principal, epoch, schema, limit, and `NotAfter`
+claims, but not its signature or bearer proof. Paths, strings, property order, nulls,
+and defaults use one host-neutral canonicalizer shared by every adapter; adapters
+never hash their transport JSON directly. A transport request-attempt ID may be
+separate.
 
 Before an accepted request can enter an execution queue, the receiver acquires a
 cross-process, store-enforced intake fence keyed by repository and operation ID and
-durably records `Received(OperationId, RequestHash,
-CanonicalRequest)`. The canonical request is stored in the protected coordination
+validates the operation-epoch token, its claims hash, and its binding to the current
+authenticated principal. The epoch-open check, quota debit/capacity reservation, and
+receipt creation are one authority transaction under that fence. It then durably
+records `Received(OperationId, RequestHash, CanonicalRequest)`. The canonical request is stored in the protected coordination
 control plane, not daemon logs. The operation ledger is then created before side effects
 begin. Startup and status lookup reconcile a `Received` receipt that has no operation
 record, so accepted work cannot disappear between transport intake and ledger
 creation.
 
 If indeterminate dispatch is followed by a status lookup and neither a receipt nor
-an operation exists, `GetOperation` acquires the same cross-process intake fence and first proves
-that no receiver for that operation ID remains in flight. It then durably records
-`NotRecorded(OperationId, RequestHash, ReplayEpoch)`. This is an authoritative
+an operation exists, `GetOperation` requires the original operation-epoch token plus
+an `OperationRequestIdentity` containing request hash, plan ID/hash, expected
+revision, and operation-epoch claims hash. It validates the token and accessible plan
+reference, acquires the same cross-process intake fence, and first proves that no
+receiver for that operation ID remains in flight. The epoch-open check and record
+creation are atomic with sealing. It then durably records
+`NotRecorded(OperationId, OperationRequestIdentity, ReplayEpoch)`. This is an authoritative
 no-effect dispatch-resolution state, not an inference from a missing row. Any delayed
-original attempt lacks that replay epoch and is rejected. The caller may explicitly
-resubmit the exact canonical request with the same operation ID, request hash, and
-replay epoch; one compare-and-swap transitions `NotRecorded` to `Received`. A lost
+original attempt lacks that replay epoch and is rejected. While the operation epoch
+remains open, the caller may explicitly resubmit the exact canonical request with the
+same operation ID, request hash, and replay epoch; one compare-and-swap transitions
+`NotRecorded` to `Received`. A lost
 `NotRecorded` response can be queried again to recover the same epoch. This explicit
 resolution is not an automatic retry or in-process fallback.
 
-Reusing an `OperationId` with the same canonical request returns the existing receipt,
-operation state, or result. Reusing it with a different plan, revision, request hash,
-or payload returns `OperationConflict` and performs no work. `Received` and
+While its live or retained record exists, reusing an `OperationId` with the same
+canonical request returns the existing receipt, operation state, or result. Reusing
+such an ID with a different plan, revision, request hash, or payload returns
+`OperationConflict` and performs no work. `Received` and
 `NotRecorded` records are bounded: they pin the referenced plan until promotion,
 explicit replay, or durable expiry, and neither can remain unresolved indefinitely.
-Expiry retires the operation ID into the same compact idempotency tombstone used by
-other terminal outcomes; it does not make that ID reusable.
+Expiry records the terminal outcome for the active replay window; sealing the
+operation epoch later makes every unknown or compacted ID in that epoch durably
+unacceptable. An outstanding `NotRecorded` replay authorization expires when its
+operation epoch seals and cannot be carried into a new epoch.
 
 Apply loads the exact persisted plan bytes identified by repository ID, plan ID, and
 plan hash. A missing, expired, unreadable, schema-incompatible, or hash-mismatched plan
@@ -230,9 +252,9 @@ bounded retention for unreferenced plans and safely cleaned terminal history, at
 writes, and crash-safe cleanup;
 repositories cannot supply or replace its control metadata.
 
-Bounded retention applies only to unreferenced prepared plans, safely cleaned bulky
-recovery data, and detailed terminal transition history; it never removes the compact
-idempotency record. Creating an operation record pins its canonical plan bytes by
+Bounded retention applies to unreferenced prepared plans, safely cleaned bulky
+recovery data, detailed terminal transition history, and terminal outcome records
+after their operation epoch is safely retired. Creating an operation record pins its canonical plan bytes by
 durable ledger reference. Garbage collection cannot remove a plan while an
 associated operation is `Received`, `NotRecorded`, `Prepared`, `Applying`,
 `Reconciling`, `Recovering`, or `RecoveryRequired`, and cannot remove a
@@ -241,24 +263,51 @@ releases the plan only after verified terminal cleanup, durable expiry, or expli
 recovery acknowledgement. Recovery evidence and its plan are retained as one
 referentially complete bundle.
 
-### Durable idempotency tombstones
+### Bounded idempotency epochs
 
-Every terminal transition atomically writes a compact tombstone keyed by canonical
-`(RepositoryId, OperationId)` before the terminal outcome is reported. The tombstone
-retains the request hash, plan hash, terminal state, canonical outcome envelope,
-completion time, final repository revision/evidence digest, and any recovery,
-acknowledgement, or cleanup summary required by status. Its identity, request hash,
-and outcome are immutable; later cleanup may only advance its compact cleanup status.
+Every terminal transition atomically writes a compact outcome record keyed by
+canonical `(RepositoryId, OperationId)` before reporting success or failure. During
+the configured replay window, it retains the request/plan hashes, terminal state,
+canonical outcome, completion time, final evidence digest, and required
+recovery/cleanup summary. The intake fence checks live records and retained outcomes:
+an identical request returns the existing outcome without work, and a different hash
+returns `OperationConflict`.
 
-The operation-intake fence checks active records and tombstones before it can create
-`Received` or `NotRecorded`. An identical request returns the tombstoned outcome and
-performs no work; a different request hash returns `OperationConflict`. Compaction
-may replace detailed journal/transition history and safely releasable artifacts with
-this record, but normal retention never deletes it for the lifetime of the canonical
-repository identity. Explicit repository-identity retirement may collapse its
-operation tombstones only after atomically writing a permanent retired-repository
-marker; repository IDs are never reused, and every later request carrying a retired
-ID is rejected before intake.
+The coordination authority enforces per-repository and per-principal limits for
+open-operation count, simultaneously open/unretired epochs, epoch issuance rate,
+accepted operations/bytes per epoch, replay-window duration, terminal-record bytes,
+and pinned recovery/cleanup records. An epoch token stops accepting unknown operation
+IDs at its `NotAfter` or earlier count/byte limit. Quota
+exhaustion returns typed `CoordinationCapacityExceeded` before durable intake while
+status, cancellation, cleanup, and recovery remain available. The authority does not
+mint unlimited replacement epochs for a caller that exceeds its admission policy.
+Admission atomically reserves enough bounded coordination-store capacity for the
+receipt, transition ledger, maximum compact outcome, and required cleanup/recovery
+metadata. A quota cannot prevent an accepted operation from recording truthful state
+or completing recovery.
+
+After an epoch is sealed, it accepts no new `Received` or `NotRecorded` record and
+returns `OperationEpochSealed` for an otherwise unknown ID. In the same durable seal
+transition, every outstanding `NotRecorded` record becomes terminal `Expired` and its
+unused replay authorization is invalidated; already accepted operations continue.
+Existing live/retained records remain queryable. Once the minimum replay window
+elapses, the
+authority atomically folds eligible terminal-record digests into a cumulative
+`RetiredOperationAccumulator`, advances one monotonic `RetiredThroughEpoch`
+watermark, and only then removes their per-operation records. Nonterminal,
+`RecoveryRequired`, and cleanup-pending operations move to a bounded pinned-exception
+index before the watermark advances; exact status/recovery still resolves those
+records, and reaching the exception cap disables new mutation admission until they
+are resolved or acknowledged.
+
+Lookup checks pinned/live records first and then the watermark. Any otherwise unknown
+operation whose epoch is at or below `RetiredThroughEpoch` returns durable
+`OperationEpochRetired`, never `NotRecorded` or replay authorization. Thus a delayed
+request cannot execute after compaction even though its individual outcome is no
+longer retained. The accumulator and watermark are constant-size per repository and
+normal retention cannot move them backward. Explicit repository-identity retirement
+atomically writes a permanent retired-repository marker carrying the final watermark
+and accumulator; repository IDs and operation epoch numbers are never reused.
 
 ### Prepared plan contents
 
@@ -380,10 +429,12 @@ staging, acquiring external-write protection, or running final preflight.
 Control-artifact cleanup after `CancelledNoEffect` is idempotent and remains outside
 the repository. The terminal result may report `CleanupPending`; startup and status
 lookup retry cleanup and append `CleanupVerified` without changing the repository
-outcome. The exact plan remains pinned until that verification. Replaying the same
-repository ID, operation ID, and request hash returns the same cancellation result
-and never restarts execution; a new attempt requires a new operation ID, while a
-different payload remains `OperationConflict`.
+outcome. The exact plan remains pinned until that verification. During its retained
+epoch window, replaying the same repository ID, operation ID, and request hash returns
+the same cancellation result; after epoch compaction it returns
+`OperationEpochRetired`. Neither path restarts execution. A new attempt requires a
+current-epoch operation ID, while a different payload under a retained ID remains
+`OperationConflict`.
 
 If the owner wins the compare-and-swap, it durably appends
 `FirstEffectStarted` as the complete journal intent for the first guarded conditional
@@ -549,10 +600,13 @@ Transport reports what the caller can prove about dispatch:
 The host surfaces the caller-known `OperationId` and queries `GetOperation`. A
 `Received` receipt or operation state is reconciled in place. Only an authoritative,
 durably recorded `NotRecorded` result permits explicit resubmission of the identical
-request with the returned replay epoch; this continues the same operation identity
-and fences the delayed original attempt. Read-only operations may have a separately
-declared retry policy, but a retry still uses the same request context and operation
-contract.
+request with the returned replay epoch, and only before the operation epoch seals;
+this continues the same operation identity and fences the delayed original attempt.
+An unknown ID from a sealed epoch is non-replayable, and an ID at or below the
+retirement watermark returns `OperationEpochRetired`; either result requires a new
+current-epoch operation ID for a new attempt. Read-only operations may have a
+separately declared retry policy, but a retry still uses the same request context and
+operation contract.
 
 Cancellation before durable `Received` remains transport knowledge and does not
 manufacture an operation result. Once acceptance is durable, cancellation is part of

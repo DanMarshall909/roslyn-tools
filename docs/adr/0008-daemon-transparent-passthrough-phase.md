@@ -20,32 +20,53 @@ For the current phase, the daemon is an optional **transparent typed transport a
 
 ### Caller-known identity
 
-Every apply request receives a caller-generated `OperationId` before transport dispatch. Canonical repository ID plus operation ID is the composite durable idempotency, operation-status, and recovery handle; the operation ID need only be unique within that repository. Every status, recovery, acknowledgement, and retention lookup carries both values. A separate request-attempt ID may be used for protocol correlation.
+Before transport dispatch, the caller obtains a bounded repository-scoped
+`OperationEpochToken` from the coordination authority and constructs a structured
+`OperationId` from its authenticated monotonic epoch plus a caller-generated nonce.
+The operation epoch is distinct from owner fencing epochs and from replay
+authorization. The token is repository/principal-bound and is presented on apply.
+Canonical repository ID plus operation ID is the composite durable
+idempotency, operation-status, and recovery handle; the operation ID need only be
+unique within that repository. Every status, recovery, acknowledgement, and
+retention lookup carries both values. A separate request-attempt ID may be used for
+protocol correlation.
 
 When dispatch is indeterminate, the host returns the existing repository/operation identity and
 status-lookup guidance. The execution authority durably records a typed intake
 receipt before execution enqueue and operation state before repository side effects.
 Status lookup reconciles a receipt without an operation record. If neither exists, it
-uses the same cross-process, store-enforced operation-intake fence to exclude an in-flight receiver and durably
-records authoritative `NotRecorded` with the canonical request hash and a replay
-epoch. Only then may the caller explicitly resubmit that exact request under the same
-operation ID and epoch; delayed original attempts are fenced out. A different payload
-under the same operation ID is an operation conflict.
+requires and validates the original token and request identity, including the plan
+reference. It then uses the same cross-process, store-enforced operation-intake fence
+to exclude an in-flight receiver and atomically records authoritative `NotRecorded`
+with a one-use replay epoch only if the operation epoch remains open. Only before that
+epoch seals may the caller explicitly resubmit the exact request under the same
+operation ID and replay epoch; delayed original attempts are fenced out. A different
+payload under a live or retained operation ID is an operation conflict.
 
-The request hash uses the shared versioned semantic canonicalizer and excludes the
-`RequestHash` field itself, replay epoch, cancellation state, authentication material,
-and transport-only metadata. Daemon wire JSON is never the hash input.
+The request hash uses the shared versioned semantic canonicalizer and includes the
+structured operation ID plus `OperationEpochClaimsHash` over the token's canonical
+public scope, epoch, limits, and `NotAfter`. It excludes the token signature/bearer
+proof, `RequestHash` itself, replay epoch, cancellation state, other authentication
+proof, and transport-only metadata. Daemon wire JSON is never the hash input.
 
-Normal retention may compact detailed terminal history only after atomically writing
-a compact idempotency tombstone for the composite operation identity. That tombstone
-survives for the canonical repository identity's lifetime, returns the stored outcome
-for identical delayed work, and rejects a different request hash. Repository identity
-retirement writes a permanent rejection marker before any per-operation compaction;
-repository IDs are never reused.
+The authority bounds open and unretired epochs, issuance rate, operations and bytes
+per epoch, terminal-record bytes, replay duration, and pinned recovery/cleanup
+exceptions. It seals an epoch at expiry or quota, atomically expires outstanding
+`NotRecorded` records and their replay authorizations, and rejects unknown IDs from
+sealed epochs without creating `NotRecorded` or authorizing replay. After the minimum replay window, it
+atomically folds eligible terminal digests into a constant-size cumulative
+`RetiredOperationAccumulator`, advances a monotonic `RetiredThroughEpoch` watermark,
+and only then deletes their individual outcomes. Pinned live/recovery records remain
+individually addressable and count against a hard admission cap. An otherwise unknown
+ID at or below the watermark returns `OperationEpochRetired` and can never become
+executable. Repository identity retirement permanently records the final watermark
+and accumulator; repository IDs and operation epoch numbers are never reused.
+Admission reserves the bounded ledger, terminal-outcome, and recovery-metadata space
+an accepted operation may need, so quota exhaustion cannot prevent truthful state.
 
 ### Permitted fallback
 
-A host may select in-process execution only when the transport proves `NotDispatched`. `Indeterminate` is surfaced unchanged and never triggers automatic mutation retry or in-process fallback. Explicit same-operation resubmission is allowed only after durable `NotRecorded` resolution and requires its request hash and replay epoch. Read-only retry behaviour must be explicitly declared and must still preserve the canonical request context and result contract.
+A host may select in-process execution only when the transport proves `NotDispatched`. `Indeterminate` is surfaced unchanged and never triggers automatic mutation retry or in-process fallback. Explicit same-operation resubmission is allowed only after durable `NotRecorded` resolution, before the operation epoch seals, and requires its request hash and replay epoch. A sealed or retired epoch is non-replayable; a new attempt requires a current-epoch operation ID. Read-only retry behaviour must be explicitly declared and must still preserve the canonical request context and result contract.
 
 ### Process and endpoint isolation
 
@@ -67,7 +88,7 @@ proof shows that no other non-administrative principal or host in the threat mod
 can write or replace the checkout and Git common directory. A shared writable
 checkout requires a separate OS/service-enforced coordination authority that every
 principal and adapter uses for intake, reservations, state, recovery barriers,
-fencing, and tombstones. If neither mode is proven, mutation is rejected and the
+fencing, bounded operation-epoch retention, and retirement watermarks. If neither mode is proven, mutation is rejected and the
 checkout remains inspect-only. This authority is a safety primitive of the canonical
 application operation; it does not give the transparent daemon workspace, execution,
 or mutation-policy ownership.

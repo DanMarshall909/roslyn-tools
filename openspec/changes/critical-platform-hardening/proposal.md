@@ -51,7 +51,14 @@ This change establishes:
 
 The daemon is not an execution authority in this change. It is an optional transport adapter that forwards a typed canonical request and returns the canonical result without semantic change. It must not own workspace state or mutations, retry after indeterminate mutation dispatch, manufacture fallback execution, use process-global request context, log raw payloads, or change diagnostics, result shape, cancellation, provenance, or safety policy.
 
-Every apply-capable request is assigned a caller-generated operation ID before dispatch. Canonical repository ID plus operation ID is the durable idempotency, status, and recovery handle. A separate request-attempt ID may be used for transport correlation, but a server-generated ID that can be lost with the response is insufficient.
+Before dispatch, every apply caller obtains a bounded authenticated repository-scoped
+operation-epoch token and constructs a caller-known operation ID from its monotonic
+epoch plus a fresh nonce. The operation epoch is independent of owner fencing and
+one-use replay authorization; the repository/principal-bound token is presented on
+apply. Canonical repository ID plus operation ID is the durable
+idempotency, status, and recovery handle. A separate request-attempt ID may be used
+for transport correlation, but an operation ID first returned by the server after
+dispatch is insufficient.
 
 Prepare atomically persists the exact canonical plan in protected storage outside
 the target repository and returns its repository ID, plan ID, and plan hash. Storage
@@ -73,25 +80,35 @@ writer; machine-local state is valid only when other hosts cannot write the stor
 A plan must then prove either that no other non-administrative principal or host in
 the threat model can write/replace the checkout and Git common directory, or that
 every authorized principal uses one OS/service-enforced shared authority for intake, reservation,
-state, recovery barriers, fencing, and tombstones. Otherwise mutation is refused as
+state, recovery barriers, fencing, bounded operation epochs/outcomes, the retirement
+watermark/accumulator, and pinned records. Otherwise mutation is refused as
 `RejectedUnsafeCoordination`. `RecoveryRequired` is committed to the authority and
 cross-principal registry before reservation release, and ownership transfer cannot
-discard its barriers or tombstones.
+discard its barriers, epoch state, or pinned records.
+
+The authority caps open and unretired epochs, issuance rate, accepted operations and
+bytes, live and retained records, and pinned exceptions. Admission reserves bounded
+worst-case ledger, outcome, and recovery-metadata space, then returns
+`CoordinationCapacityExceeded` before intake when capacity is unavailable. Status,
+recovery, and already accepted operations remain able to record truthful state.
 
 After durable intake, cancellation belongs to the canonical operation. Before the
 first repository effect, one store-enforced compare-and-swap either records terminal
 `CancelledNoEffect` with a no-effect proof and cleanup inventory or appends
 `FirstEffectStarted` with the complete first-effect intent and guard/version evidence,
 then grants the fenced owner permission to issue exactly that effect.
-Exact replay returns the cancellation outcome without restarting work. Once the
+Replay returns the cancellation outcome while its bounded record is retained and
+`OperationEpochRetired` after safe epoch compaction; neither restarts work. Once the
 first-effect permit wins, cancellation is recorded but recovery-critical verification
 and rollback continue to a truthful repository outcome.
 
-Detailed terminal history may be compacted only after a terminal transition has
-atomically retained a durable idempotency tombstone. The tombstone preserves the
-composite operation identity, request/plan hashes, canonical outcome, and final
-evidence/cleanup summary for the canonical repository identity's lifetime, so delayed
-requests can never make an aged-out operation execute again.
+Terminal outcomes remain addressable for a minimum replay window. After an epoch is
+sealed, unknown IDs return `OperationEpochSealed` without intake or replay
+authorization. Eligible terminal digests are folded into a cumulative accumulator and one
+monotonic `RetiredThroughEpoch` watermark advances before individual records are
+removed. Bounded live/recovery exceptions remain pinned. Any delayed unknown request
+from a retired epoch returns `OperationEpochRetired`, never `NotRecorded` or execution,
+so replay safety no longer requires one permanent record per operation.
 
 A failed or interrupted rollback is never reported as clean rollback. The operation enters durable intervention state `RecoveryRequired`; its journal, backups, diagnostics, and deterministic recovery guidance are retained until recovery or explicit acknowledgement. Recovery appends `Recovering` and ends as `RecoveredApplied`, `RecoveredRolledBack`, or another evidence-bearing `RecoveryRequired`. `RecoveryAcknowledged` is an explicit administrative handoff and never claims the repository is clean.
 
@@ -128,8 +145,8 @@ results or diagnostics.
 ## Success measures
 
 - No apply-capable legacy daemon or MCP bridge can automatically replay a mutation after dispatch ambiguity.
-- A caller can retain the composite repository/operation identity even when the first response is lost, query a durable intake receipt or authoritative `NotRecorded` state, and receive the same outcome for repeated identical requests; explicit replay after `NotRecorded` uses the same repository ID, operation ID, request hash, and replay epoch.
-- Terminal-history compaction retains a lifetime idempotency tombstone, so an aged-out identical operation returns its stored outcome and an operation ID never becomes reusable.
+- A caller obtains an authenticated bounded operation epoch and constructs the operation ID before dispatch; after a lost response it can query a durable receipt/current outcome, obtain authoritative `NotRecorded` replay only while that epoch remains open, or receive a non-replayable sealed/retired result once it closes.
+- Operation retention is bounded by epoch/time/count/byte and pinned-exception quotas; compaction advances one monotonic rejection watermark/accumulator before deleting individual outcomes, so aged-out work cannot execute and the store does not grow one permanent record per operation.
 - A shared writable checkout either has one enforced cross-principal/cross-host coordination authority or remains inspect-only; no second OS user or host can bypass `RecoveryRequired` through separate private state.
 - An untrusted file-only operation cannot use a repository symlink, reparse point, mount, hard link, alternate stream, or special file to read undeclared host content in a privileged process.
 - Cancellation after durable intake either proves `CancelledNoEffect` before the first-effect permit or records the request while recovery-critical work reaches a truthful repository outcome; replay never restarts a cancelled operation.

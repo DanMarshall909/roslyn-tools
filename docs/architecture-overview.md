@@ -80,7 +80,7 @@ See [ADR-0003](adr/0003-shared-command-descriptors-and-application-ports.md), [A
 
 Every operation receives explicit, absolute request context:
 
-- request ID and, for apply, caller-generated operation ID;
+- request ID and, for apply, a caller-known structured operation ID from a bounded authority-issued epoch;
 - repository root and solution path;
 - configuration and SDK/target-framework selection;
 - repository trust state and evaluator mode/policy;
@@ -183,8 +183,9 @@ A boolean `dryRun` branch is not a mutation safety model. Stable mutations use:
 
 ```text
 Prepare(request) -> PreparedChangeSet
-Apply(repositoryId, planId, planHash, operationId, requestHash, expectedRevision, replayEpoch?) -> ApplyResult
-GetOperation(repositoryId, operationId, requestHash) -> OperationStatus
+GetOperationEpoch(repositoryId) -> OperationEpochToken
+Apply(repositoryId, planId, planHash, operationEpochToken, operationId, requestHash, expectedRevision, replayEpoch?) -> ApplyResult
+GetOperation(repositoryId, operationId, requestIdentity?, operationEpochToken?) -> OperationStatus
 Recover(repositoryId, operationId, action) -> RecoveryResult
 ```
 
@@ -203,10 +204,11 @@ replace-capable ancestors; its payloads may remain private while admission and a
 barriers remain in the registry) or a `SharedAuthority` outside repository control
 used by every authorized principal and adapter. The shared authority owns the intake
 fence, transaction reservation, active state, `RecoveryRequired` barrier, fencing
-epochs, and tombstones. Without either proof the repository is inspect-only and apply
+epochs, bounded outcome retention, the retirement watermark/accumulator, and pinned
+records. Without either proof the repository is inspect-only and apply
 returns `RejectedUnsafeCoordination` with no
 repository effect. Ownership/authority changes are revalidated at every boundary;
-transfer is explicit and cannot discard barriers or tombstones.
+transfer is explicit and cannot discard barriers, epoch state, or pinned records.
 
 The immutable prepared plan contains all path and project operations, expected revision and hashes, coordination-domain/ownership proof, encoding/newline/file-mode policy, symlink/hard-link/root-containment policy, exact diff, diagnostics, assumptions, verification, expiry, and recovery data. Source/destination paths are repository-contained; staging, backups, and control artifacts use a protected operation root outside and non-overlapping with the repository, on the target volume when required. Before prepare returns, its canonical bytes are atomically persisted outside repository control in a user-private store for `ExclusivePrincipal` or authority-controlled storage for `SharedAuthority`. Preview and apply consume that same repository-scoped, hash-verified plan across process restart. Once an intake receipt or operation ledger references a plan, garbage collection pins its exact bytes through every nonterminal state, including `Recovering`, through `RecoveryRequired`, and while a `CancelledNoEffect` control bundle awaits verified cleanup; it releases them only after verified terminal cleanup, durable expiry, or explicit recovery acknowledgement.
 
@@ -263,33 +265,54 @@ with the owner's effect permit in one store-enforced compare-and-swap. It wins a
 `CancelledNoEffect` only when `FirstEffectStarted` is absent; the record includes its
 request hash, timing, journal sequence, staged-artifact inventory, no-effect proof,
 and cleanup status. If the effect permit wins, later cancellation is recorded but
-verification and rollback remain non-interruptible. Exact replay returns the existing
-cancellation result, and startup/status lookup performs idempotent control-artifact
-cleanup outside the repository while retaining the plan until cleanup is verified.
+verification and rollback remain non-interruptible. Replay returns the existing
+cancellation result while its outcome record is retained and
+`OperationEpochRetired` after compaction; neither restarts work. Startup/status lookup
+performs idempotent control-artifact cleanup outside the repository while retaining
+the plan until cleanup is verified.
 
-The caller generates `OperationId` and the canonical request hash before dispatch.
+Before dispatch the caller obtains a bounded, authenticated repository operation-epoch
+token and constructs `OperationId` from its monotonic epoch plus a caller-generated
+nonce. The operation epoch is distinct from owner fencing epochs. Epoch tokens are
+repository/principal-bound, schema-versioned, count/byte/time-limited, and carry
+`NotAfter`; the separate one-use `NotRecorded` replay epoch never extends token
+validity. The caller also generates the canonical request hash before dispatch.
 The hash is SHA-256 over one versioned host-neutral serialization of all semantic
-apply fields; it explicitly omits `RequestHash` itself, replay and transport attempt
-metadata, cancellation state, and authentication material. Every adapter uses the
-same canonicalizer and vectors instead of hashing its wire representation.
+apply fields, including the structured operation ID and
+`OperationEpochClaimsHash`; that claims hash covers the token's canonical public
+scope, epoch, limits, and `NotAfter`, but not its signature. The request hash omits
+`RequestHash` itself, replay and transport attempt metadata, cancellation state, and
+authentication proof. Every adapter uses the same canonicalizer and vectors instead
+of hashing its wire representation.
 Canonical repository ID plus operation ID is the composite key for every receipt,
 ledger, status, recovery, acknowledgement, and retention lookup; the same operation
 ID in another repository is independent.
 Before accepted work enters an execution queue, a cross-process, store-enforced
 intake fence keyed by repository and operation ID protects a durable `Received`
-receipt containing the canonical request. Startup and status
-lookup reconcile any receipt not yet promoted into the operation ledger. Repeating
-the same operation ID and request returns the existing receipt/state/result; reusing
-it for different work returns conflict.
+receipt containing the canonical request. Intake validates the token, claims hash,
+principal binding, and reserved outcome capacity first; token/quota validation and
+receipt creation are atomic with epoch sealing. Startup and status
+lookup reconcile any receipt not yet promoted into the operation ledger. While a live
+or retained record exists, repeating the same operation ID and request returns the
+existing receipt/state/result and reusing it for different work returns conflict.
 
-Terminal-history compaction never makes an operation ID reusable. Every terminal
-transition atomically retains a compact tombstone with the composite identity,
-request/plan hashes, canonical outcome, completion time, final evidence digest, and
-required cleanup/recovery summary. Intake checks tombstones under the same fence:
-identical delayed work returns the stored outcome and differing work conflicts.
-Tombstones survive normal retention for the canonical repository identity's lifetime.
-Explicit identity retirement first writes a permanent retired-repository marker;
-repository IDs are never reused and old requests are rejected before intake.
+Terminal outcomes remain individually addressable for a bounded replay window. The
+authority caps open operations, simultaneously open/unretired epochs, epoch issuance,
+accepted count/bytes, retained outcome bytes, and pinned recovery/cleanup exceptions;
+exhaustion rejects new mutation admission without blocking status or recovery. A
+sealed epoch rejects an otherwise unknown operation as `OperationEpochSealed` and
+cannot create `Received` or `NotRecorded`; sealing atomically converts outstanding
+`NotRecorded` records to terminal `Expired` and invalidates their replay authorization.
+Admission reserves the bounded ledger,
+outcome, and recovery-metadata capacity an accepted operation may need, so quotas
+cannot block truthful terminal/recovery state. After sealing an epoch, the authority
+folds eligible outcome
+digests into a cumulative accumulator, advances a monotonic `RetiredThroughEpoch`
+watermark, and only then deletes individual records. Pinned/live records resolve
+first. Every otherwise unknown ID at or below the watermark returns
+`OperationEpochRetired`, never `NotRecorded` or executable work. The watermark and
+accumulator are constant-size and never move backward; identity retirement preserves
+their final values in one permanent marker.
 
 ### 7. Transport contract
 
@@ -300,11 +323,15 @@ Transport outcome describes only what the caller can prove:
 - **Indeterminate** — dispatch may have occurred but no valid response is available.
 
 An indeterminate mutation is never automatically retried or executed in-process. The
-host already knows the repository/operation identity and queries status. If no receipt or operation
-exists, status lookup uses the intake fence to exclude a still-arriving request and
-durably records `NotRecorded` with a replay epoch. Only then may the caller explicitly
-resubmit the identical request with the same operation ID, hash, and epoch; a delayed
-original is fenced out.
+host already knows the repository/operation identity and queries status. If no receipt
+or operation exists, status lookup validates the original token and canonical request
+identity, including the plan reference, then uses the intake fence to exclude a
+still-arriving request and atomically records `NotRecorded` with a replay epoch while
+the operation epoch is still open. Only then may the caller explicitly
+resubmit the identical request with the same operation ID, hash, and replay epoch
+before its operation epoch seals; a delayed original is fenced out. A sealed or
+retired epoch never authorizes replay and requires a current-epoch operation ID for a
+new attempt.
 
 For the current hardening phase, the daemon is an optional transparent typed transport adapter under [ADR-0008](adr/0008-daemon-transparent-passthrough-phase.md). It has no workspace cache, operation authority, CLI argument bridge for mutations, process-global request context, or raw payload logging. It must preserve the same typed observable result as direct execution.
 
