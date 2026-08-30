@@ -281,11 +281,28 @@ after an effect SHALL enter verified rollback or `RecoveryRequired` rather than 
 no-effect rejection. `RecoveryRequired` SHALL be committed to the coordination
 authority and cross-principal registry before releasing the repository reservation,
 and every later apply from any principal SHALL consult that barrier. Ownership
-transfer SHALL be explicit,
-require verified recovery or acknowledgement, carry forward operation-epoch state
-and pinned records, and obey
-repository-identity retirement; it SHALL NOT silently create a new user-private
-mutation domain.
+transfer SHALL be explicit, authority-fenced, and preserve `RepositoryId` for the same
+physical checkout; it SHALL NOT silently create a new user-private mutation domain or
+retire the identity. The authority SHALL atomically enter `TransferPending`, block new
+operation epochs, apply-capable preparation, intake, replay promotion, and concurrent
+ownership changes, and seal open operation epochs while leaving status, cancellation,
+cleanup, and recovery available.
+
+Before transfer commits, the authority SHALL use the existing repository reservation
+and coordination generation to wait for every live owner or reconcile it after lease
+expiry and proven reservation release. It SHALL prove no intake attempt/receipt
+promotion is in flight, no transaction reservation or live owner remains, every
+nonterminal operation is terminal, every recovery barrier is recovered or explicitly
+acknowledged, and every `NotRecorded` replay authorization is expired. Retained
+outcomes, watermark/accumulator, pinned terminal cleanup records, plans, and audit
+history SHALL carry forward with access controls rewrapped as needed. One transaction
+SHALL then increment `CoordinationGeneration`, install the new owner/authority and
+writer set, rotate admission/fencing credentials, and release `TransferPending`. Old
+tokens, writer-set proofs, leases, and prepared plans SHALL fail generation
+revalidation. A crash SHALL expose old ownership, a durable transfer-pending fence, or
+the completely committed new ownership, never two writable domains. Physical checkout
+replacement SHALL use quiescent retirement plus enrollment rather than ownership
+transfer.
 
 #### Scenario: a shared writable checkout has no coordination authority
 
@@ -333,8 +350,18 @@ mutation domain.
 #### Scenario: repository mutation ownership is transferred
 
 - **WHEN** an administrator transfers a checkout to another mutation principal
-- **THEN** the authority requires verified recovery or explicit acknowledgement of every barrier before transfer
-- **AND THEN** it carries forward the operation-epoch watermark, accumulator, retained/pinned records and either preserves repository identity or retires it permanently before issuing a non-reused identity
+- **THEN** the authority enters `TransferPending`, blocks new mutation admission, and preserves the existing repository ID
+- **AND THEN** it waits for or reconciles every active operation under the existing reservation/generation and requires verified recovery or explicit acknowledgement of every barrier
+- **AND THEN** it proves no intake lease, receipt promotion, reservation, live owner, nonterminal operation, or replay authorization remains before changing ownership
+- **AND THEN** it carries forward retained/pinned records and epoch state, increments `CoordinationGeneration`, rotates credentials, and only then releases the transfer fence
+- **AND THEN** an old owner cannot mutate with its prior token, plan proof, lease, or fencing generation
+
+#### Scenario: ownership transfer races an active apply
+
+- **WHEN** transfer begins while an operation is `Applying`, `Recovering`, `Reconciling`, or otherwise nonterminal
+- **THEN** no new mutation intake is admitted and transfer does not change the ownership domain or repository identity yet
+- **AND THEN** the active owner completes under the old reservation, or an expired owner is fenced and reconciled under that same reservation
+- **AND THEN** transfer remains pending if the operation or reservation cannot be proven quiescent
 
 ### Requirement: apply operations have caller-known durable identity
 

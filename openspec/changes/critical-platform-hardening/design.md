@@ -144,6 +144,7 @@ Apply(repositoryId, planId, planHash, operationEpochToken, operationId, requestH
 GetOperation(repositoryId, operationId, requestIdentity?, operationEpochToken?) -> OperationStatus
 CancelOperation(repositoryId, operationId) -> OperationStatus
 Recover(repositoryId, operationId, recoveryAction) -> RecoveryResult
+TransferRepositoryOwnership(repositoryId, transferRequest) -> RepositoryIdentity
 ```
 
 ### Mutation coordination domain
@@ -225,10 +226,29 @@ enters verified rollback or `RecoveryRequired`.
 cross-principal registry before the transaction reservation is released. Every later
 apply, from any OS principal, must resolve that registry and authority and observe the
 barrier. Ownership transfer cannot silently rebind the
-checkout to a new user-private ledger: it is an explicit administrative operation
-that requires verified recovery or acknowledgement, carries forward the operation
-epoch watermark, accumulator, and pinned records, and rotates identity only under the
-permanent retirement rules. If the required
+checkout to a new user-private ledger. It is an explicit administrative operation
+under an authority-wide repository transfer fence and preserves `RepositoryId` for
+the same physical checkout. The authority atomically enters `TransferPending`, blocks
+new operation epochs, apply-capable preparation, intake, replay promotion, and
+ownership changes, and seals outstanding operation epochs while leaving status,
+cancellation, cleanup, and recovery available.
+
+Transfer then waits for a live owner to finish or, after lease expiry and proven OS
+reservation release, reconciles it under the old repository reservation and fencing
+generation. Before committing new ownership, the authority proves there is no intake
+attempt/receipt promotion in flight, transaction reservation, live owner, nonterminal
+operation, or unresolved recovery barrier; `NotRecorded` replay authorizations are
+expired, and every `RecoveryRequired` record is recovered or explicitly acknowledged.
+It carries retained outcomes, watermark/accumulator, pinned terminal cleanup records,
+plans, and audit history forward, rewraps access-controlled artifacts as needed, then
+atomically increments `CoordinationGeneration`, installs the new owner/authority and
+writer set, and rotates admission/fencing credentials before releasing
+`TransferPending`. Old tokens, reviewed writer-set proofs, leases, and prepared plans
+cannot cross that generation without revalidation. A crash exposes either the old
+ownership, the completed new ownership, or a durable transfer-pending fence, never
+two writable domains. Physical
+checkout replacement uses quiescent retirement plus enrollment, not ownership
+transfer. If the required
 cross-principal proof or authority cannot be established, mutation is refused.
 
 `(RepositoryId, OperationId)` is the composite durable identity for intake,

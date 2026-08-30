@@ -93,7 +93,11 @@ state, recovery barriers, fencing, bounded operation epochs/outcomes, the retire
 watermark/accumulator, and pinned records. Otherwise mutation is refused as
 `RejectedUnsafeCoordination`. `RecoveryRequired` is committed to the authority and
 cross-principal registry before reservation release, and ownership transfer cannot
-discard its barriers, epoch state, or pinned records.
+discard its barriers, epoch state, or pinned records. Transfer preserves repository
+identity and first enters `TransferPending` to block new intake; it waits for or
+reconciles every active operation under the old reservation, resolves/acknowledges all
+barriers, proves the repository quiescent, then atomically rotates ownership,
+credentials, and `CoordinationGeneration`. A crash never exposes two writer domains.
 
 The authority caps open and unretired epochs, issuance rate, accepted operations and
 bytes, live and retained records, and pinned exceptions. Admission reserves bounded
@@ -167,6 +171,7 @@ results or diagnostics.
 - Operation retention is bounded by epoch/time/count/byte and pinned-exception quotas; compaction advances one monotonic rejection watermark/accumulator before deleting individual outcomes, so aged-out work cannot execute and the store does not grow one permanent record per operation.
 - A shared writable checkout either has one enforced cross-principal/cross-host coordination authority or remains inspect-only; no second OS user or host can bypass `RecoveryRequired` through separate private state.
 - A new checkout can be enrolled explicitly under an authority fence, while lost registry continuity can never masquerade as first enrollment or reset a repository identity.
+- Ownership transfer preserves identity and cannot rotate the writer domain until all intake, reservations, active operations, and recovery barriers are fenced and quiescent.
 - An untrusted file-only operation cannot use a repository symlink, reparse point, mount, hard link, alternate stream, or special file to read undeclared host content in a privileged process.
 - Cancellation after durable intake either proves `CancelledNoEffect` before the first-effect permit or records the request while recovery-critical work reaches a truthful repository outcome; replay never restarts a cancelled operation.
 - Cancellation after request-byte acceptance but before durable intake is `Indeterminate` and must resolve the same identity under the intake fence; it cannot be mistaken for a safe ordinary cancellation or authorize a second apply.

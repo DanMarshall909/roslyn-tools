@@ -224,7 +224,13 @@ epochs, bounded outcome retention, the retirement watermark/accumulator, and pin
 records. Without either proof the repository is inspect-only and apply
 returns `RejectedUnsafeCoordination` with no
 repository effect. Ownership/authority changes are revalidated at every boundary;
-transfer is explicit and cannot discard barriers, epoch state, or pinned records.
+transfer is explicit, preserves repository identity, and enters an authority-wide
+`TransferPending` fence that blocks new epochs, preparation, intake, and replay. It
+waits for or reconciles every active operation under the existing reservation, resolves
+or acknowledges barriers, proves intake/reservation/nonterminal state quiescent,
+carries retained/pinned state, then atomically increments `CoordinationGeneration`,
+installs the new owner/writer set, and rotates credentials. A crash leaves old
+ownership, completed new ownership, or the durable fence, never two writable domains.
 
 The immutable prepared plan contains all path and project operations, expected revision and hashes, coordination-domain/ownership proof, encoding/newline/file-mode policy, symlink/hard-link/root-containment policy, exact diff, diagnostics, assumptions, verification, expiry, and recovery data. `PlanHash` is SHA-256 over one versioned host-neutral canonical plan payload with the `PlanHash` field omitted entirely; shared vectors keep every adapter byte-identical, and verification reserializes that payload before comparing the digest. Source/destination paths are repository-contained; staging, backups, and control artifacts use a protected operation root outside and non-overlapping with the repository, on the target volume when required. Before prepare returns, its canonical envelope is atomically persisted outside repository control in a user-private store for `ExclusivePrincipal` or authority-controlled storage for `SharedAuthority`. Preview and apply consume that same repository-scoped, hash-verified plan across process restart. Once an intake receipt or operation ledger references a plan, garbage collection pins its exact bytes through every nonterminal state, including `Recovering`, through `RecoveryRequired`, and while a `CancelledNoEffect` control bundle awaits verified cleanup; it releases them only after verified terminal cleanup, durable expiry, or explicit recovery acknowledgement.
 
