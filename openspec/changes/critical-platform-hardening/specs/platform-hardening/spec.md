@@ -293,7 +293,7 @@ the hash field omitted and compare the resulting digest in constant time.
 
 #### Scenario: retention elapses while recovery still references a plan
 
-- **WHEN** normal plan-retention time elapses while an associated operation is `Applying`, `Reconciling`, `Recovering`, or `RecoveryRequired`
+- **WHEN** normal plan-retention time elapses while an associated operation is `Applying`, `OwnerQuiescencePending`, `Reconciling`, `Recovering`, or `RecoveryRequired`
 - **THEN** garbage collection retains the exact plan bytes and their journal, backup, and recovery references as one complete bundle
 - **AND THEN** it releases them only after verified terminal cleanup or explicit recovery acknowledgement
 
@@ -426,8 +426,10 @@ cleanup, and recovery available.
 
 Before transfer commits, the authority SHALL use the existing repository reservation
 and coordination generation to wait for every live owner or reconcile it after lease
-expiry and proven reservation release. It SHALL prove no dispatch plan lease,
-intake attempt, or receipt promotion is in flight, no transaction reservation or live owner remains, every
+expiry only after proven reservation release plus a closed/drained effect fence or
+verified worker termination and write-capability closure. It SHALL prove no dispatch
+plan lease, intake attempt, or receipt promotion is in flight, no transaction
+reservation, live owner, or open/unreconciled effect fence remains, every
 nonterminal operation is terminal, every recovery barrier is recovered or explicitly
 acknowledged, and every `NotRecorded` replay authorization is expired. Retained
 outcomes, watermark/accumulator, pinned terminal cleanup records, plans, and audit
@@ -496,7 +498,7 @@ transfer.
 
 - **WHEN** transfer begins while an operation is `Applying`, `Recovering`, `OwnerQuiescencePending`, `Reconciling`, or otherwise nonterminal
 - **THEN** no new mutation intake is admitted and transfer does not change the ownership domain or repository identity yet
-- **AND THEN** the active owner completes under the old reservation, or an expired owner is fenced and reconciled under that same reservation
+- **AND THEN** the active owner completes under the old reservation, or an expired owner is fenced and reconciled under that same reservation only after its effect fence is closed/drained or its worker termination and write-capability closure are verified
 - **AND THEN** transfer remains pending if the operation or reservation cannot be proven quiescent
 
 ### Requirement: apply operations have caller-known durable identity
@@ -575,7 +577,9 @@ first enter a durable `RetirementPending` fence that blocks new epochs, apply-ca
 preparation, dispatch-lease registration, intake, replay, and transfer while preserving status, cancellation,
 cleanup, acknowledgement, and recovery access. Under the existing repository identity
 and reservation, retirement SHALL seal all epochs and wait for or reconcile every
-dispatch plan lease, intake attempt, receipt promotion, live owner, reservation, and nonterminal operation.
+dispatch plan lease, intake attempt, receipt promotion, live owner, reservation,
+effect fence, and nonterminal operation. `OwnerQuiescencePending` SHALL block
+retirement until the stale worker is proven unable to execute.
 Every `RecoveryRequired` record SHALL reach verified recovery or terminal
 `RecoveryAcknowledged`; every cleanup-pending record SHALL verify cleanup; no
 plan/recovery/cleanup record SHALL remain pinned; and every retained terminal replay

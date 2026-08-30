@@ -279,7 +279,9 @@ transfer is explicit, preserves repository identity, and enters an authority-wid
 `TransferPending` fence that blocks new epochs, preparation, dispatch-plan leases,
 intake, and replay. It
 waits for or reconciles every active operation under the existing reservation, resolves
-or acknowledges barriers, proves dispatch-lease/intake/reservation/nonterminal state quiescent,
+or acknowledges recoverable barriers, proves every effect fence closed/drained (or its
+worker terminated with write capabilities closed), treats `OwnerQuiescencePending` as
+non-acknowledgeable, and proves dispatch-lease/intake/reservation/nonterminal state quiescent,
 carries retained/pinned state, then atomically increments `CoordinationGeneration`,
 installs the new owner/writer set, and rotates credentials. A crash leaves old
 ownership, completed new ownership, or the durable fence, never two writable domains.
@@ -431,7 +433,8 @@ first. Every otherwise unknown ID at or below the watermark returns
 accumulator are constant-size and never move backward. Identity retirement is a
 separate `RetirementPending` fence that blocks new mutation, transfer, and dispatch
 leases but preserves status/recovery while all epochs seal, leases and active work
-quiesce, recovery, and cleanup
+quiesce, every effect fence closes/drains or its worker termination is verified,
+`OwnerQuiescencePending` clears, and recovery and cleanup
 finish (or recovery is explicitly acknowledged), pinned records release, and retained outcomes compact
 through the final issued epoch. Only then does one transaction replace the live
 mapping with a permanent marker containing the final watermark/accumulator, physical

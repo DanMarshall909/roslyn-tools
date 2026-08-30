@@ -95,8 +95,10 @@ watermark/accumulator, and pinned records. Otherwise mutation is refused as
 cross-principal registry before reservation release, and ownership transfer cannot
 discard its barriers, epoch state, or pinned records. Transfer preserves repository
 identity and first enters `TransferPending` to block new intake; it waits for or
-reconciles every active operation under the old reservation, resolves/acknowledges all
-barriers, proves the repository quiescent, then atomically rotates ownership,
+reconciles every active operation under the old reservation only after its effect fence
+is closed/drained or worker termination and write-capability closure are verified,
+resolves/acknowledges all recoverable barriers, treats `OwnerQuiescencePending` as
+non-acknowledgeable, proves the repository quiescent, then atomically rotates ownership,
 credentials, and `CoordinationGeneration`. A crash never exposes two writer domains.
 
 The authority caps open and unretired epochs, issuance rate, accepted operations and
@@ -135,7 +137,8 @@ so replay safety no longer requires one permanent record per operation.
 
 Repository retirement first enters `RetirementPending`: new mutation and transfer are
 blocked while status/recovery remain available, all epochs seal, active operations
-quiesce, recovery finishes or is acknowledged, cleanup verifies, pinned records release, and
+and effect fences quiesce, `OwnerQuiescencePending` clears, recovery finishes or is
+acknowledged, cleanup verifies, pinned records release, and
 retained outcomes compact through the final issued epoch. Only then can the live
 mapping become a permanent retired marker. Retirement can never strand an operation's
 only status/recovery key.

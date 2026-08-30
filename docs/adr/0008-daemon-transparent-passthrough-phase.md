@@ -116,7 +116,9 @@ or mutation-policy ownership.
 
 Ownership transfer preserves repository identity and runs under an authority-wide
 `TransferPending` fence. New intake stops while every live owner completes or is
-fenced and reconciled under the existing reservation; barriers must be recovered or
+fenced and reconciled under the existing reservation only after its effect fence is
+closed/drained or worker termination and write-capability closure are verified.
+`OwnerQuiescencePending` is not acknowledgeable; other barriers must be recovered or
 acknowledged and all active state proven quiescent before one transaction increments
 the coordination generation, changes the writer domain, and rotates credentials. A
 crash exposes old ownership, completed new ownership, or the durable transfer fence,

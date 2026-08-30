@@ -292,11 +292,14 @@ new operation epochs, apply-capable preparation, dispatch-plan leases, intake, r
 ownership changes, and seals outstanding operation epochs while leaving status,
 cancellation, cleanup, and recovery available.
 
-Transfer then waits for a live owner to finish or, after lease expiry and proven OS
-reservation release, reconciles it under the old repository reservation and fencing
-generation. Before committing new ownership, the authority proves there is no dispatch
-plan lease or intake attempt/receipt promotion in flight, transaction reservation, live owner, nonterminal
-operation, or unresolved recovery barrier; `NotRecorded` replay authorizations are
+Transfer then waits for a live owner to finish or, after lease expiry, reconciles it
+under the old repository reservation and fencing generation only after proving OS
+reservation release plus a closed/drained effect fence or worker termination and
+write-capability closure. Before committing new ownership, the authority proves there
+is no dispatch plan lease or intake attempt/receipt promotion in flight, transaction
+reservation, live owner, open/unreconciled effect fence, nonterminal operation, or
+unresolved recovery barrier; `OwnerQuiescencePending` therefore blocks transfer.
+`NotRecorded` replay authorizations are
 expired, and every `RecoveryRequired` record is recovered or explicitly acknowledged.
 It carries retained outcomes, watermark/accumulator, pinned terminal cleanup records,
 plans, and audit history forward, rewraps access-controlled artifacts as needed, then
@@ -472,8 +475,9 @@ is distinct from ownership transfer and first enters a durable `RetirementPendin
 fence that blocks new epochs, apply-capable preparation, dispatch-plan leases, intake, replay, and transfer
 while preserving status, cancellation, cleanup, acknowledgement, and recovery access.
 Under the existing repository identity/reservation, it seals all epochs and waits for
-or reconciles every dispatch plan lease, intake attempt, receipt promotion, live owner, reservation, and
-nonterminal operation. Every `RecoveryRequired` record must reach verified recovery or
+or reconciles every dispatch plan lease, intake attempt, receipt promotion, live owner,
+reservation, effect fence, and nonterminal operation. `OwnerQuiescencePending` blocks
+retirement until stale-writer quiescence is proven. Every `RecoveryRequired` record must reach verified recovery or
 terminal `RecoveryAcknowledged`, every cleanup-pending record must verify cleanup, and
 no plan/recovery/cleanup record may remain pinned. Every retained terminal replay
 window must elapse and its record must be compacted so `RetiredThroughEpoch` covers
