@@ -892,13 +892,33 @@ The MCP host SHALL either use the official C# SDK or pass spawned-process confor
 
 ### Requirement: resource consumption is bounded and observable
 
-Stable operations SHALL declare and enforce applicable limits for request size, output size, item count, execution time, concurrency, paging, and memory-sensitive work. Cancellation tokens SHALL be threaded through workspace, Roslyn, filesystem, and host operations where cancellation is safe.
+Stable operations SHALL declare and enforce applicable limits for request size, output size, item count, execution time, concurrency, paging, and memory-sensitive work. Cancellation tokens SHALL be threaded through workspace, Roslyn, filesystem, and host operations where cancellation is safe. Every resumable continuation token SHALL be opaque and integrity protected and SHALL bind the schema/operation identity, canonical request hash with the token omitted, canonical repository/workspace identity, source revision plus semantic-input/evaluator fingerprint, projection, filters, total ordering and tie-break rules, page-size policy, cursor, and bounded expiry. A continuation request SHALL be authorized again; the token SHALL NOT grant access or elevate trust.
+
+The operation SHALL either serve every page from the exact retained immutable snapshot
+under bounded lifetime/byte/count quotas or reject a stale, expired, tampered,
+unauthorized, or otherwise mismatched token with a typed error. It SHALL NOT silently
+reevaluate a later workspace revision beneath an earlier cursor. If safe bounded
+snapshot continuation is unavailable, the operation SHALL return deterministic
+truncation with an explicit limitation marker and no resumable token.
 
 #### Scenario: a result exceeds its output budget
 
 - **WHEN** an analysis result exceeds the declared item or byte limit
 - **THEN** the response is deterministically paged or truncated with an explicit continuation/limitation marker
+- **AND THEN** a continuation token binds the canonical request, exact source/workspace revision and evaluator inputs, projection, total ordering, cursor, and expiry, while a truncated result without a retained snapshot is explicitly non-resumable
 - **AND THEN** the host does not silently allocate or emit an unbounded payload
+
+#### Scenario: workspace inputs change between pages
+
+- **WHEN** a client presents a valid continuation after the checkout, semantic inputs, evaluator fingerprint, projection, filter, or ordering differs from the token binding
+- **THEN** the operation serves the page only from the exact retained snapshot while current authorization and trust still permit access, or returns a typed stale continuation error
+- **AND THEN** it never combines findings from the changed workspace with the earlier result set
+
+#### Scenario: continuation authorization or trust changes
+
+- **WHEN** the current principal, authorization policy, or authoritative repository trust decision no longer permits the bound continuation
+- **THEN** the operation returns a typed unauthorized continuation error even if the exact snapshot is still retained
+- **AND THEN** the token grants no access and cannot restore the earlier trust state
 
 #### Scenario: a long operation is cancelled safely
 

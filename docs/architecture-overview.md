@@ -76,7 +76,7 @@ Every ordinary stable command has one host-neutral application definition and ex
 
 It contains no CLI builder, parser object, protocol type, renderer, console call, or daemon-specific semantics. `IRtCommand` is the CLI projection; the MCP adapter projects the same definition. During migration only, descriptors without complete ports enter an isolated compatibility bridge. Apply-capable bridge commands are not part of the stable MCP or daemon surface.
 
-See [ADR-0003](adr/0003-shared-command-descriptors-and-application-ports.md), [ADR-0007](adr/0007-host-neutral-command-contracts.md), and the [migration playbook](command-application-port-migration.md).
+See [ADR-0003](adr/0003-shared-command-descriptors-and-application-ports.md), [ADR-0007](adr/0007-host-neutral-command-contracts.md), [ADR-0010](adr/0010-revision-bound-continuation-tokens.md), and the [migration playbook](command-application-port-migration.md).
 
 ### 2. Explicit request context
 
@@ -183,6 +183,14 @@ Every structured operation response carries, where applicable:
 - safety state and affected paths;
 - next actions; and
 - paging/continuation state.
+
+Continuation state is opaque, integrity protected, and bound to one canonical request,
+repository/workspace identity, source and semantic-input revision, projection/filter/
+total-order policy, cursor, authorization context, and bounded expiry under
+[ADR-0010](adr/0010-revision-bound-continuation-tokens.md). Each page is reauthorized
+and comes from the exact quota-bounded retained snapshot, or fails with a typed stale,
+expired, invalid, or unauthorized continuation error. No page silently reevaluates a
+newer checkout under an older cursor.
 
 ### 6. Mutation prepare/apply/recover contract
 
@@ -423,7 +431,7 @@ Stable MCP behaviour includes:
 - complete JSON Schema, including enums, bounds, nullability, nesting, and additional-property policy;
 - schema-valid structured results;
 - bounded request/output/item/time/concurrency/memory behaviour;
-- deterministic pagination or projection; and
+- revision-bound deterministic pagination, or explicit non-resumable projection/truncation; and
 - no stable apply-capable CLI bridge.
 
 Protocol version and server version are release facts derived from one source, not hard-coded aspirational values.

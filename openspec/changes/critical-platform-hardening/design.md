@@ -797,6 +797,16 @@ Shared policy enforces:
 - result envelopes include schema version, request ID, status, typed data, diagnostics, provenance, confidence, next actions, and paging state; and
 - invalid option values are structured `InvalidInput` errors, never empty successful result sets.
 
+Paging state is host-neutral and revision-bound. An opaque integrity-protected
+continuation token binds the schema/operation, canonical request hash (with the token
+omitted), repository/workspace identity, source revision and semantic-input/evaluator
+fingerprint, projection/filter/order/tie-break policy, page-size policy, cursor, and
+expiry. Every page is reauthorized and either reads the exact retained immutable
+snapshot under bounded quotas or returns a typed invalid/stale/expired/unauthorized
+continuation error. The token is not a bearer grant, cannot elevate trust, and never
+causes reevaluation against a later workspace revision. Operations that cannot retain
+a safe bounded snapshot return explicit non-resumable truncation.
+
 ## MCP and agent surface
 
 The preferred implementation is the official C# MCP SDK. A handwritten host is acceptable only if spawned-process conformance tests prove every advertised protocol version and capability.
@@ -809,7 +819,7 @@ Stable MCP tools:
 - expose schema-valid `structuredContent` plus an optional human text view;
 - use complete JSON Schema for enums, bounds, nullability, nested values, and additional-property policy;
 - bound request size, output size, item count, execution time, concurrency, and memory-sensitive operations;
-- paginate or project large results deterministically;
+- paginate large results through revision-bound integrity-protected continuations, or project/truncate them explicitly without a resumable token;
 - classify tools as `stable`, `preview`, or `experimental`; and
 - hide apply-capable bridge tools from the stable surface.
 

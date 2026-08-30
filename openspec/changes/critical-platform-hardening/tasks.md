@@ -118,12 +118,12 @@ cross-host acceptance tests pass.
 - [ ] Define the supported protocol-version matrix and remove hard-coded version claims not exercised in CI.
 - [ ] Correct JSON-RPC parse/invalid-request handling, request IDs, notification no-response behaviour, and lifecycle/version negotiation.
 - [ ] Keep reading the protocol stream while operations execute so cancellation and other allowed messages can be processed.
-- [ ] Implement per-request cancellation, long-operation progress, deterministic paging, and bounded concurrency.
+- [ ] Implement per-request cancellation, long-operation progress, bounded concurrency, and deterministic paging with opaque integrity-protected tokens bound to canonical request, source/workspace revision and semantic/evaluator fingerprint, projection/filter/total ordering, cursor, authorization, and expiry; reauthorize every page and use a quota-bounded retained snapshot or return a typed stale/invalid result rather than mixing revisions.
 - [ ] Return schema-valid `structuredContent` for structured tools plus an equivalent text view.
 - [ ] Generate complete JSON Schema for enums, bounds, nullability, arrays, nested objects, unions, and `additionalProperties` policy.
-- [ ] Enforce request/output/item/time/memory limits and explicit continuation/limitation metadata.
+- [ ] Enforce request/output/item/time/memory limits, retained-snapshot lifetime/count/byte quotas, and explicit continuation/limitation metadata; emit no resumable token when safe bounded snapshot continuation is unavailable.
 - [ ] Classify tools as stable/preview/experimental and hide bridge-backed mutations from stable discovery.
-- [ ] Add spawned tests for malformed JSON, notifications, unsupported versions, cancellation, large payloads, client disconnects, schema validation, and server recovery.
+- [ ] Add spawned tests for malformed JSON, notifications, unsupported versions, cancellation, large payloads, client disconnects, schema validation, server recovery, source/evaluator changes between pages, token tampering/expiry, authorization or trust revocation, concurrent token reuse, and snapshot-quota exhaustion.
 
 ## P1.4 capability catalogue and executable documentation
 

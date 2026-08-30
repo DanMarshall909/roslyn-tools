@@ -74,3 +74,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0007](0007-host-neutral-command-contracts.md) | Host-neutral command contracts and complete application-port migration | Accepted; daemon boundary updated by [0008](0008-daemon-transparent-passthrough-phase.md) | 2026-08-26 |
 | [0008](0008-daemon-transparent-passthrough-phase.md) | Transparent daemon passthrough phase | Superseded in part by [0009](0009-authenticated-daemon-endpoints.md) | 2026-08-27 |
 | [0009](0009-authenticated-daemon-endpoints.md) | Authenticated local daemon endpoints | Accepted | 2026-08-30 |
+| [0010](0010-revision-bound-continuation-tokens.md) | Revision-bound continuation tokens | Accepted | 2026-08-30 |
