@@ -129,6 +129,7 @@ survives CLI, MCP, and daemon process restart. `Apply` receives both the plan id
 caller-generated `OperationId` before any transport dispatch:
 
 ```text
+EnrollRepository(enrollmentRequest) -> RepositoryIdentity
 Prepare(request) -> PreparedChangeSet
 GetOperationEpoch(repositoryId) -> OperationEpochToken
 Apply(repositoryId, planId, planHash, operationEpochToken, operationId, requestHash, expectedRevision, replayEpoch?) -> ApplyResult
@@ -149,9 +150,41 @@ registry, so a second user or machine opening the checkout cannot derive an
 independent repository ID and bypass existing operation state. A machine-local
 registry qualifies only when filesystem/ownership proof excludes writes from other
 hosts; shared or network storage requires a shared authority spanning every writer.
-Normal retention never deletes the mapping or an active barrier. Missing,
-unreachable, or inconsistent registry state rejects mutation instead of minting a new
-repository identity.
+Normal retention never deletes the mapping or an active barrier.
+
+First-time enrollment is an explicit, separately authorized registry operation; the
+prepare/apply path never performs it implicitly. The registry maintains an
+OS/service-protected `AuthorityId`, continuity generation, monotonically increasing
+`RepositorySequence`, and append-only enrollment/retirement audit root. Startup and
+restore must prove that generation, sequence high-water mark, and audit root continue
+from the last protected checkpoint; an absent, rolled-back, unreachable, or
+inconsistent registry cannot treat itself as empty.
+
+Authority provisioning is a separate administrator operation in a demonstrably fresh
+OS/service namespace backed by a non-rollback continuity anchor; it is not repository
+enrollment. If the platform cannot prove fresh provisioning or later continuity, it
+does not qualify as a mutation coordination authority.
+
+`EnrollRepository` opens verified handles for the checkout root and Git common
+directory without evaluating repository code, derives their stable physical identity,
+authenticates an actor allowed to establish the declared coordination mode/writer set,
+and acquires one authority-enforced enrollment fence for that physical identity. Under
+one transaction it checks live and retired bindings, proves authoritative absence in
+the continuity-complete registry, advances `RepositorySequence`, and persists the new
+`RepositoryId = (AuthorityId, RepositorySequence)`, non-reused coordination nonce,
+owner/authority proof, initial no-barrier state, physical binding, and audit entry
+before returning. Concurrent enrollment returns the committed identity. A crash may
+leave a sequence gap but can never reuse a value or expose a partially initialized
+mapping.
+
+A healthy registry with no binding returns typed `RepositoryNotEnrolled` to mutation
+and offers the explicit enrollment operation. A live binding is reused, not replaced;
+a retired or conflicting binding is never revived automatically. Missing authority
+state, failed continuity proof, a repository-supplied identity marker, handle/path
+replacement, or inconsistent binding returns `RejectedUnsafeCoordination` and cannot
+mint an identity. A replacement checkout must present a distinct proven physical
+identity and receives a later sequence; ownership changes use the explicit transfer
+path.
 
 Every apply-capable plan declares one `CoordinationDomainId` and mode:
 

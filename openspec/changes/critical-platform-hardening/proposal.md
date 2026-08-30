@@ -79,6 +79,13 @@ Mutation coordination is repository-scoped across OS principals and hosts. An OS
 or service-protected registry outside repository control supplies one non-reused repository identity and
 records ownership, active recovery barriers, and retirement state for every would-be
 writer; machine-local state is valid only when other hosts cannot write the storage.
+For a new checkout, a separately authorized `EnrollRepository` operation verifies
+handle-based checkout/Git-common-dir identity and, under one enrollment fence,
+atomically advances a continuity-protected authority sequence and persists the full
+binding/domain/no-barrier/audit record. Mutation never enrolls implicitly. A healthy
+absent mapping returns `RepositoryNotEnrolled`; lost, rolled-back, or inconsistent
+authority state remains `RejectedUnsafeCoordination`, and concurrent enrollment
+returns one identity without sequence reuse.
 A plan must then prove either that no other non-administrative principal or host in
 the threat model can write/replace the checkout and Git common directory, or that
 every authorized principal uses one OS/service-enforced shared authority for intake, reservation,
@@ -150,6 +157,7 @@ results or diagnostics.
 - A caller obtains an authenticated bounded operation epoch and constructs the operation ID before dispatch; after a lost response it can query a durable receipt/current outcome, obtain authoritative `NotRecorded` replay only while that epoch remains open, or receive a non-replayable sealed/retired result once it closes.
 - Operation retention is bounded by epoch/time/count/byte and pinned-exception quotas; compaction advances one monotonic rejection watermark/accumulator before deleting individual outcomes, so aged-out work cannot execute and the store does not grow one permanent record per operation.
 - A shared writable checkout either has one enforced cross-principal/cross-host coordination authority or remains inspect-only; no second OS user or host can bypass `RecoveryRequired` through separate private state.
+- A new checkout can be enrolled explicitly under an authority fence, while lost registry continuity can never masquerade as first enrollment or reset a repository identity.
 - An untrusted file-only operation cannot use a repository symlink, reparse point, mount, hard link, alternate stream, or special file to read undeclared host content in a privileged process.
 - Cancellation after durable intake either proves `CancelledNoEffect` before the first-effect permit or records the request while recovery-critical work reaches a truthful repository outcome; replay never restarts a cancelled operation.
 - Review and apply can run in separate processes and still consume byte-identical, hash-verified plan data from outside repository control.

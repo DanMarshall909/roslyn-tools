@@ -213,8 +213,39 @@ retained outcomes, the retirement watermark/accumulator, and pinned records acro
 every authorized principal and host adapter. Protected operation payloads and
 recovery artifacts MAY remain encrypted or access-controlled within that authority.
 Normal retention SHALL NOT delete the repository mapping or an active barrier.
-Missing, unreachable, or inconsistent registry state SHALL reject mutation rather
-than create a new repository identity.
+
+First-time repository enrollment SHALL be an explicit, separately authorized
+registry operation and SHALL NOT occur implicitly during prepare or apply. The
+registry SHALL maintain an OS/service-protected `AuthorityId`, continuity generation,
+monotonically increasing `RepositorySequence`, and append-only enrollment/retirement
+audit root. Startup and restore SHALL prove the generation, sequence high-water mark,
+and audit root continue from the last protected checkpoint. An absent, rolled-back,
+unreachable, or inconsistent registry SHALL NOT treat itself as empty.
+
+Authority provisioning SHALL be a separate administrator operation in a demonstrably
+fresh OS/service namespace backed by a non-rollback continuity anchor; it SHALL NOT
+be repository enrollment. A platform unable to prove fresh provisioning or later
+continuity SHALL NOT qualify as a mutation coordination authority.
+
+Enrollment SHALL open verified handles for the checkout root and Git common directory
+without evaluating repository code, derive their stable physical identity,
+authenticate an actor authorized for the declared coordination mode and writer set,
+and acquire one authority-enforced enrollment fence keyed by that identity. In one
+transaction it SHALL consult live and retired bindings, prove authoritative absence
+in the continuity-complete registry, advance `RepositorySequence`, and persist the
+new `RepositoryId = (AuthorityId, RepositorySequence)`, non-reused coordination nonce,
+physical binding, owner/authority proof, initial no-barrier state, and audit entry
+before returning. A crash MAY consume a sequence number but SHALL NOT expose a partial
+mapping or permit reuse. Concurrent enrollment SHALL resolve to the same committed
+identity.
+
+A healthy registry with no binding SHALL return typed `RepositoryNotEnrolled` to
+mutation and MAY offer the explicit enrollment operation. A live binding SHALL be
+reused rather than replaced. Retired/conflicting bindings, missing authority state,
+failed continuity proof, repository-supplied identity markers, or handle/path
+replacement SHALL return `RejectedUnsafeCoordination` and SHALL NOT mint an identity.
+A replacement checkout SHALL require a distinct proven physical identity and receive
+a later sequence; ownership changes SHALL use the explicit transfer path.
 
 If neither proof is available, mutation preparation SHALL NOT return an apply-capable
 plan and an accepted apply SHALL terminate as no-effect
@@ -235,6 +266,31 @@ mutation domain.
 - **WHEN** more than one OS principal or host can write or replace the checkout or Git common directory and no shared authority covers all of them
 - **THEN** inspection remains available but mutation preparation does not return an apply-capable plan
 - **AND THEN** an accepted apply records `RejectedUnsafeCoordination` and performs no repository effect
+
+#### Scenario: a new checkout is explicitly enrolled
+
+- **WHEN** an authorized actor requests enrollment for an unenrolled checkout through a healthy continuity-complete registry
+- **THEN** the authority verifies handle-based checkout/Git-common-dir identity and the requested coordination mode under the enrollment fence
+- **AND THEN** it proves no live or retired binding exists, advances the durable repository sequence, and atomically persists the complete mapping and audit entry before returning
+- **AND THEN** every concurrent enrollment receives that same repository identity and no mutation path performs enrollment implicitly
+
+#### Scenario: an unenrolled checkout reaches mutation
+
+- **WHEN** prepare or apply resolves a healthy registry with no binding for the verified physical identity
+- **THEN** it returns `RepositoryNotEnrolled` with explicit enrollment guidance and performs no repository effect
+- **AND THEN** repository-controlled files cannot supply identity or prove authoritative absence
+
+#### Scenario: registry continuity cannot be proven
+
+- **WHEN** the authority store or protected checkpoint is absent, rolled back, unreachable, inconsistent, or disagrees with the enrollment/retirement audit root
+- **THEN** enrollment and mutation return `RejectedUnsafeCoordination`
+- **AND THEN** no new authority generation, repository sequence, identity, or empty barrier state is inferred, and repository enrollment cannot reprovision the authority
+
+#### Scenario: enrollment crashes or races
+
+- **WHEN** two actors enroll the same verified physical identity concurrently or the authority crashes at an enrollment transaction boundary
+- **THEN** recovery exposes either no mapping or one fully initialized mapping
+- **AND THEN** all successful callers receive the same identity; unused sequence gaps are allowed but a sequence, retired binding, or repository ID is never reused
 
 #### Scenario: another principal targets a repository awaiting recovery
 

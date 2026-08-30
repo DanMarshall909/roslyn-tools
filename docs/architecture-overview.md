@@ -182,6 +182,7 @@ Every structured operation response carries, where applicable:
 A boolean `dryRun` branch is not a mutation safety model. Stable mutations use:
 
 ```text
+EnrollRepository(enrollmentRequest) -> RepositoryIdentity
 Prepare(request) -> PreparedChangeSet
 GetOperationEpoch(repositoryId) -> OperationEpochToken
 Apply(repositoryId, planId, planHash, operationEpochToken, operationId, requestHash, expectedRevision, replayEpoch?) -> ApplyResult
@@ -194,9 +195,19 @@ or service-protected registry outside repository control maps checkout/Git-commo
 to one non-reused repository ID and records mode, owner/authority, active recovery
 barrier, and retirement state; no per-user store can shadow it. Every would-be
 mutation principal/host resolves this registry before intake; machine-local state is
-valid only when other hosts cannot write the filesystem. Missing, inconsistent, or
-unreachable registry state blocks mutation instead of creating another identity, and
-normal retention never removes an active barrier. Every apply plan records a
+valid only when other hosts cannot write the filesystem. First-time enrollment is an
+explicit authorized operation, never an apply side effect: under a handle-derived
+physical-identity fence, a continuity-complete registry atomically advances its
+protected authority-wide repository sequence and persists the complete binding,
+coordination mode, initial no-barrier state, and audit entry. Concurrent enrollment
+returns the same record; crash-created sequence gaps are allowed but reuse is not. A
+coordination authority itself is provisioned separately by an administrator in a
+demonstrably fresh OS/service namespace with a non-rollback continuity anchor;
+enrollment cannot reprovision it. A
+healthy absent mapping returns `RepositoryNotEnrolled`; missing, inconsistent,
+rolled-back, or unreachable authority state blocks both enrollment and mutation as
+`RejectedUnsafeCoordination` instead of treating the registry as empty. Normal
+retention never removes an active barrier. Every apply plan records a
 `CoordinationDomainId` and proves either `ExclusivePrincipal` ownership (no other
 non-administrative principal or host in the threat model can write/replace the
 checkout, Git common directory, and their

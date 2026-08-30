@@ -83,7 +83,13 @@ barrier. Every would-be writer first resolves an OS/service-protected cross-prin
 and cross-host registry outside repository control that maps checkout/Git-common-dir
 identity to one non-reused repository ID and records ownership, active recovery
 barriers, and retirement. Machine-local state qualifies only when other hosts cannot
-write the storage. Full operation data may remain per-user only when OS ownership/ACL
+write the storage. A new checkout uses an explicit separately authorized enrollment
+operation: the continuity-complete authority verifies handle-based physical identity,
+fences concurrent enrollment, advances a protected monotonic repository sequence, and
+atomically persists the complete identity/domain/no-barrier/audit record. Mutation
+never enrolls implicitly. A healthy absent mapping returns `RepositoryNotEnrolled`;
+missing, rolled-back, unreachable, or inconsistent authority state rejects enrollment
+and mutation as `RejectedUnsafeCoordination`. Full operation data may remain per-user only when OS ownership/ACL
 proof shows that no other non-administrative principal or host in the threat model
 can write or replace the checkout and Git common directory. A shared writable
 checkout requires a separate OS/service-enforced coordination authority that every
