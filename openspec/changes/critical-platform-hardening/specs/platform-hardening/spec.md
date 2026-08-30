@@ -272,7 +272,11 @@ proven `ExclusivePrincipal`, or authority-owned/access-controlled for
 plan hash and SHALL NOT recompute them from command arguments or a newer workspace
 snapshot. Once an operation record references a plan, the store SHALL pin its exact
 bytes through all nonterminal states and through `RecoveryRequired` until verified
-terminal cleanup or explicit recovery acknowledgement.
+terminal cleanup or explicit recovery acknowledgement. A terminal no-effect state,
+including `CancelledNoEffect`, `Expired`, `RejectedStale`,
+`RejectedPlanUnavailable`, or `RejectedUnsafeCoordination`, SHALL retain the plan,
+journal, artifact inventory, and cleanup capability as one complete pinned bundle while
+`CleanupPending`; operation expiry or epoch sealing SHALL NOT release an adopted pin.
 
 Before any mutation request bytes are sent, the caller SHALL atomically register a
 bounded `DispatchPlanLease` in the protected coordination/plan authority, keyed by
@@ -319,6 +323,12 @@ the hash field omitted and compare the resulting digest in constant time.
 - **WHEN** normal plan-retention time elapses while an associated operation is `Applying`, `OwnerQuiescencePending`, `Reconciling`, `Recovering`, or `RecoveryRequired`
 - **THEN** garbage collection retains the exact plan bytes and their journal, backup, and recovery references as one complete bundle
 - **AND THEN** it releases them only after verified terminal cleanup or explicit recovery acknowledgement
+
+#### Scenario: an operation expires after staging but before its first effect
+
+- **WHEN** an accepted operation has journalled staging artifacts, reaches terminal `Expired` without a repository effect, and still reports `CleanupPending`
+- **THEN** operation expiry and later epoch sealing retain the adopted plan pin plus journal, artifact inventory, quota, and cleanup capability as one referentially complete bundle
+- **AND THEN** the pin is released only after the pre-effect activity fence drains and `CleanupVerified` proves the protected operation root empty
 
 #### Scenario: a reviewed plan is leased before dispatch
 

@@ -168,6 +168,9 @@ Plans referenced by nonterminal (including `Recovering` and
 operations, and `CancelledNoEffect` plans with pending control-artifact cleanup,
 remain pinned with their evidence until verified terminal cleanup or explicit
 acknowledgement; normal retention cannot strand recovery without the reviewed bytes.
+The same rule applies to `Expired` and every other terminal no-effect operation with
+`CleanupPending`; epoch sealing releases only an unadopted dispatch pin for which no
+operation or control artifact exists.
 
 Repository trust and evaluator mode are independent. Untrusted repositories are not evaluated inside the long-lived CLI, MCP, or daemon host, while trusted repositories may still request isolation. Trusted `InProcess` admission requires an external-supervisor-owned non-breakaway OS descendant domain; revocation terminates the per-admission domain or containing host and completes only after the OS proves it empty. An isolated worker receives an OS-enforced read-only checkout and separate disposable writable output/cache locations; the tool must refuse either evaluator mode when its required containment boundary is unavailable.
 

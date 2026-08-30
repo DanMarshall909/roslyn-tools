@@ -315,8 +315,11 @@ adopts that pin. Garbage collection retains it through authoritative dispatch
 resolution and every nonterminal state, including `Recovering`, through
 `OwnerQuiescencePending` and `RecoveryRequired`, and while a `CancelledNoEffect`
 control bundle awaits verified
-cleanup; it releases the pin only after fenced resolution, verified terminal cleanup,
-durable epoch sealing/expiry, or explicit recovery acknowledgement.
+cleanup. Any terminal no-effect operation, including `Expired`, keeps the adopted plan,
+journal, artifact inventory, quota, and cleanup capability pinned while
+`CleanupPending`. Durable lease/replay expiry or epoch sealing releases only an
+unadopted pin for which no operation/control artifact exists; an adopted pin releases
+only after verified terminal cleanup or explicit recovery acknowledgement.
 
 Apply creates a durable operation record, initializes its journal before staging, stages only in the outside-repository control root, acquires an exclusive canonical-repository transaction reservation, claims a renewable owner lease and monotonically increasing fencing epoch, validates every precondition, arbitrates cancellation against a complete journalled first-effect permit in one durable compare-and-swap, journals changes, revalidates the expected intermediate repository state at every side-effect boundary, applies deterministically, verifies postconditions, and records one truthful state. A first-effect permit is eligibility to request one effect, not reusable write authority: a non-bypassable OS-enforced broker/fence revalidates authority at the actual conditional filesystem boundary and serializes effect admission with fence closure. Interrupted pre-effect staging cleanup is idempotent and never touches the repository.
 

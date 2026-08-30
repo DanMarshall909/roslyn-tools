@@ -29,6 +29,13 @@ the truthful `NotRecorded` or terminal dispatch-resolution record. The receiver
 requires the matching lease and atomically adopts its pin when recording `Received`.
 The lease is not evidence that transport accepted the request.
 
+Receipt adoption transfers the pin into the operation lifecycle. Operation-level
+`Expired` and every other terminal no-effect outcome retain the exact plan, journal,
+artifact inventory, quota reservation, and cleanup capability while cleanup is
+pending. Epoch sealing or durable lease/replay expiry releases only an unadopted pin
+for which no operation or control artifact exists; an adopted pin releases only after
+verified terminal cleanup or explicit recovery acknowledgement.
+
 When indeterminate status finds no receipt or operation, it validates the original
 token and request identity, inspects the dispatch lease under the same intake fence,
 and excludes every live intake attempt. If the exact plan is readable and verified,
@@ -57,6 +64,8 @@ absence inference.
 ## Consequences
 
 - Ordinary retention cannot strand an indeterminate operation by expiring its plan.
+- Operation expiry cannot strand staged-artifact cleanup by releasing an adopted plan
+  pin before the complete cleanup bundle is verified.
 - Storage loss or corruption has an explicit non-replayable status outcome.
 - A new plan and operation identity are allowed only after the old receiver is durably
   fenced.

@@ -407,9 +407,12 @@ operation ID; it does not retry the unavailable plan.
 While its live or retained record exists, reusing an `OperationId` with the same
 canonical request returns the existing receipt, operation state, or result. Reusing
 such an ID with a different plan, revision, request hash, or payload returns
-`OperationConflict` and performs no work. `DispatchPlanLease`, `Received`, and
+`OperationConflict` and performs no work. Pre-receipt `DispatchPlanLease` and
 `NotRecorded` records are bounded: they pin the referenced plan until receipt adoption,
-authoritative resolution, explicit replay, or durable expiry, and none can remain unresolved indefinitely.
+authoritative resolution, explicit replay, or durable lease/replay expiry, and none can
+remain unresolved indefinitely. `Received` atomically transfers that pin to the
+operation lifecycle; a later operation-level `Expired` state is not a release condition
+while control-artifact cleanup remains pending.
 Expiry records the terminal outcome for the active replay window; sealing the
 operation epoch later makes every unknown or compacted ID in that epoch durably
 unacceptable. An outstanding `NotRecorded` replay authorization expires when its
@@ -434,9 +437,12 @@ the exact plan before dispatch; creating a receipt or operation atomically adopt
 pin by durable reference. Garbage collection cannot remove a plan while an associated
 dispatch lease remains admissible or an operation is `Received`, `NotRecorded`, `Prepared`, `Applying`,
 `OwnerQuiescencePending`, `Reconciling`, `Recovering`, or `RecoveryRequired`, and cannot remove a
-`CancelledNoEffect` plan while its control-artifact cleanup remains pending. It
-releases the plan only after verified terminal cleanup, durable expiry, or explicit
-recovery acknowledgement. Recovery evidence and its plan are retained as one
+terminal no-effect plan, including `CancelledNoEffect`, `Expired`, `RejectedStale`,
+`RejectedPlanUnavailable`, or `RejectedUnsafeCoordination`, while its control-artifact
+cleanup remains pending. Durable dispatch-lease/replay expiry releases only an
+unadopted pin for which no operation or control artifact exists. An adopted pin releases
+only after verified terminal cleanup or explicit recovery acknowledgement. Recovery
+evidence and its plan are retained as one
 referentially complete bundle.
 
 ### Bounded idempotency epochs

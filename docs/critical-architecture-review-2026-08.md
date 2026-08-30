@@ -129,6 +129,9 @@ retries, crashes, or process restarts.
 - Record expected existence/hash/type, platform identity/link count, encoding/BOM/newlines, permissions/mode, symlink/hard-link policy, repository revision, exact diff, expiry, verification, and recovery data.
 - Pin the exact plan and recovery bundle while an operation is nonterminal (including
   `Recovering` and `OwnerQuiescencePending`) or `RecoveryRequired`.
+- Keep an adopted plan, journal, inventory, quota, and cleanup capability pinned for
+  every terminal no-effect state (including `Expired`) while cleanup is pending; epoch
+  sealing releases only never-adopted dispatch pins with no operation artifacts.
 - Assign caller-known operation identity and persist its ledger before writes.
 - Acquire one exclusive canonical-repository transaction reservation before final whole-plan preflight and hold it through the durable terminal result or recovery handoff so plans cannot interleave.
 - Acquire OS-enforced guards for every reviewed dependency/target or use atomic conditional effects so non-`rt` writers cannot win between validation and effect; advisory locks and unconditional replacement are insufficient.
