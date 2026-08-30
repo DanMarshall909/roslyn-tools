@@ -30,19 +30,20 @@ cross-host acceptance tests pass.
 ## P0.2 durable operation identity and transport safety
 
 - [ ] Add caller-generated `OperationId` to every apply request before dispatch; keep request-attempt correlation separate.
-- [ ] Implement a durable operation ledger written before side effects, with append-only transition history and `Prepared | Applying | Reconciling | Applied | RolledBack | RecoveryRequired | Recovering | RecoveredApplied | RecoveredRolledBack | RecoveryAcknowledged | RejectedStale | RejectedConflict | Expired` states.
+- [ ] Implement a durable intake receipt and operation ledger with append-only transition history and `Received | NotRecorded | Prepared | Applying | Reconciling | Applied | RolledBack | RecoveryRequired | Recovering | RecoveredApplied | RecoveredRolledBack | RecoveryAcknowledged | RejectedStale | RejectedConflict | Expired` states.
 - [ ] Record owner instance, monotonically increasing fencing epoch, lease expiry, heartbeat, and transaction-reservation identity for `Applying` and `Recovering`; acquire one OS-enforced exclusive reservation per canonical repository before final preflight, hold it through terminal completion/recovery handoff, and require it for expired-owner takeover.
-- [ ] Define canonical request hashing so identical operation-ID replay returns the existing result and differing replay returns `OperationConflict`.
-- [ ] Add `GetOperation` status lookup and stable recovery guidance available after client/server restart.
+- [ ] Define canonical request hashing so identical operation-ID replay returns the existing receipt/result and differing replay returns `OperationConflict`.
+- [ ] Before execution enqueue, acquire a per-operation intake fence and persist `Received(OperationId, RequestHash, CanonicalRequest)` outside daemon logs; reconcile receipts without operation records on startup/status lookup.
+- [ ] Make `GetOperation` create authoritative `NotRecorded(OperationId, RequestHash, ReplayEpoch)` only while holding that fence after proving no intake remains in flight; reject delayed attempts without the epoch and permit one explicit exact-request transition to `Received`.
 - [ ] Preserve operation ID and status semantics across CLI, MCP, in-process, and daemon adapters.
-- [ ] Retain `NotDispatched | Completed | Indeterminate` as transport knowledge and prohibit mutation retry/fallback after `Indeterminate`.
-- [ ] Test lost first response, process termination before/after ledger write and every journal boundary, owner-lease expiry, a stale owner resumed before/after every reservation/epoch check, concurrent reconciliation, overlapping plans for the same and different repositories, malformed response, duplicate request, concurrent duplicate request, stale daemon, and client cancellation.
+- [ ] Retain `NotDispatched | Completed | Indeterminate` as transport knowledge, prohibit automatic mutation retry/fallback after `Indeterminate`, and allow explicit same-operation replay only after durable `NotRecorded` resolution.
+- [ ] Test lost first response, process termination before/after intake receipt and operation-ledger write, a status/intake race, a delayed original after `NotRecorded`, lost replay authorization, every journal boundary, owner-lease expiry, a stale owner resumed before/after every reservation/epoch check, concurrent reconciliation, overlapping plans for the same and different repositories, malformed response, duplicate request, concurrent duplicate request, stale daemon, and client cancellation.
 
 ## P0.3 complete prepared-change-set model
 
 - [ ] Extend `PreparedChangeSet` with plan ID, repository identity/revision, expiry, canonical operation list, exact diff, diagnostics, assumptions, confidence, verification, cleanup, and recovery policy.
 - [ ] Add a user-private durable plan store outside the target repository, atomically keyed by repository ID, plan ID, and plan hash, with schema versioning, owner-only access where supported, bounded retention for unreferenced plans, durable ledger-reference pinning, and crash-safe cleanup.
-- [ ] Pin exact plan bytes and their recovery bundle while any associated operation is nonterminal (including `Recovering`) or `RecoveryRequired`; release only after verified terminal cleanup or explicit acknowledgement, with garbage-collection tests across retention expiry and restart.
+- [ ] Pin exact plan bytes and their recovery bundle while any associated operation is `Received`, `NotRecorded`, nonterminal (including `Recovering`), or `RecoveryRequired`; release only after verified terminal cleanup, durable expiry, or explicit acknowledgement, with garbage-collection tests across retention expiry and restart.
 - [ ] Reject missing, expired, unreadable, schema-incompatible, or hash-mismatched plans before entering `Applying`; prove review and apply can occur in separate processes without recomputation.
 - [ ] Model creates, replacements, deletes, moves, project edits, normal Roslyn documents, additional documents, and analyzer-config documents.
 - [ ] Record expected existence/hash/type for every affected path and expected post-apply hashes.

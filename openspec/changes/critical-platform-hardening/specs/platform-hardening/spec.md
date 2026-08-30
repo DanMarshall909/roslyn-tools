@@ -118,7 +118,7 @@ A mutation SHALL prepare an immutable change set before apply. The plan SHALL de
 
 ### Requirement: apply operations have caller-known durable identity
 
-Every apply request SHALL include a caller-generated operation ID before dispatch. The operation ID SHALL be the durable idempotency and status-lookup handle and SHALL be recorded before repository side effects begin.
+Every apply request SHALL include a caller-generated operation ID and canonical request hash before dispatch. The operation ID SHALL be the durable idempotency and status-lookup handle. Before accepted work can enter an execution queue, the receiver SHALL acquire a per-operation intake fence and durably record a `Received` receipt containing the operation ID, request hash, and canonical request. The operation ledger SHALL then be recorded before repository side effects begin. A `Received` receipt without an operation record SHALL be reconciled on startup and status lookup.
 
 #### Scenario: the first response is lost
 
@@ -126,10 +126,19 @@ Every apply request SHALL include a caller-generated operation ID before dispatc
 - **THEN** the caller still knows the operation ID
 - **AND THEN** it can query operation status without generating a second apply operation
 
+#### Scenario: execution dies before operation-ledger creation
+
+- **WHEN** dispatch is indeterminate and status lookup finds neither a durable intake receipt nor an operation record
+- **THEN** status lookup acquires the same operation-intake fence and proves no receiver for that operation ID remains in flight
+- **AND THEN** it durably records and returns `NotRecorded` with the canonical request hash and a replay epoch
+- **AND THEN** a delayed original attempt without that epoch is rejected before execution
+- **AND THEN** the caller may explicitly resubmit the exact request with the same operation ID, request hash, and replay epoch, transitioning `NotRecorded` to `Received` exactly once
+- **AND THEN** this path performs no automatic retry and no in-process fallback
+
 #### Scenario: an identical operation is repeated
 
-- **WHEN** the same operation ID is submitted with the same canonical plan and expected revision
-- **THEN** the existing operation state or terminal result is returned
+- **WHEN** the same operation ID is submitted with the same canonical plan, request hash, and expected revision
+- **THEN** the existing intake receipt, operation state, or terminal result is returned
 - **AND THEN** repository side effects are not applied again
 
 #### Scenario: an operation ID is reused for different work
@@ -140,7 +149,7 @@ Every apply request SHALL include a caller-generated operation ID before dispatc
 
 ### Requirement: reviewed mutations are failure-aware and recoverable
 
-Apply SHALL verify every precondition before writes, stage replacement data, durably journal side effects, apply changes deterministically, verify postconditions, and attempt rollback after an apply failure. Before final whole-plan preflight, each apply/recovery SHALL acquire an exclusive OS-enforced transaction reservation keyed by canonical repository identity and SHALL hold it through durable terminal completion or explicit recovery handoff. Each `Applying` or `Recovering` record SHALL carry a renewable owner lease and monotonically increasing fencing epoch. Every side effect and every expired-owner takeover SHALL validate the reservation, current ledger state, epoch, lease, expected intermediate repository state, prior effects, remaining plan dependencies, platform file identity, and link count. An expired owner SHALL be reconciled from durable evidence. The ledger SHALL retain an append-only transition history. Direct terminal states SHALL distinguish `Applied` and `RolledBack`; verified post-recovery terminal states SHALL distinguish `RecoveredApplied` and `RecoveredRolledBack`; `RecoveryAcknowledged` SHALL be an administrative terminal state that makes no repository-cleanliness claim. `RejectedStale`, `RejectedConflict`, and `Expired` SHALL remain no-effect terminal outcomes. `RecoveryRequired` SHALL be a durable intervention state, while `Prepared`, `Applying`, `Recovering`, and `Reconciling` are nonterminal states.
+Apply SHALL verify every precondition before writes, stage replacement data, durably journal side effects, apply changes deterministically, verify postconditions, and attempt rollback after an apply failure. Before final whole-plan preflight, each apply/recovery SHALL acquire an exclusive OS-enforced transaction reservation keyed by canonical repository identity and SHALL hold it through durable terminal completion or explicit recovery handoff. Each `Applying` or `Recovering` record SHALL carry a renewable owner lease and monotonically increasing fencing epoch. Every side effect and every expired-owner takeover SHALL validate the reservation, current ledger state, epoch, lease, expected intermediate repository state, prior effects, remaining plan dependencies, platform file identity, and link count. An expired owner SHALL be reconciled from durable evidence. The ledger SHALL retain an append-only transition history. Direct terminal states SHALL distinguish `Applied` and `RolledBack`; verified post-recovery terminal states SHALL distinguish `RecoveredApplied` and `RecoveredRolledBack`; `RecoveryAcknowledged` SHALL be an administrative terminal state that makes no repository-cleanliness claim. `RejectedStale`, `RejectedConflict`, and `Expired` SHALL remain no-effect terminal outcomes. `RecoveryRequired` SHALL be a durable intervention state, while `Received`, `NotRecorded`, `Prepared`, `Applying`, `Recovering`, and `Reconciling` are nonterminal or dormant resolution states.
 
 #### Scenario: two apply plans target the same repository
 
@@ -232,13 +241,14 @@ Apply SHALL verify every precondition before writes, stage replacement data, dur
 
 ### Requirement: indeterminate mutation dispatch is never replayed automatically
 
-Mutation transport SHALL classify caller knowledge as `NotDispatched`, `Completed`, or `Indeterminate`. An `Indeterminate` mutation SHALL NOT be retried or run in-process automatically.
+Mutation transport SHALL classify caller knowledge as `NotDispatched`, `Completed`, or `Indeterminate`. An `Indeterminate` mutation SHALL NOT be retried or run in-process automatically. An explicit same-operation resubmission SHALL be permitted only after status lookup durably returns authoritative `NotRecorded` with a replay epoch.
 
 #### Scenario: daemon response is lost after dispatch
 
 - **WHEN** a mutation request reaches or may have reached the daemon but its response is unavailable
 - **THEN** the client returns an indeterminate transport result with the caller-known operation ID and status lookup guidance
-- **AND THEN** it does not send a second apply request or use in-process fallback
+- **AND THEN** it sends no second apply request and uses no in-process fallback while status remains indeterminate
+- **AND THEN** it may explicitly resubmit only after authoritative `NotRecorded`, using the same operation ID, request hash, and returned replay epoch
 
 #### Scenario: daemon cannot connect before dispatch
 

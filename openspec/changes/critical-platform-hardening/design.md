@@ -111,14 +111,39 @@ caller-generated `OperationId` before any transport dispatch:
 
 ```text
 Prepare(request) -> PreparedChangeSet
-Apply(repositoryId, planId, planHash, operationId, expectedRevision) -> ApplyResult
-GetOperation(operationId) -> OperationStatus
+Apply(repositoryId, planId, planHash, operationId, requestHash, expectedRevision, replayEpoch?) -> ApplyResult
+GetOperation(repositoryId, operationId, requestHash) -> OperationStatus
 Recover(operationId, recoveryAction) -> RecoveryResult
 ```
 
-`OperationId` is both the idempotency and status-lookup handle. A transport request-attempt ID may be separate. The operation ledger is durably written before side effects begin.
+`OperationId` is both the idempotency and status-lookup handle. `RequestHash` is
+the canonical hash of the complete apply request except transport-attempt and replay
+fields. A transport request-attempt ID may be separate.
 
-Reusing an `OperationId` with the same canonical request returns the existing operation state/result. Reusing it with a different plan, revision, or payload returns `OperationConflict` and performs no work.
+Before an accepted request can enter an execution queue, the receiver acquires a
+per-operation intake fence and durably records `Received(OperationId, RequestHash,
+CanonicalRequest)`. The canonical request is stored in the user-private control
+plane, not daemon logs. The operation ledger is then created before side effects
+begin. Startup and status lookup reconcile a `Received` receipt that has no operation
+record, so accepted work cannot disappear between transport intake and ledger
+creation.
+
+If indeterminate dispatch is followed by a status lookup and neither a receipt nor
+an operation exists, `GetOperation` acquires the same intake fence and first proves
+that no receiver for that operation ID remains in flight. It then durably records
+`NotRecorded(OperationId, RequestHash, ReplayEpoch)`. This is an authoritative
+no-effect dispatch-resolution state, not an inference from a missing row. Any delayed
+original attempt lacks that replay epoch and is rejected. The caller may explicitly
+resubmit the exact canonical request with the same operation ID, request hash, and
+replay epoch; one compare-and-swap transitions `NotRecorded` to `Received`. A lost
+`NotRecorded` response can be queried again to recover the same epoch. This explicit
+resolution is not an automatic retry or in-process fallback.
+
+Reusing an `OperationId` with the same canonical request returns the existing receipt,
+operation state, or result. Reusing it with a different plan, revision, request hash,
+or payload returns `OperationConflict` and performs no work. `Received` and
+`NotRecorded` records are bounded: they pin the referenced plan until promotion,
+explicit replay, or durable expiry, and neither can remain unresolved indefinitely.
 
 Apply loads the exact persisted plan bytes identified by repository ID, plan ID, and
 plan hash. A missing, expired, unreadable, schema-incompatible, or hash-mismatched plan
@@ -131,8 +156,8 @@ repositories cannot supply or replace its control metadata.
 Bounded retention applies only to unreferenced prepared plans and safely cleaned
 terminal history. Creating an operation record pins its canonical plan bytes by
 durable ledger reference. Garbage collection cannot remove a plan while an
-associated operation is `Prepared`, `Applying`, `Reconciling`, `Recovering`, or
-`RecoveryRequired`, and
+associated operation is `Received`, `NotRecorded`, `Prepared`, `Applying`,
+`Reconciling`, `Recovering`, or `RecoveryRequired`, and
 releases it only after verified terminal cleanup or explicit recovery
 acknowledgement. Recovery evidence and its plan are retained as one referentially
 complete bundle.
@@ -172,6 +197,16 @@ Prepared
   -> RejectedStale
   -> RejectedConflict
   -> Expired
+
+Unknown
+  -> Received
+       -> Prepared
+       -> RejectedStale
+       -> RejectedConflict
+       -> Expired
+  -> NotRecorded
+       -> Received  (same request hash plus replay epoch only)
+       -> Expired
 
 RecoveryRequired
   -> Recovering
@@ -309,7 +344,14 @@ Transport reports what the caller can prove about dispatch:
 - `Completed`: a valid terminal or current operation response was received.
 - `Indeterminate`: dispatch may have occurred but no valid response is available.
 
-`Indeterminate` never triggers an automatic mutation retry or in-process fallback. The host surfaces the caller-known `OperationId` and queries `GetOperation`. Read-only operations may have a separately declared retry policy, but a retry still uses the same request context and operation contract.
+`Indeterminate` never triggers an automatic mutation retry or in-process fallback.
+The host surfaces the caller-known `OperationId` and queries `GetOperation`. A
+`Received` receipt or operation state is reconciled in place. Only an authoritative,
+durably recorded `NotRecorded` result permits explicit resubmission of the identical
+request with the returned replay epoch; this continues the same operation identity
+and fences the delayed original attempt. Read-only operations may have a separately
+declared retry policy, but a retry still uses the same request context and operation
+contract.
 
 ## Workspace completeness, provenance, and confidence
 

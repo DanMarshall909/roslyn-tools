@@ -88,8 +88,9 @@ The newer `DaemonRpcRecoveryCoordinator` correctly treats indeterminate migrated
 - Hide apply-capable bridge tools from stable MCP discovery.
 - Add an architecture gate preventing any new mutator from entering a bridge or rendered-output route.
 - Generate `OperationId` in the caller before dispatch.
-- Persist operation state before side effects and support status lookup after lost response or process restart.
-- Test timeout/disconnect/malformed-response/cancellation at every dispatch boundary and assert exactly one apply attempt.
+- Persist an intake receipt before execution enqueue and operation state before side effects; reconcile the gap after lost response or process restart.
+- Resolve a genuinely absent receipt under the same intake fence as durable `NotRecorded`, and require its replay epoch for explicit same-operation resubmission.
+- Test timeout/disconnect/malformed-response/cancellation before and after intake receipt and ledger creation, including delayed originals, and assert exactly one apply attempt.
 
 ### 3. Mutation application is staged and compensating, but not durable
 

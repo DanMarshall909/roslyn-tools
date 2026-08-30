@@ -157,8 +157,8 @@ A boolean `dryRun` branch is not a mutation safety model. Stable mutations use:
 
 ```text
 Prepare(request) -> PreparedChangeSet
-Apply(repositoryId, planId, planHash, operationId, expectedRevision) -> ApplyResult
-GetOperation(operationId) -> OperationStatus
+Apply(repositoryId, planId, planHash, operationId, requestHash, expectedRevision, replayEpoch?) -> ApplyResult
+GetOperation(repositoryId, operationId, requestHash) -> OperationStatus
 Recover(operationId, action) -> RecoveryResult
 ```
 
@@ -166,6 +166,7 @@ The immutable prepared plan contains all path and project operations, expected r
 
 Apply creates a durable operation record before side effects, acquires an exclusive canonical-repository transaction reservation, claims a renewable owner lease and monotonically increasing fencing epoch, validates every precondition, stages content, journals changes, revalidates the expected intermediate repository state at every side-effect boundary, applies deterministically, verifies postconditions, and records one truthful state:
 
+- `Received` or authoritative `NotRecorded` during dispatch resolution;
 - `Applying`, `Recovering`, or bounded `Reconciling` while nonterminal;
 - `Applied`;
 - `RolledBack`;
@@ -197,7 +198,12 @@ and `Recovering`; verified recovery releases them only after cleanup, while expl
 acknowledgement follows the recorded retention choice and preserves an immutable
 audit summary.
 
-The caller generates `OperationId` before dispatch. Repeating the same operation ID and canonical request returns the existing state/result; reusing it for different work returns conflict.
+The caller generates `OperationId` and the canonical request hash before dispatch.
+Before accepted work enters an execution queue, a per-operation intake fence protects
+a durable `Received` receipt containing the canonical request. Startup and status
+lookup reconcile any receipt not yet promoted into the operation ledger. Repeating
+the same operation ID and request returns the existing receipt/state/result; reusing
+it for different work returns conflict.
 
 ### 7. Transport contract
 
@@ -207,7 +213,12 @@ Transport outcome describes only what the caller can prove:
 - **Completed** — a valid operation response was received.
 - **Indeterminate** — dispatch may have occurred but no valid response is available.
 
-An indeterminate mutation is never automatically retried or executed in-process. The host already knows the operation ID and queries status.
+An indeterminate mutation is never automatically retried or executed in-process. The
+host already knows the operation ID and queries status. If no receipt or operation
+exists, status lookup uses the intake fence to exclude a still-arriving request and
+durably records `NotRecorded` with a replay epoch. Only then may the caller explicitly
+resubmit the identical request with the same operation ID, hash, and epoch; a delayed
+original is fenced out.
 
 For the current hardening phase, the daemon is an optional transparent typed transport adapter under [ADR-0008](adr/0008-daemon-transparent-passthrough-phase.md). It has no workspace cache, operation authority, CLI argument bridge for mutations, process-global request context, or raw payload logging. It must preserve the same typed observable result as direct execution.
 

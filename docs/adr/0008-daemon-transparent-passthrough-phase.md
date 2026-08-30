@@ -22,11 +22,19 @@ For the current phase, the daemon is an optional **transparent typed transport a
 
 Every apply request receives a caller-generated `OperationId` before transport dispatch. That identifier is the durable idempotency and operation-status handle. A separate request-attempt ID may be used for protocol correlation.
 
-When dispatch is indeterminate, the host returns the existing operation ID and status-lookup guidance. It does not create or dispatch another apply operation. The execution authority records operation state before repository side effects and returns the existing result for an identical replay; a different payload under the same operation ID is an operation conflict.
+When dispatch is indeterminate, the host returns the existing operation ID and
+status-lookup guidance. The execution authority durably records a typed intake
+receipt before execution enqueue and operation state before repository side effects.
+Status lookup reconciles a receipt without an operation record. If neither exists, it
+uses the same operation-intake fence to exclude an in-flight receiver and durably
+records authoritative `NotRecorded` with the canonical request hash and a replay
+epoch. Only then may the caller explicitly resubmit that exact request under the same
+operation ID and epoch; delayed original attempts are fenced out. A different payload
+under the same operation ID is an operation conflict.
 
 ### Permitted fallback
 
-A host may select in-process execution only when the transport proves `NotDispatched`. `Indeterminate` is surfaced unchanged and never triggers mutation retry or in-process fallback. Read-only retry behaviour must be explicitly declared and must still preserve the canonical request context and result contract.
+A host may select in-process execution only when the transport proves `NotDispatched`. `Indeterminate` is surfaced unchanged and never triggers automatic mutation retry or in-process fallback. Explicit same-operation resubmission is allowed only after durable `NotRecorded` resolution and requires its request hash and replay epoch. Read-only retry behaviour must be explicitly declared and must still preserve the canonical request context and result contract.
 
 ### Process and endpoint isolation
 

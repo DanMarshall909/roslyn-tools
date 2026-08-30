@@ -85,7 +85,7 @@ remain outside the namespace.
 ## Success measures
 
 - No apply-capable legacy daemon or MCP bridge can automatically replay a mutation after dispatch ambiguity.
-- A caller can recover the operation ID even when the first response is lost, query status, and receive the same terminal outcome for repeated identical requests.
+- A caller can recover the operation ID even when the first response is lost, query a durable intake receipt or authoritative `NotRecorded` state, and receive the same outcome for repeated identical requests; explicit replay after `NotRecorded` uses the same request hash and replay epoch.
 - Review and apply can run in separate processes and still consume byte-identical, hash-verified plan data from outside repository control.
 - Plan retention cannot remove bytes still referenced by a nonterminal (including recovering) or recovery-required operation.
 - A symlink/reparse swap after preflight cannot redirect any write, move, delete, backup, or restore outside the verified root.
