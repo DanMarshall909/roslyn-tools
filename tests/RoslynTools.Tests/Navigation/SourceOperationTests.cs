@@ -33,10 +33,10 @@ public sealed class SourceOperationTests
             factory.RequestedSolution.ShouldBe("requested.slnx");
             var entry = sources.ShouldHaveSingleItem();
             entry.FullyQualifiedName.ShouldBe("App.Calculator.Add(int, int)");
-            entry.Text.ShouldBe("""
+            entry.Text.ReplaceLineEndings("\n").ShouldBe("""
                 /// <summary>Adds two values.</summary>
                 public int Add(int left, int right) => left + right;
-                """);
+                """.ReplaceLineEndings("\n"));
         }
     }
 
