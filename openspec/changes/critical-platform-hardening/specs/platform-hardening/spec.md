@@ -47,7 +47,7 @@ Repository root, solution path, configuration, trust mode, resource budget, requ
 
 ## Requirement: prepared mutation plans are complete and immutable
 
-A mutation SHALL prepare an immutable change set before apply. The plan SHALL describe every create, replacement, delete, move, project edit, Roslyn document, additional document, and analyzer-config document it can affect, including exact path preconditions, expected hashes/existence, encoding/newline/file-mode policy, symlink policy, diff, verification plan, expiry, and repository revision.
+A mutation SHALL prepare an immutable change set before apply. The plan SHALL describe every create, replacement, delete, move, project edit, Roslyn document, additional document, and analyzer-config document it can affect, including exact path preconditions, expected hashes/existence, encoding/newline/file-mode policy, symlink policy, diff, verification plan, expiry, and repository revision. Before prepare succeeds, the exact canonical plan bytes SHALL be atomically persisted in a user-private durable store scoped by canonical repository identity. Apply SHALL identify those bytes by repository ID, plan ID, and plan hash and SHALL NOT recompute them from command arguments or a newer workspace snapshot.
 
 ### Scenario: preview and apply use the same plan
 
@@ -55,10 +55,25 @@ A mutation SHALL prepare an immutable change set before apply. The plan SHALL de
 - **THEN** apply consumes the reviewed immutable plan
 - **AND THEN** it does not recompute a semantically different mutation from the original command arguments
 
+### Scenario: review and apply use separate processes
+
+- **WHEN** a caller reviews a prepared plan, exits, and later applies it through a new CLI, MCP, or daemon process
+- **THEN** apply loads the exact persisted plan bytes whose repository ID, plan ID, and plan hash were reviewed
+- **AND THEN** a missing, expired, schema-incompatible, or hash-mismatched plan is rejected before any repository write
+- **AND THEN** repository-controlled files cannot replace the durable plan-store record
+
 ### Scenario: a path escapes the repository root
 
 - **WHEN** a source, destination, staging, backup, or symlink-resolved path falls outside the allowed repository boundary
 - **THEN** preparation or preflight rejects the plan before any repository write
+
+### Scenario: a path component changes after preflight
+
+- **WHEN** a validated path component is replaced by a symlink, junction, mount point, reparse point, or different file identity before a create, open, stage, replace, move, delete, backup, or restore
+- **THEN** the operation revalidates containment and identity through handle-relative no-follow or equivalent platform-safe operations at that side-effect boundary
+- **AND THEN** it performs no write through the changed component
+- **AND THEN** unsupported platform/filesystem combinations block unattended apply instead of relying on string-only or check-then-open validation
+- **AND THEN** a race detected after earlier side effects enters verified rollback and terminates as `RolledBack` or `RecoveryRequired`
 
 ### Scenario: a changed file has no exact preservation policy
 
@@ -89,7 +104,7 @@ Every apply request SHALL include a caller-generated operation ID before dispatc
 
 ## Requirement: reviewed mutations are failure-aware and recoverable
 
-Apply SHALL verify every precondition before writes, stage replacement data, durably journal side effects, apply changes deterministically, verify postconditions, and attempt rollback after an apply failure. Terminal states SHALL distinguish `Applied`, `RolledBack`, `RecoveryRequired`, stale/conflict rejection, and expiry.
+Apply SHALL verify every precondition before writes, stage replacement data, durably journal side effects, apply changes deterministically, verify postconditions, and attempt rollback after an apply failure. Each `Applying` record SHALL carry a renewable owner lease, and an expired owner SHALL be reconciled from durable evidence. Terminal states SHALL distinguish `Applied`, `RolledBack`, `RecoveryRequired`, stale/conflict rejection, and expiry; `Reconciling` is a bounded nonterminal recovery state.
 
 ### Scenario: stale reviewed plan is applied
 
@@ -115,6 +130,14 @@ Apply SHALL verify every precondition before writes, stage replacement data, dur
 - **WHEN** cancellation is requested after apply has begun modifying repository state
 - **THEN** the request records cancellation but continues recovery-critical verification or rollback
 - **AND THEN** the terminal state truthfully reports the observed repository condition
+
+### Scenario: the apply process exits after a side effect
+
+- **WHEN** an operation record remains `Applying` after its owner lease expires
+- **THEN** process startup or `GetOperation` atomically claims one reconciliation lease and transitions the record to `Reconciling`
+- **AND THEN** the reconciler verifies the persisted plan, journal, backups, staged files, affected-path identities, and observed hashes
+- **AND THEN** it completes a provably finished apply, resumes or rolls back only from a declared journal boundary, or enters `RecoveryRequired`
+- **AND THEN** the operation cannot remain `Applying` indefinitely or be mistaken for a live owner
 
 ## Requirement: indeterminate mutation dispatch is never replayed automatically
 

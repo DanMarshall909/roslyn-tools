@@ -85,11 +85,16 @@ Workspace provenance records:
 
 ### Identity
 
-`Prepare` returns an immutable `PreparedChangeSet` with a stable `PlanId`. `Apply` receives a caller-generated `OperationId` before any transport dispatch:
+`Prepare` returns an immutable `PreparedChangeSet` with a stable `PlanId` and
+`PlanHash`. Before prepare succeeds, the canonical serialized plan is atomically
+persisted in a user-private durable plan store outside the target repository. The
+store is logically scoped by canonical repository identity and survives CLI, MCP,
+and daemon process restart. `Apply` receives both the plan identity and a
+caller-generated `OperationId` before any transport dispatch:
 
 ```text
 Prepare(request) -> PreparedChangeSet
-Apply(planId, operationId, expectedRevision) -> ApplyResult
+Apply(repositoryId, planId, planHash, operationId, expectedRevision) -> ApplyResult
 GetOperation(operationId) -> OperationStatus
 Recover(operationId, recoveryAction) -> RecoveryResult
 ```
@@ -98,11 +103,18 @@ Recover(operationId, recoveryAction) -> RecoveryResult
 
 Reusing an `OperationId` with the same canonical request returns the existing operation state/result. Reusing it with a different plan, revision, or payload returns `OperationConflict` and performs no work.
 
+Apply loads the exact persisted plan bytes identified by repository ID, plan ID, and
+plan hash. A missing, expired, unreadable, schema-incompatible, or hash-mismatched plan
+is rejected before the operation ledger enters `Applying`. Apply never reconstructs a
+plan from command arguments or a newer workspace snapshot. The plan store uses
+owner-only access where supported, bounded retention, atomic writes, and crash-safe
+cleanup; repositories cannot supply or replace its control metadata.
+
 ### Prepared plan contents
 
 A prepared change set contains:
 
-- plan ID, creation time, expiry, repository identity, and expected repository revision;
+- plan ID, plan hash, schema version, creation time, expiry, repository identity, and expected repository revision;
 - exact operation list for creates, replacements, deletes, moves, project edits, Roslyn documents, additional documents, and analyzer-config documents;
 - expected existence and content hash for every read or modified path;
 - expected file type and symlink policy;
@@ -113,7 +125,10 @@ A prepared change set contains:
 - verification steps and expected post-apply hashes; and
 - cleanup and recovery policy.
 
-Preparation performs no repository writes. Review and dry-run rendering are projections of the same immutable plan that apply consumes.
+Preparation performs no target-repository writes. Persisting the canonical plan in
+the user-private control-plane store is part of preparation and must complete before
+the plan is returned. Review and dry-run rendering are projections of those exact
+persisted bytes, and apply consumes those bytes without recomputation.
 
 ### Apply state machine
 
@@ -123,6 +138,10 @@ Prepared
        -> Applied
        -> RolledBack
        -> RecoveryRequired
+       -> Reconciling
+            -> Applied
+            -> RolledBack
+            -> RecoveryRequired
   -> RejectedStale
   -> RejectedConflict
   -> Expired
@@ -130,17 +149,51 @@ Prepared
 
 The implementation:
 
-1. creates or reads the durable operation record;
-2. validates operation replay semantics;
-3. preflights every revision, path, hash, permission, symlink, destination, and free-space condition;
-4. stages replacement content, preferably on the same volume;
-5. durably writes a journal and recovery metadata;
-6. applies operations in a deterministic order using atomic per-path replacement where supported;
-7. verifies expected postconditions;
-8. commits the terminal result and cleans staging only after durable success; or
-9. performs rollback from the journal.
+1. loads and verifies the exact persisted plan;
+2. creates or reads the durable operation record;
+3. validates operation replay semantics and claims a renewable owner lease;
+4. preflights every revision, path, hash, permission, symlink, destination, and free-space condition;
+5. stages replacement content, preferably on the same volume;
+6. durably writes a journal and recovery metadata;
+7. revalidates containment and file identity at each side-effect boundary;
+8. applies operations in a deterministic order using atomic per-path replacement where supported;
+9. verifies expected postconditions;
+10. commits the terminal result and cleans staging only after durable success; or
+11. performs rollback from the journal.
 
 Rollback is best-effort across platform/filesystem constraints and is not falsely described as atomic. Once side effects begin, cancellation requests are recorded but do not interrupt recovery-critical rollback. If rollback cannot restore every verified precondition, the terminal state is `RecoveryRequired`, not `RolledBack` or `Failed`. Journals, backups, affected paths, observed hashes, and deterministic recovery instructions are retained until successful recovery or explicit acknowledgement.
+
+### Filesystem containment at side-effect time
+
+String normalisation and preflight checks are necessary but insufficient. Every
+create, open, stage, replace, move, delete, backup, and restore is performed relative
+to verified directory handles with no-follow/reparse-point-safe semantics where the
+operating system provides them. The implementation revalidates the root handle,
+parent-chain identity, final-component type, and declared source/destination identity
+immediately before each side effect. A platform/filesystem combination that cannot
+prove this boundary blocks unattended apply rather than relying on a vulnerable
+check-then-open sequence.
+
+If a symlink, junction, mount point, or other reparse component changes after
+preflight, the operation writes nothing through that component. Before the first
+side effect it returns stale-plan rejection; after side effects have begun it follows
+the journalled rollback path and returns `RolledBack` or `RecoveryRequired` according
+to the verified repository state. No recovery action follows an unverified path.
+
+### Restart reconciliation
+
+Every `Applying` ledger entry contains an owner instance ID, lease epoch, lease
+expiry, and heartbeat. A live owner renews its lease while applying or rolling back.
+On process startup and `GetOperation`, an expired `Applying` entry is claimed by one
+reconciler through a compare-and-swap lease transition to `Reconciling`; a live lease
+cannot be stolen.
+
+The reconciler verifies the plan hash, journal, backups, staged files, affected-path
+identities, and observed pre/post hashes. It then deterministically completes a
+provably finished apply, resumes or rolls back only from a declared journal boundary,
+or enters `RecoveryRequired` with retained evidence. An operation cannot remain
+`Applying` indefinitely after its owner disappears, and ambiguous state is never
+reported as `Applied` or silently replayed.
 
 ## Transport outcome
 

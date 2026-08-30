@@ -143,15 +143,16 @@ A boolean `dryRun` branch is not a mutation safety model. Stable mutations use:
 
 ```text
 Prepare(request) -> PreparedChangeSet
-Apply(planId, operationId, expectedRevision) -> ApplyResult
+Apply(repositoryId, planId, planHash, operationId, expectedRevision) -> ApplyResult
 GetOperation(operationId) -> OperationStatus
 Recover(operationId, action) -> RecoveryResult
 ```
 
-The immutable prepared plan contains all path and project operations, expected revision and hashes, encoding/newline/file-mode policy, symlink/root-containment policy, exact diff, diagnostics, assumptions, verification, expiry, and recovery data. Preview and apply consume the same plan.
+The immutable prepared plan contains all path and project operations, expected revision and hashes, encoding/newline/file-mode policy, symlink/root-containment policy, exact diff, diagnostics, assumptions, verification, expiry, and recovery data. Before prepare returns, its canonical bytes are atomically persisted in a user-private store outside repository control. Preview and apply consume that same repository-scoped, hash-verified plan across process restart.
 
-Apply creates a durable operation record before side effects, validates every precondition, stages content, journals changes, applies deterministically, verifies postconditions, and records one truthful state:
+Apply creates a durable operation record before side effects, claims a renewable owner lease, validates every precondition, stages content, journals changes, revalidates path containment and identity at every side-effect boundary, applies deterministically, verifies postconditions, and records one truthful state:
 
+- `Applying` or bounded `Reconciling` while nonterminal;
 - `Applied`;
 - `RolledBack`;
 - `RecoveryRequired`;
@@ -159,6 +160,11 @@ Apply creates a durable operation record before side effects, validates every pr
 - expiry.
 
 An incomplete rollback is `RecoveryRequired`; it is never presented as clean failure or rollback. Journals and backups remain available with deterministic recovery guidance.
+
+An `Applying` owner that disappears cannot leave a permanent nonterminal record.
+Startup and status lookup claim an expired lease exactly once, transition through
+`Reconciling`, and use the durable plan, journal, backups, and observed hashes to
+prove `Applied`, prove `RolledBack`, or require explicit recovery.
 
 The caller generates `OperationId` before dispatch. Repeating the same operation ID and canonical request returns the existing state/result; reusing it for different work returns conflict.
 
@@ -269,7 +275,7 @@ The tool is its own customer, but dogfooding does not replace correctness eviden
 
 - **The canonical operation migration is incomplete.** A subset of commands has typed ports; the remainder still uses compatibility paths. The migration manifest is the current source for counts. Complete the five-command spine before broad fan-out.
 - **Legacy daemon routing remains a safety boundary.** Typed recovery improved migrated commands, but legacy argument-array fallback is not acceptable for mutations and must be removed first.
-- **The initial `PreparedChangeSet` is a scaffold.** It represents Roslyn and filesystem intent and enforces in-memory at-most-once use, but does not yet provide durable plan identity, full path metadata, journalling, rollback, status lookup, or recovery.
+- **The staged prepared writer is still process-local.** It now preflights and stages supported writes/moves/deletes, backs up originals, suppresses cancellation during commit, and attempts compensating rollback. It does not yet provide a durable plan store, complete path/metadata coverage, a durable journal and status ledger, handle-safe symlink/reparse containment, restart reconciliation, or recovery commands.
 - **Workspace loading does not yet expose completeness or trust.** Existing warning suppression and partial-load tolerance cannot support proof-strength analyses until the new contract lands.
 - **MCP is experimental until conformance gates pass.** The current handwritten server and text-only result model are transitional.
 - **Host projects remain physically coupled.** `RoslynTools.Mcp` still references the CLI project while descriptor/schema and compatibility concerns live there. Full port coverage allows both hosts to depend on the application/core assemblies without an executable-project reference.

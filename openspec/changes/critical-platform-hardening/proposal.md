@@ -4,7 +4,7 @@
 - Priority: P0/P1
 - Decision owner: architecture
 - Supersedes for this phase: daemon workspace-caching work
-- Reviewed implementation baseline: `main` at `079847be9c23de3ea670df3ab1f1f3c63a92487d`
+- Reviewed implementation baseline: `main` at `cca0c55ea93ea26281fc4ff6f0f91750464bdb29`
 
 ## Why
 
@@ -14,12 +14,17 @@ The most serious gaps are:
 
 - repository-controlled MSBuild evaluation is performed without an explicit trusted-workspace boundary or isolated evaluator;
 - legacy daemon routing can still fall back in-process after a mutation may have been dispatched;
-- multi-file mutation is not failure-atomic and has no durable recovery state when rollback fails;
+- the staged writer provides in-process compensating rollback for supported changes, but plans, journals, status, and failed-rollback evidence do not survive restart and path containment is not protected atomically against symlink/reparse races;
 - incomplete workspace loads can produce proof-like findings and deletion advice;
 - the handwritten MCP host does not conform to the lifecycle and message rules of the versions it advertises, and does not expose real structured results;
 - Debug builds mutate the working tree and user profile, while release metadata advertises `1.0.0` despite no corresponding release.
 
-The typed RPC recovery coordinator, `PreparedChangeSet` tracer, host-neutral follow-on metadata, command-migration ratchet, and final mutation-tracer test/mutation evidence now on `main` are useful foundations. They reduce risk for migrated paths, but they are scaffolding rather than completion of the safety kernel.
+The typed RPC recovery coordinator, `PreparedChangeSet`, staged compensating writer,
+host-neutral follow-on metadata, and command-migration ratchet now on `main` are
+useful foundations. The writer preflights and stages supported changes, backs up
+originals, suppresses cancellation during commit, and attempts reverse-order
+rollback. It remains a process-local foundation rather than completion of the
+durable safety kernel.
 
 ## Scope
 
@@ -48,7 +53,18 @@ The daemon is not an execution authority in this change. It is an optional trans
 
 Every apply-capable request is assigned a caller-generated operation ID before dispatch. That ID is the durable idempotency and status-lookup handle. A separate request-attempt ID may be used for transport correlation, but a server-generated ID that can be lost with the response is insufficient.
 
+Prepare atomically persists the exact canonical plan in a user-private store outside
+the target repository and returns its repository ID, plan ID, and plan hash. Apply
+loads those exact bytes across process restart; it never recomputes the reviewed work
+from command arguments or a newer workspace snapshot.
+
 A failed or interrupted rollback is never reported as clean rollback. The operation enters `RecoveryRequired`; its journal, backups, diagnostics, and deterministic recovery guidance are retained until recovery or explicit acknowledgement.
+
+Every `Applying` record has a renewable owner lease. Expired owners transition
+through bounded `Reconciling` work on startup or status lookup, and finish only as a
+verified apply, verified rollback, or `RecoveryRequired`. Filesystem effects use
+handle-relative no-follow/reparse-safe operations, or unattended apply is blocked
+when the platform cannot prove containment at the side-effect boundary.
 
 Untrusted repositories are not evaluated inside the long-lived CLI, MCP, or daemon host. The tool must refuse, obtain explicit trust, or evaluate through an appropriately constrained worker boundary.
 
@@ -56,6 +72,9 @@ Untrusted repositories are not evaluated inside the long-lived CLI, MCP, or daem
 
 - No apply-capable legacy daemon or MCP bridge can automatically replay a mutation after dispatch ambiguity.
 - A caller can recover the operation ID even when the first response is lost, query status, and receive the same terminal outcome for repeated identical requests.
+- Review and apply can run in separate processes and still consume byte-identical, hash-verified plan data from outside repository control.
+- A symlink/reparse swap after preflight cannot redirect any write, move, delete, backup, or restore outside the verified root.
+- Killing the apply owner after any journal boundary leads through lease-based reconciliation to a verified terminal state rather than indefinite `Applying`.
 - Fault injection proves complete success, complete rollback, or truthful `RecoveryRequired`; partial application is never labelled `Applied`.
 - No proof-strength finding or deletion suggestion is emitted from a partial workspace or an externally visible symbol without an explicit proof basis.
 - Untrusted-workspace tests demonstrate that repository-controlled build logic is not executed in a privileged long-lived host.

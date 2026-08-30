@@ -2,7 +2,8 @@
 
 - Status: adopted as the critical planning baseline
 - Review date: 2026-08-28
-- Reviewed implementation baseline: `main` at `c266816f54351c0620aab27e8dcdf23aaaad07f8`
+- Last reconciled with `main`: 2026-08-30
+- Reviewed implementation baseline: `main` at `cca0c55ea93ea26281fc4ff6f0f91750464bdb29`
 - Scope: static and architectural review of CLI, MCP, daemon, workspace loading, analysis/refactoring services, tests, CI, packaging, installers, documentation, and recent hardening commits
 - Limitation: this review did not execute the full repository, hostile MSBuild fixtures, filesystem fault injection, packaged MCP clients, or native installers. Passing commit-reported test totals are useful evidence, not independent certification.
 
@@ -16,7 +17,7 @@ The central issue is not a lack of features. It is that feature breadth and arch
 
 1. **Repository evaluation has no explicit trust boundary.** MSBuild-backed loading can evaluate repository-controlled build logic, but CLI/MCP/daemon are treated as safe long-lived hosts.
 2. **Legacy daemon mutation replay remains possible.** Typed recovery protects migrated operations, while non-migrated CLI commands can still time out after dispatch and then run in-process.
-3. **Mutation writes are not recoverable transactions.** The current writer performs sequential direct writes; the prepared-change-set work is a useful model scaffold, not a durable apply/rollback kernel.
+3. **Mutation writes are not durable recoverable operations.** The current prepared writer preflights and stages supported changes, backs up originals, and attempts compensating rollback, but its plan, journal, status, and recovery evidence do not survive restart and its path boundary is vulnerable to check/use races.
 4. **Workspace completeness is not part of the result contract.** Partial semantic input can still produce proof-like findings and deletion follow-ons.
 5. **The MCP host is protocol-incomplete.** It is a handwritten single-message loop with notification, lifecycle, cancellation, schema, structured-result, and version-claim gaps.
 6. **Build and release behaviour is not hermetic or credible enough for `1.0.0`.** Debug builds modify the checkout and user profile, while manifests and packages claim a stable version without a corresponding release.
@@ -40,7 +41,7 @@ The correct strategy is to stop broadening the command catalogue temporarily and
 Recent commits moved the repository in the right direction:
 
 - **Typed daemon recovery classification** distinguishes completed, unavailable-before-dispatch, and indeterminate-after-dispatch attempts for migrated operations and shares policy across CLI and MCP.
-- **`PreparedChangeSet` and mutation envelopes** create a common vocabulary for Roslyn and filesystem effects and enforce in-memory at-most-once application for the tracer path.
+- **`PreparedChangeSet`, the staged writer, and mutation envelopes** create a common vocabulary for Roslyn and filesystem effects, enforce in-memory at-most-once application, stage supported changes, and attempt reverse-order rollback.
 - **Host-neutral follow-on actions** reduce renderer-specific suggestion drift.
 - **Command-migration architecture ratchets** make it harder to add new CLI/MCP divergence.
 - The reported full test suites remain substantial and architecture-oriented.
@@ -49,7 +50,7 @@ These changes reduce risk and establish useful seams. They do not close the P0 g
 
 - operation identity is still generated inside the RPC client rather than caller-known and durable before dispatch;
 - legacy daemon routing still has timeout-to-in-process fallback;
-- prepared plans have no durable identity, status lookup, precondition hashes, journal, rollback, or recovery state;
+- prepared plans have no durable store or identity, status lookup, complete precondition metadata, durable journal, restart reconciliation, or recovery commands; compensating rollback exists only inside the current process;
 - workspace completeness and repository trust remain absent;
 - MCP and release contracts remain transitional.
 
@@ -90,22 +91,34 @@ The newer `DaemonRpcRecoveryCoordinator` correctly treats indeterminate migrated
 - Persist operation state before side effects and support status lookup after lost response or process restart.
 - Test timeout/disconnect/malformed-response/cancellation at every dispatch boundary and assert exactly one apply attempt.
 
-### 3. Mutation application is sequential direct I/O, not a recoverable operation
+### 3. Mutation application is staged and compensating, but not durable
 
-`SolutionWriter.ApplyChangesAsync` loops changed and added documents and calls `File.WriteAllText` directly. It does not stage all outputs, preflight all paths, journal prior state, roll back completed writes, verify final hashes, model removed documents/project edits, or surface partial application. It has no cancellation contract and can alter encoding/BOM or file metadata.
+`PreparedChangeSetWriter` now builds and validates an in-memory plan for supported
+Roslyn and filesystem changes, stages replacement content, backs up originals,
+commits deterministically, ignores cancellation once commit starts, and attempts
+reverse-order rollback. If rollback fails it retains a temporary recovery directory
+and reports that path. This is a meaningful safety improvement over sequential direct
+writes.
 
-`PreparedChangeSet` improves the domain model, but the current solution-backed writer delegates to this legacy seam. An integer flag prevents invoking one in-memory object twice; it does not provide durable idempotency across hosts, retries, crashes, or process restarts.
+The plan and backups remain process-local and are not represented by a durable plan
+store, operation ledger, or journal. There is no status lookup, owner lease, restart
+reconciliation, deterministic recovery command, complete encoding/file-mode policy,
+or handle-relative no-follow boundary. An integer flag prevents invoking one
+in-memory object twice; it does not provide durable idempotency across hosts,
+retries, crashes, or process restarts.
 
 **Required correction**
 
 - Prepare one immutable plan containing every create/replace/delete/move/project/additional/analyzer-config change.
+- Persist its canonical bytes outside repository control and require repository ID, plan ID, and plan hash at apply.
 - Record expected existence/hash/type, encoding/BOM/newlines, permissions/mode, symlink policy, repository revision, exact diff, expiry, verification, and recovery data.
 - Assign caller-known operation identity and persist its ledger before writes.
-- Preflight every condition and stage data, preferably on the same volume.
+- Preflight every condition and stage data, preferably on the same volume; revalidate containment and file identity atomically at every side effect.
 - Journal and apply deterministically with atomic per-file replacement where supported.
 - Verify postconditions before `Applied`.
 - Roll back and verify after failure.
 - Return `RecoveryRequired` and retain journal/backups when rollback cannot restore every path.
+- Reconcile expired apply-owner leases from durable evidence after restart.
 - Add explicit recovery operations rather than telling users to inspect the tree manually.
 
 Do not promise global filesystem atomicity. Promise truthful state, deterministic recovery, and no silent replay.
@@ -180,7 +193,7 @@ Even as a passthrough, it should use explicit request context, per-user collisio
 
 ### Dry-run output is not yet the reviewed plan contract
 
-A text diff generated from recomputed Roslyn snapshots is helpful but insufficient for a safe apply workflow. An excellent tool lets a user or agent review one stable plan, then applies exactly that plan against explicit preconditions. The plan needs a machine-readable change list and stable ID, not only console diff text.
+A text diff generated from recomputed Roslyn snapshots is helpful but insufficient for a safe apply workflow. An excellent tool lets a user or agent review one stable plan, then applies exactly that plan against explicit preconditions, including from a later process. The plan needs a machine-readable change list, stable ID and hash, and durable user-private storage outside repository control, not only console diff text.
 
 ### Error and result contracts are still split by migration state
 
@@ -367,7 +380,7 @@ Core and application assemblies should not reference CLI/parser or MCP protocol 
 2. Refuse untrusted semantic loading until the worker boundary exists.
 3. Add caller-generated operation IDs and durable status ledger.
 4. Complete prepared-plan metadata and stale-plan preflight.
-5. Implement staged writes, journal, verification, rollback, `RecoveryRequired`, and recovery commands.
+5. Complete the staged writer with durable plans, journal, verification, restart reconciliation, handle-safe containment, `RecoveryRequired`, and recovery commands.
 6. Add hostile workspace and filesystem fault-injection suites across operating systems.
 
 ### Phase 2 — complete the five-command spine

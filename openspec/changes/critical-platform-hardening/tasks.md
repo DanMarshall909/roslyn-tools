@@ -1,6 +1,12 @@
 # Tasks: critical platform hardening
 
-The typed RPC recovery coordinator, initial `PreparedChangeSet`, host-neutral follow-on metadata, and command-migration ratchet on `main` are foundations. None of the P0 sections below is complete until its failure, recovery, and cross-host acceptance tests pass.
+The typed RPC recovery coordinator, `PreparedChangeSet`, staged compensating writer,
+host-neutral follow-on metadata, and command-migration ratchet on `main` are
+foundations. The current writer preflights and stages supported changes, retains
+backups during commit, and attempts in-process rollback, but it has no durable plan
+store, journal, status ledger, restart reconciliation, or handle-safe symlink
+boundary. None of the P0 sections below is complete until its failure, recovery, and
+cross-host acceptance tests pass.
 
 ## P0.0 containment before further mutation work
 
@@ -24,33 +30,37 @@ The typed RPC recovery coordinator, initial `PreparedChangeSet`, host-neutral fo
 ## P0.2 durable operation identity and transport safety
 
 - [ ] Add caller-generated `OperationId` to every apply request before dispatch; keep request-attempt correlation separate.
-- [ ] Implement a durable operation ledger written before side effects, with `Prepared | Applying | Applied | RolledBack | RecoveryRequired | RejectedStale | RejectedConflict | Expired` states.
+- [ ] Implement a durable operation ledger written before side effects, with `Prepared | Applying | Reconciling | Applied | RolledBack | RecoveryRequired | RejectedStale | RejectedConflict | Expired` states.
+- [ ] Record owner instance, lease epoch, lease expiry, and heartbeat for `Applying`; atomically claim expired owners for bounded restart reconciliation.
 - [ ] Define canonical request hashing so identical operation-ID replay returns the existing result and differing replay returns `OperationConflict`.
 - [ ] Add `GetOperation` status lookup and stable recovery guidance available after client/server restart.
 - [ ] Preserve operation ID and status semantics across CLI, MCP, in-process, and daemon adapters.
 - [ ] Retain `NotDispatched | Completed | Indeterminate` as transport knowledge and prohibit mutation retry/fallback after `Indeterminate`.
-- [ ] Test lost first response, process termination before/after ledger write, malformed response, duplicate request, concurrent duplicate request, stale daemon, and client cancellation.
+- [ ] Test lost first response, process termination before/after ledger write and every journal boundary, owner-lease expiry, concurrent reconciliation, malformed response, duplicate request, concurrent duplicate request, stale daemon, and client cancellation.
 
 ## P0.3 complete prepared-change-set model
 
 - [ ] Extend `PreparedChangeSet` with plan ID, repository identity/revision, expiry, canonical operation list, exact diff, diagnostics, assumptions, confidence, verification, cleanup, and recovery policy.
+- [ ] Add a user-private durable plan store outside the target repository, atomically keyed by repository ID, plan ID, and plan hash, with schema versioning, owner-only access where supported, bounded retention, and crash-safe cleanup.
+- [ ] Reject missing, expired, unreadable, schema-incompatible, or hash-mismatched plans before entering `Applying`; prove review and apply can occur in separate processes without recomputation.
 - [ ] Model creates, replacements, deletes, moves, project edits, normal Roslyn documents, additional documents, and analyzer-config documents.
 - [ ] Record expected existence/hash/type for every affected path and expected post-apply hashes.
 - [ ] Preserve or explicitly change encoding, BOM, newline, file mode/permissions, and executable bit.
 - [ ] Define case-sensitivity, long-path, read-only, hard-link, and symlink policy across supported operating systems.
-- [ ] Enforce canonical root containment for source, destination, staging, backup, and symlink-resolved paths.
+- [ ] Enforce canonical root containment for source, destination, staging, backup, and symlink-resolved paths during preparation and again at every filesystem side effect using handle-relative no-follow/reparse-safe operations or an equivalent proven platform primitive.
 - [ ] Generate preview and apply from the same immutable plan; apply must not recompute from command arguments.
 - [ ] Reject pathless, duplicate, conflicting, non-verifiable, expired, or drifted plans before writes.
 
 ## P0.4 staged apply, rollback, and recovery
 
-- [ ] Implement a general filesystem writer with same-volume staging, atomic per-path replacement where supported, deterministic ordering, and durable journal/backups.
-- [ ] Preflight all hashes, existence, permissions, destinations, symlinks, path boundaries, and required free space before side effects.
+- [ ] Extend the current staged compensating writer into a general filesystem writer with atomic per-path replacement where supported, deterministic ordering, and durable journal/backups that survive process restart.
+- [ ] Preflight all hashes, existence, permissions, destinations, symlinks, path boundaries, and required free space before side effects, then revalidate path and file identity atomically at each write/move/delete/restore boundary.
 - [ ] Verify expected postconditions before recording `Applied`.
 - [ ] Implement rollback and verification for every supported operation type.
 - [ ] Add `RecoveryRequired` result, retained journal/backups, affected-path state, and deterministic recovery actions when rollback is incomplete.
 - [ ] Make recovery-critical rollback non-interruptible after side effects begin while recording the caller's cancellation request.
 - [ ] Add `rt recover status|resume|rollback|acknowledge <operation-id>` or equivalent host-neutral operations.
+- [ ] Reconcile expired `Applying` records on startup and status lookup; allow one lease owner to prove completion, resume or roll back from a declared journal boundary, or enter `RecoveryRequired`.
 - [ ] Add fault injection for each operation boundary: stage/write/flush/replace/move/delete/permission/verification/journal/rollback/cleanup/process termination.
 - [ ] Test encoding/BOM/newlines, executable bits, locked/read-only files, disk-full simulation, case-only moves, symlinks, cross-volume moves, and rollback failure on Windows, Linux, and macOS.
 
