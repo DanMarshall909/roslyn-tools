@@ -92,6 +92,7 @@ remain outside the namespace.
 - A hard-linked path cannot mutate an undeclared shared inode or silently lose a reviewed link relationship.
 - Killing the apply owner after any journal boundary leads through lease-based reconciliation to a verified terminal state rather than indefinite `Applying`.
 - A superseded owner resumed after lease takeover is fenced from every further repository side effect.
+- Pre-effect drift is rejected without writes; drift after a journalled effect stops the remaining plan and produces verified rollback or `RecoveryRequired`, never stale rejection or applied success.
 - Overlapping apply/recovery plans for one repository cannot interleave between final preflight and durable terminal state, and `RecoveryRequired` blocks unrelated apply until verified recovery or explicit acknowledgement.
 - Fault injection proves complete success, complete rollback, verified post-recovery state, or truthful `RecoveryRequired`; partial application is never labelled `Applied`.
 - No workspace is `Complete` unless every operation-required project, compilation context, reference, build input, document, and generator/analyzer stage is accounted for; no proof-strength finding or deletion suggestion is emitted from partial input or an externally visible symbol without an explicit proof basis.

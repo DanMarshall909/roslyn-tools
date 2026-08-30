@@ -117,6 +117,7 @@ retries, crashes, or process restarts.
 - Assign caller-known operation identity and persist its ledger before writes.
 - Acquire one exclusive canonical-repository transaction reservation before final whole-plan preflight and hold it through the durable terminal result or recovery handoff so plans cannot interleave.
 - Preflight every condition and stage data, preferably on the same volume; revalidate the expected intermediate state, remaining plan dependencies, containment, file identity, and link count at every side effect.
+- Restrict stale rejection to drift found before the first effect; mid-apply drift must stop, journal evidence, and reach verified rollback or `RecoveryRequired`.
 - Journal and apply deterministically with atomic per-file replacement where supported.
 - Verify postconditions before `Applied`.
 - Roll back and verify after failure.

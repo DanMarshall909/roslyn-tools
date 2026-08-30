@@ -243,6 +243,14 @@ The implementation:
 
 Rollback is best-effort across platform/filesystem constraints and is not falsely described as atomic. Once side effects begin, cancellation requests are recorded but do not interrupt recovery-critical rollback. If rollback cannot restore every verified precondition, the operation enters the durable intervention state `RecoveryRequired`, not `RolledBack` or `Failed`. Journals, backups, affected paths, observed hashes, and deterministic recovery instructions are retained until successful recovery or explicit acknowledgement.
 
+Stale-plan rejection is permitted only when drift is detected before the first
+repository effect. If revision, dependency, path, identity, hash, permission, link,
+or other declared precondition drifts after any effect has been journalled, the owner
+records the observed drift, performs no remaining planned effect, and enters the
+verified rollback path. Complete verified restoration ends as `RolledBack`; any
+unrestored or ambiguous path ends as `RecoveryRequired`. A mid-apply drift is never
+reported as `RejectedStale` or `Applied`.
+
 ### Manual recovery and acknowledgement
 
 `RecoveryRequired` is not terminal. It is a durable recovery barrier for the

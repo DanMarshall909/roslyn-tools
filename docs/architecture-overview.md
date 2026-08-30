@@ -210,7 +210,10 @@ it is held. At every journalled effect, the owner verifies the reservation, ledg
 state, fencing epoch, lease, prior effect outcomes, and every still-relevant plan
 dependency. A reconciler acquires the same reservation before advancing the epoch;
 after takeover, a resumed stale owner cannot pass the reservation/epoch check or
-perform another write. Recovery artifacts stay pinned through `RecoveryRequired`
+perform another write. Drift before the first effect returns stale rejection; drift
+after any journalled effect stops the remaining plan and verifies rollback to
+`RolledBack` or `RecoveryRequired`, never stale rejection or applied success.
+Recovery artifacts stay pinned through `RecoveryRequired`
 and `Recovering`; verified recovery releases them only after cleanup, while explicit
 acknowledgement follows the recorded retention choice and preserves an immutable
 audit summary.

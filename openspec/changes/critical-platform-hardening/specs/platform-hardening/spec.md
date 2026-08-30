@@ -161,8 +161,15 @@ Apply SHALL verify every precondition before writes, stage replacement data, dur
 
 #### Scenario: stale reviewed plan is applied
 
-- **WHEN** a file, repository revision, path type, symlink target, or other declared precondition changes after review
+- **WHEN** a file, repository revision, path type, symlink target, or other declared precondition changes after review and the change is detected before the first repository effect
 - **THEN** apply returns a stale-plan rejection before writing any path
+
+#### Scenario: a reviewed precondition drifts after an effect
+
+- **WHEN** revision, dependency, path, identity, hash, permission, link, or another declared precondition changes after at least one effect has been journalled
+- **THEN** the operation records the observed drift and performs no remaining planned effect
+- **AND THEN** it rolls back from the durable journal and terminates as `RolledBack` only after complete verification, otherwise as `RecoveryRequired`
+- **AND THEN** it is not reported as `RejectedStale` or `Applied`
 
 #### Scenario: write fails mid-apply and rollback succeeds
 

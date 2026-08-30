@@ -57,13 +57,14 @@ cross-host acceptance tests pass.
 
 - [ ] Extend the current staged compensating writer into a general filesystem writer with atomic per-path replacement where supported, deterministic ordering, and durable journal/backups that survive process restart.
 - [ ] Under the exclusive repository transaction reservation, preflight all revisions, read dependencies, hashes, existence, permissions, destinations, symlinks, hard-link identity/count, path boundaries, and required free space; before each write/move/delete/restore, revalidate the expected intermediate state, prior effects, every still-relevant dependency, ledger state, fencing epoch, lease, path, file identity, and link count.
+- [ ] Return `RejectedStale` only for drift detected before the first effect; after any journalled effect, stop the remaining plan and verify rollback to `RolledBack` or `RecoveryRequired`.
 - [ ] Verify expected postconditions before recording `Applied`.
 - [ ] Implement rollback and verification for every supported operation type.
 - [ ] Add durable `RecoveryRequired` intervention state, retained journal/backups, affected-path state, deterministic recovery actions, and a repository recovery barrier when rollback is incomplete.
 - [ ] Make recovery-critical rollback non-interruptible after side effects begin while recording the caller's cancellation request.
 - [ ] Add `rt recover status|resume|rollback|acknowledge <operation-id>` or equivalent host-neutral operations; append `Recovering -> RecoveredApplied | RecoveredRolledBack | RecoveryRequired` transitions, and make acknowledgement record actor/reason/evidence without claiming cleanliness.
 - [ ] Reconcile expired `Applying` and `Recovering` records on startup and status lookup; apply bounded mutation-worker shutdown, acquire the same exclusive transaction reservation before advancing the epoch, and allow one owner to prove completion, resume or roll back from a declared journal boundary, or enter `RecoveryRequired`; if OS reservation release cannot be proven, revoke the epoch, retain the possibly in-flight boundary, and perform no reconciliation write.
-- [ ] Add fault injection for each operation boundary: stage/write/flush/replace/move/delete/permission/verification/journal/rollback/recovery/acknowledgement/cleanup/process termination, including artifact-retention and append-only-history assertions.
+- [ ] Add fault injection and external drift before the first effect and between every operation boundary: stage/write/flush/replace/move/delete/permission/verification/journal/rollback/recovery/acknowledgement/cleanup/process termination, including stale-versus-rollback outcomes, artifact retention, and append-only-history assertions.
 - [ ] Test encoding/BOM/newlines, executable bits, locked/read-only files, disk-full simulation, case-only moves, symlinks, in-root and out-of-root hard-link aliases, link-count drift, cross-volume moves, and rollback failure on Windows, Linux, and macOS.
 
 ## P0.5 workspace completeness and proof policy
