@@ -3,7 +3,7 @@
 - Status: adopted as the critical planning baseline
 - Review date: 2026-08-28
 - Last reconciled with `main`: 2026-08-30
-- Reviewed implementation baseline: `main` at `cca0c55ea93ea26281fc4ff6f0f91750464bdb29`
+- Reviewed implementation baseline: `main` at `6817221d3db5b28f94ee72183be0cb0b8bff984e`
 - Scope: static and architectural review of CLI, MCP, daemon, workspace loading, analysis/refactoring services, tests, CI, packaging, installers, documentation, and recent hardening commits
 - Limitation: this review did not execute the full repository, hostile MSBuild fixtures, filesystem fault injection, packaged MCP clients, or native installers. Passing commit-reported test totals are useful evidence, not independent certification.
 

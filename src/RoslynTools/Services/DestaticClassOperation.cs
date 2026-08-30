@@ -73,7 +73,7 @@ internal static class DestaticClassCommandDefinition
         false,
         "refactor",
         Aliases: [],
-        WhenToUse: "Migrating a static class to an instance class with DI: drops the static modifier, "
+        WhenToUse: "Use this instead of manual Edit when migrating a static class to an instance class with DI: drops the static modifier, "
                    + "generates a matching interface, registers in Bootstrap, and rewrites consumer call sites "
                    + "to use injected references. Pairs with rt analyze static-class-inventory for sequencing.",
         Examples:

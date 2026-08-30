@@ -358,7 +358,7 @@ internal static class ComplexityCommandDefinition
         "analyze",
         Aliases: ["cx"],
         WhenToUse:
-        "Measuring cyclomatic and cognitive complexity, lines of code, and parameter counts for methods in a solution. Use --threshold to surface only the most complex methods, --sort to rank by the metric of interest, and --top to limit output.",
+        "Use this instead of Read when measuring cyclomatic and cognitive complexity, lines of code, and parameter counts for methods in a solution. Use --threshold to surface only the most complex methods, --sort to rank by the metric of interest, and --top to limit output.",
         Examples:
         [
             "rt analyze complexity --solution RoslynTools.slnx",
@@ -388,7 +388,7 @@ internal static class ListSmellsCommandDefinition
         "analyze",
         Aliases: ["smells"],
         WhenToUse:
-        "Getting a prioritised list of code smells — oversized classes, long methods, and constructors with too many parameters — to guide a refactor session. Use --scope to focus on your domain code and skip generated or test noise.",
+        "Use this instead of Read when getting a prioritised list of code smells — oversized classes, long methods, and constructors with too many parameters — to guide a refactor session. Use --scope to focus on your domain code and skip generated or test noise.",
         Examples:
         [
             "rt analyze list-smells --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
@@ -418,7 +418,7 @@ internal static class SolidCommandDefinition
         true,
         "analyze",
         WhenToUse:
-        "Detect classes that may violate SOLID principles using heuristic analysis. --principle SRP flags classes with too many public methods and injected dependencies. --principle ISP flags fat interfaces and unimplemented members. --principle DIP flags concrete constructor params and inline new calls. --principle OCP flags switch/if chains that branch on concrete types. --principle LSP flags overrides and explicit interface impls that throw NotImplementedException. --principle all runs every active detector.",
+        "Use this instead of Read when detecting classes that may violate SOLID principles using heuristic analysis. --principle SRP flags classes with too many public methods and injected dependencies. --principle ISP flags fat interfaces and unimplemented members. --principle DIP flags concrete constructor params and inline new calls. --principle OCP flags switch/if chains that branch on concrete types. --principle LSP flags overrides and explicit interface impls that throw NotImplementedException. --principle all runs every active detector.",
         Examples:
         [
             "rt analyze solid --principle SRP --solution RoslynTools.slnx",

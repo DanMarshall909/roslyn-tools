@@ -39,6 +39,162 @@ public class FeedbackStoreConcurrencyTests
         }
     }
 
+    [Fact]
+    public async Task parallel_report_calls_create_only_one_issue_for_the_same_entry()
+    {
+        using var workspace = new ConcurrencyWorkspace();
+        using (workspace.UseCurrentDirectory())
+        {
+            FeedbackStore.Append(new FeedbackEntry
+            {
+                Type = "user-feedback",
+                Description = "report me once"
+            });
+            var createCount = 0;
+
+            async Task<(int Number, string Url)> CreateIssue(
+                FeedbackEntry _,
+                CancellationToken cancellationToken)
+            {
+                Interlocked.Increment(ref createCount);
+                await Task.Delay(50, cancellationToken);
+                return (72, "https://github.com/example/repository/issues/72");
+            }
+
+            var results = await Task.WhenAll(
+                FeedbackStore.ReportOnceAsync("FB-001", CreateIssue),
+                FeedbackStore.ReportOnceAsync("FB-001", CreateIssue));
+
+            createCount.ShouldBe(1);
+            results.Count(result => result.AlreadyReported).ShouldBe(1);
+            results.Count(result => !result.AlreadyReported).ShouldBe(1);
+            results.ShouldAllBe(result => result.Entry.GitHubIssueNumber == 72);
+            FeedbackStore.TryGetById("FB-001")!.GitHubIssueNumber.ShouldBe(72);
+        }
+    }
+
+    [Fact]
+    public async Task report_waits_beyond_the_legacy_lock_timeout_for_an_in_flight_process()
+    {
+        using var workspace = new ConcurrencyWorkspace();
+        using (workspace.UseCurrentDirectory())
+        {
+            FeedbackStore.Append(new FeedbackEntry
+            {
+                Type = "user-feedback",
+                Description = "wait for the active reporter"
+            });
+            using var existingProcessLock = new FileStream(
+                workspace.StoreLockPath,
+                FileMode.OpenOrCreate,
+                FileAccess.ReadWrite,
+                FileShare.None,
+                1,
+                FileOptions.None);
+
+            var started = new TaskCompletionSource(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            var report = Task.Run(async () =>
+            {
+                started.SetResult();
+                return await FeedbackStore.ReportOnceAsync(
+                    "FB-001",
+                    (_, _) => Task.FromResult((
+                        72,
+                        "https://github.com/example/repository/issues/72")));
+            });
+
+            await started.Task;
+            await Task.Delay(TimeSpan.FromSeconds(4));
+            report.IsCompleted.ShouldBeFalse();
+
+            existingProcessLock.Dispose();
+            var result = await report.WaitAsync(TimeSpan.FromSeconds(2));
+            result.AlreadyReported.ShouldBeFalse();
+            result.Entry.GitHubIssueNumber.ShouldBe(72);
+        }
+    }
+
+    [Fact]
+    public async Task report_lock_wait_honors_cancellation()
+    {
+        using var workspace = new ConcurrencyWorkspace();
+        using (workspace.UseCurrentDirectory())
+        {
+            FeedbackStore.Append(new FeedbackEntry
+            {
+                Type = "user-feedback",
+                Description = "cancel the waiter"
+            });
+            using var existingProcessLock = new FileStream(
+                workspace.StoreLockPath,
+                FileMode.OpenOrCreate,
+                FileAccess.ReadWrite,
+                FileShare.None,
+                1,
+                FileOptions.None);
+            using var cancellation = new CancellationTokenSource();
+
+            var started = new TaskCompletionSource(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            var report = Task.Run(async () =>
+            {
+                started.SetResult();
+                return await FeedbackStore.ReportOnceAsync(
+                    "FB-001",
+                    (_, _) => Task.FromResult((
+                        72,
+                        "https://github.com/example/repository/issues/72")),
+                    cancellation.Token);
+            });
+
+            await started.Task;
+            cancellation.CancelAfter(TimeSpan.FromMilliseconds(100));
+            await Should.ThrowAsync<OperationCanceledException>(() => report);
+        }
+    }
+
+    [Fact]
+    public async Task report_uses_one_store_path_when_the_working_directory_changes_mid_operation()
+    {
+        using var sourceWorkspace = new ConcurrencyWorkspace();
+        using var unrelatedWorkspace = new ConcurrencyWorkspace();
+        using (sourceWorkspace.UseCurrentDirectory())
+        {
+            FeedbackStore.Append(new FeedbackEntry
+            {
+                Type = "user-feedback",
+                Description = "keep this report in its original store"
+            });
+
+            await FeedbackStore.ReportOnceAsync(
+                "FB-001",
+                (_, _) =>
+                {
+                    Directory.SetCurrentDirectory(unrelatedWorkspace.Root);
+                    return Task.FromResult((
+                        72,
+                        "https://github.com/example/repository/issues/72"));
+                });
+
+            Directory.SetCurrentDirectory(sourceWorkspace.Root);
+            var stored = FeedbackStore.TryGetById("FB-001");
+            stored.ShouldNotBeNull();
+            stored.GitHubIssueNumber.ShouldBe(72);
+
+            Directory.SetCurrentDirectory(unrelatedWorkspace.Root);
+            FeedbackStore.LoadAll().ShouldBeEmpty();
+        }
+    }
+
+    [Fact]
+    public void missing_store_directory_is_not_treated_as_lock_contention()
+    {
+        var exception = new DirectoryNotFoundException("The feedback directory disappeared.");
+
+        FeedbackStore.IsStoreLockContention(exception).ShouldBeFalse();
+    }
+
     private sealed class ConcurrencyWorkspace : IDisposable
     {
         private readonly string _previousDirectory;
@@ -50,7 +206,9 @@ public class FeedbackStoreConcurrencyTests
             _previousDirectory = Directory.GetCurrentDirectory();
         }
 
-        private string Root { get; }
+        public string Root { get; }
+
+        public string StoreLockPath => Path.Combine(Root, "ralph", "feedback.json.lock");
 
         public IDisposable UseCurrentDirectory()
         {

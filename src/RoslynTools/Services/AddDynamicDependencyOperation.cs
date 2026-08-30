@@ -93,7 +93,7 @@ internal static class AddDynamicDependencyCommandDefinition
         false,
         "refactor",
         WhenToUse:
-        "Recording a durable static reference for types instantiated through reflection or assembly-scanning dependency injection, after reviewing probe-di findings.",
+        "Use this instead of manual Edit when recording a durable static reference for types instantiated through reflection or assembly-scanning dependency injection, after reviewing probe-di findings.",
         Examples:
         [
             "rt refactor add-dynamic-dependency --type MyApp.Services.EmailSender --root Bootstrap.RegisterServices --solution MyApp.slnx",

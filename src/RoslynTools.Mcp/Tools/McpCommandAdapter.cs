@@ -7,6 +7,7 @@ using RoslynTools.Core.CommandDescriptors;
 using RoslynTools.Core.Output;
 using RoslynTools.Daemon.Rpc;
 using RoslynTools.Services;
+using RoslynTools.Services.SemanticDiff;
 
 namespace RoslynTools.Mcp.Tools;
 
@@ -41,7 +42,8 @@ internal sealed class McpCommandAdapter(
 
         var safeArguments = ApplySafetyPolicy(descriptor, arguments);
 
-        if (descriptor.Port is not null
+        if (!DaemonRuntime.IsDisabled
+            && descriptor.Port is not null
             && (descriptor.Definition?.ExecutionPlacement == CommandExecutionPlacement.DaemonPreferred
                 || descriptor.Definition is null && DaemonOwnedCommands.Contains(toolName)))
         {
@@ -56,7 +58,7 @@ internal sealed class McpCommandAdapter(
                     ResolveSafety(descriptor),
                     cancellationToken);
             if (recovery.Response is not null)
-                return ToToolResult(recovery.Response);
+                return ToToolResult(recovery.Response, descriptor.Port.ResponseType);
             if (!recovery.ShouldFallback)
                 return new ToolResult(
                     true,
@@ -100,11 +102,7 @@ internal sealed class McpCommandAdapter(
                         ? "Command failed."
                         : SerializeError(result.Error)));
 
-            var json = JsonSerializer.Serialize(
-                result.Value,
-                result.Value?.GetType() ?? typeof(object),
-                CreateResponseOptions());
-            return new ToolResult(false, json);
+            return new ToolResult(false, SerializeSuccess(result.Value));
         }
         catch (Exception ex) when (ex is ArgumentException
                                    or InvalidOperationException
@@ -115,7 +113,9 @@ internal sealed class McpCommandAdapter(
         }
     }
 
-    private static ToolResult ToToolResult(DaemonRpcResponse response)
+    private static ToolResult ToToolResult(
+        DaemonRpcResponse response,
+        Type responseType)
     {
         if (response.Error is not null)
             return new ToolResult(
@@ -128,7 +128,24 @@ internal sealed class McpCommandAdapter(
                         response.Error.Message,
                         response.Error.Context))));
 
-        return new ToolResult(false, response.Result?.GetRawText() ?? "null");
+        if (response.Result is not { } envelope
+            || envelope.ValueKind != JsonValueKind.Object
+            || !envelope.TryGetProperty("data", out var data))
+            return new ToolResult(true, "The daemon returned an invalid command response.");
+
+        try
+        {
+            var value = data.Deserialize(responseType, DaemonRpcJson.Options);
+            return new ToolResult(false, SerializeSuccess(value));
+        }
+        catch (Exception ex) when (ex is JsonException
+                                   or InvalidOperationException
+                                   or NotSupportedException)
+        {
+            return new ToolResult(
+                true,
+                $"The daemon returned an invalid command result: {ex.Message}");
+        }
     }
 
     private static JsonSerializerOptions CreateResponseOptions()
@@ -137,6 +154,48 @@ internal sealed class McpCommandAdapter(
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
+    }
+
+    private static string SerializeSuccess(object? value)
+    {
+        return value switch
+        {
+            SemanticDiffOperationResult semanticDiff =>
+                SemanticDiffJson.Serialize(semanticDiff.Deltas),
+            DescribeResult describe => SerializeDescribe(describe),
+            MutationExecutionResult<RenameOperationResult> rename => SerializeRename(rename),
+            _ => JsonSerializer.Serialize(
+                value,
+                value?.GetType() ?? typeof(object),
+                CreateResponseOptions())
+        };
+    }
+
+    private static string SerializeDescribe(DescribeResult result)
+    {
+        return result switch
+        {
+            { Kind: DescribeResultKind.Compact, Compact: not null } =>
+                JsonSerializer.Serialize(result.Compact, CreateResponseOptions()),
+            { Kind: DescribeResultKind.Verbose, Verbose: { } verbose } =>
+                JsonSerializer.Serialize(verbose, CreateResponseOptions()),
+            _ => throw new InvalidOperationException(
+                "The describe result did not contain its declared value.")
+        };
+    }
+
+    private static string SerializeRename(MutationExecutionResult<RenameOperationResult> execution)
+    {
+        if (execution.Value is
+            {
+                Mode: RenameOperationMode.Single,
+                Renames.Count: 1
+            } single)
+        {
+            return JsonSerializer.Serialize(single.Renames[0], CreateResponseOptions());
+        }
+
+        return JsonSerializer.Serialize(execution, CreateResponseOptions());
     }
 
     private static string SerializeError(RtError error)

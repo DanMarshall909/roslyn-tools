@@ -10,6 +10,13 @@ namespace RoslynTools.Core;
 internal interface IWorkspaceSessionFactory
 {
     /// <summary>
+    ///     Reports whether tests have installed an ambient workspace. Keeping the
+    ///     compatibility hook behind this seam prevents daemon routing code from
+    ///     depending on the concrete workspace loader.
+    /// </summary>
+    static bool HasAmbientOverride => WorkspaceLoader.Override.Value is not null;
+
+    /// <summary>
     ///     The sanctioned default factory for code paths that may run without an
     ///     IServiceProvider (e.g. tests that call <c>App.RunAsync</c> with
     ///     <c>services: null</c>). Centralising the construction here is what

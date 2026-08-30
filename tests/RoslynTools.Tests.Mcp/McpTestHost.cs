@@ -1,4 +1,6 @@
+using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using RoslynTools.Core;
 using RoslynTools.Daemon.Rpc;
 using RoslynTools.Mcp;
 using RoslynTools.Tests;
@@ -36,8 +38,21 @@ internal static class McpTestHost
         var services = new ServiceCollection();
         RoslynTools.Bootstrap.RegisterServices(services);
         services.AddMcpServices(new StringReader(string.Empty), new StringWriter());
+        services.AddSingleton<IDaemonRpcClient, UnavailableDaemonRpcClient>();
         services.AddSingleton<IDaemonLauncher, UnavailableDaemonLauncher>();
         return services.BuildServiceProvider();
+    }
+
+    private sealed class UnavailableDaemonRpcClient : IDaemonRpcClient
+    {
+        public Task<DaemonRpcAttempt> ExecuteAsync(
+            string commandName,
+            JsonElement arguments,
+            CommandSafety safety,
+            CancellationToken cancellationToken = default) => Task.FromResult(new DaemonRpcAttempt(
+            DaemonRpcAttemptState.UnavailableBeforeDispatch,
+            null,
+            DispatchStarted: false));
     }
 
     private sealed class UnavailableDaemonLauncher : IDaemonLauncher

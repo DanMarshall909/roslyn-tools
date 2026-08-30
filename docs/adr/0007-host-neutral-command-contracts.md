@@ -61,8 +61,9 @@ tool schema/result projection, and protocol errors. Both use generic adapters an
 same port; command-specific MCP handlers are not part of the target architecture.
 
 MCP schemas are derived from request contracts and host-neutral property metadata,
-not from instantiated CLI commands. CLI metadata is checked against the shared
-definition by architecture tests.
+including discriminated alternative request variants when one operation supports
+multiple valid shapes. They are not derived from instantiated CLI commands. CLI
+metadata is checked against the shared definition by architecture tests.
 
 Daemon routing follows the definition's execution placement rather than a manually
 maintained daemon catalogue. Daemon recovery distinguishes:

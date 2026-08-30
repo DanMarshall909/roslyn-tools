@@ -280,6 +280,38 @@ public sealed class CommandDescriptorContracts
     }
 
     [Fact]
+    public void rename_schema_projects_default_single_and_explicit_batch_request_shapes()
+    {
+        using var provider = McpTestHost.CreateProvider();
+        var descriptor = provider.GetRequiredService<CommandDescriptorRegistry>()
+            .All.Single(candidate => candidate.ToolName == RenameCommandDefinition.Definition.Name);
+        var tool = ToolSchemaBuilder.Build(descriptor);
+        using var schema = JsonDocument.Parse(JsonSerializer.Serialize(tool.inputSchema));
+
+        var variants = schema.RootElement.GetProperty("oneOf").EnumerateArray().ToList();
+        var single = variants.Single(variant =>
+            variant.GetProperty("properties").GetProperty("mode")
+                .GetProperty("enum")[0].GetString() == "Single");
+        var batch = variants.Single(variant =>
+            variant.GetProperty("properties").GetProperty("mode")
+                .GetProperty("enum")[0].GetString() == "Batch");
+
+        single.GetProperty("required").EnumerateArray()
+            .Select(value => value.GetString())
+            .ShouldBe(["symbol", "new-name"], ignoreOrder: true);
+        single.GetProperty("not").GetProperty("anyOf").EnumerateArray()
+            .Select(rule => rule.GetProperty("required")[0].GetString())
+            .ShouldBe(["csv"]);
+
+        batch.GetProperty("required").EnumerateArray()
+            .Select(value => value.GetString())
+            .ShouldBe(["mode", "csv"], ignoreOrder: true);
+        batch.GetProperty("not").GetProperty("anyOf").EnumerateArray()
+            .Select(rule => rule.GetProperty("required")[0].GetString())
+            .ShouldBe(["symbol", "new-name"], ignoreOrder: true);
+    }
+
+    [Fact]
     public async Task feedback_list_uses_the_generic_port_instead_of_a_native_handler()
     {
         using var provider = McpTestHost.CreateProvider();

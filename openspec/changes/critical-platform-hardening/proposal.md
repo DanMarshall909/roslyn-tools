@@ -4,7 +4,7 @@
 - Priority: P0/P1
 - Decision owner: architecture
 - Supersedes for this phase: daemon workspace-caching work
-- Reviewed implementation baseline: `main` at `cca0c55ea93ea26281fc4ff6f0f91750464bdb29`
+- Reviewed implementation baseline: `main` at `6817221d3db5b28f94ee72183be0cb0b8bff984e`
 
 ## Why
 

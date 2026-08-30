@@ -57,6 +57,7 @@ Desktop.ini
 /acs-*.json
 /rt-help-temp.txt
 /rt-mcp-smoke.jsonl
+/ralph/feedback.json.lock
 
 ## Local MCP config (user-scope install is preferred; project-scope opt-in only)
 /.mcp.json

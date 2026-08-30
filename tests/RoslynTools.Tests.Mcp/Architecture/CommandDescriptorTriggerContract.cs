@@ -65,7 +65,30 @@ public sealed class CommandDescriptorTriggerContract
     /// </summary>
     private static readonly Dictionary<string, string> BuiltInOverlaps = new(StringComparer.Ordinal)
     {
+        ["add_dynamic_dependency"] = "Edit",
+        ["add_global_import"] = "Edit",
+        ["add_null_checks"] = "Edit",
+        ["add_static_import"] = "Edit",
+        ["add_test"] = "Edit",
+        ["add_xml_doc"] = "Edit",
+        ["analyze_interface"] = "Read",
+        ["change_signature"] = "Edit",
+        ["complexity"] = "Read",
+        ["convert_static_class"] = "Edit",
+        ["convert_to_record"] = "Edit",
+        ["dependency_graph"] = "Read",
+        ["extract_string_constant"] = "Edit",
+        ["find_duplicates"] = "Grep",
+        ["find_undocumented"] = "Grep",
+        ["find_unused"] = "Grep",
         ["find_refs"] = "Grep",
+        ["fix_namespace"] = "Edit",
+        ["implement_interface"] = "Edit",
+        ["inline_method"] = "Edit",
+        ["list_smells"] = "Read",
+        ["make_async"] = "Edit",
+        ["make_instance"] = "Edit",
+        ["make_static"] = "Edit",
         ["outline"] = "Read",
         ["describe"] = "Read",
         ["source"] = "Read",
@@ -85,9 +108,16 @@ public sealed class CommandDescriptorTriggerContract
         ["move"] = "Edit",
         ["move_method"] = "Edit",
         ["narrow_dependency"] = "Edit",
+        ["probe_di"] = "Read",
+        ["replace_call"] = "Edit",
+        ["replace_datetime"] = "Edit",
+        ["replace_new"] = "Edit",
         ["replace_xunit_asserts"] = "Edit",
         ["safe_delete"] = "Edit",
-        ["semantic_diff"] = "git diff"
+        ["semantic_diff"] = "git diff",
+        ["solid"] = "Read",
+        ["static_class_inventory"] = "Read",
+        ["transform_parameters"] = "Edit"
     };
 
     /// <summary>

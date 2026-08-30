@@ -12,7 +12,9 @@ This document is for maintainers. End-user feedback capture is described in the 
 2. When found, use `ralph/feedback.json` in that checkout.
 3. Otherwise, use `~/.rt/feedback.json`.
 
-A companion `.lock` file protects concurrent writers.
+A companion `.lock` file protects concurrent writers. The file can remain after a
+command exits; exclusivity comes from the open file handle, not from the file's
+presence.
 
 ## Inspect pending feedback
 

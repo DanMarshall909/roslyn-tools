@@ -63,7 +63,7 @@ It is not an additional semantic layer and does not own workspaces or mutations.
 Every ordinary stable command has one host-neutral application definition and exactly one typed `ICommandApplicationPort`. The definition carries:
 
 - canonical identity and aliases;
-- request and response types;
+- request and response types plus alternative request variants;
 - `RtCommandInfo` and examples;
 - visibility and maturity (`stable`, `preview`, or `experimental`);
 - safety and execution placement;
@@ -201,11 +201,13 @@ Suggestions/follow-ons are application metadata projected by hosts. They are not
 | Concern | Canonical source |
 |---|---|
 | Command/tool identity, aliases, category, visibility, maturity | Application definition |
-| Request/result types and validation | Typed operation contract |
+| Command name, category, examples, mutability, and JSON-output flag | `RtCommandInfo` within the definition; CLI projection must match |
+| Request/result types, validation, and alternative request variants | Typed operation contract and host-neutral property metadata |
 | Safety, execution placement, limits, paging, trust requirements | Application definition/policy |
 | Reusable option names, defaults, aliases | Capability catalogue |
+| Capability interface to catalogue flag binding | Shared binders |
 | Help, examples, known limitations, follow-ons | Same application metadata |
-| MCP input/output schema | Generated from typed contracts and metadata |
+| MCP input/output schema | Generated from typed contracts, property metadata, and alternative request variants |
 | `prime`/agent primer | Generated from stable catalogue entries |
 | Generated command documentation | Catalogue projection, verified rather than rewritten by normal build |
 

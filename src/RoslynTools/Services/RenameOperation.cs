@@ -12,7 +12,7 @@ internal enum RenameOperationMode
 }
 
 internal sealed record RenameOperationRequest(
-    [property: JsonRequired] RenameOperationMode Mode,
+    RenameOperationMode Mode = RenameOperationMode.Single,
     string? Symbol = null,
     [property: JsonPropertyName("new-name")] string? NewName = null,
     [property: JsonPropertyName("csv")] string? CsvPath = null,
@@ -219,5 +219,25 @@ internal static class RenameCommandDefinition
         true,
         CommandSafety.Mutation,
         CommandExecutionPlacement.DaemonPreferred,
-        []);
+        [],
+        [
+            new CommandRequestVariant(
+                nameof(RenameOperationRequest.Mode),
+                nameof(RenameOperationMode.Single),
+                DiscriminatorRequired: false,
+                [
+                    nameof(RenameOperationRequest.Symbol),
+                    nameof(RenameOperationRequest.NewName)
+                ],
+                [nameof(RenameOperationRequest.CsvPath)]),
+            new CommandRequestVariant(
+                nameof(RenameOperationRequest.Mode),
+                nameof(RenameOperationMode.Batch),
+                DiscriminatorRequired: true,
+                [nameof(RenameOperationRequest.CsvPath)],
+                [
+                    nameof(RenameOperationRequest.Symbol),
+                    nameof(RenameOperationRequest.NewName)
+                ])
+        ]);
 }

@@ -14,6 +14,17 @@ internal sealed class CommandPropertyDescriptionAttribute(string description) : 
     public string Description { get; } = description;
 }
 
+/// <summary>
+///     One host-neutral alternative request shape. Property names refer to CLR request
+///     properties so host adapters can project their canonical wire names.
+/// </summary>
+internal sealed record CommandRequestVariant(
+    string DiscriminatorProperty,
+    string DiscriminatorValue,
+    bool DiscriminatorRequired,
+    IReadOnlyList<string> RequiredProperties,
+    IReadOnlyList<string> ForbiddenProperties);
+
 /// <summary>One transport-neutral recommended follow-on command.</summary>
 internal sealed record CommandFollowOn(string ToolName, string WhenToUse);
 
@@ -30,7 +41,8 @@ internal sealed record ApplicationCommandDefinition
         bool mcpVisible,
         CommandSafety safety,
         CommandExecutionPlacement executionPlacement,
-        IReadOnlyList<CommandFollowOn> suggestedTools)
+        IReadOnlyList<CommandFollowOn> suggestedTools,
+        IReadOnlyList<CommandRequestVariant>? requestVariants = null)
     {
         ArgumentNullException.ThrowIfNull(info);
         ArgumentNullException.ThrowIfNull(requestType);
@@ -50,6 +62,7 @@ internal sealed record ApplicationCommandDefinition
         Safety = safety;
         ExecutionPlacement = executionPlacement;
         SuggestedTools = suggestedTools;
+        RequestVariants = requestVariants ?? [];
     }
 
     /// <summary>The normalized tool and daemon identity.</summary>
@@ -68,4 +81,6 @@ internal sealed record ApplicationCommandDefinition
     public CommandExecutionPlacement ExecutionPlacement { get; }
 
     public IReadOnlyList<CommandFollowOn> SuggestedTools { get; }
+
+    public IReadOnlyList<CommandRequestVariant> RequestVariants { get; }
 }
