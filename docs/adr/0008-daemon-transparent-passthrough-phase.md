@@ -32,6 +32,10 @@ epoch. Only then may the caller explicitly resubmit that exact request under the
 operation ID and epoch; delayed original attempts are fenced out. A different payload
 under the same operation ID is an operation conflict.
 
+The request hash uses the shared versioned semantic canonicalizer and excludes the
+`RequestHash` field itself, replay epoch, cancellation state, authentication material,
+and transport-only metadata. Daemon wire JSON is never the hash input.
+
 ### Permitted fallback
 
 A host may select in-process execution only when the transport proves `NotDispatched`. `Indeterminate` is surfaced unchanged and never triggers automatic mutation retry or in-process fallback. Explicit same-operation resubmission is allowed only after durable `NotRecorded` resolution and requires its request hash and replay epoch. Read-only retry behaviour must be explicitly declared and must still preserve the canonical request context and result contract.

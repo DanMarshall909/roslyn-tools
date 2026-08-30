@@ -135,7 +135,29 @@ A mutation SHALL prepare an immutable change set before apply. The plan SHALL de
 
 ### Requirement: apply operations have caller-known durable identity
 
-Every apply request SHALL include a caller-generated operation ID and canonical request hash before dispatch. Canonical repository ID plus operation ID SHALL be the composite durable identity for intake, idempotency, status, recovery, acknowledgement, and retention; operation IDs may repeat across repositories. Every operation lookup or mutation SHALL carry both values. Before accepted work can enter an execution queue, the receiver SHALL acquire a cross-process, store-enforced intake fence keyed by repository and operation ID and durably record a `Received` receipt containing the repository ID, operation ID, request hash, and canonical request. The operation ledger SHALL then be recorded before repository side effects begin. A `Received` receipt without an operation record SHALL be reconciled on startup and status lookup.
+Every apply request SHALL include a caller-generated operation ID and canonical
+request hash before dispatch. The request hash SHALL be the SHA-256 digest of a
+versioned UTF-8 canonical serialization containing every semantic work-defining
+field, including repository ID, plan ID/hash, operation ID, and expected revision,
+while omitting `RequestHash` itself, replay epoch, transport attempt/correlation
+metadata, cancellation state, and authentication material. All adapters SHALL use
+the same canonicalizer and test vectors rather than hashing transport-specific JSON.
+Canonical repository ID plus operation ID SHALL be the composite durable identity
+for intake, idempotency, status, recovery, acknowledgement, and retention; operation
+IDs may repeat across repositories. Every operation lookup or mutation SHALL carry
+both values. Before accepted work can enter an execution queue, the receiver SHALL
+acquire a cross-process, store-enforced intake fence keyed by repository and operation
+ID and durably record a `Received` receipt containing the repository ID, operation
+ID, request hash, and canonical request. The operation ledger SHALL then be recorded
+before repository side effects begin. A `Received` receipt without an operation
+record SHALL be reconciled on startup and status lookup.
+
+#### Scenario: a caller constructs the canonical request hash
+
+- **WHEN** a caller prepares an apply request for dispatch
+- **THEN** it serializes the semantic request with the shared schema version, path/string normalization, property ordering, explicit-null, and default-value rules
+- **AND THEN** `RequestHash`, replay epoch, transport metadata, cancellation state, and authentication material are absent from the hashed bytes
+- **AND THEN** CLI, MCP, in-process, and daemon adapters produce the same SHA-256 digest for the same semantic request
 
 #### Scenario: the first response is lost
 

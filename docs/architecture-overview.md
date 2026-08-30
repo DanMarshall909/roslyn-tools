@@ -238,6 +238,10 @@ cancellation result, and startup/status lookup performs idempotent control-artif
 cleanup outside the repository while retaining the plan until cleanup is verified.
 
 The caller generates `OperationId` and the canonical request hash before dispatch.
+The hash is SHA-256 over one versioned host-neutral serialization of all semantic
+apply fields; it explicitly omits `RequestHash` itself, replay and transport attempt
+metadata, cancellation state, and authentication material. Every adapter uses the
+same canonicalizer and vectors instead of hashing its wire representation.
 Canonical repository ID plus operation ID is the composite key for every receipt,
 ledger, status, recovery, acknowledgement, and retention lookup; the same operation
 ID in another repository is independent.

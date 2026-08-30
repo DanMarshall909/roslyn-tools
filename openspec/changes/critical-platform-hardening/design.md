@@ -119,9 +119,14 @@ Recover(repositoryId, operationId, recoveryAction) -> RecoveryResult
 `(RepositoryId, OperationId)` is the composite durable identity for intake,
 idempotency, status, recovery, acknowledgement, and retention. `OperationId` need
 only be unique within its canonical repository; every API and durable-store lookup
-that can observe or change an operation carries both values. `RequestHash` is
-the canonical hash of the complete apply request except transport-attempt and replay
-fields. A transport request-attempt ID may be separate.
+that can observe or change an operation carries both values. `RequestHash` is the
+SHA-256 digest of a versioned UTF-8 canonical serialization of the semantic apply
+request. That serialization includes repository ID, plan ID/hash, operation ID,
+expected revision, and every other work-defining field, but omits `RequestHash`
+itself, `ReplayEpoch`, transport attempt/correlation metadata, cancellation state,
+and authentication material. Paths, strings, property order, nulls, and defaults use
+one host-neutral canonicalizer shared by every adapter; adapters never hash their
+transport JSON directly. A transport request-attempt ID may be separate.
 
 Before an accepted request can enter an execution queue, the receiver acquires a
 cross-process, store-enforced intake fence keyed by repository and operation ID and
