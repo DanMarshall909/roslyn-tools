@@ -109,8 +109,13 @@ repository, declared read-only SDK/package/tool inputs, and separate disposable
 writable output, cache, and temporary locations outside the checkout. Host roots,
 user profiles, credentials, SSH material, undeclared package caches, and devices are
 not visible. The worker has bounded resources, no inherited secrets, and no network
-unless explicitly enabled. Repository write attempts and undeclared host reads are
-denied and recorded.
+during any phase that executes untrusted repository code. Required packages and tools
+are acquired beforehand by a separate trusted broker that executes no repository code,
+accepts only reviewed lockfile-pinned coordinates from allow-listed registries, and
+verifies hashes/signatures before mounting them read-only. Missing inputs never trigger
+restore inside the worker. Repository write attempts, undeclared host reads, and all
+network egress are denied and recorded; platforms that cannot prove both filesystem
+and egress isolation refuse untrusted evaluation.
 
 Long-lived CLI, MCP, and daemon hosts never evaluate an untrusted repository in-process.
 

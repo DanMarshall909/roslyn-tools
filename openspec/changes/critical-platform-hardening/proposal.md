@@ -176,7 +176,7 @@ results or diagnostics.
 - An owner lost before `FirstEffectStarted` can reconcile stale preflight to `RejectedStale` only with durable no-effect proof; ambiguous or possibly effected state never masquerades as stale or rolled back.
 - Fault injection proves complete success, complete rollback, verified post-recovery state, or truthful `RecoveryRequired`; partial application is never labelled `Applied`.
 - No workspace is `Complete` unless every operation-required project, compilation context, reference, build input, document, and generator/analyzer stage is accounted for; no proof-strength finding or deletion suggestion is emitted from partial input or an externally visible symbol without an explicit proof basis.
-- Trust/evaluator tests cover untrusted isolated evaluation and trusted opt-in isolation; repository-controlled build logic cannot write through the isolated worker's read-only checkout, read undeclared host files, or execute in a privileged long-lived host.
+- Trust/evaluator tests cover untrusted isolated evaluation and trusted opt-in isolation; repository-controlled build logic cannot write through the isolated worker's read-only checkout, read undeclared host files, use network egress, or execute in a privileged long-lived host, and dependency acquisition is a separate trusted pre-evaluation step.
 - The five spine commands pass CLI, MCP, in-process, and passthrough parity plus cancellation and failure-injection tests.
 - MCP conformance is tested for every advertised protocol version; structured tools return schema-valid `structuredContent` as well as a text view.
 - `dotnet build` is hermetic: it does not modify the repository, deploy files into the user profile, or depend on an already-running daemon.

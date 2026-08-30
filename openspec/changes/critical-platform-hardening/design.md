@@ -79,7 +79,15 @@ disposable writable build-output, intermediate, analyzer/package-cache, and
 temporary locations outside the checkout. Host filesystem roots, user profiles,
 SSH keys, credential stores, undeclared package caches, device endpoints, and other
 ambient paths are not mounted or visible. The worker inherits no secrets, has
-bounded CPU/memory/time, and has no network unless explicitly enabled.
+bounded CPU/memory/time, and has no network or externally routed socket namespace
+while any untrusted repository-controlled code can execute. Network access is never
+enabled inside that phase. Required SDK/package/tool acquisition occurs beforehand in
+a separate trusted broker that executes no repository code, accepts only
+policy-allow-listed registries and user-reviewed lockfile-pinned coordinates, verifies
+content hashes/signatures, and materializes the results as declared read-only worker
+inputs. Missing inputs stop evaluation with a typed diagnostic; they do not trigger
+restore from inside the worker. If the platform cannot prove filesystem containment
+and network egress denial, `IsolatedWorker` evaluation is refused.
 Repository-controlled tasks, analyzers, or generators that attempt repository
 writes or undeclared host reads are denied and audited; evaluator completion never
 copies undeclared writes back into the checkout. If the platform cannot establish

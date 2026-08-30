@@ -20,6 +20,18 @@ Each stable command SHALL have one typed request, one application operation, and
 
 A workspace request SHALL declare repository trust state and evaluator mode as independent values. Trust state SHALL be `Trusted` or `Untrusted`; evaluator mode SHALL be `NoEvaluation`, `InProcess`, or `IsolatedWorker`. Absence or revocation of an explicit repository-scoped trust decision SHALL produce `Untrusted`. An untrusted request SHALL NOT select `InProcess`, while a trusted request MAY still select `IsolatedWorker`. The long-lived CLI, MCP, and daemon hosts SHALL NOT evaluate repository-controlled MSBuild logic, analyzers, generators, or repository executables in-process for an untrusted repository. `IsolatedWorker` SHALL use an OS-enforced allow-listed filesystem namespace that exposes only declared read-only inputs and disposable writable outputs; it SHALL NOT expose ambient host paths or credentials.
 
+Every `IsolatedWorker` phase capable of executing untrusted repository-controlled code
+SHALL run in an OS-enforced networkless namespace with no DNS, socket, loopback, proxy,
+or external egress; policy SHALL NOT enable networking inside that phase. Required
+SDK/package/tool acquisition SHALL occur beforehand through a separate trusted broker
+that executes no repository code, accepts only policy-allow-listed registries and
+user-reviewed lockfile-pinned coordinates, rejects repository-generated URLs, proxy
+settings, restore hooks, and dynamic evaluator output, verifies content hashes and
+signatures, and exposes results as declared read-only worker inputs. Missing inputs
+SHALL produce a typed diagnostic rather than trigger restore inside the worker. A
+platform that cannot prove both filesystem containment and egress denial SHALL refuse
+untrusted evaluation.
+
 `NoEvaluation` SHALL NOT mean unrestricted host reads. For an untrusted repository,
 every host-side repository read SHALL use one handle-relative reader rooted at the
 verified checkout, open every component with no-follow/reparse-safe semantics, bind
@@ -55,6 +67,20 @@ boundary SHALL run inside the allow-listed `IsolatedWorker` namespace or be refu
 - **THEN** the OS-enforced filesystem namespace makes that path unavailable and denies the read
 - **AND THEN** only the read-only checkout, declared read-only SDK/package/tool inputs, and disposable writable output/cache/temp locations are visible
 - **AND THEN** evaluation is refused on a platform that cannot establish this namespace
+
+#### Scenario: isolated repository code attempts network egress
+
+- **WHEN** repository-controlled MSBuild logic, an analyzer, a generator, or a child process attempts DNS, socket, loopback, proxy, or external network access during untrusted evaluation
+- **THEN** the OS-enforced networkless namespace denies the attempt and no checkout or declared input content leaves the worker
+- **AND THEN** network access cannot be enabled for any phase in which untrusted repository code executes
+- **AND THEN** missing SDK/package/tool inputs produce a typed diagnostic rather than an in-worker restore
+
+#### Scenario: dependencies are acquired for a future isolated evaluation
+
+- **WHEN** required SDK/package/tool content is absent before the worker starts
+- **THEN** a separate trusted broker that executes no repository code may fetch only policy-allow-listed, user-reviewed lockfile-pinned coordinates
+- **AND THEN** it verifies content hashes/signatures and exposes the acquired content to the later networkless worker as declared read-only inputs
+- **AND THEN** arbitrary repository-generated URLs, proxy settings, restore hooks, and dynamic evaluator output cannot control the broker
 
 #### Scenario: file-only operation is safe without evaluation
 
