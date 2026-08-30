@@ -109,7 +109,11 @@ After durable intake, cancellation belongs to the canonical operation. Before th
 first repository effect, one store-enforced compare-and-swap either records terminal
 `CancelledNoEffect` with a no-effect proof and cleanup inventory or appends
 `FirstEffectStarted` with the complete first-effect intent and guard/version evidence,
-then grants the fenced owner permission to issue exactly that effect.
+making the fenced owner eligible to request exactly that effect through a
+non-bypassable OS-enforced broker that revalidates authority at the actual conditional
+filesystem boundary. The permit is not reusable direct write authority, and expired
+owner takeover cannot advance the epoch until the effect fence is closed and drained
+or worker termination and write-capability closure are verified.
 Replay returns the cancellation outcome while its bounded record is retained and
 `OperationEpochRetired` after safe epoch compaction; neither restarts work. Once the
 first-effect permit wins, cancellation is recorded but recovery-critical verification

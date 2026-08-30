@@ -31,8 +31,15 @@ Grant, revoke, and every admission capable of starting repository-controlled cod
 `InProcess` SHALL share one linearizable trust gate keyed by authenticated principal,
 canonical repository identity, and verified physical binding. Evaluator admission
 SHALL atomically re-read the current grant and acquire a revocable evaluation lease
-bound to its monotonic trust generation before any repository-controlled code starts;
-a prior read of `Trusted` SHALL confer no admission authority. Revocation SHALL
+bound to its monotonic trust generation and a held verified-root capability before any
+repository-controlled code starts. The capability SHALL pin the exact physical root
+named by the grant and SHALL provide the evaluator a handle-relative or immutable
+snapshot view; evaluator startup SHALL NOT re-resolve an ambient path that can name a
+replacement checkout. The actual solution/build open boundary SHALL consume that
+capability and revalidate its identity before marking evaluation started. A platform
+or evaluator API that cannot preserve the binding through that open SHALL refuse
+`InProcess` and use `IsolatedWorker` or fail safely. A prior read of `Trusted` SHALL
+confer no admission authority. Revocation SHALL
 atomically close new `InProcess` admission, advance the trust generation, persist
 `Untrusted`, and durably audit that transition. A request that observed the former
 grant but had not acquired its lease before that transition SHALL be denied.
@@ -208,6 +215,12 @@ boundary SHALL run inside the allow-listed `IsolatedWorker` namespace or be refu
 - **THEN** revocation cancels or terminates that evaluation and every descendant under the enforceable supervisor boundary
 - **AND THEN** revocation remains `RevocationPending`, keeps the repository untrusted, and fences new admissions and grants until verified quiescence
 - **AND THEN** successful revocation means no old-generation repository-controlled code can execute afterward
+
+#### Scenario: trusted checkout is replaced during evaluator startup
+
+- **WHEN** `InProcess` admission acquires its trust lease and the canonical checkout directory entry is replaced before MSBuild opens the solution
+- **THEN** evaluator startup reads only through the held verified-root capability or its immutable snapshot and never opens the replacement under the old grant
+- **AND THEN** the request either evaluates the exact granted physical repository with matching provenance or fails with a typed stale-binding safety outcome before repository-controlled code starts
 
 ### Requirement: request context is explicit and host-neutral
 
@@ -481,7 +494,7 @@ transfer.
 
 #### Scenario: ownership transfer races an active apply
 
-- **WHEN** transfer begins while an operation is `Applying`, `Recovering`, `Reconciling`, or otherwise nonterminal
+- **WHEN** transfer begins while an operation is `Applying`, `Recovering`, `OwnerQuiescencePending`, `Reconciling`, or otherwise nonterminal
 - **THEN** no new mutation intake is admitted and transfer does not change the ownership domain or repository identity yet
 - **AND THEN** the active owner completes under the old reservation, or an expired owner is fenced and reconciled under that same reservation
 - **AND THEN** transfer remains pending if the operation or reservation cannot be proven quiescent
@@ -690,8 +703,17 @@ renewable owner lease and monotonically increasing fencing epoch. Before the fir
 repository effect, one store-enforced compare-and-swap SHALL either commit
 `CancelledNoEffect` when cancellation is pending or durably append
 `FirstEffectStarted` with the complete effect intent, expected intermediate state,
-and guard/version tokens and grant the fenced owner permission to issue exactly that
-effect. After owner loss, the marker SHALL be treated as possibly effected until
+and guard/version tokens and make the fenced owner eligible to request exactly that
+effect. It SHALL NOT be a reusable bearer permission to write. A mutation worker SHALL
+have no bypassable direct repository-write authority: every effect SHALL be admitted
+at the actual filesystem-operation boundary by an OS-enforced broker/fence that
+atomically revalidates the reservation, epoch, lease, ledger state, one-use intent,
+and guard/conditional tokens. Effect admission and closing/revoking that fence SHALL
+be linearizable. Once an effect wins admission, the fence SHALL NOT be reported
+quiescent until the conditional filesystem operation and its observed journal outcome
+are complete. If the platform cannot provide such a broker, epoch takeover SHALL be
+forbidden until verified worker termination has closed every repository-write handle.
+After owner loss, the marker SHALL be treated as possibly effected until
 reconciliation proves its observed outcome from durable evidence.
 Every side effect and every expired-owner takeover SHALL validate the reservation,
 external-write guards or conditional-effect tokens, current ledger state, epoch,
@@ -705,8 +727,8 @@ state that makes no repository-cleanliness claim. `CancelledNoEffect`,
 `RejectedStale`, `RejectedConflict`, `RejectedPlanUnavailable`,
 `RejectedUnsafeCoordination`, and `Expired` SHALL
 remain no-effect terminal outcomes. `RecoveryRequired` SHALL be a durable intervention state, while `Received`,
-`NotRecorded`, `Prepared`, `Applying`, `Recovering`, and `Reconciling` are nonterminal
-or dormant resolution states.
+`NotRecorded`, `Prepared`, `Applying`, `Recovering`, `OwnerQuiescencePending`, and
+`Reconciling` are nonterminal or dormant resolution states.
 
 If `Received` exists but the exact leased plan becomes unavailable or fails envelope,
 schema, or hash verification before `FirstEffectStarted`, the operation SHALL
@@ -742,9 +764,9 @@ evidence in `RecoveryRequired`.
 #### Scenario: cancellation races the first repository effect
 
 - **WHEN** cancellation and the first guarded repository effect become eligible concurrently
-- **THEN** one durable compare-and-swap either commits `CancelledNoEffect` or appends `FirstEffectStarted` with the complete first-effect intent and guard/version evidence and grants the current fenced owner permission to issue exactly that effect
+- **THEN** one durable compare-and-swap either commits `CancelledNoEffect` or appends `FirstEffectStarted` with the complete first-effect intent and guard/version evidence, making the current fenced owner eligible to request exactly that effect through the non-bypassable effect broker
 - **AND THEN** if cancellation wins, no repository effect can start
-- **AND THEN** if the effect permit wins, cancellation is recorded but cannot produce `CancelledNoEffect` or interrupt recovery-critical verification and rollback
+- **AND THEN** if the effect permit wins, broker admission revalidates current authority at the actual conditional filesystem boundary, and cancellation is recorded but cannot produce `CancelledNoEffect` or interrupt recovery-critical verification and rollback
 
 #### Scenario: a cancelled operation is submitted again
 
@@ -821,32 +843,36 @@ evidence in `RecoveryRequired`.
 #### Scenario: the apply process exits after a side effect may have started
 
 - **WHEN** an operation record remains `Applying` after its owner lease expires and `FirstEffectStarted` exists or durable evidence cannot exclude an effect
-- **THEN** process startup or `GetOperation` atomically claims one reconciliation lease and transitions the record to `Reconciling`
-- **AND THEN** the reconciler verifies the persisted plan, journal, backups, staged files, affected-path identities, and observed hashes
-- **AND THEN** it completes a provably finished apply, resumes or rolls back only from a declared journal boundary, or enters `RecoveryRequired`
-- **AND THEN** the operation cannot remain `Applying` indefinitely or be mistaken for a live owner
+- **THEN** process startup or `GetOperation` first closes and drains the effect fence or proves worker termination and write-capability closure
+- **AND THEN** proven quiescence permits one reconciler to advance the epoch and transition the record to `Reconciling`, while unproven quiescence records `OwnerQuiescencePending` and admits no reconciliation effect
+- **AND THEN** after proven quiescence the reconciler verifies the persisted plan, journal, backups, staged files, affected-path identities, and observed hashes
+- **AND THEN** that reconciler completes a provably finished apply, resumes or rolls back only from a declared journal boundary, or enters `RecoveryRequired`
+- **AND THEN** the operation is never left or reported as a healthy live `Applying` owner after expiry; an unquiesced holder remains explicitly intervention-blocked
 
 #### Scenario: a manual recovery owner exits after a side effect
 
 - **WHEN** an operation record remains `Recovering` after its owner lease expires
-- **THEN** the reconciler acquires the same repository reservation and complete external-write/conditional-effect protection, advances the fencing epoch, and preserves the requested recovery action
+- **THEN** a reconciler advances the fencing epoch only after the old effect fence is closed and drained or worker termination/write-capability closure is verified; otherwise it records `OwnerQuiescencePending`
+- **AND THEN** after quiescence it acquires the same repository reservation and complete external-write/conditional-effect protection and preserves the requested recovery action
 - **AND THEN** it reaches `RecoveredApplied`, `RecoveredRolledBack`, or `RecoveryRequired` from the durable journal rather than replaying an unproven effect
 
 #### Scenario: an expired apply owner resumes after reconciliation starts
 
 - **WHEN** a reconciler acquires the exclusive repository transaction reservation and advances the fencing epoch for an expired owner
+- **AND WHEN** it first proves the old worker terminated with all write capabilities closed or closes and drains the non-bypassable effect fence
 - **AND WHEN** it reacquires the persisted plan's complete external-write/conditional-effect protection before any repository effect
 - **AND WHEN** the original owner later resumes with its stale epoch
-- **THEN** the original owner cannot reacquire the reservation or append a journalled effect
+- **THEN** the original owner cannot reacquire the reservation, pass effect admission, or append a journalled effect
 - **AND THEN** it performs no replace, move, delete, backup, restore, or other repository write
 - **AND THEN** takeover tests suspend and resume owners before and after every reservation, epoch, and effect boundary to prove stale writers are excluded
 
 #### Scenario: an expired owner does not release the transaction reservation
 
-- **WHEN** bounded shutdown cannot prove the mutation worker exited and its OS reservation was released
-- **THEN** the ledger epoch is revoked and the operation records `RecoveryRequired` with the possibly in-flight journal boundary
-- **AND THEN** no reconciler or queued plan performs a repository effect until reservation release is proven
-- **AND THEN** the operation does not remain indefinitely reported as a healthy live `Applying` owner
+- **WHEN** bounded shutdown cannot prove the mutation worker exited and the authority cannot prove an OS-revocable effect fence is closed and drained
+- **THEN** the authority does not revoke or advance the owner's epoch and records nonterminal `OwnerQuiescencePending` with the possibly in-flight journal boundary
+- **AND THEN** the existing reservation and an authority-wide intervention barrier block reconciliation effects, recovery acknowledgement, transfer, retirement, and queued plans while operator-visible termination or fence reconciliation proceeds
+- **AND THEN** only verified worker termination with all write capabilities closed, or a closed and drained non-bypassable effect broker, permits epoch advancement and transition to `Reconciling`
+- **AND THEN** the operation is not reported as a healthy live owner or as `RecoveryRequired` while the old holder may still execute
 
 ### Requirement: indeterminate mutation dispatch is never replayed automatically
 

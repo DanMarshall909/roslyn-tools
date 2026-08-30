@@ -106,8 +106,11 @@ non-interactively bootstrapped decisions are `Untrusted`.
 Grant, revoke, and `InProcess` evaluator admission share a linearizable authority gate
 for the principal and verified repository binding. Admission atomically revalidates
 the grant and acquires a revocable lease for the current monotonic trust generation
-before repository-controlled code can run. Revocation closes admission, advances the
-generation, persists `Untrusted`, and cancels or terminates old-generation evaluations
+plus a held verified-root capability before repository-controlled code can run. The
+actual solution/build open consumes its handle-relative or immutable snapshot view,
+never a re-resolved ambient path; an evaluator that cannot preserve the physical
+binding through startup is refused in-process. Revocation closes admission, advances
+the generation, persists `Untrusted`, and cancels or terminates old-generation evaluations
 and descendants. It reports completion only after verified quiescence; otherwise its
 durable state is `RevocationPending`, new in-process admissions and replacement grants
 remain fenced, and missing lease state fails closed into reconciliation.
@@ -300,14 +303,15 @@ Under [ADR-0013](adr/0013-fenced-plan-unavailability-resolution.md), a quota-bou
 and canonical request identity before any request bytes are sent. `Received` atomically
 adopts that pin. Garbage collection retains it through authoritative dispatch
 resolution and every nonterminal state, including `Recovering`, through
-`RecoveryRequired`, and while a `CancelledNoEffect` control bundle awaits verified
+`OwnerQuiescencePending` and `RecoveryRequired`, and while a `CancelledNoEffect`
+control bundle awaits verified
 cleanup; it releases the pin only after fenced resolution, verified terminal cleanup,
 durable epoch sealing/expiry, or explicit recovery acknowledgement.
 
-Apply creates a durable operation record, initializes its journal before staging, stages only in the outside-repository control root, acquires an exclusive canonical-repository transaction reservation, claims a renewable owner lease and monotonically increasing fencing epoch, validates every precondition, arbitrates cancellation against a complete journalled first-effect permit in one durable compare-and-swap, journals changes, revalidates the expected intermediate repository state at every side-effect boundary, applies deterministically, verifies postconditions, and records one truthful state. Interrupted pre-effect staging cleanup is idempotent and never touches the repository.
+Apply creates a durable operation record, initializes its journal before staging, stages only in the outside-repository control root, acquires an exclusive canonical-repository transaction reservation, claims a renewable owner lease and monotonically increasing fencing epoch, validates every precondition, arbitrates cancellation against a complete journalled first-effect permit in one durable compare-and-swap, journals changes, revalidates the expected intermediate repository state at every side-effect boundary, applies deterministically, verifies postconditions, and records one truthful state. A first-effect permit is eligibility to request one effect, not reusable write authority: a non-bypassable OS-enforced broker/fence revalidates authority at the actual conditional filesystem boundary and serializes effect admission with fence closure. Interrupted pre-effect staging cleanup is idempotent and never touches the repository.
 
 - `Received` or authoritative `NotRecorded` during replayable dispatch resolution;
-- `Applying`, `Recovering`, or bounded `Reconciling` while nonterminal;
+- `Applying`, `Recovering`, `OwnerQuiescencePending`, or bounded `Reconciling` while nonterminal;
 - `Applied`;
 - `RolledBack`;
 - `RecoveryRequired` as a durable intervention state;
@@ -321,14 +325,17 @@ Apply creates a durable operation record, initializes its journal before staging
 
 The ledger keeps an append-only transition history as well as the current state. An incomplete rollback is `RecoveryRequired`; it is never presented as clean failure or rollback. That state is committed to the coordination authority and cross-principal/cross-host registry before reservation release and blocks a different apply from any principal or host until fenced recovery verifies `RecoveredApplied` or `RecoveredRolledBack`, or an authorized user explicitly records `RecoveryAcknowledged`. Acknowledgement performs no repository effect and records actor, reason, observed hashes, unresolved warnings, and the absence of a cleanliness guarantee.
 
-An `Applying` owner that disappears cannot leave a permanent nonterminal record.
-Startup and status lookup claim an expired lease exactly once, transition through
-`Reconciling`, and use the durable plan, journal, backups, and observed hashes to
+An expired `Applying` owner is never left or reported as healthy live work. Startup and
+status lookup first close and drain the effect fence or prove worker termination and
+write-capability closure. Proven quiescence permits one reconciler to advance the epoch,
+transition through `Reconciling`, and use the durable plan, journal, backups, and observed hashes to
 prove `Applied`, prove `RolledBack`, or require explicit recovery. If the fenced
 reconciler instead proves the intact journal has no `FirstEffectStarted` permit and no
 repository effect was possible, it reruns final preflight and may record the applicable
 `CancelledNoEffect`, `RejectedStale`, `RejectedUnsafeCoordination`, or `Expired`
 outcome without reverting external drift; ambiguous evidence is `RecoveryRequired`.
+Until quiescence is proven, the operation remains `OwnerQuiescencePending` behind the
+authority-wide intervention barrier rather than falsely advancing ownership.
 An expired
 `Recovering` owner is reconciled under the same reservation, lease, and fencing
 rules and ends as `RecoveredApplied`, `RecoveredRolledBack`, or
@@ -346,8 +353,12 @@ apply or recovery transaction for the repository can enter final validation whil
 it is held. At every journalled effect, the owner verifies the reservation, ledger
 state, fencing epoch, lease, prior effect outcomes, and every still-relevant plan
 dependency. A reconciler acquires the same reservation before advancing the epoch;
-after takeover, a resumed stale owner cannot pass the reservation/epoch check or
-perform another write. Drift before the first effect returns stale rejection; drift
+it also closes and drains the effect fence or proves worker termination and write-handle
+closure before advancing. If neither can be proven, the epoch remains current and the
+operation enters nonterminal `OwnerQuiescencePending` behind an authority-wide barrier;
+it cannot transition to or acknowledge `RecoveryRequired`, transfer, retire, or admit
+queued work while the stale holder may execute. After safe takeover, a resumed stale
+owner cannot pass broker admission or perform another write. Drift before the first effect returns stale rejection; drift
 after any journalled effect stops the remaining plan and verifies rollback to
 `RolledBack` or `RecoveryRequired`, never stale rejection or applied success.
 Recovery artifacts stay pinned through `RecoveryRequired`

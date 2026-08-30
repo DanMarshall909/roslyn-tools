@@ -65,13 +65,17 @@ The current design has no threat model, trust decision, worker boundary, environ
 **Required correction**
 
 - Model repository trust (`Trusted | Untrusted`) independently from evaluator mode (`NoEvaluation | InProcess | IsolatedWorker`).
+- Derive trust from the protected authenticated-principal registry and bind in-process
+  admission to a generation-scoped lease plus a held verified-root capability consumed
+  at the actual evaluator open; never re-resolve a replaceable checkout path under an
+  earlier grant.
 - Refuse untrusted MSBuild-backed evaluation until a constrained worker is available.
 - Keep untrusted evaluation out of long-lived CLI, MCP, and daemon hosts.
 - Treat `NoEvaluation` as code-execution-free, not read-unrestricted: require verified-root handle-relative/no-follow reads or route the operation through the allow-listed worker.
 - Pass absolute request context rather than relying on current directory/environment.
-- Use an OS-enforced allow-listed filesystem namespace with read-only repository and declared SDK/package inputs, disposable writable outputs/caches/temp, no ambient host profile/credential/device paths, stripped inherited secrets, no network during any untrusted-code phase, and bounded CPU/memory/time; acquire reviewed lockfile-pinned dependencies beforehand through a separate trusted broker that executes no repository code.
+- Use an OS-enforced allow-listed filesystem namespace with a handle-validated private-inode checkout snapshot that rejects unproven hard-link aliases, declared SDK/package inputs, disposable quota-bound writable outputs/caches/temp, no ambient host profile/credential/device paths, stripped inherited secrets, no network during any untrusted-code phase, and descendant-inherited process/descriptor/CPU/memory/time limits; acquire reviewed lockfile-pinned dependencies beforehand through a separate trusted broker that executes no repository code and verify bounded teardown.
 - Record trust state/evaluator mode and analyzer/generator policy in provenance.
-- Test hostile targets, analyzers/generators, hangs, output floods, source/config symlinks and reparse/mount/hard-link escapes, environment reads, and network attempts.
+- Test hostile targets, analyzers/generators, hangs, fork/descriptor/output/disk/inode floods, source/config symlinks and reparse/mount/hard-link escapes, checkout replacement during trusted startup, cleanup failure, environment reads, and network attempts.
 
 This should be treated as a product security boundary, not an optional enterprise feature.
 
@@ -120,7 +124,8 @@ retries, crashes, or process restarts.
 - Resolve one OS/service-protected cross-principal/cross-host repository identity and barrier registry; enroll new checkouts only through an explicit authority-fenced operation with continuity proof and a never-reused monotonic identity, then prove no other non-administrative principal or host can write the checkout or require one shared coordination authority; otherwise keep it inspect-only.
 - Preserve repository identity during ownership transfer, block new intake, and quiesce or reconcile every active operation under the existing reservation before atomically rotating the coordination generation and writer credentials.
 - Record expected existence/hash/type, platform identity/link count, encoding/BOM/newlines, permissions/mode, symlink/hard-link policy, repository revision, exact diff, expiry, verification, and recovery data.
-- Pin the exact plan and recovery bundle while an operation is nonterminal (including `Recovering`) or `RecoveryRequired`.
+- Pin the exact plan and recovery bundle while an operation is nonterminal (including
+  `Recovering` and `OwnerQuiescencePending`) or `RecoveryRequired`.
 - Assign caller-known operation identity and persist its ledger before writes.
 - Acquire one exclusive canonical-repository transaction reservation before final whole-plan preflight and hold it through the durable terminal result or recovery handoff so plans cannot interleave.
 - Acquire OS-enforced guards for every reviewed dependency/target or use atomic conditional effects so non-`rt` writers cannot win between validation and effect; advisory locks and unconditional replacement are insufficient.
@@ -133,7 +138,10 @@ retries, crashes, or process restarts.
 - Roll back and verify after failure.
 - Enter durable `RecoveryRequired`, retain journal/backups, and publish the barrier through the coordination domain to every writable OS principal before releasing the reservation when rollback cannot restore every path.
 - Once the first-effect permit wins, record later cancellation without interrupting verification or rollback.
-- Reconcile expired apply-owner leases from durable evidence after restart using a fencing epoch and the same transaction reservation.
+- Route each one-use journalled effect through a non-bypassable OS-enforced broker that
+  revalidates the current epoch at the actual conditional filesystem operation; a
+  permit is not direct reusable write authority.
+- Reconcile expired apply-owner leases from durable evidence after restart using a fencing epoch and the same transaction reservation, but advance the epoch only after the effect fence is closed and drained or worker termination/write-capability closure is verified; otherwise retain `OwnerQuiescencePending` behind an intervention barrier.
 - Add explicit fenced recovery operations with append-only `Recovering -> RecoveredApplied | RecoveredRolledBack | RecoveryRequired` transitions.
 - Make explicit acknowledgement a non-clean administrative outcome with actor, reason, observed evidence, artifact-retention choice, and immutable audit history.
 

@@ -36,12 +36,23 @@ durable plan, ledger, recovery, failure-injection, and host-parity gates demonst
 that an implicit apply is an accepted product policy. Completing an application-port
 migration alone is not that evidence.
 
+The recovery gate includes revocable effect admission, not only a ledger fencing
+number. A mutation worker does not hold bypassable repository-write authority: each
+one-use journalled intent is admitted by an OS-enforced broker/fence at the actual
+conditional filesystem operation. Effect admission and fence closure are linearizable.
+If direct write handles exist, an expired owner's epoch cannot advance until verified
+process termination closes them; otherwise the operation remains nonterminal
+`OwnerQuiescencePending` behind an intervention barrier and cannot be acknowledged as
+`RecoveryRequired`.
+
 ## Consequences
 
 - Migration groups M0 through M4 cannot land a new implicit-write default.
 - Existing `apply-default` manifest rows remain visible as containment debt until their
   runtime definitions are changed and verified.
 - Automation can still request apply explicitly, but omission is non-mutating.
+- Explicit apply cannot pass the safety gate with ledger-only fencing or an unverified
+  stale writer.
 - Tests distinguish review, dry-run, explicit apply, and no-op and assert that the
   default path leaves the repository byte-identical.
 

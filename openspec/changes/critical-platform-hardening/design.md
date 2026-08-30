@@ -84,8 +84,13 @@ durably audited, and non-interactive callers cannot bootstrap trust.
 Grant, revoke, and `InProcess` evaluator admission use one linearizable trust gate per
 authenticated principal, canonical repository identity, and verified physical binding.
 Admission atomically re-reads the grant and acquires a revocable evaluator lease bound
-to the current monotonic `TrustGeneration` before repository-controlled code can run;
-an earlier trust read is not an admission token. Revoke atomically closes admission,
+to the current monotonic `TrustGeneration` plus a held verified-root capability before
+repository-controlled code can run. That capability pins the grant's physical root and
+provides the evaluator a handle-relative or immutable snapshot view. The actual
+solution/build open consumes and revalidates the capability rather than re-resolving
+the canonical ambient path; if an evaluator cannot preserve that binding through
+startup, `InProcess` is refused in favour of isolation or a typed safety failure. An
+earlier trust read is not an admission token. Revoke atomically closes admission,
 increments that generation, persists `Untrusted`, and records the audit event, so a
 request paused before lease acquisition cannot start afterward. Evaluations whose
 leases linearized first are already admitted: the authority cancels or terminates them
@@ -160,6 +165,8 @@ The CLI, MCP host, and daemon are long-lived privileged processes and SHALL NOT 
 Workspace provenance records:
 
 - canonical repository and solution identity;
+- verified physical-root capability and immutable snapshot identity consumed at
+  evaluator startup;
 - trust state and evaluator mode;
 - requested, loaded, and failed projects;
 - SDK/MSBuild/compiler versions and configuration;
@@ -516,6 +523,8 @@ Prepared
        -> RejectedStale  (only while FirstEffectStarted is absent)
        -> RejectedUnsafeCoordination  (only while FirstEffectStarted is absent)
        -> Expired  (only while FirstEffectStarted is absent)
+       -> OwnerQuiescencePending
+            -> Reconciling
        -> Reconciling
             -> Applied
             -> RolledBack
@@ -551,6 +560,8 @@ RecoveryRequired
        -> RecoveredApplied
        -> RecoveredRolledBack
        -> RecoveryRequired
+       -> OwnerQuiescencePending
+            -> Reconciling
        -> Reconciling
             -> RecoveredApplied
             -> RecoveredRolledBack
@@ -588,8 +599,8 @@ The implementation:
 6. proves that every read dependency, affected path, and source/destination directory entry supports an OS-enforced conditional effect or exclusive external-write guard;
 7. establishes complete transaction protection by acquiring that guard set in deterministic order or recording immutable version tokens that every conditional effect checks atomically, and retains it with the repository reservation through final status or explicit recovery handoff;
 8. while holding both boundaries, performs final whole-plan preflight of every revision, read dependency, path, hash, permission, link, destination, and free-space condition;
-9. before the first repository effect, uses one store-enforced compare-and-swap to either commit `CancelledNoEffect` when cancellation is pending or append `FirstEffectStarted` with the complete first-effect intent, expected intermediate state, and guard/version tokens, then grants the current fenced owner permission to issue exactly that effect;
-10. revalidates the guard tokens, ledger state, fencing epoch, lease, expected intermediate repository state, all prior effect outcomes, and every still-relevant plan dependency before each operation, then journals intent, performs the guarded conditional side effect, and durably records its observed outcome;
+9. before the first repository effect, uses one store-enforced compare-and-swap to either commit `CancelledNoEffect` when cancellation is pending or append `FirstEffectStarted` with the complete first-effect intent, expected intermediate state, and guard/version tokens, making the current fenced owner eligible to request exactly that effect without granting reusable write authority;
+10. routes every requested effect through a non-bypassable OS-enforced effect-admission broker/fence that, at the actual filesystem boundary, atomically revalidates the guard tokens, ledger state, fencing epoch, lease, one-use intent, expected intermediate repository state, all prior effect outcomes, and every still-relevant plan dependency, then performs the guarded conditional side effect and durably records its observed outcome before the fence can quiesce;
 11. orders operation boundaries deterministically and uses atomic per-path replacement where supported;
 12. while still holding the complete guard set, verifies expected postconditions and durably records the terminal result; then cleans staging and releases the guards and reservation; or
 13. performs guarded rollback from the journal.
@@ -759,11 +770,22 @@ On process startup and `GetOperation`, a reconciler must acquire that same
 reservation before a compare-and-swap advances the epoch and transitions an expired
 `Applying` entry to `Reconciling`; process exit releases the OS reservation. If an
 expired owner still holds it, the reconciler performs no repository effect and does
-not claim the epoch until the reservation is safely released. The supervisor applies
-a bounded shutdown to the mutation worker. If it cannot prove worker exit and OS
-reservation release, it revokes the ledger epoch, records `RecoveryRequired` with
-the possibly in-flight journal boundary, and performs no reconciliation effect until
-release is proven. After takeover, a resumed old owner cannot reacquire the
+not claim the epoch until the reservation is safely released. Every repository effect
+is mediated by a non-bypassable OS-enforced broker/fence; `FirstEffectStarted` only
+authorizes a one-use request to that broker. Effect admission and fence closure are
+linearizable, and a fence is not drained until an admitted conditional effect and its
+observed journal outcome complete. A worker with direct repository-write handles does
+not meet this contract.
+
+The supervisor applies a bounded shutdown to the mutation worker. If it cannot prove
+worker exit and all write capabilities closed, or prove that the effect fence is closed
+and drained, it does not revoke or advance the epoch. It appends nonterminal
+`OwnerQuiescencePending` with the possibly in-flight journal boundary and retains the
+reservation plus an authority-wide intervention barrier that blocks reconciliation
+effects, acknowledgement, transfer, retirement, and queued plans. Only verified
+termination or a reconciled non-bypassable fence permits epoch advancement and entry
+to `Reconciling`; `RecoveryRequired` is unavailable while the stale holder may still
+execute. After safe takeover, a resumed old owner cannot reacquire the
 reservation with its stale token and must stop before journalling or performing
 another side effect. Fault injection suspends owners before and after reservation,
 epoch, and effect boundaries to prove this property.
@@ -780,9 +802,10 @@ final preflight and may terminate as `CancelledNoEffect`, `RejectedStale`,
 `RejectedUnsafeCoordination`, or `Expired`; it does not roll back unrelated external
 drift. Otherwise it deterministically completes a provably finished apply, resumes or
 rolls back only from a declared journal boundary, or enters `RecoveryRequired` with
-retained evidence. An operation cannot remain
-`Applying` indefinitely after its owner disappears, and ambiguous state is never
-reported as `Applied` or silently replayed.
+retained evidence. An expired operation is not left or reported as a healthy live
+`Applying` owner: when stale-writer quiescence cannot yet be proven it remains
+explicitly `OwnerQuiescencePending` behind the intervention barrier. Ambiguous state
+is never reported as `Applied` or silently replayed.
 
 ## Transport outcome
 

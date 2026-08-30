@@ -32,8 +32,11 @@ output, ordinary requests, or non-interactive callers to bootstrap trust.
 
 Grant, revoke, and `InProcess` evaluator admission share one linearizable gate for the
 principal and verified repository binding. Admission atomically revalidates the grant
-and acquires a revocable lease for the current monotonic trust generation before any
-repository-controlled code runs. Revoke closes admission, advances the generation,
+and acquires a revocable lease for the current monotonic trust generation plus a held
+verified-root capability before any repository-controlled code runs. The evaluator's
+actual solution/build open consumes that handle-relative or immutable snapshot view,
+not a re-resolved ambient path; a host that cannot preserve the binding through startup
+refuses `InProcess`. Revoke closes admission, advances the generation,
 persists `Untrusted`, and then cancels or terminates already admitted old-generation
 evaluations and descendants. It completes only after their quiescence is verified;
 until then it is durably `RevocationPending` and replacement grants remain fenced.
@@ -76,10 +79,10 @@ the separate root-contained handle-relative safe-reader contract.
   capability detection.
 - Read-only checkout views cannot preserve unproven host inode aliases, and process,
   descriptor, writable-byte, inode, and teardown budgets are containment properties.
-- Adversarial tests cover forged trust claims, stale bindings, grant/revoke admission
-  races and lost-lease reconciliation, hard-linked host files, fork/descriptor and
-  disk/inode exhaustion, cleanup failure, host-process access, undeclared IPC,
-  host-file access, writes, and network egress.
+- Adversarial tests cover forged trust claims, stale bindings and startup replacement,
+  grant/revoke admission races and lost-lease reconciliation, hard-linked host files,
+  fork/descriptor and disk/inode exhaustion, cleanup failure, host-process access,
+  undeclared IPC, host-file access, writes, and network egress.
 
 ## Alternatives considered
 
