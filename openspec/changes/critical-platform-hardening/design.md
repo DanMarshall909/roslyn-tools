@@ -54,26 +54,38 @@ A canonical request context contains absolute, normalised values rather than amb
 - repository root and solution path;
 - working directory only as an explicit absolute path;
 - configuration, target framework selection, SDK identity, and environment allow-list;
-- trust mode and evaluator mode;
+- trust state and evaluator mode;
 - cancellation and resource budget; and
 - client/host identity for diagnostics, not authorisation.
 
 Operations do not read or mutate process current directory, global console state, `Environment.ExitCode`, or arbitrary process environment as request context.
 
-## Trusted-workspace boundary
+## Trust and evaluator-isolation boundary
 
-`WorkspaceRequest` declares one of these trust modes:
+`WorkspaceRequest` declares two independent axes:
 
-- `Trusted`: repository-controlled evaluation may run under the user's explicit trust decision.
-- `Isolated`: evaluation runs in a constrained worker with a narrow filesystem view, no inherited secrets, bounded CPU/memory/time, and no network unless explicitly enabled.
-- `Untrusted`: project evaluation is refused; file-only operations may still run if their contract does not invoke MSBuild, analyzers, generators, or repository executables.
+- `TrustState` is `Trusted` only under the user's explicit, repository-scoped decision; otherwise it is `Untrusted`.
+- `EvaluatorMode` is `NoEvaluation`, `InProcess`, or `IsolatedWorker`.
+
+`Untrusted` can be paired with `NoEvaluation` or `IsolatedWorker`, never
+`InProcess`. `Trusted` can still be paired with `IsolatedWorker` when the user or
+policy requests defence in depth. Isolation is therefore an execution decision, not
+a trust state.
+
+The isolated worker receives the repository through an OS-enforced read-only mount
+or equivalent handle boundary. Build outputs, intermediate files, package/analyzer
+caches, and temporary files live in separate disposable writable locations outside
+the checkout. The worker inherits no secrets, has bounded CPU/memory/time, and has
+no network unless explicitly enabled. Repository-controlled tasks, analyzers, or
+generators that attempt to write source or repository-control files are denied and
+audited; evaluator completion never copies undeclared writes back into the checkout.
 
 The CLI, MCP host, and daemon are long-lived privileged processes and SHALL NOT evaluate an untrusted repository in-process. A trust decision is scoped to a canonical repository identity and can be inspected and revoked. It is never inferred merely because a checkout is local or an editor opened it.
 
 Workspace provenance records:
 
 - canonical repository and solution identity;
-- trust and evaluator mode;
+- trust state and evaluator mode;
 - requested, loaded, and failed projects;
 - SDK/MSBuild/compiler versions and configuration;
 - relevant global.json and project graph identity;
@@ -107,8 +119,17 @@ Apply loads the exact persisted plan bytes identified by repository ID, plan ID,
 plan hash. A missing, expired, unreadable, schema-incompatible, or hash-mismatched plan
 is rejected before the operation ledger enters `Applying`. Apply never reconstructs a
 plan from command arguments or a newer workspace snapshot. The plan store uses
-owner-only access where supported, bounded retention, atomic writes, and crash-safe
-cleanup; repositories cannot supply or replace its control metadata.
+owner-only access where supported, bounded retention for unreferenced plans and
+safely cleaned terminal history, atomic writes, and crash-safe cleanup;
+repositories cannot supply or replace its control metadata.
+
+Bounded retention applies only to unreferenced prepared plans and safely cleaned
+terminal history. Creating an operation record pins its canonical plan bytes by
+durable ledger reference. Garbage collection cannot remove a plan while an
+associated operation is `Applying`, `Reconciling`, or `RecoveryRequired`, and
+releases it only after verified terminal cleanup or explicit recovery
+acknowledgement. Recovery evidence and its plan are retained as one referentially
+complete bundle.
 
 ### Prepared plan contents
 
@@ -151,12 +172,12 @@ The implementation:
 
 1. loads and verifies the exact persisted plan;
 2. creates or reads the durable operation record;
-3. validates operation replay semantics and claims a renewable owner lease;
+3. validates operation replay semantics and claims a renewable owner lease plus fencing epoch under the repository's single-writer fence;
 4. preflights every revision, path, hash, permission, symlink, destination, and free-space condition;
 5. stages replacement content, preferably on the same volume;
 6. durably writes a journal and recovery metadata;
-7. revalidates containment and file identity at each side-effect boundary;
-8. applies operations in a deterministic order using atomic per-path replacement where supported;
+7. for each operation, acquires the single-writer fence, revalidates ledger state, fencing epoch, lease, containment, and file identity, journals intent, performs the side effect, and durably records its observed outcome before releasing the fence;
+8. orders those fenced operation boundaries deterministically and uses atomic per-path replacement where supported;
 9. verifies expected postconditions;
 10. commits the terminal result and cleans staging only after durable success; or
 11. performs rollback from the journal.
@@ -182,11 +203,20 @@ to the verified repository state. No recovery action follows an unverified path.
 
 ### Restart reconciliation
 
-Every `Applying` ledger entry contains an owner instance ID, lease epoch, lease
-expiry, and heartbeat. A live owner renews its lease while applying or rolling back.
-On process startup and `GetOperation`, an expired `Applying` entry is claimed by one
-reconciler through a compare-and-swap lease transition to `Reconciling`; a live lease
-cannot be stolen.
+Every `Applying` ledger entry contains an owner instance ID, monotonically increasing
+fencing epoch, lease expiry, and heartbeat. A live owner renews its lease while
+applying or rolling back. Every journalled filesystem effect runs inside an
+OS-enforced per-repository single-writer fence and validates the current ledger
+state, epoch, and lease immediately before the effect. On process startup and
+`GetOperation`, a reconciler must acquire that same fence before a compare-and-swap
+advances the epoch and transitions an expired `Applying` entry to `Reconciling`; a
+live lease cannot be stolen.
+
+If an old owner is paused inside an effect boundary, the reconciler cannot advance
+the epoch until that fenced boundary completes. If the reconciler has advanced the
+epoch, a resumed old owner cannot reacquire the fence with its stale token and must
+stop before journalling or performing another side effect. Fault injection suspends
+owners before and after every fence check to prove this property.
 
 The reconciler verifies the plan hash, journal, backups, staged files, affected-path
 identities, and observed pre/post hashes. It then deterministically completes a

@@ -62,22 +62,30 @@ A failed or interrupted rollback is never reported as clean rollback. The operat
 
 Every `Applying` record has a renewable owner lease. Expired owners transition
 through bounded `Reconciling` work on startup or status lookup, and finish only as a
-verified apply, verified rollback, or `RecoveryRequired`. Filesystem effects use
+verified apply, verified rollback, or `RecoveryRequired`. A monotonically increasing
+fencing epoch and one OS-enforced repository side-effect fence prevent a resumed
+superseded owner from writing after takeover. Filesystem effects use
 handle-relative no-follow/reparse-safe operations, or unattended apply is blocked
 when the platform cannot prove containment at the side-effect boundary.
 
-Untrusted repositories are not evaluated inside the long-lived CLI, MCP, or daemon host. The tool must refuse, obtain explicit trust, or evaluate through an appropriately constrained worker boundary.
+Plans referenced by nonterminal or `RecoveryRequired` operations remain pinned with
+their recovery evidence until verified terminal cleanup or explicit acknowledgement;
+normal retention cannot strand recovery without the reviewed bytes.
+
+Repository trust and evaluator mode are independent. Untrusted repositories are not evaluated inside the long-lived CLI, MCP, or daemon host, while trusted repositories may still request isolation. An isolated worker receives an OS-enforced read-only checkout and separate disposable writable output/cache locations; the tool must refuse evaluation when that boundary is unavailable.
 
 ## Success measures
 
 - No apply-capable legacy daemon or MCP bridge can automatically replay a mutation after dispatch ambiguity.
 - A caller can recover the operation ID even when the first response is lost, query status, and receive the same terminal outcome for repeated identical requests.
 - Review and apply can run in separate processes and still consume byte-identical, hash-verified plan data from outside repository control.
+- Plan retention cannot remove bytes still referenced by a nonterminal or recovery-required operation.
 - A symlink/reparse swap after preflight cannot redirect any write, move, delete, backup, or restore outside the verified root.
 - Killing the apply owner after any journal boundary leads through lease-based reconciliation to a verified terminal state rather than indefinite `Applying`.
+- A superseded owner resumed after lease takeover is fenced from every further repository side effect.
 - Fault injection proves complete success, complete rollback, or truthful `RecoveryRequired`; partial application is never labelled `Applied`.
 - No proof-strength finding or deletion suggestion is emitted from a partial workspace or an externally visible symbol without an explicit proof basis.
-- Untrusted-workspace tests demonstrate that repository-controlled build logic is not executed in a privileged long-lived host.
+- Trust/evaluator tests cover untrusted isolated evaluation and trusted opt-in isolation; repository-controlled build logic cannot write through the isolated worker's read-only checkout or execute in a privileged long-lived host.
 - The five spine commands pass CLI, MCP, in-process, and passthrough parity plus cancellation and failure-injection tests.
 - MCP conformance is tested for every advertised protocol version; structured tools return schema-valid `structuredContent` as well as a text view.
 - `dotnet build` is hermetic: it does not modify the repository, deploy files into the user profile, or depend on an already-running daemon.

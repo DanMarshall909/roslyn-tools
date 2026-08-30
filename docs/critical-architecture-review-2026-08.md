@@ -64,12 +64,12 @@ The current design has no threat model, trust decision, worker boundary, environ
 
 **Required correction**
 
-- Add `Trusted | Isolated | Untrusted` workspace policy.
+- Model repository trust (`Trusted | Untrusted`) independently from evaluator mode (`NoEvaluation | InProcess | IsolatedWorker`).
 - Refuse untrusted MSBuild-backed evaluation until a constrained worker is available.
 - Keep untrusted evaluation out of long-lived CLI, MCP, and daemon hosts.
 - Pass absolute request context rather than relying on current directory/environment.
-- Strip inherited secrets, disable network by default, bound CPU/memory/time, and narrow filesystem access in isolated mode.
-- Record trust/evaluator mode and analyzer/generator policy in provenance.
+- Mount repository inputs read-only, redirect outputs/caches/temp to disposable writable locations, strip inherited secrets, disable network by default, and bound CPU/memory/time in isolated mode.
+- Record trust state/evaluator mode and analyzer/generator policy in provenance.
 - Test hostile targets, analyzers/generators, hangs, output floods, symlink escapes, environment reads, and network attempts.
 
 This should be treated as a product security boundary, not an optional enterprise feature.
@@ -333,7 +333,7 @@ Add a machine-readable `rt doctor`/capabilities view showing:
 - installed/version/source and available updates;
 - supported CLI/MCP protocol versions;
 - selected SDK/MSBuild/compiler;
-- repository trust/evaluator mode;
+- repository trust state/evaluator mode;
 - workspace completeness and diagnostics;
 - stable/preview/experimental tool counts;
 - resource limits and timeout policy;
@@ -376,7 +376,7 @@ Core and application assemblies should not reference CLI/parser or MCP protocol 
 
 ### Phase 1 — establish trust and mutation truth
 
-1. Write the repository-evaluation threat model and trusted/isolated/untrusted policy.
+1. Write the repository-evaluation threat model with independent trust-state and evaluator-mode policy.
 2. Refuse untrusted semantic loading until the worker boundary exists.
 3. Add caller-generated operation IDs and durable status ledger.
 4. Complete prepared-plan metadata and stale-plan preflight.

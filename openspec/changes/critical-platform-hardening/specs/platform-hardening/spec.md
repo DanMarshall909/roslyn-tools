@@ -16,13 +16,26 @@ Each stable command SHALL have one typed request, one application operation, and
 
 ## Requirement: repository evaluation has an explicit trust boundary
 
-A workspace request SHALL declare trusted, isolated, or untrusted evaluation. The long-lived CLI, MCP, and daemon hosts SHALL NOT evaluate repository-controlled MSBuild logic, analyzers, generators, or repository executables in-process for an untrusted repository.
+A workspace request SHALL declare repository trust state and evaluator mode as independent values. Trust state SHALL be `Trusted` or `Untrusted`; evaluator mode SHALL be `NoEvaluation`, `InProcess`, or `IsolatedWorker`. Absence or revocation of an explicit repository-scoped trust decision SHALL produce `Untrusted`. An untrusted request SHALL NOT select `InProcess`, while a trusted request MAY still select `IsolatedWorker`. The long-lived CLI, MCP, and daemon hosts SHALL NOT evaluate repository-controlled MSBuild logic, analyzers, generators, or repository executables in-process for an untrusted repository.
 
 ### Scenario: untrusted repository requests semantic solution load
 
 - **WHEN** an untrusted repository requires MSBuild-backed semantic loading
 - **THEN** the tool refuses the operation or runs evaluation through the configured constrained worker
-- **AND THEN** the result reports the trust and evaluator modes in provenance
+- **AND THEN** the result independently reports `Untrusted` trust state and the selected evaluator mode in provenance
+
+### Scenario: trusted repository requests isolated evaluation
+
+- **WHEN** a trusted repository explicitly selects isolated evaluation
+- **THEN** evaluation runs in `IsolatedWorker` without changing the reported trust state
+- **AND THEN** provenance independently reports `Trusted` and `IsolatedWorker`
+
+### Scenario: isolated repository code attempts a write
+
+- **WHEN** repository-controlled build logic, an analyzer, or a generator in `IsolatedWorker` attempts to modify source or repository-control files
+- **THEN** an OS-enforced read-only repository view denies the write
+- **AND THEN** build outputs, intermediate files, caches, and temporary files use separate disposable writable locations outside the checkout
+- **AND THEN** the repository remains unchanged and the denied attempt is reported in provenance
 
 ### Scenario: file-only operation is safe without evaluation
 
@@ -37,7 +50,7 @@ A workspace request SHALL declare trusted, isolated, or untrusted evaluation. Th
 
 ## Requirement: request context is explicit and host-neutral
 
-Repository root, solution path, configuration, trust mode, resource budget, request ID, and operation ID SHALL travel as explicit request context. An operation SHALL NOT depend on or mutate process current directory, arbitrary process environment, global console state, or `Environment.ExitCode` as request context.
+Repository root, solution path, configuration, trust state, evaluator mode, resource budget, request ID, and operation ID SHALL travel as explicit request context. An operation SHALL NOT depend on or mutate process current directory, arbitrary process environment, global console state, or `Environment.ExitCode` as request context.
 
 ### Scenario: two repositories execute concurrently
 
@@ -47,7 +60,7 @@ Repository root, solution path, configuration, trust mode, resource budget, requ
 
 ## Requirement: prepared mutation plans are complete and immutable
 
-A mutation SHALL prepare an immutable change set before apply. The plan SHALL describe every create, replacement, delete, move, project edit, Roslyn document, additional document, and analyzer-config document it can affect, including exact path preconditions, expected hashes/existence, encoding/newline/file-mode policy, symlink policy, diff, verification plan, expiry, and repository revision. Before prepare succeeds, the exact canonical plan bytes SHALL be atomically persisted in a user-private durable store scoped by canonical repository identity. Apply SHALL identify those bytes by repository ID, plan ID, and plan hash and SHALL NOT recompute them from command arguments or a newer workspace snapshot.
+A mutation SHALL prepare an immutable change set before apply. The plan SHALL describe every create, replacement, delete, move, project edit, Roslyn document, additional document, and analyzer-config document it can affect, including exact path preconditions, expected hashes/existence, encoding/newline/file-mode policy, symlink policy, diff, verification plan, expiry, and repository revision. Before prepare succeeds, the exact canonical plan bytes SHALL be atomically persisted in a user-private durable store scoped by canonical repository identity. Apply SHALL identify those bytes by repository ID, plan ID, and plan hash and SHALL NOT recompute them from command arguments or a newer workspace snapshot. Once an operation record references a plan, the store SHALL pin its exact bytes through all nonterminal states and through `RecoveryRequired` until verified terminal cleanup or explicit recovery acknowledgement.
 
 ### Scenario: preview and apply use the same plan
 
@@ -61,6 +74,12 @@ A mutation SHALL prepare an immutable change set before apply. The plan SHALL de
 - **THEN** apply loads the exact persisted plan bytes whose repository ID, plan ID, and plan hash were reviewed
 - **AND THEN** a missing, expired, schema-incompatible, or hash-mismatched plan is rejected before any repository write
 - **AND THEN** repository-controlled files cannot replace the durable plan-store record
+
+### Scenario: retention elapses while recovery still references a plan
+
+- **WHEN** normal plan-retention time elapses while an associated operation is `Applying`, `Reconciling`, or `RecoveryRequired`
+- **THEN** garbage collection retains the exact plan bytes and their journal, backup, and recovery references as one complete bundle
+- **AND THEN** it releases them only after verified terminal cleanup or explicit recovery acknowledgement
 
 ### Scenario: a path escapes the repository root
 
@@ -104,7 +123,7 @@ Every apply request SHALL include a caller-generated operation ID before dispatc
 
 ## Requirement: reviewed mutations are failure-aware and recoverable
 
-Apply SHALL verify every precondition before writes, stage replacement data, durably journal side effects, apply changes deterministically, verify postconditions, and attempt rollback after an apply failure. Each `Applying` record SHALL carry a renewable owner lease, and an expired owner SHALL be reconciled from durable evidence. Terminal states SHALL distinguish `Applied`, `RolledBack`, `RecoveryRequired`, stale/conflict rejection, and expiry; `Reconciling` is a bounded nonterminal recovery state.
+Apply SHALL verify every precondition before writes, stage replacement data, durably journal side effects, apply changes deterministically, verify postconditions, and attempt rollback after an apply failure. Each `Applying` record SHALL carry a renewable owner lease and monotonically increasing fencing epoch. Every side effect and every expired-owner takeover SHALL use the same OS-enforced per-repository single-writer fence and validate the current ledger state, epoch, and lease at the effect boundary. An expired owner SHALL be reconciled from durable evidence. Terminal states SHALL distinguish `Applied`, `RolledBack`, `RecoveryRequired`, stale/conflict rejection, and expiry; `Reconciling` is a bounded nonterminal recovery state.
 
 ### Scenario: stale reviewed plan is applied
 
@@ -139,6 +158,14 @@ Apply SHALL verify every precondition before writes, stage replacement data, dur
 - **AND THEN** it completes a provably finished apply, resumes or rolls back only from a declared journal boundary, or enters `RecoveryRequired`
 - **AND THEN** the operation cannot remain `Applying` indefinitely or be mistaken for a live owner
 
+### Scenario: an expired apply owner resumes after reconciliation starts
+
+- **WHEN** a reconciler acquires the repository fence and advances the fencing epoch for an expired owner
+- **AND WHEN** the original owner later resumes with its stale epoch
+- **THEN** the original owner cannot reacquire a valid side-effect boundary or append a journalled effect
+- **AND THEN** it performs no replace, move, delete, backup, restore, or other repository write
+- **AND THEN** takeover tests suspend and resume owners before and after every fence boundary to prove stale writers are excluded
+
 ## Requirement: indeterminate mutation dispatch is never replayed automatically
 
 Mutation transport SHALL classify caller knowledge as `NotDispatched`, `Completed`, or `Indeterminate`. An `Indeterminate` mutation SHALL NOT be retried or run in-process automatically.
@@ -162,7 +189,7 @@ Mutation transport SHALL classify caller knowledge as `NotDispatched`, `Complete
 
 ## Requirement: workspace completeness governs confidence and advice
 
-Workspace acquisition SHALL return `Complete`, `Partial`, or `Failed`, requested/loaded/failed project identities, all diagnostics, source identity, revision, SDK/compiler configuration, and trust/evaluator provenance. Partial workspaces SHALL not produce proof-strength conclusions, deletion advice, or automatic mutation suggestions.
+Workspace acquisition SHALL return `Complete`, `Partial`, or `Failed`, requested/loaded/failed project identities, all diagnostics, source identity, revision, SDK/compiler configuration, and independent trust-state/evaluator-mode provenance. Partial workspaces SHALL not produce proof-strength conclusions, deletion advice, or automatic mutation suggestions.
 
 ### Scenario: project load fails during unused analysis
 
