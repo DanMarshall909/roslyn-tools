@@ -44,7 +44,7 @@ internal static class FeedbackStore
         return Path.Combine(fallback, "feedback.json");
     }
 
-    internal static List<FeedbackEntry> LoadAll() => ReadExisting();
+    internal static List<FeedbackEntry> LoadAll() => ReadExisting(ResolveStorePath());
 
     internal static string NextId(List<FeedbackEntry> existing)
     {
@@ -64,8 +64,9 @@ internal static class FeedbackStore
         Lock.Wait();
         try
         {
-            using var storeLock = AcquireStoreLock();
-            return AppendCore(entry);
+            var storePath = ResolveStorePath();
+            using var storeLock = AcquireStoreLock(storePath);
+            return AppendCore(entry, storePath);
         }
         finally
         {
@@ -110,8 +111,9 @@ internal static class FeedbackStore
         await Lock.WaitAsync(cancellationToken);
         try
         {
-            using var storeLock = await AcquireStoreLockAsync(cancellationToken);
-            var all = ReadExisting();
+            var storePath = ResolveStorePath();
+            using var storeLock = await AcquireStoreLockAsync(storePath, cancellationToken);
+            var all = ReadExisting(storePath);
             var entry = all.SingleOrDefault(candidate =>
                 string.Equals(candidate.Id, id, StringComparison.OrdinalIgnoreCase));
             if (entry is null)
@@ -126,7 +128,7 @@ internal static class FeedbackStore
             entry.Status = "processed";
             entry.ProcessedAt = DateTimeOffset.UtcNow.ToString("O");
             entry.Resolution = $"Reported as GitHub issue #{issueNumber}: {issueUrl}";
-            WriteAll(all);
+            WriteAll(all, storePath);
             return (entry, false);
         }
         finally
@@ -153,8 +155,9 @@ internal static class FeedbackStore
         Lock.Wait();
         try
         {
-            using var storeLock = AcquireStoreLock();
-            var all = ReadExisting();
+            var storePath = ResolveStorePath();
+            using var storeLock = AcquireStoreLock(storePath);
+            var all = ReadExisting(storePath);
             var entry = all.SingleOrDefault(candidate =>
                 string.Equals(candidate.Id, id, StringComparison.OrdinalIgnoreCase));
             if (entry is null)
@@ -163,7 +166,7 @@ internal static class FeedbackStore
             entry.Status = "processed";
             entry.ProcessedAt = DateTimeOffset.UtcNow.ToString("O");
             entry.Resolution = resolution;
-            WriteAll(all);
+            WriteAll(all, storePath);
             return entry;
         }
         finally
@@ -183,8 +186,11 @@ internal static class FeedbackStore
             await Lock.WaitAsync();
             try
             {
-                using var storeLock = await AcquireStoreLockAsync(CancellationToken.None);
-                var existing = ReadExisting();
+                var storePath = ResolveStorePath();
+                using var storeLock = await AcquireStoreLockAsync(
+                    storePath,
+                    CancellationToken.None);
+                var existing = ReadExisting(storePath);
                 var entry = new FeedbackEntry
                 {
                     Id = NextId(existing),
@@ -203,7 +209,7 @@ internal static class FeedbackStore
                     ParsedOptions = parsedOptions
                 };
                 existing.Add(entry);
-                WriteAll(existing);
+                WriteAll(existing, storePath);
             }
             finally
             {
@@ -242,21 +248,21 @@ internal static class FeedbackStore
         return chain;
     }
 
-    private static string AppendCore(FeedbackEntry entry)
+    private static string AppendCore(FeedbackEntry entry, string storePath)
     {
-        var all = ReadExisting();
+        var all = ReadExisting(storePath);
         if (string.IsNullOrWhiteSpace(entry.Id)
             || all.Any(existing => string.Equals(existing.Id, entry.Id, StringComparison.Ordinal)))
             entry.Id = NextId(all);
 
         all.Add(entry);
-        WriteAll(all);
+        WriteAll(all, storePath);
         return entry.Id;
     }
 
-    private static FileStream AcquireStoreLock()
+    private static FileStream AcquireStoreLock(string storePath)
     {
-        var lockPath = ResolveStoreLockPath();
+        var lockPath = ResolveStoreLockPath(storePath);
         while (true)
             try
             {
@@ -269,9 +275,10 @@ internal static class FeedbackStore
     }
 
     private static async Task<FileStream> AcquireStoreLockAsync(
+        string storePath,
         CancellationToken cancellationToken)
     {
-        var lockPath = ResolveStoreLockPath();
+        var lockPath = ResolveStoreLockPath(storePath);
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -294,11 +301,10 @@ internal static class FeedbackStore
             : errorCode is LinuxWouldBlock or BsdWouldBlock;
     }
 
-    private static string ResolveStoreLockPath()
+    private static string ResolveStoreLockPath(string storePath)
     {
-        var path = ResolveStorePath();
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        return path + ".lock";
+        Directory.CreateDirectory(Path.GetDirectoryName(storePath)!);
+        return storePath + ".lock";
     }
 
     private static FileStream OpenStoreLock(string lockPath) =>
@@ -310,9 +316,8 @@ internal static class FeedbackStore
             1,
             FileOptions.None);
 
-    private static List<FeedbackEntry> ReadExisting()
+    private static List<FeedbackEntry> ReadExisting(string path)
     {
-        var path = ResolveStorePath();
         if (!File.Exists(path)) return [];
 
         try
@@ -330,9 +335,8 @@ internal static class FeedbackStore
         }
     }
 
-    private static void WriteAll(List<FeedbackEntry> entries)
+    private static void WriteAll(List<FeedbackEntry> entries, string path)
     {
-        var path = ResolveStorePath();
         var dir = Path.GetDirectoryName(path)!;
         Directory.CreateDirectory(dir);
 

@@ -155,6 +155,39 @@ public class FeedbackStoreConcurrencyTests
     }
 
     [Fact]
+    public async Task report_uses_one_store_path_when_the_working_directory_changes_mid_operation()
+    {
+        using var sourceWorkspace = new ConcurrencyWorkspace();
+        using var unrelatedWorkspace = new ConcurrencyWorkspace();
+        using (sourceWorkspace.UseCurrentDirectory())
+        {
+            FeedbackStore.Append(new FeedbackEntry
+            {
+                Type = "user-feedback",
+                Description = "keep this report in its original store"
+            });
+
+            await FeedbackStore.ReportOnceAsync(
+                "FB-001",
+                (_, _) =>
+                {
+                    Directory.SetCurrentDirectory(unrelatedWorkspace.Root);
+                    return Task.FromResult((
+                        72,
+                        "https://github.com/example/repository/issues/72"));
+                });
+
+            Directory.SetCurrentDirectory(sourceWorkspace.Root);
+            var stored = FeedbackStore.TryGetById("FB-001");
+            stored.ShouldNotBeNull();
+            stored.GitHubIssueNumber.ShouldBe(72);
+
+            Directory.SetCurrentDirectory(unrelatedWorkspace.Root);
+            FeedbackStore.LoadAll().ShouldBeEmpty();
+        }
+    }
+
+    [Fact]
     public void missing_store_directory_is_not_treated_as_lock_contention()
     {
         var exception = new DirectoryNotFoundException("The feedback directory disappeared.");
@@ -173,7 +206,7 @@ public class FeedbackStoreConcurrencyTests
             _previousDirectory = Directory.GetCurrentDirectory();
         }
 
-        private string Root { get; }
+        public string Root { get; }
 
         public string StoreLockPath => Path.Combine(Root, "ralph", "feedback.json.lock");
 
