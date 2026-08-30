@@ -86,7 +86,7 @@ internal static class ReplaceNewCommandDefinition
         "refactor",
         Aliases: ["rn"],
         WhenToUse:
-        "Replacing all constructor invocations of a type with a method call or different constructor. Use when consolidating option construction patterns into factory methods.",
+        "Use this instead of manual Edit when replacing all constructor invocations of a type with a method call or different constructor, such as when consolidating option construction patterns into factory methods.",
         Examples:
         [
             "rt refactor replace-new --type \"Option<string>\" --with \"Factory.CreateStringOption\" --solution RoslynTools.slnx --dry-run",

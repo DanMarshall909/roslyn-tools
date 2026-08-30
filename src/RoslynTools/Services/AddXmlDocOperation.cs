@@ -123,7 +123,7 @@ internal static class AddXmlDocCommandDefinition
         "refactor",
         Aliases: ["xmldoc"],
         WhenToUse:
-        "Bulk-inserting XML <summary> doc comments from an LLM-generated JSON map. " +
+        "Use this instead of manual Edit when bulk-inserting XML <summary> doc comments from an LLM-generated JSON map. " +
         "The JSON file must be a flat object mapping fully-qualified type/member names to summary strings. " +
         "Skips symbols that already have a doc comment. Pair with `rt inspect find-undocumented` to generate the input list.",
         Examples:

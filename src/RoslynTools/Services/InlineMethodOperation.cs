@@ -64,7 +64,7 @@ internal static class InlineMethodCommandDefinition
         "refactor",
         Aliases: ["im"],
         WhenToUse:
-        "Inlining a trivial helper method (expression-bodied or single-return block) at every call site and removing the method declaration. Best for one-liner wrappers that add no clarity — over-extracted private methods that obscure intent.",
+        "Use this instead of manual Edit when inlining a trivial helper method (expression-bodied or single-return block) at every call site and removing the method declaration. Best for one-liner wrappers that add no clarity — over-extracted private methods that obscure intent.",
         Examples:
         [
             "rt refactor inline-method --type MathHelper --method Double --solution RoslynTools.slnx",

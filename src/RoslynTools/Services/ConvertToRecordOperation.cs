@@ -83,7 +83,7 @@ internal static class ConvertToRecordCommandDefinition
         "refactor",
         Aliases: ["ctr"],
         WhenToUse:
-        "Converting a class with init-only properties to a positional record, automatically removing redundant Equals/GetHashCode overrides and == operators that the record synthesises. Best suited to immutable DTOs and value objects.",
+        "Use this instead of manual Edit when converting a class with init-only properties to a positional record, automatically removing redundant Equals/GetHashCode overrides and == operators that the record synthesises. Best suited to immutable DTOs and value objects.",
         Examples:
         [
             "rt refactor convert-to-record --type BookingRequest --solution C:\\code\\libraries\\ProjectX.Libraries.sln",

@@ -91,7 +91,7 @@ internal static class MakeAsyncCommandDefinition
         "refactor",
         Aliases: ["ma"],
         WhenToUse:
-        "Converting a synchronous method to async Task<T> and updating its direct call sites with await, without manually hunting every invocation. Use --no-rename to skip the Async suffix when the call sites already have naming that makes async clear.",
+        "Use this instead of manual Edit when converting a synchronous method to async Task<T> and updating its direct call sites with await, without manually hunting every invocation. Use --no-rename to skip the Async suffix when the call sites already have naming that makes async clear.",
         Examples:
         [
             "rt refactor make-async --type BookingService --method Save --solution C:\\code\\libraries\\ProjectX.Libraries.sln",

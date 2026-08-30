@@ -94,7 +94,7 @@ internal static class MakeInstanceCommandDefinition
         "refactor",
         Aliases: ["mns"],
         WhenToUse:
-        "Converting a static method to an instance method. Removes the `static` modifier from the declaration and rewrites `Type.Method(...)` call sites to `instance.Method(...)` where an instance is reachable (local variable, field, or parameter of the correct type). Call sites with no reachable instance are warned and left unchanged.",
+        "Use this instead of manual Edit when converting a static method to an instance method. Removes the `static` modifier from the declaration and rewrites `Type.Method(...)` call sites to `instance.Method(...)` where an instance is reachable (local variable, field, or parameter of the correct type). Call sites with no reachable instance are warned and left unchanged.",
         Examples:
         [
             "rt refactor make-instance --method OrderService.Validate --solution C:\\code\\libraries\\ProjectX.Libraries.sln",

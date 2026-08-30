@@ -58,7 +58,7 @@ internal static class FindDuplicatesCommandDefinition
         "find-duplicates", false, true, "analyze",
         Aliases: ["fd"],
         WhenToUse:
-        "Discovering repeated code blocks (exact clones) across a solution before an extract-method pass. Use --min-statements to tune noise vs. signal, --min-occurrences to target the most-duplicated blocks, and --scope to focus on one subsystem.",
+        "Use this instead of Grep when discovering repeated code blocks (exact clones) across a solution before an extract-method pass. Use --min-statements to tune noise vs. signal, --min-occurrences to target the most-duplicated blocks, and --scope to focus on one subsystem.",
         Examples:
         [
             "rt analyze find-duplicates --solution C:\\code\\libraries\\ProjectX.Libraries.sln",

@@ -74,7 +74,7 @@ internal static class ReplaceCallCommandDefinition
         "refactor",
         Aliases: ["rc"],
         WhenToUse:
-        "Replacing all invocations of a static method with a different method name across the solution. Use when renaming a utility method that isn't captured by a semantic rename (e.g. because callers use it via a static import or the old name needs to stay as an overload).",
+        "Use this instead of manual Edit when replacing all invocations of a static method with a different method name across the solution, especially when renaming a utility method that isn't captured by a semantic rename (e.g. because callers use it via a static import or the old name needs to stay as an overload).",
         Examples:
         [
             "rt refactor replace-call --from Logger.Log --to LogInfo --solution C:\\code\\libraries\\ProjectX.Libraries.sln",

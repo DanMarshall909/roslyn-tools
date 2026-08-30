@@ -104,7 +104,7 @@ internal static class AddGlobalImportCommandDefinition
         "refactor",
         Aliases: ["agi"],
         WhenToUse:
-        "Adding a C# `global using` directive to an existing imports file such as GlobalUsings.cs. Use this when a namespace is intentionally available project-wide.",
+        "Use this instead of manual Edit when adding a C# `global using` directive to an existing imports file such as GlobalUsings.cs because a namespace is intentionally available project-wide.",
         Examples:
         [
             "rt refactor add-global-import --file tests/GlobalUsings.cs --namespace Xunit --solution RoslynTools.slnx",

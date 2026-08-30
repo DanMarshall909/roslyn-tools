@@ -82,7 +82,7 @@ internal static class DependencyGraphCommandDefinition
         "analyze",
         Aliases: ["depgraph"],
         WhenToUse:
-        "Visualising the type-level dependency graph for a solution or a specific root type, to understand coupling before a large refactor. Use --format dot to pipe into Graphviz, or --format json for programmatic consumption. Use --type + --depth to focus on a single type's fan-out.",
+        "Use this instead of Read when visualising the type-level dependency graph for a solution or a specific root type to understand coupling before a large refactor. Use --format dot to pipe into Graphviz, or --format json for programmatic consumption. Use --type + --depth to focus on a single type's fan-out.",
         Examples:
         [
             "rt analyze dependency-graph --solution C:\\code\\libraries\\ProjectX.Libraries.sln --scope ProjectX.Core",

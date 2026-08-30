@@ -83,7 +83,7 @@ internal static class ImplementInterfaceCommandDefinition
         "refactor",
         Aliases: ["ii"],
         WhenToUse:
-        "Generating throw-stub implementations for all unimplemented interface members in a class. Use after extract-interface or when a class is added to an interface's base list and needs skeleton stubs before real implementations are written.",
+        "Use this instead of manual Edit when generating throw-stub implementations for all unimplemented interface members in a class. Use after extract-interface or when a class is added to an interface's base list and needs skeleton stubs before real implementations are written.",
         Examples:
         [
             "rt refactor implement-interface --type BookingRepository --interface IBookingRepository --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
