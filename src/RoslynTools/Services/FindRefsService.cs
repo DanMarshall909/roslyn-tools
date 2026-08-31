@@ -31,20 +31,25 @@ internal class FindRefsService : IRtService
     internal async Task<FindRefsResult> FindAsync(
         Solution sln,
         string symbol,
-        string? kind)
+        string? kind,
+        CancellationToken cancellationToken = default)
     {
-        var sym = await ResolveSymbolAsync(sln, symbol, kind);
+        var sym = await ResolveSymbolAsync(sln, symbol, kind, cancellationToken);
 
         _logger.RtInfo("Finding references to '{Symbol}'...", sym.ToDisplayString());
 
-        var referencedSymbols = await SymbolFinder.FindReferencesAsync(sym, sln);
+        var referencedSymbols = await SymbolFinder.FindReferencesAsync(
+            sym,
+            sln,
+            cancellationToken: cancellationToken);
         var references = new List<ReferenceResult>();
 
         foreach (var referencedSymbol in referencedSymbols)
             foreach (var loc in referencedSymbol.Locations)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var doc = loc.Document;
-                var text = await doc.GetTextAsync();
+                var text = await doc.GetTextAsync(cancellationToken);
                 var linePos = text.Lines.GetLineFromPosition(loc.Location.SourceSpan.Start);
                 var lineNumber = linePos.LineNumber + 1;
                 var lineText = linePos.ToString().TrimStart();
@@ -65,8 +70,12 @@ internal class FindRefsService : IRtService
         };
     }
 
-    private async Task<ISymbol> ResolveSymbolAsync(Solution sln, string symbol, string? kind)
+    private async Task<ISymbol> ResolveSymbolAsync(
+        Solution sln,
+        string symbol,
+        string? kind,
+        CancellationToken cancellationToken)
     {
-        return (await _symbols.ResolveAsync(sln, symbol, kind)).Unwrap();
+        return (await _symbols.ResolveAsync(sln, symbol, kind, cancellationToken)).Unwrap();
     }
 }

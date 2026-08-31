@@ -38,9 +38,10 @@ internal class FindCallersService : IRtService
     internal async Task<Result<FindCallersResult, RtError>> FindAsync(
         Solution sln,
         string symbol,
-        bool includeTests)
+        bool includeTests,
+        CancellationToken cancellationToken = default)
     {
-        var resolved = await _symbols.ResolveAsync(sln, symbol, "method");
+        var resolved = await _symbols.ResolveAsync(sln, symbol, "method", cancellationToken);
         if (resolved.IsErr)
             return resolved.Map(_ => default(FindCallersResult)!);
 
@@ -48,18 +49,22 @@ internal class FindCallersService : IRtService
 
         _logger.RtInfo("Finding callers of '{Method}'...", methodSymbol.ToDisplayString());
 
-        var referencedSymbols = await SymbolFinder.FindReferencesAsync(methodSymbol, sln);
+        var referencedSymbols = await SymbolFinder.FindReferencesAsync(
+            methodSymbol,
+            sln,
+            cancellationToken: cancellationToken);
         var callers = new List<CallerResult>();
 
         foreach (var referencedSymbol in referencedSymbols)
             foreach (var loc in referencedSymbol.Locations)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var doc = loc.Document;
 
                 if (!includeTests && IsTestProject(doc.Project.Name))
                     continue;
 
-                var root = await doc.GetSyntaxRootAsync();
+                var root = await doc.GetSyntaxRootAsync(cancellationToken);
                 if (root is null)
                     continue;
 
@@ -80,7 +85,7 @@ internal class FindCallersService : IRtService
                     .FirstOrDefault()
                     ?.Identifier.Text ?? "<unknown>";
 
-                var text = await doc.GetTextAsync();
+                var text = await doc.GetTextAsync(cancellationToken);
                 var sourceLine = text.Lines[line - 1].ToString().TrimStart();
 
                 callers.Add(new CallerResult

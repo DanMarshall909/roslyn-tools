@@ -73,6 +73,7 @@ internal sealed class RelationshipsOperation(
         using (workspace)
         {
             var completeness = await WorkspaceCompleteness.AssessSemanticAsync(solution, cancellationToken);
+            var sourceRevision = await SolutionRevision.ComputeAsync(solution, cancellationToken);
             var queried = await QueryAsync(solution, request, cancellationToken);
             if (queried.IsErr)
                 return queried.Map(_ => default(RtResultEnvelope<RelationshipsResult>)!);
@@ -89,6 +90,7 @@ internal sealed class RelationshipsOperation(
                 completeness,
                 queryResult.ResolvedSubject,
                 request.Mode,
+                sourceRevision,
                 items,
                 ordered.Length,
                 stopwatch.ElapsedMilliseconds));
@@ -105,8 +107,11 @@ internal sealed class RelationshipsOperation(
             return request.Mode switch
             {
                 RelationshipMode.References => Result<RelationshipsResult, RtError>.Ok(
-                    await QueryReferencesAsync(solution, request)),
-                RelationshipMode.Callers => await QueryCallersAsync(solution, request),
+                    await QueryReferencesAsync(solution, request, cancellationToken)),
+                RelationshipMode.Callers => await QueryCallersAsync(
+                    solution,
+                    request,
+                    cancellationToken),
                 RelationshipMode.Implementations => await QueryImplementationsAsync(
                     solution,
                     request,
@@ -133,9 +138,14 @@ internal sealed class RelationshipsOperation(
 
     private async Task<RelationshipsResult> QueryReferencesAsync(
         Microsoft.CodeAnalysis.Solution solution,
-        RelationshipsRequest request)
+        RelationshipsRequest request,
+        CancellationToken cancellationToken)
     {
-        var result = await _references.FindAsync(solution, request.Symbol, request.Kind);
+        var result = await _references.FindAsync(
+            solution,
+            request.Symbol,
+            request.Kind,
+            cancellationToken);
         return new RelationshipsResult(
             result.FullyQualifiedName,
             request.Mode,
@@ -152,9 +162,14 @@ internal sealed class RelationshipsOperation(
 
     private async Task<Result<RelationshipsResult, RtError>> QueryCallersAsync(
         Microsoft.CodeAnalysis.Solution solution,
-        RelationshipsRequest request)
+        RelationshipsRequest request,
+        CancellationToken cancellationToken)
     {
-        var result = await _callers.FindAsync(solution, request.Symbol, request.IncludeTests);
+        var result = await _callers.FindAsync(
+            solution,
+            request.Symbol,
+            request.IncludeTests,
+            cancellationToken);
         return result.Map(value => new RelationshipsResult(
             value.SymbolName,
             request.Mode,
@@ -210,6 +225,7 @@ internal sealed class RelationshipsOperation(
         WorkspaceCompleteness completeness,
         string subject,
         RelationshipMode mode,
+        string sourceRevision,
         RelationshipItem[] items,
         int total,
         long elapsedMilliseconds)
@@ -228,7 +244,10 @@ internal sealed class RelationshipsOperation(
             "rt.result.v1",
             "relationships",
             completeness.State == WorkspaceCompletenessState.Complete ? "Succeeded" : "Partial",
-            new RtSourceIdentity(solutionPath is null ? null : Path.GetDirectoryName(solutionPath), solutionPath, null),
+            new RtSourceIdentity(
+                solutionPath is null ? null : Path.GetDirectoryName(solutionPath),
+                solutionPath,
+                sourceRevision),
             new RtWorkspaceProvenance(completeness.State.ToString(), solution.ProjectIds.Count, completeness.Diagnostics),
             new RelationshipsResult(subject, mode, items),
             new RtConfidence(

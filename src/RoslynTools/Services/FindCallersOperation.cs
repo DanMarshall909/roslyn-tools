@@ -39,7 +39,11 @@ internal sealed class FindCallersOperation(
         using (workspace)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var result = await _findCallers.FindAsync(solution, request.Symbol, request.IncludeTests);
+            var result = await _findCallers.FindAsync(
+                solution,
+                request.Symbol,
+                request.IncludeTests,
+                cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             return result.Map(value => new FindCallersOperationResult(
                 value.SymbolName,

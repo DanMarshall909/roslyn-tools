@@ -25,6 +25,7 @@ public sealed class RelationshipsOperationTests
         envelope.Data.ResolvedSubject.ShouldBe("App.IWorker");
         envelope.Data.Items.ShouldNotBeEmpty();
         envelope.Data.Items.ShouldAllBe(item => item.Relation == "Reference");
+        envelope.Source.Revision.ShouldNotBeNullOrWhiteSpace();
         envelope.Limitations.ShouldContain(limitation =>
             limitation.Contains("reflection", StringComparison.Ordinal));
     }
@@ -72,6 +73,20 @@ public sealed class RelationshipsOperationTests
         implementation.Evidence.ShouldContain("abstract=False");
     }
 
+    [Fact]
+    public async Task references_propagate_cancellation_after_symbol_resolution()
+    {
+        using var builder = CreateRelationshipProject();
+        var (workspace, solution) = builder.Build();
+        using var cancellation = new CancellationTokenSource();
+        var symbols = new CancelAfterResolveSymbolService(cancellation);
+        var operation = CreateOperation(workspace, solution, symbols);
+
+        await Should.ThrowAsync<OperationCanceledException>(() => operation.ExecuteAsync(
+            new RelationshipsRequest("App.IWorker", RelationshipMode.References, Kind: "type"),
+            cancellation.Token));
+    }
+
     private static AdhocProjectBuilder CreateRelationshipProject() =>
         new AdhocProjectBuilder("RelationshipApp")
             .AddSource("Relationships.cs", """
@@ -84,7 +99,7 @@ public sealed class RelationshipsOperationTests
     private static RelationshipsOperation CreateOperation(
         Workspace workspace,
         Solution solution,
-        SymbolCandidateService? symbols = null)
+        ISymbolCandidateService? symbols = null)
     {
         symbols ??= new SymbolCandidateService();
         return new RelationshipsOperation(
@@ -93,6 +108,28 @@ public sealed class RelationshipsOperationTests
             new FindCallersService(new RtConsoleLogger<FindCallersService>(), symbols),
             new FindImplementationsService(),
             symbols);
+    }
+
+    private sealed class CancelAfterResolveSymbolService(CancellationTokenSource cancellation)
+        : ISymbolCandidateService
+    {
+        public Task<IReadOnlyList<ResolvedSymbolCandidate>> SearchAsync(
+            Solution solution,
+            SymbolCandidateQuery query,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<ResolvedSymbolCandidate>>([]);
+
+        public async Task<Result<ISymbol, RtError>> ResolveAsync(
+            Solution solution,
+            string identityOrName,
+            string? kind,
+            CancellationToken cancellationToken = default)
+        {
+            var compilation = await solution.Projects.Single().GetCompilationAsync(cancellationToken);
+            var symbol = compilation!.GetTypeByMetadataName("App.IWorker")!;
+            cancellation.Cancel();
+            return Result<ISymbol, RtError>.Ok(symbol);
+        }
     }
 
     private sealed class FixedSessionFactory(Workspace workspace, Solution solution) : IWorkspaceSessionFactory
