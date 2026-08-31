@@ -54,7 +54,9 @@ internal sealed class SymbolCandidateService : ISymbolCandidateService, IRtServi
             if (compilation is null)
                 continue;
 
-            foreach (var symbol in EnumerateSourceSymbols(compilation.GlobalNamespace, cancellationToken))
+            foreach (var symbol in EnumerateSourceSymbols(
+                         compilation.Assembly.GlobalNamespace,
+                         cancellationToken))
             {
                 if (!SymbolEqualityComparer.Default.Equals(symbol.ContainingAssembly, compilation.Assembly))
                     continue;

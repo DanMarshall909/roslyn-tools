@@ -51,7 +51,11 @@ internal sealed class FindRefsOperation
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                var result = await _findRefs.FindAsync(solution, request.Symbol, request.Kind);
+                var result = await _findRefs.FindAsync(
+                    solution,
+                    request.Symbol,
+                    request.Kind,
+                    cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
                 return Result<FindRefsOperationResult, RtError>.Ok(new FindRefsOperationResult(
                     result.SymbolName,
