@@ -67,7 +67,7 @@ internal sealed class WorkspaceLoader : IWorkspaceSessionFactory, IDisposable
         if (Override.Value is { } o)
             return o.Solution;
 
-        var (workspace, solution) = await LoadCoreAsync(solutionPath);
+        var (workspace, solution) = await LoadCoreAsync(solutionPath, requireTrust: true);
         _workspace?.Dispose();
         _workspace = workspace;
         return solution;
@@ -82,7 +82,7 @@ internal sealed class WorkspaceLoader : IWorkspaceSessionFactory, IDisposable
         if (Override.Value is { } o)
             return (o.Workspace, o.Solution);
 
-        var (workspace, solution) = await LoadCoreAsync(solutionPath);
+        var (workspace, solution) = await LoadCoreAsync(solutionPath, requireTrust: true);
         _workspace?.Dispose();
         _workspace = workspace;
         return (workspace, solution);
@@ -101,7 +101,7 @@ internal sealed class WorkspaceLoader : IWorkspaceSessionFactory, IDisposable
         if (Override.Value is { } o)
             return (o.Workspace, o.Solution);
 
-        var (workspace, solution) = await LoadCoreAsync(solutionPath);
+        var (workspace, solution) = await LoadCoreAsync(solutionPath, requireTrust: false);
         return (workspace, solution);
     }
 
@@ -130,12 +130,17 @@ internal sealed class WorkspaceLoader : IWorkspaceSessionFactory, IDisposable
 
     // ── Shared load logic ───────────────────────────────────────────────────
 
-    private static async Task<(MSBuildWorkspace Workspace, Solution Solution)> LoadCoreAsync(string? solutionPath)
+    private static async Task<(MSBuildWorkspace Workspace, Solution Solution)> LoadCoreAsync(
+        string? solutionPath,
+        bool requireTrust)
     {
         solutionPath = ResolveSolutionPath(solutionPath);
 
         if (!File.Exists(solutionPath))
             throw new FileNotFoundException($"Solution not found: {solutionPath}", solutionPath);
+
+        if (requireTrust && !RepositoryTrustContext.IsExplicitlyTrusted)
+            throw RepositoryTrustRequiredException.ForSolution(solutionPath);
 
         var properties = new Dictionary<string, string>
         {

@@ -261,7 +261,7 @@ internal static class App
                 root.AddCommand(cmd);
 
         var (jsonOpt, llmOpt, markdownOpt, yamlOpt, decisionsOpt, relaxJsonOpt,
-            showWorkspaceWarningsOpt, noSuggestOpt) = RegisterGlobalOptions(root);
+            showWorkspaceWarningsOpt, noSuggestOpt, trustRepositoryOpt) = RegisterGlobalOptions(root);
 
         return await new CommandLineBuilder(root)
             .UseVersionOption()
@@ -320,6 +320,9 @@ internal static class App
             }, MiddlewareOrder.Configuration)
             .AddMiddleware(async (context, next) =>
             {
+                using var trustScope = context.ParseResult.GetValueForOption(trustRepositoryOpt)
+                    ? RepositoryTrustContext.UseExplicitTrust()
+                    : null;
                 var md = context.ParseResult.GetValueForOption(markdownOpt);
                 var yaml = context.ParseResult.GetValueForOption(yamlOpt);
                 var json = context.ParseResult.GetValueForOption(jsonOpt);
@@ -387,7 +390,8 @@ internal static class App
     /// </summary>
     internal static (Option<bool> jsonOpt, Option<bool> llmOpt, Option<bool> markdownOpt, Option<bool> yamlOpt,
         Option<FileInfo?> decisionsOpt, Option<bool> relaxJsonOpt,
-        Option<bool> showWorkspaceWarningsOpt, Option<bool> noSuggestOpt)
+        Option<bool> showWorkspaceWarningsOpt, Option<bool> noSuggestOpt,
+        Option<bool> trustRepositoryOpt)
         RegisterGlobalOptions(RootCommand root)
     {
         var jsonOpt = new Option<bool>("--json", "Emit results as JSON");
@@ -406,13 +410,17 @@ internal static class App
         var noSuggestOpt = new Option<bool>("--no-suggest",
             "Suppress 'Did you mean: ...' suggestion tails on drill-in not-found errors. Off by default; "
             + "useful for strict-output pipelines that pin error text.");
+        var trustRepositoryOpt = new Option<bool>(
+            "--trust-repository",
+            "Permit this CLI invocation to evaluate the selected repository after review. "
+            + "This authority is invocation-scoped and is not available through MCP requests.");
         foreach (var option in new Option[]
                      { jsonOpt, llmOpt, markdownOpt, yamlOpt, relaxJsonOpt, decisionsOpt,
-                         showWorkspaceWarningsOpt, noSuggestOpt })
+                         showWorkspaceWarningsOpt, noSuggestOpt, trustRepositoryOpt })
             root.AddGlobalOption(option);
 
         return (jsonOpt, llmOpt, markdownOpt, yamlOpt, decisionsOpt, relaxJsonOpt,
-            showWorkspaceWarningsOpt, noSuggestOpt);
+            showWorkspaceWarningsOpt, noSuggestOpt, trustRepositoryOpt);
     }
 
     private static string TruncateOneLine(string text, int max)

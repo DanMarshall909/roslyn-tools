@@ -22,24 +22,19 @@ internal sealed class DoctorCommand(DoctorOperation operation)
         var solution = new Option<string?>(
             "--solution",
             "Explicit .sln or .slnx path; relative paths resolve under --directory");
-        var trust = new Option<bool>(
-            "--trust-repository",
-            "Permit this one invocation to evaluate repository build inputs after review");
         var command = new Command(
             "doctor",
             "Check installation, solution selection, trust, workspace readiness, and limits")
         {
             directory,
-            solution,
-            trust
+            solution
         };
 
         command.SetHandler(async context =>
         {
             var request = new DoctorRequest(
                 context.ParseResult.GetValueForOption(directory)!.FullName,
-                context.ParseResult.GetValueForOption(solution),
-                context.ParseResult.GetValueForOption(trust));
+                context.ParseResult.GetValueForOption(solution));
             var result = await _operation.ExecuteAsync(request, context.GetCancellationToken());
             result.Match(
                 value => RtResultRenderer.Write(RtResult<RtResultEnvelope<DoctorResult>>.Ok(value)),

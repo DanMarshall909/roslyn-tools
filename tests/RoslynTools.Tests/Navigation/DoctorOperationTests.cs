@@ -67,10 +67,10 @@ public sealed class DoctorOperationTests
         var sessions = new CountingSessionFactory(workspace, solution);
         var operation = new DoctorOperation(sessions, new FixedCapabilityCatalog());
 
+        using var trust = RepositoryTrustContext.UseExplicitTrust();
         var envelope = (await operation.ExecuteAsync(new DoctorRequest(
             directory.Path,
-            solutionPath,
-            TrustRepository: true))).Unwrap();
+            solutionPath))).Unwrap();
 
         envelope.Outcome.ShouldBe("Succeeded");
         envelope.SchemaVersion.ShouldBe("rt.result.v1");

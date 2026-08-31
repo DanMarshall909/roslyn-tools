@@ -19,6 +19,9 @@ internal enum RtErrorKind
     /// <summary>The solution/workspace failed to load (missing or malformed).</summary>
     WorkspaceLoadFailure,
 
+    /// <summary>Repository-controlled evaluation was requested without host-authorized trust.</summary>
+    TrustRequired,
+
     /// <summary>An external executable or service was unavailable or rejected the operation.</summary>
     ExternalToolFailure
 }
