@@ -7199,6 +7199,32 @@
       "status": "processed",
       "processedAt": "2026-08-26T22:33:54.8531027\u002B00:00",
       "resolution": "Implemented US-145 / rt-015 as the typed analyze language-features command, including the csharp-v1 catalogue, density and adoption metrics, refactoring drill-down, CLI/daemon/MCP parity, and focused verification."
+    },
+    {
+      "id": "FB-375",
+      "type": "user-feedback",
+      "timestamp": "2026-08-31T06:08:09.1229560\u002B00:00",
+      "commandLine": "rt analyze find-duplicates --min-statements 6 --solution RoslynTools.slnx --json",
+      "description": "Bug: find-duplicates must exclude every test project when --include-tests is false. On RoslynTools.slnx the default scan still analyzes RoslynTools.Tests.Mcp because IsTestProject recognizes names ending in .Tests or Test but not .Tests.Mcp, despite the project declaring IsTestProject=true. Four of twelve min-six clone groups were test-only. Acceptance: honor project test metadata or test SDK references; exclude RoslynTools.Tests.Mcp by default; --include-tests restores it; retain a name fallback for AdhocWorkspace projects.",
+      "expectedResult": "Default duplicate analysis contains no occurrences from projects identified as tests; explicit --include-tests includes them deterministically.",
+      "status": "processed",
+      "processedAt": "2026-08-31T06:09:01.4151717\u002B00:00",
+      "resolution": "Reported as GitHub issue #118: https://github.com/DanMarshall909/roslyn-tools/issues/118",
+      "gitHubIssueNumber": 118,
+      "gitHubIssueUrl": "https://github.com/DanMarshall909/roslyn-tools/issues/118"
+    },
+    {
+      "id": "FB-376",
+      "type": "user-feedback",
+      "timestamp": "2026-08-31T06:08:23.5652034\u002B00:00",
+      "commandLine": "rt analyze find-unused --solution RoslynTools.slnx --json",
+      "description": "Refactor: retire obsolete compatibility members now that the typed application-port manifest is 56/56 complete. A fresh find-unused scan identified approximately fourteen credible source candidates, including the old DaemonCommandExecutor overload, LegacyFailure, CommandHandlerConstants, superseded result factories, and legacy RunAsync/write helpers. Acceptance: confirm every candidate with semantic references and host registration checks; remove only members with no live CLI, MCP, daemon, reflection, or external compatibility role; preserve typed error behavior; keep focused and full gates green.",
+      "expectedResult": "The completed typed-port architecture has no unused migration-only compatibility surface, while live reflection and host adapter entry points remain intact.",
+      "status": "processed",
+      "processedAt": "2026-08-31T06:09:05.0138588\u002B00:00",
+      "resolution": "Reported as GitHub issue #119: https://github.com/DanMarshall909/roslyn-tools/issues/119",
+      "gitHubIssueNumber": 119,
+      "gitHubIssueUrl": "https://github.com/DanMarshall909/roslyn-tools/issues/119"
     }
   ]
 }
