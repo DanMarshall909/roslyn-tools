@@ -5,7 +5,7 @@ namespace RoslynTools.Services;
 
 internal sealed record ReplaceDateTimeRequest(
     string? Solution = null,
-    [property: JsonPropertyName("dry-run")] bool DryRun = false);
+    [property: JsonPropertyName("dry-run")] bool DryRun = true);
 
 internal sealed record ReplaceDateTimeResult(int ChangedFiles, int ClassCount);
 
@@ -92,7 +92,7 @@ internal static class ReplaceDateTimeCommandDefinition
         typeof(ReplaceDateTimeRequest),
         typeof(MutationExecutionResult<ReplaceDateTimeResult>),
         true,
-        CommandSafety.Mutation,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.InProcess,
         []);
 }

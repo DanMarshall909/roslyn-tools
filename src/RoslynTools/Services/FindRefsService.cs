@@ -15,11 +15,11 @@ namespace RoslynTools.Services;
 internal class FindRefsService : IRtService
 {
     private readonly ILogger<FindRefsService> _logger;
-    private readonly ISymbolResolutionService _symbols;
+    private readonly ISymbolCandidateService _symbols;
 
     public FindRefsService(
         ILogger<FindRefsService> logger,
-        ISymbolResolutionService symbols)
+        ISymbolCandidateService symbols)
     {
         _symbols = symbols;
         _logger = logger;
@@ -67,26 +67,6 @@ internal class FindRefsService : IRtService
 
     private async Task<ISymbol> ResolveSymbolAsync(Solution sln, string symbol, string? kind)
     {
-        if (symbol.Contains('.', StringComparison.Ordinal))
-        {
-            try
-            {
-                return await _symbols.FindSymbolByFqnAsync(sln, symbol, kind);
-            }
-            catch (InvalidOperationException)
-            {
-                // Fall back to legacy simple-name resolution so existing partial specs still work.
-            }
-        }
-
-        var simpleName = GetSimpleName(symbol);
-        return await _symbols.FindSymbolAsync(sln, simpleName, kind);
-    }
-
-    private static string GetSimpleName(string symbol)
-    {
-        var noSignature = symbol.Split('(')[0];
-        var lastDot = noSignature.LastIndexOf('.');
-        return lastDot >= 0 ? noSignature[(lastDot + 1)..] : noSignature;
+        return (await _symbols.ResolveAsync(sln, symbol, kind)).Unwrap();
     }
 }

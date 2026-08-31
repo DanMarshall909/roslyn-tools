@@ -29,7 +29,7 @@ internal sealed class ReplaceCallCommand : IRtCommand, IRefactorCommand
         { IsRequired = true };
         var toOpt = new Option<string>("--to", "New method name, e.g. LogInfo") { IsRequired = true };
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln file");
-        var dryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk");
+        var dryRunOpt = new Option<bool>("--dry-run", () => true, "Preview changes without writing to disk (default)");
         var ifArgIndexOpt = new Option<int?>("--if-arg",
             "Filter: only replace calls where argument at this index matches --if-arg-literal");
         var ifArgLiteralOpt = new Option<string?>("--if-arg-literal", "Filter: match this string literal value");

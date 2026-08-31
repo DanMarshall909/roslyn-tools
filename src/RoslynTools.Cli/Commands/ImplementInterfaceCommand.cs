@@ -29,7 +29,7 @@ internal sealed class ImplementInterfaceCommand : IRtCommand, IRefactorCommand
         var interfaceOpt =
             new Option<string?>("--interface", "Interface to implement (optional; auto-detected if omitted)");
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
-        var dryRunOpt = new Option<bool>("--dry-run", "Preview without writing");
+        var dryRunOpt = new Option<bool>("--dry-run", () => true, "Preview without writing (default)");
 
         var cmd = new Command("implement-interface",
             "Generate throw-stub implementations for unimplemented interface members");

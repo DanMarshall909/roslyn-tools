@@ -12,10 +12,14 @@ namespace RoslynTools.Services;
 internal class InspectService : IRtService
 {
     private readonly ISymbolResolutionService _symbols;
+    private readonly ISymbolCandidateService _candidates;
 
-    public InspectService(ISymbolResolutionService? symbols = null)
+    public InspectService(
+        ISymbolResolutionService? symbols = null,
+        ISymbolCandidateService? candidates = null)
     {
         _symbols = symbols ?? new SymbolResolutionService();
+        _candidates = candidates ?? new SymbolCandidateService();
     }
 
     /// <summary>
@@ -46,7 +50,7 @@ internal class InspectService : IRtService
             .Select(p => p.AssemblyName)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        var resolved = await _symbols.TryFindSymbolByFqnAsync(solution, symbol, kind);
+        var resolved = await _candidates.ResolveAsync(solution, symbol, kind);
         return resolved.Map(sym =>
             !withLocations && sym is INamedTypeSymbol type
                 ? (object)BuildCompact(type, solutionAssemblyNames)

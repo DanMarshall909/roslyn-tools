@@ -8,7 +8,7 @@ internal sealed record ExtractStringConstantRequest(
     [property: JsonRequired] int Line,
     [property: JsonRequired] string Name,
     string? Solution = null,
-    [property: JsonPropertyName("dry-run")] bool DryRun = false);
+    [property: JsonPropertyName("dry-run")] bool DryRun = true);
 
 internal sealed record ExtractStringConstantResult(string File, int Line, string Name, bool Changed);
 
@@ -90,7 +90,7 @@ internal static class ExtractStringConstantCommandDefinition
         typeof(ExtractStringConstantRequest),
         typeof(MutationExecutionResult<ExtractStringConstantResult>),
         true,
-        CommandSafety.Mutation,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.InProcess,
         []);
 }

@@ -7,10 +7,10 @@ using Shouldly;
 namespace RoslynTools.Tests.Mcp.Handlers;
 
 [Collection("mcp-bridge")]
-public class FindRefsToolTests
+public class RelationshipsReferencesToolTests
 {
     [Fact]
-    public async Task find_refs_returns_structured_references_for_referenced_type()
+    public async Task relationships_returns_structured_references_for_referenced_type()
     {
         using var project = McpTestHost.CreateInvoiceProject(
             "public int Id { get; set; }",
@@ -26,33 +26,28 @@ public class FindRefsToolTests
         {
             var registry = provider.GetRequiredService<ToolRegistry>();
             using var args = JsonDocument.Parse("""
-                                                {"symbol":"Invoice","solution":"ignored.slnx"}
+                                                {"symbol":"Invoice","mode":"References","kind":"type","solution":"ignored.slnx"}
                                                 """);
 
-            var result = await registry.InvokeAsync("find_refs", args.RootElement);
+            var result = await registry.InvokeAsync("relationships", args.RootElement);
 
             result.isError.ShouldBeFalse();
             using var payload = JsonDocument.Parse(result.content);
-            payload.RootElement.GetProperty("symbolName").GetString().ShouldBe("Invoice");
-            payload.RootElement.GetProperty("references").GetArrayLength().ShouldBeGreaterThan(0);
+            payload.RootElement.GetProperty("operation").GetString().ShouldBe("relationships");
+            var data = payload.RootElement.GetProperty("data");
+            data.GetProperty("resolvedSubject").GetString().ShouldBe("TestApp.Invoice");
+            data.GetProperty("items").GetArrayLength().ShouldBeGreaterThan(0);
 
-            var first = payload.RootElement.GetProperty("references")[0];
-            first.GetProperty("filePath").GetString().ShouldNotBeNullOrEmpty();
+            var first = data.GetProperty("items")[0];
+            first.GetProperty("relation").GetString().ShouldBe("Reference");
+            first.GetProperty("file").GetString().ShouldNotBeNullOrEmpty();
             first.GetProperty("line").GetInt32().ShouldBeGreaterThan(0);
-            first.GetProperty("lineText").GetString().ShouldNotBeNullOrEmpty();
-
-            var suggestion = payload.RootElement.GetProperty("_suggestions")[0];
-            suggestion.GetProperty("toolName").GetString().ShouldBe("describe");
-            suggestion.GetProperty("arguments").GetProperty("symbol").GetString()
-                .ShouldBe("TestApp.Invoice");
-            suggestion.GetProperty("arguments").GetProperty("solution").GetString()
-                .ShouldBe("ignored.slnx");
-            (suggestion.GetProperty("cli").GetString() ?? "").ShouldContain("rt inspect describe");
+            first.GetProperty("evidence").GetString().ShouldNotBeNullOrEmpty();
         }
     }
 
     [Fact]
-    public async Task find_refs_returns_empty_array_for_unreferenced_symbol()
+    public async Task relationships_returns_empty_array_for_unreferenced_symbol()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Orphan.cs", """
@@ -68,26 +63,27 @@ public class FindRefsToolTests
         {
             var registry = provider.GetRequiredService<ToolRegistry>();
             using var args = JsonDocument.Parse("""
-                                                {"symbol":"NeverUsed","solution":"ignored.slnx"}
+                                                {"symbol":"NeverUsed","mode":"References","kind":"type","solution":"ignored.slnx"}
                                                 """);
 
-            var result = await registry.InvokeAsync("find_refs", args.RootElement);
+            var result = await registry.InvokeAsync("relationships", args.RootElement);
 
             result.isError.ShouldBeFalse();
             using var payload = JsonDocument.Parse(result.content);
-            payload.RootElement.GetProperty("symbolName").GetString().ShouldBe("NeverUsed");
-            payload.RootElement.GetProperty("references").GetArrayLength().ShouldBe(0);
+            var data = payload.RootElement.GetProperty("data");
+            data.GetProperty("resolvedSubject").GetString().ShouldBe("TestApp.NeverUsed");
+            data.GetProperty("items").GetArrayLength().ShouldBe(0);
         }
     }
 
     [Fact]
-    public async Task find_refs_returns_error_when_symbol_missing()
+    public async Task relationships_returns_error_when_symbol_missing()
     {
         using var provider = McpTestHost.CreateProvider();
         var registry = provider.GetRequiredService<ToolRegistry>();
-        using var args = JsonDocument.Parse("""{"solution":"ignored.slnx"}""");
+        using var args = JsonDocument.Parse("""{"mode":"References","solution":"ignored.slnx"}""");
 
-        var result = await registry.InvokeAsync("find_refs", args.RootElement);
+        var result = await registry.InvokeAsync("relationships", args.RootElement);
 
         result.isError.ShouldBeTrue();
         result.content.ShouldContain("symbol");

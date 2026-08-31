@@ -34,7 +34,7 @@ internal sealed record MoveRequest(
         "Move declaration files to folders matching the target namespace")]
     bool MoveFile = false,
     string? Solution = null,
-    [property: JsonPropertyName("dry-run")] bool DryRun = false);
+    [property: JsonPropertyName("dry-run")] bool DryRun = true);
 
 internal abstract record MoveIntent(MoveMode Mode);
 
@@ -239,7 +239,7 @@ internal static class MoveCommandDefinition
         typeof(MoveRequest),
         typeof(MutationExecutionResult<MoveResult>),
         true,
-        CommandSafety.Mutation,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.InProcess,
         []);
 }

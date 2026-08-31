@@ -18,7 +18,8 @@ public sealed class ExtractClassOperationTests
         var execution = (await operation.ExecuteAsync(new ExtractClassRequest(
             "Widget",
             "Format",
-            "WidgetFormatter"))).Unwrap();
+            "WidgetFormatter",
+            DryRun: false))).Unwrap();
 
         execution.Status.ShouldBe(MutationExecutionStatus.Applied);
         execution.Value!.Type.ShouldBe("TestApp.Widget");

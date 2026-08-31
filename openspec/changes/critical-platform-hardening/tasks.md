@@ -10,11 +10,11 @@ cross-host acceptance tests pass.
 
 ## P0.0 containment before further mutation work
 
-- [ ] Disable daemon routing for every apply-capable command that still uses the legacy argument-array protocol.
-- [ ] Hide every apply-capable CLI-bridge tool from the stable MCP surface; expose it only as explicitly experimental review/dry-run where safe.
-- [ ] Make all remaining mutation commands review/dry-run by default and correct documentation that implies transactional or exactly-once apply.
-- [ ] Add an architecture gate that rejects a new apply-capable command without a typed operation, declared safety policy, and mutation-kernel integration.
-- [ ] Add regression tests proving a timeout, malformed response, disconnect, or cancelled response cannot cause a second mutation execution; cancellation after any accepted request byte must return `Indeterminate`, retain the same operation ID, and resolve `Received` versus `NotRecorded` under the intake fence.
+- [x] Disable daemon routing for every apply-capable command that still uses the legacy argument-array protocol.
+- [x] Hide every apply-capable CLI-bridge tool from the stable MCP surface; expose it only as explicitly experimental review/dry-run where safe.
+- [x] Make all remaining mutation commands review/dry-run by default and correct documentation that implies transactional or exactly-once apply.
+- [x] Add an architecture gate that rejects a new apply-capable command without a typed operation, declared safety policy, and mutation-kernel integration.
+- [ ] Add regression tests proving a timeout, malformed response, disconnect, or cancelled response cannot cause a second mutation execution; cancellation after any accepted request byte must return `Indeterminate`, retain the same operation ID, and resolve `Received` versus `NotRecorded` under the intake fence. The preview containment invariant is stronger—mutations never dispatch to the daemon—but the durable intake-fence contract remains unimplemented.
 
 ## P0.1 repository trust and workspace isolation
 

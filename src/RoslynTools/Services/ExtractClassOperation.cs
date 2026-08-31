@@ -21,7 +21,7 @@ internal sealed record ExtractClassRequest(
     [property: CommandPropertyDescription("Directory for the new class file")]
     string? OutputDir = null,
     string? Solution = null,
-    [property: JsonPropertyName("dry-run")] bool DryRun = false)
+    [property: JsonPropertyName("dry-run")] bool DryRun = true)
 {
     internal ExtractClassRequest(
         string Type,
@@ -30,7 +30,7 @@ internal sealed record ExtractClassRequest(
         bool IsStatic = false,
         string? OutputDir = null,
         string? Solution = null,
-        bool DryRun = false)
+        bool DryRun = true)
         : this(
             Type,
             Members.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
@@ -132,7 +132,7 @@ internal static class ExtractClassCommandDefinition
         typeof(ExtractClassRequest),
         typeof(MutationExecutionResult<ExtractClassResult>),
         true,
-        CommandSafety.Mutation,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.InProcess,
         []);
 }

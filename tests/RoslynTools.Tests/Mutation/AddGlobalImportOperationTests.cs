@@ -40,7 +40,8 @@ public sealed class AddGlobalImportOperationTests
 
         var result = await operation.ExecuteAsync(new AddGlobalImportRequest(
             Path.Combine(project.ProjectDir, "GlobalUsings.cs"),
-            "System.Text"));
+            "System.Text",
+            DryRun: false));
         var execution = result.Unwrap();
 
         execution.Status.ShouldBe(MutationExecutionStatus.Applied);

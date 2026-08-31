@@ -18,7 +18,7 @@ internal sealed record RenameOperationRequest(
     [property: JsonPropertyName("csv")] string? CsvPath = null,
     string? Kind = null,
     string? Solution = null,
-    [property: JsonPropertyName("dry-run")] bool DryRun = false,
+    [property: JsonPropertyName("dry-run")] bool DryRun = true,
     [property: JsonPropertyName("related-edits")] string[]? RelatedEdits = null,
     [property: JsonPropertyName("working-directory")] string? WorkingDirectory = null);
 
@@ -209,7 +209,7 @@ internal static class RenameCommandDefinition
             "rt refactor rename MyNs.MyType.OldProp NewProp --kind property --dry-run",
             "rt refactor rename --csv scripts/renames.csv --solution MySolution.sln --dry-run",
             "rt refactor ren FooService BarService              # short alias, auto-detect solution",
-            "rt inspect find-refs --symbol Foo --json | rt refactor rename --new-name Bar --dry-run   # symbol piped from stdin"
+            "rt inspect relationships references Foo --json | rt refactor rename --new-name Bar --dry-run   # symbol piped from stdin"
         ]);
 
     internal static ApplicationCommandDefinition Definition { get; } = new(
@@ -217,8 +217,8 @@ internal static class RenameCommandDefinition
         typeof(RenameOperationRequest),
         typeof(MutationExecutionResult<RenameOperationResult>),
         true,
-        CommandSafety.Mutation,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.InProcess,
         [],
         [
             new CommandRequestVariant(

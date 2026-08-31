@@ -5,7 +5,7 @@ namespace RoslynTools.Services;
 
 internal sealed record ConvertConsoleLoggingRequest(
     string? Solution = null,
-    [property: JsonPropertyName("dry-run")] bool DryRun = false,
+    [property: JsonPropertyName("dry-run")] bool DryRun = true,
     bool Apply = false,
     bool Review = false,
     string Logger = "_logger",
@@ -234,6 +234,6 @@ internal static class ConvertConsoleLoggingCommandDefinition
         typeof(MutationExecutionResult<ConvertConsoleLoggingResult>),
         true,
         CommandSafety.ReviewByDefault,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandExecutionPlacement.InProcess,
         []);
 }

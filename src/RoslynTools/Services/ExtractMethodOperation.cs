@@ -20,7 +20,7 @@ internal sealed record ExtractMethodRequest(
     [property: CommandPropertyDescription("Path to the .sln/.slnx file")]
     string? Solution = null,
     [property: JsonPropertyName("dry-run"), CommandPropertyDescription("Preview without writing")]
-    bool DryRun = false,
+    bool DryRun = true,
     [property: JsonPropertyName("replace-duplicates"), CommandPropertyDescription("Replace structural duplicates in the solution")]
     bool ReplaceDuplicates = false);
 
@@ -180,7 +180,7 @@ internal static class ExtractMethodCommandDefinition
         typeof(ExtractMethodRequest),
         typeof(MutationExecutionResult<ExtractMethodResult>),
         true,
-        CommandSafety.Mutation,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.InProcess,
         []);
 }

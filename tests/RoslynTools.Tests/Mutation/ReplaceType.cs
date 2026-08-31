@@ -32,7 +32,7 @@ public class ReplaceType
 
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
-            await App.RunAsync(["replace-datetime", "--solution", "ignored"]);
+            await App.RunAsync(["replace-datetime", "--solution", "ignored", "--dry-run", "false"]);
         }
 
         var content = await project.ReadSourceAsync("MyService.cs");

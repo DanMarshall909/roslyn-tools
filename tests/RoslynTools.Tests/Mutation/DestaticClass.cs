@@ -251,7 +251,7 @@ public sealed class DestaticClass
                 new SymbolResolutionService(),
                 new DocumentLocatorService()),
             writer);
-        return operation.ExecuteAsync(new DestaticClassRequest("TestApp.Helper"));
+        return operation.ExecuteAsync(new DestaticClassRequest("TestApp.Helper", DryRun: false));
     }
 
     private sealed class FixedWorkspaceSessionFactory(

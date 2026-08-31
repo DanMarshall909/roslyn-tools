@@ -30,7 +30,7 @@ internal sealed class ExtractMethodCommand(
             "Insert the new method after this member name. Default: after the containing method.");
         var beforeOpt = new Option<string?>("--before", "Insert the new method before this member name.");
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln file. Auto-detected if omitted.");
-        var dryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk.");
+        var dryRunOpt = new Option<bool>("--dry-run", () => true, "Preview changes without writing to disk (default).");
         var replaceDuplicatesOpt = new Option<bool>("--replace-duplicates",
             "After extraction, find structurally-matching code elsewhere in the solution and replace it with calls to the new method.");
 

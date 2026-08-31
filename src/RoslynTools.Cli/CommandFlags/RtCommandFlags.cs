@@ -71,7 +71,7 @@ internal interface ISupportsApplySkipOptions
 
 internal sealed record RtFlagValues(
     string? SolutionPath = null,
-    bool DryRun = false,
+    bool DryRun = true,
     int Top = 0,
     string? Symbol = null,
     string? Scope = null,
@@ -316,7 +316,10 @@ internal static class RtFlagCatalog
 
     public static Option<bool> CreateDryRunOption(string? description = null)
     {
-        return new Option<bool>("--dry-run", description ?? "Preview without writing");
+        return new Option<bool>(
+            "--dry-run",
+            () => true,
+            description ?? "Preview without writing (default; pass false to apply explicitly)");
     }
 
     public static Option<int> CreateTopOption(string? description = null)

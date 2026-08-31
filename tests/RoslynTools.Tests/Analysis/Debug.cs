@@ -1,3 +1,4 @@
+using RoslynTools.Commands;
 using RoslynTools.Core;
 using RoslynTools.Models;
 using RoslynTools.Services;
@@ -136,9 +137,10 @@ public sealed class Debug
     }
 
     [Fact]
-    public void debug_command_is_registered_for_mcp_bridge()
+    public void debug_command_is_implemented_but_removed_from_the_product_surface()
     {
-        App.Commands.ShouldContain(command => command.Info.Name == "debug");
+        App.AllCommands.ShouldContain(command => command.Info.Name == "debug");
+        App.Commands.ShouldNotContain(command => command.Info.Name == "debug");
     }
 
     [Fact]
@@ -209,12 +211,11 @@ public sealed class Debug
             """);
 
         var exitCode = await App.RunAsync([
-            "analyze",
             "debug",
             trace.FullName,
             "--assert",
             "no-tool:web"
-        ]);
+        ], additionalCommands: [new DebugCommand(new DebugOperation()).Build()]);
 
         exitCode.ShouldBe(2);
     }

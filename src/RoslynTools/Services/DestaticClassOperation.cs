@@ -6,7 +6,7 @@ namespace RoslynTools.Services;
 internal sealed record DestaticClassRequest(
     [property: JsonRequired] string Type,
     string? Solution = null,
-    [property: JsonPropertyName("dry-run")] bool DryRun = false);
+    [property: JsonPropertyName("dry-run")] bool DryRun = true);
 
 internal sealed record DestaticClassResult(string Type);
 
@@ -87,7 +87,11 @@ internal static class DestaticClassCommandDefinition
         typeof(DestaticClassRequest),
         typeof(MutationExecutionResult<DestaticClassResult>),
         true,
-        CommandSafety.Mutation,
-        CommandExecutionPlacement.DaemonPreferred,
-        []);
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.InProcess,
+        [],
+        product: CommandProductMetadata.FromLegacy(
+            Info,
+            CommandSafety.ReviewByDefault,
+            CommandAudience.Removed));
 }

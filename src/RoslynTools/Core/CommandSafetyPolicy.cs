@@ -6,5 +6,7 @@ namespace RoslynTools.Core;
 internal enum CommandSafetyPolicy
 {
     ReadOnly,
-    DryRunByDefault
+    DryRunByDefault,
+    LocalWrite,
+    ExternalWriteReviewByDefault
 }

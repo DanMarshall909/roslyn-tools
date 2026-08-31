@@ -212,7 +212,7 @@ public class NavigationServices
     {
         return new FindRefsService(
             new RtConsoleLogger<FindRefsService>(),
-            new SymbolResolutionService());
+            new SymbolCandidateService());
     }
 
     [Fact]

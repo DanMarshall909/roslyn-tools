@@ -38,6 +38,12 @@ public sealed class CommandSurfaceSchemaTests
         => AssertObjectMatchesRecord(Schema["$defs"]!["option"]!.AsObject(), typeof(OptionDescriptor));
 
     [Fact]
+    public void schema_product_def_matches_product_descriptor()
+        => AssertObjectMatchesRecord(
+            Schema["$defs"]!["product"]!.AsObject(),
+            typeof(CommandProductDescriptor));
+
+    [Fact]
     public void schema_argument_def_matches_argument_descriptor()
         => AssertObjectMatchesRecord(Schema["$defs"]!["argument"]!.AsObject(), typeof(ArgumentDescriptor));
 
@@ -97,6 +103,7 @@ public sealed class CommandSurfaceSchemaTests
                     ["rt refactor rename A B"],
                     [new OptionDescriptor("solution", ["--solution", "-s"], true, "string", "Path")],
                     [new ArgumentDescriptor("target", true, "string", "the target")],
+                    Product(),
                     Group: "refactor",
                     Aliases: ["rn"],
                     SupportedFormats: ["Text", "Json"])
@@ -158,7 +165,7 @@ public sealed class CommandSurfaceSchemaTests
     {
         var model = new CommandSurfaceModel(
             1,
-            [new CommandDescriptor("foo", "inspect", false, false, "w", "d", ["ex"], [], [])],
+            [new CommandDescriptor("foo", "inspect", false, false, "w", "d", ["ex"], [], [], Product())],
             [],
             new Dictionary<string, string>());
 
@@ -173,6 +180,22 @@ public sealed class CommandSurfaceSchemaTests
         cmd["options"]!.AsArray().Count.ShouldBe(0);
         cmd["arguments"]!.AsArray().Count.ShouldBe(0);
     }
+
+    private static CommandProductDescriptor Product() => new(
+        "Preview",
+        ["RepositoryRead"],
+        false,
+        "Idempotent",
+        "Public",
+        "ExplicitTrustedRepository",
+        "Semantic",
+        [".NET SDK"],
+        "Medium",
+        "Cooperative",
+        30_000,
+        100,
+        1_048_576,
+        []);
 
     private static string FindRepoRoot()
     {

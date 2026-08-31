@@ -53,7 +53,8 @@
         "description",
         "examples",
         "options",
-        "arguments"
+        "arguments",
+        "product"
       ],
       "properties": {
         "name": {
@@ -106,6 +107,9 @@
             "$ref": "#/$defs/argument"
           }
         },
+        "product": {
+          "$ref": "#/$defs/product"
+        },
         "group": {
           "type": "string",
           "description": "Optional group override; usually mirrors `category`."
@@ -145,6 +149,56 @@
             ]
           }
         }
+      }
+    },
+    "product": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "maturity",
+        "effects",
+        "conditionallyMutable",
+        "idempotency",
+        "audience",
+        "trustRequirement",
+        "workspaceRequirement",
+        "prerequisites",
+        "cost",
+        "cancellation",
+        "defaultTimeoutMilliseconds",
+        "maximumItems",
+        "maximumOutputBytes",
+        "limitations"
+      ],
+      "properties": {
+        "maturity": { "type": "string" },
+        "effects": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "RepositoryRead",
+              "RepositoryWrite",
+              "LocalStateRead",
+              "LocalStateWrite",
+              "ExternalRead",
+              "ExternalWrite",
+              "RepositoryCodeExecution"
+            ]
+          }
+        },
+        "conditionallyMutable": { "type": "boolean" },
+        "idempotency": { "type": "string" },
+        "audience": { "type": "string" },
+        "trustRequirement": { "type": "string" },
+        "workspaceRequirement": { "type": "string" },
+        "prerequisites": { "type": "array", "items": { "type": "string" } },
+        "cost": { "type": "string" },
+        "cancellation": { "type": "string" },
+        "defaultTimeoutMilliseconds": { "type": "integer", "minimum": 1 },
+        "maximumItems": { "type": "integer", "minimum": 1 },
+        "maximumOutputBytes": { "type": "integer", "minimum": 1 },
+        "limitations": { "type": "array", "items": { "type": "string" } }
       }
     },
     "option": {

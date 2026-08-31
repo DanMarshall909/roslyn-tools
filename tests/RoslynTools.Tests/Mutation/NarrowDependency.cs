@@ -21,7 +21,7 @@ public sealed class NarrowDependencyOperationTests
         var operation = CreateOperation(workspace, solution, writer);
 
         var execution = (await operation.ExecuteAsync(
-            new NarrowDependencyRequest("IWideFacade", ["Send"], "ISender"))).Unwrap();
+            new NarrowDependencyRequest("IWideFacade", ["Send"], "ISender", DryRun: false))).Unwrap();
 
         operation.Definition.Name.ShouldBe("narrow_dependency");
         execution.Status.ShouldBe(MutationExecutionStatus.Applied);
@@ -142,7 +142,7 @@ public sealed class NarrowDependencyOperationTests
     }
 
     [Fact]
-    public async Task daemon_dispatches_the_same_typed_port_in_preview_mode()
+    public async Task daemon_rejects_the_in_process_mutation_port()
     {
         using var project = BuildWideFacadeProject();
         var (workspace, solution) = project.Build();
@@ -159,11 +159,10 @@ public sealed class NarrowDependencyOperationTests
             NarrowDependencyCommandDefinition.Definition.Name,
             arguments.RootElement.Clone()));
 
-        response.Error.ShouldBeNull();
-        response.Result!.Value.GetProperty("data").GetProperty("status").GetInt32()
-            .ShouldBe((int)MutationExecutionStatus.DryRun);
-        response.Result.Value.GetProperty("data").GetProperty("value")
-            .GetProperty("narrowedConsumers").GetArrayLength().ShouldBe(1);
+        response.Error.ShouldNotBeNull();
+        response.Error.Code.ShouldBe(DaemonRpcErrorCodes.CommandNotFound);
+        response.Error.Message.ShouldContain("in-process only", Case.Sensitive);
+        response.Result.ShouldBeNull();
         writer.NewSolution.ShouldBeNull();
     }
 
@@ -194,7 +193,8 @@ public sealed class NarrowDependencyOperationTests
                 "IWideFacade",
                 "--members", "Send,Receive",
                 "--new-name", "IMessageFacade",
-                "--solution", "ignored"
+                "--solution", "ignored",
+                "--dry-run", "false"
             ]);
             exitCode.ShouldBe(0);
         }

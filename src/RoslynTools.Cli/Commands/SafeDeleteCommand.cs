@@ -5,7 +5,7 @@ using RoslynTools.Services;
 
 namespace RoslynTools.Commands;
 
-/// <summary>A thin CLI adapter for safe symbol deletion.</summary>
+/// <summary>A thin CLI adapter for preparing a deletion candidate.</summary>
 internal sealed class SafeDeleteCommand(
     DaemonRpcRecoveryCoordinator daemon,
     SafeDeleteOperation operation) : IRtCommand, IRefactorCommand
@@ -23,8 +23,9 @@ internal sealed class SafeDeleteCommand(
             .WithSymbol("Type or member FQN or simple name to delete")
             .WithKind("Kind of symbol: type, method, or property");
 
-        var command = new Command("safe-delete", "Delete a type or member only if it has no references");
-        command.AddAlias("sd");
+        var command = new Command(
+            "delete-unreferenced",
+            "Prepare a deletion candidate when a complete solution has no semantic references");
         flags.AddTo(command);
 
         command.SetHandler(async context =>

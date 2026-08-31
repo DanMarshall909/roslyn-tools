@@ -24,7 +24,8 @@ internal sealed class McpCommandAdapter(
     private static readonly JsonSerializerOptions RequestOptions = new()
     {
         PropertyNameCaseInsensitive = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        Converters = { new JsonStringEnumConverter() }
     };
 
     private readonly CommandDescriptorRegistry _descriptors = descriptors;
@@ -102,7 +103,7 @@ internal sealed class McpCommandAdapter(
                         ? "Command failed."
                         : SerializeError(result.Error)));
 
-            return new ToolResult(false, SerializeSuccess(result.Value));
+            return ToolResult.Structured(SerializeSuccess(result.Value));
         }
         catch (Exception ex) when (ex is ArgumentException
                                    or InvalidOperationException
@@ -136,7 +137,7 @@ internal sealed class McpCommandAdapter(
         try
         {
             var value = data.Deserialize(responseType, DaemonRpcJson.Options);
-            return new ToolResult(false, SerializeSuccess(value));
+            return ToolResult.Structured(SerializeSuccess(value));
         }
         catch (Exception ex) when (ex is JsonException
                                    or InvalidOperationException

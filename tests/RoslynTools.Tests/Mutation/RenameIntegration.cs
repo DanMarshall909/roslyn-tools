@@ -69,7 +69,8 @@ public class RenameIntegration
             RenameOperationMode.Single,
             "Foo.OldType",
             "NewType",
-            Kind: "type"))).IsOk.ShouldBeTrue();
+            Kind: "type",
+            DryRun: false))).IsOk.ShouldBeTrue();
 
         Assert.True(project.SourceExists("OldType.cs"), "unselected file rename should not be applied");
         Assert.False(project.SourceExists("NewType.cs"), "unselected target file should not be created");
@@ -102,7 +103,8 @@ public class RenameIntegration
         var operation = CreateOperation(workspace, solution);
         (await operation.ExecuteAsync(new RenameOperationRequest(
             RenameOperationMode.Batch,
-            CsvPath: csvPath))).IsOk.ShouldBeTrue();
+            CsvPath: csvPath,
+            DryRun: false))).IsOk.ShouldBeTrue();
 
         Assert.False(project.SourceExists("OldA.cs"), "old file A should be gone");
         Assert.True(project.SourceExists("NewA.cs"), "new file A should exist");
@@ -147,7 +149,8 @@ public class RenameIntegration
         var operation = CreateOperation(workspace, solution);
         (await operation.ExecuteAsync(new RenameOperationRequest(
             RenameOperationMode.Batch,
-            CsvPath: csvPath))).IsOk.ShouldBeTrue();
+            CsvPath: csvPath,
+            DryRun: false))).IsOk.ShouldBeTrue();
 
         Assert.True(project.SourceExists("NewA.cs"), "already-renamed file should remain");
         Assert.False(project.SourceExists("OldB.cs"), "pending old file should be gone");

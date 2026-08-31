@@ -37,6 +37,27 @@ public sealed class PipedSymbolReaderTests
     }
 
     [Fact]
+    public void with_relationship_envelope_extracts_resolved_subject()
+    {
+        var payload = """
+            {
+              "schemaVersion": "rt.result.v1",
+              "operation": "relationships",
+              "data": {
+                "resolvedSubject": "RoslynTools.Core.WorkspaceLoader",
+                "mode": "References",
+                "items": []
+              }
+            }
+            """;
+
+        var ok = PipedSymbolReader.TryReadFullyQualifiedName(payload, out var fqn);
+
+        ok.ShouldBeTrue();
+        fqn.ShouldBe("RoslynTools.Core.WorkspaceLoader");
+    }
+
+    [Fact]
     public void with_missing_fqn_field_returns_false()
     {
         var ok = PipedSymbolReader.TryReadFullyQualifiedName(

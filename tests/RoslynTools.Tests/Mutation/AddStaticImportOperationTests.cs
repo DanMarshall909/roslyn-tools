@@ -60,6 +60,7 @@ public sealed class AddStaticImportOperationTests
         var execution = (await operation.ExecuteAsync(new AddStaticImportRequest(
             Path.Combine(project.ProjectDir, "Program.cs"),
             "System.Console",
+            DryRun: false,
             Simplify: true))).Unwrap();
 
         execution.Status.ShouldBe(MutationExecutionStatus.Applied);

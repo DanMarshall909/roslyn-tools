@@ -23,7 +23,7 @@ public sealed class SourceOperationTests
         using (workspace)
         {
             var factory = new CapturingSessionFactory(solution);
-            var operation = new SourceOperation(factory, new InspectService(), new SymbolResolutionService());
+            var operation = new SourceOperation(factory, new InspectService(), new SymbolCandidateService());
 
             var result = await operation.ExecuteAsync(new SourceRequest(
                 "App.Calculator.Add", "requested.slnx", "method"));
@@ -41,7 +41,7 @@ public sealed class SourceOperationTests
     }
 
     [Fact]
-    public void constructor_requires_symbol_resolution_service()
+    public void constructor_requires_symbol_candidate_service()
     {
         Should.Throw<ArgumentNullException>(() =>
             new SourceOperation(
@@ -58,7 +58,7 @@ public sealed class SourceOperationTests
         using (workspace)
         {
             var factory = new CapturingSessionFactory(solution);
-            var operation = new SourceOperation(factory, new InspectService(), new SymbolResolutionService());
+            var operation = new SourceOperation(factory, new InspectService(), new SymbolCandidateService());
 
             await Should.ThrowAsync<OperationCanceledException>(() => operation.ExecuteAsync(
                 new SourceRequest("App.Missing", "requested.slnx"),

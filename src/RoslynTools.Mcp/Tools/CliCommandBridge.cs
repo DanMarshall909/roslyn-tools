@@ -37,7 +37,21 @@ internal sealed class CliCommandBridge(IServiceProvider services)
         }
 
         var output = capture.ToString().Trim();
-        return new ToolResult(exitCode != 0, output.Length > 0 ? output : "(no output)");
+        var content = output.Length > 0 ? output : "(no output)";
+        if (exitCode == 0 && descriptor.Structured)
+        {
+            try
+            {
+                return ToolResult.Structured(content);
+            }
+            catch (JsonException)
+            {
+                // The compatibility bridge remains text-only until this command has a
+                // typed application port; do not fabricate structured content.
+            }
+        }
+
+        return new ToolResult(exitCode != 0, content);
     }
 
     private static string[] BuildCliArgs(

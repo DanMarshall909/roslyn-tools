@@ -8,6 +8,7 @@ using RoslynTools.Daemon.Rpc;
 using RoslynTools.Feedback;
 using RoslynTools.Rendering;
 using RoslynTools.Services;
+using System.CommandLine;
 
 /// <summary>
 /// Main entry point for the Roslyn Daemon application.
@@ -55,7 +56,10 @@ internal static class Program
         if (!IsDaemonCommand(args)
             && !DaemonOwnedCommands.IsInvocation(args)
             && !TypedCommandInvocation.IsMatch(args, typedDefinitions)
-            && !IsInformationalInvocation(args)
+            && !TypedCommandInvocation.IsLegacyMutationMatch(
+                args,
+                App.Commands.Select(command => command.Info))
+            && !IsInformationalOrLocalProfileInvocation(args)
             && !DaemonRuntime.IsDisabled)
         {
             var client = host.Services.GetRequiredService<DaemonClient>();
@@ -64,26 +68,40 @@ internal static class Program
                 return exitCode.Value;
         }
 
+        var trusted = new Command(
+            "trusted",
+            "Explicit trusted-local experimental commands that may execute repository code");
+        trusted.AddCommand(App.AllCommands
+            .Single(command => command.Info.Name == "probe-di")
+            .Build());
+
+        var maintainer = new Command(
+            "maintainer",
+            "Dogfood, feedback, and release-maintenance commands");
+        maintainer.AddCommand(DaemonCommand.Build());
+        maintainer.AddCommand(FeedbackCommand.Build(
+            host.Services.GetRequiredService<FeedbackAddOperation>(),
+            host.Services.GetRequiredService<FeedbackListOperation>(),
+            host.Services.GetRequiredService<FeedbackProcessOperation>(),
+            host.Services.GetRequiredService<FeedbackReportOperation>()));
+
         return await App.RunAsync(
             args,
             host.Services,
             [
-                DaemonCommand.Build(),
-                FeedbackCommand.Build(
-                    host.Services.GetRequiredService<FeedbackAddOperation>(),
-                    host.Services.GetRequiredService<FeedbackListOperation>(),
-                    host.Services.GetRequiredService<FeedbackProcessOperation>(),
-                    host.Services.GetRequiredService<FeedbackReportOperation>())
+                trusted,
+                maintainer
             ]);
     }
 
     private static bool IsDaemonCommand(string[] args)
     {
-        return args.Length > 0 && args[0] == "daemon";
+        return args.Length > 1 && args[0] == "maintainer" && args[1] == "daemon";
     }
 
-    private static bool IsInformationalInvocation(string[] args)
+    private static bool IsInformationalOrLocalProfileInvocation(string[] args)
     {
-        return args.Any(arg => arg is "-h" or "--help" or "--version");
+        return args.FirstOrDefault() is "trusted" or "maintainer"
+               || args.Any(arg => arg is "-h" or "--help" or "--version");
     }
 }

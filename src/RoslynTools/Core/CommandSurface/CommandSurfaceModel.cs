@@ -27,11 +27,28 @@ internal sealed record CommandDescriptor(
     IReadOnlyList<string> Examples,
     IReadOnlyList<OptionDescriptor> Options,
     IReadOnlyList<ArgumentDescriptor> Arguments,
+    CommandProductDescriptor Product,
     string? Group = null,
     IReadOnlyList<string>? Aliases = null,
     IReadOnlyList<string>? SeeAlso = null,
     IReadOnlyList<string>? KnownIssues = null,
     IReadOnlyList<string>? SupportedFormats = null);
+
+internal sealed record CommandProductDescriptor(
+    string Maturity,
+    IReadOnlyList<string> Effects,
+    bool ConditionallyMutable,
+    string Idempotency,
+    string Audience,
+    string TrustRequirement,
+    string WorkspaceRequirement,
+    IReadOnlyList<string> Prerequisites,
+    string Cost,
+    string Cancellation,
+    int DefaultTimeoutMilliseconds,
+    int MaximumItems,
+    int MaximumOutputBytes,
+    IReadOnlyList<string> Limitations);
 
 /// <summary>
 ///     A single CLI option (flag) — its canonical name, all aliases (with prefixes,

@@ -25,7 +25,7 @@ After modifying or adding a command, smoke test it against `RoslynTools.slnx`:
 ```powershell
 rt inspect describe "RoslynTools.Core.WorkspaceLoader" --solution RoslynTools.slnx
 rt inspect outline src/RoslynTools/Core/SymbolLocator.cs --solution RoslynTools.slnx
-rt inspect find-refs --symbol WorkspaceLoader --solution RoslynTools.slnx
+rt inspect relationships references WorkspaceLoader --solution RoslynTools.slnx
 rt refactor rename "RoslynTools.Models.SymbolMatch.DisplayName" NewName --solution RoslynTools.slnx --dry-run
 ```
 

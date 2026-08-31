@@ -23,7 +23,7 @@ internal sealed record ChangeSignatureRequest(
     string? ParamName = null,
     bool Force = false,
     string? Solution = null,
-    [property: JsonPropertyName("dry-run")] bool DryRun = false);
+    [property: JsonPropertyName("dry-run")] bool DryRun = true);
 
 internal sealed record ChangeSignatureResult(
     ChangeSignatureMode Mode,
@@ -155,7 +155,7 @@ internal static class ChangeSignatureCommandDefinition
         typeof(ChangeSignatureRequest),
         typeof(MutationExecutionResult<ChangeSignatureResult>),
         true,
-        CommandSafety.Mutation,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.InProcess,
         []);
 }

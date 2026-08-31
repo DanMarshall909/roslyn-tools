@@ -56,7 +56,7 @@ internal static class DaemonCommandExecutor
             CancellationToken.None);
         if (attempt.Response is null)
         {
-            RtLog.Error("The daemon is unavailable. Start it with `rt daemon start` and retry.");
+            RtLog.Error("The experimental daemon is unavailable. Start it with `rt maintainer daemon start` and retry.");
             context.ExitCode = 1;
             return;
         }
@@ -73,7 +73,9 @@ internal static class DaemonCommandExecutor
     {
         var cancellationToken = context.GetCancellationToken();
 
-        if (IWorkspaceSessionFactory.HasAmbientOverride || DaemonRuntime.IsDisabled)
+        if (port.Definition.ExecutionPlacement == CommandExecutionPlacement.InProcess
+            || IWorkspaceSessionFactory.HasAmbientOverride
+            || DaemonRuntime.IsDisabled)
         {
             await ExecuteLocalAsync(port, request, context, cancellationToken);
             return;

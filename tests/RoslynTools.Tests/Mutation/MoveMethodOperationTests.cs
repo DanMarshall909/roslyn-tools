@@ -17,7 +17,8 @@ public sealed class MoveMethodOperationTests
 
         var execution = (await operation.ExecuteAsync(new MoveMethodRequest(
             "App.Source.Add",
-            "App.Target"))).Unwrap();
+            "App.Target",
+            DryRun: false))).Unwrap();
 
         operation.Definition.Name.ShouldBe("move_method");
         execution.Status.ShouldBe(MutationExecutionStatus.Applied);

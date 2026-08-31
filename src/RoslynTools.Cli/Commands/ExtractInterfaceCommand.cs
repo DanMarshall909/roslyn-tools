@@ -22,7 +22,7 @@ internal sealed class ExtractInterfaceCommand(
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
         var outputDirOpt = new Option<string?>("--output-dir", "Directory for the new interface file");
         var namespaceOpt = new Option<string?>("--namespace", "Namespace override for the interface");
-        var dryRunOpt = new Option<bool>("--dry-run", "Preview without writing");
+        var dryRunOpt = new Option<bool>("--dry-run", () => true, "Preview without writing (default)");
 
         var cmd = new Command("extract-interface", "Generate IXxx interface from a class's public members");
         cmd.AddAlias("ei");

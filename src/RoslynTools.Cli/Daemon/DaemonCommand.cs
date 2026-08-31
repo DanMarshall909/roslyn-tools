@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
+using RoslynTools.Daemon.Rpc;
 
 namespace RoslynTools.Daemon;
 
@@ -17,7 +18,9 @@ internal static class DaemonCommand
     /// </summary>
     internal static Command Build()
     {
-        var cmd = new Command("daemon", "Manage the rt background workspace daemon");
+        var cmd = new Command(
+            "daemon",
+            $"Manage the experimental background daemon (requires {DaemonRuntime.ExperimentEnvironmentVariable}=1 for command routing)");
         cmd.AddCommand(BuildStart());
         cmd.AddCommand(BuildStop());
         cmd.AddCommand(BuildStatus());
@@ -41,7 +44,7 @@ internal static class DaemonCommand
             // the pipe — spawning a second one would just crash on the pipe-bind check.
             if (await DaemonClient.IsPipeReachableAsync())
             {
-                RtLog.Warning("A daemon is already running but its state file is missing. Run `rt daemon stop` first.");
+                RtLog.Warning("A daemon is already running but its state file is missing. Run `rt maintainer daemon stop` first.");
                 return;
             }
 

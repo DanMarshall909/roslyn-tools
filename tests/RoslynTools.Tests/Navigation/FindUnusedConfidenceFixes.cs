@@ -6,7 +6,7 @@ namespace RoslynTools.Tests.Navigation;
 
 /// <summary>
 /// US-138 AC6: a finding carries confidence + reason, and only a high-confidence finding
-/// offers a safe-delete fix. rt does not decide what to do about a low-confidence finding —
+/// offers a deletion-candidate fix. rt does not decide what to do about a low-confidence finding —
 /// the calling LLM does — but rt must not hand it a deletion command for something the
 /// analysis could not prove is dead.
 /// </summary>
@@ -15,18 +15,18 @@ public class FindUnusedConfidenceFixes
     private const string SolutionPath = "/path/to/App.slnx";
 
     [Fact]
-    public void high_confidence_finding_offers_a_safe_delete_fix()
+    public void high_confidence_finding_offers_a_deletion_candidate_fix()
     {
         var symbol = new UnusedSymbol("OrphanType", "type", "/path/to/Models.cs", 7);
 
         var result = FindUnusedResult.FromSymbols([symbol], SolutionPath);
 
         result.Symbols.Single().SuggestedFixes.ShouldNotBeEmpty(
-            "a finding the analysis can stand behind is exactly what safe-delete is for");
+            "a finding the analysis can stand behind is eligible for candidate planning");
     }
 
     [Fact]
-    public void low_confidence_finding_offers_no_safe_delete_fix()
+    public void low_confidence_finding_offers_no_deletion_candidate_fix()
     {
         var symbol = new UnusedSymbol(
             "ReflectiveService",

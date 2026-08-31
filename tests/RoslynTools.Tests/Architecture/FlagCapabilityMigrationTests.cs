@@ -51,7 +51,7 @@ public sealed class FlagCapabilityMigrationTests
     {
         var offenders = new List<string>();
 
-        foreach (var entry in App.Commands)
+        foreach (var entry in App.AllCommands)
         {
             Command cmd;
             try
@@ -84,7 +84,7 @@ public sealed class FlagCapabilityMigrationTests
     {
         var offenders = new List<string>();
 
-        foreach (var entry in App.Commands)
+        foreach (var entry in App.AllCommands)
         {
             var commandType = ResolveCommandType(entry.Info.Name);
             if (commandType is null)
@@ -126,7 +126,7 @@ public sealed class FlagCapabilityMigrationTests
     [Fact]
     public void migrated_command_files_do_not_parse_catalog_flags_ad_hoc()
     {
-        var migratedCommandTypes = App.Commands
+        var migratedCommandTypes = App.AllCommands
             .Select(c => ResolveCommandType(c.Info.Name))
             .Where(t => t is not null && GetImplementedCapabilities(t).Count > 0)
             .ToList();
@@ -170,10 +170,69 @@ public sealed class FlagCapabilityMigrationTests
             + string.Join("\n", offenders));
     }
 
+    [Fact]
+    public void every_mutation_command_is_review_first_without_an_explicit_apply_choice()
+    {
+        var offenders = new List<string>();
+
+        foreach (var entry in App.AllCommands.Where(entry => entry.Info.Mutates))
+        {
+            var command = entry.Build();
+            var root = new RootCommand();
+            root.AddCommand(command);
+
+            foreach (var leaf in EnumerateLeaves(command, [], []))
+            {
+                var apply = leaf.Options.OfType<Option<bool>>()
+                    .SingleOrDefault(option => option.Name == "apply");
+                if (apply is not null)
+                {
+                    if (root.Parse(leaf.Path).GetValueForOption(apply))
+                        offenders.Add($"{string.Join(' ', leaf.Path)}: --apply defaults to true");
+                    continue;
+                }
+
+                var dryRun = leaf.Options.OfType<Option<bool>>()
+                    .SingleOrDefault(option => option.Name == "dry-run");
+                if (dryRun is null)
+                {
+                    offenders.Add($"{string.Join(' ', leaf.Path)}: no review/apply choice");
+                    continue;
+                }
+
+                if (!root.Parse(leaf.Path).GetValueForOption(dryRun))
+                    offenders.Add($"{string.Join(' ', leaf.Path)}: --dry-run defaults to false");
+            }
+        }
+
+        Assert.True(
+            offenders.Count == 0,
+            "Every mutation leaf must default to review/dry-run and require an explicit apply choice.\n"
+            + string.Join("\n", offenders.OrderBy(value => value, StringComparer.Ordinal)));
+    }
+
     private static Type? ResolveCommandType(string commandName)
     {
         var className = ToCommandClassName(commandName);
         return typeof(App).Assembly.GetType($"RoslynTools.Commands.{className}", throwOnError: false);
+    }
+
+    private static IEnumerable<MutationLeaf> EnumerateLeaves(
+        Command command,
+        IReadOnlyList<string> parentPath,
+        IReadOnlyList<Option> inheritedOptions)
+    {
+        var path = parentPath.Append(command.Name).ToArray();
+        var options = inheritedOptions.Concat(command.Options).Distinct().ToArray();
+        if (command.Subcommands.Count == 0)
+        {
+            yield return new MutationLeaf(path, options);
+            yield break;
+        }
+
+        foreach (var child in command.Subcommands)
+            foreach (var leaf in EnumerateLeaves(child, path, options))
+                yield return leaf;
     }
 
     /// <summary>
@@ -216,6 +275,8 @@ public sealed class FlagCapabilityMigrationTests
     {
         return char.ToLowerInvariant(value[0]) + value[1..];
     }
+
+    private sealed record MutationLeaf(string[] Path, IReadOnlyList<Option> Options);
 
     private static string LocateRepoRoot()
     {

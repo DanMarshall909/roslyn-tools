@@ -134,7 +134,7 @@ public class DescribeToolTests
             using var error = JsonDocument.Parse(result.content);
             error.RootElement.GetProperty("kind").GetString().ShouldBe(nameof(RtErrorKind.NotFound));
             error.RootElement.GetProperty("message").GetString()
-                .ShouldBe("No symbol with FQN 'TestApp.Missing' found in solution.");
+                .ShouldBe("No symbol matching 'TestApp.Missing' was found in the loaded solution.");
         }
     }
 

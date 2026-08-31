@@ -20,7 +20,7 @@ internal sealed class PrimeService : IRtService
         [
             "rt inspect describe \"<FQN>\" --solution <slnx>",
             "rt inspect outline <file.cs> --solution <slnx>",
-            "rt inspect find-refs --symbol <Name> --solution <slnx>",
+            "rt inspect relationships references <Name> --solution <slnx>",
             "rt refactor rename \"<FQN>\" NewName --solution <slnx> --dry-run",
             "rt refactor move --type <FQN> --to-namespace <NS> --solution <slnx> --dry-run",
             "rt suggest \"<task in English>\""

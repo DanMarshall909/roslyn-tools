@@ -1,5 +1,6 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace RoslynTools.Core.Output;
 
@@ -35,13 +36,17 @@ internal static class JsonEncoders
     private static readonly JsonSerializerOptions StrictOptions = new()
     {
         WriteIndented = true,
-        Encoder = JavaScriptEncoder.Default
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        Encoder = JavaScriptEncoder.Default,
+        Converters = { new JsonStringEnumConverter() }
     };
 
     private static readonly JsonSerializerOptions RelaxedOptions = new()
     {
         WriteIndented = true,
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        Converters = { new JsonStringEnumConverter() }
     };
 
     /// <summary>

@@ -26,7 +26,7 @@ internal sealed class TransformParametersCommand(
         var existingTypeOpt = new Option<string?>("--existing-type",
             "Fully-qualified name of an existing type to reuse, e.g. MyApp.PlaceOrderArgs");
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln file. Auto-detected if omitted.");
-        var dryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk.");
+        var dryRunOpt = new Option<bool>("--dry-run", () => true, "Preview changes without writing to disk (default).");
 
         var cmd = new Command("transform-parameters",
             "Extract method parameters into a new record and update all call sites.")

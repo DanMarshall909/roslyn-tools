@@ -42,7 +42,8 @@ internal sealed record ApplicationCommandDefinition
         CommandSafety safety,
         CommandExecutionPlacement executionPlacement,
         IReadOnlyList<CommandFollowOn> suggestedTools,
-        IReadOnlyList<CommandRequestVariant>? requestVariants = null)
+        IReadOnlyList<CommandRequestVariant>? requestVariants = null,
+        CommandProductMetadata? product = null)
     {
         ArgumentNullException.ThrowIfNull(info);
         ArgumentNullException.ThrowIfNull(requestType);
@@ -55,10 +56,28 @@ internal sealed record ApplicationCommandDefinition
                 $"Command '{info.Name}' metadata and safety disagree about mutation behavior.",
                 nameof(safety));
 
+        if (safety.Effect == CommandEffect.Mutation
+            && safety.MutationDefault != MutationExecutionDefault.Review)
+            throw new ArgumentException(
+                $"Mutation command '{info.Name}' must default to review or dry-run during hardening.",
+                nameof(safety));
+
+        if (safety.Effect == CommandEffect.Mutation
+            && executionPlacement != CommandExecutionPlacement.InProcess)
+            throw new ArgumentException(
+                $"Mutation command '{info.Name}' must execute in-process until durable dispatch recovery is available.",
+                nameof(executionPlacement));
+
         Info = info;
         RequestType = requestType;
         ResponseType = responseType;
-        McpVisible = mcpVisible;
+        Product = product ?? CommandProductMetadata.FromLegacy(info, safety);
+        // Apply-capable operations are intentionally absent from normal MCP discovery while
+        // mutation execution is review-first and in-process only. Plan-only operations can be
+        // reintroduced later with a distinct non-applying contract.
+        McpVisible = mcpVisible
+                     && safety.Effect == CommandEffect.ReadOnly
+                     && Product.Audience == CommandAudience.Public;
         Safety = safety;
         ExecutionPlacement = executionPlacement;
         SuggestedTools = suggestedTools;
@@ -83,4 +102,6 @@ internal sealed record ApplicationCommandDefinition
     public IReadOnlyList<CommandFollowOn> SuggestedTools { get; }
 
     public IReadOnlyList<CommandRequestVariant> RequestVariants { get; }
+
+    public CommandProductMetadata Product { get; }
 }

@@ -15,7 +15,7 @@ internal sealed record MigrateToIOptionsRequest(
     string? Solution = null,
     [property: JsonPropertyName("dry-run"),
      CommandPropertyDescription("Preview generated POCO and registration changes without writing")]
-    bool DryRun = false);
+    bool DryRun = true);
 
 /// <summary>One DI site considered when preparing the migration.</summary>
 internal sealed record MigrateToIOptionsRegistrationSite(
@@ -136,7 +136,7 @@ internal static class MigrateToIOptionsCommandDefinition
         typeof(MigrateToIOptionsRequest),
         typeof(MutationExecutionResult<MigrateToIOptionsResult>),
         true,
-        CommandSafety.Mutation,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.InProcess,
         []);
 }

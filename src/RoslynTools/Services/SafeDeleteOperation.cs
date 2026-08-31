@@ -10,7 +10,7 @@ internal sealed record SafeDeleteRequest(
     [property: CommandPropertyDescription("Kind of symbol: type, method, or property")]
     string? Kind = null,
     string? Solution = null,
-    [property: JsonPropertyName("dry-run")] bool DryRun = false);
+    [property: JsonPropertyName("dry-run")] bool DryRun = true);
 
 internal sealed record SafeDeleteReferenceEvidence(
     string FilePath,
@@ -22,7 +22,9 @@ internal sealed record SafeDeleteResult(
     string Kind,
     string DeclarationPath,
     int ReferenceCount,
-    int IgnoredNameofReferenceCount);
+    int IgnoredNameofReferenceCount,
+    WorkspaceCompletenessState WorkspaceState,
+    IReadOnlyList<string> Limitations);
 
 internal sealed class SafeDeleteOperation
     : CommandApplicationPort<SafeDeleteRequest, MutationExecutionResult<SafeDeleteResult>>, IRtService
@@ -56,6 +58,13 @@ internal sealed class SafeDeleteOperation
         var (workspace, solution) = await _sessions.LoadWorkspaceAsync(request.Solution);
         using (workspace)
         {
+            var completeness = await WorkspaceCompleteness.AssessSemanticAsync(
+                solution,
+                cancellationToken);
+            if (completeness.State != WorkspaceCompletenessState.Complete)
+                return Result<MutationExecutionResult<SafeDeleteResult>, RtError>.Err(
+                    CreateIncompleteWorkspaceError(completeness));
+
             var preparationResult = await _service.PrepareAsync(
                 solution,
                 request.Symbol,
@@ -77,7 +86,12 @@ internal sealed class SafeDeleteOperation
                 preparation.Kind,
                 preparation.DeclarationPath,
                 preparation.References.Count,
-                preparation.IgnoredNameofReferenceCount);
+                preparation.IgnoredNameofReferenceCount,
+                completeness.State,
+                [
+                    "Reference absence is limited to the completely loaded solution.",
+                    "Reflection, configuration, generated runtime activation, and external consumers are not proven absent."
+                ]);
             var changeSet = new PreparedChangeSet(solution, preparation.Solution);
             var execution = request.DryRun
                 ? _executor.Preview(value, changeSet)
@@ -87,6 +101,24 @@ internal sealed class SafeDeleteOperation
                     cancellationToken: cancellationToken);
             return Result<MutationExecutionResult<SafeDeleteResult>, RtError>.Ok(execution);
         }
+    }
+
+    private static RtError CreateIncompleteWorkspaceError(WorkspaceCompleteness completeness)
+    {
+        var context = new Dictionary<string, string>
+        {
+            ["workspaceState"] = completeness.State.ToString(),
+            ["diagnosticCount"] = completeness.Diagnostics.Count.ToString(
+                System.Globalization.CultureInfo.InvariantCulture)
+        };
+        for (var index = 0; index < completeness.Diagnostics.Count; index++)
+            context[$"diagnostic.{index}"] = completeness.Diagnostics[index];
+
+        return new RtError(
+            RtErrorKind.WorkspaceLoadFailure,
+            $"Cannot prepare a deletion candidate from a {completeness.State} workspace. "
+            + "Resolve all semantic load and compiler errors, then retry.",
+            context);
     }
 
     private static RtError CreateReferencedSymbolError(SafeDeleteService.Preparation preparation)
@@ -118,27 +150,31 @@ internal sealed class SafeDeleteOperation
 internal static class SafeDeleteCommandDefinition
 {
     internal static RtCommandInfo Info { get; } = new(
-        "safe-delete",
+        "delete-unreferenced",
         true,
         false,
         "refactor",
-        Aliases: ["sd"],
+        Aliases: [],
         WhenToUse:
-        "Use this instead of a manual Edit when deleting a type or member only after verifying it has zero references in the solution. The command checks references (excluding nameof() and the declaration itself) before touching any file, and exits non-zero with reference evidence if usages exist.",
+        "Use this instead of a manual Edit when preparing a deletion candidate after a complete solution load finds zero semantic references. The result states its limitations and never claims that reflection, runtime activation, generated use, or external consumers are absent.",
         Examples:
         [
-            "rt refactor safe-delete --symbol OrphanedHelper --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt refactor sd --symbol BookingService.LegacyMethod --kind method --dry-run --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
-            "rt refactor safe-delete --symbol OldDtoType --kind type --solution RoslynTools.slnx"
+            "rt refactor delete-unreferenced --symbol OrphanedHelper --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt refactor delete-unreferenced --symbol BookingService.LegacyMethod --kind method --dry-run --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
+            "rt refactor delete-unreferenced --symbol OldDtoType --kind type --solution RoslynTools.slnx"
         ],
-        SeeAlso: ["find-unused", "find-refs"]);
+        SeeAlso: ["find-unused", "relationships"]);
 
     internal static ApplicationCommandDefinition Definition { get; } = new(
         Info,
         typeof(SafeDeleteRequest),
         typeof(MutationExecutionResult<SafeDeleteResult>),
         true,
-        CommandSafety.Mutation,
-        CommandExecutionPlacement.DaemonPreferred,
-        []);
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.InProcess,
+        [],
+        product: CommandProductMetadata.FromLegacy(
+            Info,
+            CommandSafety.ReviewByDefault,
+            workspaceRequirement: WorkspaceRequirement.CompleteSemantic));
 }

@@ -35,7 +35,7 @@ public sealed class DaemonRpcRecoveryCoordinatorTests
     }
 
     [Fact]
-    public async Task Indeterminate_mutation_is_never_retried_or_fallen_back()
+    public async Task Mutation_is_redirected_in_process_before_rpc_dispatch()
     {
         var attempt = new DaemonRpcAttempt(
             DaemonRpcAttemptState.IndeterminateAfterDispatch,
@@ -51,9 +51,10 @@ public sealed class DaemonRpcRecoveryCoordinatorTests
             CancellationToken.None);
 
         result.Response.ShouldBeNull();
-        result.ShouldFallback.ShouldBeFalse();
-        result.LastAttempt.ShouldBe(attempt);
-        rpc.CallCount.ShouldBe(1);
+        result.ShouldFallback.ShouldBeTrue();
+        result.LastAttempt.State.ShouldBe(DaemonRpcAttemptState.UnavailableBeforeDispatch);
+        result.LastAttempt.DispatchStarted.ShouldBeFalse();
+        rpc.CallCount.ShouldBe(0);
         launcher.CallCount.ShouldBe(0);
     }
 
@@ -100,12 +101,12 @@ public sealed class DaemonRpcRecoveryCoordinatorTests
 
         result.Response.ShouldBeNull();
         result.ShouldFallback.ShouldBeTrue();
-        rpc.CallCount.ShouldBe(1);
-        launcher.CallCount.ShouldBe(1);
+        rpc.CallCount.ShouldBe(0);
+        launcher.CallCount.ShouldBe(0);
     }
 
     [Fact]
-    public async Task Mutation_unavailable_before_dispatch_may_start_and_retry()
+    public async Task Mutation_never_starts_or_retries_the_daemon()
     {
         var response = CompletedResponse();
         var rpc = new StubRpcClient(
@@ -124,14 +125,16 @@ public sealed class DaemonRpcRecoveryCoordinatorTests
             AddDependencyCommandDefinition.Definition,
             Arguments);
 
-        result.Response.ShouldBeSameAs(response);
-        result.ShouldFallback.ShouldBeFalse();
-        rpc.CallCount.ShouldBe(2);
-        launcher.CallCount.ShouldBe(1);
+        result.Response.ShouldBeNull();
+        result.ShouldFallback.ShouldBeTrue();
+        result.LastAttempt.State.ShouldBe(DaemonRpcAttemptState.UnavailableBeforeDispatch);
+        result.LastAttempt.DispatchStarted.ShouldBeFalse();
+        rpc.CallCount.ShouldBe(0);
+        launcher.CallCount.ShouldBe(0);
     }
 
     [Fact]
-    public async Task Mutation_retry_that_becomes_indeterminate_is_terminal()
+    public async Task Mutation_short_circuit_does_not_observe_queued_indeterminate_attempts()
     {
         var rpc = new StubRpcClient(
             new DaemonRpcAttempt(
@@ -150,10 +153,11 @@ public sealed class DaemonRpcRecoveryCoordinatorTests
             Arguments);
 
         result.Response.ShouldBeNull();
-        result.ShouldFallback.ShouldBeFalse();
-        result.LastAttempt.State.ShouldBe(DaemonRpcAttemptState.IndeterminateAfterDispatch);
-        rpc.CallCount.ShouldBe(2);
-        launcher.CallCount.ShouldBe(1);
+        result.ShouldFallback.ShouldBeTrue();
+        result.LastAttempt.State.ShouldBe(DaemonRpcAttemptState.UnavailableBeforeDispatch);
+        result.LastAttempt.DispatchStarted.ShouldBeFalse();
+        rpc.CallCount.ShouldBe(0);
+        launcher.CallCount.ShouldBe(0);
     }
 
     [Fact]

@@ -9,10 +9,10 @@ namespace RoslynTools.Tests.Navigation;
 ///     Verifies that FindRefsCommand correctly resolves WorkspaceLoader from DI
 ///     when App.RunAsync is called with a service provider.
 /// </summary>
-public class FindRefsDi
+public class RelationshipsDi
 {
     [Fact]
-    public async Task finds_refs_command_with_di_service_provider_returns_exit_zero_and_results()
+    public async Task relationships_command_with_di_service_provider_returns_exit_zero_and_results()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Model.cs", """
@@ -41,7 +41,7 @@ public class FindRefsDi
             var services = sc.BuildServiceProvider();
 
             var (exitCode, stdout, _) = await InvokeAsync(
-                ["find-refs", "--symbol", "Widget", "--solution", "ignored"],
+                ["relationships", "references", "Widget", "--kind", "type", "--solution", "ignored"],
                 services);
 
             exitCode.ShouldBe(0);
@@ -50,7 +50,7 @@ public class FindRefsDi
     }
 
     [Fact]
-    public async Task finds_refs_command_without_service_provider_falls_back_and_returns_results()
+    public async Task relationships_command_without_service_provider_falls_back_and_returns_results()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Model.cs", """
@@ -72,7 +72,7 @@ public class FindRefsDi
         using (WorkspaceLoader.UseOverride(workspace, sln))
         {
             var (exitCode, stdout, _) = await InvokeAsync(
-                ["find-refs", "--symbol", "Gadget", "--solution", "ignored"],
+                ["relationships", "references", "Gadget", "--kind", "type", "--solution", "ignored"],
                 null);
 
             exitCode.ShouldBe(0);

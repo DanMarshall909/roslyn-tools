@@ -16,22 +16,54 @@ internal sealed class ToolSchemaBuilder(CommandDescriptorRegistry descriptors)
     public IReadOnlyList<ToolDefinition> Build()
     {
         return _descriptors.All
-            .Where(descriptor => descriptor.McpVisible)
+            .Where(descriptor => descriptor.McpVisible
+                                 && descriptor.Audience == CommandAudience.Public)
             .Select(Build)
             .ToList();
     }
 
-    internal static ToolDefinition Build(ApplicationCommandDescriptor descriptor) => new(
-        descriptor.ToolName,
-        descriptor.WhenToUse,
-        descriptor.Definition is not null
-            ? BuildPortSchema(descriptor.Definition)
-            : descriptor.Port is not null
-                ? BuildLegacyPortSchema(descriptor.Input, descriptor.Port.RequestType)
-                : BuildInputSchema(descriptor.Input),
-        descriptor.Structured
-            ? JsonSchemaBuilder.StructuredOutput()
-            : null);
+    internal static ToolDefinition Build(ApplicationCommandDescriptor descriptor)
+    {
+        var product = descriptor.Definition?.Product;
+        var writes = descriptor.Effects.HasFlag(CommandEffects.RepositoryWrite)
+                     || descriptor.Effects.HasFlag(CommandEffects.LocalStateWrite)
+                     || descriptor.Effects.HasFlag(CommandEffects.ExternalWrite);
+        var external = descriptor.Effects.HasFlag(CommandEffects.ExternalRead)
+                       || descriptor.Effects.HasFlag(CommandEffects.ExternalWrite);
+
+        return new ToolDefinition(
+            descriptor.ToolName,
+            descriptor.WhenToUse,
+            descriptor.Definition is not null
+                ? BuildPortSchema(descriptor.Definition)
+                : descriptor.Port is not null
+                    ? BuildLegacyPortSchema(descriptor.Input, descriptor.Port.RequestType)
+                    : BuildInputSchema(descriptor.Input),
+            descriptor.Structured
+                ? JsonSchemaBuilder.StructuredOutput()
+                : null,
+            new ToolAnnotations(
+                descriptor.ToolName.Replace('_', ' '),
+                readOnlyHint: !writes,
+                destructiveHint: writes,
+                idempotentHint: product?.Idempotency == CommandIdempotency.Idempotent || !writes,
+                openWorldHint: external),
+            new Dictionary<string, object>
+            {
+                ["rt/maturity"] = (product?.Maturity ?? CapabilityMaturity.Experimental).ToString(),
+                ["rt/effects"] = Enum.GetValues<CommandEffects>()
+                    .Where(effect => effect != CommandEffects.None && descriptor.Effects.HasFlag(effect))
+                    .Select(effect => effect.ToString())
+                    .ToArray(),
+                ["rt/audience"] = descriptor.Audience.ToString(),
+                ["rt/workspaceRequirement"] =
+                    (product?.WorkspaceRequirement ?? WorkspaceRequirement.Semantic).ToString(),
+                ["rt/defaultTimeoutMilliseconds"] =
+                    product?.Limits.DefaultTimeoutMilliseconds ?? 30_000,
+                ["rt/maximumItems"] = product?.Limits.MaximumItems ?? 100,
+                ["rt/maximumOutputBytes"] = product?.Limits.MaximumOutputBytes ?? 1_048_576
+            });
+    }
 
     private static Dictionary<string, object> BuildInputSchema(ApplicationCommandInput input)
     {

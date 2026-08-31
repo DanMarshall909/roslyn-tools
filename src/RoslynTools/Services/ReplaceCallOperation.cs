@@ -7,7 +7,7 @@ internal sealed record ReplaceCallRequest(
     [property: JsonRequired] string From,
     [property: JsonRequired] string To,
     string? Solution = null,
-    [property: JsonPropertyName("dry-run")] bool DryRun = false,
+    [property: JsonPropertyName("dry-run")] bool DryRun = true,
     [property: JsonPropertyName("if-arg")] int? IfArgIndex = null,
     [property: JsonPropertyName("if-arg-literal")] string? IfArgLiteral = null);
 
@@ -87,7 +87,7 @@ internal static class ReplaceCallCommandDefinition
         typeof(ReplaceCallRequest),
         typeof(MutationExecutionResult<ReplaceCallResult>),
         true,
-        CommandSafety.Mutation,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.InProcess,
         []);
 }

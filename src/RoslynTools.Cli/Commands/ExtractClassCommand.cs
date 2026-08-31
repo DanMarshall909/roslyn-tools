@@ -25,7 +25,7 @@ internal sealed class ExtractClassCommand(
         var staticOpt = new Option<bool>("--static", "Make the new class static (no injection)");
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
         var outputDirOpt = new Option<string?>("--output-dir", "Directory for new file");
-        var dryRunOpt = new Option<bool>("--dry-run", "Preview without writing");
+        var dryRunOpt = new Option<bool>("--dry-run", () => true, "Preview without writing (default)");
 
         var cmd = new Command("extract-class", "Move named members from a class into a new class file");
         cmd.AddAlias("ec");

@@ -7,7 +7,7 @@ internal sealed record AddDynamicDependencyRequest(
     [property: JsonRequired] string[] Types,
     [property: JsonRequired] string Root,
     string? Solution = null,
-    [property: JsonPropertyName("dry-run")] bool DryRun = false);
+    [property: JsonPropertyName("dry-run")] bool DryRun = true);
 
 internal sealed record AddDynamicDependencyResult(
     string Root,
@@ -106,7 +106,7 @@ internal static class AddDynamicDependencyCommandDefinition
         typeof(AddDynamicDependencyRequest),
         typeof(MutationExecutionResult<AddDynamicDependencyResult>),
         true,
-        CommandSafety.Mutation,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.InProcess,
         []);
 }

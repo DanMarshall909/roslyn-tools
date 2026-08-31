@@ -44,7 +44,8 @@ public sealed class TransformParametersOperationTests
 
         var execution = (await operation.ExecuteAsync(new TransformParametersRequest(
             "Service.Run",
-            ExistingType: "TransformApp.RunArgs"))).Unwrap();
+            ExistingType: "TransformApp.RunArgs",
+            DryRun: false))).Unwrap();
 
         execution.Status.ShouldBe(MutationExecutionStatus.Applied);
         execution.Value!.ReusedExistingType.ShouldBeTrue();

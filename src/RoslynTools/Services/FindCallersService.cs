@@ -16,17 +16,18 @@ namespace RoslynTools.Services;
 internal class FindCallersService : IRtService
 {
     private readonly ILogger<FindCallersService> _logger;
-    private readonly ISymbolResolutionService _symbols;
+    private readonly ISymbolCandidateService _symbols;
 
     public FindCallersService()
-        : this(new RtConsoleLogger<FindCallersService>())
+        : this(new RtConsoleLogger<FindCallersService>(), new SymbolCandidateService())
     {
     }
 
-    public FindCallersService(ILogger<FindCallersService> logger,
-        ISymbolResolutionService? symbols = null)
+    public FindCallersService(
+        ILogger<FindCallersService> logger,
+        ISymbolCandidateService symbols)
     {
-        _symbols = symbols ?? new SymbolResolutionService();
+        _symbols = symbols;
 
         _logger = logger;
     }
@@ -39,7 +40,7 @@ internal class FindCallersService : IRtService
         string symbol,
         bool includeTests)
     {
-        var resolved = await _symbols.TryFindSymbolAsync(sln, symbol, "method");
+        var resolved = await _symbols.ResolveAsync(sln, symbol, "method");
         if (resolved.IsErr)
             return resolved.Map(_ => default(FindCallersResult)!);
 

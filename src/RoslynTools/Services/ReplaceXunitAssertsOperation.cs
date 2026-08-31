@@ -5,7 +5,7 @@ namespace RoslynTools.Services;
 
 internal sealed record ReplaceXunitAssertsRequest(
     string? Solution = null,
-    [property: JsonPropertyName("dry-run")] bool DryRun = false,
+    [property: JsonPropertyName("dry-run")] bool DryRun = true,
     bool Apply = false,
     bool Review = false);
 
@@ -107,6 +107,6 @@ internal static class ReplaceXunitAssertsCommandDefinition
         typeof(MutationExecutionResult<ReplaceXunitAssertsResult>),
         true,
         CommandSafety.ReviewByDefault,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandExecutionPlacement.InProcess,
         []);
 }

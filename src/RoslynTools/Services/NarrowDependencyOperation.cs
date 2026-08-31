@@ -19,7 +19,7 @@ internal sealed record NarrowDependencyRequest(
     string? Solution = null,
     [property: JsonPropertyName("dry-run")]
     [property: CommandPropertyDescription("Preview without writing")]
-    bool DryRun = false);
+    bool DryRun = true);
 
 internal sealed record NarrowDependencySkippedConsumer(string Name, string Reason);
 
@@ -149,7 +149,7 @@ internal static class NarrowDependencyCommandDefinition
         typeof(NarrowDependencyRequest),
         typeof(MutationExecutionResult<NarrowDependencyResult>),
         true,
-        CommandSafety.Mutation,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.InProcess,
         []);
 }

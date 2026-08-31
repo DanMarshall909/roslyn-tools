@@ -18,6 +18,18 @@ internal static class TypedCommandInvocation
         return definitions.Any(definition => IsMatch(arguments, definition.Info));
     }
 
+    internal static bool IsLegacyMutationMatch(
+        IReadOnlyList<string> arguments,
+        IEnumerable<RtCommandInfo> commandInfos)
+    {
+        if (arguments.Count == 0)
+            return false;
+
+        return commandInfos
+            .Where(info => info.Mutates)
+            .Any(info => IsMatch(arguments, info));
+    }
+
     private static bool IsMatch(IReadOnlyList<string> arguments, RtCommandInfo info)
     {
         if (MatchesCommand(arguments[0], info))

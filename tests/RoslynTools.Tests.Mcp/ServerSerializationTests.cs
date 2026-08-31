@@ -120,7 +120,55 @@ public class ServerSerializationTests
     }
 
     [Fact]
-    public async Task descriptor_tool_call_returns_full_json_in_text_and_no_structured_content()
+    public async Task search_symbols_advertises_bounded_typed_discovery_contract()
+    {
+        var output = await RunSingleRequestAsync(
+            """{"jsonrpc":"2.0","method":"tools/list","id":1}""");
+
+        using var doc = JsonDocument.Parse(output);
+        var tools = doc.RootElement.GetProperty("result").GetProperty("tools");
+        var search = tools.EnumerateArray().Single(tool =>
+            tool.GetProperty("name").GetString() == "search_symbols");
+        var schema = search.GetProperty("inputSchema");
+        schema.GetProperty("required").EnumerateArray()
+            .Select(property => property.GetString())
+            .ShouldContain("query");
+        var properties = schema.GetProperty("properties");
+        properties.TryGetProperty("kind", out _).ShouldBeTrue();
+        properties.TryGetProperty("genericArity", out _).ShouldBeTrue();
+        properties.TryGetProperty("fuzzy", out _).ShouldBeTrue();
+        properties.TryGetProperty("continuationToken", out _).ShouldBeTrue();
+        search.GetProperty("annotations").GetProperty("readOnlyHint").GetBoolean().ShouldBeTrue();
+        search.GetProperty("_meta").GetProperty("rt/maturity").GetString().ShouldBe("Preview");
+        search.TryGetProperty("outputSchema", out _).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task relationship_wrappers_are_consolidated_out_of_normal_discovery()
+    {
+        var output = await RunSingleRequestAsync(
+            """{"jsonrpc":"2.0","method":"tools/list","id":1}""");
+
+        using var doc = JsonDocument.Parse(output);
+        var tools = doc.RootElement.GetProperty("result").GetProperty("tools");
+        var names = tools.EnumerateArray()
+            .Select(tool => tool.GetProperty("name").GetString())
+            .ToArray();
+        names.ShouldContain("relationships");
+        names.ShouldNotContain("find_refs");
+        names.ShouldNotContain("find_callers");
+        names.ShouldNotContain("find_impl");
+
+        var relationships = tools.EnumerateArray().Single(tool =>
+            tool.GetProperty("name").GetString() == "relationships");
+        relationships.GetProperty("inputSchema").GetProperty("properties")
+            .GetProperty("mode").GetProperty("enum").EnumerateArray()
+            .Select(value => value.GetString())
+            .ShouldBe(["References", "Callers", "Implementations"]);
+    }
+
+    [Fact]
+    public async Task descriptor_tool_call_returns_equivalent_text_and_structured_content()
     {
         var output = await RunSingleRequestAsync(
             """
@@ -129,10 +177,56 @@ public class ServerSerializationTests
 
         using var doc = JsonDocument.Parse(output);
         var result = doc.RootElement.GetProperty("result");
-        result.TryGetProperty("structuredContent", out _).ShouldBeFalse();
+        result.TryGetProperty("structuredContent", out var structured).ShouldBeTrue();
         var text = result.GetProperty("content")[0].GetProperty("text").GetString();
         text.ShouldNotBeNull();
         using var payload = JsonDocument.Parse(text);
         payload.RootElement.GetProperty("results").GetArrayLength().ShouldBe(1);
+        structured.GetProperty("results").GetArrayLength().ShouldBe(1);
+        JsonElement.DeepEquals(structured, payload.RootElement).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task doctor_returns_the_versioned_envelope_as_structured_content_without_evaluating_untrusted_code()
+    {
+        var arguments = JsonSerializer.Serialize(new
+        {
+            directory = FindRepoRoot(),
+            solution = "RoslynTools.slnx"
+        });
+        using var argumentsDocument = JsonDocument.Parse(arguments);
+        var request = JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            method = "tools/call",
+            id = 3,
+            @params = new
+            {
+                name = "doctor",
+                arguments = argumentsDocument.RootElement.Clone()
+            }
+        });
+        var output = await RunSingleRequestAsync(request);
+
+        using var document = JsonDocument.Parse(output);
+        var result = document.RootElement.GetProperty("result");
+        result.GetProperty("isError").GetBoolean().ShouldBeFalse();
+        var structured = result.GetProperty("structuredContent");
+        structured.GetProperty("schemaVersion").GetString().ShouldBe("rt.result.v1");
+        structured.GetProperty("operation").GetString().ShouldBe("doctor");
+        structured.GetProperty("outcome").GetString().ShouldBe("TrustRequired");
+        structured.GetProperty("data").GetProperty("installation")
+            .GetProperty("daemonRequired").GetBoolean().ShouldBeFalse();
+    }
+
+    private static string FindRepoRoot()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
+             directory is not null;
+             directory = directory.Parent)
+            if (File.Exists(Path.Combine(directory.FullName, "RoslynTools.slnx")))
+                return directory.FullName;
+
+        throw new InvalidOperationException("Could not locate RoslynTools.slnx.");
     }
 }

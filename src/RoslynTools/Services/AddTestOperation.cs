@@ -25,7 +25,7 @@ internal sealed record AddTestRequest(
     string? AfterPath = null,
     string? FilePath = null,
     string? Solution = null,
-    [property: JsonPropertyName("dry-run")] bool DryRun = false);
+    [property: JsonPropertyName("dry-run")] bool DryRun = true);
 
 internal sealed record AddTestResult(
     AddTestMode Mode,
@@ -168,7 +168,11 @@ internal static class AddTestCommandDefinition
         typeof(AddTestRequest),
         typeof(MutationExecutionResult<AddTestResult>),
         true,
-        CommandSafety.Mutation,
-        CommandExecutionPlacement.DaemonPreferred,
-        []);
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.InProcess,
+        [],
+        product: CommandProductMetadata.FromLegacy(
+            Info,
+            CommandSafety.ReviewByDefault,
+            CommandAudience.Removed));
 }

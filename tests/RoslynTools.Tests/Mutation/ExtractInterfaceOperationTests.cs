@@ -15,7 +15,9 @@ public sealed class ExtractInterfaceOperationTests
         var writer = new CapturingSolutionChangeWriter();
         var operation = CreateOperation(workspace, solution, writer);
 
-        var execution = (await operation.ExecuteAsync(new ExtractInterfaceRequest("Widget"))).Unwrap();
+        var execution = (await operation.ExecuteAsync(new ExtractInterfaceRequest(
+            "Widget",
+            DryRun: false))).Unwrap();
 
         operation.Definition.Name.ShouldBe("extract_interface");
         execution.Status.ShouldBe(MutationExecutionStatus.Applied);

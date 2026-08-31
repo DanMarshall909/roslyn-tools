@@ -7,7 +7,7 @@ internal sealed record AddNullChecksRequest(
     [property: JsonRequired] string Type,
     [property: JsonRequired] string Method,
     string? Solution = null,
-    [property: JsonPropertyName("dry-run")] bool DryRun = false);
+    [property: JsonPropertyName("dry-run")] bool DryRun = true);
 
 internal sealed record AddNullChecksResult(string Type, string Method, bool Changed, string? Message);
 
@@ -33,8 +33,8 @@ internal sealed class AddNullChecksOperation
         typeof(AddNullChecksRequest),
         typeof(MutationExecutionResult<AddNullChecksResult>),
         true,
-        CommandSafety.Mutation,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.InProcess,
         []);
 
     public override async Task<Result<MutationExecutionResult<AddNullChecksResult>, RtError>> ExecuteAsync(

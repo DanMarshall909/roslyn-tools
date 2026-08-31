@@ -7,10 +7,10 @@ using Shouldly;
 namespace RoslynTools.Tests.Mcp.Handlers;
 
 [Collection("mcp-bridge")]
-public class FindCallersToolTests
+public class RelationshipsCallersToolTests
 {
     [Fact]
-    public async Task find_callers_returns_structured_ambiguity_error_without_prompt()
+    public async Task relationships_returns_structured_ambiguity_error_without_prompt()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Decider.cs", """
@@ -38,10 +38,10 @@ public class FindCallersToolTests
         {
             var registry = provider.GetRequiredService<ToolRegistry>();
             using var args = JsonDocument.Parse("""
-                                                {"symbol":"Decide","solution":"ignored.slnx"}
+                                                {"symbol":"Decide","mode":"Callers","solution":"ignored.slnx"}
                                                 """);
 
-            var result = await registry.InvokeAsync("find_callers", args.RootElement);
+            var result = await registry.InvokeAsync("relationships", args.RootElement);
 
             result.isError.ShouldBeTrue();
             result.content.ShouldNotContain("Enter number", Case.Sensitive);

@@ -38,7 +38,7 @@ internal static class DaemonOwnedCommands
             OutlineCommandDefinition.Info,
             CommandSafety.ReadOnly,
             typeof(OutlineRequest),
-            typeof(OutlineResult),
+            typeof(RtResultEnvelope<OutlineResult>),
             [
                 new CommandFollowOn(
                     "describe",
@@ -188,7 +188,7 @@ internal static class OutlineCommandDefinition
     internal static ApplicationCommandDefinition Definition { get; } = new(
         Metadata,
         typeof(OutlineRequest),
-        typeof(OutlineResult),
+        typeof(RtResultEnvelope<OutlineResult>),
         mcpVisible: true,
         CommandSafety.ReadOnly,
         CommandExecutionPlacement.DaemonPreferred,
@@ -199,7 +199,11 @@ internal static class OutlineCommandDefinition
             new CommandFollowOn(
                 "find_refs",
                 "Use after outline when you need to trace references to a symbol it identified.")
-        ]);
+        ],
+        product: CommandProductMetadata.FromLegacy(
+            Metadata,
+            CommandSafety.ReadOnly,
+            maturity: CapabilityMaturity.StableCandidate));
 
     internal static string Name => Definition.Name;
     internal static RtCommandInfo Info => Definition.Info;
@@ -229,7 +233,7 @@ internal static class AddDependencyCommandDefinition
         typeof(MutationExecutionResult<AddDependencyResult>),
         mcpVisible: true,
         CommandSafety.ReviewByDefault,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandExecutionPlacement.InProcess,
         [
             new CommandFollowOn(
                 "describe",
@@ -269,7 +273,7 @@ internal static class MakeSealedCommandDefinition
         typeof(MutationExecutionResult<MakeSealedResult>),
         true,
         CommandSafety.ReviewByDefault,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandExecutionPlacement.InProcess,
         [
             new CommandFollowOn(
                 "describe",
@@ -427,17 +431,21 @@ internal static class FindCallersCommandDefinition
             "rt inspect callers --symbol ProcessPayment --include-tests --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt inspect find-callers --symbol BuildGraphAsync --solution RoslynTools.slnx"
         ],
-        SeeAlso: ["find-refs", "find-impl", "change-signature"],
+        SeeAlso: ["relationships", "change-signature"],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]);
 
     internal static ApplicationCommandDefinition Definition { get; } = new(
         Info,
         typeof(FindCallersRequest),
         typeof(FindCallersOperationResult),
-        true,
+        false,
         CommandSafety.ReadOnly,
         CommandExecutionPlacement.DaemonPreferred,
-        []);
+        [],
+        product: CommandProductMetadata.FromLegacy(
+            Info,
+            CommandSafety.ReadOnly,
+            audience: CommandAudience.Removed));
 }
 
 /// <summary>Canonical daemon metadata for implementation discovery.</summary>
@@ -459,15 +467,19 @@ internal static class FindImplementationsCommandDefinition
             "rt inspect impls ProjectX.Core.Services.IBookingRepository --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt inspect find-impl IRtCommand --solution RoslynTools.slnx"
         ],
-        SeeAlso: ["find-refs", "find-callers", "implement-interface", "extract-interface"],
+        SeeAlso: ["relationships", "implement-interface", "extract-interface"],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json]);
 
     internal static ApplicationCommandDefinition Definition { get; } = new(
         Info,
         typeof(FindImplementationsRequest),
         typeof(FindImplementationsResult),
-        true,
+        false,
         CommandSafety.ReadOnly,
         CommandExecutionPlacement.DaemonPreferred,
-        []);
+        [],
+        product: CommandProductMetadata.FromLegacy(
+            Info,
+            CommandSafety.ReadOnly,
+            audience: CommandAudience.Removed));
 }

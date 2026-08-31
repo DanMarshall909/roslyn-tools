@@ -66,10 +66,28 @@ internal static class DaemonTransport
 /// <summary>Process-level daemon routing controls shared by every host adapter.</summary>
 internal static class DaemonRuntime
 {
-    internal const string DisableEnvironmentVariable = "RT_NO_DAEMON";
+    internal const string ExperimentEnvironmentVariable = "RT_DAEMON_EXPERIMENT";
+    private static readonly AsyncLocal<bool?> ExperimentOverride = new();
 
-    internal static bool IsDisabled =>
-        Environment.GetEnvironmentVariable(DisableEnvironmentVariable) is "1" or "true";
+    internal static bool IsDisabled => !IsExperimentEnabled;
+
+    internal static bool IsExperimentEnabled =>
+        ExperimentOverride.Value
+        ?? Environment.GetEnvironmentVariable(ExperimentEnvironmentVariable) is "1" or "true";
+
+    internal static IDisposable UseExperimentOverride(bool enabled)
+    {
+        var previous = ExperimentOverride.Value;
+        ExperimentOverride.Value = enabled;
+        return new DelegateDisposable(() => ExperimentOverride.Value = previous);
+    }
+
+    private sealed class DelegateDisposable(Action dispose) : IDisposable
+    {
+        private Action? _dispose = dispose;
+
+        public void Dispose() => Interlocked.Exchange(ref _dispose, null)?.Invoke();
+    }
 }
 
 /// <summary>Transport seam for a typed daemon command invocation.</summary>
@@ -154,6 +172,17 @@ internal sealed class DaemonRpcRecoveryCoordinator(
         CommandSafety safety,
         CancellationToken cancellationToken = default)
     {
+        if (safety.Effect == CommandEffect.Mutation)
+        {
+            return new DaemonRpcRecoveryResult(
+                null,
+                ShouldFallback: true,
+                new DaemonRpcAttempt(
+                    DaemonRpcAttemptState.UnavailableBeforeDispatch,
+                    null,
+                    DispatchStarted: false));
+        }
+
         var attempt = await _daemonRpc.ExecuteAsync(
             commandName,
             arguments,
@@ -315,6 +344,12 @@ internal sealed class DaemonCommandDispatcher
         if (!_ports.TryGetValue(NormalizeCommandName(request.CommandName), out var port))
             return Failure(request, DaemonRpcErrorCodes.CommandNotFound,
                 $"Command '{request.CommandName}' does not have a typed application port.");
+
+        if (port.Definition.Safety.Effect == CommandEffect.Mutation)
+            return Failure(
+                request,
+                DaemonRpcErrorCodes.CommandNotFound,
+                $"Mutation command '{request.CommandName}' is in-process only during safety hardening.");
 
         object? typedRequest;
         try

@@ -42,38 +42,41 @@ public sealed class McpDependencyInjectionTests
     }
 
     [Fact]
-    public void Tool_schema_builder_produces_definition_for_every_IRtCommand()
+    public void Tool_schema_builder_produces_definition_for_every_mcp_visible_descriptor()
     {
         using var provider = McpTestHost.CreateProvider();
         var builder = provider.GetRequiredService<ToolSchemaBuilder>();
         var tools = builder.Build();
 
-        var cliCommandCount = App.Commands.Count;
-        tools.Count.ShouldBe(cliCommandCount + 5);
+        var visibleDescriptorCount = provider
+            .GetRequiredService<RoslynTools.CommandDescriptors.CommandDescriptorRegistry>()
+            .All.Count(descriptor => descriptor.McpVisible);
+        tools.Count.ShouldBe(visibleDescriptorCount);
         Assert.All(tools, t =>
         {
             string.IsNullOrWhiteSpace(t.name).ShouldBeFalse();
             string.IsNullOrWhiteSpace(t.description).ShouldBeFalse();
             t.inputSchema.ShouldNotBeNull();
             t.inputSchema["type"].ShouldBe("object");
+            t.annotations.readOnlyHint.ShouldBeTrue();
+            t.annotations.destructiveHint.ShouldBeFalse();
+            t.metadata.ShouldContainKey("rt/maturity");
+            t.metadata.ShouldContainKey("rt/effects");
+            t.metadata["rt/audience"].ShouldBe("Public");
         });
     }
 
     [Fact]
-    public void Tool_schema_builder_models_debug_break_and_assert_as_arrays()
+    public void Tool_schema_builder_excludes_removed_debug_surface()
     {
         using var provider = McpTestHost.CreateProvider();
         var builder = provider.GetRequiredService<ToolSchemaBuilder>();
 
-        var debug = builder.Build().Single(tool => tool.name == "debug");
-        var properties = debug.inputSchema["properties"].ShouldBeOfType<Dictionary<string, Dictionary<string, object>>>();
-
-        AssertArrayOfStrings(properties["break"]);
-        AssertArrayOfStrings(properties["assert"]);
+        builder.Build().ShouldNotContain(tool => tool.name == "debug");
     }
 
     [Fact]
-    public async Task Tool_registry_expands_debug_break_and_assert_arrays()
+    public async Task Tool_registry_rejects_removed_debug_surface()
     {
         var trace = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.jsonl");
         await File.WriteAllTextAsync(
@@ -97,12 +100,8 @@ public sealed class McpDependencyInjectionTests
 
         var result = await registry.InvokeAsync("debug", args.RootElement);
 
-        result.isError.ShouldBeFalse();
-        using var output = JsonDocument.Parse(result.content);
-        var root = output.RootElement;
-        root.GetProperty("breakpointHits").GetArrayLength().ShouldBe(2);
-        Assert.All(root.GetProperty("assertions").EnumerateArray(), assertion =>
-            assertion.GetProperty("passed").GetBoolean().ShouldBeTrue());
+        result.isError.ShouldBeTrue();
+        result.content.ShouldContain("Unknown tool");
     }
 
     [Fact]
@@ -130,7 +129,7 @@ public sealed class McpDependencyInjectionTests
     }
 
     [Fact]
-    public async Task Tool_registry_invokes_find_refs_via_bridge()
+    public async Task Tool_registry_invokes_relationships_via_typed_port()
     {
         using var project = McpTestHost.CreateInvoiceProject();
 
@@ -143,11 +142,13 @@ public sealed class McpDependencyInjectionTests
             using var args = JsonDocument.Parse("""
                                                 {
                                                   "symbol": "Invoice",
+                                                  "mode": "References",
+                                                  "kind": "type",
                                                   "solution": "ignored.slnx"
                                                 }
                                                 """);
 
-            var result = await registry.InvokeAsync("find_refs", args.RootElement);
+            var result = await registry.InvokeAsync("relationships", args.RootElement);
 
             result.isError.ShouldBeFalse();
             Assert.Contains("Invoice", result.content, StringComparison.Ordinal);
@@ -166,13 +167,6 @@ public sealed class McpDependencyInjectionTests
         }
 
         throw new InvalidOperationException("Could not locate repository root.");
-    }
-
-    private static void AssertArrayOfStrings(Dictionary<string, object> schema)
-    {
-        schema["type"].ShouldBe("array");
-        var items = schema["items"].ShouldBeOfType<Dictionary<string, object>>();
-        items["type"].ShouldBe("string");
     }
 
 }

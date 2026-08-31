@@ -14,7 +14,7 @@ internal sealed record MoveMethodRequest(
     string ToType,
     [property: JsonPropertyName("create-file")] bool CreateFile = false,
     string? Solution = null,
-    [property: JsonPropertyName("dry-run")] bool DryRun = false);
+    [property: JsonPropertyName("dry-run")] bool DryRun = true);
 
 internal sealed record MoveMethodResult(
     string MethodFqn,
@@ -114,7 +114,7 @@ internal static class MoveMethodCommandDefinition
         typeof(MoveMethodRequest),
         typeof(MutationExecutionResult<MoveMethodResult>),
         true,
-        CommandSafety.Mutation,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.InProcess,
         []);
 }

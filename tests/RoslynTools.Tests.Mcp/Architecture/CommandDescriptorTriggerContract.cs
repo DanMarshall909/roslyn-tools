@@ -113,7 +113,7 @@ public sealed class CommandDescriptorTriggerContract
         ["replace_datetime"] = "Edit",
         ["replace_new"] = "Edit",
         ["replace_xunit_asserts"] = "Edit",
-        ["safe_delete"] = "Edit",
+        ["delete_unreferenced"] = "Edit",
         ["semantic_diff"] = "git diff",
         ["solid"] = "Read",
         ["static_class_inventory"] = "Read",
@@ -134,7 +134,10 @@ public sealed class CommandDescriptorTriggerContract
         "feedback_report", // Explicit bridge from local dogfood feedback to GitHub issues.
         "circular_deps", // Specialized graph analysis; no built-in has solution-wide namespace semantics.
         "find_magic_strings", // Specialized literal grouping; no built-in performs this semantic filter.
-        "language_features" // Catalog-backed syntax/semantic density has no built-in solution-wide equivalent.
+        "language_features", // Catalog-backed syntax/semantic density has no built-in solution-wide equivalent.
+        "doctor", // Installation, trust, workspace, and capability preflight has no built-in counterpart.
+        "search_symbols", // Candidate discovery complements focused describe/source tools.
+        "relationships" // Canonical bounded relation graph has no one built-in counterpart.
     };
 
     [Fact]

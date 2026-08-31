@@ -7,7 +7,7 @@ namespace RoslynTools.Services;
 internal sealed record AddXmlDocRequest(
     [property: JsonRequired, JsonPropertyName("from-json")] string FromJson,
     string? Solution = null,
-    [property: JsonPropertyName("dry-run")] bool DryRun = false,
+    [property: JsonPropertyName("dry-run")] bool DryRun = true,
     [property: JsonPropertyName("working-directory")] string? WorkingDirectory = null);
 
 internal sealed record AddXmlDocResult(
@@ -137,7 +137,7 @@ internal static class AddXmlDocCommandDefinition
         typeof(AddXmlDocRequest),
         typeof(MutationExecutionResult<AddXmlDocResult>),
         true,
-        CommandSafety.Mutation,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.InProcess,
         []);
 }

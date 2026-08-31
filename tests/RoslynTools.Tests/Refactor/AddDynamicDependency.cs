@@ -44,7 +44,8 @@ public class AddDynamicDependency
 
         var execution = (await operation.ExecuteAsync(new AddDynamicDependencyRequest(
             typeNames,
-            "App.Bootstrap.RegisterServices"))).Unwrap();
+            "App.Bootstrap.RegisterServices",
+            DryRun: false))).Unwrap();
 
         execution.Status.ShouldBe(MutationExecutionStatus.Applied);
         var document = writer.NewSolution!.Projects

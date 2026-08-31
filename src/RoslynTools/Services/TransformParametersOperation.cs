@@ -8,7 +8,7 @@ internal sealed record TransformParametersRequest(
     [property: JsonPropertyName("new-type")] string? NewType = null,
     [property: JsonPropertyName("existing-type")] string? ExistingType = null,
     string? Solution = null,
-    [property: JsonPropertyName("dry-run")] bool DryRun = false);
+    [property: JsonPropertyName("dry-run")] bool DryRun = true);
 
 internal sealed record TransformParametersResult(
     string Method,
@@ -104,7 +104,7 @@ internal static class TransformParametersCommandDefinition
         typeof(TransformParametersRequest),
         typeof(MutationExecutionResult<TransformParametersResult>),
         true,
-        CommandSafety.Mutation,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.InProcess,
         []);
 }

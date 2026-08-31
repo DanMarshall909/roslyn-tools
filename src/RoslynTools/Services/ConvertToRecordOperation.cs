@@ -6,7 +6,7 @@ namespace RoslynTools.Services;
 internal sealed record ConvertToRecordRequest(
     [property: JsonRequired] string Type,
     string? Solution = null,
-    [property: JsonPropertyName("dry-run")] bool DryRun = false);
+    [property: JsonPropertyName("dry-run")] bool DryRun = true);
 
 internal sealed record ConvertToRecordResult(
     string Type,
@@ -96,7 +96,7 @@ internal static class ConvertToRecordCommandDefinition
         typeof(ConvertToRecordRequest),
         typeof(MutationExecutionResult<ConvertToRecordResult>),
         true,
-        CommandSafety.Mutation,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.InProcess,
         []);
 }

@@ -209,7 +209,7 @@ public sealed class MigrateToIOptions
     {
         MigrateToIOptionsCommand.Info.ShouldBeSameAs(MigrateToIOptionsCommandDefinition.Info);
         MigrateToIOptionsCommandDefinition.Definition.Name.ShouldBe("migrate_to_ioptions");
-        MigrateToIOptionsCommandDefinition.Definition.Safety.ShouldBe(CommandSafety.Mutation);
+        MigrateToIOptionsCommandDefinition.Definition.Safety.ShouldBe(CommandSafety.ReviewByDefault);
         MigrateToIOptionsCommandDefinition.Definition.RequestType.ShouldBe(typeof(MigrateToIOptionsRequest));
         App.Commands.ShouldContain(command => command.Info.Name == "migrate-to-ioptions");
     }

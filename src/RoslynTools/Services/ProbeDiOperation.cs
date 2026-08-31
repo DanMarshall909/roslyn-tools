@@ -65,5 +65,10 @@ internal static class ProbeDiCommandDefinition
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json]);
     internal static ApplicationCommandDefinition Definition { get; } = new(
         Info, typeof(ProbeDiRequest), typeof(Results.ProbeDiResult), true,
-        CommandSafety.ReadOnly, CommandExecutionPlacement.InProcess, []);
+        CommandSafety.ReadOnly, CommandExecutionPlacement.InProcess, [],
+        product: CommandProductMetadata.FromLegacy(
+            Info,
+            CommandSafety.ReadOnly,
+            CommandAudience.TrustedExperimental,
+            CommandEffects.RepositoryRead | CommandEffects.RepositoryCodeExecution));
 }

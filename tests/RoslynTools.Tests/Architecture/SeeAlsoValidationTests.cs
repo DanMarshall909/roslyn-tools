@@ -12,7 +12,9 @@ namespace RoslynTools.Tests.Architecture;
 public sealed class SeeAlsoValidationTests
 {
     private static readonly Dictionary<string, RtCommandInfo> Catalog =
-        App.Commands.ToDictionary(e => e.Info.Name, e => e.Info, StringComparer.Ordinal);
+        App.AllCommands
+            .Where(command => !App.RemovedPublicCommandNames.Contains(command.Info.Name))
+            .ToDictionary(e => e.Info.Name, e => e.Info, StringComparer.Ordinal);
 
     [Fact]
     public void every_see_also_entry_resolves_to_a_real_command()

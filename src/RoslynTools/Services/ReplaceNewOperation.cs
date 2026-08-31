@@ -10,7 +10,7 @@ internal sealed record ReplaceNewRequest(
     string? IfArgLiteral = null,
     bool DropMatchedArg = false,
     string? Solution = null,
-    [property: JsonPropertyName("dry-run")] bool DryRun = false);
+    [property: JsonPropertyName("dry-run")] bool DryRun = true);
 
 internal sealed record ReplaceNewResult(
     string Type,
@@ -99,7 +99,7 @@ internal static class ReplaceNewCommandDefinition
         typeof(ReplaceNewRequest),
         typeof(MutationExecutionResult<ReplaceNewResult>),
         true,
-        CommandSafety.Mutation,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.InProcess,
         []);
 }

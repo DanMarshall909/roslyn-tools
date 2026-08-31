@@ -11,7 +11,7 @@ namespace RoslynTools.Tests.Cli;
 public sealed class ExtractMethodCommandTests
 {
     [Fact]
-    public async Task Binds_the_existing_cli_surface_to_the_typed_daemon_request()
+    public void Publishes_a_review_first_in_process_cli_surface()
     {
         var daemon = new RecordingDaemonRpcClient();
         var command = new ExtractMethodCommand(
@@ -19,10 +19,11 @@ public sealed class ExtractMethodCommandTests
             new ExtractMethodOperation(
                 new ThrowingWorkspaceSessionFactory(),
                 new CapturingSolutionChangeWriter()));
+        var built = command.Build();
         var root = new RootCommand();
-        root.AddCommand(command.Build());
+        root.AddCommand(built);
 
-        var exitCode = await root.InvokeAsync(
+        var parse = root.Parse(
             [
                 "extract-method",
                 "src/Calculator.cs",
@@ -35,17 +36,16 @@ public sealed class ExtractMethodCommandTests
                 "--replace-duplicates"
             ]);
 
-        exitCode.ShouldBe(0);
-        daemon.CommandName.ShouldBe(ExtractMethodCommandDefinition.Definition.Name);
-        daemon.Safety.ShouldBe(CommandSafety.Mutation);
-        daemon.Arguments.GetProperty("File").GetString().ShouldBe("src/Calculator.cs");
-        daemon.Arguments.GetProperty("new-name").GetString().ShouldBe("Calculate");
-        daemon.Arguments.GetProperty("start-line").GetInt32().ShouldBe(7);
-        daemon.Arguments.GetProperty("end-line").GetInt32().ShouldBe(8);
-        daemon.Arguments.GetProperty("After").GetString().ShouldBe("Process");
-        daemon.Arguments.GetProperty("Solution").GetString().ShouldBe("App.slnx");
-        daemon.Arguments.GetProperty("dry-run").GetBoolean().ShouldBeTrue();
-        daemon.Arguments.GetProperty("replace-duplicates").GetBoolean().ShouldBeTrue();
+        parse.Errors.ShouldBeEmpty();
+        var dryRun = built.Options.OfType<Option<bool>>()
+            .Single(option => option.Name == "dry-run");
+        parse.GetValueForOption(dryRun).ShouldBeTrue();
+
+        var definition = ExtractMethodCommandDefinition.Definition;
+        definition.McpVisible.ShouldBeFalse();
+        definition.Safety.ShouldBe(CommandSafety.ReviewByDefault);
+        definition.ExecutionPlacement.ShouldBe(CommandExecutionPlacement.InProcess);
+        daemon.CommandName.ShouldBeNull();
     }
 
     private sealed class RecordingDaemonRpcClient : IDaemonRpcClient

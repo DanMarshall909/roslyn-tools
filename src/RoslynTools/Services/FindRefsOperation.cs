@@ -95,15 +95,19 @@ internal static class FindRefsCommandDefinition
             "rt inspect find-refs --symbol CreateBooking --kind method --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt inspect find-refs --symbol IEmailService --kind type --solution RoslynTools.slnx"
         ],
-        SeeAlso: ["find-callers", "find-impl", "rename"],
+        SeeAlso: ["relationships", "rename"],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]);
 
     internal static ApplicationCommandDefinition Definition { get; } = new(
         Info,
         typeof(FindRefsRequest),
         typeof(FindRefsOperationResult),
-        true,
+        false,
         CommandSafety.ReadOnly,
         CommandExecutionPlacement.DaemonPreferred,
-        []);
+        [],
+        product: CommandProductMetadata.FromLegacy(
+            Info,
+            CommandSafety.ReadOnly,
+            audience: CommandAudience.Removed));
 }

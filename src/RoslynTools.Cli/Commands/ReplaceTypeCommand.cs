@@ -26,7 +26,7 @@ internal sealed class ReplaceTypeCommand : IRtCommand, IRefactorCommand
     public Command Build()
     {
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to the .sln file");
-        var dryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk");
+        var dryRunOpt = new Option<bool>("--dry-run", () => true, "Preview changes without writing to disk (default)");
 
         var cmd = new Command("replace-datetime",
             "Replace DateTime.UtcNow / DateTime.Now with injected TimeProvider, adding constructor injection")

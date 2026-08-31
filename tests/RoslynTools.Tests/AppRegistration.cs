@@ -65,13 +65,13 @@ public sealed class AppRegistration
     }
 
     [Fact]
-    public void registers_global_options_adds_strict_json_option()
+    public void registers_global_options_does_not_retain_unreleased_strict_json_alias()
     {
         var root = new RootCommand("test");
 
         App.RegisterGlobalOptions(root);
 
-        root.Options.ShouldContain(o => o.Name == "strict-json");
+        root.Options.ShouldNotContain(o => o.Name == "strict-json");
     }
 
     [Fact]
@@ -98,7 +98,6 @@ public sealed class AppRegistration
                 "llm",
                 "markdown",
                 "yaml",
-                "strict-json",
                 "relax-json",
                 "decisions",
                 "show-workspace-warnings",

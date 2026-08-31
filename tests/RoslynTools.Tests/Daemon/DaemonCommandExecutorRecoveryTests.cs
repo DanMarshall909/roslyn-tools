@@ -8,8 +8,12 @@ using Shouldly;
 
 namespace RoslynTools.Tests.Daemon;
 
-public sealed class DaemonCommandExecutorRecoveryTests
+public sealed class DaemonCommandExecutorRecoveryTests : IDisposable
 {
+    private readonly IDisposable _daemonExperiment = DaemonRuntime.UseExperimentOverride(true);
+
+    public void Dispose() => _daemonExperiment.Dispose();
+
     [Fact]
     public async Task Read_only_tracer_falls_back_through_the_same_port_with_daemon_shape_parity()
     {
@@ -37,7 +41,7 @@ public sealed class DaemonCommandExecutorRecoveryTests
     }
 
     [Fact]
-    public async Task Mutation_tracer_does_not_fall_back_after_indeterminate_dispatch()
+    public async Task Mutation_executor_runs_in_process_without_daemon_dispatch()
     {
         var port = new FakePort(MutationDefinition());
         var rpc = new StubRpcClient(new DaemonRpcAttempt(
@@ -55,9 +59,10 @@ public sealed class DaemonCommandExecutorRecoveryTests
             new FakeRequest("hello"),
             context);
 
-        context.ExitCode.ShouldBe(1);
-        port.InvocationCount.ShouldBe(0);
-        console.Errors.ShouldContain(message => message.Contains("indeterminate", StringComparison.Ordinal));
+        context.ExitCode.ShouldBe(0);
+        port.InvocationCount.ShouldBe(1);
+        rpc.CallCount.ShouldBe(0);
+        console.Errors.ShouldBeEmpty();
     }
 
     [Fact]
@@ -147,11 +152,9 @@ public sealed class DaemonCommandExecutorRecoveryTests
     }
 
     [Fact]
-    public async Task Typed_execution_honors_the_process_no_daemon_setting()
+    public async Task Typed_execution_is_local_when_the_preview_daemon_experiment_is_disabled()
     {
-        var previous = Environment.GetEnvironmentVariable(DaemonRuntime.DisableEnvironmentVariable);
-        Environment.SetEnvironmentVariable(DaemonRuntime.DisableEnvironmentVariable, "1");
-        try
+        using (DaemonRuntime.UseExperimentOverride(false))
         {
             var port = new FakePort(ReadOnlyDefinition());
             var rpc = new StubRpcClient(new DaemonRpcAttempt(
@@ -171,10 +174,6 @@ public sealed class DaemonCommandExecutorRecoveryTests
             port.InvocationCount.ShouldBe(1);
             rpc.CallCount.ShouldBe(0);
         }
-        finally
-        {
-            Environment.SetEnvironmentVariable(DaemonRuntime.DisableEnvironmentVariable, previous);
-        }
     }
 
     private static InvocationContext CreateInvocationContext() =>
@@ -193,9 +192,9 @@ public sealed class DaemonCommandExecutorRecoveryTests
         new RtCommandInfo("test-write", true, true, "refactor", "Test.", []),
         typeof(FakeRequest),
         typeof(FakeResponse),
-        mcpVisible: true,
+        mcpVisible: false,
         CommandSafety.ReviewByDefault,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandExecutionPlacement.InProcess,
         []);
 
     private sealed record FakeRequest(string Value);

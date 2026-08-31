@@ -7,14 +7,14 @@ internal static class FindUnusedCommandDefinition
 {
     internal static RtCommandInfo Info { get; } = new(
         "find-unused", false, false, "inspect", Aliases: ["unused"],
-        WhenToUse: "Use this instead of Grep when identifying dead code — types and methods with zero references in the solution — before a safe-delete pass or ahead of a major refactor. Use --scope to focus on a specific namespace and filter noise from generated or test code.",
+        WhenToUse: "Use this instead of Grep when identifying possible dead code. Findings are candidates within the loaded solution, not proof about reflection, runtime activation, generated use, or external consumers. Use --scope to focus on a specific namespace and filter noise from generated or test code.",
         Examples: [
             "rt inspect find-unused --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt inspect unused --scope ProjectX.Core --solution C:\\code\\libraries\\ProjectX.Libraries.sln",
             "rt inspect find-unused --scope types --solution RoslynTools.slnx"],
-        SeeAlso: ["safe-delete", "find-refs"],
+        SeeAlso: ["delete-unreferenced", "relationships"],
         SupportedFormats: [OutputFormat.Text, OutputFormat.Json, OutputFormat.Markdown, OutputFormat.Llm]);
-    internal static ApplicationCommandDefinition Definition { get; } = new(Info, typeof(FindUnusedRequest), typeof(Results.FindUnusedAnalysisResult), true, CommandSafety.ReadOnly, CommandExecutionPlacement.DaemonPreferred, [new("safe_delete", "Use after reviewing high-confidence unused findings.")]);
+    internal static ApplicationCommandDefinition Definition { get; } = new(Info, typeof(FindUnusedRequest), typeof(Results.FindUnusedAnalysisResult), true, CommandSafety.ReadOnly, CommandExecutionPlacement.DaemonPreferred, [new("delete_unreferenced", "Use only after reviewing a high-confidence candidate from a complete workspace.")]);
 }
 internal static class FindUndocumentedCommandDefinition
 {

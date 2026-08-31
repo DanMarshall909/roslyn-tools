@@ -31,7 +31,7 @@ internal sealed class CommandDescriptorRegistry
         var portsByName = ports.ToDictionary(
             port => port.Definition.Name,
             StringComparer.Ordinal);
-        var descriptors = App.Commands.Select(entry =>
+        var descriptors = App.AllCommands.Select(entry =>
         {
             var toolName = NormalizeToolName(entry.Info.Name);
             portsByName.TryGetValue(toolName, out var port);
@@ -42,15 +42,30 @@ internal sealed class CommandDescriptorRegistry
                 definition => string.Equals(definition.Name, toolName, StringComparison.Ordinal));
             var info = applicationDefinition?.Info ?? entry.Info;
             var command = entry.Build();
+            var audience = applicationDefinition?.Product.Audience
+                ?? (App.RemovedPublicCommandNames.Contains(info.Name)
+                ? CommandAudience.Removed
+                : App.TrustedExperimentalCommandNames.Contains(info.Name)
+                    ? CommandAudience.TrustedExperimental
+                    : CommandAudience.Public);
+            var effects = applicationDefinition?.Product.Effects
+                ?? (string.Equals(info.Name, "probe-di", StringComparison.Ordinal)
+                    ? CommandEffects.RepositoryRead | CommandEffects.RepositoryCodeExecution
+                    : info.Mutates
+                    ? CommandEffects.RepositoryRead | CommandEffects.RepositoryWrite
+                    : CommandEffects.RepositoryRead);
             return new ApplicationCommandDescriptor(
-                [info.Category, info.Name],
+                audience == CommandAudience.TrustedExperimental
+                    ? ["trusted", info.Name]
+                    : [info.Category, info.Name],
                 applicationDefinition?.Name ?? toolName,
                 applicationDefinition?.Info.WhenToUse
                 ?? command.Description
                 ?? entry.Info.WhenToUse,
                 info.WhenToUse,
                 DescribeInput(command),
-                applicationDefinition?.McpVisible ?? true,
+                (applicationDefinition?.McpVisible ?? !entry.Info.Mutates)
+                && audience == CommandAudience.Public,
                 ToDescriptorSafety(
                     applicationDefinition?.Safety ?? daemonDefinition?.Safety,
                     info.Mutates),
@@ -58,45 +73,54 @@ internal sealed class CommandDescriptorRegistry
                 || info.SupportedFormats?.Contains(OutputFormat.Json) == true
                 || port is not null,
                 port,
-                applicationDefinition);
+                applicationDefinition,
+                effects,
+                audience);
         }).ToList();
 
         AddMetaCommand(
             "feedback_add",
             () => FeedbackCommand.BuildAdd(feedbackAdd),
-            ["feedback", "add"],
+            ["maintainer", "feedback", "add"],
             "Record rt dogfood feedback, a bug, a missing feature, or unexpected command behavior.",
             "Call this when you hit friction using rt and want to log it for later triage — records a bug, missing feature, or unexpected behavior and returns the allocated feedback ID.",
-            CommandSafetyPolicy.ReadOnly,
+            CommandSafetyPolicy.LocalWrite,
             true,
-            feedbackAdd);
+            feedbackAdd,
+            CommandEffects.LocalStateWrite);
         AddMetaCommand(
             "feedback_list",
             () => FeedbackCommand.BuildList(feedbackList),
-            ["feedback", "list"],
+            ["maintainer", "feedback", "list"],
             "List rt feedback as structured entries, filtered by pending, processed, or all.",
             "Call this when you want to review previously logged rt feedback — lists pending or processed entries as structured JSON.",
             CommandSafetyPolicy.ReadOnly,
             true,
-            feedbackList);
+            feedbackList,
+            CommandEffects.LocalStateRead);
         AddMetaCommand(
             "feedback_process",
             () => FeedbackCommand.BuildProcess(feedbackProcess),
-            ["feedback", "process"],
+            ["maintainer", "feedback", "process"],
             "Mark an rt feedback item as processed with a resolution.",
             "Call this when a pending feedback item has been verified and resolved — marks it processed so pending work only contains unresolved items.",
-            CommandSafetyPolicy.ReadOnly,
+            CommandSafetyPolicy.LocalWrite,
             true,
-            feedbackProcess);
+            feedbackProcess,
+            CommandEffects.LocalStateRead | CommandEffects.LocalStateWrite);
         AddMetaCommand(
             "feedback_report",
             () => FeedbackCommand.BuildReport(feedbackReport),
-            ["feedback", "report"],
+            ["maintainer", "feedback", "report"],
             "Review duplicate GitHub issues, then explicitly link feedback or create an issue.",
             "Call this when a human explicitly asks to promote locally recorded rt feedback to GitHub — it previews by default and requires an explicit apply choice before changing GitHub.",
-            CommandSafetyPolicy.DryRunByDefault,
+            CommandSafetyPolicy.ExternalWriteReviewByDefault,
             true,
-            feedbackReport);
+            feedbackReport,
+            CommandEffects.LocalStateRead
+            | CommandEffects.LocalStateWrite
+            | CommandEffects.ExternalRead
+            | CommandEffects.ExternalWrite);
         AddMetaCommand(
             "suggest_command",
             () => SuggestCommand.Build(suggest, git),
@@ -105,7 +129,9 @@ internal sealed class CommandDescriptorRegistry
             "Call this when you know what you want to do to C# code but aren't sure which rt command does it — describe the task in natural language and get ranked candidates back before falling back to a manual edit. Returns ranked candidates with name, score, when-to-use, and example invocation.",
             CommandSafetyPolicy.ReadOnly,
             true,
-            suggest);
+            suggest,
+            CommandEffects.RepositoryRead,
+            CommandAudience.Public);
 
         _descriptors = [.. descriptors];
         _byToolName = _descriptors.ToDictionary(d => d.ToolName, StringComparer.Ordinal);
@@ -118,7 +144,9 @@ internal sealed class CommandDescriptorRegistry
             string whenToUse,
             CommandSafetyPolicy safety,
             bool structured,
-            ICommandApplicationPort port)
+            ICommandApplicationPort port,
+            CommandEffects effects,
+            CommandAudience audience = CommandAudience.Maintainer)
         {
             var command = build();
             descriptors.Add(new ApplicationCommandDescriptor(
@@ -127,10 +155,13 @@ internal sealed class CommandDescriptorRegistry
                 description,
                 whenToUse,
                 DescribeInput(command),
-                McpVisible: true,
+                McpVisible: audience == CommandAudience.Public,
                 safety,
                 structured,
-                port));
+                port,
+                Definition: null,
+                effects,
+                audience));
         }
     }
 

@@ -11,11 +11,11 @@ public sealed class SuggestedFixContractTests
     {
         var fix = FixCatalog.ForUnusedSymbol("type", "Example.Service", "App.slnx")[0];
 
-        fix.Command.ShouldBe("refactor safe-delete");
+        fix.Command.ShouldBe("refactor delete-unreferenced");
         fix.Arguments.Select(argument => argument.Value).ShouldBe(
             ["--symbol", "Example.Service", "--kind", "type", "--solution", "App.slnx"]);
         fix.CommandLine().ShouldBe(
-            "rt refactor safe-delete --symbol Example.Service --kind type --solution \"App.slnx\"");
+            "rt refactor delete-unreferenced --symbol Example.Service --kind type --solution \"App.slnx\"");
     }
 
     [Fact]

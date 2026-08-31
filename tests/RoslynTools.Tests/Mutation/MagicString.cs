@@ -112,7 +112,8 @@ public sealed class MagicString
             var execution = (await operation.ExecuteAsync(new ExtractStringConstantRequest(
                 filePath,
                 line,
-                "RepeatMe"))).Unwrap();
+                "RepeatMe",
+                DryRun: false))).Unwrap();
 
             execution.Status.ShouldBe(MutationExecutionStatus.Applied);
             var updatedText = await TestSolutionDocuments.GetTextAsync(writer.NewSolution!, "Messages.cs");

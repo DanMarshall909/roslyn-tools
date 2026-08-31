@@ -12,8 +12,24 @@ namespace RoslynTools.Tests.Mcp.Daemon;
 public sealed class DaemonRecoveryAdapterTests
 {
     [Fact]
+    public async Task Preview_mcp_never_contacts_the_daemon_without_explicit_experiment_opt_in()
+    {
+        using var experiment = DaemonRuntime.UseExperimentOverride(false);
+        using var provider = McpTestHost.CreateProvider();
+        var rpc = new CompletedRpcClient(new { unexpected = true });
+        var adapter = CreateAdapter(provider, rpc);
+        using var arguments = JsonDocument.Parse("""{"symbol":""}""");
+
+        var result = await adapter.InvokeAsync("describe", arguments.RootElement);
+
+        result.isError.ShouldBeTrue();
+        rpc.CallCount.ShouldBe(0);
+    }
+
+    [Fact]
     public async Task Daemon_describe_applies_the_same_success_projection_as_local_execution()
     {
+        using var experiment = DaemonRuntime.UseExperimentOverride(true);
         using var provider = McpTestHost.CreateProvider();
         var response = new DescribeResult(
             DescribeResultKind.Compact,
@@ -32,7 +48,7 @@ public sealed class DaemonRecoveryAdapterTests
     }
 
     [Fact]
-    public async Task Daemon_single_rename_applies_the_same_success_projection_as_local_execution()
+    public async Task Hidden_rename_cannot_be_invoked_by_name()
     {
         using var provider = McpTestHost.CreateProvider();
         var rename = new RenameResult(
@@ -45,22 +61,20 @@ public sealed class DaemonRecoveryAdapterTests
             []);
         var response = MutationExecutionResult<RenameOperationResult>.Reviewed(
             new RenameOperationResult(RenameOperationMode.Single, [rename], 0));
-        var adapter = CreateAdapter(provider, new CompletedRpcClient(response));
+        var rpc = new CompletedRpcClient(response);
+        var adapter = CreateAdapter(provider, rpc);
         using var arguments = JsonDocument.Parse(
             """{"symbol":"Example.Widget.Run","new-name":"Execute"}""");
 
         var result = await adapter.InvokeAsync("rename", arguments.RootElement);
 
-        result.isError.ShouldBeFalse();
-        using var payload = JsonDocument.Parse(result.content);
-        payload.RootElement.GetProperty("symbol").GetString().ShouldBe("Example.Widget.Run");
-        payload.RootElement.GetProperty("newName").GetString().ShouldBe("Execute");
-        payload.RootElement.TryGetProperty("data", out _).ShouldBeFalse();
-        payload.RootElement.TryGetProperty("status", out _).ShouldBeFalse();
+        result.isError.ShouldBeTrue();
+        result.content.ShouldContain("Unknown tool", Case.Sensitive);
+        rpc.CallCount.ShouldBe(0);
     }
 
     [Fact]
-    public async Task Indeterminate_mutation_is_not_retried_or_fallen_back_by_mcp()
+    public async Task Hidden_mutation_is_rejected_before_rpc_or_recovery()
     {
         using var provider = McpTestHost.CreateProvider();
         var rpc = new IndeterminateRpcClient();
@@ -80,8 +94,8 @@ public sealed class DaemonRecoveryAdapterTests
             arguments.RootElement);
 
         result.isError.ShouldBeTrue();
-        result.content.ShouldContain("indeterminate", Case.Insensitive);
-        rpc.CallCount.ShouldBe(1);
+        result.content.ShouldContain("Unknown tool", Case.Sensitive);
+        rpc.CallCount.ShouldBe(0);
         launcher.CallCount.ShouldBe(0);
     }
 
@@ -95,12 +109,15 @@ public sealed class DaemonRecoveryAdapterTests
 
     private sealed class CompletedRpcClient(object? data) : IDaemonRpcClient
     {
+        internal int CallCount { get; private set; }
+
         public Task<DaemonRpcAttempt> ExecuteAsync(
             string commandName,
             JsonElement arguments,
             CommandSafety safety,
             CancellationToken cancellationToken = default)
         {
+            CallCount++;
             var execution = new CommandExecutionResult(data, []);
             var response = new DaemonRpcResponse(
                 DaemonRpcProtocol.CurrentVersion,

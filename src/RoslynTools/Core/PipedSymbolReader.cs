@@ -4,15 +4,16 @@ namespace RoslynTools.Core;
 
 /// <summary>
 ///     Extracts a target symbol from a piped JSON payload (e.g. the stdout of
-///     <c>rt inspect find-refs --json</c>) so commands can be chained:
-///     <c>rt inspect find-refs … --json | rt refactor rename --new-name …</c>.
+///     <c>rt inspect relationships references --json</c>) so commands can be chained:
+///     <c>rt inspect relationships references … --json | rt refactor rename --new-name …</c>.
 /// </summary>
 internal static class PipedSymbolReader
 {
     /// <summary>
     ///     Resolves the symbol for a chained command: the positional argument wins when present;
     ///     otherwise, only when input is redirected (piped, not a TTY), the JSON payload is read
-    ///     and its <c>fullyQualifiedName</c> used. Returns <paramref name="positionalSymbol"/>
+    ///     and its legacy <c>fullyQualifiedName</c> or envelope <c>data.resolvedSubject</c>
+    ///     used. Returns <paramref name="positionalSymbol"/>
     ///     unchanged when there is nothing to read or the payload yields no FQN.
     /// </summary>
     internal static async Task<string?> ResolveAsync(
@@ -42,8 +43,16 @@ internal static class PipedSymbolReader
             if (doc.RootElement.ValueKind != JsonValueKind.Object)
                 return false;
 
-            if (!doc.RootElement.TryGetProperty("fullyQualifiedName", out var prop)
-                || prop.ValueKind != JsonValueKind.String)
+            JsonElement prop;
+            if (!doc.RootElement.TryGetProperty("fullyQualifiedName", out prop))
+            {
+                if (!doc.RootElement.TryGetProperty("data", out var data)
+                    || data.ValueKind != JsonValueKind.Object
+                    || !data.TryGetProperty("resolvedSubject", out prop))
+                    return false;
+            }
+
+            if (prop.ValueKind != JsonValueKind.String)
                 return false;
 
             var value = prop.GetString();

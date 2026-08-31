@@ -7,7 +7,7 @@ internal sealed record InlineMethodRequest(
     [property: JsonRequired] string Type,
     [property: JsonRequired] string Method,
     string? Solution = null,
-    [property: JsonPropertyName("dry-run")] bool DryRun = false);
+    [property: JsonPropertyName("dry-run")] bool DryRun = true);
 
 internal sealed record InlineMethodResult(string Type, string Method, bool Changed);
 
@@ -70,14 +70,14 @@ internal static class InlineMethodCommandDefinition
             "rt refactor inline-method --type MathHelper --method Double --solution RoslynTools.slnx",
             "rt refactor im --type OrderService --method GetTotal --dry-run --solution C:\\code\\libraries\\ProjectX.Libraries.sln"
         ],
-        SeeAlso: ["extract-method", "find-callers"]);
+        SeeAlso: ["extract-method", "relationships"]);
 
     internal static ApplicationCommandDefinition Definition { get; } = new(
         Info,
         typeof(InlineMethodRequest),
         typeof(MutationExecutionResult<InlineMethodResult>),
         true,
-        CommandSafety.Mutation,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.InProcess,
         []);
 }

@@ -7,7 +7,7 @@ internal sealed record ImplementInterfaceRequest(
     [property: JsonRequired] string Type,
     string? Interface = null,
     string? Solution = null,
-    [property: JsonPropertyName("dry-run")] bool DryRun = false);
+    [property: JsonPropertyName("dry-run")] bool DryRun = true);
 
 internal sealed record ImplementInterfaceResult(string Type, int StubCount);
 
@@ -96,7 +96,7 @@ internal static class ImplementInterfaceCommandDefinition
         typeof(ImplementInterfaceRequest),
         typeof(MutationExecutionResult<ImplementInterfaceResult>),
         true,
-        CommandSafety.Mutation,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.InProcess,
         []);
 }

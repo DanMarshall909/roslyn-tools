@@ -131,9 +131,9 @@ public static class FixCatalog
         [
             Fix(
                 "rt",
-                "safe-delete",
+                "delete-unreferenced",
                 "Delete after verifying zero references",
-                "refactor safe-delete",
+                "refactor delete-unreferenced",
                 WithSolution(solutionPath, [.. arguments])),
             Fix(
                 "roslyn-analyzer",

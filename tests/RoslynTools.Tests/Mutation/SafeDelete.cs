@@ -44,7 +44,7 @@ public class SafeDelete : IClassFixture<RtServicesFixture>
         using (WorkspaceLoader.UseOverride(workspace, solution))
         {
             var exitCode = await App.RunAsync(
-                ["safe-delete", "--symbol", "Orphan", "--solution", "ignored"]);
+                ["delete-unreferenced", "--symbol", "Orphan", "--solution", "ignored", "--dry-run", "false"]);
 
             exitCode.ShouldBe(0);
             var content = await project.ReadSourceAsync("SafeApp.cs");
@@ -60,7 +60,7 @@ public class SafeDelete : IClassFixture<RtServicesFixture>
         using (WorkspaceLoader.UseOverride(workspace, solution))
         {
             var exitCode = await App.RunAsync(
-                ["safe-delete", "--symbol", "Used", "--solution", "ignored"]);
+                ["delete-unreferenced", "--symbol", "Used", "--solution", "ignored"]);
 
             exitCode.ShouldBe(1);
             var content = await project.ReadSourceAsync("SafeApp.cs");
@@ -105,10 +105,35 @@ public class SafeDelete : IClassFixture<RtServicesFixture>
             execution.Value.ShouldNotBeNull();
             execution.Value.Kind.ShouldBe("method");
             execution.Value.ReferenceCount.ShouldBe(0);
+            execution.Value.WorkspaceState.ShouldBe(WorkspaceCompletenessState.Complete);
+            execution.Value.Limitations.ShouldContain(limitation =>
+                limitation.Contains("external consumers", StringComparison.Ordinal));
             execution.ChangedFiles.Single().ShouldEndWith("SafeApp.cs", Case.Sensitive);
             var content = await project.ReadSourceAsync("SafeApp.cs");
             content.ShouldNotContain("void Dead()", Case.Sensitive);
             content.ShouldContain("void Live()", Case.Sensitive);
+        }
+    }
+
+    [Fact]
+    public async Task refuses_to_plan_from_a_partial_workspace()
+    {
+        var project = new AdhocProjectBuilder("IncompleteApp");
+        project.AddSource("Incomplete.cs", "public class Orphan { MissingType Value = null!; }");
+        var (workspace, solution) = project.Build();
+        using (project)
+        using (WorkspaceLoader.UseOverride(workspace, solution))
+        {
+            var result = await ExecuteResultAsync("Orphan", dryRun: true);
+
+            result.IsErr.ShouldBeTrue();
+            var error = result.Match(_ => null!, failure => failure);
+            error.Kind.ShouldBe(RtErrorKind.WorkspaceLoadFailure);
+            error.Message.ShouldContain("Partial workspace", Case.Sensitive);
+            error.Context.ShouldNotBeNull();
+            error.Context["workspaceState"].ShouldBe("Partial");
+            error.Context["diagnosticCount"].ShouldBe("1");
+            error.Context["diagnostic.0"].ShouldContain("CS0246", Case.Sensitive);
         }
     }
 

@@ -70,5 +70,11 @@ internal static class DebugCommandDefinition
         true,
         CommandSafety.ReadOnly,
         CommandExecutionPlacement.InProcess,
-        []);
+        [],
+        product: CommandProductMetadata.FromLegacy(
+            Info,
+            CommandSafety.ReadOnly,
+            CommandAudience.Removed,
+            CommandEffects.LocalStateRead,
+            WorkspaceRequirement.None));
 }

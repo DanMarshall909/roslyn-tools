@@ -64,12 +64,9 @@ internal sealed class OutlineCommand(
         return cmd;
     }
 
-    private static void Render(OutlineResult result)
+    private static void Render(RtResultEnvelope<OutlineResult> result)
     {
-        if (result.Summaries is not null)
-            RtResultRenderer.Write(RtResult<IReadOnlyList<OutlineSummaryResult>>.Ok(result.Summaries));
-        else
-            RtResultRenderer.Write(RtResult<IReadOnlyList<OutlineTypeResult>>.Ok(result.Types ?? []));
+        RtResultRenderer.Write(RtResult<RtResultEnvelope<OutlineResult>>.Ok(result));
     }
 
     private sealed record OutlineCliRequest(string? SolutionPath) : ISupportsSolutionOption;

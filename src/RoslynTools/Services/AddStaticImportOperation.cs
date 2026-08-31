@@ -7,7 +7,7 @@ internal sealed record AddStaticImportRequest(
     [property: JsonRequired] string File,
     [property: JsonRequired] string Type,
     string? Solution = null,
-    [property: JsonPropertyName("dry-run")] bool DryRun = false,
+    [property: JsonPropertyName("dry-run")] bool DryRun = true,
     bool Simplify = false,
     [property: JsonPropertyName("simplify-all-static-imports")]
     bool SimplifyAllStaticImports = false);
@@ -116,7 +116,7 @@ internal static class AddStaticImportCommandDefinition
         typeof(AddStaticImportRequest),
         typeof(MutationExecutionResult<AddStaticImportResult>),
         true,
-        CommandSafety.Mutation,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.InProcess,
         []);
 }

@@ -14,7 +14,9 @@ internal sealed record ApplicationCommandDescriptor(
     CommandSafetyPolicy Safety,
     bool Structured,
     ICommandApplicationPort? Port,
-    ApplicationCommandDefinition? Definition = null);
+    ApplicationCommandDefinition? Definition = null,
+    CommandEffects Effects = CommandEffects.RepositoryRead,
+    CommandAudience Audience = CommandAudience.Public);
 
 /// <summary>
 ///     Transport-neutral input metadata projected from a host command surface.

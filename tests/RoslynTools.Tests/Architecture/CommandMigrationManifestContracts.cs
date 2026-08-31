@@ -24,11 +24,11 @@ public sealed class CommandMigrationManifestContracts
     public void migration_manifest_freezes_the_complete_public_category_command_inventory()
     {
         var rows = ReadManifest();
-        var commands = App.Commands
+        var commands = App.AllCommands
             .Where(command => Categories.Contains(command.Info.Category))
             .ToDictionary(command => command.Info.Name, command => command.Info, StringComparer.Ordinal);
 
-        rows.Length.ShouldBe(56);
+        rows.Length.ShouldBe(59);
         rows.Select(row => row.Command).ShouldBeUnique();
         rows.Select(row => row.Command).OrderBy(name => name, StringComparer.Ordinal)
             .ShouldBe(commands.Keys.OrderBy(name => name, StringComparer.Ordinal));
@@ -73,6 +73,12 @@ public sealed class CommandMigrationManifestContracts
             port.Definition.Info.Category.ShouldBe(manifestRow.Category);
             port.Definition.ExecutionPlacement.ShouldBe(ParsePlacement(manifestRow.Execution));
             AssertSafety(port.Definition.Safety, manifestRow.Safety);
+            if (port.Definition.Safety.Effect == CommandEffect.Mutation)
+            {
+                port.Definition.McpVisible.ShouldBeFalse();
+                port.Definition.ExecutionPlacement.ShouldBe(CommandExecutionPlacement.InProcess);
+                port.Definition.Safety.MutationDefault.ShouldBe(MutationExecutionDefault.Review);
+            }
             AssertHostNeutralContract(port.RequestType);
             AssertHostNeutralContract(port.ResponseType);
         }

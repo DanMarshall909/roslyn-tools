@@ -58,6 +58,7 @@ internal static class Bootstrap
         services.AddSingleton<ICommandApplicationPort>(
             sp => sp.GetRequiredService<FeedbackReportOperation>());
         services.AddSingleton<CommandDescriptorRegistry>();
+        services.AddSingleton<IProductCapabilityCatalog, ProductCapabilityCatalog>();
 
         // GitSemanticDiffSourceProvider (an IRtService, so auto-scanned below) depends on
         // IGitClient. The git working directory is the process's current directory; the

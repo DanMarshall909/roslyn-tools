@@ -6,7 +6,7 @@ namespace RoslynTools.Services;
 internal sealed record MakeStaticRequest(
     [property: JsonRequired] string Method,
     string? Solution = null,
-    [property: JsonPropertyName("dry-run")] bool DryRun = false);
+    [property: JsonPropertyName("dry-run")] bool DryRun = true);
 
 internal sealed record MakeStaticResult(string Method, bool Changed);
 
@@ -84,7 +84,7 @@ internal static class MakeStaticCommandDefinition
         typeof(MakeStaticRequest),
         typeof(MutationExecutionResult<MakeStaticResult>),
         true,
-        CommandSafety.Mutation,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.InProcess,
         []);
 }

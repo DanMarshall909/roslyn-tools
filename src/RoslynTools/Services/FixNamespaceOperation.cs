@@ -6,7 +6,7 @@ namespace RoslynTools.Services;
 internal sealed record FixNamespaceRequest(
     [property: JsonRequired] string File,
     string? Solution = null,
-    [property: JsonPropertyName("dry-run")] bool DryRun = false);
+    [property: JsonPropertyName("dry-run")] bool DryRun = true);
 
 internal sealed record FixNamespaceResult(string File, bool Changed);
 
@@ -87,7 +87,7 @@ internal static class FixNamespaceCommandDefinition
         typeof(FixNamespaceRequest),
         typeof(MutationExecutionResult<FixNamespaceResult>),
         true,
-        CommandSafety.Mutation,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.InProcess,
         []);
 }

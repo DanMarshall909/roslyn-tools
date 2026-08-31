@@ -8,7 +8,7 @@ internal sealed record MakeAsyncRequest(
     [property: JsonRequired] string Method,
     bool NoRename = false,
     string? Solution = null,
-    [property: JsonPropertyName("dry-run")] bool DryRun = false);
+    [property: JsonPropertyName("dry-run")] bool DryRun = true);
 
 internal sealed record MakeAsyncResult(string Type, string Method);
 
@@ -104,7 +104,7 @@ internal static class MakeAsyncCommandDefinition
         typeof(MakeAsyncRequest),
         typeof(MutationExecutionResult<MakeAsyncResult>),
         true,
-        CommandSafety.Mutation,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.InProcess,
         []);
 }

@@ -12,7 +12,7 @@ internal sealed record ExtractInterfaceRequest(
     [property: CommandPropertyDescription("Namespace override for the interface")]
     string? Namespace = null,
     string? Solution = null,
-    [property: JsonPropertyName("dry-run")] bool DryRun = false);
+    [property: JsonPropertyName("dry-run")] bool DryRun = true);
 
 internal sealed record ExtractInterfaceResult(
     string Type,
@@ -108,7 +108,7 @@ internal static class ExtractInterfaceCommandDefinition
         typeof(ExtractInterfaceRequest),
         typeof(MutationExecutionResult<ExtractInterfaceResult>),
         true,
-        CommandSafety.Mutation,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.InProcess,
         []);
 }

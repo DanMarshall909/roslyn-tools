@@ -46,7 +46,7 @@ internal sealed class AddTestCommand : IRtCommand, IRefactorCommand
         // Common options
         var fileOpt = new Option<string?>("--file", "Path to the .cs file containing the test class");
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx");
-        var dryRunOpt = new Option<bool>("--dry-run", "Preview without writing");
+        var dryRunOpt = new Option<bool>("--dry-run", () => true, "Preview without writing (default)");
 
         var cmd = new Command("add-test", "Append xUnit test stubs to an existing test class");
         cmd.AddAlias("at");

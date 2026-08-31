@@ -8,7 +8,7 @@ internal static class SuggestionHelper
 {
     /// <summary>
     ///     Produces up to 5 follow-on suggestions for an <c>rt inspect describe</c> result.
-    ///     Static routing (find-refs, find-callers, find-impl/analyze-interface) is ordered first
+    ///     Static relationship routing is ordered first
     ///     so the most universally useful commands appear even when there are no related types.
     ///     <see cref="CompactDescription.RelatedSymbolFqns" /> seeds additional <c>describe</c>
     ///     entries using the remaining slots.
@@ -19,17 +19,14 @@ internal static class SuggestionHelper
 
         var suggestions = new List<ToolSuggestion>
         {
-            Create("find_refs", "find-refs", cd.Fqn, solutionPath),
-            Create("find_callers", "find-callers", cd.Fqn, solutionPath),
+            CreateRelationship("References", cd.Fqn, solutionPath),
             cd.Kind.Equals("Interface", StringComparison.OrdinalIgnoreCase)
-                ? Create("find_impl", "find-impl", cd.Fqn, solutionPath)
+                ? CreateRelationship("Implementations", cd.Fqn, solutionPath)
                 : Create(
-                    "analyze_interface",
-                    "analyze-interface",
+                    "source",
+                    "source",
                     cd.Fqn,
-                    solutionPath,
-                    "analyze",
-                    "interface"),
+                    solutionPath),
         };
 
         foreach (var relFqn in cd.RelatedSymbolFqns.Take(2))
@@ -53,12 +50,24 @@ internal static class SuggestionHelper
         return
         [
             Create("describe", "describe", fqn, solutionPath),
-            Create("find_callers", "find-callers", fqn, solutionPath),
+            CreateRelationship("Callers", fqn, solutionPath),
             new ToolSuggestion(
                 "rename",
                 Args(fqn, solutionPath, ("new-name", "NewName"), ("dry-run", true)),
                 $"rt refactor rename \"{fqn}\" NewName{sol} --dry-run"),
         ];
+    }
+
+    private static ToolSuggestion CreateRelationship(
+        string mode,
+        string symbol,
+        string? solutionPath)
+    {
+        var sol = solutionPath != null ? $" --solution {solutionPath}" : "";
+        return new ToolSuggestion(
+            "relationships",
+            Args(symbol, solutionPath, ("mode", mode)),
+            $"rt inspect relationships {mode.ToLowerInvariant()} \"{symbol}\"{sol}");
     }
 
     private static ToolSuggestion Create(

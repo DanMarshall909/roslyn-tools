@@ -6,7 +6,7 @@ namespace RoslynTools.Services;
 internal sealed record MakeInstanceRequest(
     [property: JsonRequired] string Method,
     string? Solution = null,
-    [property: JsonPropertyName("dry-run")] bool DryRun = false);
+    [property: JsonPropertyName("dry-run")] bool DryRun = true);
 
 internal sealed record MakeInstanceResult(
     string Method,
@@ -106,7 +106,7 @@ internal static class MakeInstanceCommandDefinition
         typeof(MakeInstanceRequest),
         typeof(MutationExecutionResult<MakeInstanceResult>),
         true,
-        CommandSafety.Mutation,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.InProcess,
         []);
 }

@@ -219,7 +219,8 @@ public class Rename : IClassFixture<RtServicesFixture>
 
         var result = await operation.ExecuteAsync(new RenameOperationRequest(
             RenameOperationMode.Batch,
-            CsvPath: csvPath));
+            CsvPath: csvPath,
+            DryRun: false));
 
         result.IsOk.ShouldBeTrue(result.Match(_ => string.Empty, error => error.Message));
 

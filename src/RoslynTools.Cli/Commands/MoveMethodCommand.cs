@@ -23,7 +23,7 @@ internal sealed class MoveMethodCommand(
         { IsRequired = true };
         var createFileOpt = new Option<bool>("--create-file", "Create the target class file if it does not exist");
         var solutionOpt = CommandOptionFactory.CreateSolutionOption("Path to .sln/.slnx. Auto-detected if omitted.");
-        var dryRunOpt = new Option<bool>("--dry-run", "Preview changes without writing to disk");
+        var dryRunOpt = new Option<bool>("--dry-run", () => true, "Preview changes without writing to disk (default)");
 
         var cmd = new Command("move-method", "Move a static method to another class, rewriting all call sites")
         {

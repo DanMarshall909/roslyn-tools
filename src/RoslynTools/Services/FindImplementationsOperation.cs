@@ -25,12 +25,12 @@ internal sealed class FindImplementationsOperation
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly FindImplementationsService _findImplementations;
-    private readonly ISymbolResolutionService _symbols;
+    private readonly ISymbolCandidateService _symbols;
 
     public FindImplementationsOperation(
         IWorkspaceSessionFactory sessionFactory,
         FindImplementationsService findImplementations,
-        ISymbolResolutionService symbols)
+        ISymbolCandidateService symbols)
     {
         _sessionFactory = sessionFactory;
         _findImplementations = findImplementations;
@@ -49,9 +49,11 @@ internal sealed class FindImplementationsOperation
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var resolved = request.Symbol.Contains('.', StringComparison.Ordinal)
-                ? await _symbols.TryFindSymbolByFqnAsync(solution, request.Symbol, "type")
-                : await _symbols.TryFindSymbolAsync(solution, request.Symbol, "type");
+            var resolved = await _symbols.ResolveAsync(
+                solution,
+                request.Symbol,
+                "type",
+                cancellationToken);
             if (resolved.IsErr)
                 return resolved.Map(_ => default(FindImplementationsResult)!);
 

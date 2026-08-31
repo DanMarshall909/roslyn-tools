@@ -3,7 +3,7 @@ namespace RoslynTools.Services.Suggest;
 /// <summary>
 ///     Per-command name synonyms used by <see cref="Bm25Scorer" /> to bridge the
 ///     gap between common LLM phrasings ("remove", "delete") and the canonical
-///     command names ("safe-delete"). Hand-maintained; new commands default to
+///     command names ("delete-unreferenced"). Hand-maintained; new commands default to
 ///     just their literal name token if absent here.
 /// </summary>
 /// <remarks>
@@ -16,7 +16,7 @@ internal static class Synonyms
     public static readonly IReadOnlyDictionary<string, string[]> NameSynonyms =
         new Dictionary<string, string[]>(StringComparer.Ordinal)
         {
-            ["safe-delete"] = ["safe-delete", "delete", "remove"],
+            ["delete-unreferenced"] = ["delete-unreferenced", "delete", "remove"],
             ["rename"] = ["rename", "change-name"],
             ["replace-datetime"] = ["replace-datetime", "datetime", "utcnow", "timeprovider", "clock"],
             ["replace-new"] = ["replace-new", "constructor", "new"],
@@ -52,6 +52,7 @@ internal static class Synonyms
             ["find-refs"] = ["find-refs", "references", "usages", "uses-of"],
             ["find-callers"] = ["find-callers", "callers", "who-calls"],
             ["find-impl"] = ["find-impl", "implementations", "implementors", "subtypes"],
+            ["relationships"] = ["relationships", "references", "usages", "callers", "implementations", "overrides"],
             ["find-pattern"] = ["find-pattern", "structural-match"],
             ["find-unused"] = ["find-unused", "unused", "dead-code"],
             ["find-undocumented"] = ["find-undocumented", "undocumented", "missing-docs"],

@@ -92,19 +92,19 @@ public sealed class SuggestServiceTests
     }
 
     [Fact]
-    public void synonyms_route_remove_to_safe_delete()
+    public void synonyms_route_remove_to_delete_unreferenced()
     {
         // High-traffic LLM mismatch: a user/agent says "remove" but the command
-        // is "safe-delete". The seeded synonym map must close this gap.
+        // is "delete-unreferenced". The seeded synonym map must close this gap.
         var catalog = new FakeCatalog(
-            Info("safe-delete", whenToUse: "Delete a symbol only if it has no references"),
+            Info("delete-unreferenced", whenToUse: "Prepare a deletion candidate with no loaded references"),
             Info("rename", whenToUse: "Rename a symbol across the solution"));
         var service = new SuggestService(catalog);
 
         var response = service.Suggest(new SuggestRequest(Query: "remove", Top: 1));
 
         response.Results.Count.ShouldBe(1);
-        response.Results[0].Name.ShouldBe("safe-delete");
+        response.Results[0].Name.ShouldBe("delete-unreferenced");
     }
 
     [Fact]

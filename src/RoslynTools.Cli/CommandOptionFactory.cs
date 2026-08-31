@@ -34,7 +34,10 @@ internal static class CommandOptionFactory
 
     public static Option<bool> CreateDryRunOption()
     {
-        return new Option<bool>("--dry-run", "Preview without writing");
+        return new Option<bool>(
+            "--dry-run",
+            () => true,
+            "Preview without writing (default; pass false to apply explicitly)");
     }
 
     public static Option<bool> CreateIncludeTestsOption()

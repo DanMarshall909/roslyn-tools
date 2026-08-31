@@ -45,12 +45,31 @@ internal sealed record ToolDefinition(
     string description,
     Dictionary<string, object> inputSchema,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    Dictionary<string, object>? outputSchema = null);
+    Dictionary<string, object>? outputSchema,
+    ToolAnnotations annotations,
+    [property: JsonPropertyName("_meta")] Dictionary<string, object> metadata);
+
+internal sealed record ToolAnnotations(
+    string title,
+    bool readOnlyHint,
+    bool destructiveHint,
+    bool idempotentHint,
+    bool openWorldHint);
 
 /// <summary>
 /// Class representing the result of a tool execution in the Roslyn MCP system.
 /// </summary>
-internal sealed record ToolResult(bool isError, string content);
+internal sealed record ToolResult(
+    bool isError,
+    string content,
+    JsonElement? structuredContent = null)
+{
+    internal static ToolResult Structured(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        return new ToolResult(false, json, document.RootElement.Clone());
+    }
+}
 
 /// <summary>
 /// Class for building JSON schemas in the Roslyn MCP system.

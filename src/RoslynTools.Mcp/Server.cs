@@ -134,15 +134,19 @@ internal sealed class Server(ToolRegistry toolRegistry, TextReader input, TextWr
 
         var result = await _toolRegistry.InvokeAsync(toolName, argsProp, cancellationToken);
 
+        var toolResult = new Dictionary<string, object>
+        {
+            ["content"] = new[] { new { type = "text", text = result.content } },
+            ["isError"] = result.isError
+        };
+        if (result.structuredContent is { } structuredContent)
+            toolResult["structuredContent"] = structuredContent;
+
         return new
         {
             jsonrpc = "2.0",
             id,
-            result = new
-            {
-                content = new[] { new { type = "text", text = result.content } },
-                result.isError
-            }
+            result = toolResult
         };
     }
 

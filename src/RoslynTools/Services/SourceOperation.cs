@@ -23,12 +23,12 @@ internal sealed class SourceOperation
 {
     private readonly IWorkspaceSessionFactory _sessionFactory;
     private readonly InspectService _inspect;
-    private readonly ISymbolResolutionService _symbols;
+    private readonly ISymbolCandidateService _symbols;
 
     public SourceOperation(
         IWorkspaceSessionFactory sessionFactory,
         InspectService inspect,
-        ISymbolResolutionService symbols)
+        ISymbolCandidateService symbols)
     {
         _sessionFactory = sessionFactory;
         _inspect = inspect;
@@ -46,10 +46,11 @@ internal sealed class SourceOperation
         using (workspace)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var resolved = await _symbols.TryFindSymbolByFqnAsync(
+            var resolved = await _symbols.ResolveAsync(
                 solution,
                 request.Symbol,
-                request.Kind);
+                request.Kind,
+                cancellationToken);
             if (resolved.IsErr)
                 return resolved.Map(_ => default(IReadOnlyList<SourceDeclaration>)!);
 

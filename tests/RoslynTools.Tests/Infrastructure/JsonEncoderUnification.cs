@@ -69,20 +69,4 @@ public class JsonEncoderUnification
         result.Stdout.ShouldNotContain("\\u003C");
     }
 
-    [Fact]
-    public async Task strict_json_flag_is_a_no_op_alias_that_emits_a_deprecation_note()
-    {
-        // Test D — the existing --strict-json flag still parses without error and
-        // produces the same (escaped) output as the default. When explicitly passed,
-        // a single deprecation hint goes to stderr.
-        var slnxPath = Path.Combine(RtCliHost.RepoRoot, "RoslynTools.slnx");
-
-        var result = await RtCliHost.RunAsync(
-            $"inspect describe RoslynTools.Core.SymbolLocator --solution \"{slnxPath}\" --strict-json");
-
-        result.ExitCode.ShouldBe(0);
-        result.Stdout.ShouldContain("\\u003C");
-        result.Stderr.ShouldContain("--strict-json", Case.Sensitive);
-        result.Stderr.ShouldContain("deprecated", Case.Insensitive);
-    }
 }

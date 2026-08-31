@@ -23,7 +23,7 @@ public sealed class FindImplementationsOperationTests
             var operation = new FindImplementationsOperation(
                 factory,
                 new FindImplementationsService(),
-                new SymbolResolutionService());
+                new SymbolCandidateService());
 
             var result = await operation.ExecuteAsync(new FindImplementationsRequest(
                 "App.IWorker", "requested.slnx"));

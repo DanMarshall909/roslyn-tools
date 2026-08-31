@@ -27,11 +27,18 @@ internal static class CommandSurfaceBuilder
     internal static CommandSurfaceModel Build(
         IReadOnlyList<(Command Cmd, RtCommandInfo Info)> registry,
         IReadOnlyDictionary<string, string> groupDescriptions,
-        IReadOnlyList<Option> globalOptions)
+        IReadOnlyList<Option> globalOptions,
+        IReadOnlyDictionary<string, CommandProductMetadata>? products = null)
     {
         var commands = registry
             .OrderBy(e => e.Info.Name, StringComparer.Ordinal)
-            .Select(e => Describe(e.Cmd, e.Info))
+            .Select(e => Describe(
+                e.Cmd,
+                e.Info,
+                products?.GetValueOrDefault(e.Info.Name)
+                ?? CommandProductMetadata.FromLegacy(
+                    e.Info,
+                    e.Info.Mutates ? CommandSafety.ReviewByDefault : CommandSafety.ReadOnly)))
             .ToList();
 
         return new CommandSurfaceModel(
@@ -41,7 +48,10 @@ internal static class CommandSurfaceBuilder
             groupDescriptions);
     }
 
-    private static CommandDescriptor Describe(Command cmd, RtCommandInfo info) => new(
+    private static CommandDescriptor Describe(
+        Command cmd,
+        RtCommandInfo info,
+        CommandProductMetadata product) => new(
         info.Name,
         info.Category,
         info.Mutates,
@@ -51,11 +61,31 @@ internal static class CommandSurfaceBuilder
         info.Examples,
         cmd.Options.Select(Describe).ToList(),
         cmd.Arguments.Select(Describe).ToList(),
+        Describe(product),
         info.Group,
         info.Aliases,
         info.SeeAlso,
         info.KnownIssues,
         info.SupportedFormats?.Select(f => f.ToString()).ToList());
+
+    private static CommandProductDescriptor Describe(CommandProductMetadata product) => new(
+        product.Maturity.ToString(),
+        Enum.GetValues<CommandEffects>()
+            .Where(effect => effect != CommandEffects.None && product.Effects.HasFlag(effect))
+            .Select(effect => effect.ToString())
+            .ToArray(),
+        product.ConditionallyMutable,
+        product.Idempotency.ToString(),
+        product.Audience.ToString(),
+        product.TrustRequirement.ToString(),
+        product.WorkspaceRequirement.ToString(),
+        product.Prerequisites,
+        product.Cost.ToString(),
+        product.Cancellation.ToString(),
+        product.Limits.DefaultTimeoutMilliseconds,
+        product.Limits.MaximumItems,
+        product.Limits.MaximumOutputBytes,
+        product.Limitations);
 
     private static OptionDescriptor Describe(Option option) => new(
         option.Name,

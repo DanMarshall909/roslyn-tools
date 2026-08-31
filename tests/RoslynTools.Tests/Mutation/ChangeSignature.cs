@@ -394,7 +394,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
     }
 
     [Fact]
-    public async Task applies_changes_to_disk_without_dry_run()
+    public async Task applies_changes_to_disk_when_explicitly_requested()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
@@ -431,7 +431,9 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
                 "count",
                 "total",
                 "--solution",
-                "ignored"
+                "ignored",
+                "--dry-run",
+                "false"
             ]);
 
             exitCode.ShouldBe(0);
@@ -1918,10 +1920,10 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
         (await project.ReadSourceAsync("Service.cs")).ShouldBe(before);
     }
 
-    // ── AC27: without --dry-run applies changes to disk ───────────────────────
+    // ── AC27: explicit apply changes files ────────────────────────────────────
 
     [Fact]
-    public async Task adds_param_applies_changes_to_disk_without_dry_run()
+    public async Task adds_param_applies_changes_to_disk_when_explicitly_requested()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
@@ -1937,7 +1939,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
             [
                 "change-signature", "add-param",
                 "TestApp.Service.Foo", "int b = 0",
-                "--solution", "ignored"
+                "--solution", "ignored", "--dry-run", "false"
             ]);
 
             exitCode.ShouldBe(0);
@@ -1947,7 +1949,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
     }
 
     [Fact]
-    public async Task removes_param_applies_changes_to_disk_without_dry_run()
+    public async Task removes_param_applies_changes_to_disk_when_explicitly_requested()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Service.cs", """
@@ -1963,7 +1965,7 @@ public class ChangeSignature : IClassFixture<RtServicesFixture>
             [
                 "change-signature", "remove-param",
                 "TestApp.Service.Foo", "a",
-                "--solution", "ignored"
+                "--solution", "ignored", "--dry-run", "false"
             ]);
 
             exitCode.ShouldBe(0);

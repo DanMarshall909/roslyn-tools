@@ -76,7 +76,8 @@ public sealed class HandledUserErrorsDoNotPolluteFeedbackTests
 
             exitCode.ShouldBe(1);
             stdout.ToString().Trim().ShouldBeEmpty("the error branch must not emit a JSON result to stdout");
-            stderr.ToString().ShouldContain("No symbol with FQN 'TestApp.Missing' found in solution.");
+            stderr.ToString().ShouldContain(
+                "No symbol matching 'TestApp.Missing' was found in the loaded solution.");
             FeedbackStore.LoadAll().ShouldBeEmpty(
                 "A symbol-not-found is now a routine RtError surfaced cleanly via Result — it never "
                 + "throws, so it must not be captured to feedback.json.");
@@ -91,7 +92,7 @@ public sealed class HandledUserErrorsDoNotPolluteFeedbackTests
     ///     triage-worthy exception.
     /// </summary>
     [Fact]
-    public async Task find_refs_unknown_symbol_exits_1_via_result_without_appending_feedback()
+    public async Task relationships_unknown_symbol_exits_1_via_result_without_appending_feedback()
     {
         using var project = new AdhocProjectBuilder();
         project.AddSource("Widget.cs", """
@@ -121,7 +122,10 @@ public sealed class HandledUserErrorsDoNotPolluteFeedbackTests
             try
             {
                 exitCode = await App.RunAsync(
-                    ["inspect", "find-refs", "--symbol", "DoesNotExistSymbolFoo", "--solution", "ignored"],
+                    [
+                        "inspect", "relationships", "references", "DoesNotExistSymbolFoo",
+                        "--kind", "type", "--solution", "ignored"
+                    ],
                     services);
             }
             finally
@@ -140,11 +144,11 @@ public sealed class HandledUserErrorsDoNotPolluteFeedbackTests
                 .Where(l => l.Contains("Error:", StringComparison.Ordinal))
                 .ToList();
             errorLines.Count.ShouldBe(1,
-                "AC9: exactly one 'Error: ...' line. find-refs not-found must be a single clean message.");
+                "AC9: exactly one 'Error: ...' line. relationship not-found must be a single clean message.");
             errorLines[0].ShouldContain("DoesNotExistSymbolFoo");
 
             FeedbackStore.LoadAll().ShouldBeEmpty(
-                "AC9: a symbol-not-found from find-refs is routine and must not pollute feedback.json.");
+                "AC9: a symbol-not-found from relationships is routine and must not pollute feedback.json.");
         }
     }
 

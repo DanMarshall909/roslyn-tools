@@ -7,7 +7,7 @@ internal sealed record AddGlobalImportRequest(
     [property: JsonRequired] string File,
     [property: JsonRequired] string Namespace,
     string? Solution = null,
-    bool DryRun = false);
+    bool DryRun = true);
 
 internal sealed record AddGlobalImportResult(
     string File,
@@ -117,7 +117,7 @@ internal static class AddGlobalImportCommandDefinition
         typeof(AddGlobalImportRequest),
         typeof(MutationExecutionResult<AddGlobalImportResult>),
         true,
-        CommandSafety.Mutation,
-        CommandExecutionPlacement.DaemonPreferred,
+        CommandSafety.ReviewByDefault,
+        CommandExecutionPlacement.InProcess,
         []);
 }

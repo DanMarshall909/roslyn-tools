@@ -18,43 +18,17 @@ public sealed class FeedbackHandlerTests
     };
 
     [Fact]
-    public void feedback_tools_are_registered_for_mcp_discovery()
+    public void feedback_tools_are_absent_from_normal_mcp_discovery()
     {
         using var provider = McpTestHost.CreateProvider();
         var registry = provider.GetRequiredService<ToolRegistry>();
 
         var tools = registry.GetTools();
 
-        tools.Select(tool => tool.name).ShouldContain("feedback_add");
-        tools.Select(tool => tool.name).ShouldContain("feedback_list");
-        tools.Select(tool => tool.name).ShouldContain("feedback_process");
-        tools.Select(tool => tool.name).ShouldContain("feedback_report");
-
-        var add = tools.Single(tool => tool.name == "feedback_add");
-        var required = (string[])add.inputSchema["required"];
-        required.ShouldBe(["description"]);
-        var properties =
-            (Dictionary<string, Dictionary<string, object>>)add.inputSchema["properties"];
-        properties.Keys.ShouldBe(
-            ["description", "sampleCode", "expectedResult", "commandLine"],
-            ignoreOrder: true);
-
-        var list = tools.Single(tool => tool.name == "feedback_list");
-        list.inputSchema.ShouldNotContainKey("required");
-        var listProperties =
-            (Dictionary<string, Dictionary<string, object>>)list.inputSchema["properties"];
-        listProperties.Keys.ShouldBe(["status"]);
-
-        var process = tools.Single(tool => tool.name == "feedback_process");
-        var processRequired = (string[])process.inputSchema["required"];
-        processRequired.ShouldBe(["id", "resolution"], ignoreOrder: true);
-
-        var report = tools.Single(tool => tool.name == "feedback_report");
-        var reportRequired = (string[])report.inputSchema["required"];
-        reportRequired.ShouldBe(["id"]);
-        var reportProperties =
-            (Dictionary<string, Dictionary<string, object>>)report.inputSchema["properties"];
-        reportProperties.Keys.ShouldBe(["id", "yes", "attachTo", "dry-run"], ignoreOrder: true);
+        tools.Select(tool => tool.name).ShouldNotContain("feedback_add");
+        tools.Select(tool => tool.name).ShouldNotContain("feedback_list");
+        tools.Select(tool => tool.name).ShouldNotContain("feedback_process");
+        tools.Select(tool => tool.name).ShouldNotContain("feedback_report");
     }
 
     [Fact]

@@ -101,19 +101,51 @@ public sealed class CommandDescriptorContracts
     }
 
     [Fact]
+    public void mutation_descriptors_are_absent_from_normal_mcp_discovery()
+    {
+        using var provider = McpTestHost.CreateProvider();
+        var descriptors = provider.GetRequiredService<CommandDescriptorRegistry>().All;
+        var mutations = descriptors
+            .Where(descriptor => descriptor.Definition?.Safety.Effect == CommandEffect.Mutation)
+            .ToList();
+        var tools = provider.GetRequiredService<ToolSchemaBuilder>().Build();
+        var mutationNames = mutations.Select(descriptor => descriptor.ToolName).ToHashSet(StringComparer.Ordinal);
+
+        mutations.ShouldNotBeEmpty();
+        mutations.ShouldAllBe(descriptor => !descriptor.McpVisible);
+        tools.ShouldNotContain(tool => mutationNames.Contains(tool.name));
+    }
+
+    [Fact]
     public void nested_feedback_operations_are_leaf_descriptors_and_operational_commands_are_hidden()
     {
         using var provider = McpTestHost.CreateProvider();
         var descriptors = provider.GetRequiredService<CommandDescriptorRegistry>().All;
 
-        descriptors.Single(descriptor => descriptor.ToolName == "feedback_add")
-            .Path.ShouldBe(["feedback", "add"]);
-        descriptors.Single(descriptor => descriptor.ToolName == "feedback_list")
-            .Path.ShouldBe(["feedback", "list"]);
-        descriptors.Single(descriptor => descriptor.ToolName == "feedback_process")
-            .Path.ShouldBe(["feedback", "process"]);
-        descriptors.Single(descriptor => descriptor.ToolName == "feedback_report")
-            .Path.ShouldBe(["feedback", "report"]);
+        var add = descriptors.Single(descriptor => descriptor.ToolName == "feedback_add");
+        var list = descriptors.Single(descriptor => descriptor.ToolName == "feedback_list");
+        var process = descriptors.Single(descriptor => descriptor.ToolName == "feedback_process");
+        var report = descriptors.Single(descriptor => descriptor.ToolName == "feedback_report");
+
+        add.Path.ShouldBe(["maintainer", "feedback", "add"]);
+        list.Path.ShouldBe(["maintainer", "feedback", "list"]);
+        process.Path.ShouldBe(["maintainer", "feedback", "process"]);
+        report.Path.ShouldBe(["maintainer", "feedback", "report"]);
+
+        new[] { add, list, process, report }
+            .ShouldAllBe(descriptor => !descriptor.McpVisible
+                                       && descriptor.Audience == CommandAudience.Maintainer);
+        add.Safety.ShouldBe(CommandSafetyPolicy.LocalWrite);
+        add.Effects.ShouldBe(CommandEffects.LocalStateWrite);
+        list.Safety.ShouldBe(CommandSafetyPolicy.ReadOnly);
+        list.Effects.ShouldBe(CommandEffects.LocalStateRead);
+        process.Safety.ShouldBe(CommandSafetyPolicy.LocalWrite);
+        process.Effects.ShouldBe(CommandEffects.LocalStateRead | CommandEffects.LocalStateWrite);
+        report.Safety.ShouldBe(CommandSafetyPolicy.ExternalWriteReviewByDefault);
+        report.Effects.ShouldBe(CommandEffects.LocalStateRead
+                                | CommandEffects.LocalStateWrite
+                                | CommandEffects.ExternalRead
+                                | CommandEffects.ExternalWrite);
 
         descriptors.Select(descriptor => descriptor.ToolName)
             .ShouldNotContain("daemon");
@@ -121,6 +153,22 @@ public sealed class CommandDescriptorContracts
             .ShouldNotContain("prime");
         descriptors.Select(descriptor => descriptor.ToolName)
             .ShouldNotContain("dump_help");
+    }
+
+    [Fact]
+    public void probe_di_is_trusted_experimental_repository_code_execution_and_hidden_from_mcp()
+    {
+        using var provider = McpTestHost.CreateProvider();
+        var descriptor = provider.GetRequiredService<CommandDescriptorRegistry>()
+            .All.Single(candidate => candidate.ToolName == "probe_di");
+
+        descriptor.McpVisible.ShouldBeFalse();
+        descriptor.Path.ShouldBe(["trusted", "probe-di"]);
+        descriptor.Audience.ShouldBe(CommandAudience.TrustedExperimental);
+        descriptor.Effects.ShouldBe(
+            CommandEffects.RepositoryRead | CommandEffects.RepositoryCodeExecution);
+        provider.GetRequiredService<ToolSchemaBuilder>().Build()
+            .ShouldNotContain(tool => tool.name == descriptor.ToolName);
     }
 
     [Fact]
@@ -220,7 +268,7 @@ public sealed class CommandDescriptorContracts
     }
 
     [Fact]
-    public void safe_delete_schema_requires_the_symbol_and_projects_the_typed_port()
+    public void delete_unreferenced_schema_requires_the_symbol_and_projects_the_typed_port()
     {
         using var provider = McpTestHost.CreateProvider();
         var descriptor = provider.GetRequiredService<CommandDescriptorRegistry>()
@@ -312,16 +360,15 @@ public sealed class CommandDescriptorContracts
     }
 
     [Fact]
-    public async Task feedback_list_uses_the_generic_port_instead_of_a_native_handler()
+    public async Task feedback_list_is_not_invocable_through_the_normal_mcp_registry()
     {
         using var provider = McpTestHost.CreateProvider();
         using var arguments = JsonDocument.Parse("""{"status":"processed"}""");
         var result = await provider.GetRequiredService<ToolRegistry>()
             .InvokeAsync("feedback_list", arguments.RootElement);
 
-        result.isError.ShouldBeFalse();
-        using var payload = JsonDocument.Parse(result.content);
-        payload.RootElement.ValueKind.ShouldBe(JsonValueKind.Array);
+        result.isError.ShouldBeTrue();
+        result.content.ShouldContain("Unknown tool");
     }
 
     private static string JsonPropertyName(System.Reflection.PropertyInfo property) =>

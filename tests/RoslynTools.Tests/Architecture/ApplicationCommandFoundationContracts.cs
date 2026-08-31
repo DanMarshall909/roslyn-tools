@@ -1,4 +1,5 @@
 using System.Reflection;
+using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Services;
 using Shouldly;
@@ -60,7 +61,8 @@ public sealed class ApplicationCommandFoundationContracts
             "McpVisible",
             "Safety",
             "ExecutionPlacement",
-            "SuggestedTools"
+            "SuggestedTools",
+            "Product"
         ];
         foreach (var requiredProperty in requiredProperties)
             propertyNames.ShouldContain(requiredProperty);
@@ -94,22 +96,48 @@ public sealed class ApplicationCommandFoundationContracts
         var outline = OutlineCommandDefinition.Definition;
         outline.Name.ShouldBe("outline");
         outline.RequestType.ShouldBe(typeof(OutlineRequest));
-        outline.ResponseType.ShouldBe(typeof(OutlineResult));
+        outline.ResponseType.ShouldBe(typeof(RtResultEnvelope<OutlineResult>));
         outline.McpVisible.ShouldBeTrue();
         outline.Safety.ShouldBe(CommandSafety.ReadOnly);
         outline.ExecutionPlacement.ShouldBe(CommandExecutionPlacement.DaemonPreferred);
         outline.SuggestedTools.Select(tool => tool.ToolName)
             .ShouldBe(["describe", "find_refs"]);
+        outline.Product.Maturity.ShouldBe(CapabilityMaturity.StableCandidate);
+        outline.Product.WorkspaceRequirement.ShouldBe(WorkspaceRequirement.Semantic);
 
         var addDependency = AddDependencyCommandDefinition.Definition;
         addDependency.Name.ShouldBe("add_dependency");
         addDependency.RequestType.ShouldBe(typeof(AddDependencyRequest));
         addDependency.ResponseType.ShouldBe(typeof(MutationExecutionResult<AddDependencyResult>));
-        addDependency.McpVisible.ShouldBeTrue();
+        addDependency.McpVisible.ShouldBeFalse();
         addDependency.Safety.ShouldBe(CommandSafety.ReviewByDefault);
-        addDependency.ExecutionPlacement.ShouldBe(CommandExecutionPlacement.DaemonPreferred);
+        addDependency.ExecutionPlacement.ShouldBe(CommandExecutionPlacement.InProcess);
         addDependency.SuggestedTools.Select(tool => tool.ToolName)
             .ShouldBe(["describe", "find_refs"]);
+        addDependency.Product.Effects.ShouldBe(
+            CommandEffects.RepositoryRead | CommandEffects.RepositoryWrite);
+        addDependency.Product.ConditionallyMutable.ShouldBeTrue();
+        addDependency.Product.Audience.ShouldBe(CommandAudience.Public);
+        addDependency.Product.Limits.DefaultTimeoutMilliseconds.ShouldBeGreaterThan(0);
+    }
+
+    [Fact]
+    public void stable_candidate_operations_cannot_bypass_the_versioned_result_envelope()
+    {
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        services.AddLogging();
+        RoslynTools.Bootstrap.RegisterServices(services);
+        using var provider = services.BuildServiceProvider();
+        var stableCandidates = provider
+            .GetServices<ICommandApplicationPort>()
+            .Where(port => port is not ILegacyCommandApplicationPort
+                           && port.Definition.Product.Maturity == CapabilityMaturity.StableCandidate)
+            .ToArray();
+
+        stableCandidates.ShouldNotBeEmpty();
+        stableCandidates.ShouldAllBe(port =>
+            port.ResponseType.IsGenericType
+            && port.ResponseType.GetGenericTypeDefinition() == typeof(RtResultEnvelope<>));
     }
 
     private static Type RequiredType(string fullName) =>

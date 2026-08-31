@@ -7,7 +7,7 @@ namespace RoslynTools.Services.Suggest;
 ///     <c>rt suggest</c> and the unknown-command "did you mean..." fallback.
 ///     Three fields contribute (name, when-to-use, examples) with descending
 ///     weight; the name field can be expanded via a synonym map so common
-///     LLM phrasings (e.g. "remove" → safe-delete) still match.
+///     LLM phrasings (e.g. "remove" → delete-unreferenced) still match.
 /// </summary>
 /// <remarks>
 ///     Stateless static API rather than an injected service so callers don't
