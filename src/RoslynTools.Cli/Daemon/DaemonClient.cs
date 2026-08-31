@@ -15,7 +15,7 @@ internal static class DaemonEncoding
     // "'0xEF' is an invalid start of a value".
     internal static readonly UTF8Encoding NoBom = new(false, true);
 
-    // Display string for the pipe — purely cosmetic, used by `rt daemon status` and the
+    // Display string for the pipe — purely cosmetic, used by `rt maintainer daemon status` and the
     // daemon's startup log line. .NET's NamedPipeServerStream on Linux/macOS is implemented
     // over a Unix domain socket at /tmp/CoreFxPipe_<name>; on Windows it's \\.\pipe\<name>.
     /// <summary>
@@ -56,7 +56,8 @@ internal sealed class DaemonClient(GitService git)
         if (state.RtVersion != DaemonState.CurrentVersion())
         {
             RtLog.Warning(
-                "[rt] Daemon version mismatch — falling back to in-process. Run `rt daemon start` to refresh.");
+                "[rt] Daemon version mismatch — falling back to in-process. "
+                + "Run `rt maintainer daemon stop`, then `rt maintainer daemon start` to refresh.");
             return null;
         }
 

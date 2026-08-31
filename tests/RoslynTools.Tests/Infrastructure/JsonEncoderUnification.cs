@@ -62,7 +62,8 @@ public class JsonEncoderUnification
         var slnxPath = Path.Combine(RtCliHost.RepoRoot, "RoslynTools.slnx");
 
         var result = await RtCliHost.RunAsync(
-            $"inspect describe RoslynTools.Core.SymbolLocator --solution \"{slnxPath}\" --relax-json --trust-repository");
+            $"inspect describe RoslynTools.Core.SymbolLocator --solution \"{slnxPath}\" "
+            + "--relax-json --trust-repository");
 
         result.ExitCode.ShouldBe(0);
         result.Stdout.ShouldContain("Task<");

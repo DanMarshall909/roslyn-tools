@@ -20,7 +20,7 @@ internal static class SymbolFormatter
         Encoder = JavaScriptEncoder.Create(UnicodeRanges.All)
     };
 
-    // Used by --strict-json: escapes all non-ASCII and control characters as \uXXXX.
+    // Strict encoder: escapes all non-ASCII and control characters as \uXXXX.
     // Maximally portable for piping into tools that don't handle raw Unicode.
     internal static readonly JsonSerializerOptions StrictJsonOptions = new()
     {
