@@ -9,16 +9,6 @@ internal static class RtContext
     public static OutputLevel Level { get; set; } = OutputLevel.Default;
 
     /// <summary>
-    ///     Deprecated alias preserved for back-compat with scripts and CI that pass <c>--strict-json</c>.
-    ///     The new default is already strict, so this property is now a no-op for the converged paths
-    ///     (StructuredOutput, JsonRenderer, MCP handlers) — those read <see cref="RelaxJson" /> instead.
-    ///     Some legacy renderers (CommandSurfaceBuilder, Result-typed renderers in
-    ///     <c>RoslynTools.Cli.Commands.Results</c>) still consume this flag; keep setting it so they keep
-    ///     working until they migrate to <see cref="JsonEncoders" />.
-    /// </summary>
-    public static bool StrictJson { get; set; }
-
-    /// <summary>
     ///     When <c>true</c>, the converged JSON output paths (<see cref="StructuredOutput.Write" />,
     ///     <see cref="Renderers.JsonRenderer.Write" />, MCP DescribeHandler / OutlineHandler) emit raw
     ///     non-ASCII and HTML-sensitive characters via

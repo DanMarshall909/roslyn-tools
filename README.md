@@ -148,7 +148,8 @@ Common global options:
 | `--no-suggest` | Suppress suggestion tails on not-found errors |
 | `--relax-json` | Use relaxed JSON escaping instead of the strict default |
 
-Strict JSON escaping is the default. The legacy `--strict-json` option remains as a deprecated no-op for backward compatibility.
+Strict JSON escaping is the default. Use `--relax-json` only when raw Unicode and
+HTML-sensitive characters are preferable to maximum downstream portability.
 
 Commands that need a user choice can use a decisions file:
 
@@ -196,10 +197,12 @@ developer-specific paths:
 
 The solution also includes the stdio host source in `src/RoslynTools.Mcp`. It exposes the migrated application ports through the same services and command descriptors used by the CLI.
 
-The first daemon-owned MCP tool call starts the sibling `rt` daemon when needed.
-It remains warm for ten minutes after the latest request, then exits. Override
-the idle period for an installation by setting `RT_DAEMON_IDLE_TIMEOUT_SECONDS`.
-An explicit `rt daemon start` remains resident until `rt daemon stop`.
+The experimental daemon is disabled by default; CLI and MCP operations run through
+their canonical in-process application ports. Set `RT_DAEMON_EXPERIMENT=1` to opt in.
+When enabled, a daemon-preferred read-only call starts the sibling `rt` daemon when
+needed. It remains warm for ten minutes after the latest request, then exits. Override
+the idle period with `RT_DAEMON_IDLE_TIMEOUT_SECONDS`. Manage an explicit resident
+instance with `rt maintainer daemon start`, `status`, and `stop`.
 
 Build and run it from the repository root:
 

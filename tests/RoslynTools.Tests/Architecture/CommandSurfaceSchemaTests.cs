@@ -138,25 +138,25 @@ public sealed class CommandSurfaceSchemaTests
     }
 
     [Fact]
-    public void to_json_escapes_non_ascii_when_strict_json_is_set_but_not_otherwise()
+    public void to_json_is_strict_by_default_and_relaxes_only_when_requested()
     {
         var model = new CommandSurfaceModel(
             0, [], [], new Dictionary<string, string> { ["g"] = "→" });
 
-        var previous = RtContext.StrictJson;
+        var previous = RtContext.RelaxJson;
         try
         {
-            RtContext.StrictJson = false;
-            CommandSurfaceBuilder.ToJson(model).ShouldContain("→");
-
-            RtContext.StrictJson = true;
+            RtContext.RelaxJson = false;
             var strict = CommandSurfaceBuilder.ToJson(model);
             strict.ShouldNotContain("→");
             strict.ShouldContain("\\u2192");
+
+            RtContext.RelaxJson = true;
+            CommandSurfaceBuilder.ToJson(model).ShouldContain("→");
         }
         finally
         {
-            RtContext.StrictJson = previous;
+            RtContext.RelaxJson = previous;
         }
     }
 

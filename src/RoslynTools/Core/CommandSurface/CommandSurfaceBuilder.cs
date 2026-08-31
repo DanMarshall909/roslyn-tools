@@ -1,7 +1,5 @@
 using System.CommandLine;
-using System.Text.Encodings.Web;
 using System.Text.Json;
-using System.Text.Unicode;
 using RoslynTools.Core.Output;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
@@ -15,12 +13,6 @@ namespace RoslynTools.Core.CommandSurface;
 /// </summary>
 internal static class CommandSurfaceBuilder
 {
-    /// <summary>camelCase, indented, null-omitting JSON options whose output matches the schema.</summary>
-    internal static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions(JavaScriptEncoder.Create(UnicodeRanges.All));
-
-    /// <summary>As <see cref="JsonOptions" /> but escapes all non-ASCII as <c>\uXXXX</c> (for <c>--strict-json</c>).</summary>
-    internal static readonly JsonSerializerOptions StrictJsonOptions = CreateJsonOptions(JavaScriptEncoder.Default);
-
     /// <summary>
     ///     Builds the command-surface snapshot from a discovered registry.
     /// </summary>
@@ -114,9 +106,12 @@ internal static class CommandSurfaceBuilder
         return t.Name;
     }
 
-    /// <summary>Serializes the model to JSON, honouring <see cref="RtContext.StrictJson" />.</summary>
+    /// <summary>
+    ///     Serializes the model with the shared strict-by-default encoder, honouring
+    ///     the explicit <c>--relax-json</c> opt-out.
+    /// </summary>
     internal static string ToJson(CommandSurfaceModel model) =>
-        JsonSerializer.Serialize(model, RtContext.StrictJson ? StrictJsonOptions : JsonOptions);
+        JsonSerializer.Serialize(model, CreateJsonOptions());
 
     /// <summary>Serializes the model to camelCase YAML, omitting null optionals to match the JSON shape.</summary>
     internal static string ToYaml(CommandSurfaceModel model) =>
@@ -126,11 +121,9 @@ internal static class CommandSurfaceBuilder
             .Build()
             .Serialize(model);
 
-    private static JsonSerializerOptions CreateJsonOptions(JavaScriptEncoder encoder) => new()
-    {
-        WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
-        Encoder = encoder
-    };
+    private static JsonSerializerOptions CreateJsonOptions() =>
+        new(JsonEncoders.Select(RtContext.RelaxJson))
+        {
+            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+        };
 }

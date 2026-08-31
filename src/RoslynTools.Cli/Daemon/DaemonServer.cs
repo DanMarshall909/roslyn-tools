@@ -98,7 +98,7 @@ internal static class DaemonServer
             }
         });
 
-        // Initialize MSBuild and DI BEFORE writing the state file. `rt daemon start` polls
+        // Initialize MSBuild and DI BEFORE writing the state file. `rt maintainer daemon start` polls
         // the state file as the readiness signal — writing it earlier would make it report
         // "ready" while the daemon was still loading MSBuild, and any request landing in that
         // window would block on ConnectAsync (pipe bound, but WaitForConnectionAsync not yet
