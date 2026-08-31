@@ -138,7 +138,7 @@ public class ServerSerializationTests
         properties.TryGetProperty("kind", out _).ShouldBeTrue();
         properties.TryGetProperty("genericArity", out _).ShouldBeTrue();
         properties.TryGetProperty("fuzzy", out _).ShouldBeTrue();
-        properties.TryGetProperty("continuationToken", out _).ShouldBeTrue();
+        properties.TryGetProperty("continuationToken", out _).ShouldBeFalse();
         search.GetProperty("annotations").GetProperty("readOnlyHint").GetBoolean().ShouldBeTrue();
         search.GetProperty("_meta").GetProperty("rt/maturity").GetString().ShouldBe("Preview");
         search.TryGetProperty("outputSchema", out _).ShouldBeTrue();

@@ -11,7 +11,8 @@ internal sealed record SymbolCandidateQuery(
     string? Accessibility = null,
     int? GenericArity = null,
     string? Signature = null,
-    bool Fuzzy = false);
+    bool Fuzzy = false,
+    string? SourceRevision = null);
 
 internal sealed record ResolvedSymbolCandidate(ISymbol Symbol, SymbolCandidate Candidate);
 
@@ -42,6 +43,8 @@ internal sealed class SymbolCandidateService : ISymbolCandidateService, IRtServi
         CancellationToken cancellationToken = default)
     {
         var candidates = new List<ResolvedSymbolCandidate>();
+        var sourceRevision = query.SourceRevision
+                             ?? await SolutionRevision.ComputeAsync(solution, cancellationToken);
         foreach (var project in solution.Projects.OrderBy(project => project.Name, StringComparer.Ordinal))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -55,7 +58,12 @@ internal sealed class SymbolCandidateService : ISymbolCandidateService, IRtServi
             {
                 if (!SymbolEqualityComparer.Default.Equals(symbol.ContainingAssembly, compilation.Assembly))
                     continue;
-                var candidate = CreateCandidate(project, symbol, query.Query, query.Fuzzy);
+                var candidate = CreateCandidate(
+                    project,
+                    symbol,
+                    query.Query,
+                    query.Fuzzy,
+                    sourceRevision);
                 if (candidate is null
                     || !Matches(query.Kind, candidate.Kind)
                     || !Matches(query.Namespace, candidate.Namespace)
@@ -89,9 +97,26 @@ internal sealed class SymbolCandidateService : ISymbolCandidateService, IRtServi
         string? kind,
         CancellationToken cancellationToken = default)
     {
+        var sourceRevision = await SolutionRevision.ComputeAsync(solution, cancellationToken);
+        if (TryGetIdentityRevision(identityOrName, out var identityRevision)
+            && !string.Equals(identityRevision, sourceRevision, StringComparison.Ordinal))
+        {
+            return Result<ISymbol, RtError>.Err(new RtError(
+                RtErrorKind.Stale,
+                "The symbol identity belongs to an older or different source revision. Search again before continuing.",
+                new Dictionary<string, string>
+                {
+                    ["identityRevision"] = identityRevision,
+                    ["currentRevision"] = sourceRevision
+                }));
+        }
+
         var candidates = await SearchAsync(
             solution,
-            new SymbolCandidateQuery(identityOrName, Kind: NormalizeKind(kind)),
+            new SymbolCandidateQuery(
+                identityOrName,
+                Kind: NormalizeKind(kind),
+                SourceRevision: sourceRevision),
             cancellationToken);
         if (candidates.Count == 0)
         {
@@ -164,12 +189,13 @@ internal sealed class SymbolCandidateService : ISymbolCandidateService, IRtServi
         Project project,
         ISymbol symbol,
         string query,
-        bool fuzzy)
+        bool fuzzy,
+        string sourceRevision)
     {
         var signature = symbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
         var documentationId = symbol.GetDocumentationCommentId() ?? signature;
         var projectIdentity = project.FilePath ?? project.Name;
-        var symbolId = $"roslyn://{Uri.EscapeDataString(projectIdentity)}/symbol/{Uri.EscapeDataString(documentationId)}";
+        var symbolId = $"roslyn://{Uri.EscapeDataString(projectIdentity)}/revision/{sourceRevision}/symbol/{Uri.EscapeDataString(documentationId)}";
         var rank = Rank(symbolId, signature, symbol.Name, query, fuzzy);
         if (rank < 0)
             return null;
@@ -240,4 +266,24 @@ internal sealed class SymbolCandidateService : ISymbolCandidateService, IRtServi
         "event" => "Event",
         _ => kind
     };
+
+    private static bool TryGetIdentityRevision(string identity, out string revision)
+    {
+        const string marker = "/revision/";
+        const string terminator = "/symbol/";
+        revision = string.Empty;
+        if (!identity.StartsWith("roslyn://", StringComparison.Ordinal))
+            return false;
+
+        var markerIndex = identity.IndexOf(marker, StringComparison.Ordinal);
+        if (markerIndex < 0)
+            return false;
+        var revisionStart = markerIndex + marker.Length;
+        var revisionEnd = identity.IndexOf(terminator, revisionStart, StringComparison.Ordinal);
+        if (revisionEnd <= revisionStart)
+            return false;
+
+        revision = identity[revisionStart..revisionEnd];
+        return true;
+    }
 }

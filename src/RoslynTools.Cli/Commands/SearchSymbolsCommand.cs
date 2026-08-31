@@ -25,7 +25,6 @@ internal sealed class SearchSymbolsCommand(SearchSymbolsOperation operation)
         var signature = new Option<string?>("--signature", "Required signature substring");
         var limit = new Option<int>("--limit", () => 50, "Maximum candidates (1-100)");
         var fuzzy = new Option<bool>("--fuzzy", "Enable explicit subsequence matching after exact and partial matches");
-        var continuation = new Option<string?>("--continuation", "Continuation token from a prior unchanged-workspace result");
         var command = new Command("search-symbols", "Find and rank typed symbol candidates")
         {
             query,
@@ -37,8 +36,7 @@ internal sealed class SearchSymbolsCommand(SearchSymbolsOperation operation)
             genericArity,
             signature,
             limit,
-            fuzzy,
-            continuation
+            fuzzy
         };
 
         command.SetHandler(async context =>
@@ -53,8 +51,7 @@ internal sealed class SearchSymbolsCommand(SearchSymbolsOperation operation)
                 context.ParseResult.GetValueForOption(genericArity),
                 context.ParseResult.GetValueForOption(signature),
                 context.ParseResult.GetValueForOption(limit),
-                context.ParseResult.GetValueForOption(fuzzy),
-                context.ParseResult.GetValueForOption(continuation));
+                context.ParseResult.GetValueForOption(fuzzy));
             var result = await _operation.ExecuteAsync(request, context.GetCancellationToken());
             result.Match(
                 value => RtResultRenderer.Write(RtResult<RtResultEnvelope<SearchSymbolsResult>>.Ok(value)),

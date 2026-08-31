@@ -22,6 +22,9 @@ internal enum RtErrorKind
     /// <summary>Repository-controlled evaluation was requested without host-authorized trust.</summary>
     TrustRequired,
 
+    /// <summary>A revision-bound identity or result no longer matches the current source.</summary>
+    Stale,
+
     /// <summary>An external executable or service was unavailable or rejected the operation.</summary>
     ExternalToolFailure
 }

@@ -116,7 +116,7 @@ public sealed class SearchSymbolsOperationTests
     }
 
     [Fact]
-    public async Task continuation_is_query_bound_and_returns_the_next_stable_page()
+    public async Task truncated_results_do_not_issue_an_unbound_continuation_token()
     {
         using var builder = new AdhocProjectBuilder("PagedApp");
         builder.AddSource("Things.cs", """
@@ -133,33 +133,31 @@ public sealed class SearchSymbolsOperationTests
         first.Paging.TotalItems.ShouldBe(4);
         first.Paging.ReturnedItems.ShouldBe(2);
         first.Paging.Truncated.ShouldBeTrue();
-        first.Paging.ContinuationToken.ShouldNotBeNull();
+        first.Paging.ContinuationToken.ShouldBeNull();
+        first.Limitations.ShouldContain(limitation =>
+            limitation.Contains("revision-safe", StringComparison.OrdinalIgnoreCase));
+    }
 
-        var second = await ExecuteAsync(
-            builder,
-            new SearchSymbolsRequest(
-                "Thing",
-                Kind: "NamedType",
-                Limit: 2,
-                ContinuationToken: first.Paging.ContinuationToken));
+    [Fact]
+    public async Task stable_identity_from_an_older_source_revision_returns_typed_stale()
+    {
+        using var builder = new AdhocProjectBuilder("RevisionApp");
+        builder.AddSource("Customer.cs", "namespace RevisionApp; public sealed class Customer { }");
+        var (_, solution) = builder.Build();
+        var service = new SymbolCandidateService();
+        var initial = await service.SearchAsync(solution, new SymbolCandidateQuery("Customer"));
+        var symbolId = initial.ShouldHaveSingleItem().Candidate.SymbolId;
+        var document = solution.Projects.Single().Documents.Single();
+        var changed = solution.WithDocumentText(
+            document.Id,
+            Microsoft.CodeAnalysis.Text.SourceText.From(
+                "namespace RevisionApp; public sealed class Customer { public int Id { get; } }"));
 
-        second.Data.Items.Select(item => item.Name).ShouldBe(["ThingC", "ThingD"]);
-        second.Paging.Truncated.ShouldBeFalse();
-        second.Paging.ContinuationToken.ShouldBeNull();
-        first.Data.Items.Select(item => item.SymbolId)
-            .Intersect(second.Data.Items.Select(item => item.SymbolId))
-            .ShouldBeEmpty();
+        var resolved = await service.ResolveAsync(changed, symbolId, "type");
 
-        var invalid = await ExecuteResultAsync(
-            builder,
-            new SearchSymbolsRequest(
-                "Different",
-                Kind: "NamedType",
-                Limit: 2,
-                ContinuationToken: first.Paging.ContinuationToken));
-        var error = invalid.Match<RtError?>(_ => null, value => value);
+        var error = resolved.Match<RtError?>(_ => null, value => value);
         error.ShouldNotBeNull();
-        error.Kind.ShouldBe(RtErrorKind.InvalidInput);
+        error.Kind.ShouldBe(RtErrorKind.Stale);
     }
 
     [Fact]
