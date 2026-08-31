@@ -43,7 +43,7 @@ public class CliBootstrap
         // App is a class in the rt assembly; analyze-interface expects an interface, so it
         // throws InvalidOperationException("'<fqn>' is not an interface; ...").
         var result = await RtCliHost.RunAsync(
-            $"analyze analyze-interface RoslynTools.App --solution \"{slnxPath}\"");
+            $"analyze analyze-interface RoslynTools.App --solution \"{slnxPath}\" --trust-repository");
 
         result.ExitCode.ShouldBe(1);
         Assert.Contains("Error:", result.Stderr, StringComparison.Ordinal);

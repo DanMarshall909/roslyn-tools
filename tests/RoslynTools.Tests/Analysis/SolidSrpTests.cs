@@ -462,6 +462,7 @@ public class SolidSrpTests
     [Fact]
     public async Task execute_async_returns_0_for_valid_srp_principle()
     {
+        using var trust = RepositoryTrustContext.UseExplicitTrust();
         var exitCode = await SolidCommand.ExecuteAsync(null, "SRP", 10, 5, 7, 2);
         exitCode.ShouldBe(0);
     }
@@ -469,6 +470,7 @@ public class SolidSrpTests
     [Fact]
     public async Task execute_async_returns_0_for_all_principle()
     {
+        using var trust = RepositoryTrustContext.UseExplicitTrust();
         var exitCode = await SolidCommand.ExecuteAsync(null, "all", 10, 5, 7, 2);
         exitCode.ShouldBe(0);
     }
