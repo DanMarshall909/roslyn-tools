@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using RoslynTools.Core;
 using RoslynTools.Mcp;
 using Shouldly;
 
@@ -217,6 +218,38 @@ public class ServerSerializationTests
         structured.GetProperty("outcome").GetString().ShouldBe("TrustRequired");
         structured.GetProperty("data").GetProperty("installation")
             .GetProperty("daemonRequired").GetBoolean().ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task semantic_tool_call_cannot_grant_itself_repository_trust()
+    {
+        var arguments = JsonSerializer.Serialize(new
+        {
+            query = "SymbolCandidateService",
+            solution = Path.Combine(FindRepoRoot(), "RoslynTools.slnx")
+        });
+        using var argumentsDocument = JsonDocument.Parse(arguments);
+        var request = JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            method = "tools/call",
+            id = 4,
+            @params = new
+            {
+                name = "search_symbols",
+                arguments = argumentsDocument.RootElement.Clone()
+            }
+        });
+
+        var output = await RunSingleRequestAsync(request);
+
+        using var document = JsonDocument.Parse(output);
+        var result = document.RootElement.GetProperty("result");
+        result.GetProperty("isError").GetBoolean().ShouldBeTrue();
+        var text = result.GetProperty("content")[0].GetProperty("text").GetString();
+        text.ShouldNotBeNull();
+        using var error = JsonDocument.Parse(text);
+        error.RootElement.GetProperty("kind").GetString().ShouldBe(nameof(RtErrorKind.TrustRequired));
     }
 
     private static string FindRepoRoot()

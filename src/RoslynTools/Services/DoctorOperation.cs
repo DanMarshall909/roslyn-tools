@@ -11,9 +11,7 @@ internal sealed record DoctorRequest(
     [property: CommandPropertyDescription("Absolute repository or workspace directory")]
     string Directory,
     [property: CommandPropertyDescription("Explicit .sln or .slnx path; relative paths resolve under directory")]
-    string? Solution = null,
-    [property: CommandPropertyDescription("Explicitly permit this one invocation to evaluate repository build inputs")]
-    bool TrustRepository = false);
+    string? Solution = null);
 
 internal sealed record DoctorInstallation(
     string Version,
@@ -77,14 +75,14 @@ internal sealed class DoctorOperation(
                 candidates.Length == 0 ? "Unsupported" : "Ambiguous",
                 "NotLoaded",
                 loadedProjects: 0,
-                request.TrustRepository ? "OneShotTrusted" : "TrustRequired",
+                RepositoryTrustContext.IsExplicitlyTrusted ? "OneShotTrusted" : "TrustRequired",
                 candidates.Length == 0
                     ? ["No .sln or .slnx candidate was found in the requested directory."]
                     : ["Multiple solution candidates are available; select one explicitly."],
                 stopwatch.ElapsedMilliseconds));
 
         var selected = candidates[0];
-        if (!request.TrustRepository)
+        if (!RepositoryTrustContext.IsExplicitlyTrusted)
             return Result<RtResultEnvelope<DoctorResult>, RtError>.Ok(CreateEnvelope(
                 root,
                 selected,

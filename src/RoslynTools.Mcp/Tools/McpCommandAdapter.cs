@@ -105,6 +105,19 @@ internal sealed class McpCommandAdapter(
 
             return ToolResult.Structured(SerializeSuccess(result.Value));
         }
+        catch (RepositoryTrustRequiredException ex)
+        {
+            return new ToolResult(
+                true,
+                SerializeError(new RtError(
+                    RtErrorKind.TrustRequired,
+                    ex.Message,
+                    new Dictionary<string, string>
+                    {
+                        ["solution"] = ex.SolutionPath,
+                        ["grantThrough"] = "trusted CLI invocation"
+                    })));
+        }
         catch (Exception ex) when (ex is ArgumentException
                                    or InvalidOperationException
                                    or JsonException

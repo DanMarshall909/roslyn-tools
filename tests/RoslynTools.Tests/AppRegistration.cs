@@ -85,6 +85,16 @@ public sealed class AppRegistration
     }
 
     [Fact]
+    public void registers_global_options_adds_invocation_scoped_repository_trust_option()
+    {
+        var root = new RootCommand("test");
+
+        App.RegisterGlobalOptions(root);
+
+        root.Options.ShouldContain(o => o.Name == "trust-repository");
+    }
+
+    [Fact]
     public void registers_global_options_registers_exactly_expected_options()
     {
         var root = new RootCommand("test");
@@ -101,7 +111,8 @@ public sealed class AppRegistration
                 "relax-json",
                 "decisions",
                 "show-workspace-warnings",
-                "no-suggest"
+                "no-suggest",
+                "trust-repository"
             });
     }
 
