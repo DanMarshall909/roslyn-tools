@@ -196,8 +196,8 @@ Depends on the existing `critical-platform-hardening` P0.0 containment slice.
 
 ### 3.2 Symbol search
 
-- [x] Implement `search-symbols` with partial/exact name, kind, project, namespace,
-  accessibility, generic arity, signature, paging, and output limits.
+- [ ] Complete `search-symbols` revision-safe paging and output-byte limits; bounded
+  first-page search, explicit truncation, and all discovery filters are implemented.
 - [x] Migrate `describe` and `source` to consume shared candidate identities while
   retaining separate cost/output contracts.
 - [ ] Test source-byte truncation and explicit continuation/range behaviour.
