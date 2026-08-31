@@ -60,8 +60,12 @@ internal sealed class WorkspaceLoader : IWorkspaceSessionFactory, IDisposable
     /// <summary>
     ///     Load and return the solution. The instance retains the workspace — do not dispose it
     ///     from the call site. The workspace is disposed when this <see cref="WorkspaceLoader" />
-    ///     is disposed (i.e. when the DI container tears down).
+    ///     is disposed (i.e. when the DI container tears down). Repository evaluation must have
+    ///     been explicitly authorized by the trusted host invocation.
     /// </summary>
+    /// <exception cref="RepositoryTrustRequiredException">
+    ///     The current invocation has not explicitly authorized repository evaluation.
+    /// </exception>
     public async Task<Solution> GetSolutionAsync(string? solutionPath)
     {
         if (Override.Value is { } o)
@@ -75,8 +79,13 @@ internal sealed class WorkspaceLoader : IWorkspaceSessionFactory, IDisposable
 
     /// <summary>
     ///     Compatibility instance API for commands that still need workspace ownership while
-    ///     they migrate to solution-only operations.
+    ///     they migrate to solution-only operations. Repository evaluation must have been
+    ///     explicitly authorized by the trusted host invocation. The loader retains ownership
+    ///     of the workspace and disposes it when replaced or when this loader is disposed.
     /// </summary>
+    /// <exception cref="RepositoryTrustRequiredException">
+    ///     The current invocation has not explicitly authorized repository evaluation.
+    /// </exception>
     public async Task<(Workspace Workspace, Solution Solution)> LoadWorkspaceAsync(string? solutionPath)
     {
         if (Override.Value is { } o)

@@ -22,20 +22,27 @@ internal static class RepositoryTrustContext
     {
         private Action? _dispose = dispose;
 
-        public void Dispose() => Interlocked.Exchange(ref _dispose, null)?.Invoke();
+        void IDisposable.Dispose() => Interlocked.Exchange(ref _dispose, null)?.Invoke();
     }
 }
 
+/// <summary>
+///     Signals that a semantic workspace load was attempted without invocation-scoped
+///     repository trust. The trusted CLI host may grant that authority; request payloads cannot.
+/// </summary>
 internal sealed class RepositoryTrustRequiredException : InvalidOperationException
 {
+    /// <summary>Initializes an exception without a custom message.</summary>
     public RepositoryTrustRequiredException()
     {
     }
 
+    /// <summary>Initializes an exception with an actionable trust-boundary message.</summary>
     public RepositoryTrustRequiredException(string? message) : base(message)
     {
     }
 
+    /// <summary>Initializes an exception with a message and its underlying cause.</summary>
     public RepositoryTrustRequiredException(string? message, Exception? innerException)
         : base(message, innerException)
     {

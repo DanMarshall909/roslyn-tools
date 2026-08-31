@@ -48,10 +48,7 @@ public class CommandExample
         foreach (var group in groups.Values)
             root.AddCommand(group);
 
-        root.AddGlobalOption(new Option<bool>("--json", "Emit results as JSON"));
-        root.AddGlobalOption(new Option<bool>("--llm", "Emit compact output for LLM consumption"));
-        root.AddGlobalOption(new Option<bool>("--markdown", "Emit results as Markdown"));
-        root.AddGlobalOption(new Option<bool>("--yaml", "Emit results as YAML"));
+        _ = App.RegisterGlobalOptions(root);
 
         return new CommandLineBuilder(root)
             .UseDefaults()
