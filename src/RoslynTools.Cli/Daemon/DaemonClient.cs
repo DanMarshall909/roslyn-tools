@@ -55,9 +55,7 @@ internal sealed class DaemonClient(GitService git)
 
         if (state.RtVersion != DaemonState.CurrentVersion())
         {
-            RtLog.Warning(
-                "[rt] Daemon version mismatch — falling back to in-process. "
-                + "Run `rt maintainer daemon stop`, then `rt maintainer daemon start` to refresh.");
+            RtLog.Warning("[rt] Daemon version mismatch — falling back to in-process. Run `rt maintainer daemon stop`, then `rt maintainer daemon start` to refresh.");
             return null;
         }
 
