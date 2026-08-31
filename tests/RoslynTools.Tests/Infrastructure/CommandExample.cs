@@ -48,7 +48,7 @@ public class CommandExample
         foreach (var group in groups.Values)
             root.AddCommand(group);
 
-        App.RegisterGlobalOptions(root);
+        _ = App.RegisterGlobalOptions(root);
 
         return new CommandLineBuilder(root)
             .UseDefaults()
