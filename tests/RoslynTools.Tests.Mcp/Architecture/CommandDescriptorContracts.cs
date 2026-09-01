@@ -282,10 +282,16 @@ public sealed class CommandDescriptorContracts
         var properties = (Dictionary<string, Dictionary<string, object>>)tool.inputSchema["properties"];
         properties.Keys.ShouldContain("includeRelated");
         properties.Keys.ShouldContain("relatedLimit");
+        properties.Keys.ShouldContain("maxSourceBytes");
+        properties.Keys.ShouldContain("continuationToken");
         properties["includeRelated"]["description"].ShouldBe(
             "Include one-hop source declarations for each listed related symbol");
         properties["relatedLimit"]["description"].ShouldBe(
             "Maximum related symbols to list (1-100)");
+        properties["maxSourceBytes"]["description"].ShouldBe(
+            "Maximum UTF-8 bytes across returned source text (4-1048576)");
+        properties["continuationToken"]["description"].ShouldBe(
+            "Opaque continuation from a prior truncated source response");
     }
 
     [Fact]

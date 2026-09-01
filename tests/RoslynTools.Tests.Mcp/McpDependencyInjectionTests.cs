@@ -201,6 +201,59 @@ public sealed class McpDependencyInjectionTests
         }
     }
 
+    [Fact]
+    public async Task Tool_registry_pages_source_with_the_shared_continuation_contract()
+    {
+        using var project = new AdhocProjectBuilder("SourceApp")
+            .AddSource("Source.cs", """
+                namespace App;
+                public static class Texts
+                {
+                    public static string Read() => "source text that spans several result pages";
+                }
+                """);
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (var provider = McpTestHost.CreateProvider())
+        {
+            using var args = JsonDocument.Parse("""
+                                                {
+                                                  "symbol": "App.Texts.Read",
+                                                  "kind": "method",
+                                                  "maxSourceBytes": 20
+                                                }
+                                                """);
+            var registry = provider.GetRequiredService<ToolRegistry>();
+
+            var first = await registry.InvokeAsync("source", args.RootElement);
+
+            first.isError.ShouldBeFalse();
+            using var firstPayload = JsonDocument.Parse(first.content);
+            var firstRoot = firstPayload.RootElement;
+            firstRoot.GetProperty("sourceBytesReturned").GetInt32().ShouldBeLessThanOrEqualTo(20);
+            firstRoot.GetProperty("truncated").GetBoolean().ShouldBeTrue();
+            var continuation = firstRoot.GetProperty("continuationToken").GetString();
+            continuation.ShouldNotBeNullOrWhiteSpace();
+            var firstEnd = firstRoot.GetProperty("declarations")[0]
+                .GetProperty("returnedToByteExclusive").GetInt32();
+
+            using var continuedArgs = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                symbol = "App.Texts.Read",
+                kind = "method",
+                maxSourceBytes = 20,
+                continuationToken = continuation
+            }));
+            var second = await registry.InvokeAsync("source", continuedArgs.RootElement);
+
+            second.isError.ShouldBeFalse();
+            using var secondPayload = JsonDocument.Parse(second.content);
+            secondPayload.RootElement.GetProperty("declarations")[0]
+                .GetProperty("returnedFromByte").GetInt32().ShouldBe(firstEnd);
+        }
+    }
+
     private static string FindRepoRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

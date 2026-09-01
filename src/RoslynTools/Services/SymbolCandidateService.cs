@@ -28,6 +28,13 @@ internal interface ISymbolCandidateService
         string identityOrName,
         string? kind,
         CancellationToken cancellationToken = default);
+
+    Task<Result<ISymbol, RtError>> ResolveAsync(
+        Solution solution,
+        string identityOrName,
+        string? kind,
+        string sourceRevision,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -100,6 +107,21 @@ internal sealed class SymbolCandidateService : ISymbolCandidateService, IRtServi
         CancellationToken cancellationToken = default)
     {
         var sourceRevision = await SolutionRevision.ComputeAsync(solution, cancellationToken);
+        return await ResolveAsync(
+            solution,
+            identityOrName,
+            kind,
+            sourceRevision,
+            cancellationToken);
+    }
+
+    public async Task<Result<ISymbol, RtError>> ResolveAsync(
+        Solution solution,
+        string identityOrName,
+        string? kind,
+        string sourceRevision,
+        CancellationToken cancellationToken = default)
+    {
         if (TryGetIdentityRevision(identityOrName, out var identityRevision)
             && !string.Equals(identityRevision, sourceRevision, StringComparison.Ordinal))
         {

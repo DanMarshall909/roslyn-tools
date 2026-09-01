@@ -73,7 +73,7 @@ Depends on the existing `critical-platform-hardening` P0.0 containment slice.
   cannot cause local fallback or a second mutation execution.
 - [x] Run daemon, MCP architecture, command-migration, mutation, formatting, build, and
   full test gates; distinguish baseline failures from regressions.
-- [ ] Integrate that slice independently before beginning broad product conversion.
+- [x] Integrate that slice independently before beginning broad product conversion.
 
 ### 1.2 Public effect containment
 
@@ -200,7 +200,9 @@ Depends on the existing `critical-platform-hardening` P0.0 containment slice.
   first-page search, explicit truncation, and all discovery filters are implemented.
 - [x] Migrate `describe` and `source` to consume shared candidate identities while
   retaining separate cost/output contracts.
-- [ ] Test source-byte truncation and explicit continuation/range behaviour.
+- [x] Bound `source` text by caller-selected UTF-8 bytes; report total/returned bytes,
+  exact declaration ranges, and revision-bound continuation; test truncation, Unicode
+  scalar boundaries, stale revisions, and CLI/MCP schema parity.
 
 ### 3.3 Relationships
 

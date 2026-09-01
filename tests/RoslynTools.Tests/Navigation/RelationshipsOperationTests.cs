@@ -130,6 +130,14 @@ public sealed class RelationshipsOperationTests
             cancellation.Cancel();
             return Result<ISymbol, RtError>.Ok(symbol);
         }
+
+        public Task<Result<ISymbol, RtError>> ResolveAsync(
+            Solution solution,
+            string identityOrName,
+            string? kind,
+            string sourceRevision,
+            CancellationToken cancellationToken = default) =>
+            ResolveAsync(solution, identityOrName, kind, cancellationToken);
     }
 
     private sealed class FixedSessionFactory(Workspace workspace, Solution solution) : IWorkspaceSessionFactory

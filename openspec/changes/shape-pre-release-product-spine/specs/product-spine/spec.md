@@ -149,6 +149,42 @@ unresolved symbol request.
 - **THEN** that symbol is selected without fuzzy matching
 - **AND** a revision mismatch produces a typed stale/re-resolution outcome
 
+### Requirement: focused source is byte-bounded and revision-addressable
+
+`source` SHALL cap the UTF-8 bytes returned across source-text fields by a caller-
+selectable budget no greater than the capability's declared maximum. Subject
+declarations SHALL consume that budget in deterministic declaration order before any
+requested related declarations. Every response SHALL report the total and returned
+source bytes, the exact byte range returned for each declaration, the source revision,
+and explicit truncation state. A truncated response SHALL provide an opaque
+continuation bound to the same symbol request, related-source selection, and source
+revision. Chunking SHALL NOT split a UTF-8 scalar value.
+
+#### Scenario: focused source exceeds the requested byte budget
+
+- **GIVEN** a symbol whose normalized declaration source exceeds the requested source-
+  byte budget
+- **WHEN** focused source is requested
+- **THEN** the combined UTF-8 bytes in every returned source-text field do not exceed
+  the requested budget
+- **AND** the result reports total bytes independently from returned bytes
+- **AND** each returned declaration reports its total bytes and half-open returned byte
+  range
+- **AND** the result is marked truncated and contains a continuation token
+
+#### Scenario: caller continues a truncated source response
+
+- **GIVEN** a continuation token from a truncated focused-source response
+- **WHEN** the caller repeats the same request with that token against the same source
+  revision
+- **THEN** the next byte range begins exactly where the prior response ended without a
+  gap, overlap, or split UTF-8 scalar value
+- **AND** subject declarations remain ordered before requested related declarations
+- **AND** a changed source revision returns a typed stale outcome instead of reading a
+  different range
+- **AND** a token used with different symbol or related-source arguments is rejected as
+  invalid input
+
 ### Requirement: semantic relationships use one bounded graph contract
 
 The relationships capability SHALL support references, callers, callees,
