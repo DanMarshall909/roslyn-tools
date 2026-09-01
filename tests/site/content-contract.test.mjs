@@ -42,6 +42,7 @@ test('every required documentation source is tracked by Git', () => {
 
   const requiredTrackedFiles = [
     ...requiredPages.map(page => `site/content/docs/${page}`),
+    'site/components/CommandCatalogue.astro',
     'site/pages/docs/[...slug].astro',
   ];
 
@@ -68,6 +69,16 @@ test('the public examples lead with MCP and use canonical commands from the prod
   assert.match(mcp, /"command": "roslyn-tools-mcp"/);
   assert.match(gettingStarted, /rt inspect doctor/);
   assert.match(discovery, /rt dump-help --compact/);
+});
+
+test('the website command catalogue is derived from the generated command reference', () => {
+  const component = read('site/components/CommandCatalogue.astro');
+  const page = read('site/pages/docs/[...slug].astro');
+
+  assert.match(component, /docs\/COMMANDS\.md/);
+  assert.match(component, /commands\.length !== declaredCount/);
+  assert.match(page, /slug === 'command-reference'/);
+  assert.match(page, /<CommandCatalogue \/>/);
 });
 
 test('custom-domain and deployment configuration follow the sibling-site convention', () => {

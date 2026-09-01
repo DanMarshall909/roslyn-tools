@@ -1,5 +1,6 @@
 ---
 import DocLayout from '../../layouts/DocLayout.astro';
+import CommandCatalogue from '../../components/CommandCatalogue.astro';
 
 interface DocumentationFrontmatter {
   title: string;
@@ -49,4 +50,5 @@ const headings = await module.getHeadings();
   navigation={navigation}
 >
   <Content />
+  {slug === 'command-reference' && <CommandCatalogue />}
 </DocLayout>

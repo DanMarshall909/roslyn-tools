@@ -53,6 +53,23 @@ test('the homepage presents MCP as the primary semantic agent surface', () => {
   assert.match(html, /https:\/\/blog\.danmarshall\.dev/);
 });
 
+test('the command reference lists every generated public command', () => {
+  const source = readFileSync(join(root, 'docs', 'COMMANDS.md'), 'utf8');
+  const declaredCount = Number(source.match(/Total commands: \*\*(\d+)\*\*/)?.[1]);
+  const expectedCommands = [...source.matchAll(/^\| \[`([^`]+)`\]\(#[^)]+\) \|/gm)]
+    .map(([, name]) => name);
+  const html = readFileSync(
+    join(outputRoot, 'docs', 'command-reference', 'index.html'),
+    'utf8',
+  );
+  const renderedCommands = [...html.matchAll(/data-command="([^"]+)"/g)]
+    .map(([, name]) => name);
+
+  assert.equal(expectedCommands.length, declaredCount);
+  assert.equal(renderedCommands.length, declaredCount);
+  assert.deepEqual(renderedCommands.sort(), expectedCommands.sort());
+});
+
 test('every generated page has production metadata and valid internal links', () => {
   const pages = findFiles(outputRoot, 'index.html');
   assert.ok(pages.length >= 8, `expected at least 8 pages, received ${pages.length}`);

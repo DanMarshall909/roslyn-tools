@@ -1,0 +1,75 @@
+---
+import source from '../../docs/COMMANDS.md?raw';
+
+interface CommandEntry {
+  name: string;
+  group: string;
+  aliases: string;
+  description: string;
+}
+
+const declaredCount = Number(source.match(/Total commands: \*\*(\d+)\*\*/)?.[1]);
+const index = source.match(/## Index\r?\n[\s\S]*?(?=\r?\n## )/)?.[0] ?? '';
+const commands = index
+  .split(/\r?\n/)
+  .filter((line) => /^\| \[`[^`]+`\]\(#[^)]+\) \|/.test(line))
+  .map((line): CommandEntry => {
+    const [, commandCell, groupCell, aliasesCell, description] = line
+      .split('|')
+      .map((cell) => cell.trim());
+
+    return {
+      name: commandCell.match(/\[`([^`]+)`\]/)?.[1] ?? '',
+      group: groupCell.replaceAll('`', ''),
+      aliases: aliasesCell.replaceAll('`', ''),
+      description,
+    };
+  });
+
+if (!Number.isFinite(declaredCount) || commands.length !== declaredCount) {
+  throw new Error(
+    `Generated command catalogue is incomplete: expected ${declaredCount}, parsed ${commands.length}.`,
+  );
+}
+
+const groups = [
+  { name: 'inspect', label: 'Inspect', description: 'Read symbols, source, and relationships.' },
+  { name: 'analyze', label: 'Analyze', description: 'Evaluate solution-wide structure and quality.' },
+  { name: 'refactor', label: 'Refactor', description: 'Preview or apply focused source changes.' },
+];
+---
+
+<div class="command-catalogue" data-command-count={commands.length}>
+  <p class="catalogue-summary">
+    <strong>{commands.length} commands</strong>, generated from the same metadata as
+    <code>rt dump-help</code>. Use <code>rt &lt;group&gt; &lt;command&gt; --help</code>
+    for version-matched arguments, options, examples, and output formats.
+  </p>
+
+  {groups.map((group) => {
+    const entries = commands.filter((command) => command.group === group.name);
+
+    return (
+      <section class="command-group" aria-labelledby={`commands-${group.name}`}>
+        <header>
+          <div>
+            <h3 id={`commands-${group.name}`}>{group.label}</h3>
+            <p>{group.description}</p>
+          </div>
+          <span>{entries.length}</span>
+        </header>
+        <ol class="command-list">
+          {entries.map((command) => (
+            <li data-command={command.name}>
+              <div class="command-identity">
+                <code>{command.name}</code>
+                {command.aliases !== '—' && <span>alias {command.aliases}</span>}
+              </div>
+              <p>{command.description}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
+    );
+  })}
+</div>

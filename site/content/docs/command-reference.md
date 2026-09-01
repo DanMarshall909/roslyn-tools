@@ -50,3 +50,7 @@ bash scripts/check-local.sh
 ```
 
 Architecture and contributor documentation lives in the [GitHub repository](https://github.com/DanMarshall909/roslyn-tools/tree/main/docs).
+
+## All commands
+
+The catalogue below is generated from the canonical command metadata. It includes every public inspect, analyze, and refactor command in this version of Roslyn Tools.
