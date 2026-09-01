@@ -268,6 +268,27 @@ public sealed class CommandDescriptorContracts
     }
 
     [Fact]
+    public void source_schema_exposes_related_symbol_inclusion_controls()
+    {
+        using var provider = McpTestHost.CreateProvider();
+        var descriptor = provider.GetRequiredService<CommandDescriptorRegistry>()
+            .All.Single(candidate => candidate.ToolName == SourceApplicationDefinition.Definition.Name);
+        var tool = ToolSchemaBuilder.Build(descriptor);
+
+        descriptor.Port.ShouldBeOfType<SourceOperation>();
+        var definition = descriptor.Definition.ShouldNotBeNull();
+        definition.ShouldBeSameAs(SourceApplicationDefinition.Definition);
+        definition.ResponseType.ShouldBe(typeof(SourceResult));
+        var properties = (Dictionary<string, Dictionary<string, object>>)tool.inputSchema["properties"];
+        properties.Keys.ShouldContain("includeRelated");
+        properties.Keys.ShouldContain("relatedLimit");
+        properties["includeRelated"]["description"].ShouldBe(
+            "Include one-hop source declarations for each listed related symbol");
+        properties["relatedLimit"]["description"].ShouldBe(
+            "Maximum related symbols to list (1-100)");
+    }
+
+    [Fact]
     public void delete_unreferenced_schema_requires_the_symbol_and_projects_the_typed_port()
     {
         using var provider = McpTestHost.CreateProvider();

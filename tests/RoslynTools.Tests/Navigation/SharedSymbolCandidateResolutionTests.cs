@@ -60,7 +60,7 @@ public sealed class SharedSymbolCandidateResolutionTests
                 new InspectService(candidates: candidates),
                 candidates)
             .ExecuteAsync(new SourceRequest(testIdentity, Kind: "type"));
-        var declaration = source.Unwrap().ShouldHaveSingleItem();
+        var declaration = source.Unwrap().Declarations.ShouldHaveSingleItem();
         declaration.FilePath.ShouldContain("ConsumerTests");
         declaration.Text.ShouldContain("Fixture");
     }

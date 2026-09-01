@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using RoslynTools.Core;
 
 namespace RoslynTools.Services;
@@ -243,4 +244,96 @@ internal class InspectService : IRtService
 
         return results;
     }
+
+    /// <summary>
+    ///     Finds source symbols referenced by a declaration or body, in first-use order. Symbols
+    ///     declared inside the requested symbol are excluded because their content is already part
+    ///     of the requested source. The result is deliberately one hop; callers decide whether to
+    ///     retrieve the related declarations.
+    /// </summary>
+    internal async Task<IReadOnlyList<ISymbol>> GetRelatedSymbolsAsync(
+        Solution solution,
+        ISymbol subject,
+        int maximumCount,
+        CancellationToken cancellationToken = default)
+    {
+        if (maximumCount <= 0)
+            return [];
+
+        var subjectDeclarations = subject.DeclaringSyntaxReferences;
+        var seen = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+        var related = new List<ISymbol>();
+
+        foreach (var syntaxReference in subjectDeclarations)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var declaration = await syntaxReference.GetSyntaxAsync(cancellationToken);
+            var document = solution.GetDocument(declaration.SyntaxTree);
+            if (document is null)
+                continue;
+
+            var semanticModel = await document.GetSemanticModelAsync(cancellationToken);
+            if (semanticModel is null)
+                continue;
+
+            foreach (var name in declaration.DescendantNodesAndSelf().OfType<SimpleNameSyntax>())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (IsReceiverSegment(name))
+                    continue;
+
+                var symbolInfo = semanticModel.GetSymbolInfo(name, cancellationToken);
+                var candidate = symbolInfo.Symbol ?? symbolInfo.CandidateSymbols.FirstOrDefault();
+                if (candidate is null)
+                    continue;
+
+                var normalized = NormalizeRelatedSymbol(candidate);
+                if (!IsSupportedRelatedSymbol(normalized)
+                    || SymbolEqualityComparer.Default.Equals(
+                        normalized,
+                        subject.OriginalDefinition)
+                    || IsDeclaredWithin(normalized, subjectDeclarations)
+                    || !seen.Add(normalized))
+                    continue;
+
+                related.Add(normalized);
+                if (related.Count >= maximumCount)
+                    return related;
+            }
+        }
+
+        return related;
+    }
+
+    private static bool IsReceiverSegment(SimpleNameSyntax name) =>
+        name.Parent switch
+        {
+            MemberAccessExpressionSyntax memberAccess when memberAccess.Expression == name => true,
+            QualifiedNameSyntax qualifiedName when qualifiedName.Left == name => true,
+            _ => false
+        };
+
+    private static ISymbol NormalizeRelatedSymbol(ISymbol symbol) => symbol switch
+    {
+        IMethodSymbol { AssociatedSymbol: not null } method =>
+            method.AssociatedSymbol.OriginalDefinition,
+        IMethodSymbol { MethodKind: MethodKind.Constructor or MethodKind.StaticConstructor } method =>
+            method.ContainingType.OriginalDefinition,
+        IMethodSymbol { ReducedFrom: not null } method => method.ReducedFrom.OriginalDefinition,
+        _ => symbol.OriginalDefinition
+    };
+
+    private static bool IsSupportedRelatedSymbol(ISymbol symbol) =>
+        !symbol.IsImplicitlyDeclared
+        && symbol.DeclaringSyntaxReferences.Length > 0
+        && symbol.Locations.Any(location => location.IsInSource)
+        && symbol is INamedTypeSymbol or IMethodSymbol or IPropertySymbol or IFieldSymbol or IEventSymbol;
+
+    private static bool IsDeclaredWithin(
+        ISymbol candidate,
+        IReadOnlyList<SyntaxReference> subjectDeclarations) =>
+        candidate.DeclaringSyntaxReferences.Any(candidateDeclaration =>
+            subjectDeclarations.Any(subjectDeclaration =>
+                subjectDeclaration.SyntaxTree == candidateDeclaration.SyntaxTree
+                && subjectDeclaration.Span.Contains(candidateDeclaration.Span)));
 }

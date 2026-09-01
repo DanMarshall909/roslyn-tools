@@ -25,28 +25,47 @@ internal sealed class SourceCommand(
         var flags = RtCommandFlagBinder.Create()
             .WithSolution("Path to the .sln/.slnx file")
             .WithKind("Symbol kind hint: type, method, property, field");
+        var includeRelatedOpt = new Option<bool>(
+            "--include-related",
+            "Include one-hop source declarations for the related symbols listed at the bottom");
+        var relatedLimitOpt = new Option<int>(
+            "--related-limit",
+            () => 10,
+            "Maximum related symbols to list (1-100)");
 
-        var cmd = new Command("source", "Print the source code of a member or type by FQN (JSON)")
+        var cmd = new Command("source", "Print a symbol's source and its related source symbols (JSON)")
         {
-            symbolArg
+            symbolArg,
+            includeRelatedOpt,
+            relatedLimitOpt
         };
         flags.AddTo(cmd);
 
         cmd.SetHandler(async ctx =>
         {
             var symbol = ctx.ParseResult.GetValueForArgument(symbolArg);
-            var request = flags.Bind(ctx.ParseResult, f => SourceCliRequest.FromFlags(f, symbol));
+            var includeRelated = ctx.ParseResult.GetValueForOption(includeRelatedOpt);
+            var relatedLimit = ctx.ParseResult.GetValueForOption(relatedLimitOpt);
+            var request = flags.Bind(
+                ctx.ParseResult,
+                f => SourceCliRequest.FromFlags(
+                    f,
+                    symbol,
+                    includeRelated,
+                    relatedLimit));
             var source = await DaemonCommandExecutor.ExecuteTypedAsync(
                 _daemon,
                 _operation,
                 new SourceRequest(
                     request.Symbol,
                     request.SolutionPath,
-                    request.Kind),
+                    request.Kind,
+                    request.IncludeRelated,
+                    request.RelatedLimit),
                 ctx.GetCancellationToken());
 
             source.Match(
-                value => RtResultRenderer.Write(RtResult<IReadOnlyList<SourceDeclaration>>.Ok(value)),
+                value => RtResultRenderer.Write(RtResult<SourceResult>.Ok(value)),
                 error => RtErrorPresenter.Surface(ctx, error));
         });
 
@@ -56,11 +75,22 @@ internal sealed class SourceCommand(
     private sealed record SourceCliRequest(
         string Symbol,
         string? SolutionPath,
-        string? Kind) : ISupportsSolutionOption, ISupportsKindOption
+        string? Kind,
+        bool IncludeRelated,
+        int RelatedLimit) : ISupportsSolutionOption, ISupportsKindOption
     {
-        public static SourceCliRequest FromFlags(RtFlagValues flags, string symbol)
+        public static SourceCliRequest FromFlags(
+            RtFlagValues flags,
+            string symbol,
+            bool includeRelated,
+            int relatedLimit)
         {
-            return new SourceCliRequest(symbol, flags.SolutionPath, flags.Kind);
+            return new SourceCliRequest(
+                symbol,
+                flags.SolutionPath,
+                flags.Kind,
+                includeRelated,
+                relatedLimit);
         }
     }
 }

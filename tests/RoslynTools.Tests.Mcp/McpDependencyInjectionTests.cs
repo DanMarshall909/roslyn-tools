@@ -155,6 +155,52 @@ public sealed class McpDependencyInjectionTests
         }
     }
 
+    [Fact]
+    public async Task Tool_registry_invokes_source_with_related_symbol_content_via_typed_port()
+    {
+        using var project = new AdhocProjectBuilder("SourceApp")
+            .AddSource("Source.cs", """
+                namespace App;
+                public static class Formatter
+                {
+                    public static string Format(int value) => value.ToString();
+                }
+
+                public sealed class Calculator
+                {
+                    public string Add(int left, int right) => Formatter.Format(left + right);
+                }
+                """);
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (var provider = McpTestHost.CreateProvider())
+        {
+            using var args = JsonDocument.Parse("""
+                                                {
+                                                  "symbol": "App.Calculator.Add",
+                                                  "kind": "method",
+                                                  "solution": "ignored.slnx",
+                                                  "includeRelated": true,
+                                                  "relatedLimit": 1
+                                                }
+                                                """);
+
+            var result = await provider.GetRequiredService<ToolRegistry>()
+                .InvokeAsync("source", args.RootElement);
+
+            result.isError.ShouldBeFalse();
+            using var payload = JsonDocument.Parse(result.content);
+            var root = payload.RootElement;
+            root.GetProperty("subject").GetString().ShouldBe("App.Calculator.Add(int, int)");
+            root.GetProperty("declarations").GetArrayLength().ShouldBe(1);
+            var related = root.GetProperty("relatedSymbols")[0];
+            related.GetProperty("fqn").GetString().ShouldBe("App.Formatter.Format(int)");
+            related.GetProperty("declarations")[0].GetProperty("source").GetString()
+                .ShouldBe("public static string Format(int value) => value.ToString();");
+        }
+    }
+
     private static string FindRepoRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
