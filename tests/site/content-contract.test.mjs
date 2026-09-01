@@ -42,6 +42,7 @@ test('every required documentation source is tracked by Git', () => {
 
   const requiredTrackedFiles = [
     ...requiredPages.map(page => `site/content/docs/${page}`),
+    'scripts/generate-site-command-reference.mjs',
     'site/components/CommandCatalogue.astro',
     'site/pages/docs/[...slug].astro',
   ];
@@ -74,11 +75,16 @@ test('the public examples lead with MCP and use canonical commands from the prod
 test('the website command catalogue is derived from the generated command reference', () => {
   const component = read('site/components/CommandCatalogue.astro');
   const page = read('site/pages/docs/[...slug].astro');
+  const packageJson = JSON.parse(read('package.json'));
+  const generator = read('scripts/generate-site-command-reference.mjs');
 
   assert.match(component, /docs\/COMMANDS\.md/);
   assert.match(component, /commands\.length !== declaredCount/);
   assert.match(page, /slug === 'command-reference'/);
   assert.match(page, /<CommandCatalogue \/>/);
+  assert.equal(packageJson.scripts.prebuild, 'npm run generate:commands');
+  assert.match(generator, /\[cliAssembly, 'dump-help'\]/);
+  assert.match(generator, /renameSync\(temporaryPath, referencePath\)/);
 });
 
 test('custom-domain and deployment configuration follow the sibling-site convention', () => {
