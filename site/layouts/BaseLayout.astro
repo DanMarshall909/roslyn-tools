@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css';
+import CommandWallpaper from '../components/CommandWallpaper.astro';
 
 interface Props {
   title: string;
@@ -39,6 +40,7 @@ const fullTitle = title === siteName ? title : `${title} · ${siteName}`;
   <body>
     <a class="skip-link" href="#main-content">Skip to content</a>
     <header class="site-header">
+      <CommandWallpaper />
       <div class="site-shell header-inner">
         <a class="brand" href="/" aria-label="Roslyn Tools home">
           <span class="brand-mark" aria-hidden="true">rt</span>

@@ -51,6 +51,18 @@ test('the homepage presents MCP as the primary semantic agent surface', () => {
   assert.match(html, /relationships/);
   assert.match(html, /MCP is the front door/);
   assert.match(html, /https:\/\/blog\.danmarshall\.dev/);
+
+  const reference = readFileSync(join(root, 'docs', 'COMMANDS.md'), 'utf8');
+  const knownCommands = new Set(
+    [...reference.matchAll(/^\| \[`([^`]+)`\]\(#[^)]+\) \|/gm)]
+      .map(([, name]) => name),
+  );
+  const wallpaperCommands = [...html.matchAll(/data-wallpaper-command="([^"]+)"/g)]
+    .map(([, name]) => name);
+
+  assert.equal(wallpaperCommands.length, 14);
+  assert.ok(wallpaperCommands.every((name) => knownCommands.has(name)));
+  assert.match(html, /class="command-wallpaper" aria-hidden="true"/);
 });
 
 test('the command reference lists every generated public command', () => {

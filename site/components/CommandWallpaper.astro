@@ -1,0 +1,47 @@
+---
+import { commands } from '../lib/commandCatalogue';
+
+function hash(value: string) {
+  let result = 2166136261;
+  for (const character of value) {
+    result ^= character.charCodeAt(0);
+    result = Math.imul(result, 16777619);
+  }
+  return result >>> 0;
+}
+
+function fraction(value: string, salt: string) {
+  return (hash(`${salt}:${value}`) % 1000) / 1000;
+}
+
+const wallpaperCommands = [...commands]
+  .sort((left, right) => hash(left.name) - hash(right.name))
+  .slice(0, 14)
+  .map((command, index) => {
+    const size = fraction(command.name, 'size');
+    return {
+      ...command,
+      index,
+      top: -28 + fraction(command.name, 'top') * 78,
+      minimumSize: 1.65 + size * 0.55,
+      preferredSize: 2.2 + size * 1.7,
+      maximumSize: 2.5 + size * 1.2,
+      staticLeft: -8 + fraction(command.name, 'left') * 80,
+    };
+  });
+const slotDuration = 7;
+const cycleDuration = wallpaperCommands.length * slotDuration;
+---
+
+<div
+  class="command-wallpaper"
+  aria-hidden="true"
+  style={`--wallpaper-cycle: ${cycleDuration}s;`}
+>
+  {wallpaperCommands.map((command) => (
+    <span
+      data-wallpaper-command={command.name}
+      style={`--wallpaper-top: ${command.top.toFixed(1)}%; --wallpaper-delay: ${command.index * slotDuration}s; --wallpaper-font-size: clamp(${command.minimumSize.toFixed(2)}rem, ${command.preferredSize.toFixed(2)}vw, ${command.maximumSize.toFixed(2)}rem); --wallpaper-static-left: ${command.staticLeft.toFixed(1)}%;`}
+    >rt {command.group} {command.name}</span>
+  ))}
+</div>

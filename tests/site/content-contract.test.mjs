@@ -44,6 +44,8 @@ test('every required documentation source is tracked by Git', () => {
     ...requiredPages.map(page => `site/content/docs/${page}`),
     'scripts/generate-site-command-reference.mjs',
     'site/components/CommandCatalogue.astro',
+    'site/components/CommandWallpaper.astro',
+    'site/lib/commandCatalogue.ts',
     'site/pages/docs/[...slug].astro',
   ];
 
@@ -74,12 +76,14 @@ test('the public examples lead with MCP and use canonical commands from the prod
 
 test('the website command catalogue is derived from the generated command reference', () => {
   const component = read('site/components/CommandCatalogue.astro');
+  const catalogue = read('site/lib/commandCatalogue.ts');
   const page = read('site/pages/docs/[...slug].astro');
   const packageJson = JSON.parse(read('package.json'));
   const generator = read('scripts/generate-site-command-reference.mjs');
 
-  assert.match(component, /docs\/COMMANDS\.md/);
-  assert.match(component, /commands\.length !== declaredCount/);
+  assert.match(component, /lib\/commandCatalogue/);
+  assert.match(catalogue, /docs\/COMMANDS\.md/);
+  assert.match(catalogue, /commands\.length !== declaredCount/);
   assert.match(page, /slug === 'command-reference'/);
   assert.match(page, /<CommandCatalogue \/>/);
   assert.equal(packageJson.scripts.prebuild, 'npm run generate:commands');
@@ -124,4 +128,13 @@ test('the homepage and documentation shell have deliberate responsive fallbacks'
   assert.match(css, /\.doc-article,[\s\S]*?\.prose\s*{\s*min-width:\s*0;/);
   assert.match(css, /\.prose pre\s*{[^}]*overflow-x:\s*hidden;/s);
   assert.match(css, /\.prose pre code\s*{[^}]*white-space:\s*pre-wrap;/s);
+  assert.match(css, /@keyframes command-wallpaper-drift/);
+  assert.match(css, /font-size:\s*var\(--wallpaper-font-size\)/);
+  assert.match(css, /0%\s*{[^}]*translate3d\(100vw, 0, 0\)/s);
+  assert.match(css, /7\.14%,[\s\S]*?translate3d\(-200vw, 0, 0\)/);
+  assert.match(css, /animation:\s*command-wallpaper-drift var\(--wallpaper-cycle\)/);
+  assert.match(
+    css,
+    /@media \(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.command-wallpaper span\s*{[^}]*animation:\s*none;/,
+  );
 });
