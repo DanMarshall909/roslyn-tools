@@ -4,6 +4,8 @@
 
 Use it to inspect symbols, trace references, analyse architecture, and apply solution-wide refactorings with dry-run previews and machine-readable output. The CLI and MCP host share the same application services and command metadata.
 
+Read the task-oriented documentation at [roslyn-tools.danmarshall.dev](https://roslyn-tools.danmarshall.dev).
+
 ## Why `rt`
 
 - **Semantic, solution-wide operations** — symbol resolution, references, implementations, callers, dependencies, and refactorings are based on Roslyn semantics.
@@ -277,6 +279,14 @@ On macOS or Linux:
 ```
 
 A quick clone sanity check is also available through `scripts/doctor.ps1` or `scripts/doctor.sh`.
+
+Preview and verify the documentation site with:
+
+```sh
+npm install
+npm run dev
+npm test
+```
 
 Run the standard checks directly with:
 

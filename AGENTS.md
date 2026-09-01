@@ -24,6 +24,15 @@ Guidance for agentic coding tools working in this repository.
 - Nullable reference types: enabled.
 - Implicit usings: enabled.
 
+### Documentation website
+
+- The public documentation site is an Astro static site at `roslyn-tools.danmarshall.dev`.
+- Site source lives under `site/`; the existing `docs/` directory remains architecture and project documentation source.
+- Astro builds into ignored `artifacts/site/`, and GitHub Pages publishes that output beneath `gh-pages:/docs`.
+- Preview locally with `npm run dev`; validate site content, build output, links, and metadata with `npm test`.
+- The published branch must contain `docs/index.html`, `docs/CNAME`, `docs/.nojekyll`, and the rest of the generated site beneath `docs/`.
+- Do not commit generated site output to `main` or overwrite the repository's authored `docs/` tree.
+
 ### Layout
 
 - `src/RoslynTools.Cli/Commands/`: CLI command definitions. Each concrete `*Command.cs` implements `IRtCommand` plus exactly one category marker: `IInspectCommand`, `IAnalyzeCommand`, or `IRefactorCommand`.

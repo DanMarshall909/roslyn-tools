@@ -31,6 +31,13 @@ nupkg/
 coverage/
 StrykerOutput/
 
+## Astro documentation site
+node_modules/
+.astro/
+test-results/
+playwright-report/
+npm-debug.log*
+
 ## Claude Code local state (worktrees, user settings)
 ## settings.local.json + worktrees are per-user; the rest is shared so the
 ## rt-first PreToolUse gate, project commands, and scripts ship with the repo.

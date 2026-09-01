@@ -1,0 +1,65 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  description: string;
+  activePath?: string;
+}
+
+const {
+  title,
+  description,
+  activePath = Astro.url.pathname,
+} = Astro.props;
+const siteName = 'Roslyn Tools';
+const canonical = new URL(Astro.url.pathname, Astro.site);
+const fullTitle = title === siteName ? title : `${title} · ${siteName}`;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#f5f7f8" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={siteName} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={description} />
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <header class="site-header">
+      <div class="site-shell header-inner">
+        <a class="brand" href="/" aria-label="Roslyn Tools home">
+          <span class="brand-mark" aria-hidden="true">rt</span>
+          <span>Roslyn Tools</span>
+        </a>
+        <nav class="primary-nav" aria-label="Primary navigation">
+          <a class:list={[{ active: activePath.startsWith('/docs/') }]} href="/docs/getting-started/">Docs</a>
+          <a href="/docs/analyzing-solutions/">Analyze</a>
+          <a href="/docs/refactoring-safely/">Refactor</a>
+          <a href="https://github.com/DanMarshall909/roslyn-tools">GitHub</a>
+        </nav>
+      </div>
+    </header>
+    <main id="main-content">
+      <slot />
+    </main>
+    <footer class="site-footer">
+      <div class="site-shell footer-inner">
+        <p>Semantic C# tooling for developers and coding agents.</p>
+        <p>Designed by Dan Marshall.</p>
+      </div>
+    </footer>
+  </body>
+</html>
