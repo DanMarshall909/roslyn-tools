@@ -32,12 +32,22 @@ internal sealed class SourceCommand(
             "--related-limit",
             () => 10,
             "Maximum related symbols to list (1-100)");
+        var maxSourceBytesOpt = new Option<int>(
+            "--max-source-bytes",
+            () => SourceOperation.DefaultMaximumSourceBytes,
+            $"Maximum UTF-8 bytes across returned source text "
+            + $"({SourceOperation.MinimumSourceBytes}-{_operation.Definition.Product.Limits.MaximumOutputBytes})");
+        var continuationOpt = new Option<string?>(
+            "--continuation",
+            "Opaque continuation from a prior truncated source response");
 
         var cmd = new Command("source", "Print a symbol's source and its related source symbols (JSON)")
         {
             symbolArg,
             includeRelatedOpt,
-            relatedLimitOpt
+            relatedLimitOpt,
+            maxSourceBytesOpt,
+            continuationOpt
         };
         flags.AddTo(cmd);
 
@@ -46,13 +56,17 @@ internal sealed class SourceCommand(
             var symbol = ctx.ParseResult.GetValueForArgument(symbolArg);
             var includeRelated = ctx.ParseResult.GetValueForOption(includeRelatedOpt);
             var relatedLimit = ctx.ParseResult.GetValueForOption(relatedLimitOpt);
+            var maxSourceBytes = ctx.ParseResult.GetValueForOption(maxSourceBytesOpt);
+            var continuation = ctx.ParseResult.GetValueForOption(continuationOpt);
             var request = flags.Bind(
                 ctx.ParseResult,
                 f => SourceCliRequest.FromFlags(
                     f,
                     symbol,
                     includeRelated,
-                    relatedLimit));
+                    relatedLimit,
+                    maxSourceBytes,
+                    continuation));
             var source = await DaemonCommandExecutor.ExecuteTypedAsync(
                 _daemon,
                 _operation,
@@ -61,7 +75,9 @@ internal sealed class SourceCommand(
                     request.SolutionPath,
                     request.Kind,
                     request.IncludeRelated,
-                    request.RelatedLimit),
+                    request.RelatedLimit,
+                    request.MaxSourceBytes,
+                    request.ContinuationToken),
                 ctx.GetCancellationToken());
 
             source.Match(
@@ -77,20 +93,26 @@ internal sealed class SourceCommand(
         string? SolutionPath,
         string? Kind,
         bool IncludeRelated,
-        int RelatedLimit) : ISupportsSolutionOption, ISupportsKindOption
+        int RelatedLimit,
+        int MaxSourceBytes,
+        string? ContinuationToken) : ISupportsSolutionOption, ISupportsKindOption
     {
         public static SourceCliRequest FromFlags(
             RtFlagValues flags,
             string symbol,
             bool includeRelated,
-            int relatedLimit)
+            int relatedLimit,
+            int maxSourceBytes,
+            string? continuationToken)
         {
             return new SourceCliRequest(
                 symbol,
                 flags.SolutionPath,
                 flags.Kind,
                 includeRelated,
-                relatedLimit);
+                relatedLimit,
+                maxSourceBytes,
+                continuationToken);
         }
     }
 }
