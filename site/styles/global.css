@@ -273,10 +273,12 @@ h3 {
 .code-window pre {
   margin: 0;
   padding: clamp(1.4rem, 3vw, 2.4rem);
-  overflow-x: auto;
+  overflow-x: hidden;
   font-family: var(--mono);
   font-size: clamp(0.76rem, 1.35vw, 0.92rem);
   line-height: 1.8;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
 }
 
 .code-muted {

@@ -45,10 +45,11 @@ const fullTitle = title === siteName ? title : `${title} · ${siteName}`;
           <span>Roslyn Tools</span>
         </a>
         <nav class="primary-nav" aria-label="Primary navigation">
-          <a class:list={[{ active: activePath.startsWith('/docs/') }]} href="/docs/getting-started/">Docs</a>
+          <a class:list={[{ active: activePath.startsWith('/docs/') }]} href="/docs/getting-started/">Read</a>
           <a href="/docs/analyzing-solutions/">Analyze</a>
           <a href="/docs/refactoring-safely/">Refactor</a>
-          <a href="https://github.com/DanMarshall909/roslyn-tools">GitHub</a>
+          <a href="https://blog.danmarshall.dev">Blog</a>
+          <a href="https://github.com/DanMarshall909/roslyn-tools">Contribute</a>
         </nav>
       </div>
     </header>
@@ -57,7 +58,7 @@ const fullTitle = title === siteName ? title : `${title} · ${siteName}`;
     </main>
     <footer class="site-footer">
       <div class="site-shell footer-inner">
-        <p>Semantic C# tooling for developers and coding agents.</p>
+        <p>Agent-first semantic C# tooling.</p>
         <p>Designed by Dan Marshall.</p>
       </div>
     </footer>

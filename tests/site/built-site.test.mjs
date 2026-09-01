@@ -44,10 +44,12 @@ test('the build emits the custom-domain files expected by GitHub Pages', () => {
 test('the homepage presents the semantic CLI and shared host model', () => {
   const html = readFileSync(join(outputRoot, 'index.html'), 'utf8');
 
-  assert.match(html, /Work with the code the compiler sees/);
+  assert.match(html, /Refactoring for AI Agents/);
+  assert.match(html, /Agent-first by design/);
   assert.match(html, /rt suggest/);
   assert.match(html, /rt inspect describe/);
-  assert.match(html, /CLI and MCP/);
+  assert.match(html, /One semantic contract for every agent/);
+  assert.match(html, /https:\/\/blog\.danmarshall\.dev/);
 });
 
 test('every generated page has production metadata and valid internal links', () => {
