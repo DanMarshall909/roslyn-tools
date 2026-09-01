@@ -1,66 +1,69 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 
-const description = 'Agent-first semantic C# refactoring with compiler-backed navigation, analysis, reviewable changes, and structured output.';
+const description = 'An MCP server that gives AI coding agents compiler-backed C# navigation, analysis, and refactoring context across complete solutions.';
 ---
 
 <BaseLayout title="Roslyn Tools" description={description} activePath="/">
   <section class="hero">
     <div class="site-shell hero-grid">
       <div class="hero-copy">
-        <p class="eyebrow">Agent-first C# refactoring · CLI + MCP</p>
-        <h1>Refactoring for AI Agents</h1>
+        <p class="eyebrow">MCP server for semantic C# · powered by Roslyn</p>
+        <h1>The MCP server for semantic C#.</h1>
         <p class="hero-lead">
-          Give coding agents compiler-backed context to navigate whole
-          solutions, reason about impact, and prepare reviewable changes.
+          Give coding agents compiler-backed tools to navigate whole solutions,
+          analyze impact, and prepare refactoring work with bounded, structured results.
         </p>
         <div class="button-row">
-          <a class="button button-primary" href="/docs/getting-started/">Get started</a>
-          <a class="button button-secondary" href="/docs/discovery/">Explore workflows</a>
+          <a class="button button-primary" href="/docs/automation-and-mcp/">Connect with MCP</a>
+          <a class="button button-secondary" href="/docs/discovery/">Explore agent workflows</a>
         </div>
-        <div class="package-callout" aria-label="Installation command">
-          <span>Install</span>
-          <code>dotnet tool install --global roslyn-tools-rt</code>
+        <div class="package-callout" aria-label="MCP server command">
+          <span>MCP host</span>
+          <code>roslyn-tools-mcp</code>
         </div>
       </div>
       <div class="code-window" aria-label="Roslyn Tools example">
         <div class="code-window-bar">
-          <span>terminal</span>
-          <span class="code-status">solution-aware</span>
+          <span>MCP tools</span>
+          <span class="code-status">compiler-backed</span>
         </div>
-        <pre><code><span class="code-muted"># Start from the job, not a command name</span>
-rt suggest <span class="code-string">"find every caller of a method"</span>
+        <pre><code><span class="code-muted"># Your MCP client starts Roslyn Tools</span>
+<span class="code-string">"command"</span>: <span class="code-string">"roslyn-tools-mcp"</span>
 
-<span class="code-muted"># Resolve the symbol semantically</span>
-rt inspect describe BookingService \
-  --solution MyApp.slnx --json
+<span class="code-muted"># The agent resolves a symbol semantically</span>
+search_symbols {
+  <span class="code-string">"query"</span>: <span class="code-string">"BookingService"</span>,
+  <span class="code-string">"solution"</span>: <span class="code-string">"MyApp.slnx"</span>
+}
 
-<span class="code-muted"># Review the proposed solution-wide change</span>
-rt refactor rename BookingService \
-  ReservationService --solution MyApp.slnx \
-  --dry-run</code></pre>
+<span class="code-muted"># Then follows compiler-known callers</span>
+relationships {
+  <span class="code-string">"symbol"</span>: <span class="code-string">"BookingService.ReserveAsync"</span>,
+  <span class="code-string">"mode"</span>: <span class="code-string">"callers"</span>
+}</code></pre>
       </div>
     </div>
   </section>
 
   <section class="lineage-section">
     <div class="site-shell lineage-row">
-      <p>Agent-first by design. Built on Roslyn. Whole-solution context. Review-first changes.</p>
-      <a class="text-link" href="/docs/inspecting-code/">See semantic inspection <span aria-hidden="true">→</span></a>
+      <p>MCP-first by design. Built on Roslyn. Whole-solution context. Structured agent results.</p>
+      <a class="text-link" href="/docs/automation-and-mcp/">Connect your agent <span aria-hidden="true">→</span></a>
     </div>
   </section>
 
   <section class="principles-section" id="principles">
     <div class="site-shell">
       <div class="section-heading">
-        <p class="eyebrow">Built for AI coding agents</p>
-        <h2>Semantic context for every change.</h2>
+        <p class="eyebrow">An agent-native MCP surface</p>
+        <h2>Semantic context instead of text guesses.</h2>
       </div>
       <div class="principle-grid">
         <article>
           <span class="principle-number">01</span>
-          <h3>Agent-first by design</h3>
-          <p>Start from a goal, discover an ordered workflow, and consume bounded structured results without scraping a terminal.</p>
+          <h3>MCP-first by design</h3>
+          <p>Agents discover focused semantic tools and consume bounded, structured results without scraping a terminal.</p>
         </article>
         <article>
           <span class="principle-number">02</span>
@@ -79,15 +82,15 @@ rt refactor rename BookingService \
   <section class="boundary-section">
     <div class="site-shell boundary-grid">
       <div>
-        <p class="eyebrow">One application spine</p>
-        <h2>One semantic contract for every agent.</h2>
+        <p class="eyebrow">MCP first · CLI included</p>
+        <h2>One semantic engine. MCP is the front door.</h2>
       </div>
       <div class="boundary-copy">
         <p>
-          Host-neutral operations keep semantic results and safety policy
-          consistent whether a human runs <code>rt</code> or an agent calls a tool.
+          Coding agents call compiler-backed tools over MCP. Humans and automation
+          can use the companion <code>rt</code> CLI for the same semantic operations.
         </p>
-        <a class="text-link" href="/docs/automation-and-mcp/">Use rt with an agent <span aria-hidden="true">→</span></a>
+        <a class="text-link" href="/docs/automation-and-mcp/">Set up the MCP server <span aria-hidden="true">→</span></a>
       </div>
     </div>
   </section>

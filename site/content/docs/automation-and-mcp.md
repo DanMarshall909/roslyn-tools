@@ -1,31 +1,31 @@
 ---
-title: Automation and MCP
-description: Consume deterministic output from scripts and expose the same host-neutral operations to coding agents over MCP.
-order: 6
-section: Integration
+title: Connect with MCP
+description: Connect an AI coding agent to compiler-backed C# navigation and analysis through the Roslyn Tools MCP server.
+order: 1
+section: Start here
 ---
 
-The CLI and MCP host project shared application operations into different host surfaces. Migrated commands return the same typed semantics instead of reconstructing one host from another host's rendered output.
+Roslyn Tools is primarily an MCP server for AI coding agents working in C# repositories. It gives an agent bounded, structured tools backed by the same solution model the compiler uses—not text matches or terminal output it has to scrape.
 
-## Choose an output format
+## Install the MCP server
 
-Common global options are available for automation:
+Install the portable MCP server and companion CLI for the current user on macOS or Linux:
 
-| Option | Use |
-| --- | --- |
-| `--json` | Strict machine-readable JSON |
-| `--yaml` | Human-readable structured output |
-| `--markdown` | Documentation-friendly rendering |
-| `--llm` | Compact output intended for model context |
-| `--decisions <file>` | Repeatable ambiguity resolution |
+```sh
+curl -fsSL https://raw.githubusercontent.com/DanMarshall909/roslyn-tools/main/scripts/install.sh | bash
+```
 
-Primary results go to stdout. Diagnostics, warnings, and progress remain separate so a pipeline can consume the result without scraping incidental messages.
+On Windows PowerShell:
 
-Strict JSON escaping is the default. Use `--relax-json` only when raw Unicode and HTML-sensitive characters are more useful than maximum downstream portability.
+```powershell
+irm https://raw.githubusercontent.com/DanMarshall909/roslyn-tools/main/scripts/install.ps1 | iex
+```
 
-## Configure the MCP host
+The installer exposes a stable `roslyn-tools-mcp` command. Semantic operations still need a compatible .NET SDK for the C# solution being inspected.
 
-The portable installation exposes `roslyn-tools-mcp`:
+## Configure your MCP client
+
+Point your MCP client at the installed server without a checkout-specific path:
 
 ```json
 {
@@ -37,14 +37,30 @@ The portable installation exposes `roslyn-tools-mcp`:
 }
 ```
 
-The host communicates over stdin and stdout. Protocol messages stay on stdout; diagnostics and progress are written separately.
+The client starts the server over stdio. Protocol messages stay on stdout; diagnostics and progress are kept separate.
+
+## Give agents semantic tools
+
+Once connected, an agent can discover focused operations such as:
+
+| Tool | Use |
+| --- | --- |
+| `search_symbols` | Resolve typed symbol candidates before acting |
+| `describe` and `source` | Inspect declarations and bounded related source |
+| `relationships` | Follow references, callers, and implementations |
+| `dependency_graph` and `circular_deps` | Analyze solution structure |
+| `suggest_command` | Find the right Roslyn Tools workflow from a goal |
+
+These tools return typed results with explicit workspace context. That lets an agent distinguish semantic evidence from an incomplete load or a bounded response.
 
 ## Respect the exposed surface
 
-MCP exposure is intentionally narrower than the complete CLI catalogue while operations migrate to typed application ports. Normal tool discovery excludes apply-capable repository mutation and maintainer plumbing.
+MCP is the primary agent surface, but its stable tool list is intentionally focused. Normal discovery currently excludes apply-capable repository mutations and maintainer plumbing, so an agent can inspect and plan without silently writing to the repository.
 
-Use `rt dump-help` for the complete CLI surface and the MCP client's tool listing for the operations exposed through that host. Do not assume that a CLI command automatically has an MCP equivalent.
+Use the MCP client's tool listing for the agent surface. Use the companion `rt` CLI when a reviewed change is ready to preview or apply.
 
 ## Bound agent output
 
 Prefer focused symbol identities, explicit solution paths, and structured formats. Large source and relationship results carry limits or continuation information so an agent can distinguish a complete result from a bounded projection.
+
+Continue with [semantic inspection](/docs/inspecting-code/) or learn how to [discover agent workflows](/docs/discovery/).

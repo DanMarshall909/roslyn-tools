@@ -1,7 +1,7 @@
 ---
 title: Analyze solutions
 description: Measure dependencies, complexity, language use, and likely defects across a complete Roslyn workspace.
-order: 4
+order: 5
 section: Analysis
 ---
 

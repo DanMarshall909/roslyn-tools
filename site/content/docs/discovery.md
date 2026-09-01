@@ -1,7 +1,7 @@
 ---
 title: Discover workflows
 description: Find the right semantic operation from a plain-language goal, Git context, or the generated command catalogue.
-order: 2
+order: 3
 section: Workflows
 ---
 

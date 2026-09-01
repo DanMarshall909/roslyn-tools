@@ -1,11 +1,11 @@
 ---
 title: Refactor safely
-description: Preview semantic changes, resolve ambiguity explicitly, and keep repository writes reviewable and repeatable.
-order: 5
+description: Use MCP semantic evidence to plan changes, then preview and apply repository writes through the companion CLI.
+order: 6
 section: Refactoring
 ---
 
-Refactoring commands use Roslyn to update declarations and references across a solution. Treat them as a reviewable workflow: establish the workspace, select the symbol, preview the operation, then verify the repository diff.
+MCP is the primary agent surface for gathering semantic evidence and planning a change. Apply-capable tools are intentionally absent from normal MCP discovery today. When a reviewed plan is ready, use the companion CLI to update declarations and references across the solution: establish the workspace, select the symbol, preview the operation, then verify the repository diff.
 
 ## Preview before applying
 

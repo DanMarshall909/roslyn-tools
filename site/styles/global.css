@@ -499,10 +499,15 @@ h3 {
 
 .prose pre {
   padding: 1.2rem 1.3rem;
-  overflow-x: auto;
+  overflow-x: hidden;
   border: 1px solid #2a3f4c;
   border-radius: 0.65rem;
   box-shadow: 0 0.8rem 2rem rgb(20 33 43 / 0.1);
+}
+
+.prose pre code {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .prose blockquote {
@@ -627,7 +632,11 @@ h3 {
     padding: 0 1.25rem 1.4rem;
     overflow-x: auto;
     border-bottom: 1px solid var(--line);
-    scrollbar-width: thin;
+    scrollbar-width: none;
+  }
+
+  .docs-sidebar::-webkit-scrollbar {
+    display: none;
   }
 
   .docs-sidebar ol {

@@ -41,14 +41,15 @@ test('the build emits the custom-domain files expected by GitHub Pages', () => {
   assert.ok(existsSync(join(outputRoot, '.nojekyll')));
 });
 
-test('the homepage presents the semantic CLI and shared host model', () => {
+test('the homepage presents MCP as the primary semantic agent surface', () => {
   const html = readFileSync(join(outputRoot, 'index.html'), 'utf8');
 
-  assert.match(html, /Refactoring for AI Agents/);
-  assert.match(html, /Agent-first by design/);
-  assert.match(html, /rt suggest/);
-  assert.match(html, /rt inspect describe/);
-  assert.match(html, /One semantic contract for every agent/);
+  assert.match(html, /The MCP server for semantic C#/);
+  assert.match(html, /MCP-first by design/);
+  assert.match(html, /roslyn-tools-mcp/);
+  assert.match(html, /search_symbols/);
+  assert.match(html, /relationships/);
+  assert.match(html, /MCP is the front door/);
   assert.match(html, /https:\/\/blog\.danmarshall\.dev/);
 });
 

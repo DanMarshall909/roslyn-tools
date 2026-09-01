@@ -1,11 +1,11 @@
 ---
-title: Getting started
-description: Install Roslyn Tools, point it at a C# solution, and complete a semantic inspection in a few commands.
-order: 1
-section: Start here
+title: Use the CLI
+description: Use the companion rt command-line interface to inspect a C# solution and preview or apply reviewed refactoring work.
+order: 2
+section: Companion CLI
 ---
 
-Roslyn Tools is a command-line tool and MCP host for semantic C# work. It loads the same project and solution model that the compiler uses, so its answers can account for symbols, overloads, references, and project boundaries.
+The MCP server is the primary surface for coding agents. The companion `rt` CLI exposes the same semantic engine to humans and scripts, and is the surface to use when reviewed refactoring work is ready to preview or apply.
 
 ## Requirements
 
@@ -13,9 +13,9 @@ Semantic operations need a C# solution in `.sln` or `.slnx` format and a compati
 
 When a repository has a `global.json`, install the SDK version it requests.
 
-## Install the CLI
+## Install Roslyn Tools
 
-Install the portable CLI and MCP host for the current user on macOS or Linux:
+Install the portable MCP server and CLI for the current user on macOS or Linux:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/DanMarshall909/roslyn-tools/main/scripts/install.sh | bash
@@ -27,7 +27,7 @@ On Windows PowerShell:
 irm https://raw.githubusercontent.com/DanMarshall909/roslyn-tools/main/scripts/install.ps1 | iex
 ```
 
-If .NET is already managed centrally, install the CLI as a .NET tool:
+If .NET is already managed centrally and only the CLI is needed, install it as a .NET tool:
 
 ```powershell
 dotnet tool install --global roslyn-tools-rt

@@ -53,14 +53,19 @@ test('every required documentation source is tracked by Git', () => {
   }
 });
 
-test('the public examples use canonical commands from the product surface', () => {
+test('the public examples lead with MCP and use canonical commands from the product surface', () => {
   const homepage = read('site/pages/index.astro');
+  const mcp = read('site/content/docs/automation-and-mcp.md');
   const gettingStarted = read('site/content/docs/getting-started.md');
   const discovery = read('site/content/docs/discovery.md');
 
-  assert.match(homepage, /rt suggest/);
-  assert.match(homepage, /rt inspect describe/);
-  assert.match(homepage, /rt refactor rename/);
+  assert.match(homepage, /The MCP server for semantic C#/);
+  assert.match(homepage, /roslyn-tools-mcp/);
+  assert.match(homepage, /search_symbols/);
+  assert.match(homepage, /relationships/);
+  assert.match(mcp, /title: Connect with MCP/);
+  assert.match(mcp, /order: 1/);
+  assert.match(mcp, /"command": "roslyn-tools-mcp"/);
   assert.match(gettingStarted, /rt inspect doctor/);
   assert.match(discovery, /rt dump-help --compact/);
 });
@@ -90,5 +95,11 @@ test('the homepage and documentation shell have deliberate responsive fallbacks'
     css,
     /@media \(max-width:\s*48rem\)[\s\S]*?\.docs-sidebar\s*{[^}]*overflow-x:\s*auto;/,
   );
+  assert.match(
+    css,
+    /@media \(max-width:\s*48rem\)[\s\S]*?\.docs-sidebar::-webkit-scrollbar\s*{[^}]*display:\s*none;/,
+  );
   assert.match(css, /\.doc-article,[\s\S]*?\.prose\s*{\s*min-width:\s*0;/);
+  assert.match(css, /\.prose pre\s*{[^}]*overflow-x:\s*hidden;/s);
+  assert.match(css, /\.prose pre code\s*{[^}]*white-space:\s*pre-wrap;/s);
 });

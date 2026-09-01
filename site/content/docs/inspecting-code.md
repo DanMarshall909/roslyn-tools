@@ -1,7 +1,7 @@
 ---
 title: Inspect code
 description: Resolve symbols and inspect source, signatures, and bounded relationships without falling back to text search.
-order: 3
+order: 4
 section: Navigation
 ---
 
