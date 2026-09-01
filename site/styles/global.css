@@ -405,13 +405,34 @@ h3 {
   top: 6.5rem;
 }
 
-.docs-sidebar ol,
+.docs-sidebar > nav > ol,
 .page-toc ol {
   display: grid;
   gap: 0.15rem;
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.docs-sidebar .docs-subnav {
+  display: grid;
+  gap: 0;
+  margin: 0.25rem 0 0.65rem 0.65rem;
+  padding: 0 0 0 0.65rem;
+  border-left: 1px solid var(--line-strong);
+  list-style: none;
+}
+
+.docs-sidebar .docs-subnav a {
+  padding-block: 0.28rem;
+  font-size: 0.75rem;
+}
+
+.docs-sidebar .docs-subnav li[data-depth="3"] a,
+.page-toc li[data-depth="3"] a {
+  padding-left: 1.15rem;
+  color: color-mix(in srgb, var(--ink-soft) 82%, transparent);
+  font-size: 0.75rem;
 }
 
 .docs-sidebar a,
@@ -737,10 +758,14 @@ h3 {
     display: none;
   }
 
-  .docs-sidebar ol {
+  .docs-sidebar > nav > ol {
     display: flex;
     width: max-content;
     gap: 0.35rem;
+  }
+
+  .docs-sidebar .docs-subnav {
+    display: none;
   }
 
   .docs-sidebar a {

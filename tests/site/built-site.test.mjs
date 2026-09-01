@@ -68,6 +68,11 @@ test('the command reference lists every generated public command', () => {
   assert.equal(expectedCommands.length, declaredCount);
   assert.equal(renderedCommands.length, declaredCount);
   assert.deepEqual(renderedCommands.sort(), expectedCommands.sort());
+  assert.match(html, /class="docs-subnav"[^>]*aria-label="Command reference sections"/);
+  assert.match(html, /href="#all-commands"/);
+  assert.match(html, /href="#commands-inspect"/);
+  assert.match(html, /href="#commands-analyze"/);
+  assert.match(html, /href="#commands-refactor"/);
 });
 
 test('every generated page has production metadata and valid internal links', () => {

@@ -116,6 +116,11 @@ test('the homepage and documentation shell have deliberate responsive fallbacks'
     css,
     /@media \(max-width:\s*48rem\)[\s\S]*?\.docs-sidebar::-webkit-scrollbar\s*{[^}]*display:\s*none;/,
   );
+  assert.match(css, /\.docs-sidebar \.docs-subnav\s*{[^}]*border-left:/s);
+  assert.match(
+    css,
+    /@media \(max-width:\s*48rem\)[\s\S]*?\.docs-sidebar \.docs-subnav\s*{[^}]*display:\s*none;/,
+  );
   assert.match(css, /\.doc-article,[\s\S]*?\.prose\s*{\s*min-width:\s*0;/);
   assert.match(css, /\.prose pre\s*{[^}]*overflow-x:\s*hidden;/s);
   assert.match(css, /\.prose pre code\s*{[^}]*white-space:\s*pre-wrap;/s);

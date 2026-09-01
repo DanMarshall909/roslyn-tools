@@ -22,7 +22,7 @@ interface Props {
 
 const { title, description, section, slug, headings, navigation } = Astro.props;
 const entries = navigation.sort((left, right) => left.order - right.order);
-const onThisPage = headings.filter((heading) => heading.depth === 2);
+const onThisPage = headings.filter((heading) => heading.depth === 2 || heading.depth === 3);
 const currentIndex = entries.findIndex((entry) => entry.slug === slug);
 const previous = currentIndex > 0 ? entries[currentIndex - 1] : undefined;
 const next = currentIndex < entries.length - 1 ? entries[currentIndex + 1] : undefined;
@@ -43,6 +43,15 @@ const next = currentIndex < entries.length - 1 ? entries[currentIndex + 1] : und
               >
                 {entry.title}
               </a>
+              {entry.slug === slug && onThisPage.length > 0 && (
+                <ol class="docs-subnav" aria-label={`${entry.title} sections`}>
+                  {onThisPage.map((heading) => (
+                    <li data-depth={heading.depth}>
+                      <a href={`#${heading.slug}`}>{heading.text}</a>
+                    </li>
+                  ))}
+                </ol>
+              )}
             </li>
           ))}
         </ol>
@@ -79,7 +88,9 @@ const next = currentIndex < entries.length - 1 ? entries[currentIndex + 1] : und
         <p class="sidebar-label">On this page</p>
         <ol>
           {onThisPage.map((heading) => (
-            <li><a href={`#${heading.slug}`}>{heading.text}</a></li>
+            <li data-depth={heading.depth}>
+              <a href={`#${heading.slug}`}>{heading.text}</a>
+            </li>
           ))}
         </ol>
       </aside>
