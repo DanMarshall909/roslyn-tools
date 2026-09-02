@@ -16,11 +16,16 @@ namespace RoslynTools.Tests.Mcp;
 /// </summary>
 public class ServerSerializationTests
 {
-    private static async Task<string> RunSingleRequestAsync(string requestLine)
+    private static async Task<string> RunSingleRequestAsync(
+        string requestLine,
+        McpHostOptions? hostOptions = null)
     {
         var services = new ServiceCollection();
         RoslynTools.Bootstrap.RegisterServices(services);
-        services.AddMcpServices(new StringReader(requestLine + Environment.NewLine), new StringWriter());
+        services.AddMcpServices(
+            new StringReader(requestLine + Environment.NewLine),
+            new StringWriter(),
+            hostOptions);
         using var provider = services.BuildServiceProvider();
 
         var server = provider.GetRequiredService<Server>();
@@ -226,7 +231,8 @@ public class ServerSerializationTests
         var arguments = JsonSerializer.Serialize(new
         {
             query = "SymbolCandidateService",
-            solution = Path.Combine(FindRepoRoot(), "RoslynTools.slnx")
+            solution = Path.Combine(FindRepoRoot(), "RoslynTools.slnx"),
+            trustRepository = true
         });
         using var argumentsDocument = JsonDocument.Parse(arguments);
         var request = JsonSerializer.Serialize(new
@@ -250,6 +256,85 @@ public class ServerSerializationTests
         text.ShouldNotBeNull();
         using var error = JsonDocument.Parse(text);
         error.RootElement.GetProperty("kind").GetString().ShouldBe(nameof(RtErrorKind.TrustRequired));
+    }
+
+    [Fact]
+    public async Task startup_authorized_repository_can_run_a_semantic_tool()
+    {
+        using var project = McpTestHost.CreateInvoiceProject();
+        var (workspace, solution) = project.Build();
+        using (workspace)
+        {
+            WorkspaceLoader.OpenSolutionOverride.Value = (_, _) => Task.FromResult(solution);
+            try
+            {
+                var repositoryRoot = FindRepoRoot();
+                var request = CreateSearchSymbolsRequest(Path.Combine(repositoryRoot, "RoslynTools.slnx"));
+
+                var output = await RunSingleRequestAsync(
+                    request,
+                    new McpHostOptions(repositoryRoot));
+
+                using var document = JsonDocument.Parse(output);
+                var result = document.RootElement.GetProperty("result");
+                result.GetProperty("isError").GetBoolean().ShouldBeFalse();
+                result.GetProperty("structuredContent").GetProperty("data").GetProperty("items")
+                    .EnumerateArray()
+                    .ShouldContain(item => item.GetProperty("name").GetString() == "Invoice");
+            }
+            finally
+            {
+                WorkspaceLoader.OpenSolutionOverride.Value = null;
+            }
+        }
+    }
+
+    [Fact]
+    public async Task startup_authorization_does_not_cover_a_solution_outside_its_repository_root()
+    {
+        var repositoryRoot = FindRepoRoot();
+        var approvedRoot = Path.Combine(Path.GetTempPath(), $"rt-approved-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(approvedRoot);
+        try
+        {
+            var request = CreateSearchSymbolsRequest(Path.Combine(repositoryRoot, "RoslynTools.slnx"));
+
+            var output = await RunSingleRequestAsync(
+                request,
+                new McpHostOptions(approvedRoot));
+
+            using var document = JsonDocument.Parse(output);
+            var result = document.RootElement.GetProperty("result");
+            result.GetProperty("isError").GetBoolean().ShouldBeTrue();
+            var text = result.GetProperty("content")[0].GetProperty("text").GetString();
+            text.ShouldNotBeNull();
+            using var error = JsonDocument.Parse(text);
+            error.RootElement.GetProperty("kind").GetString().ShouldBe(nameof(RtErrorKind.TrustRequired));
+        }
+        finally
+        {
+            Directory.Delete(approvedRoot);
+        }
+    }
+
+    private static string CreateSearchSymbolsRequest(string solutionPath)
+    {
+        var arguments = JsonSerializer.SerializeToElement(new
+        {
+            query = "Invoice",
+            solution = solutionPath
+        });
+        return JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            method = "tools/call",
+            id = 5,
+            @params = new
+            {
+                name = "search_symbols",
+                arguments
+            }
+        });
     }
 
     private static string FindRepoRoot()

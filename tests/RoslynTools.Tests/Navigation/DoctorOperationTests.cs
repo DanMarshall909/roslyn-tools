@@ -56,6 +56,26 @@ public sealed class DoctorOperationTests
     }
 
     [Fact]
+    public async Task repository_bound_trust_does_not_authorize_a_sibling_repository()
+    {
+        using var approvedDirectory = new TemporaryDirectory();
+        using var selectedDirectory = new TemporaryDirectory();
+        var solutionPath = System.IO.Path.Combine(selectedDirectory.Path, "App.slnx");
+        File.WriteAllText(solutionPath, "");
+        var sessions = new CountingSessionFactory();
+        var operation = new DoctorOperation(sessions, new FixedCapabilityCatalog());
+
+        using var trust = RepositoryTrustContext.UseExplicitTrust(approvedDirectory.Path);
+        var envelope = (await operation.ExecuteAsync(new DoctorRequest(
+            selectedDirectory.Path,
+            solutionPath))).Unwrap();
+
+        envelope.Outcome.ShouldBe("TrustRequired");
+        envelope.Data.Workspace.Trust.ShouldBe("TrustRequired");
+        sessions.InvocationCount.ShouldBe(0);
+    }
+
+    [Fact]
     public async Task trusted_healthy_workspace_returns_capabilities_and_limits()
     {
         using var directory = new TemporaryDirectory();

@@ -44,13 +44,13 @@ rt suggest "find every caller of a method"
 Inspect a type semantically:
 
 ```powershell
-rt inspect describe BookingService --solution MyApp.slnx
+rt inspect describe BookingService --solution MyApp.slnx --trust-repository
 ```
 
 Request structured output for a script or agent:
 
 ```powershell
-rt inspect describe BookingService --solution MyApp.slnx --json
+rt inspect describe BookingService --solution MyApp.slnx --trust-repository --json
 ```
 
 If the current directory contains exactly one solution, `--solution` can usually be omitted.
@@ -60,9 +60,13 @@ If the current directory contains exactly one solution, `--solution` can usually
 Use `doctor` when solution selection, SDK loading, repository trust, or output limits are unclear:
 
 ```powershell
-rt inspect doctor --solution MyApp.slnx
+rt inspect doctor --solution MyApp.slnx --trust-repository
 ```
 
 The result distinguishes a healthy workspace from partial or failed loading rather than treating warnings as complete semantic evidence.
+
+`--trust-repository` is a deliberate, invocation-scoped approval. Review the repository
+before using it because MSBuild workspace loading may execute repository-controlled
+build logic.
 
 Next, learn how to [discover commands and workflows](/docs/discovery/).

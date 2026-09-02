@@ -75,14 +75,14 @@ internal sealed class DoctorOperation(
                 candidates.Length == 0 ? "Unsupported" : "Ambiguous",
                 "NotLoaded",
                 loadedProjects: 0,
-                RepositoryTrustContext.IsExplicitlyTrusted ? "OneShotTrusted" : "TrustRequired",
+                RepositoryTrustContext.IsExplicitlyTrustedFor(root) ? "OneShotTrusted" : "TrustRequired",
                 candidates.Length == 0
                     ? ["No .sln or .slnx candidate was found in the requested directory."]
                     : ["Multiple solution candidates are available; select one explicitly."],
                 stopwatch.ElapsedMilliseconds));
 
         var selected = candidates[0];
-        if (!RepositoryTrustContext.IsExplicitlyTrusted)
+        if (!RepositoryTrustContext.IsExplicitlyTrustedFor(selected))
             return Result<RtResultEnvelope<DoctorResult>, RtError>.Ok(CreateEnvelope(
                 root,
                 selected,
@@ -91,7 +91,7 @@ internal sealed class DoctorOperation(
                 "NotLoaded",
                 loadedProjects: 0,
                 "TrustRequired",
-                ["Repository evaluation was not performed. Re-run with --trust-repository after review."],
+                ["Repository evaluation was not performed. After review, use --trust-repository on the CLI invocation or MCP host startup."],
                 stopwatch.ElapsedMilliseconds));
 
         try

@@ -115,6 +115,16 @@ the separate root-contained handle-relative safe-reader contract.
   fork/descriptor and disk/inode exhaustion, cleanup failure, host-process access,
   undeclared IPC, host-file access, writes, and network egress.
 
+## Implementation status
+
+The authoritative registry, verified physical binding, evaluator leases, revocation,
+and isolated worker remain unimplemented. The `0.1-preview` containment uses explicit
+trusted-local approval only: CLI approval is invocation-scoped, while MCP approval is
+supplied as `--trust-repository <absolute-repository-root>` at host startup and is
+enforced against the selected solution path. Ordinary MCP tool arguments cannot grant
+or broaden that approval. This makes the preview semantic MCP surface usable without
+representing the P0.1 trust and isolation programme as complete.
+
 ## Alternatives considered
 
 - Trust the request field: rejected because an adapter could self-authorize privileged

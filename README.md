@@ -66,13 +66,13 @@ rt suggest "find every caller of a method"
 Inspect a type semantically:
 
 ```powershell
-rt inspect describe BookingService --solution MyApp.slnx
+rt inspect describe BookingService --solution MyApp.slnx --trust-repository
 ```
 
 Request structured output for an agent or script:
 
 ```powershell
-rt inspect describe BookingService --solution MyApp.slnx --json
+rt inspect describe BookingService --solution MyApp.slnx --trust-repository --json
 ```
 
 Discover changed C# files and likely next commands from the current Git working tree:
@@ -94,7 +94,7 @@ rt prime
 | Understand code | `describe`, `outline`, `source` |
 | Navigate relationships | `find-refs`, `find-callers`, `find-impl` |
 | Analyse a solution | `find-unused`, `list-smells`, `complexity`, `dependency-graph`, `circular-deps` |
-| Refactor safely | `rename`, `move`, `extract-method`, `safe-delete`, `semantic-diff` |
+| Refactor safely | `rename`, `move`, `extract-method`, `delete-unreferenced`, `semantic-diff` |
 | Modernise code | `convert-to-record`, `make-async`, `migrate-to-ioptions`, `replace-xunit-asserts` |
 
 Commands are organised into three groups:
@@ -106,8 +106,8 @@ Commands are organised into three groups:
 Unambiguous commands are also available directly at the root. These are equivalent:
 
 ```powershell
-rt inspect describe BookingService --solution MyApp.slnx
-rt describe BookingService --solution MyApp.slnx
+rt inspect describe BookingService --solution MyApp.slnx --trust-repository
+rt describe BookingService --solution MyApp.slnx --trust-repository
 ```
 
 ## Command discovery and reference
@@ -149,6 +149,7 @@ Common global options:
 | `--show-workspace-warnings` | Include MSBuild workspace warnings |
 | `--no-suggest` | Suppress suggestion tails on not-found errors |
 | `--relax-json` | Use relaxed JSON escaping instead of the strict default |
+| `--trust-repository` | Permit this CLI invocation to evaluate the reviewed repository |
 
 Strict JSON escaping is the default. Use `--relax-json` only when raw Unicode and
 HTML-sensitive characters are preferable to maximum downstream portability.
@@ -156,7 +157,7 @@ HTML-sensitive characters are preferable to maximum downstream portability.
 Commands that need a user choice can use a decisions file:
 
 ```powershell
-rt refactor rename OldName NewName --solution MyApp.slnx --decisions .rt-decisions.yml
+rt refactor rename OldName NewName --solution MyApp.slnx --trust-repository --decisions .rt-decisions.yml
 ```
 
 When unresolved choices remain, `rt` writes them to the file and exits with code `2`. Resolve the `choose:` fields and rerun the same command.
@@ -184,18 +185,25 @@ The CLI must still be installed separately with `dotnet tool install --global ro
 
 ## MCP host
 
-The portable installation exposes a stable `roslyn-tools-mcp` command. Configure clients without checkout, SDK, or
-developer-specific paths:
+The MCP host requires a deliberate, startup-only repository approval before semantic
+workspace tools can evaluate MSBuild inputs. Configure the reviewed repository as an
+absolute path in the host process arguments:
 
 ```json
 {
   "mcpServers": {
     "roslyn-tools": {
-      "command": "roslyn-tools-mcp"
+      "command": "roslyn-tools-mcp",
+      "args": ["--trust-repository", "/absolute/path/to/MyApp"]
     }
   }
 }
 ```
+
+The approval applies only to solutions beneath that root for the lifetime of this MCP
+process. A tool request cannot grant trust. Without the startup option, semantic tools
+return `TrustRequired` before MSBuild evaluation; non-evaluating discovery remains
+available. Configure a separate host entry for each reviewed repository.
 
 The solution also includes the stdio host source in `src/RoslynTools.Mcp`. It exposes the migrated application ports through the same services and command descriptors used by the CLI.
 
@@ -210,7 +218,7 @@ Build and run it from the repository root:
 
 ```powershell
 dotnet build RoslynTools.slnx -c Release
-dotnet run --project src/RoslynTools.Mcp/RoslynTools.Mcp.csproj -c Release --no-build
+dotnet run --project src/RoslynTools.Mcp/RoslynTools.Mcp.csproj -c Release --no-build -- --trust-repository /absolute/path/to/MyApp
 ```
 
 Configure an MCP client to launch that command and communicate over stdin/stdout. MCP exposure is being migrated incrementally; use the CLI command catalogue for the complete command surface.

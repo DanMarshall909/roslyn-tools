@@ -175,6 +175,15 @@ the namespace and its capacity rather than making either reusable.
 
 Long-lived CLI, MCP, and daemon hosts never evaluate an untrusted repository in-process.
 
+The current `0.1-preview` containment is narrower than the accepted durable authority
+design. CLI evaluation uses an invocation-scoped `--trust-repository` opt-in. The MCP
+host accepts `--trust-repository <absolute-repository-root>` only at process startup
+and binds that approval to solutions beneath the normalized root; MCP tool payloads
+cannot grant or broaden it. An MCP host without startup approval returns
+`TrustRequired` before semantic workspace loading. This is a practical trusted-local
+preview path, not the durable physical-identity-bound trust registry, revocation, lease,
+or evaluator-isolation guarantee specified by ADR-0011 and platform hardening.
+
 They also never treat `NoEvaluation` as permission for ambient reads. Untrusted
 file-only operations use a shared handle-relative reader rooted at the verified
 checkout, with no-follow/reparse-safe component opens, post-open filesystem identity

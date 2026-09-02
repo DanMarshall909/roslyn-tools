@@ -12,10 +12,12 @@ internal static class McpServiceRegistration
     public static IServiceCollection AddMcpServices(
         this IServiceCollection services,
         TextReader input,
-        TextWriter output)
+        TextWriter output,
+        McpHostOptions? hostOptions = null)
     {
         services.AddSingleton(input);
         services.AddSingleton(output);
+        services.AddSingleton(hostOptions ?? new McpHostOptions());
         services.AddSingleton<ToolSchemaBuilder>();
         services.AddSingleton<CliCommandBridge>();
         services.AddSingleton<IDaemonRpcClient>(

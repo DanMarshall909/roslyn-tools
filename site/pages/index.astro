@@ -29,7 +29,8 @@ const description = 'An MCP server that gives AI coding agents compiler-backed C
           <span class="code-status">compiler-backed</span>
         </div>
         <pre><code><span class="code-muted"># Your MCP client starts Roslyn Tools</span>
-<span class="code-string">"command"</span>: <span class="code-string">"roslyn-tools-mcp"</span>
+<span class="code-string">"command"</span>: <span class="code-string">"roslyn-tools-mcp"</span>,
+<span class="code-string">"args"</span>: [<span class="code-string">"--trust-repository"</span>, <span class="code-string">"/absolute/path/to/MyApp"</span>]
 
 <span class="code-muted"># The agent resolves a symbol semantically</span>
 search_symbols {

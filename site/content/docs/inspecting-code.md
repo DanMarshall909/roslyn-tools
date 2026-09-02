@@ -12,7 +12,7 @@ Inspection commands answer focused questions about symbols and source. They are 
 Search for typed candidates when a short name is ambiguous:
 
 ```powershell
-rt inspect search-symbols BookingService --solution MyApp.slnx --json
+rt inspect search-symbols BookingService --solution MyApp.slnx --trust-repository --json
 ```
 
 Candidate results include stable identity, kind, signature, project, namespace, and source location. Use the returned identity to avoid guessing between overloads or duplicate names.
@@ -22,14 +22,14 @@ Candidate results include stable identity, kind, signature, project, namespace, 
 `describe` focuses on one type or member:
 
 ```powershell
-rt inspect describe BookingService --solution MyApp.slnx --json
+rt inspect describe BookingService --solution MyApp.slnx --trust-repository --json
 ```
 
 `outline` gives a compact structural view of a file, glob, directory, project, or solution:
 
 ```powershell
-rt inspect outline src/Booking/BookingService.cs --solution MyApp.slnx
-rt inspect outline "src/**/*.cs" --solution MyApp.slnx --with-locations
+rt inspect outline src/Booking/BookingService.cs --solution MyApp.slnx --trust-repository
+rt inspect outline "src/**/*.cs" --solution MyApp.slnx --trust-repository --with-locations
 ```
 
 ## Read bounded source

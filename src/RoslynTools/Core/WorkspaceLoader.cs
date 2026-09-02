@@ -148,7 +148,7 @@ internal sealed class WorkspaceLoader : IWorkspaceSessionFactory, IDisposable
         if (!File.Exists(solutionPath))
             throw new FileNotFoundException($"Solution not found: {solutionPath}", solutionPath);
 
-        if (requireTrust && !RepositoryTrustContext.IsExplicitlyTrusted)
+        if (requireTrust && !RepositoryTrustContext.IsExplicitlyTrustedFor(solutionPath))
             throw RepositoryTrustRequiredException.ForSolution(solutionPath);
 
         var properties = new Dictionary<string, string>

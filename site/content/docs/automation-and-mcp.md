@@ -21,23 +21,30 @@ On Windows PowerShell:
 irm https://raw.githubusercontent.com/DanMarshall909/roslyn-tools/main/scripts/install.ps1 | iex
 ```
 
-The installer exposes a stable `roslyn-tools-mcp` command. Semantic operations still need a compatible .NET SDK for the C# solution being inspected.
+The installer exposes the `roslyn-tools-mcp` launcher. Semantic operations still need a compatible .NET SDK for the C# solution being inspected.
 
 ## Configure your MCP client
 
-Point your MCP client at the installed server without a checkout-specific path:
+After reviewing the repository, pass its absolute root as startup-only host
+configuration:
 
 ```json
 {
   "mcpServers": {
     "roslyn-tools": {
-      "command": "roslyn-tools-mcp"
+      "command": "roslyn-tools-mcp",
+      "args": ["--trust-repository", "/absolute/path/to/MyApp"]
     }
   }
 }
 ```
 
 The client starts the server over stdio. Protocol messages stay on stdout; diagnostics and progress are kept separate.
+
+This approval applies only to solutions beneath the configured root and lasts only for
+that server process. MCP tool arguments cannot grant or broaden trust. Without the
+startup option, semantic tools return `TrustRequired` before MSBuild evaluation. Use a
+separate configured server entry for each reviewed repository.
 
 ## Give agents semantic tools
 

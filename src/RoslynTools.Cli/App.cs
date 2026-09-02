@@ -413,7 +413,7 @@ internal static class App
         var trustRepositoryOpt = new Option<bool>(
             "--trust-repository",
             "Permit this CLI invocation to evaluate the selected repository after review. "
-            + "This authority is invocation-scoped and is not available through MCP requests.");
+            + "This authority is invocation-scoped and is not available through MCP tool requests.");
         foreach (var option in new Option[]
                      { jsonOpt, llmOpt, markdownOpt, yamlOpt, relaxJsonOpt, decisionsOpt,
                          showWorkspaceWarningsOpt, noSuggestOpt, trustRepositoryOpt })

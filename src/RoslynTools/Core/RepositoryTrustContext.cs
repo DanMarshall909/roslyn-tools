@@ -7,16 +7,51 @@ namespace RoslynTools.Core;
 /// </summary>
 internal static class RepositoryTrustContext
 {
-    private static readonly AsyncLocal<bool?> ExplicitTrust = new();
+    private static readonly AsyncLocal<TrustAuthorization?> ExplicitTrust = new();
 
-    internal static bool IsExplicitlyTrusted => ExplicitTrust.Value == true;
+    internal static bool IsExplicitlyTrusted => ExplicitTrust.Value is not null;
+
+    internal static bool IsExplicitlyTrustedFor(string path)
+    {
+        var authorization = ExplicitTrust.Value;
+        if (authorization is null)
+            return false;
+
+        if (authorization.RepositoryRoot is null)
+            return true;
+
+        var fullPath = Path.GetFullPath(path);
+        var relativePath = Path.GetRelativePath(authorization.RepositoryRoot, fullPath);
+        return relativePath == "."
+               || !Path.IsPathRooted(relativePath)
+               && relativePath != ".."
+               && !relativePath.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+               && !relativePath.StartsWith($"..{Path.AltDirectorySeparatorChar}", StringComparison.Ordinal);
+    }
 
     internal static IDisposable UseExplicitTrust()
     {
+        return UseExplicitTrust(new TrustAuthorization(null));
+    }
+
+    internal static IDisposable UseExplicitTrust(string repositoryRoot)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(repositoryRoot);
+        if (!Path.IsPathFullyQualified(repositoryRoot))
+            throw new ArgumentException("The trusted repository root must be an absolute path.", nameof(repositoryRoot));
+
+        var canonicalRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(repositoryRoot));
+        return UseExplicitTrust(new TrustAuthorization(canonicalRoot));
+    }
+
+    private static Scope UseExplicitTrust(TrustAuthorization authorization)
+    {
         var previous = ExplicitTrust.Value;
-        ExplicitTrust.Value = true;
+        ExplicitTrust.Value = authorization;
         return new Scope(() => ExplicitTrust.Value = previous);
     }
+
+    private sealed record TrustAuthorization(string? RepositoryRoot);
 
     private sealed class Scope(Action dispose) : IDisposable
     {
@@ -28,7 +63,7 @@ internal static class RepositoryTrustContext
 
 /// <summary>
 ///     Signals that a semantic workspace load was attempted without invocation-scoped
-///     repository trust. The trusted CLI host may grant that authority; request payloads cannot.
+///     repository trust. A trusted host surface may establish that authority; request payloads cannot.
 /// </summary>
 internal sealed class RepositoryTrustRequiredException : InvalidOperationException
 {
@@ -52,7 +87,8 @@ internal sealed class RepositoryTrustRequiredException : InvalidOperationExcepti
 
     internal static RepositoryTrustRequiredException ForSolution(string solutionPath) => new(
         $"Repository evaluation is not trusted for '{solutionPath}'. "
-        + "Review the repository, then rerun the CLI command with --trust-repository. MCP requests cannot grant trust.")
+        + "After review, rerun the CLI command with --trust-repository or start the MCP host with "
+        + "--trust-repository <absolute-repository-root>. MCP tool arguments cannot grant trust.")
     {
         SolutionPath = solutionPath
     };

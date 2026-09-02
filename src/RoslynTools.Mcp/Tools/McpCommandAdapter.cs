@@ -19,7 +19,8 @@ namespace RoslynTools.Mcp.Tools;
 internal sealed class McpCommandAdapter(
     CommandDescriptorRegistry descriptors,
     CliCommandBridge legacyBridge,
-    DaemonRpcRecoveryCoordinator daemonRpc)
+    DaemonRpcRecoveryCoordinator daemonRpc,
+    McpHostOptions? hostOptions = null)
 {
     private static readonly JsonSerializerOptions RequestOptions = new()
     {
@@ -31,6 +32,7 @@ internal sealed class McpCommandAdapter(
     private readonly CommandDescriptorRegistry _descriptors = descriptors;
     private readonly CliCommandBridge _legacyBridge = legacyBridge;
     private readonly DaemonRpcRecoveryCoordinator _daemonRpc = daemonRpc;
+    private readonly McpHostOptions _hostOptions = hostOptions ?? new McpHostOptions();
 
     public async Task<ToolResult> InvokeAsync(
         string toolName,
@@ -42,8 +44,10 @@ internal sealed class McpCommandAdapter(
             return new ToolResult(true, $"Unknown tool: {toolName}");
 
         var safeArguments = ApplySafetyPolicy(descriptor, arguments);
+        using var trustScope = _hostOptions.EnterTrustScope();
 
-        if (!DaemonRuntime.IsDisabled
+        if (_hostOptions.TrustedRepositoryRoot is null
+            && !DaemonRuntime.IsDisabled
             && descriptor.Port is not null
             && (descriptor.Definition?.ExecutionPlacement == CommandExecutionPlacement.DaemonPreferred
                 || descriptor.Definition is null && DaemonOwnedCommands.Contains(toolName)))
@@ -115,7 +119,7 @@ internal sealed class McpCommandAdapter(
                     new Dictionary<string, string>
                     {
                         ["solution"] = ex.SolutionPath,
-                        ["grantThrough"] = "trusted CLI invocation"
+                        ["grantThrough"] = "trusted CLI invocation or MCP host startup"
                     })));
         }
         catch (Exception ex) when (ex is ArgumentException
