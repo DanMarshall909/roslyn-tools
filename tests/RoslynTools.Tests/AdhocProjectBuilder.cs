@@ -23,12 +23,22 @@ public sealed class AdhocProjectBuilder : IDisposable
 
     private static readonly ImmutableArray<MetadataReference> BclReferences = BuildBclReferences();
     private readonly ProjectDef _default;
+    private readonly LanguageVersion _languageVersion;
 
     private readonly List<ProjectDef> _projects = new();
 
-    public AdhocProjectBuilder(string? projectName = null)
+    /// <param name="projectName">Name given to the default project.</param>
+    /// <param name="languageVersion">
+    ///     Language version every project in the fixture parses with. A repository under analysis
+    ///     picks its own <c>LangVersion</c>, so a fixture has to be able to say which one it models:
+    ///     preview syntax such as a <c>union</c> declaration parses as a type declaration under
+    ///     <see cref="LanguageVersion.Preview" /> and mis-parses into an unrelated member under
+    ///     <see cref="LanguageVersion.Latest" />.
+    /// </param>
+    public AdhocProjectBuilder(string? projectName = null, LanguageVersion languageVersion = LanguageVersion.Latest)
     {
         Directory = Path.Combine(BaseOutputDir, Guid.NewGuid().ToString("N"));
+        _languageVersion = languageVersion;
         _default = new ProjectDef(projectName ?? "TestProject");
         _projects.Add(_default);
     }
@@ -145,7 +155,7 @@ public sealed class AdhocProjectBuilder : IDisposable
                 compilationOptions: new CSharpCompilationOptions(
                     OutputKind.DynamicallyLinkedLibrary,
                     nullableContextOptions: NullableContextOptions.Enable),
-                parseOptions: CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Latest),
+                parseOptions: CSharpParseOptions.Default.WithLanguageVersion(_languageVersion),
                 documents: docs,
                 projectReferences: projectRefs,
                 metadataReferences: BclReferences)
