@@ -27,6 +27,9 @@ public sealed class AdhocProjectBuilder : IDisposable
 
     private readonly List<ProjectDef> _projects = new();
 
+    /// <summary>
+    ///     Starts a fixture holding a single default project.
+    /// </summary>
     /// <param name="projectName">Name given to the default project.</param>
     /// <param name="languageVersion">
     ///     Language version every project in the fixture parses with. A repository under analysis

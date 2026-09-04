@@ -16,6 +16,11 @@ internal sealed record WorkspaceCompleteness(
     WorkspaceCompletenessState State,
     IReadOnlyList<string> Diagnostics)
 {
+    /// <summary>
+    /// How many error messages the assessment sets out to list. It is a budget for detail, not a
+    /// cap on attribution: every project that failed is named even where that costs more lines, and
+    /// whatever the budget excludes is stated rather than dropped.
+    /// </summary>
     private const int DiagnosticLimit = 20;
 
     internal static async Task<WorkspaceCompleteness> AssessSemanticAsync(
@@ -30,31 +35,62 @@ internal sealed record WorkspaceCompleteness(
                 WorkspaceCompletenessState.Failed,
                 ["The loaded solution contains no projects."]);
 
-        var diagnostics = new List<string>();
+        // Every project is assessed. Stopping once a budget filled attributed the whole failure to
+        // whichever projects happened to compile first and left the rest looking clean — the reading
+        // that turned a mis-parsed domain project into trusted find-unused output.
+        var failures = new List<IReadOnlyList<string>>();
         foreach (var project in projects)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var compilation = await project.GetCompilationAsync(cancellationToken);
             if (compilation is null)
             {
-                diagnostics.Add($"Project '{project.Name}' did not produce a compilation.");
+                failures.Add([$"Project '{project.Name}' did not produce a compilation."]);
                 continue;
             }
 
-            foreach (var diagnostic in compilation.GetDiagnostics(cancellationToken)
-                         .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-                         .Take(DiagnosticLimit - diagnostics.Count))
-            {
-                diagnostics.Add(
-                    $"{project.Name}: {diagnostic.Id}: {diagnostic.GetMessage(CultureInfo.InvariantCulture)}");
-            }
+            var errors = compilation.GetDiagnostics(cancellationToken)
+                .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+                .Select(diagnostic =>
+                    $"{project.Name}: {diagnostic.Id}: {diagnostic.GetMessage(CultureInfo.InvariantCulture)}")
+                .ToArray();
 
-            if (diagnostics.Count >= DiagnosticLimit)
-                break;
+            if (errors.Length > 0)
+                failures.Add(errors);
         }
 
-        return diagnostics.Count == 0
+        return failures.Count == 0
             ? new WorkspaceCompleteness(WorkspaceCompletenessState.Complete, [])
-            : new WorkspaceCompleteness(WorkspaceCompletenessState.Partial, diagnostics);
+            : new WorkspaceCompleteness(WorkspaceCompletenessState.Partial, Summarize(failures));
+    }
+
+    /// <summary>
+    /// Reports the failures within <see cref="DiagnosticLimit" /> while naming every project that
+    /// failed. The budget is shared equally, so one project with hundreds of errors cannot crowd its
+    /// neighbours out; where more projects failed than the budget has room for, each still gets a
+    /// line, because a project absent from this list reads as a project that compiled. Anything left
+    /// out is then said aloud — a list that stops silently at its own limit invites the reader to
+    /// take it for the complete account.
+    /// </summary>
+    private static List<string> Summarize(List<IReadOnlyList<string>> failures)
+    {
+        var perProject = Math.Max(1, DiagnosticLimit / failures.Count);
+        var reported = new List<string>();
+        var total = 0;
+        foreach (var errors in failures)
+        {
+            total += errors.Count;
+            reported.AddRange(errors.Take(perProject));
+        }
+
+        if (total > reported.Count)
+            reported.Add(string.Format(
+                CultureInfo.InvariantCulture,
+                "Diagnostic list truncated: {0} of {1} errors shown, across {2} project(s) that failed to compile.",
+                reported.Count,
+                total,
+                failures.Count));
+
+        return reported;
     }
 }
