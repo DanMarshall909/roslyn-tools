@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.FindSymbols;
 using RoslynTools.Core;
@@ -73,6 +74,14 @@ internal class FindUnusedService : IRtService
                 if (root == null || semanticModel == null)
                     continue;
 
+                // A document the parser could not understand is evidence of nothing. What it appears
+                // to declare are the parser's guesses at fragments it could not fit to any rule, and
+                // a guessed symbol has no references by construction — indistinguishable, from here
+                // on, from a real symbol nobody uses. Absence of references only means something
+                // where the source was understood, so this document makes no absence claim at all.
+                if (CouldNotBeParsed(root))
+                    continue;
+
                 if (scope is "all" or "types")
                     foreach (var typeDecl in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
                     {
@@ -105,6 +114,8 @@ internal class FindUnusedService : IRtService
                 if (scope is "all" or "methods")
                     foreach (var methodDecl in root.DescendantNodes().OfType<MethodDeclarationSyntax>())
                     {
+                        if (!DeclaresAMethod(methodDecl)) continue;
+
                         var symbol = semanticModel.GetDeclaredSymbol(methodDecl);
                         if (symbol == null) continue;
                         if (ShouldExclude(symbol)) continue;
@@ -121,6 +132,33 @@ internal class FindUnusedService : IRtService
 
         return results;
     }
+
+    /// <summary>
+    /// True when the document carries a syntax error. Roslyn recovers from syntax it cannot read by
+    /// guessing at the nearest declaration it does know, and the guess is a first-class node with a
+    /// first-class symbol — a C# <c>union</c> read by an older parser becomes a method whose return
+    /// type is the word <c>union</c>. Nothing downstream can tell that apart from real source, which
+    /// is why the refusal has to happen here, at the one place that can still see the diagnostic.
+    /// </summary>
+    private static bool CouldNotBeParsed(SyntaxNode root) =>
+        root.GetDiagnostics().Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+
+    /// <summary>
+    /// True when the node really does declare a method. A method without a body has to say why it
+    /// has none — <c>abstract</c>, <c>extern</c> or <c>partial</c>, or membership of an interface,
+    /// which <see cref="ShouldExclude" /> already removes. Anything else the parser handed back as a
+    /// method declaration is a fragment it could not otherwise place, and reporting one as an unused
+    /// method asserts a parse that did not happen. This is deliberately independent of
+    /// <see cref="CouldNotBeParsed" />: a bodiless declaration is a <em>semantic</em> error, so the
+    /// tree carries no syntax diagnostic and the document-level refusal never sees it.
+    /// </summary>
+    private static bool DeclaresAMethod(MethodDeclarationSyntax declaration) =>
+        declaration.Body is not null
+        || declaration.ExpressionBody is not null
+        || declaration.Modifiers.Any(modifier =>
+            modifier.IsKind(SyntaxKind.AbstractKeyword)
+            || modifier.IsKind(SyntaxKind.ExternKeyword)
+            || modifier.IsKind(SyntaxKind.PartialKeyword));
 
     /// <summary>
     /// Scrutor-style selector calls. Their presence means registration is driven by an
