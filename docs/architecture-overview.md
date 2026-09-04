@@ -214,6 +214,15 @@ from structured provenance.
 
 Partial workspaces cannot produce proof-strength conclusions, automatic deletion advice, or mutation suggestions. Confidence is a shared structure with level, basis, evidence, and limitations—not an analyser-local adjective.
 
+Beneath the workspace assessment sits a document-level precondition: absence of references
+is evidence only where the source was understood. A document carrying a syntax error makes
+no absence claim at all, and a symbol is reported as an unused method only where the
+declaration site really declares one — Roslyn recovers from syntax it cannot read by
+guessing at the nearest declaration it knows, and a guessed symbol has no references by
+construction. The completeness assessment names every project that failed to compile and
+states what its diagnostic budget left out, so a project missing from that list can never
+be read as a project that compiled. See [ADR-0016](adr/0016-parse-integrity-gates-absence-claims.md).
+
 ### 4. Category and capability contracts
 
 A command implements exactly one category marker:

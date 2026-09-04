@@ -80,3 +80,4 @@ Per the architecture-overview doc's "Updating this doc" section:
 | [0013](0013-fenced-plan-unavailability-resolution.md) | Fenced plan-unavailability resolution | Accepted | 2026-08-30 |
 | [0014](0014-bounded-recovery-attempt-history.md) | Bounded recovery-attempt history | Accepted | 2026-08-31 |
 | [0015](0015-operation-lifecycle-authorization.md) | Operation-lifecycle authorization | Accepted | 2026-08-31 |
+| [0016](0016-parse-integrity-gates-absence-claims.md) | Parse integrity gates absence claims | Accepted | 2026-09-04 |
