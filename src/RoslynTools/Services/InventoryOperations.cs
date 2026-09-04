@@ -6,7 +6,10 @@ namespace RoslynTools.Services;
 
 internal sealed record FindUnusedRequest(
     string? Solution = null,
-    string Scope = "all");
+    string Scope = "all",
+    [property: CommandPropertyDescription(
+        "Report where the run spent its time and how many reference searches it issued")]
+    bool Profile = false);
 
 internal sealed class FindUnusedOperation(IWorkspaceSessionFactory sessionFactory, FindUnusedService service)
     : CommandApplicationPort<FindUnusedRequest, FindUnusedAnalysisResult>, IRtService
@@ -23,7 +26,13 @@ internal sealed class FindUnusedOperation(IWorkspaceSessionFactory sessionFactor
         cancellationToken.ThrowIfCancellationRequested();
         using (workspace)
         {
-            var symbols = await _service.AnalyzeAsync(solution, request.Scope);
+            // The profiler always runs. Its cost is a timestamp either side of work already
+            // measured in seconds, and instrumentation that is only on when someone remembered to
+            // ask is instrumentation nobody has when the slow run actually happens; --profile
+            // decides whether the numbers are rendered, not whether they are collected.
+            var profiler = new FindUnusedProfiler();
+            var symbols = await _service.AnalyzeAsync(
+                solution, request.Scope, profiler, cancellationToken);
             var result = symbols.Select(s => new UnusedSymbolResult(
                 s.Kind,
                 s.Name,
@@ -35,7 +44,7 @@ internal sealed class FindUnusedOperation(IWorkspaceSessionFactory sessionFactor
                     ? FixCatalog.ForUnusedSymbol(s.Kind, s.Name, solution.FilePath)
                     : [])).ToList();
             return Result<FindUnusedAnalysisResult, RtError>.Ok(
-                new FindUnusedAnalysisResult(result));
+                new FindUnusedAnalysisResult(result, request.Profile ? profiler.Snapshot() : null));
         }
     }
 }

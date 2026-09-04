@@ -12,4 +12,5 @@ internal sealed record UnusedSymbolResult(
     IReadOnlyList<SuggestedFix> SuggestedFixes);
 
 internal sealed record FindUnusedAnalysisResult(
-    IReadOnlyList<UnusedSymbolResult> Symbols);
+    IReadOnlyList<UnusedSymbolResult> Symbols,
+    FindUnusedProfile? Profile = null);

@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -57,22 +58,44 @@ internal class FindUnusedService : IRtService
     /// <summary>
     /// Analyzes a solution to find unused symbols.
     /// </summary>
-    internal async Task<List<UnusedSymbol>> AnalyzeAsync(Solution solution, string scope = "all")
+    internal async Task<List<UnusedSymbol>> AnalyzeAsync(
+        Solution solution,
+        string scope = "all",
+        FindUnusedProfiler? profiler = null,
+        CancellationToken cancellationToken = default)
     {
+        profiler ??= new FindUnusedProfiler();
         var results = new List<UnusedSymbol>();
         var rtIgnore = RtIgnore.ForSolution(solution);
-        var reflectivelyScannedProjects = await FindReflectivelyScannedProjectsAsync(solution);
+        var reflectionScanStarted = FindUnusedProfiler.Timestamp();
+        var reflectivelyScannedProjects =
+            await FindReflectivelyScannedProjectsAsync(solution, cancellationToken);
+        profiler.RecordReflectionScan(reflectionScanStarted);
+
+        // One candidate is one reference search, however many declarations name it. A partial type
+        // has a declaration per file and a partial method has two, so searching where a declaration
+        // is met rather than where a candidate is settled asks Roslyn the same question twice and
+        // reports the answer twice.
+        var searched = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+        var searchScope = new ReferenceSearchScope(solution);
 
         foreach (var project in solution.Projects)
             foreach (var document in project.Documents)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 if (rtIgnore.IsIgnored(document.FilePath))
                     continue;
 
-                var root = await document.GetSyntaxRootAsync();
-                var semanticModel = await document.GetSemanticModelAsync();
+                profiler.CountDocument();
+
+                var root = await document.GetSyntaxRootAsync(cancellationToken);
+                var semanticModel = await document.GetSemanticModelAsync(cancellationToken);
                 if (root == null || semanticModel == null)
+                {
+                    profiler.CountSkippedDocument();
                     continue;
+                }
 
                 // A document the parser could not understand is evidence of nothing. What it appears
                 // to declare are the parser's guesses at fragments it could not fit to any rule, and
@@ -80,22 +103,35 @@ internal class FindUnusedService : IRtService
                 // on, from a real symbol nobody uses. Absence of references only means something
                 // where the source was understood, so this document makes no absence claim at all.
                 if (CouldNotBeParsed(root))
+                {
+                    profiler.CountSkippedDocument();
                     continue;
+                }
 
                 if (scope is "all" or "types")
                     foreach (var typeDecl in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
                     {
-                        if (semanticModel.GetDeclaredSymbol(typeDecl) is not INamedTypeSymbol symbol)
+                        cancellationToken.ThrowIfCancellationRequested();
+
+                        if (semanticModel.GetDeclaredSymbol(typeDecl, cancellationToken) is not INamedTypeSymbol symbol)
                             continue;
 
                         if (ShouldExclude(symbol)) continue;
 
-                        var refs = await SymbolFinder.FindReferencesAsync(symbol, solution);
-                        var count = refs.Sum(r => r.Locations.Count());
-                        if (count != 0)
+                        profiler.CountTypeCandidate();
+                        if (!searched.Add(Canonicalize(symbol)))
                             continue;
 
-                        if (await HasReferencedExtensionMethodAsync(symbol, solution))
+                        profiler.CountUniqueCandidate();
+
+                        var typeScope = await searchScope.ForAsync(symbol, cancellationToken);
+
+                        if (await HasAnyReferenceAsync(
+                                symbol, solution, typeScope, profiler, cancellationToken))
+                            continue;
+
+                        if (await HasReferencedExtensionMethodAsync(
+                                symbol, solution, typeScope, profiler, cancellationToken))
                             continue;
 
                         // A reflective container can construct this type without any source
@@ -114,15 +150,24 @@ internal class FindUnusedService : IRtService
                 if (scope is "all" or "methods")
                     foreach (var methodDecl in root.DescendantNodes().OfType<MethodDeclarationSyntax>())
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
+
                         if (!DeclaresAMethod(methodDecl)) continue;
 
-                        var symbol = semanticModel.GetDeclaredSymbol(methodDecl);
+                        var symbol = semanticModel.GetDeclaredSymbol(methodDecl, cancellationToken);
                         if (symbol == null) continue;
                         if (ShouldExclude(symbol)) continue;
 
-                        var refs = await SymbolFinder.FindReferencesAsync(symbol, solution);
-                        var count = refs.Sum(r => r.Locations.Count());
-                        if (count == 0)
+                        profiler.CountMethodCandidate();
+                        if (!searched.Add(Canonicalize(symbol)))
+                            continue;
+
+                        profiler.CountUniqueCandidate();
+
+                        var methodScope = await searchScope.ForAsync(symbol, cancellationToken);
+
+                        if (!await HasAnyReferenceAsync(
+                                symbol, solution, methodScope, profiler, cancellationToken))
                         {
                             var line = methodDecl.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
                             results.Add(new UnusedSymbol(symbol.Name, "method", document.FilePath, line));
@@ -131,6 +176,40 @@ internal class FindUnusedService : IRtService
             }
 
         return results;
+    }
+
+    /// <summary>
+    /// The one symbol a set of declarations agree on. A partial type is declared once per file and a
+    /// partial method twice — an implementation and a definition, which are distinct symbols — so
+    /// without a canonical form the same question reaches Roslyn several times and the same answer
+    /// is reported several times. The partial method's *definition* is the canonical half because it
+    /// is the half that always exists.
+    /// </summary>
+    private static ISymbol Canonicalize(ISymbol symbol) =>
+        symbol switch
+        {
+            IMethodSymbol { PartialDefinitionPart: { } definition } => definition.OriginalDefinition,
+            _ => symbol.OriginalDefinition
+        };
+
+    /// <summary>
+    /// Whether anything in the solution references the symbol. find-unused never needs the reference
+    /// list, only whether it is empty, and keeping that distinction in one place is what makes it
+    /// possible to stop the search at the first hit later without revisiting every call site.
+    /// </summary>
+    private static async Task<bool> HasAnyReferenceAsync(
+        ISymbol symbol,
+        Solution solution,
+        IImmutableSet<Document> scope,
+        FindUnusedProfiler profiler,
+        CancellationToken cancellationToken)
+    {
+        var startedAt = FindUnusedProfiler.Timestamp();
+        var references =
+            await SymbolFinder.FindReferencesAsync(symbol, solution, scope, cancellationToken);
+        var found = references.Any(reference => reference.Locations.Any());
+        profiler.RecordReferenceSearch(startedAt, scope.Count);
+        return found;
     }
 
     /// <summary>
@@ -196,7 +275,9 @@ internal class FindUnusedService : IRtService
     /// rather than suppressed: the caller — not rt — decides what an uncertain finding means,
     /// and hiding it would only trade a false positive for a false negative.
     /// </summary>
-    private static async Task<Dictionary<ProjectId, string>> FindReflectivelyScannedProjectsAsync(Solution solution)
+    private static async Task<Dictionary<ProjectId, string>> FindReflectivelyScannedProjectsAsync(
+        Solution solution,
+        CancellationToken cancellationToken)
     {
         var projects = new Dictionary<ProjectId, string>();
         foreach (var project in solution.Projects)
@@ -206,22 +287,37 @@ internal class FindUnusedService : IRtService
 
             foreach (var document in project.Documents)
             {
-                var root = await document.GetSyntaxRootAsync();
+                cancellationToken.ThrowIfCancellationRequested();
+
+                // An assembly scan outranks bare reflection, so once one is found this project's
+                // answer is settled and the rest of its documents cannot change it. The lower-
+                // priority classification still has to see every document, because stopping at the
+                // first hit would make the reported reason depend on document order.
+                if (scans)
+                    break;
+
+                var root = await document.GetSyntaxRootAsync(cancellationToken);
                 if (root == null)
                     continue;
 
-                var invoked = root.DescendantNodes()
-                    .OfType<InvocationExpressionSyntax>()
-                    .Select(i => i.Expression.ToString())
-                    .ToList();
+                foreach (var invocation in root.DescendantNodes().OfType<InvocationExpressionSyntax>())
+                {
+                    // The invoked name, read from the syntax rather than rendered to a string.
+                    // ToString() on every invocation expression in the solution allocated a string
+                    // per call site only to run substring searches over it, and a substring search
+                    // matched a method whose name merely contained a selector.
+                    var invoked = InvokedName(invocation);
+                    if (invoked is null)
+                        continue;
 
-                scans |= invoked.Any(e => AssemblyScanSelectors.Any(s => e.Contains(s, StringComparison.Ordinal)));
-                reflects |= invoked.Any(e => ReflectiveDiscoveryApis.Any(s => e.Contains(s, StringComparison.Ordinal)));
+                    scans |= AssemblyScanSelectors.Contains(invoked, StringComparer.Ordinal);
+                    reflects |= ReflectiveDiscoveryApis.Contains(invoked, StringComparer.Ordinal);
+
+                    if (scans)
+                        break;
+                }
             }
 
-            // Every document is examined before choosing, and an assembly scan outranks bare
-            // reflection: stopping at the first hit would make the reported reason depend on
-            // document order in a project that does both.
             if (scans)
                 projects[project.Id] = UnusedReason.AssemblyScan;
             else if (reflects)
@@ -232,6 +328,19 @@ internal class FindUnusedService : IRtService
     }
 
     /// <summary>
+    /// The simple name an invocation calls — <c>Bar</c> for both <c>Bar()</c> and <c>Foo.Bar()</c> —
+    /// or null where the callee is not a name at all, such as an invoked delegate expression.
+    /// </summary>
+    private static string? InvokedName(InvocationExpressionSyntax invocation) =>
+        invocation.Expression switch
+        {
+            IdentifierNameSyntax identifier => identifier.Identifier.ValueText,
+            MemberAccessExpressionSyntax { Name: { } name } => name.Identifier.ValueText,
+            MemberBindingExpressionSyntax { Name: { } name } => name.Identifier.ValueText,
+            _ => null
+        };
+
+    /// <summary>
     /// True when the type declares an extension method that something calls. `value.IsBlank()`
     /// binds to the method and never writes the declaring class's name, so an extension
     /// container shows zero references however heavily it is used — reporting it as dead
@@ -239,12 +348,23 @@ internal class FindUnusedService : IRtService
     /// StringExtensions, which has live callers). Only extension methods need this: a normal
     /// static call writes `Foo.Bar()`, which does reference the type.
     /// </summary>
-    private static async Task<bool> HasReferencedExtensionMethodAsync(INamedTypeSymbol type, Solution solution)
+    private static async Task<bool> HasReferencedExtensionMethodAsync(
+        INamedTypeSymbol type,
+        Solution solution,
+        IImmutableSet<Document> scope,
+        FindUnusedProfiler profiler,
+        CancellationToken cancellationToken)
     {
         foreach (var method in type.GetMembers().OfType<IMethodSymbol>().Where(m => m.IsExtensionMethod))
         {
-            var refs = await SymbolFinder.FindReferencesAsync(method, solution);
-            if (refs.SelectMany(r => r.Locations).Any())
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var startedAt = FindUnusedProfiler.Timestamp();
+            var references =
+                await SymbolFinder.FindReferencesAsync(method, solution, scope, cancellationToken);
+            var found = references.SelectMany(reference => reference.Locations).Any();
+            profiler.RecordReferenceSearch(startedAt, scope.Count, forExtensionMethod: true);
+            if (found)
                 return true;
         }
 

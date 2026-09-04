@@ -45,6 +45,13 @@ internal sealed record FindUnusedResult : IRtOutput, IRtJsonOutput
     [OutputField(OutputLevel.Llm, "symbols")]
     public required IReadOnlyList<UnusedSymbolResult> Symbols { get; init; }
 
+    /// <summary>
+    ///     Where the run spent its time and how many reference searches it issued. Present only when
+    ///     the caller asked; absent from the output otherwise, so a profiled run and an ordinary one
+    ///     cannot be confused after the fact.
+    /// </summary>
+    public FindUnusedProfile? Profile { get; init; }
+
     public void RenderJson(TextWriter writer)
     {
         var doc = new
@@ -58,7 +65,24 @@ internal sealed record FindUnusedResult : IRtOutput, IRtJsonOutput
                 confidence = s.Confidence,
                 reason = s.Reason,
                 suggestedFixes = s.SuggestedFixes.Select(f => f.AsJsonObject()).ToArray()
-            }).ToArray()
+            }).ToArray(),
+            profile = Profile is null
+                ? null
+                : new
+                {
+                    totalMs = Profile.TotalMs,
+                    candidateDiscoveryMs = Profile.CandidateDiscoveryMs,
+                    reflectionScanMs = Profile.ReflectionScanMs,
+                    referenceSearchMs = Profile.ReferenceSearchMs,
+                    documents = Profile.Documents,
+                    documentsSkipped = Profile.DocumentsSkipped,
+                    typeCandidates = Profile.TypeCandidates,
+                    methodCandidates = Profile.MethodCandidates,
+                    uniqueCandidates = Profile.UniqueCandidates,
+                    referenceQueries = Profile.ReferenceQueries,
+                    extensionMethodQueries = Profile.ExtensionMethodQueries,
+                    searchedDocuments = Profile.SearchedDocuments
+                }
         };
         writer.Write(JsonSerializer.Serialize(doc, SymbolFormatter.DefaultJsonOptions));
     }
@@ -71,6 +95,23 @@ internal sealed record FindUnusedResult : IRtOutput, IRtJsonOutput
             if (i < Symbols.Count - 1)
                 writer.WriteLine();
         }
+
+        if (Profile is null)
+            return;
+
+        if (Symbols.Count > 0)
+            writer.WriteLine();
+        writer.WriteLine();
+        writer.WriteLine(
+            $"profile  {Profile.TotalMs}ms total = {Profile.CandidateDiscoveryMs}ms discovery "
+            + $"+ {Profile.ReflectionScanMs}ms reflection scan "
+            + $"+ {Profile.ReferenceSearchMs}ms reference search");
+        writer.Write(
+            $"profile  {Profile.Documents} documents ({Profile.DocumentsSkipped} skipped), "
+            + $"{Profile.TypeCandidates} type + {Profile.MethodCandidates} method declarations "
+            + $"-> {Profile.UniqueCandidates} candidates, {Profile.ReferenceQueries} reference "
+            + $"searches ({Profile.ExtensionMethodQueries} for extension methods) "
+            + $"over {Profile.SearchedDocuments} documents");
     }
 
     internal static FindUnusedResult FromSymbols(IEnumerable<UnusedSymbol> symbols, string? solutionPath = null)
@@ -94,6 +135,7 @@ internal sealed record FindUnusedResult : IRtOutput, IRtJsonOutput
 
     internal static FindUnusedResult FromAnalysis(FindUnusedAnalysisResult result) => new()
     {
+        Profile = result.Profile,
         Symbols = result.Symbols.Select(s => new UnusedSymbolResult
         {
             Kind = s.Kind,
