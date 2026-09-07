@@ -223,12 +223,13 @@ internal class MoveService : IRtService
                         declarationPaths.Add(document.FilePath);
                     sourceProjects.Add(project.Name);
 
-                    var dependencies = await CollectFormerParentNamespaceDependenciesAsync(
-                        document,
+                    var dependencies = CollectFormerParentNamespaceDependencies(
+                        root,
+                        semanticModel,
                         intent.SourceNamespace,
                         intent.TargetNamespace,
                         cancellationToken);
-                    if (dependencies.Count != 0)
+                    if (dependencies.Length != 0)
                         parentDependencies[document.Id] = dependencies;
                 }
             }
@@ -276,7 +277,6 @@ internal class MoveService : IRtService
             intent.SourceNamespace,
             intent.TargetNamespace,
             ensureTargetNamespaceUsing: false);
-        var changedDocuments = 0;
         foreach (var documentId in rewritten.Projects
                      .SelectMany(project => project.DocumentIds)
                      .ToArray())
@@ -296,7 +296,6 @@ internal class MoveService : IRtService
             if (!rewriter.Changed)
                 continue;
             rewritten = rewritten.WithDocumentSyntaxRoot(documentId, updatedRoot);
-            changedDocuments++;
         }
 
         var preservedParentNamespaces = new HashSet<string>(StringComparer.Ordinal);
@@ -312,13 +311,19 @@ internal class MoveService : IRtService
             foreach (var dependency in dependencies)
             {
                 var changed = false;
-                root = EnsureTargetNamespaceUsing(root, dependency, ref changed);
+                root = EnsureNamespaceUsing(root, dependency, ref changed);
                 if (changed)
                     preservedParentNamespaces.Add(dependency);
             }
 
             rewritten = rewritten.WithDocumentSyntaxRoot(documentId, root);
         }
+
+        var changedDocumentCount = rewritten.GetChanges(solution)
+            .GetProjectChanges()
+            .SelectMany(changes => changes.GetChangedDocuments())
+            .Distinct()
+            .Count();
 
         var (fileMoves, fileMoveError) = intent.MoveFiles
             ? PrepareNamespaceFileMoves(
@@ -339,7 +344,7 @@ internal class MoveService : IRtService
                 null,
                 intent.SourceNamespace,
                 intent.TargetNamespace,
-                changedDocuments,
+                changedDocumentCount,
                 fileMoves.Select(move =>
                     new MoveFileResult(move.SourcePath, move.DestinationPath)).ToArray(),
                 []),
@@ -1160,7 +1165,7 @@ internal class MoveService : IRtService
             if (needsOldNsUsing)
             {
                 var _ = false;
-                newRoot = EnsureTargetNamespaceUsing(newRoot, oldNamespace, ref _);
+                newRoot = EnsureNamespaceUsing(newRoot, oldNamespace, ref _);
             }
 
             solution = solution.WithDocumentSyntaxRoot(doc.Id, newRoot);
@@ -1218,7 +1223,7 @@ internal class MoveService : IRtService
                 root, tracker, group, oldNamespace, targetNamespace);
 
             if (ensureTargetNamespaceUsing)
-                updatedRoot = EnsureTargetNamespaceUsing(updatedRoot, targetNamespace, ref changed);
+                updatedRoot = EnsureNamespaceUsing(updatedRoot, targetNamespace, ref changed);
 
             if (changed)
                 solution = solution.WithDocumentSyntaxRoot(doc.Id, updatedRoot);
@@ -1284,20 +1289,20 @@ internal class MoveService : IRtService
         return text;
     }
 
-    private async Task<IReadOnlyList<string>> CollectFormerParentNamespaceDependenciesAsync(
-        Document document,
+    private static string[] CollectFormerParentNamespaceDependencies(
+        SyntaxNode root,
+        SemanticModel? semanticModel,
         string sourceNamespace,
         string targetNamespace,
         CancellationToken cancellationToken)
     {
-        var semanticModel = await document.GetSemanticModelAsync(cancellationToken);
-        var root = await document.GetSyntaxRootAsync(cancellationToken);
-        if (semanticModel is null || root is null)
+        if (semanticModel is null)
             return [];
 
         var dependencies = new HashSet<string>(StringComparer.Ordinal);
         foreach (var name in root.DescendantNodes().OfType<SimpleNameSyntax>())
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (IsQualifiedNamePart(name))
                 continue;
 
@@ -1319,9 +1324,9 @@ internal class MoveService : IRtService
         || name.Parent is AliasQualifiedNameSyntax aliasQualifiedName && aliasQualifiedName.Name == name
         || name.Parent is MemberAccessExpressionSyntax memberAccess && memberAccess.Name == name;
 
-    private SyntaxNode EnsureTargetNamespaceUsing(
+    private SyntaxNode EnsureNamespaceUsing(
         SyntaxNode root,
-        string targetNamespace,
+        string namespaceName,
         ref bool changed)
     {
         if (root is not CompilationUnitSyntax compilationUnit)
@@ -1331,11 +1336,11 @@ internal class MoveService : IRtService
             .Select(u => u.Name?.ToFullString().Trim())
             .ToHashSet(StringComparer.Ordinal);
 
-        if (existingUsings.Contains(targetNamespace))
+        if (existingUsings.Contains(namespaceName))
             return root;
 
         var newUsing = SyntaxFactory.UsingDirective(
-                SyntaxFactory.ParseName(" " + targetNamespace))
+                SyntaxFactory.ParseName(" " + namespaceName))
             .WithTrailingTrivia(SyntaxFactory.CarriageReturnLineFeed);
 
         changed = true;

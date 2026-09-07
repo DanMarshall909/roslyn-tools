@@ -219,6 +219,7 @@ public sealed class MoveOperationTests
         movedText.ShouldContain("using WageClaim.Calculation.Domain;", Case.Sensitive);
         preparation.Diagnostics.ShouldContain(diagnostic =>
             diagnostic.Code == "preserved-parent-namespace-dependency");
+        preparation.Result.UpdatedReferenceDocumentCount.ShouldBe(1);
         await AssertCompilesWithoutErrorsAsync(preparation.Solution);
     }
 
@@ -250,6 +251,7 @@ public sealed class MoveOperationTests
         var consumerText = (await consumer.GetTextAsync()).ToString();
         consumerText.ShouldContain("WageClaims.Domain.Calculation.Money", Case.Sensitive);
         consumerText.ShouldNotContain("Domain.Money", Case.Sensitive);
+        preparation.Result.UpdatedReferenceDocumentCount.ShouldBe(2);
         await AssertCompilesWithoutErrorsAsync(preparation.Solution);
     }
 
