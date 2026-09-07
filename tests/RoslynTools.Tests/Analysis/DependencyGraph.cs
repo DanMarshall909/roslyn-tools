@@ -125,6 +125,74 @@ public class DependencyGraph : IClassFixture<RtServicesFixture>
         }
     }
 
+    [Fact]
+    public async Task targeted_graph_keeps_method_body_dependencies_within_the_depth_limit()
+    {
+        using var proj = new AdhocProjectBuilder("GraphApp");
+        proj.AddSource("Types.cs", """
+                                   class Root
+                                   {
+                                       void Use() { var direct = new Direct(); direct.Ping(); }
+                                   }
+                                   class Direct { public void Ping() { } }
+                                   class Unrelated
+                                   {
+                                       void Use() { var hidden = new Hidden(); hidden.Ping(); }
+                                   }
+                                   class Hidden { public void Ping() { } }
+                                   """);
+        var (workspace, sln) = proj.Build();
+        using (workspace)
+        {
+            var json = await _services.Resolve<DependencyGraphService>().BuildGraphAsync(
+                sln, "Root", 1, "json", null);
+
+            using var doc = JsonDocument.Parse(json);
+            var nodes = doc.RootElement.GetProperty("nodes").EnumerateArray()
+                .Select(node => node.GetString())
+                .ToList();
+            var edges = doc.RootElement.GetProperty("edges").EnumerateArray()
+                .Select(edge => (
+                    From: edge.GetProperty("from").GetString(),
+                    To: edge.GetProperty("to").GetString()))
+                .ToList();
+
+            nodes.ShouldBe(["Direct", "Root"], ignoreOrder: true);
+            edges.ShouldContain(edge => edge.From == "Root" && edge.To == "Direct");
+        }
+    }
+
+    [Fact]
+    public async Task source_type_discovery_keeps_all_explicit_declaration_kinds()
+    {
+        using var proj = new AdhocProjectBuilder("GraphApp");
+        proj.AddSource("Declarations.cs", """
+                                          delegate void Work();
+                                          enum Status { Ready }
+                                          interface IMarker { }
+                                          record Item;
+                                          class Outer { public class Inner { } }
+                                          """);
+        var (workspace, sln) = proj.Build();
+        using (workspace)
+        {
+            var json = await _services.Resolve<DependencyGraphService>().BuildGraphAsync(
+                sln, null, null, "json", null);
+
+            using var doc = JsonDocument.Parse(json);
+            var nodes = doc.RootElement.GetProperty("nodes").EnumerateArray()
+                .Select(node => node.GetString())
+                .ToList();
+
+            nodes.ShouldContain("Work");
+            nodes.ShouldContain("Status");
+            nodes.ShouldContain("IMarker");
+            nodes.ShouldContain("Item");
+            nodes.ShouldContain("Outer");
+            nodes.ShouldContain("Inner");
+        }
+    }
+
     // Bug: tasks/dogfood-gaps.md:22 — graph edges miss local-variable type uses
     [Fact]
     public async Task returns_local_variable_dependencies()
