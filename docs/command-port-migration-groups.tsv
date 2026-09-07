@@ -1,5 +1,6 @@
 command	category	group	work	execution	safety
 analyze-interface	analyze	R2	complete	daemon-preferred	read-only
+check-architecture	analyze	R2	complete	daemon-preferred	read-only
 circular-deps	analyze	R0	complete	daemon-preferred	read-only
 complexity	analyze	R3	complete	daemon-preferred	read-only
 debug	analyze	R5	complete	in-process	read-only
