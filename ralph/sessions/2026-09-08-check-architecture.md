@@ -52,3 +52,14 @@
 ### Next session
 
 - Implement the typed request/result and config validation, then prove CLI/MCP parity and trusted/untrusted behavior.
+
+## Follow-up outcome
+
+Implemented the simulated protocol as the typed `check-architecture` CLI/MCP
+operation. The real command verifies this repository's five configured projects with
+zero violations. Focused tests cover deterministic findings, visible baselines,
+contained paths, malformed configuration, missing configured projects, incomplete
+compilation, CLI exit semantics, schema parity, and trusted/untrusted MCP behavior.
+
+The complete local gate passed on 2026-09-08: 1,841 core/CLI tests and 107 MCP tests
+passed, with 9 intentional skips; build and formatting verification were clean.

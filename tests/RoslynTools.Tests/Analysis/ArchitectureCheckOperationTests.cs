@@ -98,6 +98,53 @@ public sealed class ArchitectureCheckOperationTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_rejects_invalid_configuration_json()
+    {
+        using var builder = new AdhocProjectBuilder("Demo.Domain");
+        builder.AddSource("Value.cs", "namespace Demo.Domain; public sealed class Value { }");
+        var (workspace, solution) = builder.Build();
+        WriteProjectFile(builder.Directory, "Demo.Domain", "Microsoft.NET.Sdk", "");
+        var configDirectory = Path.Combine(builder.Directory, ".rt");
+        Directory.CreateDirectory(configDirectory);
+        await File.WriteAllTextAsync(
+            Path.Combine(configDirectory, "architecture.json"),
+            "{ \"version\": 1, \"layers\": [");
+        var operation = new ArchitectureCheckOperation(new FixedWorkspaceSessionFactory(workspace, solution));
+
+        var error = UnwrapError(await operation.ExecuteAsync(new ArchitectureCheckRequest(builder.SolutionPath)));
+
+        error.Kind.ShouldBe(RtErrorKind.InvalidInput);
+        error.Message.ShouldContain("invalid JSON");
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_fails_when_a_configured_project_pattern_matches_no_loaded_project()
+    {
+        using var builder = new AdhocProjectBuilder("Demo.Domain");
+        builder.AddSource("Value.cs", "namespace Demo.Domain; public sealed class Value { }");
+        var (workspace, solution) = builder.Build();
+        WriteProjectFile(builder.Directory, "Demo.Domain", "Microsoft.NET.Sdk", "");
+        var configDirectory = Path.Combine(builder.Directory, ".rt");
+        Directory.CreateDirectory(configDirectory);
+        await File.WriteAllTextAsync(Path.Combine(configDirectory, "architecture.json"), """
+            {
+              "version": 1,
+              "layers": [
+                { "name": "Domain", "projects": ["Demo.Domain"], "allowedProjectReferences": [] },
+                { "name": "Missing", "projects": ["Demo.Missing"], "allowedProjectReferences": [] }
+              ]
+            }
+            """);
+        var operation = new ArchitectureCheckOperation(new FixedWorkspaceSessionFactory(workspace, solution));
+
+        var error = UnwrapError(await operation.ExecuteAsync(new ArchitectureCheckRequest(builder.SolutionPath)));
+
+        error.Kind.ShouldBe(RtErrorKind.InvalidInput);
+        error.Message.ShouldContain("Demo.Missing");
+        error.Message.ShouldContain("matched no loaded project");
+    }
+
+    [Fact]
     public async Task ExecuteAsync_fails_closed_when_a_configured_project_has_compilation_errors()
     {
         using var builder = new AdhocProjectBuilder("Demo.Domain");
@@ -132,7 +179,7 @@ public sealed class ArchitectureCheckOperationTests
         {
             using var workspaceOverride = WorkspaceLoader.UseOverride(workspace, solution);
             var services = new ServiceCollection();
-            Bootstrap.RegisterServices(services);
+            global::RoslynTools.Bootstrap.RegisterServices(services);
             await using var provider = services.BuildServiceProvider();
 
             var exitCode = await App.RunAsync(

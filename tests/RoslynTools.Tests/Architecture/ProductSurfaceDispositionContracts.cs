@@ -18,7 +18,7 @@ public sealed class ProductSurfaceDispositionContracts
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
 
-        dispositions.Length.ShouldBe(59);
+        dispositions.Length.ShouldBe(60);
         dispositions.Select(disposition => disposition.Name).ShouldBeUnique();
         dispositions.Select(disposition => disposition.Name)
             .OrderBy(name => name, StringComparer.Ordinal)

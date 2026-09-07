@@ -10,6 +10,7 @@ but only the destination contract is eligible for preview support.
 | Current command | Destination | Target maturity | Decision |
 |---|---|---|---|
 | `analyze-interface` | `impact --kind interface` / relationship member usage | Preview | Consolidate after the shared resolver. |
+| `check-architecture` | `check --rule architecture.*` | Preview -> Stable | First config-driven architecture finding family; consolidate into the shared check envelope. |
 | `circular-deps` | `check --rule architecture.circular-dependency` | Preview -> Stable | Consolidate into common findings. |
 | `complexity` | `check --rule maintainability.complexity` | Preview -> Stable | First finding-envelope pilot. |
 | `debug` | Separate trace-development tool | Removed | Unrelated to C# semantic tooling. |
