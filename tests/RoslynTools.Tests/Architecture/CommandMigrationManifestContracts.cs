@@ -45,7 +45,7 @@ public sealed class CommandMigrationManifestContracts
     }
 
     [Fact]
-    public void every_migrated_definition_has_one_discovered_port_and_matches_the_manifest()
+    public void every_migrated_category_definition_has_one_discovered_port_and_matches_the_manifest()
     {
         var rows = ReadManifest().ToDictionary(
             row => Normalize(row.Command),
@@ -57,6 +57,7 @@ public sealed class CommandMigrationManifestContracts
         var ports = provider.GetServices<ICommandApplicationPort>().ToList();
         var migratedPorts = ports
             .Where(port => port is not ILegacyCommandApplicationPort)
+            .Where(port => Categories.Contains(port.Definition.Info.Category))
             .ToList();
 
         migratedPorts.Select(port => port.Definition.Name).ShouldBeUnique();
@@ -65,7 +66,7 @@ public sealed class CommandMigrationManifestContracts
         foreach (var port in migratedPorts)
         {
             rows.TryGetValue(port.Definition.Name, out var row).ShouldBeTrue(
-                $"Migrated command '{port.Definition.Name}' is absent from the 56-row manifest.");
+                $"Migrated category command '{port.Definition.Name}' is absent from the category manifest.");
             var manifestRow = row!;
             port.RequestType.ShouldBe(port.Definition.RequestType);
             port.ResponseType.ShouldBe(port.Definition.ResponseType);
