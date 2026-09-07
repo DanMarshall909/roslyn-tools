@@ -13,7 +13,8 @@ namespace RoslynTools.Cli.Prime;
 /// </summary>
 /// <remarks>
 ///     Not an <see cref="IRtCommand" /> — registered at root. Sits outside the
-///     inspect/analyze/refactor groups because it queries the catalog only.
+///     inspect/analyze/refactor groups because it prepares an agent session rather
+///     than inspecting a solution.
 /// </remarks>
 internal static class PrimeCommand
 {

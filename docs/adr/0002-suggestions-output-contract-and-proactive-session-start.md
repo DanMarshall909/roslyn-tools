@@ -22,7 +22,7 @@ The contract: any inspection DTO can carry a `_suggestions` init property (`[Jso
 
 **2. `rt prime` (ritual layer)**
 
-New root-level command (not `IRtCommand` — registered at root like `suggest` and `dump-help`). No MSBuild, no solution load. Returns a hardcoded gate rule, entry-point hint, and hot-command list as compact JSON (≈200 tokens) or human-readable text. The hot-command list is static — a deliberate trade-off (see Alternatives).
+Root-level command (not `IRtCommand` — registered at root like `suggest` and `dump-help`). Its shared typed `PrimeOperation` serves CLI and MCP without MSBuild or a solution load. It returns a hardcoded gate rule, entry-point hint, and hot-command list as compact JSON (≈200 tokens) or human-readable text. The hot-command list is static — a deliberate trade-off (see Alternatives).
 
 **3. Session-start hook (harness layer)**
 
@@ -37,7 +37,7 @@ A `UserPromptSubmit` hook in `.claude/settings.json` runs `rt prime --json` once
   - US-135: body-call related symbols + frequency ranking (body-walk requires async semantic model per method; only signature-based extraction is implemented).
   - US-136: `rt inspect outline` needs an envelope wrapper to carry `_suggestions` (bare-array JSON is a breaking schema change).
   - US-137: fan-out to all remaining `rt inspect` and `rt analyze` commands.
-  - `rt prime` hot-command list is hardcoded; it will drift as the catalog grows. Tracked as a known trade-off in `PrimeService.cs`.
+  - `rt prime` hot-command list is hardcoded; it will drift as the catalog grows. Tracked as a known trade-off in `PrimeOperation.cs`.
 
 ## Alternatives considered
 

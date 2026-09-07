@@ -87,6 +87,8 @@ Print the compact session primer used by coding agents:
 rt prime
 ```
 
+MCP clients invoke `prime` with an empty object and receive the same structured primer.
+
 ## Core workflows
 
 | Goal | Representative commands |

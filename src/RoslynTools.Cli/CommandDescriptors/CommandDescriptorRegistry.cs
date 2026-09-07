@@ -134,17 +134,10 @@ internal sealed class CommandDescriptorRegistry
             suggest,
             CommandEffects.RepositoryRead,
             CommandAudience.Public);
-        AddMetaCommand(
-            "prime",
+        AddTypedMetaCommand(
             () => PrimeCommand.Build(prime),
             ["prime"],
-            "Return the compact rt session primer without loading a solution.",
-            PrimeCommandDefinition.Info.WhenToUse,
-            CommandSafetyPolicy.ReadOnly,
-            true,
-            prime,
-            CommandEffects.None,
-            CommandAudience.Public);
+            prime);
 
         _descriptors = [.. descriptors];
         _byToolName = _descriptors.ToDictionary(d => d.ToolName, StringComparer.Ordinal);
@@ -178,6 +171,31 @@ internal sealed class CommandDescriptorRegistry
                 definition,
                 definition?.Product.Effects ?? effects,
                 definition?.Product.Audience ?? audience));
+        }
+
+        void AddTypedMetaCommand(
+            Func<Command> build,
+            IReadOnlyList<string> path,
+            ICommandApplicationPort port)
+        {
+            if (port is ILegacyCommandApplicationPort)
+                throw new ArgumentException("A typed meta command requires a host-neutral definition.", nameof(port));
+
+            var definition = port.Definition;
+            var command = build();
+            descriptors.Add(new ApplicationCommandDescriptor(
+                path,
+                definition.Name,
+                command.Description ?? definition.Info.WhenToUse,
+                definition.Info.WhenToUse,
+                DescribeInput(command),
+                definition.McpVisible,
+                ToDescriptorSafety(definition.Safety, definition.Info.Mutates),
+                Structured: true,
+                port,
+                definition,
+                definition.Product.Effects,
+                definition.Product.Audience));
         }
     }
 

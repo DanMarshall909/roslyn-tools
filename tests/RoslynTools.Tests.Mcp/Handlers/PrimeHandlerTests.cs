@@ -21,6 +21,9 @@ public sealed class PrimeHandlerTests
 
         descriptor.Port.ShouldBeOfType<PrimeOperation>();
         descriptor.Definition.ShouldBeSameAs(PrimeCommandDefinition.Definition);
+        descriptor.ToolName.ShouldBe(PrimeCommandDefinition.Definition.Name);
+        descriptor.WhenToUse.ShouldBe(PrimeCommandDefinition.Info.WhenToUse);
+        tool.description.ShouldBe(PrimeCommandDefinition.Info.WhenToUse);
         tool.inputSchema["type"].ShouldBe("object");
         tool.inputSchema.ShouldNotContainKey("properties");
         tool.inputSchema.ShouldNotContainKey("required");

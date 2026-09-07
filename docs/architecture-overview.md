@@ -586,7 +586,7 @@ Suggestions/follow-ons are application metadata projected by hosts. They are not
 | Capability interface to catalogue flag binding | Shared binders |
 | Help, examples, known limitations, follow-ons | Same application metadata |
 | MCP input/output schema | Generated from typed contracts, property metadata, and alternative request variants |
-| `prime`/agent primer | Generated from stable catalogue entries |
+| `prime`/agent primer | Curated by the shared typed `PrimeOperation` |
 | Generated command documentation | Catalogue projection, verified rather than rewritten by normal build |
 
 If two surfaces describe the same fact, the catalogue wins and CI rejects the drift.
