@@ -48,7 +48,7 @@ if (dump.status !== 0) {
   process.exit(dump.status ?? 1);
 }
 
-if (!dump.stdout.startsWith('# rt Commands\n')) {
+if (!/^# rt Commands\r?\n/.test(dump.stdout)) {
   throw new Error('rt dump-help did not return the generated Markdown command reference.');
 }
 
