@@ -180,8 +180,9 @@ Focused proof:
 - 2 MCP `MoveSlice` tests pass, covering descriptor/schema parity, startup trust
   discovery, default dry-run injection, typed invocation, and unchanged files.
 
-Real stdio transport verification remains open; the focused MCP proof invokes the
-same registry used by the stdio host but does not yet exercise framing over stdin/stdout.
+At this checkpoint, real stdio transport verification remained open; the focused MCP
+proof invoked the same registry used by the stdio host but did not yet exercise framing
+over stdin/stdout. The follow-up below closes that gap.
 
 ---
 
@@ -200,3 +201,9 @@ multi-declaration files, external reference edits, and explicit project changes.
 Trusted `move_slice` discovery and dry-run invocation now pass through the real
 newline-framed `Server.RunAsync` stdin/stdout protocol path; untrusted discovery remains
 omitted. Focused totals are 22 CLI/core tests and 3 MCP/protocol tests.
+
+### Final verification
+
+`pwsh -NoProfile -File scripts/check-local.ps1 -Full` passed with a zero-warning build,
+1,863 core/CLI tests, 110 MCP tests, 9 intentional skips, and whole-solution formatting.
+RT-018 is resolved and ready for integration.

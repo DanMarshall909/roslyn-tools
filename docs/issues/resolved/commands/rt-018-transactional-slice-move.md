@@ -6,10 +6,11 @@ tags:
   - mcp
 ticket: rt-018
 severity: High
-status: Open
+status: Resolved
 area: commands
 owner: ""
 reported: 2026-09-08
+resolved: 2026-09-08
 summary: "Add a strict typed operation that moves a reviewed architectural slice across projects and namespaces as one transaction"
 ---
 
@@ -87,3 +88,20 @@ Add a distinct typed `move-slice` CLI operation, projected as MCP `move_slice`. 
 - Added explicit friend-assembly manifest, destination-collision, Wage Claims namespace,
   and newline-framed trusted stdio protocol regressions.
 - Focused verification: 22 CLI/core move-slice tests and 3 MCP/protocol tests pass.
+
+## Resolution
+
+Implemented `rt refactor move-slice` and MCP `move_slice` as thin host adapters over
+one typed, in-process, review-default operation. The planner selects complete files,
+rewrites declarations and bound references, reports dependency evidence, validates the
+projected solution, and prepares source, file-move, project-reference, and friend-assembly
+changes as one transactional change set.
+
+Review hardening closes combined project-reference cycles, out-of-root project XML
+writes, qualified type rewrites, former-parent imports, destination conflicts, and
+mid-commit rollback. Wage Claims-style multi-file and namespace regressions, generic MCP
+trust policy, and newline-framed stdio discovery/invocation are covered.
+
+Verification on 2026-09-08: `scripts/check-local.ps1 -Full` passed with a zero-warning
+build, 1,863 core/CLI tests, 110 MCP tests, 9 intentional skips, and whole-solution
+formatting verification.
