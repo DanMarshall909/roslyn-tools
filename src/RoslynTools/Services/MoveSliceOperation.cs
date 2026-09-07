@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using RoslynTools.Core;
 
@@ -204,6 +205,80 @@ internal sealed record MoveSliceResult(
     IReadOnlyList<MoveSliceRelatedType> RequiredRelatedTypes,
     int ChangedDocumentCount);
 
+internal sealed record MoveSlicePreparation(
+    Solution ChangedSourceSolution,
+    MoveSliceResult Result,
+    IReadOnlyList<PreparedFileMove> FileMoves,
+    IReadOnlyList<PreparedFileWrite> ProjectFileEdits,
+    IReadOnlyList<MutationDiagnostic> Diagnostics)
+{
+    internal PreparedChangeSet ToChangeSet(Solution originalSolution) => new(
+        originalSolution,
+        ChangedSourceSolution,
+        movedFiles: FileMoves,
+        projectFileEdits: ProjectFileEdits);
+}
+
+/// <summary>Shared architectural slice-move operation used by CLI and MCP.</summary>
+internal sealed class MoveSliceOperation(
+    IWorkspaceSessionFactory sessions,
+    MoveSliceService service,
+    PreparedChangeSetExecutor executor)
+    : CommandApplicationPort<MoveSliceRequest, MutationExecutionResult<MoveSliceResult>>, IRtService
+{
+    private readonly IWorkspaceSessionFactory _sessions = sessions;
+    private readonly MoveSliceService _service = service;
+    private readonly PreparedChangeSetExecutor _executor = executor;
+
+    public override ApplicationCommandDefinition Definition =>
+        MoveSliceCommandDefinition.Definition;
+
+    public override async Task<Result<MutationExecutionResult<MoveSliceResult>, RtError>> ExecuteAsync(
+        MoveSliceRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var classified = MoveSliceRequestClassifier.Classify(request);
+        MoveSliceIntent? intent = null;
+        RtError? requestError = null;
+        classified.Match(value => intent = value, error => requestError = error);
+        if (requestError is not null)
+            return Result<MutationExecutionResult<MoveSliceResult>, RtError>.Err(requestError);
+
+        cancellationToken.ThrowIfCancellationRequested();
+        var (workspace, solution) = await _sessions.LoadWorkspaceAsync(request.Solution);
+        using (workspace)
+        {
+            var preparedResult = await _service.PrepareAsync(solution, intent!, cancellationToken);
+            MoveSlicePreparation? prepared = null;
+            RtError? preparationError = null;
+            preparedResult.Match(value => prepared = value, error => preparationError = error);
+            if (preparationError is not null)
+                return Result<MutationExecutionResult<MoveSliceResult>, RtError>.Err(preparationError);
+
+            var changeSet = prepared!.ToChangeSet(solution);
+            if (!changeSet.HasChanges)
+                return Result<MutationExecutionResult<MoveSliceResult>, RtError>.Ok(
+                    MutationExecutionResult<MoveSliceResult>.NoOp(
+                        prepared.Result,
+                        prepared.Diagnostics));
+
+            if (!request.DryRun && !prepared.Result.Applicable)
+                return Result<MutationExecutionResult<MoveSliceResult>, RtError>.Err(new RtError(
+                    RtErrorKind.InvalidInput,
+                    "The slice manifest is not applicable. Resolve every error diagnostic and review the new manifest before applying."));
+
+            var execution = request.DryRun
+                ? _executor.Preview(prepared.Result, changeSet, prepared.Diagnostics)
+                : await _executor.ApplyAsync(
+                    prepared.Result,
+                    changeSet,
+                    prepared.Diagnostics,
+                    cancellationToken);
+            return Result<MutationExecutionResult<MoveSliceResult>, RtError>.Ok(execution);
+        }
+    }
+}
+
 internal static class MoveSliceCommandDefinition
 {
     internal static RtCommandInfo Info { get; } = new(
@@ -228,4 +303,3 @@ internal static class MoveSliceCommandDefinition
         CommandExecutionPlacement.InProcess,
         []);
 }
-
