@@ -21,7 +21,8 @@ internal sealed record MoveRequest(
     [property: CommandPropertyDescription("Fully-qualified type for type-based move modes")]
     string? Type = null,
     [property: JsonPropertyName("namespace")]
-    [property: CommandPropertyDescription("Source namespace for NamespaceToNamespace mode")]
+    [property: CommandPropertyDescription(
+        "Source namespace root for NamespaceToNamespace mode; descendant namespaces are included")]
     string? Namespace = null,
     [property: JsonPropertyName("to-namespace")]
     [property: CommandPropertyDescription("Target namespace for namespace-changing modes")]

@@ -180,11 +180,10 @@ internal class MoveService : IRtService
         NamespaceToNamespaceMove intent,
         CancellationToken cancellationToken)
     {
-        var rewritten = solution;
         var declarationPaths = new List<string>();
+        var parentDependencies = new Dictionary<DocumentId, IReadOnlyList<string>>();
         var movedTypes = new List<INamedTypeSymbol>();
         var sourceProjects = new HashSet<string>(StringComparer.Ordinal);
-        var changedDocuments = 0;
 
         foreach (var project in solution.Projects)
         {
@@ -195,13 +194,22 @@ internal class MoveService : IRtService
                 if (root is null)
                     continue;
 
+                var semanticModel = await document.GetSemanticModelAsync(cancellationToken);
                 var declarations = root.DescendantNodes()
                     .OfType<BaseNamespaceDeclarationSyntax>()
-                    .Where(declaration => declaration.Name.ToString() == intent.SourceNamespace)
+                    .Where(declaration =>
+                    {
+                        var namespaceName = semanticModel?
+                            .GetDeclaredSymbol(declaration, cancellationToken)?
+                            .ToDisplayString();
+                        return namespaceName is not null
+                               && IsNamespaceOrDescendant(
+                                   namespaceName,
+                                   intent.SourceNamespace);
+                    })
                     .ToList();
                 if (declarations.Count != 0)
                 {
-                    var semanticModel = await document.GetSemanticModelAsync(cancellationToken);
                     if (semanticModel is not null)
                     {
                         foreach (var declaration in declarations)
@@ -214,16 +222,16 @@ internal class MoveService : IRtService
                     if (document.FilePath is not null)
                         declarationPaths.Add(document.FilePath);
                     sourceProjects.Add(project.Name);
-                }
 
-                var rewriter = new NamespaceMoveRewriter(
-                    intent.SourceNamespace,
-                    intent.TargetNamespace);
-                var updatedRoot = rewriter.Visit(root);
-                if (!rewriter.Changed)
-                    continue;
-                rewritten = rewritten.WithDocumentSyntaxRoot(document.Id, updatedRoot);
-                changedDocuments++;
+                    var dependencies = CollectFormerParentNamespaceDependencies(
+                        root,
+                        semanticModel,
+                        intent.SourceNamespace,
+                        intent.TargetNamespace,
+                        cancellationToken);
+                    if (dependencies.Length != 0)
+                        parentDependencies[document.Id] = dependencies;
+                }
             }
         }
 
@@ -253,6 +261,70 @@ internal class MoveService : IRtService
                     "Source and target namespaces are identical.")]));
         }
 
+        var references = (await Task.WhenAll(
+                movedTypes
+                    .GroupBy(type => type.ToDisplayString(), StringComparer.Ordinal)
+                    .Select(group => group.First())
+                    .Select(type => SymbolFinder.FindReferencesAsync(
+                        type,
+                        solution,
+                        cancellationToken))))
+            .SelectMany(reference => reference)
+            .ToList();
+        var rewritten = await ApplyReferenceUsingsAsync(
+            solution,
+            references,
+            intent.SourceNamespace,
+            intent.TargetNamespace,
+            ensureTargetNamespaceUsing: false);
+        foreach (var documentId in rewritten.Projects
+                     .SelectMany(project => project.DocumentIds)
+                     .ToArray())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var document = rewritten.GetDocument(documentId);
+            var root = document is null
+                ? null
+                : await document.GetSyntaxRootAsync(cancellationToken);
+            if (root is null)
+                continue;
+
+            var rewriter = new NamespaceMoveRewriter(
+                intent.SourceNamespace,
+                intent.TargetNamespace);
+            var updatedRoot = rewriter.Visit(root);
+            if (!rewriter.Changed)
+                continue;
+            rewritten = rewritten.WithDocumentSyntaxRoot(documentId, updatedRoot);
+        }
+
+        var preservedParentNamespaces = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var (documentId, dependencies) in parentDependencies)
+        {
+            var document = rewritten.GetDocument(documentId);
+            var root = document is null
+                ? null
+                : await document.GetSyntaxRootAsync(cancellationToken);
+            if (root is null)
+                continue;
+
+            foreach (var dependency in dependencies)
+            {
+                var changed = false;
+                root = EnsureNamespaceUsing(root, dependency, ref changed);
+                if (changed)
+                    preservedParentNamespaces.Add(dependency);
+            }
+
+            rewritten = rewritten.WithDocumentSyntaxRoot(documentId, root);
+        }
+
+        var changedDocumentCount = rewritten.GetChanges(solution)
+            .GetProjectChanges()
+            .SelectMany(changes => changes.GetChangedDocuments())
+            .Distinct()
+            .Count();
+
         var (fileMoves, fileMoveError) = intent.MoveFiles
             ? PrepareNamespaceFileMoves(
                 solution,
@@ -272,13 +344,19 @@ internal class MoveService : IRtService
                 null,
                 intent.SourceNamespace,
                 intent.TargetNamespace,
-                changedDocuments,
+                changedDocumentCount,
                 fileMoves.Select(move =>
                     new MoveFileResult(move.SourcePath, move.DestinationPath)).ToArray(),
                 []),
             fileMoves,
             [],
-            []));
+            preservedParentNamespaces
+                .OrderBy(namespaceName => namespaceName, StringComparer.Ordinal)
+                .Select(namespaceName => new MutationDiagnostic(
+                    MutationDiagnosticSeverity.Warning,
+                    $"Added an import for former parent namespace '{namespaceName}' to preserve bound references.",
+                    "preserved-parent-namespace-dependency"))
+                .ToArray()));
     }
 
     private async Task<Result<MovePreparation, RtError>> PrepareTypeToProjectAsync(
@@ -548,8 +626,14 @@ internal class MoveService : IRtService
             var rootNamespace = document.Project.DefaultNamespace;
             if (string.IsNullOrWhiteSpace(rootNamespace))
                 rootNamespace = Path.GetFileNameWithoutExtension(document.Project.FilePath);
-            var oldDirectory = NamespaceToRelativeDir(sourceNamespace, rootNamespace ?? string.Empty);
-            var newDirectory = NamespaceToRelativeDir(targetNamespace, rootNamespace ?? string.Empty);
+            var oldDirectory = NamespaceToRelativeDir(
+                sourceNamespace,
+                rootNamespace ?? string.Empty,
+                projectDirectory);
+            var newDirectory = NamespaceToRelativeDir(
+                targetNamespace,
+                rootNamespace ?? string.Empty,
+                projectDirectory);
             var relativePath = Path.GetRelativePath(projectDirectory, sourcePath);
             if (!IsInRelativeDirectory(relativePath, oldDirectory))
                 return ([], new RtError(
@@ -595,6 +679,10 @@ internal class MoveService : IRtService
                    directory + Path.AltDirectorySeparatorChar,
                    StringComparison.OrdinalIgnoreCase);
     }
+
+    private static bool IsNamespaceOrDescendant(string candidate, string namespaceRoot) =>
+        string.Equals(candidate, namespaceRoot, StringComparison.Ordinal)
+        || candidate.StartsWith(namespaceRoot + ".", StringComparison.Ordinal);
 
     private static Result<(List<PreparedFileWrite> Writes, List<MoveProjectEditResult> Results), RtError>
         PrepareProjectFileEdits(
@@ -1077,7 +1165,7 @@ internal class MoveService : IRtService
             if (needsOldNsUsing)
             {
                 var _ = false;
-                newRoot = EnsureTargetNamespaceUsing(newRoot, oldNamespace, ref _);
+                newRoot = EnsureNamespaceUsing(newRoot, oldNamespace, ref _);
             }
 
             solution = solution.WithDocumentSyntaxRoot(doc.Id, newRoot);
@@ -1113,7 +1201,8 @@ internal class MoveService : IRtService
         Solution solution,
         IEnumerable<ReferencedSymbol> references,
         string oldNamespace,
-        string targetNamespace)
+        string targetNamespace,
+        bool ensureTargetNamespaceUsing = true)
     {
         var locationsByDoc = references
             .SelectMany(r => r.Locations)
@@ -1133,7 +1222,8 @@ internal class MoveService : IRtService
             var (updatedRoot, changed) = RewriteFullyQualifiedReferences(
                 root, tracker, group, oldNamespace, targetNamespace);
 
-            updatedRoot = EnsureTargetNamespaceUsing(updatedRoot, targetNamespace, ref changed);
+            if (ensureTargetNamespaceUsing)
+                updatedRoot = EnsureNamespaceUsing(updatedRoot, targetNamespace, ref changed);
 
             if (changed)
                 solution = solution.WithDocumentSyntaxRoot(doc.Id, updatedRoot);
@@ -1162,7 +1252,7 @@ internal class MoveService : IRtService
             if (qualifiedRoot == null) continue;
 
             var oldFqText = qualifiedRoot.ToFullString().Trim();
-            var newFqText = oldFqText.Replace(oldNamespace + ".", targetNamespace + ".");
+            var newFqText = RewriteNamespacePrefix(oldFqText, oldNamespace, targetNamespace);
             if (oldFqText == newFqText) continue;
 
             var newNode = SyntaxFactory.ParseName(newFqText).WithTriviaFrom(qualifiedRoot);
@@ -1173,9 +1263,70 @@ internal class MoveService : IRtService
         return (currentRoot, changed);
     }
 
-    private SyntaxNode EnsureTargetNamespaceUsing(
+    private static string RewriteNamespacePrefix(
+        string text,
+        string oldNamespace,
+        string targetNamespace)
+    {
+        const string globalAlias = "global::";
+        var prefix = text.StartsWith(globalAlias, StringComparison.Ordinal)
+            ? globalAlias
+            : string.Empty;
+        var candidate = prefix.Length == 0 ? text : text[prefix.Length..];
+        var oldSegments = oldNamespace.Split('.');
+
+        for (var index = 0; index < oldSegments.Length; index++)
+        {
+            var namespaceSuffix = string.Join('.', oldSegments[index..]);
+            if (!candidate.StartsWith(namespaceSuffix + ".", StringComparison.Ordinal))
+                continue;
+
+            return prefix
+                   + targetNamespace
+                   + candidate[namespaceSuffix.Length..];
+        }
+
+        return text;
+    }
+
+    private static string[] CollectFormerParentNamespaceDependencies(
         SyntaxNode root,
+        SemanticModel? semanticModel,
+        string sourceNamespace,
         string targetNamespace,
+        CancellationToken cancellationToken)
+    {
+        if (semanticModel is null)
+            return [];
+
+        var dependencies = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var name in root.DescendantNodes().OfType<SimpleNameSyntax>())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (IsQualifiedNamePart(name))
+                continue;
+
+            var symbol = semanticModel.GetSymbolInfo(name, cancellationToken).Symbol;
+            var namespaceName = symbol?.ContainingNamespace?.ToDisplayString();
+            if (string.IsNullOrEmpty(namespaceName)
+                || !sourceNamespace.StartsWith(namespaceName + ".", StringComparison.Ordinal)
+                || targetNamespace.StartsWith(namespaceName + ".", StringComparison.Ordinal))
+                continue;
+
+            dependencies.Add(namespaceName);
+        }
+
+        return dependencies.OrderBy(name => name, StringComparer.Ordinal).ToArray();
+    }
+
+    private static bool IsQualifiedNamePart(SimpleNameSyntax name) =>
+        name.Parent is QualifiedNameSyntax qualifiedName && qualifiedName.Right == name
+        || name.Parent is AliasQualifiedNameSyntax aliasQualifiedName && aliasQualifiedName.Name == name
+        || name.Parent is MemberAccessExpressionSyntax memberAccess && memberAccess.Name == name;
+
+    private SyntaxNode EnsureNamespaceUsing(
+        SyntaxNode root,
+        string namespaceName,
         ref bool changed)
     {
         if (root is not CompilationUnitSyntax compilationUnit)
@@ -1185,11 +1336,11 @@ internal class MoveService : IRtService
             .Select(u => u.Name?.ToFullString().Trim())
             .ToHashSet(StringComparer.Ordinal);
 
-        if (existingUsings.Contains(targetNamespace))
+        if (existingUsings.Contains(namespaceName))
             return root;
 
         var newUsing = SyntaxFactory.UsingDirective(
-                SyntaxFactory.ParseName(" " + targetNamespace))
+                SyntaxFactory.ParseName(" " + namespaceName))
             .WithTrailingTrivia(SyntaxFactory.CarriageReturnLineFeed);
 
         changed = true;
@@ -1219,8 +1370,8 @@ internal class MoveService : IRtService
         string targetNamespace,
         bool dryRun)
     {
-        var oldRelDir = NamespaceToRelativeDir(oldNamespace, rootNamespace);
-        var newRelDir = NamespaceToRelativeDir(targetNamespace, rootNamespace);
+        var oldRelDir = NamespaceToRelativeDir(oldNamespace, rootNamespace, projectDir);
+        var newRelDir = NamespaceToRelativeDir(targetNamespace, rootNamespace, projectDir);
 
         foreach (var filePath in filePaths)
         {
@@ -1301,13 +1452,34 @@ internal class MoveService : IRtService
     /// <summary>
     /// Converts a namespace to its relative path within the solution.
     /// </summary>
-    internal string NamespaceToRelativeDir(string ns, string rootNamespace)
+    internal string NamespaceToRelativeDir(
+        string ns,
+        string rootNamespace,
+        string? projectDirectory = null)
     {
         if (ns == rootNamespace)
             return "";
 
         if (ns.StartsWithOrdinal(rootNamespace + "."))
             return ns[(rootNamespace.Length + 1)..].Replace('.', Path.DirectorySeparatorChar);
+
+        // A project can be renamed before or after its namespaces. When the loaded
+        // DefaultNamespace represents the other side of that rename, use the project
+        // folder as the stable boundary instead of nesting the complete namespace.
+        var projectFolder = projectDirectory is null
+            ? null
+            : Path.GetFileName(Path.TrimEndingDirectorySeparator(projectDirectory));
+        if (!string.IsNullOrWhiteSpace(projectFolder))
+        {
+            var segments = ns.Split('.');
+            var projectBoundary = Array.FindIndex(
+                segments,
+                segment => string.Equals(segment, projectFolder, StringComparison.Ordinal));
+            if (projectBoundary >= 0)
+                return string.Join(
+                    Path.DirectorySeparatorChar,
+                    segments[(projectBoundary + 1)..]);
+        }
 
         return ns.Replace('.', Path.DirectorySeparatorChar);
     }

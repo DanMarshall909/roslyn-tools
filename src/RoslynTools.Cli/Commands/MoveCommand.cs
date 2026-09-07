@@ -21,7 +21,7 @@ internal sealed class MoveCommand(
         var typeOpt = new Option<string?>("--type",
             "Fully-qualified type name (e.g. ProjectX.Core.Services.BookingService)");
         var namespaceOpt = new Option<string?>("--namespace",
-            "Source namespace; moves every type declared in that namespace");
+            "Source namespace root; descendant namespaces are included");
         var toNamespaceOpt = new Option<string?>("--to-namespace",
             "Target namespace. Optional when --to-project preserves the existing namespace.");
         var toProjectOpt = new Option<string?>("--to-project",
