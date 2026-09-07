@@ -182,3 +182,21 @@ Focused proof:
 
 Real stdio transport verification remains open; the focused MCP proof invokes the
 same registry used by the stdio host but does not yet exercise framing over stdin/stdout.
+
+---
+
+## Follow-up outcome: fail-closed review hardening [REAL]
+
+Review regressions reproduced and fixed three planner faults: a reciprocal pending
+project-reference cycle escaped preflight, qualified type syntax could be replaced by
+expression syntax, and generated former-parent imports omitted required token trivia.
+Project XML loading now also enforces the resolved startup-trusted repository root.
+
+The transaction proof injects a physical move failure after commit begins and verifies
+that the source rewrite is restored and no destination remains. Wage Claims-style tests
+now cover recursive/project-root mapping, former-parent imports, relative qualifiers,
+multi-declaration files, external reference edits, and explicit project changes.
+
+Trusted `move_slice` discovery and dry-run invocation now pass through the real
+newline-framed `Server.RunAsync` stdin/stdout protocol path; untrusted discovery remains
+omitted. Focused totals are 22 CLI/core tests and 3 MCP/protocol tests.

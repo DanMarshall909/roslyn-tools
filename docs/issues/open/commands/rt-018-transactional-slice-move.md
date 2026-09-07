@@ -42,19 +42,19 @@ Add a distinct typed `move-slice` CLI operation, projected as MCP `move_slice`. 
 ## Acceptance criteria
 
 - [x] CLI and MCP bind the same typed request and return the same structured result.
-- [ ] Multiple explicit types and recursive namespaces report every moved type,
+- [x] Multiple explicit types and recursive namespaces report every moved type,
       changed document, file move, and project edit deterministically.
-- [ ] Files with multiple declarations are indivisible and every moved declaration is
+- [x] Files with multiple declarations are indivisible and every moved declaration is
       disclosed in the manifest.
-- [ ] Dependency analysis reports required related types with source evidence and never
+- [x] Dependency analysis reports required related types with source evidence and never
       silently includes them.
-- [ ] Implicit project or friend-assembly changes are rejected; explicit requests require
+- [x] Implicit project or friend-assembly changes are rejected; explicit requests require
       a justification and appear in the manifest.
-- [ ] Workspace, binding, compilation, path, and destination failures do not write.
-- [ ] Apply uses the prepared transactional writer and injected failures roll back.
-- [ ] Wage Claims regressions cover project-root rename order, recursive result fidelity,
+- [x] Workspace, binding, compilation, path, and destination failures do not write.
+- [x] Apply uses the prepared transactional writer and injected failures roll back.
+- [x] Wage Claims regressions cover project-root rename order, recursive result fidelity,
       former-parent imports, relative qualifiers, and cross-project slices.
-- [ ] Trusted stdio MCP discovery/invocation succeeds; untrusted discovery omits the tool.
+- [x] Trusted stdio MCP discovery/invocation succeeds; untrusted discovery omits the tool.
 
 ## Non-goals
 
@@ -73,3 +73,17 @@ Add a distinct typed `move-slice` CLI operation, projected as MCP `move_slice`. 
 - CLI and MCP integration tests prove that omitted `dry-run` remains review-only and
   leaves source and destination paths untouched.
 - Focused verification: 15 CLI/core move-slice tests and 2 MCP move-slice tests pass.
+
+### 2026-09-08: fail-closed review hardening
+
+- Project-reference cycle detection now evaluates the complete pending reference graph,
+  so reciprocal additions produce a typed diagnostic instead of a Roslyn exception.
+- Every project-file edit is constrained to the resolved and explicitly trusted repository
+  root.
+- Qualified type references are rewritten with type syntax, and generated former-parent
+  imports retain valid `using` token trivia.
+- An injected mid-commit file-move failure restores the original rewritten source and
+  leaves no destination behind.
+- Added explicit friend-assembly manifest, destination-collision, Wage Claims namespace,
+  and newline-framed trusted stdio protocol regressions.
+- Focused verification: 22 CLI/core move-slice tests and 3 MCP/protocol tests pass.

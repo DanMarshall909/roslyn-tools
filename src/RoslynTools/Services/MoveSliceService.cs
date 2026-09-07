@@ -101,6 +101,7 @@ internal sealed class MoveSliceService : IRtService
             destinationResult.Moves,
             rewriteResult.References,
             intent,
+            repositoryRoot,
             cancellationToken);
         if (projectPlanResult.Error is not null)
             return Result<MoveSlicePreparation, RtError>.Err(projectPlanResult.Error);
@@ -564,15 +565,32 @@ internal sealed class MoveSliceService : IRtService
         IReadOnlyList<PreparedFileMove> moves,
         IReadOnlyList<ReferencedSymbol> references,
         MoveSliceIntent intent,
+        string repositoryRoot,
         CancellationToken cancellationToken)
     {
         var documents = new Dictionary<string, ProjectXml>(PathComparer);
         var manifest = new List<MoveSliceProjectEdit>();
         var diagnostics = new List<MutationDiagnostic>();
+        string? loadError = null;
         ProjectXml? Load(Project project)
         {
-            if (project.FilePath is null || !File.Exists(project.FilePath))
+            if (project.FilePath is null)
+            {
+                loadError ??= $"Project '{project.Name}' has no physical project file.";
                 return null;
+            }
+            if (!IsContainedBy(repositoryRoot, project.FilePath)
+                || !RepositoryTrustContext.IsExplicitlyTrustedFor(project.FilePath))
+            {
+                loadError ??=
+                    $"Project file '{project.FilePath}' is outside the trusted repository.";
+                return null;
+            }
+            if (!File.Exists(project.FilePath))
+            {
+                loadError ??= $"Project file '{project.FilePath}' does not exist.";
+                return null;
+            }
             if (documents.TryGetValue(project.FilePath, out var existing))
                 return existing;
             try
@@ -587,6 +605,7 @@ internal sealed class MoveSliceService : IRtService
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Xml.XmlException)
             {
+                loadError ??= $"Project file '{project.FilePath}' could not be loaded: {exception.Message}";
                 return null;
             }
         }
@@ -594,7 +613,8 @@ internal sealed class MoveSliceService : IRtService
         var sourceXml = Load(sourceProject);
         var targetXml = Load(targetProject);
         if (sourceXml is null || targetXml is null)
-            return ProjectEditPlan.Fail("Source and target project files must exist and contain valid XML.");
+            return ProjectEditPlan.Fail(
+                loadError ?? "Source and target project files must exist and contain valid XML.");
 
         var sourceDirectory = Path.GetDirectoryName(sourceProject.FilePath)!;
         var targetDirectory = Path.GetDirectoryName(targetProject.FilePath)!;
@@ -642,6 +662,7 @@ internal sealed class MoveSliceService : IRtService
             references,
             cancellationToken);
         var projectedReferences = new List<(ProjectId Consumer, ProjectReference Reference)>();
+        var projectedReferenceSolution = solution;
         foreach (var (consumer, dependency) in requiredReferences)
         {
             if (consumer.ProjectReferences.Any(reference => reference.ProjectId == dependency.Id))
@@ -662,7 +683,10 @@ internal sealed class MoveSliceService : IRtService
                     "project-reference-not-authorized"));
                 continue;
             }
-            if (ProjectTransitivelyReferences(solution, dependency.Id, consumer.Id))
+            if (ProjectTransitivelyReferences(
+                    projectedReferenceSolution,
+                    dependency.Id,
+                    consumer.Id))
             {
                 diagnostics.Add(new MutationDiagnostic(
                     MutationDiagnosticSeverity.Error,
@@ -674,12 +698,17 @@ internal sealed class MoveSliceService : IRtService
             var consumerXml = Load(consumer);
             if (consumerXml is null || dependency.FilePath is null)
                 return ProjectEditPlan.Fail(
-                    $"Project-reference edit for '{consumer.Name}' has no valid physical project file.");
+                    loadError
+                    ?? $"Project-reference edit for '{consumer.Name}' has no valid physical project file.");
             var include = NormalizeProjectPath(Path.GetRelativePath(
                 Path.GetDirectoryName(consumer.FilePath)!,
                 dependency.FilePath));
             AddItem(consumerXml.Document, "ProjectReference", include);
-            projectedReferences.Add((consumer.Id, new ProjectReference(dependency.Id)));
+            var reference = new ProjectReference(dependency.Id);
+            projectedReferences.Add((consumer.Id, reference));
+            projectedReferenceSolution = projectedReferenceSolution.AddProjectReference(
+                consumer.Id,
+                reference);
         }
 
         foreach (var edit in intent.InternalsVisibleToEdits)
@@ -693,7 +722,8 @@ internal sealed class MoveSliceService : IRtService
             var projectXml = Load(projects[0]);
             if (projectXml is null)
                 return ProjectEditPlan.Fail(
-                    $"InternalsVisibleTo project '{edit.Project}' has no valid physical project file.");
+                    loadError
+                    ?? $"InternalsVisibleTo project '{edit.Project}' has no valid physical project file.");
             if (!HasItem(projectXml.Document, "InternalsVisibleTo", edit.Assembly))
                 AddItem(projectXml.Document, "InternalsVisibleTo", edit.Assembly);
             manifest.Add(new MoveSliceProjectEdit(
@@ -961,6 +991,8 @@ internal sealed class MoveSliceService : IRtService
             return root;
         return compilationUnit.AddUsings(
             SyntaxFactory.UsingDirective(SyntaxFactory.ParseName(namespaceName))
+                .WithUsingKeyword(SyntaxFactory.Token(SyntaxKind.UsingKeyword)
+                    .WithTrailingTrivia(SyntaxFactory.Space))
                 .WithTrailingTrivia(SyntaxFactory.CarriageReturnLineFeed));
     }
 
@@ -1207,9 +1239,13 @@ internal sealed class MoveSliceService : IRtService
                 || qualifiedChanges is null
                 || !qualifiedChanges.TryGetValue(original.Span, out var replacementText))
                 return visited;
-            SyntaxNode replacement = original is ExpressionSyntax
-                ? SyntaxFactory.ParseExpression(replacementText)
-                : SyntaxFactory.ParseName(replacementText);
+            SyntaxNode replacement = original switch
+            {
+                QualifiedNameSyntax or AliasQualifiedNameSyntax =>
+                    SyntaxFactory.ParseName(replacementText),
+                ExpressionSyntax => SyntaxFactory.ParseExpression(replacementText),
+                _ => SyntaxFactory.ParseName(replacementText)
+            };
             return replacement.WithTriviaFrom(visited);
         }
     }

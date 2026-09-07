@@ -77,6 +77,69 @@ public sealed class MoveSliceHandlerTests
         }
     }
 
+    [Fact]
+    public async Task Trusted_stdio_protocol_discovers_and_invokes_move_slice_as_a_dry_run()
+    {
+        const string sourceText = "namespace Legacy; public sealed class Service { }";
+        using var builder = new AdhocProjectBuilder("Source")
+            .AddSource("Service.cs", sourceText);
+        builder.AddProject("Target").WithDefaultNamespace("App.Target");
+        var (workspace, solution) = builder.Build();
+        WriteProjectFiles(solution);
+        var sourcePath = Path.Combine(builder.Directory, "Source", "Service.cs");
+        var targetPath = Path.Combine(builder.Directory, "Target", "Feature", "Service.cs");
+        var request = string.Join(
+            Environment.NewLine,
+            """{"jsonrpc":"2.0","method":"tools/list","id":1}""",
+            JsonSerializer.Serialize(new
+            {
+                jsonrpc = "2.0",
+                method = "tools/call",
+                id = 2,
+                @params = new
+                {
+                    name = MoveSliceCommandDefinition.Definition.Name,
+                    arguments = new Dictionary<string, object>
+                    {
+                        ["types"] = new List<string> { "Legacy.Service" },
+                        ["to-project"] = "Target",
+                        ["to-namespace"] = "App.Target.Feature",
+                        ["solution"] = builder.SolutionPath
+                    }
+                }
+            }));
+        using var output = new StringWriter();
+        var services = new ServiceCollection();
+        global::RoslynTools.Bootstrap.RegisterServices(services);
+        services.AddMcpServices(
+            new StringReader(request + Environment.NewLine),
+            output,
+            new McpHostOptions(builder.Directory));
+
+        using (workspace)
+        using (WorkspaceLoader.UseOverride(workspace, solution))
+        using (var provider = services.BuildServiceProvider())
+        {
+            await provider.GetRequiredService<Server>().RunAsync();
+        }
+
+        var responses = output.ToString()
+            .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        responses.Length.ShouldBe(2);
+        using var discovery = JsonDocument.Parse(responses[0]);
+        discovery.RootElement.GetProperty("result").GetProperty("tools")
+            .EnumerateArray()
+            .ShouldContain(tool =>
+                tool.GetProperty("name").GetString() == MoveSliceCommandDefinition.Definition.Name);
+        using var invocation = JsonDocument.Parse(responses[1]);
+        var result = invocation.RootElement.GetProperty("result");
+        result.GetProperty("isError").GetBoolean().ShouldBeFalse();
+        result.GetProperty("structuredContent").GetProperty("status")
+            .GetString().ShouldBe(nameof(MutationExecutionStatus.DryRun));
+        File.ReadAllText(sourcePath).ShouldBe(sourceText);
+        File.Exists(targetPath).ShouldBeFalse();
+    }
+
     private static void WriteProjectFiles(Solution solution)
     {
         foreach (var project in solution.Projects)

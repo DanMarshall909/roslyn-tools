@@ -109,6 +109,85 @@ public sealed class MoveSliceServiceTests
     }
 
     [Fact]
+    public async Task moved_source_preserves_a_binding_to_its_former_parent_namespace()
+    {
+        using var fixture = new AdhocProjectBuilder("Source")
+            .WithDefaultNamespace("Legacy")
+            .AddSource("Policy.cs", "namespace Legacy; public sealed class Policy { }")
+            .AddSource(
+                "Feature/Service.cs",
+                "namespace Legacy.Feature; public sealed class Service(Policy policy) { }");
+        fixture.AddProject("Target").WithDefaultNamespace("App");
+        var (_, solution) = fixture.Build();
+        WriteProjectFiles(solution);
+        using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
+
+        var preparation = (await new MoveSliceService().PrepareAsync(
+            solution,
+            new MoveSliceIntent(
+                MoveSliceSelectionKind.Types,
+                ["Legacy.Feature.Service"],
+                SourceNamespace: null,
+                TargetProject: "Target",
+                TargetNamespace: "App.Feature",
+                AnalyzeDependencies: true,
+                UpdateProjectReferences: true,
+                ProjectReferenceJustification: "The moved service retains its reviewed policy dependency.",
+                InternalsVisibleToEdits: [],
+                InternalsVisibleToJustification: null))).Unwrap();
+
+        var rewritten = preparation.ChangedSourceSolution.Projects
+            .Single(project => project.Name == "Source")
+            .Documents.Single(document => document.Name == "Service.cs");
+        var text = (await rewritten.GetTextAsync()).ToString();
+        text.ShouldContain("using Legacy;");
+        text.ShouldContain("namespace App.Feature;");
+        preparation.Result.Applicable.ShouldBeTrue(
+            string.Join(Environment.NewLine, preparation.Diagnostics.Select(item => item.Message)));
+    }
+
+    [Fact]
+    public async Task relative_namespace_qualifiers_are_retargeted_without_prefix_duplication()
+    {
+        using var fixture = new AdhocProjectBuilder("Source")
+            .AddSource(
+                "Service.cs",
+                "namespace Legacy.Feature; public sealed class Service { }");
+        fixture.AddProject("Target").WithDefaultNamespace("App");
+        fixture.AddProject("Consumer")
+            .ReferenceProject("Source")
+            .AddSource(
+                "Consumer.cs",
+                "namespace Legacy; public sealed class Consumer(Feature.Service service) { }");
+        var (_, solution) = fixture.Build();
+        WriteProjectFiles(solution);
+        using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
+
+        var preparation = (await new MoveSliceService().PrepareAsync(
+            solution,
+            new MoveSliceIntent(
+                MoveSliceSelectionKind.Types,
+                ["Legacy.Feature.Service"],
+                SourceNamespace: null,
+                TargetProject: "Target",
+                TargetNamespace: "App.Feature",
+                AnalyzeDependencies: false,
+                UpdateProjectReferences: true,
+                ProjectReferenceJustification: "Retarget the reviewed consumer to the destination project.",
+                InternalsVisibleToEdits: [],
+                InternalsVisibleToJustification: null))).Unwrap();
+
+        var rewritten = preparation.ChangedSourceSolution.Projects
+            .Single(project => project.Name == "Consumer")
+            .Documents.Single();
+        var text = (await rewritten.GetTextAsync()).ToString();
+        text.ShouldContain("App.Feature.Service");
+        text.ShouldNotContain("App.Feature.Feature.Service");
+        preparation.Result.Applicable.ShouldBeTrue(
+            string.Join(Environment.NewLine, preparation.Diagnostics.Select(item => item.Message)));
+    }
+
+    [Fact]
     public async Task dependency_analysis_reports_but_never_silently_selects_related_types()
     {
         using var fixture = new AdhocProjectBuilder("Infrastructure")
@@ -181,6 +260,39 @@ public sealed class MoveSliceServiceTests
     }
 
     [Fact]
+    public async Task explicit_friend_assembly_edits_are_justified_and_disclosed_in_the_manifest()
+    {
+        using var fixture = new AdhocProjectBuilder("Source")
+            .AddSource("Service.cs", "namespace Legacy; internal sealed class Service { }");
+        fixture.AddProject("Target").WithDefaultNamespace("App.Target");
+        var (_, solution) = fixture.Build();
+        WriteProjectFiles(solution);
+        using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
+
+        var preparation = (await new MoveSliceService().PrepareAsync(
+            solution,
+            new MoveSliceIntent(
+                MoveSliceSelectionKind.Types,
+                ["Legacy.Service"],
+                SourceNamespace: null,
+                TargetProject: "Target",
+                TargetNamespace: "App.Target.Feature",
+                AnalyzeDependencies: false,
+                UpdateProjectReferences: false,
+                ProjectReferenceJustification: null,
+                InternalsVisibleToEdits: [new InternalsVisibleToEditRequest("Source", "Target")],
+                InternalsVisibleToJustification: "Preserve the reviewed internal adapter seam."))).Unwrap();
+
+        var edit = preparation.Result.ProjectEdits.Single(candidate =>
+            candidate.Kind == MoveSliceProjectEditKind.InternalsVisibleTo);
+        edit.Project.ShouldBe("Source");
+        edit.ExplicitlyRequested.ShouldBeTrue();
+        edit.Justification.ShouldBe("Preserve the reviewed internal adapter seam.");
+        preparation.ProjectFileEdits.ShouldContain(write =>
+            write.Content.Contains("InternalsVisibleTo Include=\"Target\"", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task incomplete_original_compilation_fails_before_a_manifest_is_prepared()
     {
         using var fixture = new AdhocProjectBuilder("Source")
@@ -205,6 +317,38 @@ public sealed class MoveSliceServiceTests
                 InternalsVisibleToJustification: null));
 
         result.Match(_ => false, _ => true).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task an_existing_destination_fails_before_the_writer_boundary()
+    {
+        using var fixture = new AdhocProjectBuilder("Source")
+            .AddSource("Service.cs", "namespace Legacy; public sealed class Service { }");
+        fixture.AddProject("Target")
+            .WithDefaultNamespace("App.Target")
+            .AddSource(
+                "Feature/Service.cs",
+                "namespace App.Target.Feature; public sealed class ExistingService { }");
+        var (workspace, solution) = fixture.Build();
+        WriteProjectFiles(solution);
+        using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
+        var writer = new RecordingWriter();
+        var operation = new MoveSliceOperation(
+            new FixedSessionFactory(workspace, solution),
+            new MoveSliceService(),
+            new PreparedChangeSetExecutor(writer));
+
+        var result = await operation.ExecuteAsync(new MoveSliceRequest(
+            ["Legacy.Service"],
+            Namespace: null,
+            ToProject: "Target",
+            ToNamespace: "App.Target.Feature"));
+
+        RtError? error = null;
+        result.Match(_ => { }, value => error = value);
+        error.ShouldNotBeNull();
+        error.Message.ShouldContain("already exists");
+        writer.ApplyCount.ShouldBe(0);
     }
 
     [Fact]
@@ -316,6 +460,42 @@ public sealed class MoveSliceServiceTests
     }
 
     [Fact]
+    public async Task apply_rolls_back_the_source_rewrite_when_the_file_move_fails()
+    {
+        const string sourceText = "namespace Legacy; public sealed class Service { }";
+        using var fixture = new AdhocProjectBuilder("Source")
+            .AddSource("Service.cs", sourceText);
+        fixture.AddProject("Target").WithDefaultNamespace("App.Target");
+        var (workspace, solution) = fixture.Build();
+        WriteProjectFiles(solution);
+        using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
+        var sourcePath = Path.Combine(fixture.Directory, "Source", "Service.cs");
+        var destinationPath = Path.Combine(
+            fixture.Directory,
+            "Target",
+            "Feature",
+            "Service.cs");
+        var writer = new PreparedChangeSetWriter(new FaultingMoveFileSystem(
+            new PhysicalPreparedFileSystem(),
+            sourcePath,
+            destinationPath));
+        var operation = new MoveSliceOperation(
+            new FixedSessionFactory(workspace, solution),
+            new MoveSliceService(),
+            new PreparedChangeSetExecutor(writer));
+
+        await Should.ThrowAsync<IOException>(() => operation.ExecuteAsync(new MoveSliceRequest(
+            ["Legacy.Service"],
+            Namespace: null,
+            ToProject: "Target",
+            ToNamespace: "App.Target.Feature",
+            DryRun: false)));
+
+        File.ReadAllText(sourcePath).ShouldBe(sourceText);
+        File.Exists(destinationPath).ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task apply_fails_closed_before_the_writer_when_project_edits_are_not_authorized()
     {
         using var fixture = new AdhocProjectBuilder("Source")
@@ -340,6 +520,85 @@ public sealed class MoveSliceServiceTests
 
         result.Match(_ => false, _ => true).ShouldBeTrue();
         writer.ApplyCount.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task reciprocal_project_reference_additions_are_reported_as_a_cycle_without_throwing()
+    {
+        using var fixture = new AdhocProjectBuilder("Source")
+            .AddSource(
+                "Moved.cs",
+                "namespace Legacy; public sealed class Moved(Policy policy) { public Policy Value => policy; }")
+            .AddSource("Policy.cs", "namespace Legacy; public sealed class Policy { }")
+            .AddSource("Consumer.cs", "namespace Legacy; public sealed class Consumer(Moved value) { }");
+        fixture.AddProject("Target").WithDefaultNamespace("App.Target");
+        var (_, solution) = fixture.Build();
+        WriteProjectFiles(solution);
+        using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
+
+        var preparation = (await new MoveSliceService().PrepareAsync(
+            solution,
+            new MoveSliceIntent(
+                MoveSliceSelectionKind.Types,
+                ["Legacy.Moved"],
+                SourceNamespace: null,
+                TargetProject: "Target",
+                TargetNamespace: "App.Target.Feature",
+                AnalyzeDependencies: true,
+                UpdateProjectReferences: true,
+                ProjectReferenceJustification: "Keep both reviewed callers compiling after the move.",
+                InternalsVisibleToEdits: [],
+                InternalsVisibleToJustification: null))).Unwrap();
+
+        preparation.Result.Applicable.ShouldBeFalse();
+        preparation.Diagnostics.ShouldContain(diagnostic =>
+            diagnostic.Code == "project-reference-cycle");
+    }
+
+    [Fact]
+    public async Task project_file_edits_outside_the_trusted_root_are_rejected_during_planning()
+    {
+        using var fixture = new AdhocProjectBuilder("Source")
+            .AddSource("Moved.cs", "namespace Legacy; public sealed class Moved { }");
+        fixture.AddProject("Target").WithDefaultNamespace("App.Target");
+        fixture.AddProject("External")
+            .ReferenceProject("Source")
+            .AddSource("Consumer.cs", "namespace Outside; public sealed class Consumer(Legacy.Moved value) { }");
+        var (_, initialSolution) = fixture.Build();
+        WriteProjectFiles(initialSolution);
+        var externalDirectory = Directory.CreateTempSubdirectory("rt-move-slice-external-");
+
+        try
+        {
+            var externalProject = initialSolution.Projects.Single(project => project.Name == "External");
+            var externalProjectPath = Path.Combine(externalDirectory.FullName, "External.csproj");
+            File.WriteAllText(externalProjectPath, "<Project Sdk=\"Microsoft.NET.Sdk\" />");
+            var solution = initialSolution.WithProjectFilePath(externalProject.Id, externalProjectPath);
+            using var trust = RepositoryTrustContext.UseExplicitTrust(fixture.Directory);
+
+            var result = await new MoveSliceService().PrepareAsync(
+                solution,
+                new MoveSliceIntent(
+                    MoveSliceSelectionKind.Types,
+                    ["Legacy.Moved"],
+                    SourceNamespace: null,
+                    TargetProject: "Target",
+                    TargetNamespace: "App.Target.Feature",
+                    AnalyzeDependencies: false,
+                    UpdateProjectReferences: true,
+                    ProjectReferenceJustification: "Retarget the reviewed external consumer.",
+                    InternalsVisibleToEdits: [],
+                    InternalsVisibleToJustification: null));
+
+            RtError? error = null;
+            result.Match(_ => { }, value => error = value);
+            error.ShouldNotBeNull();
+            error.Message.ShouldContain("outside the trusted repository");
+        }
+        finally
+        {
+            externalDirectory.Delete(recursive: true);
+        }
     }
 
     private static AdhocProjectBuilder BuildCaseFindingFixture()
@@ -408,5 +667,51 @@ public sealed class MoveSliceServiceTests
 
         public Task<(Workspace Workspace, Solution Solution)> LoadWorkspaceAsync(string? solutionPath) =>
             Task.FromResult((workspace, solution));
+    }
+
+    private sealed class FaultingMoveFileSystem(
+        IPreparedFileSystem inner,
+        string failedSource,
+        string failedDestination) : IPreparedFileSystem
+    {
+        public bool FileExists(string path) => inner.FileExists(path);
+
+        public bool DirectoryExists(string path) => inner.DirectoryExists(path);
+
+        public bool DirectoryIsEmpty(string path) => inner.DirectoryIsEmpty(path);
+
+        public IEnumerable<string> EnumerateFiles(string path) => inner.EnumerateFiles(path);
+
+        public void CreateDirectory(string path) => inner.CreateDirectory(path);
+
+        public void DeleteDirectory(string path) => inner.DeleteDirectory(path);
+
+        public void CopyFile(string sourcePath, string destinationPath, bool overwrite) =>
+            inner.CopyFile(sourcePath, destinationPath, overwrite);
+
+        public void MoveFile(string sourcePath, string destinationPath, bool overwrite)
+        {
+            if (PathEquals(sourcePath, failedSource)
+                && PathEquals(destinationPath, failedDestination))
+                throw new IOException("Injected move failure.");
+            inner.MoveFile(sourcePath, destinationPath, overwrite);
+        }
+
+        public void DeleteFile(string path) => inner.DeleteFile(path);
+
+        public string ReadAllText(string path) => inner.ReadAllText(path);
+
+        public Task WriteAllTextAsync(
+            string path,
+            string content,
+            CancellationToken cancellationToken) =>
+            inner.WriteAllTextAsync(path, content, cancellationToken);
+
+        private static bool PathEquals(string left, string right) => string.Equals(
+            Path.GetFullPath(left),
+            Path.GetFullPath(right),
+            OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal);
     }
 }
