@@ -9,18 +9,26 @@ namespace RoslynTools.Mcp.Tools;
 /// <summary>
 /// ToolSchemaBuilder
 /// </summary>
-internal sealed class ToolSchemaBuilder(CommandDescriptorRegistry descriptors)
+internal sealed class ToolSchemaBuilder(
+    CommandDescriptorRegistry descriptors,
+    McpHostOptions hostOptions)
 {
     private readonly CommandDescriptorRegistry _descriptors = descriptors;
+    private readonly McpHostOptions _hostOptions = hostOptions;
 
     public IReadOnlyList<ToolDefinition> Build()
     {
         return _descriptors.All
             .Where(descriptor => descriptor.McpVisible
-                                 && descriptor.Audience == CommandAudience.Public)
+                                 && descriptor.Audience == CommandAudience.Public
+                                 && (_hostOptions.TrustedRepositoryRoot is not null
+                                     || !WritesRepository(descriptor)))
             .Select(Build)
             .ToList();
     }
+
+    private static bool WritesRepository(ApplicationCommandDescriptor descriptor) =>
+        descriptor.Effects.HasFlag(CommandEffects.RepositoryWrite);
 
     internal static ToolDefinition Build(ApplicationCommandDescriptor descriptor)
     {

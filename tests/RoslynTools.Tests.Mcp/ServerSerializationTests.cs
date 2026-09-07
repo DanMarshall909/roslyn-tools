@@ -150,6 +150,26 @@ public class ServerSerializationTests
     }
 
     [Fact]
+    public async Task trusted_tools_list_includes_prime_and_key_mutation_operations()
+    {
+        var output = await RunSingleRequestAsync(
+            """{"jsonrpc":"2.0","method":"tools/list","id":1}""",
+            new McpHostOptions(FindRepoRoot()));
+
+        using var document = JsonDocument.Parse(output);
+        var names = document.RootElement.GetProperty("result").GetProperty("tools")
+            .EnumerateArray()
+            .Select(tool => tool.GetProperty("name").GetString())
+            .ToArray();
+
+        names.Length.ShouldBe(54);
+        names.ShouldContain("prime");
+        names.ShouldContain("move");
+        names.ShouldContain("rename");
+        names.ShouldContain("delete_unreferenced");
+    }
+
+    [Fact]
     public async Task search_symbols_advertises_bounded_typed_discovery_contract()
     {
         var output = await RunSingleRequestAsync(

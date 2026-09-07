@@ -42,7 +42,7 @@ public sealed class McpDependencyInjectionTests
     }
 
     [Fact]
-    public void Tool_schema_builder_produces_definition_for_every_mcp_visible_descriptor()
+    public void Untrusted_tool_schema_builder_produces_every_read_only_visible_descriptor()
     {
         using var provider = McpTestHost.CreateProvider();
         var builder = provider.GetRequiredService<ToolSchemaBuilder>();
@@ -50,7 +50,8 @@ public sealed class McpDependencyInjectionTests
 
         var visibleDescriptorCount = provider
             .GetRequiredService<RoslynTools.CommandDescriptors.CommandDescriptorRegistry>()
-            .All.Count(descriptor => descriptor.McpVisible);
+            .All.Count(descriptor => descriptor.McpVisible
+                                     && !descriptor.Effects.HasFlag(CommandEffects.RepositoryWrite));
         tools.Count.ShouldBe(visibleDescriptorCount);
         Assert.All(tools, t =>
         {
@@ -64,6 +65,27 @@ public sealed class McpDependencyInjectionTests
             t.metadata.ShouldContainKey("rt/effects");
             t.metadata["rt/audience"].ShouldBe("Public");
         });
+    }
+
+    [Fact]
+    public void Trusted_tool_schema_builder_produces_the_complete_public_inventory()
+    {
+        using var provider = McpTestHost.CreateProvider(new McpHostOptions(FindRepoRoot()));
+        var descriptors = provider
+            .GetRequiredService<RoslynTools.CommandDescriptors.CommandDescriptorRegistry>()
+            .All.Where(descriptor => descriptor.McpVisible
+                                     && descriptor.Audience == CommandAudience.Public)
+            .ToList();
+        var tools = provider.GetRequiredService<ToolSchemaBuilder>().Build();
+
+        tools.Count.ShouldBe(descriptors.Count);
+        tools.Select(tool => tool.name).ShouldBe(
+            descriptors.Select(descriptor => descriptor.ToolName),
+            ignoreOrder: true);
+        tools.Select(tool => tool.name).ShouldContain("prime");
+        tools.Select(tool => tool.name).ShouldContain("move");
+        tools.Select(tool => tool.name).ShouldContain("rename");
+        tools.Select(tool => tool.name).ShouldContain("delete_unreferenced");
     }
 
     [Fact]

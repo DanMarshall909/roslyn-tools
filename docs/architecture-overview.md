@@ -179,7 +179,9 @@ The current `0.1-preview` containment is narrower than the accepted durable auth
 design. CLI evaluation uses an invocation-scoped `--trust-repository` opt-in. The MCP
 host accepts `--trust-repository <absolute-repository-root>` only at process startup
 and binds that approval to solutions beneath the normalized root; MCP tool payloads
-cannot grant or broaden it. An MCP host without startup approval returns
+cannot grant or broaden it. Startup-approved hosts advertise MCP-eligible mutation
+operations, which remain review-first; unapproved hosts advertise only the read-only
+subset. An MCP host without startup approval returns
 `TrustRequired` before semantic workspace loading. This is a practical trusted-local
 preview path, not the durable physical-identity-bound trust registry, revocation, lease,
 or evaluator-isolation guarantee specified by ADR-0011 and platform hardening.

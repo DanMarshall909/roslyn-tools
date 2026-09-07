@@ -76,7 +76,8 @@ public sealed class CommandMigrationManifestContracts
             AssertSafety(port.Definition.Safety, manifestRow.Safety);
             if (port.Definition.Safety.Effect == CommandEffect.Mutation)
             {
-                port.Definition.McpVisible.ShouldBeFalse();
+                port.Definition.McpVisible.ShouldBe(
+                    port.Definition.Product.Audience == CommandAudience.Public);
                 port.Definition.ExecutionPlacement.ShouldBe(CommandExecutionPlacement.InProcess);
                 port.Definition.Safety.MutationDefault.ShouldBe(MutationExecutionDefault.Review);
             }

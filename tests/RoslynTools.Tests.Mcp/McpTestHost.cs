@@ -33,11 +33,14 @@ internal static class McpTestHost
         return project;
     }
 
-    internal static ServiceProvider CreateProvider()
+    internal static ServiceProvider CreateProvider(McpHostOptions? hostOptions = null)
     {
         var services = new ServiceCollection();
         RoslynTools.Bootstrap.RegisterServices(services);
-        services.AddMcpServices(new StringReader(string.Empty), new StringWriter());
+        services.AddMcpServices(
+            new StringReader(string.Empty),
+            new StringWriter(),
+            hostOptions);
         services.AddSingleton<IDaemonRpcClient, UnavailableDaemonRpcClient>();
         services.AddSingleton<IDaemonLauncher, UnavailableDaemonLauncher>();
         return services.BuildServiceProvider();

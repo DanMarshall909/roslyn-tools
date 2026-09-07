@@ -223,7 +223,11 @@ dotnet build RoslynTools.slnx -c Release
 dotnet run --project src/RoslynTools.Mcp/RoslynTools.Mcp.csproj -c Release --no-build -- --trust-repository /absolute/path/to/MyApp
 ```
 
-Configure an MCP client to launch that command and communicate over stdin/stdout. MCP exposure is being migrated incrementally; use the CLI command catalogue for the complete command surface.
+Configure an MCP client to launch that command and communicate over stdin/stdout. A host
+started with repository approval advertises eligible refactoring tools as well as read-only
+tools; refactor requests remain dry-run by default unless the caller explicitly applies them.
+Without startup approval, discovery is limited to the read-only tool subset. MCP exposure is
+being migrated incrementally; use the CLI command catalogue for the complete command surface.
 
 ## Feedback capture
 

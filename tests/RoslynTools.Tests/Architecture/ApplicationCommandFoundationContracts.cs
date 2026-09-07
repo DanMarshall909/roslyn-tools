@@ -109,7 +109,7 @@ public sealed class ApplicationCommandFoundationContracts
         addDependency.Name.ShouldBe("add_dependency");
         addDependency.RequestType.ShouldBe(typeof(AddDependencyRequest));
         addDependency.ResponseType.ShouldBe(typeof(MutationExecutionResult<AddDependencyResult>));
-        addDependency.McpVisible.ShouldBeFalse();
+        addDependency.McpVisible.ShouldBeTrue();
         addDependency.Safety.ShouldBe(CommandSafety.ReviewByDefault);
         addDependency.ExecutionPlacement.ShouldBe(CommandExecutionPlacement.InProcess);
         addDependency.SuggestedTools.Select(tool => tool.ToolName)
