@@ -548,8 +548,14 @@ internal class MoveService : IRtService
             var rootNamespace = document.Project.DefaultNamespace;
             if (string.IsNullOrWhiteSpace(rootNamespace))
                 rootNamespace = Path.GetFileNameWithoutExtension(document.Project.FilePath);
-            var oldDirectory = NamespaceToRelativeDir(sourceNamespace, rootNamespace ?? string.Empty);
-            var newDirectory = NamespaceToRelativeDir(targetNamespace, rootNamespace ?? string.Empty);
+            var oldDirectory = NamespaceToRelativeDir(
+                sourceNamespace,
+                rootNamespace ?? string.Empty,
+                projectDirectory);
+            var newDirectory = NamespaceToRelativeDir(
+                targetNamespace,
+                rootNamespace ?? string.Empty,
+                projectDirectory);
             var relativePath = Path.GetRelativePath(projectDirectory, sourcePath);
             if (!IsInRelativeDirectory(relativePath, oldDirectory))
                 return ([], new RtError(
@@ -1219,8 +1225,8 @@ internal class MoveService : IRtService
         string targetNamespace,
         bool dryRun)
     {
-        var oldRelDir = NamespaceToRelativeDir(oldNamespace, rootNamespace);
-        var newRelDir = NamespaceToRelativeDir(targetNamespace, rootNamespace);
+        var oldRelDir = NamespaceToRelativeDir(oldNamespace, rootNamespace, projectDir);
+        var newRelDir = NamespaceToRelativeDir(targetNamespace, rootNamespace, projectDir);
 
         foreach (var filePath in filePaths)
         {
@@ -1301,13 +1307,34 @@ internal class MoveService : IRtService
     /// <summary>
     /// Converts a namespace to its relative path within the solution.
     /// </summary>
-    internal string NamespaceToRelativeDir(string ns, string rootNamespace)
+    internal string NamespaceToRelativeDir(
+        string ns,
+        string rootNamespace,
+        string? projectDirectory = null)
     {
         if (ns == rootNamespace)
             return "";
 
         if (ns.StartsWithOrdinal(rootNamespace + "."))
             return ns[(rootNamespace.Length + 1)..].Replace('.', Path.DirectorySeparatorChar);
+
+        // A project can be renamed before or after its namespaces. When the loaded
+        // DefaultNamespace represents the other side of that rename, use the project
+        // folder as the stable boundary instead of nesting the complete namespace.
+        var projectFolder = projectDirectory is null
+            ? null
+            : Path.GetFileName(Path.TrimEndingDirectorySeparator(projectDirectory));
+        if (!string.IsNullOrWhiteSpace(projectFolder))
+        {
+            var segments = ns.Split('.');
+            var projectBoundary = Array.FindIndex(
+                segments,
+                segment => string.Equals(segment, projectFolder, StringComparison.Ordinal));
+            if (projectBoundary >= 0)
+                return string.Join(
+                    Path.DirectorySeparatorChar,
+                    segments[(projectBoundary + 1)..]);
+        }
 
         return ns.Replace('.', Path.DirectorySeparatorChar);
     }

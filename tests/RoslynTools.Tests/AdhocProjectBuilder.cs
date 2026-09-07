@@ -60,6 +60,12 @@ public sealed class AdhocProjectBuilder : IDisposable
         return this;
     }
 
+    public AdhocProjectBuilder WithDefaultNamespace(string defaultNamespace)
+    {
+        _default.WithDefaultNamespace(defaultNamespace);
+        return this;
+    }
+
     /// <summary>
     ///     Add a non-source file to the default project — an ILLink descriptor, say. These land in
     ///     <see cref="Project.AdditionalDocuments" />, not <see cref="Project.Documents" />.
@@ -149,6 +155,7 @@ public sealed class AdhocProjectBuilder : IDisposable
                 documents: docs,
                 projectReferences: projectRefs,
                 metadataReferences: BclReferences)
+                .WithDefaultNamespace(p.DefaultNamespace)
                 .WithAdditionalDocuments(additionalDocs));
         }
 
@@ -194,6 +201,7 @@ public sealed class AdhocProjectBuilder : IDisposable
         }
 
         public string Name { get; }
+        internal string? DefaultNamespace { get; private set; }
         internal List<(string RelativePath, string Content)> Files { get; } = new();
         internal List<(string RelativePath, string Content)> AdditionalFiles { get; } = new();
         internal List<string> ProjectReferenceNames { get; } = new();
@@ -201,6 +209,12 @@ public sealed class AdhocProjectBuilder : IDisposable
         public ProjectDef AddSource(string relativePath, string content)
         {
             Files.Add((relativePath, content));
+            return this;
+        }
+
+        public ProjectDef WithDefaultNamespace(string defaultNamespace)
+        {
+            DefaultNamespace = defaultNamespace;
             return this;
         }
 

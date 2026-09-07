@@ -165,6 +165,34 @@ public sealed class MoveOperationTests
         GetError(result).Message.ShouldContain("destination", Case.Insensitive);
     }
 
+    [Theory]
+    [InlineData("WageClaim.Calculation.Domain")]
+    [InlineData("WageClaims.Domain")]
+    public async Task namespace_move_uses_the_project_folder_boundary_regardless_of_rename_order(
+        string defaultNamespace)
+    {
+        using var project = new AdhocProjectBuilder("Domain")
+            .WithDefaultNamespace(defaultNamespace)
+            .AddSource(
+                "Allowances/AllowanceRule.cs",
+                "namespace WageClaim.Calculation.Domain.Allowances; public class AllowanceRule { }");
+        var (_, solution) = project.Build();
+
+        var preparation = (await new MoveService().PrepareAsync(
+            solution,
+            new NamespaceToNamespaceMove(
+                "WageClaim.Calculation.Domain.Allowances",
+                "WageClaims.Domain.Calculation.Allowances",
+                MoveFiles: true))).Unwrap();
+
+        var fileMove = preparation.Result.FileMoves.ShouldHaveSingleItem();
+        fileMove.DestinationPath.ShouldBe(Path.Combine(
+            project.ProjectDir,
+            "Calculation",
+            "Allowances",
+            "AllowanceRule.cs"));
+    }
+
     [Fact]
     public async Task cross_project_preparation_updates_explicit_compile_items_and_previews_both_paths()
     {
