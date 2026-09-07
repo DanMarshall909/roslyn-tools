@@ -1,0 +1,57 @@
+{
+  "$schema": "../schemas/architecture-v1.schema.json",
+  "version": 1,
+  "ignoredProjects": ["WageClaims.Tests"],
+  "layers": [
+    {
+      "name": "Domain",
+      "projects": ["WageClaims.Domain"],
+      "allowedProjectReferences": []
+    },
+    {
+      "name": "Application",
+      "projects": ["WageClaims.Application"],
+      "allowedProjectReferences": ["Domain"]
+    },
+    {
+      "name": "Infrastructure",
+      "projects": ["WageClaims.Infrastructure"],
+      "allowedProjectReferences": ["Application", "Domain"],
+      "forbiddenPackageReferences": ["Microsoft.Azure.Functions.*"]
+    },
+    {
+      "name": "Functions",
+      "projects": ["WageClaims.Functions"],
+      "allowedProjectReferences": ["Application", "Infrastructure"],
+      "projectReferenceExceptions": ["WageClaims.Domain"]
+    }
+  ],
+  "technologyRules": [
+    {
+      "name": "http-and-aspnet",
+      "forbiddenInLayers": ["Domain", "Application"],
+      "namespacePrefixes": ["System.Net.Http", "Microsoft.AspNetCore"],
+      "packagePrefixes": ["Microsoft.AspNetCore.*"],
+      "frameworkReferences": ["Microsoft.AspNetCore.App"],
+      "sdks": ["Microsoft.NET.Sdk.Web"]
+    },
+    {
+      "name": "azure-functions",
+      "forbiddenInLayers": ["Domain", "Application", "Infrastructure"],
+      "namespacePrefixes": ["Microsoft.Azure.Functions"],
+      "packagePrefixes": ["Microsoft.Azure.Functions.*"]
+    },
+    {
+      "name": "azure-storage",
+      "forbiddenInLayers": ["Domain", "Application"],
+      "namespacePrefixes": ["Azure.Storage.Blobs", "Azure.Storage.Queues", "Microsoft.Azure.Cosmos"],
+      "packagePrefixes": ["Azure.Storage.Blobs", "Azure.Storage.Queues", "Microsoft.Azure.Cosmos"]
+    },
+    {
+      "name": "pdf",
+      "forbiddenInLayers": ["Domain", "Application"],
+      "namespacePrefixes": ["PdfSharp", "QuestPDF", "iText"],
+      "packagePrefixes": ["PdfSharp*", "QuestPDF*", "itext*"]
+    }
+  ]
+}
