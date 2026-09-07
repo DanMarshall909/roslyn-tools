@@ -45,7 +45,7 @@ internal static class PrimeCommandDefinition
         false,
         true,
         "session",
-        "Call this at the start of a C# task to get the rt inspection gate, entry point, and common commands without loading a solution.",
+        "Call this when starting a C# task to get the rt inspection gate, entry point, and common commands without loading a solution.",
         [
             "rt prime",
             "rt prime --json"
