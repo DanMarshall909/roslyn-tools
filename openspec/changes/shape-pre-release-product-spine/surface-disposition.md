@@ -71,6 +71,7 @@ but only the destination contract is eligible for preview support.
 | `migrate-to-ioptions` | `recipe migrate-ioptions` | Experimental | Current workflow leaves read-site work. |
 | `move` | `prepare-move-symbol` | Preview plan-only | Core typed plan with project/path effects. |
 | `move-method` | `prepare-move-symbol --kind method` | Preview/high risk | Consolidate; current scope is static methods. |
+| `move-slice` | `prepare-move-slice` | Preview plan-only/high risk | Complete slice manifest, explicit project edits, and one transactional apply. |
 | `narrow-dependency` | `recipe segregate-interface` | Experimental | DI follow-up and consumer partitioning. |
 | `rename` | `prepare-rename` | Preview plan-only | First change-plan pilot. |
 | `replace-call` | Symbol-bound rewrite recipe engine | Experimental | Replacement target must resolve semantically. |

@@ -107,6 +107,7 @@ public sealed class CommandDescriptorTriggerContract
         ["migrate_to_ioptions"] = "Edit",
         ["move"] = "Edit",
         ["move_method"] = "Edit",
+        ["move_slice"] = "Edit",
         ["narrow_dependency"] = "Edit",
         ["probe_di"] = "Read",
         ["replace_call"] = "Edit",
