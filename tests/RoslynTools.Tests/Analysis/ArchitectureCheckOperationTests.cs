@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Services;
 using Shouldly;
@@ -111,6 +112,51 @@ public sealed class ArchitectureCheckOperationTests
         error.Kind.ShouldBe(RtErrorKind.InvalidInput);
         error.Message.ShouldContain("compilation errors");
         error.Message.ShouldContain("MissingType");
+    }
+
+    [Fact]
+    public async Task Cli_emits_machine_readable_evidence_and_exits_one_when_violations_exist()
+    {
+        using var fixture = CreateLayeredFixture();
+        var (workspace, solution) = fixture.Builder.Build();
+        WriteProjectFiles(fixture.Builder.Directory);
+        WriteConfiguration(fixture.Builder.Directory);
+        var originalOut = Console.Out;
+        var originalError = Console.Error;
+        using var stdout = new StringWriter();
+        using var stderr = new StringWriter();
+        Console.SetOut(stdout);
+        Console.SetError(stderr);
+
+        try
+        {
+            using var workspaceOverride = WorkspaceLoader.UseOverride(workspace, solution);
+            var services = new ServiceCollection();
+            Bootstrap.RegisterServices(services);
+            await using var provider = services.BuildServiceProvider();
+
+            var exitCode = await App.RunAsync(
+                [
+                    "check-architecture",
+                    "--solution", fixture.Builder.SolutionPath,
+                    "--config", ".rt/architecture.json",
+                    "--json"
+                ],
+                provider);
+
+            exitCode.ShouldBe(1);
+            using var payload = JsonDocument.Parse(stdout.ToString());
+            payload.RootElement.GetProperty("isCompliant").GetBoolean().ShouldBeFalse();
+            payload.RootElement.GetProperty("newViolationCount").GetInt32().ShouldBeGreaterThan(0);
+            payload.RootElement.GetProperty("violations").GetArrayLength().ShouldBeGreaterThan(0);
+            stderr.ToString().ShouldBeEmpty();
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+            Console.SetError(originalError);
+            workspace.Dispose();
+        }
     }
 
     private static LayeredFixture CreateLayeredFixture()
