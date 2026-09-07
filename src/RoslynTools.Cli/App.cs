@@ -13,6 +13,7 @@ using RoslynTools.Core;
 using RoslynTools.Core.Decisions;
 using RoslynTools.Core.Output;
 using RoslynTools.Feedback;
+using RoslynTools.Services;
 using RoslynTools.Services.Suggest;
 using Spectre.Console;
 using YamlDotNet.Core;
@@ -254,7 +255,8 @@ internal static class App
             services.GetService<Services.SemanticDiff.Git.IGitClient>()));
 
         // Compact session-start summary: gate, entry, hot commands. No MSBuild.
-        root.AddCommand(PrimeCommand.Build(services));
+        root.AddCommand(PrimeCommand.Build(
+            services.GetRequiredService<PrimeOperation>()));
 
         if (additionalCommands is not null)
             foreach (var cmd in additionalCommands)

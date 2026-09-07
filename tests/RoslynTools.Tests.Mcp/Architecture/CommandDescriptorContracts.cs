@@ -150,8 +150,6 @@ public sealed class CommandDescriptorContracts
         descriptors.Select(descriptor => descriptor.ToolName)
             .ShouldNotContain("daemon");
         descriptors.Select(descriptor => descriptor.ToolName)
-            .ShouldNotContain("prime");
-        descriptors.Select(descriptor => descriptor.ToolName)
             .ShouldNotContain("dump_help");
     }
 

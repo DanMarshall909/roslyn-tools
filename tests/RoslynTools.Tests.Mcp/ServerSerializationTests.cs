@@ -126,6 +126,30 @@ public class ServerSerializationTests
     }
 
     [Fact]
+    public async Task prime_is_available_through_protocol_discovery_and_invocation()
+    {
+        var output = await RunSingleRequestAsync(
+            """
+            {"jsonrpc":"2.0","method":"tools/list","id":1}
+            {"jsonrpc":"2.0","method":"tools/call","id":2,"params":{"name":"prime","arguments":{}}}
+            """);
+
+        var responses = output.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        responses.Length.ShouldBe(2);
+
+        using var discovery = JsonDocument.Parse(responses[0]);
+        discovery.RootElement.GetProperty("result").GetProperty("tools")
+            .EnumerateArray()
+            .ShouldContain(tool => tool.GetProperty("name").GetString() == "prime");
+
+        using var invocation = JsonDocument.Parse(responses[1]);
+        var result = invocation.RootElement.GetProperty("result");
+        result.GetProperty("isError").GetBoolean().ShouldBeFalse();
+        result.GetProperty("structuredContent").GetProperty("hotCommands")
+            .GetArrayLength().ShouldBe(6);
+    }
+
+    [Fact]
     public async Task search_symbols_advertises_bounded_typed_discovery_contract()
     {
         var output = await RunSingleRequestAsync(

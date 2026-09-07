@@ -1,4 +1,5 @@
 using System.CommandLine;
+using RoslynTools.Cli.Prime;
 using RoslynTools.Cli.Suggest;
 using RoslynTools.Core;
 using RoslynTools.Core.CommandDescriptors;
@@ -26,6 +27,7 @@ internal sealed class CommandDescriptorRegistry
         FeedbackProcessOperation feedbackProcess,
         FeedbackReportOperation feedbackReport,
         SuggestOperation suggest,
+        PrimeOperation prime,
         IGitClient git)
     {
         var portsByName = ports.ToDictionary(
@@ -132,6 +134,17 @@ internal sealed class CommandDescriptorRegistry
             suggest,
             CommandEffects.RepositoryRead,
             CommandAudience.Public);
+        AddMetaCommand(
+            "prime",
+            () => PrimeCommand.Build(prime),
+            ["prime"],
+            "Return the compact rt session primer without loading a solution.",
+            PrimeCommandDefinition.Info.WhenToUse,
+            CommandSafetyPolicy.ReadOnly,
+            true,
+            prime,
+            CommandEffects.None,
+            CommandAudience.Public);
 
         _descriptors = [.. descriptors];
         _byToolName = _descriptors.ToDictionary(d => d.ToolName, StringComparer.Ordinal);
@@ -149,19 +162,22 @@ internal sealed class CommandDescriptorRegistry
             CommandAudience audience = CommandAudience.Maintainer)
         {
             var command = build();
+            var definition = port is ILegacyCommandApplicationPort
+                ? null
+                : port.Definition;
             descriptors.Add(new ApplicationCommandDescriptor(
                 path,
                 toolName,
                 description,
                 whenToUse,
                 DescribeInput(command),
-                McpVisible: audience == CommandAudience.Public,
+                McpVisible: definition?.McpVisible ?? audience == CommandAudience.Public,
                 safety,
                 structured,
                 port,
-                Definition: null,
-                effects,
-                audience));
+                definition,
+                definition?.Product.Effects ?? effects,
+                definition?.Product.Audience ?? audience));
         }
     }
 

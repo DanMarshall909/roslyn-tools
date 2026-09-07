@@ -1,6 +1,5 @@
 using System.CommandLine;
 using System.Text.Json;
-using Microsoft.Extensions.DependencyInjection;
 using RoslynTools.Core;
 using RoslynTools.Core.Output;
 using RoslynTools.Services;
@@ -20,15 +19,14 @@ internal static class PrimeCommand
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
-    internal static Command Build(IServiceProvider services)
+    internal static Command Build(PrimeOperation operation)
     {
         var cmd = new Command("prime",
             "Print a compact session-start summary: gate, entry point, and hot commands (no MSBuild)");
 
-        cmd.SetHandler(_ =>
+        cmd.SetHandler(async _ =>
         {
-            var prime = services.GetRequiredService<PrimeService>();
-            var result = prime.Build();
+            var result = (await operation.ExecuteAsync(new PrimeRequest())).Unwrap();
 
             if (RtContext.Format == OutputFormat.Json)
             {
