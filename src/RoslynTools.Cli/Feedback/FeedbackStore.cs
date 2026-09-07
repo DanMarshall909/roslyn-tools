@@ -9,8 +9,10 @@ internal static class FeedbackStore
 {
     private const int WindowsSharingViolation = 32;
     private const int WindowsLockViolation = 33;
+    private const int WindowsAccessDenied = 5;
     private const int LinuxWouldBlock = 11;
     private const int BsdWouldBlock = 35;
+    private const int StoreWriteMaxAttempts = 50;
 
     private static readonly TimeSpan StoreLockRetryDelay = TimeSpan.FromMilliseconds(20);
     private static readonly SemaphoreSlim Lock = new(1, 1);
@@ -343,9 +345,62 @@ internal static class FeedbackStore
         var file = new FeedbackFile { FeedbackItems = entries };
         var json = JsonSerializer.Serialize(file, WriteOpts);
 
-        var tmp = path + ".tmp";
-        File.WriteAllText(tmp, json);
-        File.Move(tmp, path, overwrite: true);
+        var tmp = Path.Combine(
+            dir,
+            $".{Path.GetFileName(path)}.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp");
+        try
+        {
+            File.WriteAllText(tmp, json);
+            ReplaceStoreFile(tmp, path);
+        }
+        finally
+        {
+            TryDeleteTemporaryFile(tmp);
+        }
+    }
+
+    private static void ReplaceStoreFile(string source, string destination)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                File.Move(source, destination, overwrite: true);
+                return;
+            }
+            catch (Exception ex) when (ShouldRetryStoreWrite(ex, attempt))
+            {
+                Thread.Sleep(StoreLockRetryDelay);
+            }
+        }
+    }
+
+    private static bool ShouldRetryStoreWrite(Exception exception, int attempt)
+    {
+        if (!OperatingSystem.IsWindows() || attempt >= StoreWriteMaxAttempts)
+            return false;
+
+        var errorCode = exception.HResult & 0xFFFF;
+        return (exception is IOException or UnauthorizedAccessException)
+               && errorCode is (WindowsAccessDenied
+                   or WindowsSharingViolation
+                   or WindowsLockViolation);
+    }
+
+    private static void TryDeleteTemporaryFile(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (IOException)
+        {
+            // A failed write must not be hidden by best-effort temporary-file cleanup.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // A failed write must not be hidden by best-effort temporary-file cleanup.
+        }
     }
 
     private sealed class FeedbackFile
